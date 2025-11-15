@@ -1,0 +1,25 @@
+{
+    "terminal.integrated.sendKeybindingsToShell": true,
+    "css.lint.unknownAtRules": "ignore",
+    "json.schemaDownload.enable": false,
+    "typescript.tsdk": "nolsaf/apps/web/node_modules/typescript/lib",
+    "typescript.enablePromptUseWorkspaceTsdk": true,
+    "sqltools.connections": [
+        {
+            "mysqlOptions": {
+                "authProtocol": "xprotocol",
+                "enableSsl": "Disabled"
+            },
+            "ssh": "Disabled",
+            "previewLimit": 50,
+            "server": "localhost",
+            "port": 33060,
+            "driver": "MySQL",
+            "name": "nolsapp",
+            "database": "nolsaf",
+            "username": "root",
+            "password": "NoLSVersion@2",
+            "connectionTimeout": 60
+        }
+    ]
+}

@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": [
+        "nolsaf/apps/web/*"
+      ]
+    }
+  },
+  "include": [
+    "nolsaf/apps/web/**/*"
+  ]
+}

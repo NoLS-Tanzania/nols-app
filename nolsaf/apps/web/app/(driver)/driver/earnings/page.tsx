@@ -1,0 +1,17 @@
+import React from "react";
+import DriverPageHeader from "@/components/DriverPageHeader";
+
+export default function DriverEarningsPage() {
+  return (
+    <div className="space-y-6">
+      <div className="mx-auto max-w-3xl">
+        <DriverPageHeader />
+      </div>
+
+      <section className="mx-auto max-w-3xl bg-white rounded-lg p-6 border">
+        <h1 className="text-xl font-semibold">Earnings</h1>
+        <p className="mt-2 text-sm text-gray-600">Your earnings summary will appear here.</p>
+      </section>
+    </div>
+  );
+}

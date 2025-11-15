@@ -1,0 +1,14 @@
+node_modules/
+.pnp.*
+.env
+apps/**/.env
+apps/**/.env.local
+apps/**/.next
+apps/**/out
+dist/
+build/
+coverage/
+pnpm-lock.yaml
+*.log
+docker-data/
+.tmp/

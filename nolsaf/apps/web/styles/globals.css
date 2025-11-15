@@ -1,0 +1,584 @@
+/* Tailwind layers (preflight is disabled) */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Mapbox GL CSS for the interactive map placeholder */
+@import "mapbox-gl/dist/mapbox-gl.css";
+
+/* ---------- Globals ---------- */
+:root { color-scheme: light; }
+body {
+  background: #fafcfc;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, Noto Sans, "Apple Color Emoji", "Segoe UI Emoji";
+}
+
+/* Prevent horizontal page movement: keep layout responsive but disallow left-right scrolling.
+   This ensures the UI adapts to viewport width without enabling unintended horizontal pan. */
+html, body, #__next {
+  overflow-x: hidden;
+}
+
+/* Admin UI refinements */
+/* Admin layout variables: sidebar width and footer height used site-wide */
+:root { --admin-sidebar-width: 14rem; --admin-footer-height: 48px; }
+/* Reserve a footer height so fixed elements (sidebar, floating actions) can sit above it without overlapping
+  This enables a "sticky" footer behavior: the footer is at the end of the document but fixed UI will stop
+  above it when visible. Adjust this value to match the visual footer height. */
+:root { --footer-height: 56px; }
+
+/* Floating help: positioned above the footer using the footer height variable */
+.floating-help {
+  position: fixed;
+  right: 1rem;
+  bottom: calc(var(--admin-footer-height) + 12px);
+  z-index: 50;
+}
+
+/* Fixed admin sidebar that stops above the pinned footer */
+.admin-sidebar-fixed {
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0; /* extend to bottom so the left column is continuous to the viewport bottom */
+  width: var(--admin-sidebar-width);
+  height: 100vh; /* ensure full viewport height */
+  overflow: visible; /* allow inner scroll container to scroll independently */
+  z-index: 80 !important; /* ensure sidebar always sits above footer rail and content */
+}
+/* Slightly smaller sidebar font to allow more items to remain visible when footer appears */
+.admin-sidebar-fixed { font-size: 0.875rem; }
+.admin-sidebar-fixed .sidebar-scroll a,
+.admin-sidebar-fixed .sidebar-scroll button,
+.admin-sidebar-fixed .sidebar-scroll .nav-item { font-size: inherit; }
+
+/* Ensure the sidebar always uses the brand dark background and inner panels don't show white */
+.admin-sidebar-fixed {
+  background-color: #02665e !important;
+  color: #ffffff !important;
+}
+.admin-sidebar-fixed .sidebar-scroll { background: transparent !important; padding-bottom: var(--admin-footer-height); overflow-y: auto; max-height: calc(100vh - 4rem - var(--admin-footer-height)); }
+.admin-sidebar-fixed a, .admin-sidebar-fixed button { color: inherit !important; }
+.admin-sidebar-fixed .bg-white { background: transparent !important; }
+.admin-sidebar-fixed .card, .admin-sidebar-fixed .card-section {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Neutralize common light/white utility backgrounds inside the admin sidebar so inner panels
+   don't show up as white, but allow intentional active/hover backgrounds (brand colors) to work. */
+.admin-sidebar-fixed [class*="bg-white"],
+.admin-sidebar-fixed .bg-gray-50,
+.admin-sidebar-fixed .bg-gray-100,
+.admin-sidebar-fixed .bg-neutral-100,
+.admin-sidebar-fixed .bg-amber-50,
+.admin-sidebar-fixed .bg-sky-50,
+.admin-sidebar-fixed .bg-emerald-50 {
+  background: transparent !important;
+}
+
+/* Make borders inside the sidebar subtle so inner panels keep structure without bright whites */
+.admin-sidebar-fixed .border,
+.admin-sidebar-fixed [class*="border-"] {
+  border-color: rgba(255,255,255,0.06) !important;
+}
+
+/* Inputs, buttons, modals, cards, alerts inside the sidebar should blend with sidebar color */
+.admin-sidebar-fixed input,
+.admin-sidebar-fixed textarea,
+.admin-sidebar-fixed select,
+.admin-sidebar-fixed .btn,
+.admin-sidebar-fixed .modal-card,
+.admin-sidebar-fixed .qlink,
+.admin-sidebar-fixed .alert-icon {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  color: inherit !important;
+}
+
+/* Hide decorative pseudo-elements inside the sidebar */
+.admin-sidebar-fixed *::before,
+.admin-sidebar-fixed *::after {
+  background: transparent !important;
+}
+
+/* Helper to ensure footer inner content keeps a predictable height for layout offsets */
+.footer-inner {
+  min-height: var(--footer-height);
+  display: flex;
+  align-items: center;
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+}
+
+/* Layout helpers used by admin layout */
+.content-with-footer { padding-bottom: var(--admin-footer-height); }
+.admin-footer-fixed { position: relative; z-index: 20; }
+.mini-footer-above { position: fixed; right: 1.5rem; bottom: calc(var(--admin-footer-height) + 1rem); z-index: 30; }
+
+/* Content area helper: adds bottom padding equal to footer height so page content isn't obscured */
+.content-with-footer { padding-bottom: var(--admin-footer-height); }
+
+/* Fixed footer helper: full-width, pinned to bottom, with rail already defined by .footer-with-rail */
+.admin-footer-fixed { position: fixed; left: 0; right: 0; bottom: 0; height: var(--admin-footer-height); z-index: 40; }
+.admin-footer-fixed .footer-inner { height: 100%; display: flex; align-items: center; }
+
+/* Mini footer and floating widgets should sit above the pinned footer */
+.mini-footer-above { position: fixed; right: 1.5rem; bottom: calc(var(--admin-footer-height) + 12px); z-index: 45; }
+
+.help-button {
+  @apply inline-flex items-center justify-center h-10 w-10 rounded-full bg-indigo-600 text-white shadow-lg hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-indigo-400;
+}
+
+
+/* Rich text helpers */
+/* Avoid @apply on `prose` (typography plugin) to prevent circular dependency */
+.prose { max-width: none; }
+
+/* ---------- Components ---------- */
+@layer components {
+  /* Cards */
+  .card         { @apply bg-white rounded-2xl border border-gray-200 shadow-card; }
+  .card-section { @apply p-4 sm:p-6; }
+
+  /* Buttons (base + variants) */
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition border border-blue-200 hover:border-blue-300; }
+  .btn:disabled { @apply opacity-60 cursor-not-allowed; }
+
+  .btn-brand, .btn-solid { @apply bg-brand text-white border-brand hover:brightness-95; }
+  .btn-info              { @apply bg-info text-white border-info hover:brightness-110; }
+  .btn-info-outline      { @apply bg-white text-info border-info hover:bg-info/5; }
+  .btn-success           { @apply bg-success text-white border-success hover:brightness-110; }
+  .btn-danger            { @apply bg-danger text-white border-danger hover:brightness-110; }
+  .btn-outline           { @apply bg-white text-brand border-brand hover:bg-brand/5; }
+  .btn-ghost             { @apply bg-transparent text-gray-700 border-transparent hover:bg-gray-50 hover:border-gray-200; }
+
+  /* Badges */
+  .badge         { @apply inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium; }
+  .badge-muted   { @apply text-gray-700 bg-gray-50 border-gray-200; }
+  .badge-info    { @apply text-info bg-sky-50 border-sky-200; }
+  .badge-success { @apply text-success bg-emerald-50 border-emerald-200; }
+  .badge-warning { @apply text-amber-800 bg-amber-50 border-amber-200; }
+  .badge-danger  { @apply text-danger bg-rose-50 border-rose-200; }
+
+  /* Stat cards with gradient rail + hover lift */
+  .stat-card { @apply relative overflow-hidden rounded-2xl bg-white border border-gray-200 shadow-card transition-all; }
+  .stat-card:hover { @apply -translate-y-0.5 shadow-[0_10px_20px_rgba(0,0,0,.08),_0_6px_6px_rgba(0,0,0,.06)]; }
+  .stat-card::after {
+    content:""; position:absolute; inset:0 auto 0 0; width:10px;
+    border-top-left-radius:inherit; border-bottom-left-radius:inherit;
+    background: linear-gradient(to bottom, var(--rail-from), var(--rail-to));
+  }
+  .rail-brand   { --rail-from: theme('colors.brand.500');    --rail-to: theme('colors.brand.700'); }
+  .rail-info    { --rail-from: theme('colors.info.DEFAULT'); --rail-to: #011366; }
+  .rail-success { --rail-from: theme('colors.success.DEFAULT'); --rail-to: #127d3a; }
+  .rail-danger  { --rail-from: theme('colors.danger.DEFAULT');  --rail-to: #b91c1c; }
+
+  .stat-body  { @apply pl-5 pr-5 py-4 sm:py-5 sm:pl-6; }
+  .stat-top   { @apply flex items-center gap-3; }
+  .stat-icon  { @apply inline-flex h-9 w-9 items-center justify-center rounded-full border bg-gradient-to-tr from-gray-50 to-white; }
+  .stat-label { @apply text-sm text-gray-600; }
+  .stat-value { @apply mt-2 text-3xl sm:text-4xl font-semibold tracking-tight text-gray-900; }
+  .stat-help  { @apply mt-2 text-xs text-gray-500; }
+
+  /* Quick links: make tiles visually distinct, equal height, with subtle border and hover lift */
+  .qlink {
+    /* Make tiles respect siblings: full-size within grid cell but constrained, box-sizing prevents padding bleed */
+    box-sizing: border-box;
+    @apply flex items-center rounded-xl border bg-white px-3 py-2 text-sm font-medium transition-all hover:-translate-y-0.5 hover:shadow-card h-full min-h-[56px] max-h-[140px];
+    display: flex; /* ensure flex layout for content centering */
+    align-items: center;
+    justify-content: center;
+    gap: 8px; /* slightly tighter gap between icon and label */
+    text-decoration: none; /* remove underline */
+    position: relative; /* for tooltip positioning */
+  }
+
+  /* Ensure labels truncate instead of wrapping and pushing sibling tiles */
+  .qlink > span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-left: 4px; /* bring label closer to icon */
+    max-width: calc(100% - 36px); /* leave space for icon */
+  }
+
+  /* Reveal full label as a floating tooltip when the tile is hovered or focused */
+  .qlink:hover, .qlink:focus-within { z-index: 40; }
+  /* Instead of showing a floating popup, allow the label to wrap inside the tile on hover/focus */
+  .qlink-popup { display: none !important; }
+  .qlink-wrapper:hover > .qlink > span, .qlink-wrapper:focus-within > .qlink > span {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    max-width: 100%;
+    display: block;
+  }
+  /* keep label color and background unchanged (no extra white popup) */
+  .qlink-wrapper > .qlink > span { background: transparent; }
+
+  /* Popup header/body styles (plain CSS to avoid unknown Tailwind tokens) */
+  .qlink-popup {
+    border: 1px solid rgba(15, 23, 42, 0.06); /* subtle border */
+    border-radius: 0.375rem;
+    background: #ffffff;
+    overflow: visible;
+  }
+  .qlink-popup .qlink-popup-header {
+    background: rgba(2,102,94,0.06); /* light brand tint */
+    font-size: 0.875rem;
+    color: #064e45; /* darker brand tint */
+    border-top-left-radius: 0.375rem;
+    border-top-right-radius: 0.375rem;
+    padding: 0.25rem 0.5rem;
+  }
+  .qlink-popup .qlink-popup-body {
+    padding: 0.5rem 0.5rem;
+    color: #111827;
+  }
+
+  /* Make grid rows distribute space evenly but allow internal overflow to be clipped */
+  .card > .card-section > .grid {
+    grid-auto-rows: minmax(0, 1fr);
+  }
+
+  /* Inputs */
+  .input    { @apply rounded-md border border-gray-300 bg-white px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand; }
+  .select   { @apply input; }
+  .textarea { @apply input; }
+
+  /* Links */
+  /* No underline; show bottom border color on hover to indicate interactivity */
+  .link { @apply text-info border-b border-transparent transition-colors hover:border-info; }
+
+  /* Tables */
+  .table    { @apply w-full border-collapse text-sm; }
+  .thead th { @apply bg-gray-50 text-left font-semibold border-b px-3 py-2; }
+  .tbody td { @apply border-b px-3 py-2; }
+  .row-hover { @apply transition-colors; }
+  .row-hover:hover { @apply bg-gray-50; }
+
+  /* Alerts */
+  .alert        { @apply flex items-start gap-3 rounded-xl border p-3 sm:p-4; }
+  .alert-icon   { @apply inline-flex h-6 w-6 items-center justify-center rounded-full bg-white/70 border; }
+  .alert-title  { @apply text-sm font-semibold text-gray-900; }
+  .alert-desc   { @apply text-sm text-gray-700; }
+  .alert-info    { @apply border-info/30    bg-info/5; }
+  .alert-success { @apply border-success/30 bg-success/5; }
+  .alert-warning { @apply border-amber-300  bg-amber-50; }
+  .alert-danger  { @apply border-danger/30  bg-danger/5; }
+
+  /* Modal */
+  .modal-backdrop { @apply fixed inset-0 z-40 bg-black/40; }
+  .modal          { @apply fixed inset-0 z-50 flex items-center justify-center p-4; }
+  .modal-card     { @apply bg-white rounded-2xl border border-gray-200 shadow-card w-full max-w-md; }
+  .modal-head     { @apply px-5 pt-5 text-base font-semibold text-gray-900; }
+  .modal-body     { @apply px-5 py-4 text-sm text-gray-700; }
+  .modal-foot     { @apply px-5 pb-5 pt-3 flex justify-end gap-2; }
+
+  /* Spinner */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner {
+    @apply inline-block h-5 w-5 rounded-full border-2 border-gray-300;
+  border-right-color: theme('colors.brand.DEFAULT');
+    animation: spin .7s linear infinite;
+  }
+
+  /* Dot-spinner: four colored dots rotating around a center (compact inline loader) */
+  .dot-spinner {
+    display: inline-block;
+    width: 28px;
+    height: 28px;
+    position: relative;
+    vertical-align: middle;
+    transform-origin: center;
+    animation: dot-rotate 1.2s linear infinite;
+  }
+
+  .dot-spinner .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 9999px;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 0 0 rgba(0,0,0,0);
+    animation: dot-pulse 1s infinite ease-in-out;
+  }
+
+  /* place dots at N, E, S, W around the circle */
+  .dot-spinner .dot:nth-child(1) { top: 6%; left: 50%; transform: translate(-50%, -50%); animation-delay: 0s; }
+  .dot-spinner .dot:nth-child(2) { top: 50%; left: 94%; transform: translate(-50%, -50%); animation-delay: 0.12s; }
+  .dot-spinner .dot:nth-child(3) { top: 94%; left: 50%; transform: translate(-50%, -50%); animation-delay: 0.24s; }
+  .dot-spinner .dot:nth-child(4) { top: 50%; left: 6%; transform: translate(-50%, -50%); animation-delay: 0.36s; }
+
+  /* colors: blue, black, yellow, green */
+  .dot-blue   { background: #3b82f6; }
+  .dot-black  { background: #111827; }
+  .dot-yellow { background: #f59e0b; }
+  .dot-green  { background: #10b981; }
+
+  @keyframes dot-pulse {
+    0%, 100% { transform: translate(-50%, -50%) scale(0.8); opacity: 0.6; }
+    50% { transform: translate(-50%, -50%) scale(1.15); opacity: 1; }
+  }
+
+  @keyframes dot-rotate {
+    to { transform: rotate(360deg); }
+  }
+
+  /* Small variant for inline use (e.g. buttons) */
+  .dot-spinner.dot-sm {
+    width: 16px;
+    height: 16px;
+    animation-duration: 1s;
+  }
+
+  .dot-spinner.dot-sm .dot {
+    width: 4px;
+    height: 4px;
+  }
+
+  .dot-spinner.dot-sm .dot:nth-child(1) { top: 6%; left: 50%; }
+  .dot-spinner.dot-sm .dot:nth-child(2) { top: 50%; left: 94%; }
+  .dot-spinner.dot-sm .dot:nth-child(3) { top: 94%; left: 50%; }
+  .dot-spinner.dot-sm .dot:nth-child(4) { top: 50%; left: 6%; }
+
+  /* Tabs */
+  .tabs       { @apply flex items-center gap-2 border-b border-gray-200; }
+  .tab        { @apply px-3 py-2 text-sm text-gray-600 hover:text-gray-900; }
+  .tab-active { @apply border-b-2 border-brand text-gray-900 font-medium; }
+
+  /* Pagination */
+  .pager         { @apply flex items-center gap-1; }
+  .page          { @apply inline-flex items-center justify-center h-9 min-w-[2.25rem] rounded-lg border bg-white text-sm text-gray-700 hover:bg-gray-50; }
+  .page-current  { @apply border-brand text-brand bg-brand/5; }
+  .page-disabled { @apply opacity-50 cursor-not-allowed; }
+
+  /* Skeleton shimmer */
+  .skeleton {
+    background: linear-gradient(90deg, rgba(0,0,0,0.04) 25%, rgba(0,0,0,0.06) 37%, rgba(0,0,0,0.04) 63%);
+    background-size: 480px 100%;
+    @apply animate-shimmer rounded-md;
+  }
+  .skeleton-card { @apply skeleton h-28 w-full rounded-2xl border border-gray-200; }
+}
+
+/* ---------- Print-specific styles ---------- */
+@media print {
+  /* Keep background white and text black for printing */
+  body { background: #fff !important; color: #000 !important; }
+
+  /* Hide UI elements not relevant for print */
+  .no-print, .admin-sidebar-fixed, .site-header-refresh, .site-header-export, .mini-footer-above, .admin-footer-fixed { display: none !important; }
+
+  /* Print invoice container adjustments */
+  .print-invoice { background: #fff !important; box-shadow: none !important; border: none !important; padding: 0.5in !important; max-width: 100% !important; }
+  .print-invoice .text-2xl, .print-invoice .text-xl { font-size: 16pt !important; }
+
+  /* Tables: clear borders and comfortable padding for paper */
+  .print-invoice table { border-collapse: collapse; width: 100%; }
+  .print-invoice th, .print-invoice td { border: 1px solid #ddd; padding: 8px; font-size: 11pt; }
+  .print-invoice thead th { background: #f7f7f7; }
+
+  /* Reduce link decoration when printing */
+  a { color: #000; text-decoration: none; }
+
+  /* Page margin and size */
+  @page { margin: 0.5in; size: A4 portrait; }
+
+  /* Print only the invoice container and footer: hide everything else on the page to avoid printing global chrome */
+  body * { visibility: hidden; }
+  .print-invoice, .print-invoice * , .invoice-footer, .invoice-footer * { visibility: visible; }
+  /* position the printable invoice at the top of the page */
+  .print-invoice { position: absolute; left: 0.5in; right: 0.5in; top: 0.5in; }
+  /* make footer fixed at bottom */
+  .invoice-footer { position: fixed; bottom: 0.25in; left: 0.5in; right: 0.5in; }
+
+  /* Try to scale down larger invoices to fit to one page when possible */
+  .print-invoice { transform-origin: top left; transform: scale(0.95); }
+}
+
+/* Invoice footer: hidden on screen, visible when printing. Provides company logo, page numbering and a QR code. */
+.invoice-footer { display: none; }
+
+@media print {
+  /* ensure printed invoice has extra bottom space so footer doesn't overlap content */
+  .print-invoice { padding-bottom: 1.6in !important; }
+
+  .invoice-footer { 
+    display: flex !important; 
+    position: fixed; 
+    bottom: 0; 
+    left: 0; 
+    right: 0; 
+    justify-content: space-between; 
+    align-items: center; 
+    padding: 0.12in 0.5in; 
+    background: #fff; 
+    border-top: 1px solid rgba(0,0,0,0.08);
+    font-size: 10pt;
+  }
+
+  .invoice-footer-left, .invoice-footer-right { display: flex; align-items: center; gap: 0.5rem; }
+  .invoice-footer-logo { height: 36px; width: auto; display: inline-block; }
+  .invoice-footer-company { font-size: 10pt; color: #111827; }
+  .invoice-footer-qr { height: 64px; width: 64px; display: inline-block; }
+
+  /* center: page numbering using CSS counters. `counter(pages)` is not supported in all engines but works in modern Chromium/Firefox. */
+  .invoice-footer-center { text-align: center; flex: 1 1 auto; }
+  .invoice-footer-center.pagenum::after { content: "Page " counter(page) " of " counter(pages); }
+}
+
+/* Refresh button: match Settings behavior (transparent base, hover/active/focus) */
+.site-header-refresh,
+button[aria-label="Refresh"] {
+  @apply inline-flex items-center justify-center rounded-xl p-2 hover:bg-white/10;
+  background-color: transparent;
+  color: #ffffff;
+  border-color: transparent;
+}
+
+/* Mobile drawer larger touch target variant */
+.site-header-refresh-mobile,
+button[aria-label="Refresh"].mobile {
+  @apply inline-flex h-10 w-10 items-center justify-center rounded-xl transition hover:bg-white/10 active:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40;
+  background-color: transparent;
+  color: #ffffff;
+}
+
+/* Export invoices CSV: match Settings behavior (transparent base, hover/active/focus) */
+.site-header-export,
+button[aria-label="Export Invoices CSV"] {
+  @apply inline-flex items-center justify-center rounded-xl p-2 hover:bg-white/10;
+  background-color: transparent;
+  color: #ffffff; /* icons use currentColor */
+  border-color: transparent;
+}
+
+.site-header-export-mobile,
+button[aria-label="Export Invoices CSV"].mobile {
+  @apply inline-flex h-10 w-10 items-center justify-center rounded-xl transition hover:bg-white/10 active:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40;
+  background-color: transparent;
+  color: #ffffff;
+}
+
+/* Widget Preferences: match Settings behavior (transparent base, hover/active/focus) */
+.site-header-widget,
+button[aria-label="Widget Preferences"] {
+  @apply inline-flex items-center justify-center rounded-xl p-2 hover:bg-white/10;
+  background-color: transparent;
+  color: #ffffff; /* icons use currentColor */
+  border-color: transparent;
+}
+
+.site-header-widget-mobile,
+button[aria-label="Widget Preferences"].mobile {
+  @apply inline-flex h-10 w-10 items-center justify-center rounded-xl transition hover:bg-white/10 active:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40;
+  background-color: transparent;
+  color: #ffffff;
+}
+
+/* Ensure Message, Support and Settings icons render white in header and mobile drawer */
+.site-header-actions,
+button[aria-label="Messages"],
+button[aria-label="Support"],
+button[aria-label="Settings"],
+a[aria-label="Messages"],
+a[aria-label="Support"],
+a[aria-label="Settings"] {
+  color: #ffffff; /* lucide icons use currentColor */
+}
+
+.site-header-actions-mobile,
+button[aria-label="Messages"].mobile,
+button[aria-label="Support"].mobile,
+button[aria-label="Settings"].mobile,
+a[aria-label="Messages"].mobile,
+a[aria-label="Support"].mobile,
+a[aria-label="Settings"].mobile {
+  color: #ffffff;
+}
+
+/* Theme toggle: match Messages/Support/Settings background and hover behavior */
+button[aria-label="Toggle theme"],
+a[aria-label="Toggle theme"] {
+  @apply inline-flex items-center justify-center rounded-xl p-2 hover:bg-white/10;
+  background-color: transparent;
+  color: #ffffff; /* ensure icon is white */
+  border-color: transparent;
+}
+
+button[aria-label="Toggle theme"].mobile,
+a[aria-label="Toggle theme"].mobile {
+  @apply inline-flex h-10 w-10 items-center justify-center rounded-xl transition hover:bg-white/10 active:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40;
+  background-color: transparent;
+  color: #ffffff;
+}
+
+/* Header/Footer helpers */
+.nols-header { @apply bg-brand text-white; }
+.nols-footer { @apply bg-brand text-white; }
+
+/* Footer separation rail: draws a full-width line at the top of footers to separate content
+   from the footer similar to the header rail. Apply `.footer-with-rail` to footer elements. */
+.footer-with-rail {
+  position: relative;
+  /* white footer background with a subtle top rail */
+  background-color: #ffffff;
+  color: #02665e; /* brand text color for footer */
+  border-top: 1px solid rgba(2,102,94,0.06);
+}
+.footer-with-rail::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0; /* drawn at the very top of the footer */
+  height: 6px; /* rail thickness */
+  /* gradient matching the admin header brand — visually connects header and footer */
+  background: linear-gradient(90deg, #02665e 0%, #013a37 100%);
+  z-index: 5; /* keep the rail behind the sidebar */
+}
+
+/* Footer base should not create a new stacking context above the sidebar */
+.footer-with-rail { position: relative; z-index: 0; }
+
+/* On md+ screens, don't draw the rail under the fixed left sidebar — start the rail after the sidebar width */
+@media (min-width: 768px) {
+  .footer-with-rail::before {
+    left: var(--admin-sidebar-width);
+  }
+}
+
+/* Ensure the page content doesn't visually collide with the footer rail when using fixed elements */
+.page-bottom-buffer { padding-bottom: 6px; }
+
+/* Accessibility helper: screen reader only */
+.sr-only { position: absolute !important; height: 1px; width: 1px; overflow: hidden; clip: rect(1px, 1px, 1px, 1px); white-space: nowrap; border: 0; padding: 0; }
+
+/* Scrollbars (optional) */
+@supports (scrollbar-width: thin) or (scrollbar-color: #000 transparent) {
+  * { scrollbar-width: thin; scrollbar-color: theme('colors.gray.300') transparent; }
+}
+*::-webkit-scrollbar { height: 10px; width: 10px; }
+*::-webkit-scrollbar-thumb { background: theme('colors.gray.300'); border-radius: 8px; }
+*::-webkit-scrollbar-thumb:hover { background: theme('colors.gray.400'); }
+
+/* Sidebar-specific scrollbar: hide until hover to keep chrome clean */
+.sidebar-scroll { overflow-y: auto; }
+.sidebar-scroll::-webkit-scrollbar { width: 8px; }
+.sidebar-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); transition: background .15s; border-radius: 8px; }
+.sidebar-scroll:hover::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.22); }
+/* Only apply Firefox/Chromium 121+ coloring when supported */
+@supports (scrollbar-color: #000 #fff) {
+  .sidebar-scroll { scrollbar-color: rgba(255,255,255,0.12) transparent; }
+  .sidebar-scroll:hover { scrollbar-color: rgba(255,255,255,0.22) transparent; }
+}
+
+/* Touch helper: prevent default touch panning while interacting with draggable controls */
+.touch-action-none { -ms-touch-action: none; touch-action: none; }

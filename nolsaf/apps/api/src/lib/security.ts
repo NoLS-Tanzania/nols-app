@@ -1,0 +1,275 @@
+// apps/api/src/lib/security.ts
+// Reusable security helpers (password hashing, TOTP provisioning helpers,
+// WebAuthn/passkeys helpers). Designed to be imported by route handlers
+// across Admin/Owner/User areas.
+
+import argon2 from "argon2";
+import { authenticator } from "otplib";
+import { makeQR } from "./qr";
+import {
+  generateRegistrationOptions,
+  verifyRegistrationResponse,
+  generateAuthenticationOptions,
+  verifyAuthenticationResponse,
+} from "@simplewebauthn/server";
+import { prisma } from "@nolsaf/prisma";
+import * as passkeysDb from "./passkeysDb";
+
+// In-memory fallbacks so this module works even when Prisma models are not
+// present (useful for demo/dev environments). Prefer DB-backed storage if
+// available.
+export const passkeyChallenges = new Map<string, string>();
+export const passkeyStore = new Map<string, any>();
+
+// ----- Password helpers -----
+export async function hashPassword(password: string) {
+  return argon2.hash(password);
+}
+
+export async function verifyPassword(hash: string | null | undefined, password: string) {
+  if (!hash) return false;
+  try {
+    return await argon2.verify(hash, password);
+  } catch (e) {
+    return false;
+  }
+}
+
+// Validate password strength. Returns { valid, reasons[] } where reasons
+// contains human-friendly messages explaining why the password is weak.
+export function validatePasswordStrength(password: string, options?: { minLength?: number; requireUpper?: boolean; requireLower?: boolean; requireNumber?: boolean; requireSpecial?: boolean; noSpaces?: boolean; role?: string }) {
+  const opts = {
+    minLength: 10,
+    requireUpper: true,
+    requireLower: true,
+    requireNumber: true,
+    requireSpecial: true,
+    noSpaces: true,
+    ...(options || {}),
+  } as Required<typeof options> & { minLength: number };
+
+  // For Admin/Owner, enforce a slightly higher min length by default
+  if (opts.role && (String(opts.role).toUpperCase() === 'ADMIN' || String(opts.role).toUpperCase() === 'OWNER')) {
+    opts.minLength = Math.max(opts.minLength, 12);
+  }
+
+  const reasons: string[] = [];
+  if (typeof password !== 'string') {
+    reasons.push('Password must be a string');
+    return { valid: false, reasons };
+  }
+  if (opts.noSpaces && /\s/.test(password)) reasons.push('Password must not contain spaces');
+  if (password.length < opts.minLength) reasons.push(`Password must be at least ${opts.minLength} characters long`);
+  if (opts.requireUpper && !/[A-Z]/.test(password)) reasons.push('Password must include at least one uppercase letter');
+  if (opts.requireLower && !/[a-z]/.test(password)) reasons.push('Password must include at least one lowercase letter');
+  if (opts.requireNumber && !/[0-9]/.test(password)) reasons.push('Password must include at least one digit');
+  if (opts.requireSpecial && !/[!@#\$%\^&\*\(\)\-_=+\[\]{};:'"\\|,<.>/?`~]/.test(password)) reasons.push('Password must include at least one special character (e.g. !@#$%)');
+
+  return { valid: reasons.length === 0, reasons };
+}
+
+// ----- TOTP helpers -----
+export function generateTOTPSecret() {
+  return authenticator.generateSecret();
+}
+
+export function generateTOTPURI(secret: string, label: string, issuer = "nolsaf") {
+  return authenticator.keyuri(label, issuer, secret);
+}
+
+export async function makeTOTPQRCode(secret: string, label: string, issuer = "nolsaf") {
+  const uri = generateTOTPURI(secret, label, issuer);
+  return makeQR(uri);
+}
+
+// ----- WebAuthn / Passkeys helpers -----
+function getWebAuthnConfig() {
+  const rpName = process.env.WEB_AUTHN_RP_NAME || "nolsaf";
+  const rpID = process.env.WEB_AUTHN_RP_ID || (process.env.APP_DOMAIN || "localhost");
+  const origin = process.env.WEB_ORIGIN || process.env.APP_ORIGIN || "http://localhost:3000";
+  return { rpName, rpID, origin };
+}
+
+export function generatePasskeyRegistrationOptions(user: { id: string | number; name?: string; displayName?: string }, existingCreds: Array<any> = []) {
+  const { rpName, rpID } = getWebAuthnConfig();
+  const excludeCredentials = existingCreds.map((c) => ({ id: c.credentialId, type: "public-key" }));
+
+  const opts = generateRegistrationOptions({
+    rpName,
+    rpID,
+    user: {
+      id: String(user.id),
+      name: user.name || String(user.id),
+      displayName: user.displayName || user.name || String(user.id),
+    },
+    attestationType: "none",
+    authenticatorSelection: {
+      userVerification: "preferred",
+    },
+    excludeCredentials,
+    // keep a short timeout for UX
+    timeout: 60_000,
+  } as any);
+
+  return opts as any;
+}
+
+export async function verifyPasskeyRegistration(response: any, expectedChallenge: string) {
+  const { rpID, origin } = getWebAuthnConfig();
+  const verification = await verifyRegistrationResponse({
+    response,
+    expectedChallenge,
+    expectedOrigin: origin,
+    expectedRPID: rpID,
+  } as any).catch((e) => ({ verified: false, error: (e as Error).message }));
+
+  return verification as any;
+}
+
+export function generatePasskeyAuthenticationOptions(allowCredentials: Array<any> = []) {
+  const { rpID } = getWebAuthnConfig();
+  const allow = allowCredentials.map((c) => ({ id: c.credentialId, type: "public-key" }));
+  const opts = generateAuthenticationOptions({
+    timeout: 60_000,
+    allowCredentials: allow,
+    userVerification: "preferred",
+    rpID,
+  } as any);
+  return opts as any;
+}
+
+export async function verifyPasskeyAuthentication(response: any, expectedChallenge: string, credential: any) {
+  const { rpID, origin } = getWebAuthnConfig();
+  // credential should include publicKey and previous signCount
+  const verification = await verifyAuthenticationResponse({
+    response,
+    expectedChallenge,
+    expectedOrigin: origin,
+    expectedRPID: rpID,
+    authenticator: {
+      credentialID: credential?.credentialId,
+      counter: credential?.signCount || 0,
+      credentialPublicKey: credential?.publicKey,
+    } as any,
+  } as any).catch((e) => ({ verified: false, error: (e as Error).message }));
+
+  return verification as any;
+}
+
+// ----- Persistence helpers (best-effort using Prisma) -----
+export async function persistPasskey(userId: string | number, credential: any) {
+  try {
+    // Prefer DB persistence via passkeysDb helper. If it fails (missing model), fall back to memory.
+    return await passkeysDb.createPasskey({
+      userId: String(userId),
+      credentialId: credential.credentialId,
+      publicKey: credential.publicKey,
+      transports: credential.transports || [],
+      signCount: credential.signCount || 0,
+    } as any);
+  } catch (e) {
+    // fallback to existing in-memory behavior
+  }
+
+  passkeyStore.set(String(credential.credentialId), { ...credential, userId: String(userId) });
+  return { inMemory: true };
+}
+
+export async function updatePasskeySignCount(credentialId: string, signCount: number) {
+  try {
+    return await passkeysDb.updatePasskeySignCount(credentialId, signCount as number);
+  } catch (e) {
+    // fallback to memory
+  }
+  const cur = passkeyStore.get(credentialId) || {};
+  cur.signCount = signCount;
+  passkeyStore.set(credentialId, cur);
+  return cur;
+}
+
+export async function listPasskeysForUser(userId: string | number) {
+  try {
+    return await passkeysDb.listPasskeysForUser(String(userId));
+  } catch (e) {
+    // fallback to memory
+  }
+  const out: any[] = [];
+  for (const v of passkeyStore.values()) {
+    if (String(v.userId) === String(userId)) out.push(v);
+  }
+  return out;
+}
+
+// ----- Password history (reuse prevention) -----
+// Keep a small in-memory history when DB persistence isn't available.
+const passwordHistoryStore = new Map<string, string[]>();
+
+export async function isPasswordReused(userId: string | number, candidatePassword: string, limit = 5) {
+  const id = String(userId);
+  // Try DB-backed storage if possible: common field names include previousPasswordHashes, previousPasswords
+    try {
+    if ((prisma as any).user) {
+      const u = await prisma.user.findUnique({ where: { id: userId as any }, select: { previousPasswordHashes: true, previousPasswords: true } as any });
+      const arr: string[] = (u as any)?.previousPasswordHashes ?? (u as any)?.previousPasswords ?? null;
+      if (Array.isArray(arr) && arr.length) {
+        for (const h of arr.slice(-limit)) {
+          try { if (await argon2.verify(h, candidatePassword)) return true; } catch (e) { /* ignore */ }
+        }
+      }
+    }
+  } catch (e) {
+    // ignore DB errors and fall back to memory
+  }
+
+  // Fallback: check in-memory history
+  const mem = passwordHistoryStore.get(id) || [];
+  for (const h of mem.slice(-limit)) {
+    try { if (await argon2.verify(h, candidatePassword)) return true; } catch (e) { /* ignore */ }
+  }
+  return false;
+}
+
+export async function addPasswordToHistory(userId: string | number, newHash: string, limit = 5) {
+  const id = String(userId);
+  // Try to persist in DB if a suitable field exists
+  try {
+    if ((prisma as any).user) {
+      // Attempt to push into a string[] field if available. This will fail harmlessly when model doesn't exist.
+      try {
+      await prisma.user.update({ where: { id: userId as any }, data: { previousPasswordHashes: { push: newHash } } as any });
+        // Optionally trim server-side stored array if DB supports it — skip for now.
+        return { persisted: true };
+      } catch (e) {
+        // try alternative field
+        try { await prisma.user.update({ where: { id: userId as any }, data: { previousPasswords: { push: newHash } } as any }); return { persisted: true }; } catch (e2) { /* ignore */ }
+      }
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  // Fallback: in-memory
+  const arr = passwordHistoryStore.get(id) || [];
+  arr.push(newHash);
+  // keep only last `limit` entries
+  if (arr.length > limit) arr.splice(0, arr.length - limit);
+  passwordHistoryStore.set(id, arr);
+  return { persisted: false };
+}
+
+export default {
+  hashPassword,
+  verifyPassword,
+  generateTOTPSecret,
+  generateTOTPURI,
+  makeTOTPQRCode,
+  generatePasskeyRegistrationOptions,
+  verifyPasskeyRegistration,
+  generatePasskeyAuthenticationOptions,
+  verifyPasskeyAuthentication,
+  persistPasskey,
+  updatePasskeySignCount,
+  listPasskeysForUser,
+  passkeyChallenges,
+  passkeyStore,
+};

@@ -1,0 +1,25 @@
+{
+  "name": "nolsaf",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "devDependencies": {
+    "concurrently": "^9.0.1",
+    "snyk": "^1.1300.0"
+  },
+  "scripts": {
+    "dev": "concurrently -n api,web -c green,cyan \"npm:dev --workspace=@nolsaf/api\" \"npm:dev --workspace=@nolsaf/web\"",
+    "build": "npm run --workspaces --if-present build",
+    "lint": "npm run --workspaces --if-present lint",
+    "typecheck": "npm run --workspaces --if-present typecheck",
+    "prisma:generate": "npm run --workspace=@nolsaf/prisma generate",
+    "prisma:migrate": "npm run --workspace=@nolsaf/prisma db:migrate --"
+  },
+  "dependencies": {
+    "@prisma/debug": "^6.17.1",
+    "yargs": "^18.0.0"
+  }
+}
