@@ -109,7 +109,7 @@ router.post("/:id/reject", async (req, res) => {
   const reason = (req.body?.reason as string) || "Not specified";
   const inv = await prisma.invoice.update({
     where: { id },
-    data: { status: "REJECTED", rejectedAt: new Date(), rejectedReason: reason },
+    data: { status: "REJECTED", rejectedAt: new Date(), rejectedReason: reason } as any,
   });
   await invalidateOwnerReports(inv.ownerId); // invalidate cache for the owner
   req.app.get("io").emit("admin:invoice:status", { id: inv.id, status: inv.status, reason });

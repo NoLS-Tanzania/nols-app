@@ -1,5 +1,5 @@
 // apps/web/app/layout.tsx
-// @ts-ignore: side-effect CSS import
+
 import "@/styles/globals.css";
 import type { ReactNode } from "react";
 import ToastContainer from "@/components/ToastContainer";

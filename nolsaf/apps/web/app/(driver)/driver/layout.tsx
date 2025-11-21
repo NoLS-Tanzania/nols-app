@@ -17,13 +17,9 @@ export default function DriverLayout({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      <div className="flex-1 mx-auto max-w-6xl w-full px-4 pt-16 pb-6 md:ml-56 grid grid-cols-1 gap-6">
-        <main>
-          <div className="w-full">
-            <div className="mx-auto max-w-4xl">
-              {children}
-            </div>
-          </div>
+      <div className="flex-1 w-full pt-16 pb-6 md:ml-56 md:pl-6">
+        <main className="w-full">
+          {children}
         </main>
       </div>
 

@@ -49,7 +49,7 @@ export default function DriverAvailabilitySwitch({ className = "" }: { className
   setAvailable(next);
   try { localStorage.setItem("driver_available", next ? "1" : "0"); } catch (e) {}
   // notify other components immediately so they can animate (optimistic)
-  try { window.dispatchEvent(new CustomEvent('nols:availability:changed', { detail: { available: next } })); } catch (e) {}
+  try { window.dispatchEvent(new CustomEvent('nols:availability:changed', { detail: { available: next }, bubbles: true, composed: true } as any)); } catch (e) {}
 
     // show pending/process message and ensure it lasts between 3s and 5s
     setStatus('pending');
@@ -75,7 +75,7 @@ export default function DriverAvailabilitySwitch({ className = "" }: { className
         window.dispatchEvent(new CustomEvent('nols:toast', { detail: { type: 'success', title: next ? 'You are live' : 'You are offline', message: next ? 'You\'re available to accept rides.' : 'You won\'t receive new assignments.', duration: 5000 } }));
       } catch (e) {}
         // notify other in-page components about the availability change
-        try { window.dispatchEvent(new CustomEvent('nols:availability:changed', { detail: { available: next } })); } catch (e) {}
+        try { window.dispatchEvent(new CustomEvent('nols:availability:changed', { detail: { available: next }, bubbles: true, composed: true } as any)); } catch (e) {}
     } catch (err) {
       // error: ensure pending lasts at least desiredDelay
       try { window.clearTimeout(timeoutRef.current as any); } catch (e) {}
@@ -122,7 +122,7 @@ export default function DriverAvailabilitySwitch({ className = "" }: { className
                 <span className="dot dot-yellow" />
                 <span className="dot dot-green" />
               </span>
-              <span className={available ? 'text-red-600' : 'text-green-600'}>{available ? 'Going offline...' : 'Going live...'}</span>
+              <span className={available ? 'text-green-600' : 'text-red-600'}>{available ? 'Going live...' : 'Going offline...'}</span>
             </div>
           ) : status === 'success' ? (
             available ? <DriverSwitchOnline /> : <DriverSwitchOffline />

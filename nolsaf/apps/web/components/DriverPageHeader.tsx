@@ -1,19 +1,15 @@
 "use client";
 import React from "react";
 import { usePathname } from "next/navigation";
-import DriverWelcome from "@/components/DriverWelcome";
-import { ListChecks, FileText, Gift, Lock } from "lucide-react";
+import { ListChecks, FileText, Gift, Lock, Settings } from "lucide-react";
 import type { PageHeaderProps } from "@/components/ui/PageHeader";
 
-export type DriverPageHeaderProps = Omit<PageHeaderProps, "variant"> & {
+export type DriverPageHeaderProps = Omit<PageHeaderProps, "variant" | "title"> & {
   /** Optional short title to render beside the icon for compact pages */
   title?: string;
 };
 
-// Render the full DriverWelcome (which includes the availability switch and map)
-// only on the main Dashboard route (/driver). For other driver pages render a
-// compact placeholder header to preserve spacing but avoid exposing the online/offline
-// toggle outside of the Dashboard view.
+// Compact header for driver pages. Choose an icon based on route
 export default function DriverPageHeader(props?: DriverPageHeaderProps): JSX.Element {
   const { title } = props || {};
   const pathname = usePathname() || "/";
@@ -21,14 +17,17 @@ export default function DriverPageHeader(props?: DriverPageHeaderProps): JSX.Ele
   // Normalize trailing slash: treat '/driver' and '/driver/' the same
   const normalized = pathname.replace(/\/+$/, "");
 
+  // Don't show header on main dashboard - it has its own header
   if (normalized === "/driver") {
-    return <DriverWelcome />;
+    return <></>;
   }
 
   // Compact header for non-dashboard driver pages. Choose an icon based on route
   // Use the same Gift icon as the sidebar for the driver bonus page to keep UI consistent.
   const Icon = normalized.startsWith("/driver/security")
     ? Lock
+    : normalized.startsWith("/driver/management")
+    ? Settings
     : normalized.startsWith("/driver/bonus")
     ? Gift
     : normalized.startsWith("/driver/invoices")

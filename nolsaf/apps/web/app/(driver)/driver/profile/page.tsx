@@ -124,9 +124,10 @@ export default function DriverProfile() {
   if (error) return <div className="text-rose-600">Error loading profile: {error}</div>;
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Driver Profile</h1>
-      <div className="grid md:grid-cols-2 gap-3">
+    <div className="max-w-4xl mx-auto">
+      <div className="border rounded-lg p-6 bg-white shadow-sm space-y-4">
+        <h1 className="text-2xl font-semibold mb-6">Your Profile</h1>
+        <div className="grid md:grid-cols-2 gap-3">
         <Input label="Full name" value={form.fullName||""} onChange={v=>setForm({...form, fullName:v})}/>
         <Input label="Email" value={form.email||""} onChange={v=>setForm({...form, email:v})} disabled />
         <Input label="Phone" value={form.phone||""} onChange={v=>setForm({...form, phone:v})}/>
@@ -223,21 +224,6 @@ export default function DriverProfile() {
       </div>
 
       <div className="flex items-center gap-3">
-        {/* Avatar thumbnail - clickable to open file input */}
-        <div className="flex-shrink-0">
-          {form.avatarUrl ? (
-            <button type="button" onClick={() => { const el = document.getElementById('avatarInput') as HTMLInputElement | null; if (el) el.click(); }} className="rounded-full overflow-hidden border h-10 w-10 p-0" title="Change avatar" aria-label="Change avatar">
-              <Image src={form.avatarUrl} alt="avatar" width={40} height={40} className="object-cover" />
-            </button>
-          ) : (
-            <button type="button" onClick={() => { const el = document.getElementById('avatarInput') as HTMLInputElement | null; if (el) el.click(); }} className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center border" title="Upload avatar" aria-label="Upload avatar">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-600">
-                <path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5z"></path>
-                <path d="M20.24 20.24a9 9 0 1 0-16.48 0"></path>
-              </svg>
-            </button>
-          )}
-        </div>
         <button
           className={`px-3 py-2 rounded-xl border ${saving ? 'opacity-80 cursor-wait' : ''}`}
           onClick={save}
@@ -271,6 +257,7 @@ export default function DriverProfile() {
         >
           Delete Account
         </button>
+      </div>
       </div>
     </div>
   );

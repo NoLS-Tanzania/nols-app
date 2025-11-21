@@ -20,7 +20,7 @@ function writeJson(key: string, v: any) {
 }
 
 export default function IncomingRequestsButton({ className = '' }: { className?: string }) {
-  const [count, setCount] = useState<number>(() => readJson<number>(INCOMING_KEY, []).length);
+  const [count, setCount] = useState<number>(() => readJson<Array<any>>(INCOMING_KEY, []).length);
   const [pulse, setPulse] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [recent, setRecent] = useState<Array<any>>(() => readJson<Array<any>>(RECENT_KEY, []));

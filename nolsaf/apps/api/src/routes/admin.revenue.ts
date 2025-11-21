@@ -192,7 +192,7 @@ router.post("/invoices/:id/mark-paid", async (req, res) => {
     if (!inv) return res.status(404).json({ error: "Invoice not found" });
     if (inv.status === "PAID") return res.status(400).json({ error: "Already PAID" });
 
-    const seq = await prisma.invoice.count({ status: "PAID" });
+    const seq = await prisma.invoice.count({ where: { status: "PAID" } });
     const receiptNumber = inv.receiptNumber ?? nextReceiptNumber("RCPT", seq + 1);
 
     const payload = JSON.stringify({
@@ -320,3 +320,115 @@ router.get("/invoices/export.csv", async (req, res) => {
 
 export default router;
 // apps/api/src/routes/admin.revenue.ts
+
+// GET /admin/properties
+// Returns aggregated revenue by property (top-N by total). Query: ?top=10
+router.get('/properties', async (req, res) => {
+  try {
+    const top = Math.max(1, Math.min(200, Number(req.query.top ?? 10)));
+    const rows: Array<any> = await prisma.$queryRaw`
+      SELECT p.id AS id, p.title AS name,
+        COALESCE(SUM(i.total), 0) AS total,
+        COALESCE(SUM(i.commissionAmount), 0) AS commission_total,
+        COALESCE(SUM(i.subscriptionAmount), 0) AS subscription_total
+      FROM Invoice i
+      JOIN Booking b ON i.bookingId = b.id
+      JOIN Property p ON b.propertyId = p.id
+      WHERE i.status IN ('APPROVED', 'PAID')
+      GROUP BY p.id, p.title
+      ORDER BY total DESC
+      LIMIT ${top}
+    ` as any;
+
+    // Normalize numbers
+    const result = rows.map((r: any) => ({
+      id: r.id,
+      name: r.name,
+      total: Number(r.total ?? 0),
+      commission: Number(r.commission_total ?? 0),
+      subscription: Number(r.subscription_total ?? 0),
+    }));
+    res.json(result);
+  } catch (err: any) {
+    console.error('Error in GET /admin/properties', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /admin/revenue/series?from=&to=&interval=hour|day|month
+ * Returns rows with label, commission_total, subscription_total
+ */
+router.get('/series', async (req, res) => {
+  try {
+    const { from, to, interval = 'day' } = req.query as any;
+    const toDate = to ? new Date(String(to)) : new Date();
+    const fromDate = from ? new Date(String(from)) : new Date(Date.now() - 30 * 24 * 3600 * 1000);
+
+    const sqlFromIso = fromDate.toISOString();
+    const sqlToIso = toDate.toISOString();
+
+    let fmt = '%Y-%m-%d';
+    if (interval === 'hour') fmt = '%Y-%m-%d %H:00';
+    if (interval === 'month') fmt = '%Y-%m';
+
+    const rows: Array<any> = await prisma.$queryRaw`
+      SELECT DATE_FORMAT(CONVERT_TZ(i.issuedAt, '+00:00', '+03:00'), ${fmt}) AS label,
+        COALESCE(SUM(i.commissionAmount),0) AS commission_total,
+        COALESCE(SUM(i.subscriptionAmount),0) AS subscription_total
+      FROM Invoice i
+      WHERE i.status IN ('APPROVED','PAID') AND i.issuedAt BETWEEN ${sqlFromIso} AND ${sqlToIso}
+      GROUP BY label
+      ORDER BY label
+    ` as any;
+
+    // normalize
+    const result = rows.map((r: any) => ({ label: r.label, commission: Number(r.commission_total ?? 0), subscription: Number(r.subscription_total ?? 0) }));
+    res.json(result);
+  } catch (err: any) {
+    console.error('Error in GET /admin/revenue/series', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /admin/revenue/summary
+ * Lightweight summary for card display: returns today's and yesterday's combined totals and a delta label
+ */
+router.get('/summary', async (req, res) => {
+  try {
+    const now = new Date();
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+    const yesterdayStart = new Date(todayStart);
+    yesterdayStart.setDate(todayStart.getDate() - 1);
+    const todayEnd = new Date(todayStart);
+    todayEnd.setDate(todayStart.getDate() + 1);
+
+    const fromIso = yesterdayStart.toISOString();
+    const toIso = todayEnd.toISOString();
+
+    const rows: Array<any> = await prisma.$queryRaw`
+      SELECT
+        COALESCE(SUM(CASE WHEN DATE(CONVERT_TZ(i.issuedAt, '+00:00', '+03:00')) = DATE(CONVERT_TZ(${todayStart.toISOString()}, '+00:00', '+03:00')) THEN COALESCE(i.commissionAmount,0)+COALESCE(i.subscriptionAmount,0) ELSE 0 END),0) AS today_total,
+        COALESCE(SUM(CASE WHEN DATE(CONVERT_TZ(i.issuedAt, '+00:00', '+03:00')) = DATE(CONVERT_TZ(${yesterdayStart.toISOString()}, '+00:00', '+03:00')) THEN COALESCE(i.commissionAmount,0)+COALESCE(i.subscriptionAmount,0) ELSE 0 END),0) AS yesterday_total
+      FROM Invoice i
+      WHERE i.status IN ('APPROVED','PAID') AND i.issuedAt BETWEEN ${fromIso} AND ${toIso}
+    ` as any;
+
+    const today = Number(rows?.[0]?.today_total ?? 0);
+    const yesterday = Number(rows?.[0]?.yesterday_total ?? 0);
+    let deltaLabel = '0%';
+    if (yesterday > 0) {
+      const pct = Math.round(((today - yesterday) / yesterday) * 100);
+      deltaLabel = `${pct >= 0 ? '+' : ''}${pct}%`;
+    } else if (today > 0) {
+      deltaLabel = `+${Math.round((today / 1) * 100)}%`;
+    }
+
+    res.json({ today, yesterday, delta: deltaLabel });
+  } catch (err: any) {
+    console.error('Error in GET /admin/revenue/summary', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});

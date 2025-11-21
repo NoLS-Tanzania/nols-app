@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import Image from "next/image";
-import { Bell, LifeBuoy, Settings as SettingsIcon, RefreshCw, Download, Sliders, Sun, Moon, Plus } from "lucide-react";
+import { Bell, LifeBuoy, Settings as SettingsIcon, RefreshCw, Download, Sliders, Sun, Moon, Plus, FileText, Shield, Lock, Truck, User } from "lucide-react";
 import dynamic from 'next/dynamic';
 const LegalModal = dynamic(() => import('@/components/LegalModal'), { ssr: false });
 import ClientErrorBoundary from '@/components/ClientErrorBoundary';
@@ -19,6 +19,8 @@ export default function SiteHeader({
   const isOwner = role === "OWNER";
   const [unreadCount, setUnreadCount] = useState<number | null>(null);
   const [touchedIcon, setTouchedIcon] = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const handleTouch = (id: string) => {
     setTouchedIcon(id);
@@ -42,6 +44,22 @@ export default function SiteHeader({
       }
     })();
 
+    // fetch user profile to get avatar
+    (async () => {
+      try {
+        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+        if (!token) return;
+        const base = process.env.NEXT_PUBLIC_API_URL || '';
+        const url = base ? `${base.replace(/\/$/, '')}/account/me` : '/account/me';
+        const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+        if (!r.ok) return;
+        const data = await r.json();
+        if (data.avatarUrl) setAvatarUrl(data.avatarUrl);
+      } catch (err) {
+        // ignore
+      }
+    })();
+
     if (typeof window === 'undefined') return;
     try {
       const saved = localStorage.getItem('theme');
@@ -53,6 +71,16 @@ export default function SiteHeader({
     } catch (err) {
       // ignore
     }
+
+    // Close settings dropdown when clicking outside
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('[data-settings-dropdown]')) {
+        setSettingsOpen(false);
+      }
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
   }, [isAdmin]);
 
   const toggleTheme = () => {
@@ -231,16 +259,90 @@ export default function SiteHeader({
               <LifeBuoy className="h-5 w-5 text-white" />
             </Link>
 
-            <Link href="/driver/settings" className={`inline-flex items-center justify-center rounded-md p-1.5 hover:bg-white/10 ${touchedIcon === 'settings' ? 'bg-white/10' : ''}`} aria-label="Settings" title="Settings">
-              <SettingsIcon className="h-5 w-5 text-white" />
-            </Link>
+            <div className="relative" data-settings-dropdown>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSettingsOpen(!settingsOpen);
+                }}
+                className={`inline-flex items-center justify-center rounded-md p-1.5 hover:bg-white/10 ${settingsOpen ? 'bg-white/10' : ''}`}
+                aria-label="Settings"
+                title="Settings"
+              >
+                <SettingsIcon className="h-5 w-5 text-white" />
+              </button>
+
+              {settingsOpen && (
+                <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
+                  <div className="px-4 py-2 border-b border-gray-100">
+                    <h3 className="font-semibold text-gray-900">Management</h3>
+                  </div>
+
+                  <div className="py-1">
+                    <Link
+                      href="/driver/management?tab=documents"
+                      onClick={() => setSettingsOpen(false)}
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors no-underline"
+                    >
+                      <div className="font-medium flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-blue-600" />
+                        <span>Documents</span>
+                      </div>
+                      <div className="text-xs text-gray-500 ml-6">License, insurance, contracts</div>
+                    </Link>
+
+                    <Link
+                      href="/driver/management?tab=safety"
+                      onClick={() => setSettingsOpen(false)}
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors no-underline"
+                    >
+                      <div className="font-medium flex items-center gap-2">
+                        <Shield className="h-4 w-4 text-blue-600" />
+                        <span>Safety Measures</span>
+                      </div>
+                      <div className="text-xs text-gray-500 ml-6">Incidents and safety summary</div>
+                    </Link>
+
+                    <Link
+                      href="/driver/security"
+                      onClick={() => setSettingsOpen(false)}
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors no-underline"
+                    >
+                      <div className="font-medium flex items-center gap-2">
+                        <Lock className="h-4 w-4 text-blue-600" />
+                        <span>Security</span>
+                      </div>
+                      <div className="text-xs text-gray-500 ml-6">Password and contact details</div>
+                    </Link>
+
+                    <Link
+                      href="/driver/management?tab=settings"
+                      onClick={() => setSettingsOpen(false)}
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors no-underline"
+                    >
+                      <div className="font-medium flex items-center gap-2">
+                        <Truck className="h-4 w-4 text-blue-600" />
+                        <span>Vehicle Settings</span>
+                      </div>
+                      <div className="text-xs text-gray-500 ml-6">Vehicle details and registration</div>
+                    </Link>
+                  </div>
+                </div>
+              )}
+            </div>
 
             <div className="mx-2 h-5 w-px bg-white/20" />
 
-            <Link href="/account" className="inline-flex items-center justify-center">
-              <div className="h-10 w-10 rounded-full border border-white/20 bg-white/10 text-white/90 flex items-center justify-center text-sm font-semibold">
-                ME
-              </div>
+            <Link href="/driver/profile" className="inline-flex items-center justify-center">
+              {avatarUrl ? (
+                <div className="h-10 w-10 rounded-full border border-white/20 overflow-hidden">
+                  <Image src={avatarUrl} alt="Profile" width={40} height={40} className="object-cover w-full h-full" />
+                </div>
+                ) : (
+                <div className="h-10 w-10 rounded-full border border-white/20 bg-white/10 flex items-center justify-center">
+                  <User className="h-5 w-5 text-white/90" />
+                </div>
+              )}
             </Link>
           </div>
         ) : isOwner ? (
@@ -295,9 +397,15 @@ export default function SiteHeader({
             <div className="mx-2 h-5 w-px bg-white/20" />
 
             <Link href="/account" className="inline-flex items-center justify-center">
-              <div className="h-10 w-10 rounded-full border border-white/20 bg-white/10 text-white/90 flex items-center justify-center text-sm font-semibold">
-                ME
-              </div>
+              {avatarUrl ? (
+                <div className="h-10 w-10 rounded-full border border-white/20 overflow-hidden">
+                  <Image src={avatarUrl} alt="Profile" width={40} height={40} className="object-cover w-full h-full" />
+                </div>
+              ) : (
+                <div className="h-10 w-10 rounded-full border border-white/20 bg-white/10 text-white/90 flex items-center justify-center text-sm font-semibold">
+                  ME
+                </div>
+              )}
             </Link>
           </div>
         ) : null}

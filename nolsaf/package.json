@@ -19,6 +19,7 @@
     "prisma:migrate": "npm run --workspace=@nolsaf/prisma db:migrate --"
   },
   "dependencies": {
+    "@prisma/client": "^5.22.0",
     "@prisma/debug": "^6.17.1",
     "yargs": "^18.0.0"
   }

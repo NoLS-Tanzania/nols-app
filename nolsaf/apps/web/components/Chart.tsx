@@ -13,9 +13,10 @@ export type ChartProps<T extends ChartType = ChartType> = {
   options?: ChartOptions<T>;
   height?: number;
   onCanvas?: (canvas: HTMLCanvasElement | null) => void;
+  plugins?: any[];
 };
 
-export default function Chart<T extends ChartType = ChartType>({ type, data, options, onCanvas }: ChartProps<T>) {
+export default function Chart<T extends ChartType = ChartType>({ type, data, options, onCanvas, plugins }: ChartProps<T>) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const chartRef = useRef<unknown | null>(null);
   type Destroyable = { destroy: () => void };
@@ -35,6 +36,7 @@ export default function Chart<T extends ChartType = ChartType>({ type, data, opt
       }
       if (canvasRef.current && ChartCtor) {
         const cfg: ChartConfiguration<T> = { type, data, options } as ChartConfiguration<T>;
+        if (plugins && plugins.length) cfg.plugins = plugins as any;
         chartRef.current = new ChartCtor(canvasRef.current, cfg) as unknown;
       }
   // expose canvas to parent if requested

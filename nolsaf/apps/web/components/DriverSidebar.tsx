@@ -37,14 +37,20 @@ function Item({ href, label, Icon, collapsed }: { href: string; label: string; I
 }
 
 export default function DriverSidebar() {
-  const [collapsed, setCollapsed] = useState<boolean>(() => {
+  // Avoid SSR/CSR mismatches: initialize closed and read persisted value on mount
+  const [collapsed, setCollapsed] = useState<boolean>(false);
+  
+  
+
+  React.useEffect(() => {
     try {
-      if (typeof window === 'undefined') return false;
-      return localStorage.getItem('driver_sidebar_collapsed') === '1';
+      if (typeof window !== 'undefined') {
+        setCollapsed(localStorage.getItem('driver_sidebar_collapsed') === '1');
+      }
     } catch (e) {
-      return false;
+      // ignore
     }
-  });
+  }, []);
 
   const toggleCollapsed = () => {
     const v = !collapsed;
@@ -53,14 +59,20 @@ export default function DriverSidebar() {
   };
 
   // Local UI state: whether the Revenue group is expanded. Persist in localStorage.
-  const [revenueOpen, setRevenueOpen] = useState<boolean>(() => {
+  // Initialize closed on the server to avoid hydration mismatch; read persisted value on client
+  const [revenueOpen, setRevenueOpen] = useState<boolean>(false);
+
+  // Read persisted preference on client after mount
+  React.useEffect(() => {
     try {
-      if (typeof window === 'undefined') return true;
-      return localStorage.getItem('driver_revenue_open') !== '0';
+      if (typeof window !== 'undefined') {
+        const raw = localStorage.getItem('driver_revenue_open');
+        setRevenueOpen(raw === null ? true : raw !== '0');
+      }
     } catch (e) {
-      return true;
+      // ignore
     }
-  });
+  }, []);
 
   // update storage whenever revenueOpen changes
   React.useEffect(() => {
@@ -89,7 +101,7 @@ export default function DriverSidebar() {
 
         <div className="mt-2">
           <div className="grid gap-2">
-            <Item href="/driver?live=1" label="Live Map" Icon={Map} collapsed={collapsed} />
+              <Item href="/driver/map?live=1" label="Live Map" Icon={Map} collapsed={collapsed} />
             <Item href="/driver/trips" label="My Trips" Icon={ListChecks} collapsed={collapsed} />
 
             {/* Revenue group: parent label (toggle) with child items. Clicking toggles open/close. */}
@@ -97,7 +109,7 @@ export default function DriverSidebar() {
               <div
                 role="button"
                 tabIndex={0}
-                aria-expanded={revenueOpen ? 'true' : 'false'}
+                aria-expanded={revenueOpen}
                 onClick={() => setRevenueOpen((v) => !v)}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setRevenueOpen((v) => !v) }}
                 className={`no-underline flex items-center ${collapsed ? 'justify-center px-2' : 'px-4'} py-2 rounded-md text-sm text-white cursor-pointer transition-colors hover:bg-white/70`}
@@ -126,6 +138,7 @@ export default function DriverSidebar() {
         <div className="h-4" />
         <Item href="/driver/profile" label="Profile" Icon={User} collapsed={collapsed} />
       </div>
+      {/* LiveMap overlay is shown on the map page itself; sidebar is a simple shortcut */}
     </div>
   );
 }

@@ -10,9 +10,9 @@ type Props = {
 export default function Spinner({ size = "default", className = "", ariaLabel }: Props) {
   return (
     <span
-      role="status"
-      aria-label={ariaLabel}
-      aria-hidden={!ariaLabel}
+  role="status"
+  aria-label={ariaLabel}
+  aria-hidden={ariaLabel ? "false" : "true"}
       aria-live="polite"
       className={`dot-spinner ${size === "sm" ? "dot-sm" : ""} ${className}`.trim()}
     >

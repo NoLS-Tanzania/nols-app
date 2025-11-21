@@ -5,7 +5,7 @@ export default function DriverTodayPage() {
   return (
     <div className="space-y-6">
       <div className="mx-auto max-w-3xl">
-        <DriverPageHeader />
+        <DriverPageHeader title="Today's Schedule" />
       </div>
 
       <section className="mx-auto max-w-3xl bg-white rounded-lg p-6 border">

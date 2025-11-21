@@ -1,10 +1,11 @@
 "use client";
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
+import { Check, X, Flag, CheckCircle } from 'lucide-react';
 import axios from "axios";
 
 const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL });
 
-export default function DriverLiveMap() {
+export default function DriverLiveMap({ liveOnly }: { liveOnly?: boolean } = {}) {
   const [data, setData] = useState<any | null>(null);
   const [error, setError] = useState<string | null>(null);
   const mapRef = useRef<any | null>(null);
@@ -25,7 +26,7 @@ export default function DriverLiveMap() {
     }
   };
 
-  const createMarkerEl = (available: boolean | undefined) => {
+  const createMarkerEl = useCallback((available: boolean | undefined) => {
     const el = document.createElement('div');
     el.className = 'nols-marker rounded-full';
     // size and color
@@ -40,7 +41,7 @@ export default function DriverLiveMap() {
       el.classList.add('nols-pulse');
     }
     return el;
-  };
+  }, []);
 
   useEffect(() => {
     const t = localStorage.getItem("token");
@@ -113,7 +114,7 @@ export default function DriverLiveMap() {
       }
     })();
     return () => { try { if (map) map.remove(); } catch (e) {} finally { mapRef.current = null; markersRef.current = {}; } };
-  }, [data]);
+  }, [data, createMarkerEl]);
 
   // Socket.IO client: listen for driver:location:update events and update map data live
   useEffect(() => {
@@ -211,7 +212,7 @@ export default function DriverLiveMap() {
       }
     })();
     return () => { mounted = false; try { if (socket) socket.disconnect(); } catch (e) {} };
-  }, []);
+  }, [createMarkerEl]);
 
   return (
     <div>
@@ -222,6 +223,77 @@ export default function DriverLiveMap() {
       ) : (
         <>
           <div id="driver-live-map" className="w-full h-96 rounded-md overflow-hidden border-2 border-blue-200 bg-gray-50" />
+          {/* Demand zones: show from data or fallback */}
+          {(() => {
+            const zones = Array.isArray((data as any).demandZones) ? (data as any).demandZones : [];
+
+            if (liveOnly) {
+              return (
+                <div className="absolute left-4 bottom-6 z-50">
+                  <div className="bg-white/95 backdrop-blur-sm rounded-lg p-3 shadow-md border">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="font-semibold text-sm text-gray-800">HIGH DEMAND ZONES</div>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      {zones.map((zone: any, idx: number) => (
+                        <div key={idx} className="flex items-center gap-2 px-2 py-1 bg-gray-50 rounded-md border">
+                          <span className={`inline-block h-3 w-3 ${zone.level === 'high' ? 'bg-blue-500' : zone.level === 'medium' ? 'bg-amber-400' : 'bg-emerald-500'} rounded-sm transform rotate-45`} />
+                          <span className="text-sm font-medium text-gray-700">{zone.name}</span>
+                          <span className="text-xs text-gray-500 capitalize">{zone.level === 'high' ? 'Very High' : zone.level}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <div className="mt-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="font-semibold text-gray-800">HIGH DEMAND ZONES</div>
+                </div>
+                <div className="mb-4 flex flex-wrap gap-3">
+                  {zones.map((zone: any, idx: number) => (
+                    <div key={idx} className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg border">
+                      <span className={`inline-block h-3 w-3 ${zone.level === 'high' ? 'bg-blue-500' : zone.level === 'medium' ? 'bg-amber-400' : 'bg-emerald-500'} rounded-sm transform rotate-45`} />
+                      <span className="text-sm font-medium text-gray-700">{zone.name}</span>
+                      <span className="text-xs text-gray-500 capitalize">{zone.level === 'high' ? 'Very High' : zone.level}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+            {/* Live controls helper - visible when map is opened in live-only mode */}
+            {liveOnly && (
+              <div className="absolute right-4 top-6 z-50">
+                <div className="bg-white/95 backdrop-blur-sm rounded-lg p-3 shadow-md border w-56">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="font-semibold text-sm text-gray-800">Live Controls</div>
+                    <div className="text-xs text-gray-500">Active</div>
+                  </div>
+                  <ul className="text-sm text-gray-700 space-y-3">
+                    <li className="flex items-center gap-3">
+                      <Check className="h-5 w-5 text-emerald-500" />
+                      <span>Accept Request now</span>
+                    </li>
+                    <li className="flex items-center gap-3">
+                      <X className="h-7 w-7 text-red-600" />
+                      <span className="font-medium">Cancel</span>
+                    </li>
+                    <li className="flex items-center gap-3">
+                      <Flag className="h-5 w-5 text-amber-400" />
+                      <span>Report</span>
+                    </li>
+                    <li className="flex items-center gap-3">
+                      <CheckCircle className="h-5 w-5 text-sky-500" />
+                      <span>Complete Rides</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            )}
           <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="p-3 bg-white border rounded">
               <div className="text-sm text-gray-500">Driver location</div>

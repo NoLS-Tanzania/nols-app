@@ -72,10 +72,12 @@ export default function TwoFAPage() {
     setLoading(true)
     setTotpFlow('verifying')
     try {
-      const res = await fetch('/api/driver/security/2fa', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'totp', action: 'enable', code: otp }) })
+      const payload: any = { type: 'totp', action: 'enable', code: otp }
+      if (provision?.secret) payload.secret = provision.secret
+      const res = await fetch('/api/driver/security/2fa', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       const body = await res.json().catch(() => null)
       if (!res.ok) {
-        setError((body && body.error) || `Failed (status ${res.status})`)
+        setError((body && (body.error || body.details)) || `Failed (status ${res.status})`)
         setTotpFlow('provision')
         dispatchToast({ type: 'error', title: '2FA', message: 'Failed to enable authenticator.' })
       } else {

@@ -59,6 +59,9 @@ export default function AdminPropertiesPage() {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [showScrollControls, setShowScrollControls] = useState(false);
 
+  // derived count to avoid accessing items.length when items may be undefined
+  const itemsCount = items?.length ?? 0;
+
   // detect horizontal overflow and toggle scroll hints/arrows
   useEffect(() => {
     const el = scrollRef.current;
@@ -87,7 +90,7 @@ export default function AdminPropertiesPage() {
     };
     // re-run when items, counts, query or status change
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items.length, status, q, suggestions.length, JSON.stringify(counts)]);
+  }, [itemsCount, status, q, suggestions.length, JSON.stringify(counts)]);
 
   async function load() {
     setLoading(true);
@@ -135,8 +138,8 @@ export default function AdminPropertiesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const allChecked = useMemo(() => sel.length > 0 && sel.length === items.length, [sel, items]);
-  const toggleAll = () => setSel(allChecked ? [] : items.map((i) => i.id));
+  const allChecked = useMemo(() => sel.length > 0 && sel.length === itemsCount, [sel, itemsCount]);
+  const toggleAll = () => setSel(allChecked ? [] : (items || []).map((i) => i.id));
   const toggleOne = (id: number) => setSel((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
   // Search handler: show compact loading state while running
@@ -312,9 +315,9 @@ export default function AdminPropertiesPage() {
       </div>
 
       {loading && <div>Loading…</div>}
-      {!loading && items.length === 0 && <div className="text-sm opacity-70">No properties.</div>}
+      {!loading && itemsCount === 0 && <div className="text-sm opacity-70">No properties.</div>}
 
-      {items.length > 0 && (
+      {itemsCount > 0 && (
         <div className="grid gap-3">
           {/* header row */}
           <div className="grid grid-cols-[32px_72px_1fr_220px_120px_160px_90px] gap-2 px-2 text-xs uppercase opacity-70">
@@ -335,7 +338,7 @@ export default function AdminPropertiesPage() {
             <div>Open</div>
           </div>
 
-          {items.map((p) => (
+          {(items || []).map((p) => (
             <div
               key={p.id}
               className="grid grid-cols-[32px_72px_1fr_220px_120px_160px_90px] gap-2 items-center bg-white border rounded-xl p-2"

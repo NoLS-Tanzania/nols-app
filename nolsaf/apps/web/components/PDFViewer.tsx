@@ -92,7 +92,7 @@ export default function PDFViewer({ url }: Props) {
         <div className="flex items-center justify-center py-12">Loading PDF…</div>
       ) : (
         <div className="border rounded overflow-hidden">
-          <canvas ref={canvasRef} style={{ width: '100%', display: 'block' }} />
+          <canvas ref={canvasRef} className="w-full block" />
         </div>
       )}
     </div>

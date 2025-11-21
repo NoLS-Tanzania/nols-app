@@ -34,14 +34,18 @@ import adminStatsRouter from "./routes/admin.stats";
 import adminUsersRouter from "./routes/admin.users";
 import adminBonusesRouter from "./routes/admin.bonuses";
 import adminOwnersRouter from "./routes/admin.owners.js";
+import adminDriversRouter from "./routes/admin.drivers";
+import adminDriversSummaryRouter from "./routes/admin.drivers.summary";
 import adminPropertiesRouter from "./routes/admin.properties.js";
 import adminAuditsRouter from "./routes/admin.audits";
+import adminSummaryRouter from './routes/admin.summary';
 import adminNotificationsRouter from "./routes/admin.notifications";
 import ownerMessagesRouter from './routes/owner.messages';
 import ownerNotificationsRouter from './routes/owner.notifications';
 import { router as ownerBookingsRouter } from "./routes/owner.booking";
 import admin2faRouter from "./routes/admin.2fa.js";
 import driverRouter from "./routes/driver.stats";
+import driverRemindersRouter from './routes/driver.reminders';
 
 // moved the POST handler to after the app is created
 // Create app and server before using them
@@ -71,6 +75,9 @@ const DEFAULT_ORIGINS = [
   "http://127.0.0.1:3000",
   "http://localhost:3001",
   "http://127.0.0.1:3001",
+  // Allow local Next dev on port 3002 (used by the web dev server in this workspace)
+  "http://localhost:3002",
+  "http://127.0.0.1:3002",
 ];
 const ENV_ORIGINS = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(",").map((s) => s.trim()).filter(Boolean)
@@ -108,13 +115,18 @@ app.use('/api/conversations', requireRole() as express.RequestHandler, conversat
 app.use('/api/bookings', requireRole() as express.RequestHandler, bookingsRoutes);
 app.use("/admin/bookings", adminBookingsRouter);
 app.use("/admin/revenue", adminRevenueRouter);
+// also expose API-prefixed route so frontend using `/api/admin/revenue` works
+app.use('/api/admin/revenue', adminRevenueRouter as express.RequestHandler);
 app.use("/admin/payments", adminPaymentsRouter);
+app.use("/admin/drivers", adminDriversRouter);
+app.use('/admin/drivers/summary', adminDriversSummaryRouter);
 app.use("/admin/stats", adminStatsRouter);
 app.use("/admin/users", adminUsersRouter);
 app.use("/admin/bonuses", adminBonusesRouter);
 app.use("/webhooks", paymentWebhooksRouter);
 app.use("/admin/owners", adminOwnersRouter);
 app.use("/admin/properties", adminPropertiesRouter);
+app.use('/api/admin/summary', requireRole('ADMIN') as express.RequestHandler, adminSummaryRouter as express.RequestHandler);
 app.use('/api/admin/audits', requireRole('ADMIN') as express.RequestHandler, adminAuditsRouter as express.RequestHandler);
 app.use('/api/admin/notifications', requireRole('ADMIN') as express.RequestHandler, adminNotificationsRouter as express.RequestHandler);
 app.use('/api/owner/revenue', requireRole('OWNER') as express.RequestHandler, ownerRevenue);
@@ -124,6 +136,8 @@ app.use('/api/owner/notifications', requireRole('OWNER') as express.RequestHandl
 app.use('/api/admin/email', adminAllowlist, adminEmail);
 // Driver-scoped endpoints (stats + map)
 app.use('/api/driver', requireRole('DRIVER') as express.RequestHandler, driverRouter as express.RequestHandler);
+// Driver reminders (list available to drivers; creation reserved for ADMIN)
+app.use('/api/driver/reminders', driverRemindersRouter as express.RequestHandler);
 // app.use('/api/owner/phone', ownerPhone);
 app.use("/admin/2fa", admin2faRouter);
 app.use("/owner/bookings", ownerBookingsRouter);

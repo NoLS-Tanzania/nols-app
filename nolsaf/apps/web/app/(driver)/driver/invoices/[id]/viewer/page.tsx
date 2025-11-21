@@ -47,7 +47,7 @@ export default function InvoiceViewerPage() {
   return (
     <div className="space-y-6">
       <div className="mx-auto max-w-3xl text-center">
-        <DriverPageHeader />
+        <DriverPageHeader title="Driver Invoice" />
         <div className="mt-4 relative">
           {/* Watermark (centered, light) */}
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-10 print:opacity-10">

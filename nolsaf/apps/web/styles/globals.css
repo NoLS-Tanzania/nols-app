@@ -22,10 +22,14 @@ html, body, #__next {
 /* Admin UI refinements */
 /* Admin layout variables: sidebar width and footer height used site-wide */
 :root { --admin-sidebar-width: 14rem; --admin-footer-height: 48px; }
+/* Driver-specific accent used in driver greeting and status indicators */
+:root { --driver-accent: #02665e; }
 /* Reserve a footer height so fixed elements (sidebar, floating actions) can sit above it without overlapping
   This enables a "sticky" footer behavior: the footer is at the end of the document but fixed UI will stop
   above it when visible. Adjust this value to match the visual footer height. */
 :root { --footer-height: 56px; }
+/* Global header height for fixed header offset (used by public pages) */
+:root { --header-height: 4rem; }
 
 /* Floating help: positioned above the footer using the footer height variable */
 .floating-help {
@@ -183,6 +187,66 @@ html, body, #__next {
   .stat-value { @apply mt-2 text-3xl sm:text-4xl font-semibold tracking-tight text-gray-900; }
   .stat-help  { @apply mt-2 text-xs text-gray-500; }
 
+  /* Greeting accent: thin left rail, right rail (double-rail) and inner padding to match header brand */
+  .greeting-accent {
+    position: relative;
+    border-left: 6px solid var(--driver-accent);
+    padding-left: 1rem;
+    padding-right: 1rem; /* space for right rail so content doesn't overlap */
+  }
+
+  /* Right rail implemented with a pseudo-element for symmetry */
+  .greeting-accent::after {
+    content: '';
+    position: absolute;
+    right: 0.5rem; /* inset from edge to align visually with left rail */
+    top: 12px;
+    bottom: 12px;
+    width: 6px;
+    border-top-right-radius: 8px;
+    border-bottom-right-radius: 8px;
+    /* Lighter, more subtle right rail to avoid overpowering the header */
+    background: linear-gradient(to bottom, rgba(2,102,94,0.28), rgba(2,102,94,0.12));
+    pointer-events: none;
+  }
+
+  /* Normalize driver page inner containers: remove ad-hoc left margins and pin content to the left
+     so lists/tables (Invoices, Trips) appear visually connected to the driver sidebar. This is
+     a CSS-only override that tightens left/right padding and adds a subtle left rail for emphasis. */
+  @media (min-width: 768px) {
+    .admin-sidebar-fixed + .flex-1 > main > div {
+      margin-left: 0 !important;
+      margin-right: auto !important;
+      max-width: 72rem; /* content width for driver pages */
+      padding-left: 0.5rem !important; /* tighten left padding so content sits nearer the sidebar */
+      padding-right: 0.5rem !important; /* tighten right padding to squeeze content */
+      position: relative; /* allow pseudo-element rail */
+    }
+
+    /* Subtle left rail on the content wrapper to visually connect content to the sidebar */
+    .admin-sidebar-fixed + .flex-1 > main > div::before {
+      content: '';
+      position: absolute;
+      left: 0.25rem;
+      top: 12px;
+      bottom: 12px;
+      width: 4px;
+      border-radius: 4px;
+      background: linear-gradient(to bottom, rgba(2,102,94,0.12), rgba(2,102,94,0.06));
+      pointer-events: none;
+    }
+
+    /* If page inner wrapper uses a right border (pr-2 border-r), reduce its extra padding slightly */
+    .admin-sidebar-fixed + .flex-1 > main > div > .pr-2 {
+      padding-right: 0.5rem !important;
+    }
+  }
+
+  /* Status dot used in driver header: online/offline variants */
+  .status-dot { @apply inline-block h-3 w-3 rounded-full; background: #9ca3af; }
+  .status-dot.online { background: var(--driver-accent); }
+  .status-dot.offline { background: #9ca3af; }
+
   /* Quick links: make tiles visually distinct, equal height, with subtle border and hover lift */
   .qlink {
     /* Make tiles respect siblings: full-size within grid cell but constrained, box-sizing prevents padding bleed */
@@ -258,6 +322,23 @@ html, body, #__next {
   .table    { @apply w-full border-collapse text-sm; }
   .thead th { @apply bg-gray-50 text-left font-semibold border-b px-3 py-2; }
   .tbody td { @apply border-b px-3 py-2; }
+  /* Driver-specific table tightening: reduce horizontal padding and force ellipsis for long values
+     so invoice/trips tables stay compact and move visually closer to the sidebar. */
+  @media (min-width: 768px) {
+    .admin-sidebar-fixed + .flex-1 main table { table-layout: fixed; width: 100%; }
+    .admin-sidebar-fixed + .flex-1 main table th,
+    .admin-sidebar-fixed + .flex-1 main table td {
+      padding-left: 0.5rem !important;
+      padding-right: 0.5rem !important;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .admin-sidebar-fixed + .flex-1 main table th.action,
+    .admin-sidebar-fixed + .flex-1 main table td.action { width: 6rem; }
+    .admin-sidebar-fixed + .flex-1 main table th.amount,
+    .admin-sidebar-fixed + .flex-1 main table td.amount { width: 8rem; text-align: right; }
+  }
   .row-hover { @apply transition-colors; }
   .row-hover:hover { @apply bg-gray-50; }
 
@@ -556,7 +637,14 @@ a[aria-label="Toggle theme"].mobile {
 }
 
 /* Ensure the page content doesn't visually collide with the footer rail when using fixed elements */
-.page-bottom-buffer { padding-bottom: 6px; }
+.page-bottom-buffer { padding-bottom: calc(var(--footer-height) + 1rem); }
+
+/* Utility to add top padding equal to the fixed header so content is not obscured */
+.header-offset { padding-top: var(--header-height); }
+
+/* Public container centers content and removes admin left-rail offset.
+  Use this on public pages to align content without the admin sidebar margin. */
+.public-container { max-width: 72rem; margin-left: auto; margin-right: auto; padding-left: 1rem; padding-right: 1rem; }
 
 /* Accessibility helper: screen reader only */
 .sr-only { position: absolute !important; height: 1px; width: 1px; overflow: hidden; clip: rect(1px, 1px, 1px, 1px); white-space: nowrap; border: 0; padding: 0; }

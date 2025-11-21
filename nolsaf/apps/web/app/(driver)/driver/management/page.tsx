@@ -2,10 +2,13 @@
 
 import React, { useEffect, useState } from "react"
 import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 import DriverPageHeader from "@/components/DriverPageHeader"
 import { Eye, Upload, Lock, Truck, Pencil } from 'lucide-react'
 
 export default function DriverManagementPage() {
+  const searchParams = useSearchParams()
+  const tabParam = searchParams.get('tab')
   const [tab, setTab] = useState<'documents' | 'safety' | 'settings'>('documents')
   const [loadingDocs, setLoadingDocs] = useState(false)
   const [loadingSafety, setLoadingSafety] = useState(false)
@@ -16,6 +19,17 @@ export default function DriverManagementPage() {
   const isDocuments = tab === 'documents'
   const isSafety = tab === 'safety'
   const isSettings = tab === 'settings'
+
+  // Update tab based on URL parameter
+  useEffect(() => {
+    if (tabParam === 'safety') {
+      setTab('safety')
+    } else if (tabParam === 'settings') {
+      setTab('settings')
+    } else if (tabParam === 'documents') {
+      setTab('documents')
+    }
+  }, [tabParam])
 
   useEffect(() => {
     let mounted = true

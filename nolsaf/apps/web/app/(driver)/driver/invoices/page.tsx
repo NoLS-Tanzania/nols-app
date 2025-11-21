@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import DriverPageHeader from "@/components/DriverPageHeader"
 import TableRow from "@/components/TableRow"
-import { FileText, Eye, Printer, Send } from "lucide-react"
+import { FileText, Eye, Printer, Send, Check } from "lucide-react"
 
 export default function DriverInvoicesPage() {
   const [invoices, setInvoices] = useState<any[] | null>(null)
@@ -313,7 +313,7 @@ export default function DriverInvoicesPage() {
                                       )}
                                       {isSent && (
                                         <div className="w-full text-left px-3 py-2 text-sm text-slate-400 flex items-center space-x-2">
-                                          <svg className="h-4 w-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
+                                          <Check className="h-4 w-4 text-slate-400" />
                                           <span>Already sent</span>
                                         </div>
                                       )}

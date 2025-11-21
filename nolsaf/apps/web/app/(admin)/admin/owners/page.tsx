@@ -33,6 +33,7 @@ export default function AdminOwnersPage() {
   const [showScrollControls, setShowScrollControls] = useState(false);
   const [suggestions, setSuggestions] = useState<Row[]>([]);
   const countsKey = useMemo(() => JSON.stringify(counts), [counts]);
+  const itemsCount = items?.length ?? 0;
 
   type OwnersResponse = {
     items: Row[];
@@ -67,7 +68,7 @@ export default function AdminOwnersPage() {
     const mo = new MutationObserver(() => { clearTimeout(timeout); timeout = setTimeout(check, 80); });
     mo.observe(el, { childList: true, subtree: true });
     return () => { clearTimeout(timeout); el.removeEventListener("scroll", check); window.removeEventListener("resize", onResize); mo.disconnect(); };
-  }, [items.length, status, q, countsKey]);
+  }, [itemsCount, status, q, countsKey]);
 
   // optional counts fetch; keep zeros if endpoint missing
   useEffect(() => {
@@ -247,7 +248,7 @@ export default function AdminOwnersPage() {
             </tr>
           </thead>
           <tbody>
-            {items.map(o => (
+            {(items || []).map(o => (
               <tr key={o.id} className="border-t">
                 <td className="p-2">
                   <div className="font-medium truncate">{o.name ?? "-"}</div>
@@ -272,7 +273,7 @@ export default function AdminOwnersPage() {
                 </td>
               </tr>
             ))}
-            {items.length === 0 && (
+            {itemsCount === 0 && (
               <tr><td colSpan={7} className="p-4 text-center opacity-60">No owners found.</td></tr>
             )}
           </tbody>

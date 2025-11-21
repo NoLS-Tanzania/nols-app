@@ -3,13 +3,16 @@
 import Link from "next/link";
 import Image from "next/image";
 
-export default function SiteFooter() {
+export default function SiteFooter({ withRail = true }: { withRail?: boolean }) {
   const year = new Date().getFullYear();
+  const innerRailClass = withRail ? 'md:ml-56' : '';
   return (
-    <footer className="mt-12 footer-with-rail page-bottom-buffer">
+    <footer className={`w-full mt-12 page-bottom-buffer bg-slate-50`}> 
+      {/* full-width separator line (brand color) */}
+      <div className="w-full h-0.5 bg-[#02665e]" />
       <h2 className="sr-only">Footer</h2>
 
-      <div className="max-w-6xl mx-auto px-4 py-6 md:ml-56 flex flex-col items-center gap-4">
+      <div className={`max-w-6xl mx-auto px-4 py-6 flex flex-col items-center gap-4 ${innerRailClass}`}>
         <nav aria-label="Footer navigation" className="w-full flex justify-center">
           <ul className="flex flex-wrap items-center justify-center gap-6 text-sm">
             <li><a role="button" onClick={() => window.dispatchEvent(new CustomEvent('open-legal', { detail: { type: 'terms' } }))} className="text-[#02665e] font-semibold no-underline hover:no-underline">Terms of Service</a></li>

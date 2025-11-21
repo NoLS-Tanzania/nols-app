@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 // DriverPageHeader intentionally omitted here so the payouts header (icon + label)
 // appears at the top of the page without the extra route-based icon.
-import { Wallet, CreditCard, Eye } from "lucide-react";
+import { Wallet, CreditCard, Eye, Download, X } from "lucide-react";
 import Spinner from "@/components/Spinner";
 import TableRow from "@/components/TableRow"
 
@@ -510,12 +510,12 @@ export default function DriverPayoutsPage() {
 
                                                 {receiptUrl ? (
                                                   <button onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); generatePdfReceipt(payout) }} className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-slate-900 flex items-center space-x-2">
-                                                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                                    <Download className="h-4 w-4" />
                                                     <span>Download PDF</span>
                                                   </button>
                                                 ) : (
                                                   <div className="w-full text-left px-3 py-2 text-sm text-slate-400 flex items-center space-x-2">
-                                                    <svg className="h-4 w-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
+                                                    <X className="h-4 w-4 text-slate-400" />
                                                     <span>Receipt not available</span>
                                                   </div>
                                                 )}

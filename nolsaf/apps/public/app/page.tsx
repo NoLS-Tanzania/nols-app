@@ -16,7 +16,7 @@ export default async function Page(){
             <img src={p.thumbnail ?? '/assets/sample/property-1.jpg'} alt={p.title} />
             <div className="card-content">
               <h2 className="card-title">{p.title}</h2>
-              <div className="muted" style={{fontSize:13,marginTop:6}}>{p.location?.city}, {p.location?.region}</div>
+              <div className="muted location-info">{p.location?.city}, {p.location?.region}</div>
               <div className="price">{p.currency} {p.pricePerNight} / night</div>
             </div>
           </a>

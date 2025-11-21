@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
+import { ArrowLeft, ArrowRight } from 'lucide-react';
 import IncomingRequestsButton from "./IncomingRequestsButton";
 
 export default function IncomingRequestCard({ request }: { request?: any }) {
@@ -174,8 +175,8 @@ export default function IncomingRequestCard({ request }: { request?: any }) {
             {/* Left decline area */}
             <div className="absolute left-0 top-0 bottom-0 w-1/4 flex items-center justify-start pl-3">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center">
-                  <svg className="w-4 h-4 text-red-600 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 18l-6-6 6-6"></path></svg>
+                  <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center">
+                  <ArrowLeft className="w-4 h-4 text-red-600 animate-pulse" />
                 </div>
               </div>
             </div>
@@ -184,7 +185,7 @@ export default function IncomingRequestCard({ request }: { request?: any }) {
             <div className="absolute right-0 top-0 bottom-0 w-1/4 flex items-center justify-end pr-3">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
-                  <svg className="w-4 h-4 text-green-600 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path></svg>
+                  <ArrowRight className="w-4 h-4 text-green-600 animate-pulse" />
                 </div>
               </div>
             </div>
@@ -197,11 +198,6 @@ export default function IncomingRequestCard({ request }: { request?: any }) {
               <div className="absolute left-1/4 top-0 bottom-0 right-1/4 bg-blue-100 pointer-events-none" />
               {/* Right (accept) */}
               <div className="absolute right-0 top-0 bottom-0 w-1/4 bg-green-100 pointer-events-none" />
-
-              {/* Center label (incoming) */}
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <span className="text-sm text-gray-700">Slide to act</span>
-              </div>
 
               {/* Draggable knob (arrow inside). Knob color changes based on drag direction: center=blue, right=green, left=red */}
               <div
@@ -280,7 +276,7 @@ export default function IncomingRequestCard({ request }: { request?: any }) {
                 className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-14 h-10 bg-sky-600 rounded-full shadow flex items-center justify-center cursor-grab select-none touch-action-none`}
               >
                 {/* constant arrow icon inside knob */}
-                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path></svg>
+                <ArrowRight className="w-4 h-4 text-white" />
               </div>
             </div>
           </div>

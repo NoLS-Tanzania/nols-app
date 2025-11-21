@@ -3,7 +3,7 @@ import React, { useState, useCallback, useRef } from "react";
 import DriverPageHeader from "@/components/DriverPageHeader";
 import DatePicker from "@/components/ui/DatePicker";
 import TableRow from "@/components/TableRow";
-import { ListChecks, Wallet, CreditCard } from "lucide-react";
+import { ListChecks, Wallet, CreditCard, Calendar } from "lucide-react";
 
 export default function DriverHistoryPage() {
   const [showPicker, setShowPicker] = useState(false);
@@ -291,10 +291,11 @@ export default function DriverHistoryPage() {
           <div className="text-sm text-gray-600 mr-2">{renderSelected()}</div>
           <button
             onClick={() => setShowPicker((s) => !s)}
-            className={`px-3 py-2 rounded border border-gray-200 text-sm font-medium transition duration-150 ease-in-out transform active:scale-95 bg-white text-gray-700 hover:bg-gray-50`}
+            className={`px-3 py-2 rounded border border-gray-200 text-sm font-medium transition duration-150 ease-in-out transform active:scale-95 bg-white text-gray-700 hover:bg-gray-50 flex items-center gap-2`}
             aria-label="Toggle date picker"
           >
-            Select date
+            <Calendar className="h-4 w-4" />
+            <span>{new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</span>
           </button>
         </div>
       </div>

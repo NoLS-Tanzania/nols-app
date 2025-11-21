@@ -81,7 +81,7 @@ export default function GeneralReports() {
       const rows: string[][] = [header];
 
       // Regional Performance rows (from API)
-      const labels = revenueSeries.labels.length ? revenueSeries.labels : activePropsSeries.labels;
+      const labels = (Array.isArray(revenueSeries?.labels) && revenueSeries.labels.length) ? revenueSeries.labels : (Array.isArray(activePropsSeries?.labels) ? activePropsSeries.labels : []);
       (labels || []).forEach((lab, i) => {
         rows.push([
           `Regional Performance`,
@@ -94,7 +94,7 @@ export default function GeneralReports() {
       });
 
       // Property Type Performance rows
-      const typeLabels = revenueByType.labels.length ? revenueByType.labels : activePropsBreakdown.labels;
+      const typeLabels = (Array.isArray(revenueByType?.labels) && revenueByType.labels.length) ? revenueByType.labels : (Array.isArray(activePropsBreakdown?.labels) ? activePropsBreakdown.labels : []);
       (typeLabels || []).forEach((t, i) => {
         rows.push([
           `Property Type Performance`,
@@ -112,8 +112,8 @@ export default function GeneralReports() {
       });
 
       // Requests for Fix (trend) — use revenueSeries as proxy (counts scaled)
-      (revenueSeries.labels || []).forEach((lab, i) => {
-        const val = revenueSeries.data && revenueSeries.data[i] ? Math.round((revenueSeries.data[i] || 0) / 1000) : '';
+      (Array.isArray(revenueSeries?.labels) ? revenueSeries.labels : []).forEach((lab, i) => {
+        const val = Array.isArray(revenueSeries?.data) && revenueSeries.data[i] ? Math.round((revenueSeries.data[i] || 0) / 1000) : '';
         rows.push(['Requests for Fix (Trend)', String(lab), '', '', '', String(val)]);
       });
 
@@ -226,7 +226,7 @@ export default function GeneralReports() {
   }, [region, timeframe, groupBy]);
 
   // Derived chart objects from API data
-  const regionalLabels = revenueSeries.labels.length ? revenueSeries.labels : activePropsSeries.labels;
+  const regionalLabels = (Array.isArray(revenueSeries?.labels) && revenueSeries.labels.length) ? revenueSeries.labels : (Array.isArray(activePropsSeries?.labels) ? activePropsSeries.labels : []);
   const regionalChartData = {
     labels: regionalLabels,
     datasets: [

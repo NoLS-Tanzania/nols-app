@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import { MessageCircle } from "lucide-react";
+import { MessageCircle, ArrowLeft } from "lucide-react";
 import ReplyIcon from "@/components/ReplyIcon";
 import MarkReadButton from "@/components/MarkReadButton";
 
@@ -122,9 +122,7 @@ export default function UnreadMessagesPage() {
             {/* import inline to avoid top-level changes in this file; use component path */}
             <a href="/owner/messages" className="inline-flex items-center gap-2 group no-underline hover:no-underline" aria-label="Back to messages">
               <span className="inline-flex items-center justify-center p-2 rounded-full bg-white border border-gray-200 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-300">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-700 group-hover:text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
+                <ArrowLeft className="h-4 w-4 text-gray-700 group-hover:text-blue-600" />
               </span>
               <span className="hidden group-hover:inline-block group-focus:inline-block transition-opacity text-sm text-black no-underline">Back to messages</span>
             </a>

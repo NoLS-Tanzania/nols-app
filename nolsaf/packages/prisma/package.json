@@ -4,5 +4,12 @@
   "private": true,
   "type": "module",
   "main": "src/index.ts",
-  "files": ["src"]
+  "files": ["src"],
+  "dependencies": {
+    "@prisma/client": "^5.22.0"
+  }
+  ,
+  "devDependencies": {
+    "prisma": "^5.22.0"
+  }
 }

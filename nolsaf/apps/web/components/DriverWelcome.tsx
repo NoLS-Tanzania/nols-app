@@ -37,6 +37,10 @@ export default function DriverWelcome({ className }: { className?: string }) {
     }
   });
 
+  // minimal placeholder state for the welcome card's map area (map is mounted on the Live Map page)
+  const [mapVisible, setMapVisible] = useState<boolean>(false);
+  const [mapError, setMapError] = useState<string | null>(null);
+
   useEffect(() => {
     const handler = (ev: Event) => {
       try {
@@ -66,123 +70,14 @@ export default function DriverWelcome({ className }: { className?: string }) {
   }, []);
   
 
-  // Initialize Mapbox when the component mounts (client-side only).
-  const [mapError, setMapError] = useState<string | null>(null);
-  const [mapVisible, setMapVisible] = useState<boolean>(() => {
-    try {
-      const raw = localStorage.getItem('driver_available');
-      return raw === '1' || raw === 'true';
-    } catch (e) {
-      return false;
-    }
-  });
-  const mapRemoveTimer = React.useRef<number | null>(null);
+  // Map is provided by the Live Map page; welcome card shows a placeholder.
   // quick-link stats: default to zeros; we'll attempt to fetch driver stats if an API is available
   const [stats, setStats] = useState<{ todaysRides: number; earnings: number; rating: number }>({
     todaysRides: 0,
     earnings: 0,
     rating: 0,
   });
-  useEffect(() => {
-    // Only initialize when online. If offline, schedule a delayed removal so we can animate the fade.
-    if (typeof window === "undefined") return;
-    if (!available) {
-      // start fade-out: mark mapHidden but delay instance removal so CSS transition can run
-      setMapVisible(false);
-      try {
-        if (mapRemoveTimer.current) {
-          window.clearTimeout(mapRemoveTimer.current as any);
-          mapRemoveTimer.current = null;
-        }
-      } catch (e) {}
-      // after short delay remove map instance
-      mapRemoveTimer.current = window.setTimeout(() => {
-        try {
-          const el = document.getElementById("driver-map");
-          if (el && (el as any).__mapboxInstance) {
-            try { (el as any).__mapboxInstance.remove(); } catch (e) { /* ignore */ }
-            delete (el as any).__mapboxInstance;
-            delete (el as HTMLElement).dataset.mapMounted;
-          }
-        } catch (e) { /* ignore */ }
-        setMapError(null);
-        mapRemoveTimer.current = null;
-      }, 300);
-      return;
-    }
-
-    const token = (process.env.NEXT_PUBLIC_MAPBOX_TOKEN as string) || (window as any).__MAPBOX_TOKEN;
-    // helpful debug log to surface token availability in browser console
-    // note: in production you may want to remove logging of public tokens
-    // eslint-disable-next-line no-console
-    console.debug("DriverWelcome: map token present?", !!token);
-    if (!token) return;
-
-    let mounted = true;
-    (async () => {
-      try {
-        const mapboxglModule = await import("mapbox-gl");
-        if (!mounted) return;
-        const mapboxgl = (mapboxglModule as any).default ?? mapboxglModule;
-        mapboxgl.accessToken = token;
-
-        const el = document.getElementById("driver-map");
-        if (!el) return;
-        if ((el as HTMLElement).dataset.mapMounted === "1") return;
-        (el as HTMLElement).dataset.mapMounted = "1";
-
-        const fallbackLng = 39.2083; // Dar es Salaam approx
-        const fallbackLat = -6.7924;
-        let centerLng = fallbackLng;
-        let centerLat = fallbackLat;
-        try {
-          const maybe = (window as any).__DRIVER_LOCATION;
-          if (maybe && typeof maybe.lng === "number" && typeof maybe.lat === "number") {
-            centerLng = maybe.lng;
-            centerLat = maybe.lat;
-          }
-        } catch (err) {
-          /* ignore */
-        }
-
-        const map = new mapboxgl.Map({
-          container: el as HTMLElement,
-          style: "mapbox://styles/mapbox/streets-v11",
-          center: [centerLng, centerLat],
-          zoom: 12,
-        });
-
-        map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
-        new mapboxgl.Marker().setLngLat([centerLng, centerLat]).addTo(map);
-
-        // store instance for potential cleanup by hot reload
-        (el as any).__mapboxInstance = map;
-        // ensure container shows immediately when map is mounted
-        setMapVisible(true);
-      } catch (err: any) {
-        const msg = (err && err.message) ? err.message : String(err);
-        setMapError(msg);
-        // eslint-disable-next-line no-console
-        console.warn("Failed to initialize Mapbox map:", err);
-      }
-    })();
-
-    return () => {
-      mounted = false;
-      try {
-        if (mapRemoveTimer.current) {
-          window.clearTimeout(mapRemoveTimer.current as any);
-          mapRemoveTimer.current = null;
-        }
-        const el = document.getElementById("driver-map");
-        if (el && (el as any).__mapboxInstance) {
-          try { (el as any).__mapboxInstance.remove(); } catch (e) { /* ignore */ }
-          delete (el as any).__mapboxInstance;
-          delete (el as HTMLElement).dataset.mapMounted;
-        }
-      } catch (e) { /* ignore */ }
-    };
-  }, [available]);
+  // no-op: map initialization moved to DriverLiveMap component
 
   // try to fetch lightweight driver stats (non-blocking). If API is absent, we silently keep zeros.
   useEffect(() => {
