@@ -14,9 +14,13 @@ const LANGUAGES = [
 
 export default function LanguagePicker() {
   const [open, setOpen] = useState(false);
-  const [locale, setLocale] = useState<string>(() => {
-    try { return localStorage.getItem(KEY) ?? 'en'; } catch (e) { return 'en'; }
-  });
+  // initialize to a stable default during SSR to avoid hydration mismatches
+  const [locale, setLocale] = useState<string>('en');
+
+  // hydrate from localStorage on client mount
+  useEffect(() => {
+    try { const stored = localStorage.getItem(KEY); if (stored) setLocale(stored); } catch (e) {}
+  }, []);
   const ref = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {

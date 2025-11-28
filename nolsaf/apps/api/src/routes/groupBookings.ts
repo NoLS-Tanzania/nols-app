@@ -1,0 +1,569 @@
+/**
+ * @fileoverview Group Booking API Routes
+ * @module routes/groupBookings
+ * 
+ * Provides REST API endpoints for managing group accommodation bookings.
+ * Handles creation, retrieval, updates, and status management of group bookings.
+ * 
+ * @requires authentication All routes require user authentication
+ */
+
+import { Router, type RequestHandler, type Response } from "express";
+import { prisma } from "@nolsaf/prisma";
+import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
+import {
+  CreateGroupBookingInput,
+  UpdateGroupBookingStatusInput,
+  GroupBookingQueryInput,
+  type PassengerInput,
+} from "../schemas/groupBookingSchemas.js";
+import { z } from "zod";
+
+const router = Router();
+
+// Apply authentication middleware to all routes in this router
+router.use(requireAuth as RequestHandler);
+
+/**
+ * @route POST /api/group-bookings
+ * @description Create a new group booking
+ * @access Private - Requires authentication
+ * 
+ * @body {CreateGroupBookingInput} Group booking details including:
+ *   - groupType: Type of group (family, workers, event, etc.)
+ *   - origin: Optional origin location details
+ *   - destination: Required destination location details
+ *   - accommodation: Type, headcount, room configuration
+ *   - dates: Check-in/check-out dates (optional if flexible)
+ *   - arrangements: Additional services (pickup, transport, meals, etc.)
+ *   - roster: Array of passenger details
+ * 
+ * @returns {201} Successfully created group booking with booking ID
+ * @returns {400} Validation error or invalid input
+ * @returns {401} Unauthorized - authentication required
+ * @returns {500} Server error during booking creation
+ */
+const createGroupBooking: RequestHandler = async (req, res) => {
+  const r = req as AuthedRequest;
+  
+  try {
+    // Validate request body against schema
+    const validatedInput = CreateGroupBookingInput.parse(req.body);
+    
+    // Extract user from authenticated request
+    const userId = r.user!.id;
+    
+    // Calculate duration if dates are provided
+    let duration: number | null = null;
+    if (validatedInput.checkin && validatedInput.checkout) {
+      const checkInDate = new Date(validatedInput.checkin);
+      const checkOutDate = new Date(validatedInput.checkout);
+      duration = Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24));
+    }
+    
+    // Create group booking with nested passenger creation
+    const groupBooking = await (prisma as any).groupBooking.create({
+      data: {
+        // User association
+        userId,
+        
+        // Group details
+        groupType: validatedInput.groupType,
+        
+        // Origin information
+        fromRegion: validatedInput.fromRegion || null,
+        fromDistrict: validatedInput.fromDistrict || null,
+        fromWard: validatedInput.fromWard || null,
+        fromLocation: validatedInput.fromLocation || null,
+        
+        // Destination information
+        toRegion: validatedInput.toRegion,
+        toDistrict: validatedInput.toDistrict || null,
+        toWard: validatedInput.toWard || null,
+        toLocation: validatedInput.toLocation || null,
+        
+        // Accommodation details
+        accommodationType: validatedInput.accommodationType,
+        headcount: validatedInput.headcount,
+        roomSize: validatedInput.roomSize,
+        roomsNeeded: validatedInput.roomsNeeded,
+        needsPrivateRoom: validatedInput.needsPrivateRoom,
+        privateRoomCount: validatedInput.privateRoomCount,
+        
+        // Date information
+        checkIn: validatedInput.checkin ? new Date(validatedInput.checkin) : null,
+        checkOut: validatedInput.checkout ? new Date(validatedInput.checkout) : null,
+        useDates: validatedInput.useDates ?? true,
+        
+        // Arrangement details
+        arrPickup: validatedInput.arrangements.pickup,
+        arrTransport: validatedInput.arrangements.transport,
+        arrMeals: validatedInput.arrangements.meals,
+        arrGuide: validatedInput.arrangements.guide,
+        arrEquipment: validatedInput.arrangements.equipment,
+        pickupLocation: validatedInput.arrangements.pickupLocation || null,
+        pickupTime: validatedInput.arrangements.pickupTime || null,
+        arrangementNotes: validatedInput.arrangements.notes || null,
+        
+        // Store roster as JSON for quick access
+        roster: validatedInput.roster as any,
+        
+        // Initial status
+        status: "PENDING",
+        currency: "TZS",
+      },
+      // Include user details in response
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+          },
+        },
+      },
+    });
+    
+    // Optionally create individual passenger records for structured querying
+    if (validatedInput.roster && validatedInput.roster.length > 0) {
+      await (prisma as any).groupBookingPassenger.createMany({
+        data: validatedInput.roster.map((passenger: PassengerInput, index: number) => ({
+          groupBookingId: groupBooking.id,
+          firstName: passenger.firstname,
+          lastName: passenger.lastname,
+          phone: passenger.phone || null,
+          age: passenger.age ? parseInt(passenger.age, 10) : null,
+          gender: passenger.gender || null,
+          nationality: passenger.nationality || null,
+          sequenceNumber: index + 1,
+        })),
+        skipDuplicates: true,
+      });
+    }
+    
+    // Log successful creation
+    console.log(`[GroupBooking] Created booking #${groupBooking.id} for user #${userId}`);
+    
+    // Return successful response
+    return (res as Response).status(201).json({
+      success: true,
+      bookingId: groupBooking.id,
+      booking: {
+        id: groupBooking.id,
+        groupType: groupBooking.groupType,
+        destination: {
+          region: groupBooking.toRegion,
+          district: groupBooking.toDistrict,
+          ward: groupBooking.toWard,
+          location: groupBooking.toLocation,
+        },
+        headcount: groupBooking.headcount,
+        status: groupBooking.status,
+        passengerCount: validatedInput.roster.length,
+        checkIn: groupBooking.checkIn,
+        checkOut: groupBooking.checkOut,
+        duration,
+        createdAt: groupBooking.createdAt,
+      },
+      message: "Group booking created successfully",
+    });
+  } catch (error) {
+    // Handle Zod validation errors
+    if (error instanceof z.ZodError) {
+      console.error("[GroupBooking] Validation error:", error.errors);
+      return (res as Response).status(400).json({
+        success: false,
+        error: "Validation failed",
+        details: error.errors.map((err) => ({
+          field: err.path.join("."),
+          message: err.message,
+        })),
+      });
+    }
+    
+    // Handle database errors
+    if ((error as any).code === "P2002") {
+      console.error("[GroupBooking] Database constraint violation:", error);
+      return (res as Response).status(409).json({
+        success: false,
+        error: "Duplicate booking detected",
+        message: "A similar booking already exists",
+      });
+    }
+    
+    // Handle generic errors
+    console.error("[GroupBooking] Creation error:", error);
+    return (res as Response).status(500).json({
+      success: false,
+      error: "Failed to create group booking",
+      message: error instanceof Error ? error.message : "Unknown error occurred",
+    });
+  }
+};
+
+/**
+ * @route GET /api/group-bookings
+ * @description Retrieve list of group bookings with optional filtering
+ * @access Private - Returns only user's own bookings (unless admin)
+ * 
+ * @query {GroupBookingQueryInput} Optional filters:
+ *   - status: Filter by booking status
+ *   - groupType: Filter by group type
+ *   - region: Filter by destination region
+ *   - dateFrom: Filter bookings from this date
+ *   - dateTo: Filter bookings until this date
+ *   - page: Page number for pagination (default: 1)
+ *   - pageSize: Items per page (default: 20, max: 100)
+ * 
+ * @returns {200} List of group bookings with pagination metadata
+ * @returns {400} Invalid query parameters
+ * @returns {401} Unauthorized
+ * @returns {500} Server error
+ */
+const getGroupBookings: RequestHandler = async (req, res) => {
+  const r = req as AuthedRequest;
+  
+  try {
+    // Parse and validate query parameters
+    const query = GroupBookingQueryInput.parse(req.query);
+    
+    // Build where clause for filtering
+    const where: any = {
+      userId: r.user!.id, // Only return user's own bookings
+    };
+    
+    if (query.status) {
+      where.status = query.status;
+    }
+    
+    if (query.groupType) {
+      where.groupType = query.groupType;
+    }
+    
+    if (query.region) {
+      where.toRegion = query.region;
+    }
+    
+    if (query.dateFrom || query.dateTo) {
+      where.checkIn = {};
+      if (query.dateFrom) {
+        where.checkIn.gte = new Date(query.dateFrom);
+      }
+      if (query.dateTo) {
+        where.checkIn.lte = new Date(query.dateTo);
+      }
+    }
+    
+    // Calculate pagination
+    const skip = (query.page - 1) * query.pageSize;
+    const take = query.pageSize;
+    
+    // Execute queries in parallel
+    const [bookings, totalCount] = await Promise.all([
+      (prisma as any).groupBooking.findMany({
+        where,
+        skip,
+        take,
+        orderBy: {
+          createdAt: "desc",
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+          passengers: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              phone: true,
+            },
+            take: 5, // Limit passengers in list view
+          },
+        },
+      }),
+      (prisma as any).groupBooking.count({ where }),
+    ]);
+    
+    // Calculate pagination metadata
+    const totalPages = Math.ceil(totalCount / query.pageSize);
+    
+    return (res as Response).json({
+      success: true,
+      data: bookings,
+      pagination: {
+        page: query.page,
+        pageSize: query.pageSize,
+        totalItems: totalCount,
+        totalPages,
+        hasNextPage: query.page < totalPages,
+        hasPrevPage: query.page > 1,
+      },
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return (res as Response).status(400).json({
+        success: false,
+        error: "Invalid query parameters",
+        details: error.errors,
+      });
+    }
+    
+    console.error("[GroupBooking] Retrieval error:", error);
+    return (res as Response).status(500).json({
+      success: false,
+      error: "Failed to retrieve group bookings",
+    });
+  }
+};
+
+/**
+ * @route GET /api/group-bookings/:id
+ * @description Retrieve detailed information about a specific group booking
+ * @access Private - User can only access their own bookings
+ * 
+ * @param {number} id - Group booking ID
+ * 
+ * @returns {200} Detailed group booking information including all passengers
+ * @returns {401} Unauthorized
+ * @returns {403} Forbidden - booking belongs to another user
+ * @returns {404} Booking not found
+ * @returns {500} Server error
+ */
+const getGroupBookingById: RequestHandler = async (req, res) => {
+  const r = req as AuthedRequest;
+  
+  try {
+    const bookingId = parseInt(req.params.id, 10);
+    
+    if (isNaN(bookingId)) {
+      return (res as Response).status(400).json({
+        success: false,
+        error: "Invalid booking ID",
+      });
+    }
+    
+    const booking = await (prisma as any).groupBooking.findFirst({
+      where: {
+        id: bookingId,
+        userId: r.user!.id, // Ensure user can only access their own bookings
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+          },
+        },
+        passengers: {
+          orderBy: {
+            sequenceNumber: "asc",
+          },
+        },
+      },
+    });
+    
+    if (!booking) {
+      return (res as Response).status(404).json({
+        success: false,
+        error: "Group booking not found",
+      });
+    }
+    
+    return (res as Response).json({
+      success: true,
+      data: booking,
+    });
+  } catch (error) {
+    console.error("[GroupBooking] Retrieval by ID error:", error);
+    return (res as Response).status(500).json({
+      success: false,
+      error: "Failed to retrieve group booking",
+    });
+  }
+};
+
+/**
+ * @route PATCH /api/group-bookings/:id/status
+ * @description Update the status of a group booking
+ * @access Private - User can only update their own bookings
+ * 
+ * @param {number} id - Group booking ID
+ * @body {UpdateGroupBookingStatusInput} Status update details
+ * 
+ * @returns {200} Successfully updated booking status
+ * @returns {400} Invalid input
+ * @returns {401} Unauthorized
+ * @returns {403} Forbidden - booking belongs to another user
+ * @returns {404} Booking not found
+ * @returns {500} Server error
+ */
+const updateGroupBookingStatus: RequestHandler = async (req, res) => {
+  const r = req as AuthedRequest;
+  
+  try {
+    const bookingId = parseInt(req.params.id, 10);
+    
+    if (isNaN(bookingId)) {
+      return (res as Response).status(400).json({
+        success: false,
+        error: "Invalid booking ID",
+      });
+    }
+    
+    const validatedInput = UpdateGroupBookingStatusInput.parse(req.body);
+    
+    // Verify booking exists and belongs to user
+    const existing = await (prisma as any).groupBooking.findFirst({
+      where: {
+        id: bookingId,
+        userId: r.user!.id,
+      },
+    });
+    
+    if (!existing) {
+      return (res as Response).status(404).json({
+        success: false,
+        error: "Group booking not found",
+      });
+    }
+    
+    // Prepare update data
+    const updateData: any = {
+      status: validatedInput.status,
+      adminNotes: validatedInput.adminNotes || existing.adminNotes,
+    };
+    
+    // Handle cancellation
+    if (validatedInput.status === "CANCELED") {
+      updateData.cancelReason = validatedInput.cancelReason;
+      updateData.canceledAt = new Date();
+    }
+    
+    // Handle confirmation
+    if (validatedInput.status === "CONFIRMED" && existing.status !== "CONFIRMED") {
+      updateData.confirmedAt = new Date();
+    }
+    
+    // Update booking
+    const updated = await (prisma as any).groupBooking.update({
+      where: { id: bookingId },
+      data: updateData,
+    });
+    
+    console.log(`[GroupBooking] Updated booking #${bookingId} status to ${validatedInput.status}`);
+    
+    return (res as Response).json({
+      success: true,
+      data: updated,
+      message: `Booking status updated to ${validatedInput.status}`,
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return (res as Response).status(400).json({
+        success: false,
+        error: "Validation failed",
+        details: error.errors,
+      });
+    }
+    
+    console.error("[GroupBooking] Status update error:", error);
+    return (res as Response).status(500).json({
+      success: false,
+      error: "Failed to update booking status",
+    });
+  }
+};
+
+/**
+ * @route DELETE /api/group-bookings/:id
+ * @description Delete (cancel) a group booking
+ * @access Private - User can only delete their own pending bookings
+ * 
+ * @param {number} id - Group booking ID
+ * 
+ * @returns {200} Successfully deleted booking
+ * @returns {400} Cannot delete non-pending booking
+ * @returns {401} Unauthorized
+ * @returns {403} Forbidden
+ * @returns {404} Booking not found
+ * @returns {500} Server error
+ */
+const deleteGroupBooking: RequestHandler = async (req, res) => {
+  const r = req as AuthedRequest;
+  
+  try {
+    const bookingId = parseInt(req.params.id, 10);
+    
+    if (isNaN(bookingId)) {
+      return (res as Response).status(400).json({
+        success: false,
+        error: "Invalid booking ID",
+      });
+    }
+    
+    // Verify booking exists and belongs to user
+    const existing = await (prisma as any).groupBooking.findFirst({
+      where: {
+        id: bookingId,
+        userId: r.user!.id,
+      },
+    });
+    
+    if (!existing) {
+      return (res as Response).status(404).json({
+        success: false,
+        error: "Group booking not found",
+      });
+    }
+    
+    // Only allow deletion of pending bookings
+    if (existing.status !== "PENDING") {
+      return (res as Response).status(400).json({
+        success: false,
+        error: "Only pending bookings can be deleted",
+        message: `Cannot delete booking with status: ${existing.status}`,
+      });
+    }
+    
+    // Soft delete by updating status to CANCELED
+    await (prisma as any).groupBooking.update({
+      where: { id: bookingId },
+      data: {
+        status: "CANCELED",
+        cancelReason: "Deleted by user",
+        canceledAt: new Date(),
+      },
+    });
+    
+    console.log(`[GroupBooking] Deleted booking #${bookingId}`);
+    
+    return (res as Response).json({
+      success: true,
+      message: "Group booking deleted successfully",
+    });
+  } catch (error) {
+    console.error("[GroupBooking] Deletion error:", error);
+    return (res as Response).status(500).json({
+      success: false,
+      error: "Failed to delete group booking",
+    });
+  }
+};
+
+// ==================== Route Registration ====================
+
+router.post("/", createGroupBooking);
+router.get("/", getGroupBookings);
+router.get("/:id", getGroupBookingById);
+router.patch("/:id/status", updateGroupBookingStatus);
+router.delete("/:id", deleteGroupBooking);
+
+export default router;

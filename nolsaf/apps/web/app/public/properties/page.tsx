@@ -1,13 +1,26 @@
-import Link from "next/link";
+"use client";
+
+import React, { useState } from 'react';
+import PropertyCard from '../../../components/PropertyCard';
+import AttentionBlink from '../../../components/AttentionBlink';
+import SectionSeparator from '../../../components/SectionSeparator';
 
 type Props = { searchParams?: { [key: string]: string | undefined } };
 
 const MOCK_PROPERTIES: Array<any> = [
-  { id: 'p1', title: 'Beachfront Villa, Zanzibar', location: 'Zanzibar', price: 120, amenities: ['Wifi','Pool'], types: ['Villa'], availableFrom: '2025-01-01', availableTo: '2026-12-31' },
-  { id: 'p2', title: 'Safari Lodge, Arusha', location: 'Arusha', price: 200, amenities: ['Parking','Breakfast'], types: ['Lodge'], availableFrom: '2025-06-01', availableTo: '2025-12-31' },
-  { id: 'p3', title: 'City Apartment, Dar es Salaam', location: 'Dar es Salaam', price: 75, amenities: ['Wifi'], types: ['Condo'], availableFrom: '2025-01-01', availableTo: '2025-12-31' },
-  { id: 'p4', title: 'Mount Kilimanjaro Cabin', location: 'Kilimanjaro', price: 150, amenities: ['Breakfast'], types: ['Cabin'], availableFrom: '2025-09-01', availableTo: '2026-03-31' },
-  { id: 'p5', title: 'Ngorongoro Camp', location: 'Ngorongoro', price: 180, amenities: ['Parking','Wifi'], types: ['Camp'], availableFrom: '2025-01-01', availableTo: '2026-12-31' },
+  { id: 't1', title: 'All Villas', category: 'Villa', count: 98, href: '/public/properties?types=Villa', imageUrl: '/assets/villa.jpg' },
+  { id: 't2', title: 'All Apartments', category: 'Apartment', count: 640, href: '/public/properties?types=Apartment', imageUrl: '/assets/Apartments.jpg' },
+  { id: 't3', title: 'All Hotels', category: 'Hotel', count: 1912, href: '/public/properties?types=Hotel', imageUrl: '/assets/five_star.jpg' },
+  { id: 't4', title: 'All Hostels', category: 'Hostel', count: 120, href: '/public/properties?types=Hostel', imageUrl: '/assets/Hostel.jpg' },
+  { id: 't5', title: 'All Lodges', category: 'Lodge', count: 452, href: '/public/properties?types=Lodge', imageUrl: '/assets/Bengaruru.jpg' },
+  { id: 't6', title: 'All Condos', category: 'Condo', count: 823, href: '/public/properties?types=Condo', imageUrl: '/assets/Condo.jpg' },
+  { id: 't7', title: 'All Guest Houses', category: 'Guest House', count: 210, href: '/public/properties?types=Guest%20House', imageUrl: '/assets/guest_house.jpg' },
+  { id: 't8', title: 'All Bungalows', category: 'Bungalow', count: 45, href: '/public/properties?types=Bungalow', imageUrl: '/assets/Bungalow.jpg' },
+  { id: 't9', title: 'All Cabins', category: 'Cabin', count: 127, href: '/public/properties?types=Cabin', imageUrl: '/assets/cabin.jpg' },
+  { id: 't10', title: 'All Homestays', category: 'Homestay', count: 78, href: '/public/properties?types=Homestay', imageUrl: '/assets/Homestay.jpg' },
+  { id: 't11', title: 'All Townhouses', category: 'Townhouse', count: 56, href: '/public/properties?types=Townhouse', imageUrl: '/assets/TownHouses.jpg' },
+  { id: 't12', title: 'All Houses', category: 'House', count: 300, href: '/public/properties?types=House', imageUrl: '/assets/Local_houses.jpg' },
+  { id: 't13', title: 'Tourist Sites', category: 'Tourist Site', count: 85, href: '/public/properties?types=Tourist%20Site', imageUrl: '/assets/Villagestay.jpg' },
 ];
 
 function parseList(v?: string) {
@@ -38,7 +51,7 @@ export default function PropertiesPage({ searchParams }: Props) {
     if (maxPrice !== undefined && !Number.isNaN(maxPrice)) {
       if (p.price > maxPrice) return false;
     }
-    if (region && p.location.toLowerCase() !== region.toLowerCase()) return false;
+    if (region && (!p.location || p.location.toLowerCase() !== region.toLowerCase())) return false;
     if (district && (!p.district || p.district.toLowerCase() !== district.toLowerCase())) return false;
     if (state && p.state && p.state.toLowerCase() !== state.toLowerCase()) return false;
     if (amenities.length) {
@@ -70,24 +83,60 @@ export default function PropertiesPage({ searchParams }: Props) {
               <h1 className="text-2xl font-semibold">{q ? `Search results for "${searchParams?.q}"` : 'All properties'}</h1>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {results.map(p => (
-                <article key={p.id} className="border rounded-lg overflow-hidden shadow-sm">
-                  <div className="h-40 bg-gray-200 flex items-center justify-center text-gray-500">Image</div>
-                  <div className="p-4">
-                    <h3 className="font-medium mb-1">{p.title}</h3>
-                    <div className="text-sm text-slate-500 mb-3">{p.location}</div>
-                    <div className="flex items-center justify-between">
-                      <div className="text-lg font-semibold">${p.price}/night</div>
-                      <Link href={`/public/properties/${p.id}`} className="text-sky-600">View</Link>
-                    </div>
-                  </div>
-                </article>
+            <SectionSeparator pillLabel="Now" className="my-4" />
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+              {results.map((p) => (
+                <PropertyGridItem key={p.id} p={p} />
               ))}
             </div>
+
+            <SectionSeparator className="mt-8" />
           </div>
         </section>
       </main>
     </>
+  );
+}
+
+function PropertyGridItem({ p }: { p: any }) {
+  const [blink, setBlink] = useState(false);
+  const cardHref = p.href || `/public/properties/${p.id}`;
+
+  return (
+    <div
+      className="group"
+      onPointerEnter={() => setBlink(true)}
+      onPointerLeave={() => setBlink(false)}
+      onFocus={() => setBlink(true)}
+      onBlur={() => setBlink(false)}
+    >
+      <div className="transition-transform duration-200 group-hover:scale-[1.01]"> 
+        <PropertyCard title={p.title} description={''} href={cardHref} imageSrc={p.imageUrl} />
+      </div>
+
+      {/* custom description placed close to the card */}
+      <div className="mt-2 text-left">
+        {p.category ? (
+          <a
+            href={cardHref}
+            className="flex items-center justify-between gap-3 text-sm no-underline group-hover:text-slate-900"
+            aria-label={`Open list of all ${p.category}s`}
+          >
+            <span className="truncate text-xs uppercase tracking-wide text-slate-600 font-semibold">{`All ${p.category}s`}</span>
+
+            {p.count ? (
+              <AttentionBlink active={blink}>
+                <span className="ml-2 inline-flex items-center justify-center text-sm italic text-[#065a53] bg-[#e6f6f4] ring-1 ring-[#cfeee8] rounded-full px-2 py-0.5">{p.count}</span>
+              </AttentionBlink>
+            ) : (
+              <span className="ml-2 inline-block text-sm text-slate-500">—</span>
+            )}
+          </a>
+        ) : (
+          <span className="text-sm font-semibold text-slate-900 block">{p.location}</span>
+        )}
+      </div>
+    </div>
   );
 }

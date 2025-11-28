@@ -314,6 +314,97 @@ html, body, #__next {
   .select   { @apply input; }
   .textarea { @apply input; }
 
+  /* GroupStays specific small helpers moved from component inline styles */
+  .groupstays-select {
+    -moz-appearance: none !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    background: transparent !important;
+    background-image: none !important;
+    padding-right: 2.25rem; /* Tailwind pr-9 */
+    box-sizing: border-box;
+    min-height: 2.5rem; /* ensure consistent height with selects */
+    line-height: 1.25rem;
+  }
+  .groupstays-select::-ms-expand { display: none !important; }
+  .groupstays-select::-moz-focus-inner { border: 0; }
+  .groupstays-chevron { filter: none; pointer-events: none; right: 0.65rem; }
+
+  /* GroupStays component layout: scoped to the component using aria-labelledby selector */
+  [aria-labelledby="group-stays-heading"] .groupstays-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  [aria-labelledby="group-stays-heading"] .groupstays-section > label,
+  [aria-labelledby="group-stays-heading"] .groupstays-section > .text-xs {
+    color: #475569; /* slate-600 */
+    font-size: 0.75rem;
+  }
+  [aria-labelledby="group-stays-heading"] .groupstays-section input[type="number"],
+  [aria-labelledby="group-stays-heading"] .groupstays-section input[type="time"],
+  [aria-labelledby="group-stays-heading"] .groupstays-section .groupstays-select,
+  [aria-labelledby="group-stays-heading"] .groupstays-section textarea {
+    min-height: 2.5rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.375rem;
+    border: 1px solid rgba(15,23,42,0.06);
+    background: #ffffff;
+    box-sizing: border-box;
+  }
+  [aria-labelledby="group-stays-heading"] .groupstays-section .groupstays-select {
+    padding-right: 2.25rem; /* keep chevron space */
+    line-height: 1.25rem;
+  }
+  [aria-labelledby="group-stays-heading"] .private-room-row {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  [aria-labelledby="group-stays-heading"] .private-room-row .w-20 { min-width: 5rem; }
+  /* Slightly tighten spacing for recommendation badge area */
+  [aria-labelledby="group-stays-heading"] .RecommendationBadge, [aria-labelledby="group-stays-heading"] .recommendation-badge {
+    margin-top: 0.25rem;
+  }
+
+  /* Arrangements UI: pill toggles, icons and summary badges */
+  [aria-labelledby="group-stays-heading"] .arrangements-summary { display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap; margin-top:0.25rem; }
+  [aria-labelledby="group-stays-heading"] .arrangements-summary .pill-badge {
+    background: rgba(2,102,94,0.08);
+    color: #064e45;
+    padding: 0.25rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    display:inline-flex; align-items:center; gap:0.4rem;
+  }
+
+  [aria-labelledby="group-stays-heading"] .arrangements-grid { display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:0.5rem; margin-top:0.5rem; }
+  @media (min-width: 768px) { [aria-labelledby="group-stays-heading"] .arrangements-grid { grid-template-columns: repeat(3, minmax(0,1fr)); } }
+
+  .arrangement-pill {
+    display:inline-flex; align-items:center; gap:0.5rem; padding:0.45rem 0.75rem; border-radius:0.5rem; border:1px solid rgba(15,23,42,0.06);
+    background:#fff; color:#0f172a; cursor:pointer; font-size:0.9rem; transition:transform .14s cubic-bezier(.2,.9,.2,1), box-shadow .14s ease, background-color .12s ease, color .12s ease; box-shadow: 0 1px 0 rgba(15,23,42,0.02);
+  }
+  .arrangement-pill svg { width:1rem; height:1rem; opacity:0.9 }
+  .arrangement-pill:hover { transform: translateY(-2px); box-shadow: 0 6px 14px rgba(2,6,23,0.06); }
+  .arrangement-pill:active { transform: translateY(0) scale(0.995); }
+  .arrangement-pill.selected { background: #059669; color: #fff; border-color: #059669; transform: translateY(-3px) scale(1.02); box-shadow: 0 10px 30px rgba(2,6,23,0.12); }
+  .arrangement-pill:focus-visible { outline: none; box-shadow: 0 6px 20px rgba(2,6,23,0.08); transform: translateY(-2px); }
+
+  /* Pickup details column tweaks inside arrangements block */
+  [aria-labelledby="group-stays-heading"] .arrangements-details input,
+  [aria-labelledby="group-stays-heading"] .arrangements-details textarea {
+    border: 1px solid rgba(15,23,42,0.06); padding:0.5rem 0.75rem; border-radius:0.375rem; background:#fff;
+  }
+
+  /* Footer rail segments (Tanzania flag colors) moved from inline styles in PublicFooter.tsx */
+  .footer-rail-seg { display: block; height: 100%; }
+  .footer-rail-green { background-color: #007A3D; }
+  .footer-rail-yellow { background-color: #FCD116; }
+  .footer-rail-black { background-color: #000000; }
+  .footer-rail-blue { background-color: #00A3E0; }
+
   /* Links */
   /* No underline; show bottom border color on hover to indicate interactivity */
   .link { @apply text-info border-b border-transparent transition-colors hover:border-info; }
@@ -398,6 +489,480 @@ html, body, #__next {
   .dot-spinner .dot:nth-child(4) { top: 50%; left: 6%; transform: translate(-50%, -50%); animation-delay: 0.36s; }
 
   /* colors: blue, black, yellow, green */
+
+  /* Country name flag gradients used for Explore button text */
+  .flag-text-tanzania {
+    background-image: linear-gradient(135deg, #006a4e 0%, #006a4e 30%, #ffd100 30%, #ffd100 40%, #000000 40%, #000000 55%, #00a3dd 55%, #00a3dd 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .flag-text-kenya {
+    background-image: linear-gradient(90deg, #000000 0%, #000000 22%, #ffffff 22%, #ffffff 28%, #d52b1e 28%, #d52b1e 62%, #ffffff 62%, #ffffff 68%, #006233 68%, #006233 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .flag-text-uganda {
+    background-image: linear-gradient(90deg, #000000 0%, #000000 33%, #ffd100 33%, #ffd100 66%, #d52b1e 66%, #d52b1e 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
+
+  /* Explore button zoom / lift effect (applied via .btn-explore) */
+  .btn-explore {
+    transition: transform 180ms cubic-bezier(.2,.9,.2,1), box-shadow 180ms cubic-bezier(.2,.9,.2,1);
+    transform-origin: center;
+    will-change: transform, box-shadow;
+  }
+
+  .btn-explore:hover,
+  .btn-explore:focus {
+    transform: translateY(-3px) scale(1.04);
+    box-shadow: 0 10px 20px rgba(2,6,23,0.08), 0 4px 8px rgba(2,6,23,0.04);
+    outline: none;
+  }
+
+  /* On touch devices the active state gives a quick scale for feedback */
+  .btn-explore:active {
+    transform: translateY(0) scale(0.98);
+  }
+
+  /* Respect reduce-motion preference */
+  @media (prefers-reduced-motion: reduce) {
+    .btn-explore,
+    .btn-explore:hover,
+    .btn-explore:focus,
+    .btn-explore:active {
+      transition: none !important;
+      transform: none !important;
+      box-shadow: none !important;
+    }
+  }
+
+  /* Card interactive lift/scale for clickable cards */
+  .card-raise {
+    transition: transform 220ms cubic-bezier(.2,.9,.2,1), box-shadow 220ms cubic-bezier(.2,.9,.2,1);
+    transform-origin: center;
+    will-change: transform, box-shadow;
+  }
+
+  .card-raise:hover,
+  .card-raise:focus-within {
+    transform: translateY(-6px) scale(1.02);
+    box-shadow: 0 18px 32px rgba(2,6,23,0.10), 0 6px 12px rgba(2,6,23,0.06);
+    z-index: 10;
+  }
+
+  .card-raise:active {
+    transform: translateY(-2px) scale(0.995);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .card-raise, .card-raise:hover, .card-raise:focus-within, .card-raise:active {
+      transition: none !important;
+      transform: none !important;
+      box-shadow: none !important;
+    }
+  }
+
+  /* Bottom color rail highlighting on card hover for country flags */
+  .flag-rail-tanzania::after,
+  .flag-rail-kenya::after,
+  .flag-rail-uganda::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 0px;
+    transition: height 220ms cubic-bezier(.2,.9,.2,1), opacity 220ms ease;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .flag-rail-tanzania::after {
+    background: linear-gradient(135deg, #006a4e 0%, #006a4e 30%, #ffd100 30%, #ffd100 40%, #000000 40%, #000000 55%, #00a3dd 55%, #00a3dd 100%);
+  }
+
+  .flag-rail-kenya::after {
+    background: linear-gradient(90deg, #000000 0%, #000000 22%, #ffffff 22%, #ffffff 28%, #d52b1e 28%, #d52b1e 62%, #ffffff 62%, #ffffff 68%, #006233 68%, #006233 100%);
+  }
+
+  .flag-rail-uganda::after {
+    background: linear-gradient(90deg, #000000 0%, #000000 33%, #ffd100 33%, #ffd100 66%, #d52b1e 66%, #d52b1e 100%);
+  }
+
+  /* Expand the rail on interactive card states */
+  .card-raise:hover.flag-rail-tanzania::after,
+  .card-raise:focus-within.flag-rail-tanzania::after,
+  .card-raise:hover.flag-rail-kenya::after,
+  .card-raise:focus-within.flag-rail-kenya::after,
+  .card-raise:hover.flag-rail-uganda::after,
+  .card-raise:focus-within.flag-rail-uganda::after {
+    height: 6px;
+    opacity: 1;
+  }
+
+  /* Guest popover positioning (reads coordinates from CSS variables updated in JS) */
+  .nolsaf-guest-popper {
+    position: fixed;
+    left: var(--nolsaf-guest-left, 50%);
+    top: var(--nolsaf-guest-top, auto);
+    width: var(--nolsaf-guest-width, auto);
+    transform: translateX(0);
+    max-width: calc(100% - 2rem);
+  }
+  /* Date popper: mirrors guest popper but has a mobile bottom-sheet fallback */
+  .nolsaf-date-popper {
+    position: fixed;
+    left: var(--nolsaf-date-left, 50%);
+    top: var(--nolsaf-date-top, auto);
+    width: var(--nolsaf-date-width, auto);
+    transform: translateX(0);
+    max-width: calc(100% - 2rem);
+  }
+  /* Make the popper corners more rounded and add an outer rounded ring for visual separation */
+  .nolsaf-date-popper {
+    border-radius: 14px !important;
+    overflow: visible !important; /* allow the outer ring shadow to render */
+  }
+  /* subtle outer rounded ring using a pseudo-element so the popper has a second rounded layer */
+  .nolsaf-date-popper::before {
+    content: "";
+    position: absolute;
+    left: -8px;
+    top: -8px;
+    right: -8px;
+    bottom: -8px;
+    border-radius: 18px !important;
+    pointer-events: none;
+    z-index: -1;
+    box-shadow: 0 18px 40px rgba(2,6,23,0.09), 0 6px 16px rgba(2,6,23,0.06);
+  }
+  @media (max-width: 767px) {
+    .nolsaf-date-popper {
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      top: auto !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      /* for bottom-sheet on mobile, round the top corners to make it appear like a sheet */
+      border-top-left-radius: 14px !important;
+      border-top-right-radius: 14px !important;
+      border-bottom-left-radius: 0 !important;
+      border-bottom-right-radius: 0 !important;
+    }
+  }
+
+  /* Mobile sheet grabber: small centered rounded bar to indicate draggable sheet */
+  .nolsaf-sheet-grabber-wrapper { display: none; }
+  @media (max-width: 767px) {
+    .nolsaf-sheet-grabber-wrapper {
+      display: flex !important;
+      justify-content: center !important;
+      align-items: center !important;
+      padding-top: 8px !important;
+      padding-bottom: 6px !important;
+    }
+    .nolsaf-sheet-grabber {
+      width: 44px !important;
+      height: 5px !important;
+      border-radius: 9999px !important;
+      background: rgba(15,23,42,0.08) !important;
+      box-shadow: 0 1px 0 rgba(255,255,255,0.6) inset !important;
+    }
+  }
+  /* Ensure DayPicker displays multiple months side-by-side for a clear flow */
+  /* Target both the .rdp and .rdp-months containers depending on DayPicker version */
+  .nolsaf-date-popper .rdp,
+  .nolsaf-date-popper .rdp-months {
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 0.75rem !important;
+    align-items: flex-start !important;
+    justify-content: center !important;
+    padding: 0.25rem !important;
+    flex-wrap: nowrap !important;
+  }
+  .nolsaf-date-popper .rdp-month,
+  .nolsaf-date-popper .rdp-months > * {
+    flex: 1 1 0 !important;
+    min-width: 260px !important;
+  }
+  /* Give each month a clear card boundary so they don't visually overflow into one another */
+  .nolsaf-date-popper .rdp-month {
+    background: #ffffff;
+    border: 1px solid rgba(15,23,42,0.06);
+    border-radius: 10px !important;
+    padding: 0.5rem !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 260px;
+  }
+  /* Keep the table inside each month constrained and responsive */
+  .nolsaf-date-popper .rdp-month .rdp-table {
+    width: 100% !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+  }
+  /* Slight separation visual between months */
+  .nolsaf-date-popper .rdp-month + .rdp-month {
+    margin-left: 0.5rem !important;
+  }
+  .nolsaf-date-popper .rdp-caption {
+    text-align: center !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 0.5rem !important;
+  }
+  /* Navigation buttons (prev/next) inline with the month caption */
+  .nolsaf-date-popper .rdp-nav {
+    display: inline-flex !important;
+    gap: 0.25rem !important;
+    align-items: center !important;
+  }
+
+  /* Force caption label and nav to sit on the same line and keep the month label left-aligned */
+  .nolsaf-date-popper .rdp-caption,
+  .nolsaf-date-popper .rdp-month .rdp-caption {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 0.5rem !important;
+    flex-wrap: nowrap !important;
+    position: relative !important; /* allow absolutely positioned nav */
+  }
+  .nolsaf-date-popper .rdp-caption_label,
+  .nolsaf-date-popper .rdp-caption > .rdp-caption_label {
+    order: 1 !important;
+    flex: 1 1 auto !important;
+    text-align: left !important;
+    font-weight: 600 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    min-width: 0 !important; /* allow flex shrink */
+    display: inline-block !important;
+    padding-right: 56px !important; /* reserve space for nav on the right */
+  }
+  /* Pin the nav (prev/next buttons) to the far right of the caption row */
+  .nolsaf-date-popper .rdp-nav {
+    display: none !important; /* hide built-in DayPicker nav inside our popper (we use custom nav) */
+  }
+  /* Also hide any nav buttons inside the rdp header so only our independent chevron is visible */
+  .nolsaf-date-popper .rdp-nav_button { display: none !important; }
+
+  /* Custom prev/next buttons inside the popper: remove visible border/box and use round hover only */
+  .nolsaf-date-popper button[aria-label="Next month"],
+  .nolsaf-date-popper button[aria-label="Previous month"] {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 6px !important;
+    width: 36px !important;
+    height: 36px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    color: #334155 !important; /* slate-700 */
+    transition: background-color .12s ease, transform .06s ease !important;
+  }
+  .nolsaf-date-popper button[aria-label="Next month"]:hover,
+  .nolsaf-date-popper button[aria-label="Previous month"]:hover {
+    background: rgba(15, 23, 42, 0.06) !important; /* subtle rounded hover */
+    border-radius: 9999px !important;
+    transform: translateY(-1px) !important;
+  }
+  .nolsaf-date-popper button[aria-label="Next month"]:active,
+  .nolsaf-date-popper button[aria-label="Previous month"]:active {
+    transform: translateY(0) !important;
+    background: rgba(15, 23, 42, 0.08) !important;
+  }
+
+  /* touched day visual (simulate hover on touch devices) */
+  .nolsaf-date-popper .rdp-day.nolsaf-day-touch,
+  .nolsaf-date-popper .rdp-day:active {
+    background: #10b981 !important; /* use brand/emerald as primary */
+    color: white !important;
+    border-radius: 6px !important;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.06) inset !important;
+  }
+  .nolsaf-date-popper .rdp-day.nolsaf-day-preview {
+    background: rgba(16,185,129,0.12) !important; /* light emerald tint */
+    color: #065f46 !important; /* darker green for contrast */
+  }
+
+  /* Guest popover header close icon: remove visible box and use rounded hover like chevrons */
+  .nolsaf-guest-popper button[aria-label="Close guest selector"] {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 6px !important;
+    width: 36px !important;
+    height: 36px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    color: #334155 !important;
+    transition: background-color .12s ease, transform .06s ease !important;
+    border-radius: 9999px !important;
+  }
+  .nolsaf-guest-popper button[aria-label="Close guest selector"]:hover {
+    background: rgba(15, 23, 42, 0.06) !important;
+  }
+
+  /* Expand and refine guest popover card for clarity and visual hierarchy */
+  .nolsaf-guest-popper {
+    min-width: 320px !important;
+    max-width: 460px !important;
+    padding: 0 !important; /* inner padding handled by child .p-3 */
+    border-radius: 12px !important;
+    box-shadow: 0 10px 30px rgba(2,6,23,0.12) !important;
+    background: #ffffff !important;
+    border: 1px solid rgba(15,23,42,0.06) !important;
+  }
+
+  .nolsaf-guest-popper .p-3 {
+    padding: 1rem 1.25rem !important;
+  }
+
+  .nolsaf-guest-popper .font-medium { font-size: 1rem !important; }
+  .nolsaf-guest-popper .text-xs { font-size: 0.78rem !important; color: #475569 !important; }
+
+  /* Slightly increased spacing between guest rows for readability */
+  .nolsaf-guest-popper .space-y-3 > * + * { margin-top: 0.85rem !important; }
+
+  /* Larger steppers and consistent button sizing inside popover
+     Match the 'Clear' button visual: transparent background, subtle border, rounded corners */
+  .nolsaf-guest-popper .inline-flex.items-center.gap-2 button {
+    min-width: 36px !important;
+    min-height: 36px !important;
+    padding: 0.18rem 0.5rem !important;
+    font-size: 1.05rem !important;
+    background: transparent !important;
+    border: 1px solid rgba(15,23,42,0.06) !important; /* subtle slate border */
+    border-radius: 6px !important;
+    color: #334155 !important; /* slate-700 */
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    transition: background-color .12s ease, transform .06s ease !important;
+  }
+  .nolsaf-guest-popper .inline-flex.items-center.gap-2 button:hover {
+    background: rgba(15,23,42,0.04) !important;
+  }
+  /* Disabled state for steppers: visually match Clear button disabled look */
+  .nolsaf-guest-popper .inline-flex.items-center.gap-2 button:disabled,
+  .nolsaf-guest-popper .inline-flex.items-center.gap-2 button[aria-disabled="true"] {
+    opacity: 0.5 !important;
+    cursor: not-allowed !important;
+    background: transparent !important;
+    border-color: rgba(15,23,42,0.04) !important;
+    box-shadow: none !important;
+  }
+  /* Keyboard focus indicates the same as other popover buttons (clear/done) */
+  .nolsaf-guest-popper .inline-flex.items-center.gap-2 button:focus-visible {
+    outline: none !important;
+    box-shadow: 0 0 0 6px rgba(15,23,42,0.04) !important;
+  }
+
+  /* Clear/Done buttons: slightly larger, clearer contrast and spacing */
+  .nolsaf-guest-popper .mt-4 .flex.justify-end .px-2,
+  .nolsaf-guest-popper .mt-4 .flex.justify-end .px-3 {
+    padding: 0.46rem 0.9rem !important;
+    font-size: 0.95rem !important;
+  }
+
+  /* Improve inner layout: header spacing and alignment */
+  .nolsaf-guest-popper .flex.items-center.justify-between {
+    gap: 0.5rem !important;
+    align-items: center !important;
+  }
+
+  /* Make helper text slightly more prominent and readable */
+  .nolsaf-guest-popper #preg-help { color: #475569 !important; font-size: 0.8rem !important; }
+
+  /* Pregnancy toggle: make a compact accessible switch with a clear hit target and smooth knob movement */
+  .nolsaf-preg-toggle {
+    width: 46px !important;
+    height: 26px !important;
+    padding: 3px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    border-radius: 9999px !important;
+    background: rgba(15,23,42,0.06) !important; /* subtle off track */
+    border: 1px solid rgba(15,23,42,0.06) !important;
+    transition: background-color .16s ease, border-color .16s ease, box-shadow .12s ease !important;
+    box-sizing: border-box !important;
+  }
+  .nolsaf-preg-toggle:focus {
+    outline: none !important;
+    box-shadow: 0 0 0 6px rgba(16,185,129,0.10) !important; /* subtle emerald focus ring */
+  }
+  .nolsaf-preg-toggle.is-on {
+    background: #10b981 !important; /* emerald */
+    border-color: rgba(16,185,129,0.24) !important;
+    justify-content: flex-end !important;
+  }
+  .nolsaf-preg-toggle.is-off {
+    background: rgba(15,23,42,0.04) !important;
+    border-color: rgba(15,23,42,0.06) !important;
+    justify-content: flex-start !important;
+  }
+  .nolsaf-preg-toggle > .nolsaf-preg-knob {
+    width: 18px !important;
+    height: 18px !important;
+    background: #ffffff !important;
+    border-radius: 9999px !important;
+    box-shadow: 0 2px 6px rgba(2,6,23,0.12) !important;
+    margin: 0 2px !important;
+    transition: transform .14s ease, box-shadow .12s ease !important;
+  }
+  .nolsaf-preg-toggle.is-on > .nolsaf-preg-knob {
+    transform: translateX(0) !important; /* knob positioned by justify-content */
+  }
+  .nolsaf-preg-toggle.is-off > .nolsaf-preg-knob {
+    transform: translateX(0) !important;
+  }
+  .nolsaf-date-popper button.rdp-nav_button,
+  .nolsaf-date-popper .rdp-nav button {
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    background: transparent !important;
+    border: none !important;
+    color: #3b82f6 !important; /* blue */
+    width: 36px !important;
+    height: 36px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border-radius: 0.375rem !important;
+    transition: background .12s ease !important;
+  }
+  .nolsaf-date-popper button.rdp-nav_button:hover,
+  .nolsaf-date-popper .rdp-nav button:hover {
+    background: rgba(59,130,246,0.08) !important;
+  }
+  /* Ensure the chevron icons don't wrap and sit on the same line as the month header */
+  .nolsaf-date-popper .rdp-caption > * { white-space: nowrap !important; }
+  /* Mobile: stack months vertically inside bottom sheet */
+  @media (max-width: 767px) {
+    .nolsaf-date-popper .rdp { display: block; padding: 0; }
+    .nolsaf-date-popper .rdp-month { min-width: auto; }
+  }
   .dot-blue   { background: #3b82f6; }
   .dot-black  { background: #111827; }
   .dot-yellow { background: #f59e0b; }
@@ -670,3 +1235,20 @@ a[aria-label="Toggle theme"].mobile {
 
 /* Touch helper: prevent default touch panning while interacting with draggable controls */
 .touch-action-none { -ms-touch-action: none; touch-action: none; }
+
+/* Subtle blink/pulse for high-attention single words.
+   Uses opacity pulse (not hard show/hide) and respects user reduced-motion preference. */
+@keyframes nls-blink {
+  0% { opacity: 1; }
+  50% { opacity: 0.55; }
+  100% { opacity: 1; }
+}
+
+.nls-blink {
+  display: inline-block;
+  animation: nls-blink 1s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nls-blink { animation: none !important; }
+}

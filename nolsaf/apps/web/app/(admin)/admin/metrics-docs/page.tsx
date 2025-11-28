@@ -12,7 +12,10 @@ export default function MetricsDocsPage() {
   const [revenueByType, setRevenueByType] = useState<Array<{ label: string; value: number }>>([]);
 
   useEffect(() => {
-    const base = process.env.NEXT_PUBLIC_API_URL || '';
+    // Use relative paths in browser to leverage Next.js rewrites (avoids CORS issues)
+    const base = typeof window === 'undefined' 
+      ? (process.env.NEXT_PUBLIC_API_URL || '')
+      : '';
     const a = axios.create({ baseURL: base });
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     if (token) a.defaults.headers.common['Authorization'] = `Bearer ${token}`;

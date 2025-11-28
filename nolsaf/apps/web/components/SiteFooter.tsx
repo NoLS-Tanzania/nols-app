@@ -13,6 +13,12 @@ export default function SiteFooter({ withRail = true }: { withRail?: boolean }) 
       <h2 className="sr-only">Footer</h2>
 
       <div className={`max-w-6xl mx-auto px-4 py-6 flex flex-col items-center gap-4 ${innerRailClass}`}>
+        <div className="w-full">
+          <div className="max-w-4xl mx-auto text-center">
+            <h3 className="text-lg font-semibold text-gray-800">About NoLSAF</h3>
+            <p className="mt-2 text-sm text-gray-600">Who we are and what we do and why You have to choose us.</p>
+          </div>
+        </div>
         <nav aria-label="Footer navigation" className="w-full flex justify-center">
           <ul className="flex flex-wrap items-center justify-center gap-6 text-sm">
             <li><a role="button" onClick={() => window.dispatchEvent(new CustomEvent('open-legal', { detail: { type: 'terms' } }))} className="text-[#02665e] font-semibold no-underline hover:no-underline">Terms of Service</a></li>

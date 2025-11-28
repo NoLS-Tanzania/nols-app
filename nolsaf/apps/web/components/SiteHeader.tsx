@@ -33,8 +33,8 @@ export default function SiteHeader({
     (async () => {
       if (!isAdmin) return;
       try {
-        const base = process.env.NEXT_PUBLIC_API_URL || '';
-        const url = base ? `${base.replace(/\/$/, '')}/api/admin/notifications?tab=unread&page=1&pageSize=1` : '/api/admin/notifications?tab=unread&page=1&pageSize=1';
+        // Use relative paths in browser to leverage Next.js rewrites (avoids CORS issues)
+        const url = '/api/admin/notifications?tab=unread&page=1&pageSize=1';
         const r = await fetch(url, { credentials: 'include' });
         if (!r.ok) return;
         const data = await r.json();
@@ -49,8 +49,8 @@ export default function SiteHeader({
       try {
         const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
         if (!token) return;
-        const base = process.env.NEXT_PUBLIC_API_URL || '';
-        const url = base ? `${base.replace(/\/$/, '')}/account/me` : '/account/me';
+        // Use relative paths in browser to leverage Next.js rewrites (avoids CORS issues)
+        const url = '/account/me';
         const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
         if (!r.ok) return;
         const data = await r.json();
@@ -110,7 +110,8 @@ export default function SiteHeader({
       try {
         const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
 
-        const defaultUrl = `${process.env.NEXT_PUBLIC_API_URL}/admin/invoices.csv`;
+        // Use relative paths in browser to leverage Next.js rewrites (avoids CORS issues)
+        const defaultUrl = '/admin/invoices.csv';
         const endpoint = process.env.NEXT_PUBLIC_EXPORT_INVOICES_ENDPOINT || defaultUrl;
 
         const filenameTemplate = process.env.NEXT_PUBLIC_EXPORT_INVOICES_FILENAME || 'invoices.csv';

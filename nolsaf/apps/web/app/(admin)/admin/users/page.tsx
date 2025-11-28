@@ -46,7 +46,16 @@ export default function AdminUsersPage(){
     return ()=> clearTimeout(t);
   }, [q, status, load]);
 
-  useEffect(()=>{ authify(); const url = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || ""; const token = typeof window!=="undefined" ? localStorage.getItem("token"):null; const s: Socket = io(url, { transports:['websocket'], auth: token? { token } : undefined }); s.on("admin:user:updated", load); return ()=>{ s.off("admin:user:updated", load); s.disconnect(); }; }, [load]);
+  useEffect(()=>{ authify(); 
+    // Use relative paths in browser to leverage Next.js rewrites (avoids CORS issues)
+    const url = typeof window === 'undefined' 
+      ? (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "")
+      : undefined;
+    const token = typeof window!=="undefined" ? localStorage.getItem("token"):null; 
+    const s: Socket = io(url, { transports:['websocket'], auth: token? { token } : undefined }); 
+    s.on("admin:user:updated", load); 
+    return ()=>{ s.off("admin:user:updated", load); s.disconnect(); }; 
+  }, [load]);
 
   const pages = useMemo(()=> Math.max(1, Math.ceil(total / pageSize)), [total]);
 

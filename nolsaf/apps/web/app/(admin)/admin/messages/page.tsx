@@ -22,8 +22,8 @@ export default function Page() {
     setLoading(true);
     try {
       const q = new URLSearchParams({ tab, page: '1', pageSize: '50' });
-      const base = process.env.NEXT_PUBLIC_API_URL || '';
-      const url = base ? `${base.replace(/\/$/, '')}/api/admin/notifications?${q.toString()}` : `/api/admin/notifications?${q.toString()}`;
+      // Use relative paths in browser to leverage Next.js rewrites (avoids CORS issues)
+      const url = `/api/admin/notifications?${q.toString()}`;
       const r = await fetch(url, { credentials: 'include' });
       if (!r.ok) throw new Error(`Fetch failed ${r.status}`);
       const data = await r.json();
@@ -60,8 +60,8 @@ export default function Page() {
                 // optimistically mark as read when opening an unread message
                 if (m.unread && next === m.id) {
                   try {
-                    const base = process.env.NEXT_PUBLIC_API_URL || '';
-                    const url = base ? `${base.replace(/\/$/, '')}/api/admin/notifications/${m.id}/mark-read` : `/api/admin/notifications/${m.id}/mark-read`;
+                    // Use relative paths in browser to leverage Next.js rewrites (avoids CORS issues)
+                    const url = `/api/admin/notifications/${m.id}/mark-read`;
                     await fetch(url, { method: 'POST', credentials: 'include' });
                     // update local state
                     setUnread((u) => u.filter((x) => x.id !== m.id));

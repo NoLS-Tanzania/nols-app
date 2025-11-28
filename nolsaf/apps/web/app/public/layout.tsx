@@ -1,13 +1,13 @@
 import type { ReactNode } from "react";
 import PublicHeader from "@/components/PublicHeader";
-import SiteFooter from "@/components/SiteFooter";
+import PublicFooter from "@/components/PublicFooter";
 
 export default function PublicLayout({ children }: { children: ReactNode }) {
   return (
     <>
       <PublicHeader />
       {children}
-      <SiteFooter withRail={false} />
+      <PublicFooter withRail={false} />
     </>
   );
 }

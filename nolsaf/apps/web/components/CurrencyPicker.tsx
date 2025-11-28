@@ -14,9 +14,15 @@ const CURRENCIES = [
 
 export default function CurrencyPicker() {
   const [open, setOpen] = useState(false);
-  const [currency, setCurrency] = useState<string>(() => {
-    try { return localStorage.getItem(KEY) ?? 'TZS'; } catch (e) { return 'TZS'; }
-  });
+  // initialize to a safe default on the server to avoid SSR/client hydration mismatches
+  const [currency, setCurrency] = useState<string>('TZS');
+  // hydrate from localStorage after mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(KEY);
+      if (stored) setCurrency(stored);
+    } catch (e) {}
+  }, []);
   const ref = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {

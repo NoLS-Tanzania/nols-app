@@ -15,7 +15,10 @@ type UserRow = {
   isDisabled?: number | null;
 };
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000";
+// Use relative paths in browser to leverage Next.js rewrites (avoids CORS issues)
+const API = typeof window === 'undefined' 
+  ? (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000")
+  : '';
 
 export default function Page() {
   const api = useMemo(() => {

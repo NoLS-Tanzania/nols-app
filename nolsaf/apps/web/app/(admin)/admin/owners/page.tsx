@@ -43,14 +43,23 @@ export default function AdminOwnersPage() {
   };
 
   const load = useCallback(async () => {
-    const r = await api.get<OwnersResponse>("/admin/owners", {
-      params: { q, status, page, pageSize }
-    });
-    setItems(r.data.items); setTotal(r.data.total);
+    try {
+      const r = await api.get<OwnersResponse>("/admin/owners", {
+        params: { q, status, page, pageSize }
+      });
+      setItems(r.data.items ?? []);
+      setTotal(r.data.total ?? 0);
+    } catch (err) {
+      // network or server errors shouldn't break the page — log and show empty list
+      // eslint-disable-next-line no-console
+      console.error('Failed to load owners list', err);
+      setItems([]);
+      setTotal(0);
+    }
   }, [q, status, page]);
 
-  useEffect(() => { authify(); load(); }, [load]);
-  useEffect(() => { load(); }, [status, page, load]);
+  useEffect(() => { authify(); void load(); }, [load]);
+  useEffect(() => { void load(); }, [status, page, load]);
 
   // detect horizontal overflow for status buttons (show arrows on small screens)
   useEffect(() => {
@@ -120,7 +129,10 @@ export default function AdminOwnersPage() {
   // live refresh when KYC/suspend changes
   useEffect(()=>{
     authify();
-    const url = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "";
+    // Use relative paths in browser to leverage Next.js rewrites (avoids CORS issues)
+    const url = typeof window === 'undefined' 
+      ? (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "")
+      : undefined;
     const token = typeof window!=="undefined" ? localStorage.getItem("token"):null;
   const s: Socket = io(url, { transports: ['websocket'], auth: token? { token } : undefined });
     s.on("admin:owner:updated", load);

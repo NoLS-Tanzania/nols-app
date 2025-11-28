@@ -199,11 +199,10 @@ export default function AdminBookingsPage() {
     authify();
     load();
 
-    // Prefer explicit socket URL, fallback to API URL
-    const url =
-      process.env.NEXT_PUBLIC_SOCKET_URL ||
-      process.env.NEXT_PUBLIC_API_URL ||
-      "";
+    // Use relative paths in browser to leverage Next.js rewrites (avoids CORS issues)
+    const url = typeof window === 'undefined' 
+      ? (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "")
+      : undefined;
 
     // Attach token via auth for server-side verify (optional)
     const token =

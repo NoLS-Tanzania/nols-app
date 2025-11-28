@@ -10,7 +10,11 @@ import GeneralReports from '@/components/GeneralReports';
     if (typeof window === 'undefined') return { approvals: 6, invoices: 5, bookings: 6 };
     try { return JSON.parse(localStorage.getItem('admin.widgetLimits') || '') || { approvals: 6, invoices: 5, bookings: 6 }; } catch { return { approvals: 6, invoices: 5, bookings: 6 }; }
   })();
-const API = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000";
+// Use relative paths in browser to leverage Next.js rewrites (avoids CORS issues)
+// Only use absolute URL for server-side or when explicitly needed
+const API = typeof window === 'undefined' 
+  ? (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000")
+  : '';
 
 // Send a lightweight analytics event to the API (non-blocking)
 async function sendAnalytics(eventName: string, payload: any = {}) {
@@ -211,8 +215,11 @@ export default function AdminHome() {
 
   // Refresh KPIs and invoices when payments land
   useEffect(() => {
-    const url = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "";
-    if (!url) return;
+    // Use relative paths in browser to leverage Next.js rewrites (avoids CORS issues)
+    // Socket.io will use current origin when url is empty/undefined
+    const url = typeof window === 'undefined' 
+      ? (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "")
+      : undefined;
     const s: Socket = io(url);
     const onPaid = () => { loadKpis(); loadInvoices(); };
     s.on("admin:invoice:paid", onPaid);

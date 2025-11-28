@@ -11,6 +11,7 @@ export type PublicSearchProps = {
   redirect?: boolean;
   placeholder?: string;
   filters?: Filters;
+  autoFocus?: boolean;
 };
 
 export function buildPublicPropertiesUrl(q?: string, filters?: Filters) {
@@ -55,6 +56,7 @@ export default function PublicSearch({
   redirect = true,
   placeholder = "Search city, region or property",
   filters,
+  autoFocus = false,
 }: PublicSearchProps) {
   const [query, setQuery] = useState(initialQuery || "");
   // loading state removed (auto-search)
@@ -64,10 +66,20 @@ export default function PublicSearch({
   const router = useRouter();
   const debounceRef = useRef<number | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     setQuery(initialQuery || "");
   }, [initialQuery]);
+
+  // autofocus when parent requests it (e.g., mobile expanded panel)
+  useEffect(() => {
+    if (autoFocus && inputRef.current) {
+      try {
+        inputRef.current.focus();
+      } catch (e) {}
+    }
+  }, [autoFocus]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -137,6 +149,7 @@ export default function PublicSearch({
         </div>
         <input
           value={query}
+          ref={inputRef}
           onChange={(e) => { setQuery(e.target.value); }}
           onKeyDown={onKeyDown}
           placeholder={placeholder}

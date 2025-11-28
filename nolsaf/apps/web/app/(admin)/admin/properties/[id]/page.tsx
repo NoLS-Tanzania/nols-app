@@ -28,7 +28,10 @@ export default function AdminPropertyDetail({ params }: { params: { id: string }
     authify();
     load();
     // socket live refresh (status changes from other admins)
-    const url = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "";
+    // Use relative paths in browser to leverage Next.js rewrites (avoids CORS issues)
+    const url = typeof window === 'undefined' 
+      ? (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "")
+      : undefined;
     const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
     const s: Socket = io(url, { auth: token ? { token } : undefined });
     const refreshIfMatch = (evt: any) => {

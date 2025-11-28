@@ -6,7 +6,12 @@ import DatePicker from "@/components/ui/DatePicker";
 import axios from "axios";
 import { io, Socket } from "socket.io-client";
 
-const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL });
+// Use relative paths in browser to leverage Next.js rewrites (avoids CORS issues)
+const api = axios.create({ 
+  baseURL: typeof window === 'undefined' 
+    ? (process.env.NEXT_PUBLIC_API_URL || '')
+    : ''
+});
 function authify() {
   const t = typeof window !== "undefined" ? localStorage.getItem("token") : null;
   if (t) api.defaults.headers.common["Authorization"] = `Bearer ${t}`;
@@ -159,10 +164,10 @@ export default function AdminRevenue() {
 
   // 🔌 Socket.io: refresh when an invoice is marked PAID by webhook/admin action
   useEffect(() => {
-    const url =
-      process.env.NEXT_PUBLIC_SOCKET_URL ||
-      process.env.NEXT_PUBLIC_API_URL ||
-      "";
+    // Use relative paths in browser to leverage Next.js rewrites (avoids CORS issues)
+    const url = typeof window === 'undefined' 
+      ? (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "")
+      : undefined;
     const token =
       typeof window !== "undefined" ? localStorage.getItem("token") : null;
 

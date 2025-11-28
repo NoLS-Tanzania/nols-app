@@ -46,6 +46,7 @@ import { router as ownerBookingsRouter } from "./routes/owner.booking";
 import admin2faRouter from "./routes/admin.2fa.js";
 import driverRouter from "./routes/driver.stats";
 import driverRemindersRouter from './routes/driver.reminders';
+import groupBookingsRouter from "./routes/groupBookings.js";
 
 // moved the POST handler to after the app is created
 // Create app and server before using them
@@ -143,6 +144,8 @@ app.use("/admin/2fa", admin2faRouter);
 app.use("/owner/bookings", ownerBookingsRouter);
 // Public support contact endpoint
 app.use('/api/public/support', publicSupportRouter);
+// Group bookings (requires authentication)
+app.use('/api/group-bookings', requireRole() as express.RequestHandler, groupBookingsRouter);
 
 // Start server
 const PORT = Number(process.env.PORT) || 4000;

@@ -1,0 +1,181 @@
+// Prisma schema for Group Bookings
+// NOTE: This file contains the GroupBooking models. If you already have
+// a `schema.prisma` with other models (for example `User`), merge the
+// `model GroupBooking` and `model GroupBookingPassenger` blocks into that
+// canonical schema instead of duplicating models here.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+/// Group Booking model for managing group accommodation reservations
+/// Supports families, workers, events, students, teams, and other group types
+model GroupBooking {
+  id                Int       @id @default(autoincrement())
+  
+  /// Foreign key to User who created this booking
+  userId            Int
+  
+  /// Type of group: family, workers, event, students, team, other
+  groupType         String
+  
+  // ==================== Origin Information ====================
+  /// Origin region (optional - where the group is coming from)
+  fromRegion        String?
+  /// Origin district within the region
+  fromDistrict      String?
+  /// Origin ward/mtaa
+  fromWard          String?
+  /// Exact origin location (street address, landmark, GPS coordinates)
+  fromLocation      String?
+  
+  // ==================== Destination Information ====================
+  /// Destination region (required - where accommodation is needed)
+  toRegion          String
+  /// Destination district within the region
+  toDistrict        String?
+  /// Destination ward/mtaa
+  toWard            String?
+  /// Exact destination location (street address, landmark, GPS coordinates)
+  toLocation        String?
+  
+  // ==================== Accommodation Details ====================
+  /// Type of accommodation: villa, apartment, hotel, hostel, lodge, etc.
+  accommodationType String
+  /// Total number of people in the group
+  headcount         Int
+  /// Number of persons per room (1-4)
+  roomSize          Int
+  /// Calculated number of rooms needed based on headcount and room size
+  roomsNeeded       Int
+  /// Whether private rooms are requested
+  needsPrivateRoom  Boolean   @default(false)
+  /// Number of private rooms requested (if applicable)
+  privateRoomCount  Int       @default(0)
+  
+  // ==================== Date Information ====================
+  /// Check-in date and time
+  checkIn           DateTime?
+  /// Check-out date and time
+  checkOut          DateTime?
+  /// Whether specific dates are being used (false = flexible dates)
+  useDates          Boolean   @default(true)
+  
+  // ==================== Arrangements ====================
+  /// Airport/station pickup service requested
+  arrPickup         Boolean   @default(false)
+  /// Transport between sites requested
+  arrTransport      Boolean   @default(false)
+  /// Meals included requested
+  arrMeals          Boolean   @default(false)
+  /// On-site guide/staff requested
+  arrGuide          Boolean   @default(false)
+  /// Special equipment requested
+  arrEquipment      Boolean   @default(false)
+  
+  /// Pickup location details (airport terminal, hotel, etc.)
+  pickupLocation    String?   @db.Text
+  /// Pickup time in 12-hour format (e.g., "02:30 PM")
+  pickupTime        String?
+  /// Additional notes about arrangements
+  arrangementNotes  String?   @db.Text
+  
+  // ==================== Passenger Roster ====================
+  /// JSON array of passenger details (firstname, lastname, phone, age, gender, nationality)
+  /// Stored as JSON for flexibility; separate table available for structured queries
+  roster            Json?
+  
+  // ==================== Status & Financial ====================
+  /// Booking status: PENDING, CONFIRMED, PROCESSING, CANCELED, COMPLETED
+  status            String    @default("PENDING")
+  /// Total estimated or confirmed amount for the booking
+  totalAmount       Decimal?  @db.Decimal(12, 2)
+  /// Currency code (default: TZS)
+  currency          String    @default("TZS")
+  
+  // ==================== Administrative Notes ====================
+  /// Internal admin notes about this booking
+  adminNotes        String?   @db.Text
+  /// Reason for cancellation (if status = CANCELED)
+  cancelReason      String?   @db.Text
+  /// Timestamp when booking was canceled
+  canceledAt        DateTime?
+  /// Timestamp when booking was confirmed
+  confirmedAt       DateTime?
+  
+  // ==================== Metadata ====================
+  /// Record creation timestamp
+  createdAt         DateTime  @default(now())
+  /// Record last update timestamp
+  updatedAt         DateTime  @updatedAt
+  
+  // ==================== Relations ====================
+  /// User who created this booking
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Individual passenger records (alternative to JSON roster)
+  passengers        GroupBookingPassenger[]
+  
+  // ==================== Indexes ====================
+  @@index([userId])
+  @@index([status])
+  @@index([groupType])
+  @@index([toRegion])
+  @@index([checkIn, checkOut])
+  @@index([createdAt])
+  
+  @@map("group_bookings")
+}
+
+/// Individual passenger record for group bookings
+/// Alternative to storing all passengers in JSON; enables structured queries
+model GroupBookingPassenger {
+  id              Int           @id @default(autoincrement())
+  
+  /// Foreign key to parent group booking
+  groupBookingId  Int
+  
+  /// Passenger first name
+  firstName       String
+  /// Passenger last name
+  lastName        String
+  /// Contact phone number
+  phone           String?
+  /// Age in years
+  age             Int?
+  /// Gender: Male, Female, Other, or custom value
+  gender          String?
+  /// Nationality or country of origin
+  nationality     String?
+  
+  /// Order/sequence number in the passenger list
+  sequenceNumber  Int?
+  
+  /// Record creation timestamp
+  createdAt       DateTime      @default(now())
+  /// Record last update timestamp
+  updatedAt       DateTime      @updatedAt
+  
+  /// Parent group booking
+  groupBooking    GroupBooking  @relation(fields: [groupBookingId], references: [id], onDelete: Cascade)
+  
+  @@index([groupBookingId])
+  @@index([lastName, firstName])
+  
+  @@map("group_booking_passengers")
+}
+
+// IMPORTANT: If your project already defines a `User` model, add the
+// following relation line to the `User` model's relations section (do not
+// create a second `User` model here):
+//
+//   groupBookings   GroupBooking[]
+
+// After merging these models into your project's canonical schema:
+// 1. Run `npx prisma generate` to regenerate the client.
+// 2. Create and apply a migration: `npx prisma migrate dev --name add_group_bookings`.
+// 3. Restart your API server.

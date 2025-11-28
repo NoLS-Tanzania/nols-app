@@ -22,12 +22,15 @@ const CURRENCIES = [
 
 export default function GlobalPicker() {
   const [open, setOpen] = useState(false);
-  const [locale, setLocale] = useState<string>(() => {
-    try { return localStorage.getItem(KEY_LOCALE) ?? 'en'; } catch (e) { return 'en'; }
-  });
-  const [currency, setCurrency] = useState<string>(() => {
-    try { return localStorage.getItem(KEY_CURRENCY) ?? 'TZS'; } catch (e) { return 'TZS'; }
-  });
+  // Use safe defaults during SSR to avoid hydration mismatches.
+  const [locale, setLocale] = useState<string>('en');
+  const [currency, setCurrency] = useState<string>('TZS');
+
+  // On client mount, hydrate from localStorage if available.
+  useEffect(() => {
+    try { const stored = localStorage.getItem(KEY_LOCALE); if (stored) setLocale(stored); } catch (e) {}
+    try { const storedC = localStorage.getItem(KEY_CURRENCY); if (storedC) setCurrency(storedC); } catch (e) {}
+  }, []);
   const ref = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {

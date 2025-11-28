@@ -193,7 +193,10 @@ export default function GeneralReports() {
   // Fetch from API when region/timeframe/group change
   useEffect(() => {
     const { from, to } = timeframeToRange(timeframe as string);
-    const base = process.env.NEXT_PUBLIC_API_URL || '';
+    // Use relative paths in browser to leverage Next.js rewrites (avoids CORS issues)
+    const base = typeof window === 'undefined' 
+      ? (process.env.NEXT_PUBLIC_API_URL || '')
+      : '';
 
     async function load() {
       try {

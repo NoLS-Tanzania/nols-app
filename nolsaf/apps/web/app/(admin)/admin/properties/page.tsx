@@ -126,7 +126,10 @@ export default function AdminPropertiesPage() {
 
   // live refresh on moderation events
   useEffect(() => {
-    const url = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "";
+    // Use relative paths in browser to leverage Next.js rewrites (avoids CORS issues)
+    const url = typeof window === 'undefined' 
+      ? (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "")
+      : undefined;
     const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
     const s: Socket = io(url, { auth: token ? { token } : undefined });
     const refresh = () => load();

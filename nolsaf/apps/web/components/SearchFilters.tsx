@@ -12,6 +12,10 @@ export type SearchFilters = {
   state?: string;
   amenities?: string[];
   types?: string[];
+  /** display language code or name */
+  language?: string;
+  /** currency code like TZS, USD */
+  currency?: string;
 };
 
 export default function SearchFilters({
@@ -26,6 +30,8 @@ export default function SearchFilters({
   const states = ['Coastal', 'Northern', 'Central'];
   const amenities = ['Wifi', 'Pool', 'Parking', 'Breakfast'];
   const types = ['Hotel', 'Lodge', 'Condo', 'Villa', 'Cabin', 'Camp'];
+  const languages = ['English', 'Kiswahili', 'Français'];
+  const currencies = ['TZS', 'USD', 'EUR', 'KES'];
 
   const set = (patch: Partial<SearchFilters>) => onChange({ ...value, ...patch });
 
@@ -90,6 +96,38 @@ export default function SearchFilters({
           <div className="mt-1 flex flex-wrap gap-2">
             {amenities.map(a => (
               <button key={a} type="button" onClick={() => toggleArray('amenities', a)} className={`px-2 py-1 border rounded ${ (value.amenities || []).includes(a) ? 'bg-[#02665e] text-white' : '' }`}>{a}</button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Language</label>
+          <div className="mt-1 flex flex-wrap gap-2">
+            {languages.map(l => (
+              <button
+                key={l}
+                type="button"
+                onClick={() => set({ language: value.language === l ? undefined : l })}
+                aria-pressed={value.language === l}
+                className={`px-3 py-1 border rounded-full transition-colors duration-150 min-w-[72px] text-center ${value.language === l ? 'bg-[#02665e] text-white border-[#02665e]' : 'bg-white text-gray-700 hover:bg-gray-50'}`}>
+                {l}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Currency</label>
+          <div className="mt-1 flex flex-wrap gap-2">
+            {currencies.map(c => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => set({ currency: value.currency === c ? undefined : c })}
+                aria-pressed={value.currency === c}
+                className={`px-3 py-1 border rounded-full transition-colors duration-150 min-w-[72px] text-center ${value.currency === c ? 'bg-[#02665e] text-white border-[#02665e]' : 'bg-white text-gray-700 hover:bg-gray-50'}`}>
+                {c}
+              </button>
             ))}
           </div>
         </div>
