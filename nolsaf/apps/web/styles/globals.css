@@ -102,6 +102,14 @@ html, body, #__next {
   color: inherit !important;
 }
 
+/* Owner-specific sidebar container when placed inside the centered layout frame.
+  Keep the sidebar's native background and visual treatment; only provide
+  scroll behavior and padding so the sidebar scrolls correctly when embedded
+  inside the centered `max-w-6xl` container. */
+.owner-sidebar-container { font-size: 0.875rem; }
+.owner-sidebar-container .sidebar-scroll { padding-bottom: var(--admin-footer-height); overflow-y: auto; max-height: calc(100vh - 4rem - var(--admin-footer-height)); }
+.owner-sidebar-container a, .owner-sidebar-container button { color: inherit !important; }
+
 /* Hide decorative pseudo-elements inside the sidebar */
 .admin-sidebar-fixed *::before,
 .admin-sidebar-fixed *::after {
@@ -242,6 +250,16 @@ html, body, #__next {
     }
   }
 
+/* Owner content gap utility: align content to sidebar width plus a small gap (0.5rem)
+   Use the `owner-content-gap` class on the main content wrapper so the spacing
+   is consistent and easily adjustable. Applies only on md+ viewports. */
+@media (min-width: 768px) {
+  .owner-content-gap {
+    /* increase gap to 1rem for clearer separation */
+    padding-left: calc(var(--admin-sidebar-width) + 1rem) !important;
+  }
+}
+
   /* Status dot used in driver header: online/offline variants */
   .status-dot { @apply inline-block h-3 w-3 rounded-full; background: #9ca3af; }
   .status-dot.online { background: var(--driver-accent); }
@@ -314,6 +332,50 @@ html, body, #__next {
   .select   { @apply input; }
   .textarea { @apply input; }
 
+  /* Auth / Register card styles: keep visual treatment consistent across auth screens */
+  .auth-card {
+    @apply bg-white rounded-2xl shadow-lg ring-1 ring-slate-100 overflow-hidden;
+    transition-property: box-shadow, transform, opacity;
+    transition-duration: 280ms;
+    transition-timing-function: cubic-bezier(.2,.9,.2,1);
+    will-change: transform, opacity;
+  }
+
+  .auth-card--lift {
+    transform: translateY(-6px);
+    box-shadow: 0 12px 40px rgba(2,6,23,0.08);
+  }
+
+  .auth-card-enter {
+    opacity: 0; transform: translateY(8px) scale(.996);
+    animation: auth-fade-in 360ms cubic-bezier(.2,.9,.2,1) forwards;
+  }
+
+  @keyframes auth-fade-in {
+    from { opacity: 0; transform: translateY(8px) scale(.996); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  /* Progress bar used inside auth header */
+  .auth-progress { @apply h-2 rounded-full overflow-hidden bg-slate-100; }
+  .auth-progress > .bar { @apply h-2 bg-slate-500 transition-all duration-500 ease-in-out; }
+
+  /* Buttons and inputs specific to auth forms */
+  .auth-cta { @apply inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 bg-slate-900 text-white hover:shadow-lg transition-transform duration-150; }
+  .auth-input { @apply block w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 shadow-sm transition-shadow duration-150; }
+
+  /* Auth card inner body to prevent accidental overflow and ensure proper stacking */
+  .auth-card-body { @apply px-6 py-6 sm:px-8 sm:py-8; position: relative; box-sizing: border-box; z-index: 0; }
+
+  /* Radio tiles for account type selection */
+  .auth-radio-option { @apply transition-transform transform duration-150 flex items-center justify-center gap-2 px-4 py-3 rounded-2xl cursor-pointer border bg-white text-slate-700; }
+  .auth-radio-option.active { @apply bg-slate-800 text-white border-slate-800 shadow-lg scale-105; }
+  .auth-radio-check { @apply w-4 h-4 transition-opacity duration-150 opacity-0; }
+  .auth-radio-option.active .auth-radio-check { @apply opacity-100; }
+
+  /* Small utility for icon-only back button used in header */
+  .auth-back-btn { @apply text-slate-600 hover:text-slate-800 p-0 inline-flex items-center justify-center; }
+
   /* GroupStays specific small helpers moved from component inline styles */
   .groupstays-select {
     -moz-appearance: none !important;
@@ -336,6 +398,507 @@ html, body, #__next {
     flex-direction: column;
     gap: 0.5rem;
   }
+
+/* ---------- Room & Bathroom (visual only) ---------- */
+/* Style the room type select for improved visual weight */
+select[title="Room type"] {
+  height: 2.5rem;
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(15,23,42,0.06);
+  background: #ffffff;
+  box-shadow: inset 0 1px 0 rgba(0,0,0,0.02);
+  font-weight: 600;
+}
+
+/* Bed cards grid (targets the specific grid used in the room form)
+   Uses the class combo present in the markup to scope changes without JS edits */
+.grid.grid-cols-1.md\:grid-cols-2.gap-3.mt-2 > .bg-gray-50.p-2.rounded {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  background: #fbfdff;
+  border: 1px solid rgba(15,23,42,0.04);
+  transition: box-shadow .14s ease, transform .12s ease;
+}
+.grid.grid-cols-1.md\:grid-cols-2.gap-3.mt-2 > .bg-gray-50.p-2.rounded:hover {
+  box-shadow: 0 8px 22px rgba(2,6,23,0.06);
+  transform: translateY(-3px);
+}
+
+/* Buttons inside each bed card */
+.grid.grid-cols-1.md\:grid-cols-2.gap-3.mt-2 > .bg-gray-50.p-2.rounded button {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 1px solid rgba(15,23,42,0.06);
+  background: #ffffff;
+  color: #334155;
+}
+
+/* Make the numeric readout clearly visible and centered */
+.grid.grid-cols-1.md\:grid-cols-2.gap-3.mt-2 > .bg-gray-50.p-2.rounded input[aria-label$="beds count"] {
+  width: 56px;
+  height: 36px;
+  text-align: center;
+  border-radius: 8px;
+  border: 1px solid rgba(15,23,42,0.06);
+  font-weight: 600;
+}
+
+/* Ensure the bed label uses a consistent capitalization/weight */
+.grid.grid-cols-1.md\:grid-cols-2.gap-3.mt-2 > .bg-gray-50.p-2.rounded .text-sm {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+/* Slightly increase spacing on larger screens so two-line content breathes */
+@media (min-width: 768px) {
+  .grid.grid-cols-1.md\:grid-cols-2.gap-3.mt-2 > .bg-gray-50.p-2.rounded {
+    padding: 0.75rem 0.9rem;
+  }
+}
+
+/* End Room & Bathroom visual overrides */
+
+/* ---------- Room count & Smoking controls ---------- */
+/* Target the rooms-count numeric input inside the room-details grid */
+.grid.grid-cols-1.md\:grid-cols-2.gap-3 > div > input[type="number"] {
+  width: 100%;
+  height: 2.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(15,23,42,0.06);
+  background: #fff;
+  font-weight: 600;
+  box-shadow: inset 0 1px 0 rgba(0,0,0,0.02);
+}
+.grid.grid-cols-1.md\:grid-cols-2.gap-3 > div > input[type="number"]:focus {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(14,165,164,0.08);
+  border-color: rgba(14,165,164,0.9);
+}
+
+/* Smoking radio group appearance: slightly larger radios and brand accent */
+.p-3.bg-gray-50.border.border-gray-100.rounded-lg input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  margin-right: 0.5rem;
+  accent-color: #0ea5a0; /* Tailwind teal-400-ish */
+}
+.p-3.bg-gray-50.border.border-gray-100.rounded-lg label.inline-flex.items-center {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.5rem;
+  transition: background .12s ease, transform .08s ease;
+}
+.p-3.bg-gray-50.border.border-gray-100.rounded-lg label.inline-flex.items-center:hover {
+  background: rgba(14,165,164,0.03);
+}
+.p-3.bg-gray-50.border.border-gray-100.rounded-lg input[type="radio"]:focus {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(14,165,164,0.08);
+}
+
+/* Make Yes/No option labels visibly selectable (filled buttons when selected) */
+.p-3.bg-gray-50.border.border-gray-100.rounded-lg label.inline-flex.items-center {
+  background: #f8fafc; /* light muted background for the option area */
+  border: 1px solid rgba(15,23,42,0.04);
+}
+.p-3.bg-gray-50.border.border-gray-100.rounded-lg label.inline-flex.items-center:has(input:checked) {
+  background: #0ea5a0; /* teal */
+  color: #ffffff;
+  border-color: rgba(14,165,160,0.9);
+  transform: translateY(-1px);
+}
+.p-3.bg-gray-50.border.border-gray-100.rounded-lg label.inline-flex.items-center:has(input:checked) input[type="radio"] {
+  filter: brightness(0) invert(1);
+}
+
+@media (min-width: 768px) {
+  .grid.grid-cols-1.md\:grid-cols-2.gap-3 > div > input[type="number"] {
+    max-width: 12rem; /* keep the numeric input compact on larger screens */
+  }
+}
+
+/* End Room count & Smoking controls */
+
+/* ---------- Bathroom Details (visual only) ---------- */
+/* Scope: targets the 'Bathroom Details' heading followed by the grid used in the form */
+.mt-2 > h4.font-semibold + .mt-2.grid {
+  gap: 0.75rem;
+}
+
+/* Make the radio options for "Is the bathroom private?" clearer and pill-like */
+.mt-2 > h4.font-semibold + .mt-2.grid .inline-flex.items-center input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  margin-right: 0.5rem;
+  accent-color: #0ea5a0;
+}
+.mt-2 > h4.font-semibold + .mt-2.grid .inline-flex.items-center {
+  padding: 0.35rem 0.5rem;
+  border-radius: 0.5rem;
+  transition: background .12s ease, transform .08s ease;
+}
+.mt-2 > h4.font-semibold + .mt-2.grid .inline-flex.items-center:hover {
+  background: rgba(14,165,160,0.03);
+}
+
+/* Bathroom items checkbox grid */
+.mt-2 > h4.font-semibold + .mt-2.grid .grid.grid-cols-2.gap-2 label.flex.items-center {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.5rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(15,23,42,0.04);
+  background: #f8fafc; /* muted non-white background so selectable area is visible */
+  transition: box-shadow .12s ease, transform .08s ease, background .12s ease, color .12s ease;
+}
+.mt-2 > h4.font-semibold + .mt-2.grid .grid.grid-cols-2.gap-2 label.flex.items-center:hover {
+  box-shadow: 0 8px 20px rgba(2,6,23,0.04);
+  transform: translateY(-2px);
+  background: #eefdfa;
+}
+.mt-2 > h4.font-semibold + .mt-2.grid .grid.grid-cols-2.gap-2 input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #0ea5a0;
+}
+
+/* Checked state: prefer :has() when available to style the whole label; fallback below changes just the text */
+.mt-2 > h4.font-semibold + .mt-2.grid .grid.grid-cols-2.gap-2 label.flex.items-center:has(input:checked) {
+  background: #0ea5a0;
+  color: #ffffff;
+  border-color: rgba(14,165,160,0.9);
+  transform: translateY(-1px);
+}
+.mt-2 > h4.font-semibold + .mt-2.grid .grid.grid-cols-2.gap-2 label.flex.items-center:has(input:checked) input[type="checkbox"] {
+  filter: brightness(0) invert(1);
+}
+
+/* Fallback: if :has isn't supported, at least make the label text white when the checkbox is checked */
+.mt-2 > h4.font-semibold + .mt-2.grid .grid.grid-cols-2.gap-2 input[type="checkbox"]:checked + span {
+  color: #ffffff;
+  background: transparent; /* keep span background transparent since label is muted */
+}
+
+/* Towel color input (optional): slightly larger and prominent */
+.mt-2 > h4.font-semibold + .mt-2.grid .mt-2 input[placeholder] {
+  height: 2.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(15,23,42,0.06);
+  font-weight: 600;
+  background: #fff;
+}
+.mt-2 > h4.font-semibold + .mt-2.grid .mt-2 input[placeholder]:focus {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(14,165,160,0.06);
+  border-color: rgba(14,165,160,0.9);
+}
+
+@media (min-width: 768px) {
+  .mt-2 > h4.font-semibold + .mt-2.grid .grid.grid-cols-2.gap-2 label.flex.items-center {
+    padding: 0.55rem 0.75rem;
+  }
+}
+
+/* End Bathroom Details visual overrides */
+
+/* ---------- Other room amenities (tile appearance) ---------- */
+/* Scoped to the grid used in the room form so bathroom styles remain consistent */
+.other-amenities-grid label.flex.items-center {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.5rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(15,23,42,0.04);
+  background: #f8fafc; /* muted non-white background so selectable area is visible */
+  transition: box-shadow .12s ease, transform .08s ease, background .12s ease, color .12s ease;
+}
+.other-amenities-grid label.flex.items-center:hover {
+  box-shadow: 0 8px 20px rgba(2,6,23,0.04);
+  transform: translateY(-2px);
+  background: #eefdfa;
+}
+.other-amenities-grid input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #0ea5a0;
+}
+
+/* Prefer :has() to style the whole tile when checked, fallback below for older browsers */
+.other-amenities-grid label.flex.items-center:has(input:checked) {
+  background: #0ea5a0;
+  color: #ffffff;
+  border-color: rgba(14,165,160,0.9);
+  transform: translateY(-1px);
+}
+.other-amenities-grid label.flex.items-center:has(input:checked) input[type="checkbox"] {
+  filter: brightness(0) invert(1);
+}
+
+/* Fallback if :has() not supported: at least make the label text white when the checkbox is checked */
+.other-amenities-grid input[type="checkbox"]:checked + span {
+  color: #ffffff;
+}
+
+/* End Other room amenities */
+
+/* ---------- Other amenities input & Room description styling ---------- */
+/* Make the comma-separated input and the room description textarea visually match other form controls
+   without changing markup. Targets the input directly following the amenities grid and the textarea
+   that follows in the room mini-form. */
+.other-amenities-grid + .mt-2 input,
+.other-amenities-grid + .mt-2 input[type="text"],
+.other-amenities-grid + .mt-2 input[type="search"] {
+  height: 2.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(15,23,42,0.06);
+  background: #ffffff;
+  font-weight: 600;
+  box-shadow: inset 0 1px 0 rgba(0,0,0,0.02);
+  width: 100%;
+}
+.other-amenities-grid + .mt-2 input:focus {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(14,165,160,0.06);
+  border-color: rgba(14,165,160,0.9);
+}
+
+/* Room description textarea (just after the other amenities block): keep consistent padding, border and focus ring */
+.other-amenities-grid ~ .mt-4 textarea,
+.other-amenities-grid ~ .mt-4 textarea:focus {
+  min-height: 86px; /* visually similar to 3 rows */
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(15,23,42,0.06);
+  background: #ffffff;
+  box-shadow: inset 0 1px 0 rgba(0,0,0,0.02);
+}
+.other-amenities-grid ~ .mt-4 textarea:focus {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(14,165,160,0.06);
+  border-color: rgba(14,165,160,0.9);
+}
+
+/* Slightly increase spacing between the amenities input and following controls */
+.other-amenities-grid + .mt-2,
+.other-amenities-grid ~ .mt-4 {
+  margin-top: 0.5rem;
+}
+
+/* End Other amenities input & Room description styling */
+
+/* ---------- Room image input, preview thumbnails, and price field ---------- */
+/* Style the room image file input to visually match other inputs (height, border, focus) */
+#roomImageInput {
+  display: block;
+  width: 100%;
+  height: 2.5rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(15,23,42,0.06);
+  background: #ffffff;
+  color: #0f172a;
+  font-weight: 600;
+  box-shadow: inset 0 1px 0 rgba(0,0,0,0.02);
+  cursor: pointer;
+}
+#roomImageInput:hover { box-shadow: 0 8px 20px rgba(2,6,23,0.04); }
+#roomImageInput:focus { outline: none; box-shadow: 0 0 0 4px rgba(14,165,160,0.06); border-color: rgba(14,165,160,0.9); }
+
+/* Preview thumbnails: make rounded previews with subtle border and lift */
+#roomImageInput + .mt-2.flex.flex-wrap.gap-2 > div {
+  border-radius: 0.5rem;
+  overflow: hidden;
+  border: 1px solid rgba(15,23,42,0.06);
+  box-shadow: 0 6px 14px rgba(2,6,23,0.04);
+}
+#roomImageInput + .mt-2.flex.flex-wrap.gap-2 > div img,
+#roomImageInput + .mt-2.flex.flex-wrap.gap-2 > div > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Thumbnail remove overlay button */
+.thumbnail-remove-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 28px;
+  height: 28px;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15,23,42,0.06);
+  color: #0f172a;
+  border: 1px solid rgba(15,23,42,0.08);
+  z-index: 30;
+  transition: background .12s ease, transform .08s ease;
+}
+.thumbnail-remove-btn:hover { background: rgba(220,38,38,0.95); color: #fff; transform: translateY(-1px); }
+.thumbnail-remove-btn:focus { outline: none; box-shadow: 0 0 0 4px rgba(220,38,38,0.12); }
+
+/* Defined room thumbnails (after Add room type) - modern thumbnail styling */
+.defined-room-thumb {
+  background: #ffffff;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  border: 1px solid rgba(15,23,42,0.06);
+  position: relative;
+  box-shadow: 0 6px 14px rgba(2,6,23,0.04);
+}
+.defined-room-thumb .thumbnail-remove-btn {
+  top: 6px;
+  right: 6px;
+}
+.defined-room-thumb img, .defined-room-thumb .object-cover {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+
+
+/* Price input and '/ night' label styling inside the room mini-form */
+.mt-4.grid.grid-cols-1.md\:grid-cols-3 .mt-2.flex.items-center input[type="number"] {
+  height: 2.5rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(15,23,42,0.06);
+  background: #ffffff;
+  font-weight: 600;
+  box-shadow: inset 0 1px 0 rgba(0,0,0,0.02);
+}
+.mt-4.grid.grid-cols-1.md\:grid-cols-3 .mt-2.flex.items-center input[type="number"]:focus {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(14,165,160,0.06);
+  border-color: rgba(14,165,160,0.9);
+}
+.mt-4.grid.grid-cols-1.md\:grid-cols-3 .mt-2.flex.items-center span {
+  margin-left: 0.5rem;
+  color: #475569; /* slate-600 */
+  font-weight: 600;
+}
+
+/* Small responsive tweak: keep the price input compact on larger screens */
+
+/* Ensure uploaded thumbnails and defined-room thumbnails have consistent square dimensions
+   and rounded corners so the uploader visually matches the final card appearance. */
+#roomImageInput + .mt-2.flex.flex-wrap.gap-2 > div,
+.defined-room-thumb {
+  width: 5rem; /* 80px */
+  min-width: 5rem;
+  aspect-ratio: 1 / 1 !important; /* enforce square */
+  height: auto !important; /* let aspect-ratio define height */
+  border-radius: 0.75rem; /* rounded corners */
+  overflow: hidden; /* clip images to rounded shape */
+  display: inline-block;
+  box-sizing: border-box;
+}
+
+/* Stronger selector fallback for elements using utility classes (w-20 h-20 etc.) */
+.w-20.h-20.rounded.overflow-hidden.border.relative,
+.w-20.h-20.rounded.overflow-hidden.border.relative {
+  width: 5rem !important;
+  min-width: 5rem !important;
+  aspect-ratio: 1 / 1 !important;
+  height: auto !important;
+  border-radius: 0.75rem !important;
+  overflow: hidden !important;
+}
+.w-20.h-20.rounded.overflow-hidden.border.relative > img,
+.w-20.h-20.rounded.overflow-hidden.border.relative img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  display: block !important;
+}
+
+#roomImageInput + .mt-2.flex.flex-wrap.gap-2 > div img,
+.defined-room-thumb img,
+.defined-room-thumb .object-cover {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Slightly larger remove button on thumbnails to improve touch targets */
+.thumbnail-remove-btn {
+  top: 6px;
+  right: 6px;
+  width: 30px;
+  height: 30px;
+}
+
+@media (min-width: 768px) {
+  #roomImageInput + .mt-2.flex.flex-wrap.gap-2 > div,
+  .defined-room-thumb {
+    width: 5.5rem; /* 88px on larger screens */
+    height: 5.5rem;
+    min-width: 5.5rem;
+    min-height: 5.5rem;
+  }
+}
+@media (min-width: 768px) {
+  .mt-4.grid.grid-cols-1.md\:grid-cols-3 .mt-2.flex.items-center input[type="number"] { max-width: 12rem; }
+}
+
+/* End Room image and price styling */
+
+/* Make the "Is the bathroom private?" radio options visually selectable like the smoking controls */
+.mt-2 > .mt-2.grid .flex.items-center.space-x-4 > label.inline-flex.items-center,
+.mt-2 > .flex.items-center.space-x-4 > label.inline-flex.items-center {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 0.5rem;
+  background: #f8fafc;
+  border: 1px solid rgba(15,23,42,0.04);
+  transition: background .12s ease, transform .08s ease;
+}
+.mt-2 > .mt-2.grid .flex.items-center.space-x-4 > label.inline-flex.items-center input[type="radio"],
+.mt-2 > .flex.items-center.space-x-4 > label.inline-flex.items-center input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  margin-right: 0.5rem;
+  accent-color: #0ea5a0;
+}
+.mt-2 > .mt-2.grid .flex.items-center.space-x-4 > label.inline-flex.items-center:hover,
+.mt-2 > .flex.items-center.space-x-4 > label.inline-flex.items-center:hover {
+  background: rgba(14,165,160,0.03);
+}
+.mt-2 > .mt-2.grid .flex.items-center.space-x-4 > label.inline-flex.items-center:has(input:checked),
+.mt-2 > .flex.items-center.space-x-4 > label.inline-flex.items-center:has(input:checked) {
+  background: #0ea5a0;
+  color: #ffffff;
+  border-color: rgba(14,165,160,0.9);
+  transform: translateY(-1px);
+}
+.mt-2 > .mt-2.grid .flex.items-center.space-x-4 > label.inline-flex.items-center:has(input:checked) input[type="radio"],
+.mt-2 > .flex.items-center.space-x-4 > label.inline-flex.items-center:has(input:checked) input[type="radio"] {
+  filter: brightness(0) invert(1);
+}
+
+/* Fallback hint: if :has() isn't supported, labels still have a muted background so options are visible */
   [aria-labelledby="group-stays-heading"] .groupstays-section > label,
   [aria-labelledby="group-stays-heading"] .groupstays-section > .text-xs {
     color: #475569; /* slate-600 */
@@ -396,6 +959,128 @@ html, body, #__next {
   [aria-labelledby="group-stays-heading"] .arrangements-details input,
   [aria-labelledby="group-stays-heading"] .arrangements-details textarea {
     border: 1px solid rgba(15,23,42,0.06); padding:0.5rem 0.75rem; border-radius:0.375rem; background:#fff;
+  }
+
+  /* ---------- Book-style pages for Register/Login ---------- */
+  /* Creates a gentle open-book look made of two adjacent panels that resemble pages. */
+  .book-container {
+    display: flex;
+    gap: 1.25rem; /* space between pages */
+    align-items: stretch;
+    justify-content: center;
+    width: 100%;
+    max-width: 72rem; /* matches design rhythm */
+    margin: 0 auto;
+    padding: 1rem;
+  }
+
+  .book-page {
+    flex: 1 1 0%;
+    min-width: 0;
+    background: linear-gradient(180deg, #ffffff 0%, #fbfbfb 100%);
+    border-radius: 1rem;
+    box-shadow: 0 8px 30px rgba(2,6,23,0.06);
+    border: 1px solid rgba(15,23,42,0.06);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+
+  /* Left page has a subtle inner fold on the right edge */
+  .book-left {
+    border-top-right-radius: 0.75rem;
+    border-bottom-right-radius: 0.75rem;
+  }
+
+  /* Right page has a subtle inner fold on the left edge */
+  .book-right {
+    border-top-left-radius: 0.75rem;
+    border-bottom-left-radius: 0.75rem;
+  }
+
+  /* Decorative spine/fold: a thin gradient in the gap between pages */
+  .book-container::before {
+    content: '';
+    width: 6px;
+    background: linear-gradient(180deg, rgba(15,23,42,0.04), rgba(15,23,42,0.02));
+    border-radius: 999px;
+    display: block;
+    transform: translateY(0.25rem);
+    align-self: stretch;
+  }
+
+  /* Inner page shadow to suggest curvature near the fold */
+  .book-page::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image: linear-gradient(90deg, rgba(2,6,23,0.02), transparent 18%);
+    mix-blend-mode: multiply;
+    opacity: 0.9;
+  }
+
+  /* Make left/right curvature different so the fold is visible */
+  .book-left::after { background-image: linear-gradient(90deg, rgba(2,6,23,0.03), transparent 22%); }
+  .book-right::after { background-image: linear-gradient(-90deg, rgba(2,6,23,0.02), transparent 16%); }
+
+  /* Page inner padding helper (consistent with card-section) */
+  .book-page .page-content { padding: 1.5rem; }
+
+  /* Responsive: stack pages on small screens */
+  @media (max-width: 768px) {
+    .book-container { flex-direction: column; gap: 1rem; padding: 0.5rem; }
+    .book-container::before { display: none; }
+    .book-page { border-radius: 0.75rem; }
+    .book-left, .book-right { border-radius: 0.75rem; }
+  }
+
+  /* ---------- Focus Normalization (Accessible & Non-blinking) ---------- */
+  /*
+    Provide a subtle, consistent focus-visible indicator for keyboard users
+    while avoiding animated or 'blinking' focus rings that can be visually
+    distracting. Applies to common interactive elements site-wide.
+  */
+  a:focus, button:focus, input:focus, textarea:focus, select:focus, [tabindex]:focus {
+    outline: none !important;
+    transition: none !important;
+  }
+
+  a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, [tabindex]:focus-visible {
+    outline: none !important;
+    box-shadow: 0 0 0 4px rgba(2,6,23,0.06) !important; /* soft neutral ring */
+    border-radius: 0.375rem !important; /* match common rounded controls */
+    transition: none !important; /* avoid animated blinking */
+  }
+
+  /* Keep interactive elements visually stable by removing focus transitions */
+  a, button, [role="button"], .qlink { -webkit-tap-highlight-color: transparent; }
+
+  /* Specific suppression for YouTube thumbnails to keep visuals constant (no blink) */
+  .youtube-thumb-anchor,
+  .youtube-thumb-anchor *,
+  .thumbnail-overlay {
+    transition: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+  }
+
+  .youtube-thumb-anchor:focus,
+  .youtube-thumb-anchor:focus-visible,
+  .youtube-thumb-anchor:active {
+    outline: none !important;
+    box-shadow: none !important;
+  }
+
+  /* Prevent overlay from capturing pointer events (so anchor receives focus/click only) */
+  .thumbnail-overlay { pointer-events: none; }
+
+  /* Force solid YouTube red for thumbnail overlay to avoid accidental dark tint/opacity */
+  .thumbnail-overlay {
+    background-color: #FF0000 !important;
+    opacity: 1 !important;
+    mix-blend-mode: normal !important;
   }
 
   /* Footer rail segments (Tanzania flag colors) moved from inline styles in PublicFooter.tsx */
@@ -1251,4 +1936,433 @@ a[aria-label="Toggle theme"].mobile {
 
 @media (prefers-reduced-motion: reduce) {
   .nls-blink { animation: none !important; }
+}
+
+/* ---------- Owner horizontal stepper (Booking.com style) ---------- */
+@layer components {
+  .owner-steps-container {
+    @apply w-full;
+  }
+  
+  .owner-steps-wrapper {
+    @apply flex items-center justify-center flex-wrap gap-0;
+    position: relative;
+    padding: 0 1rem;
+  }
+  
+  .owner-step-item {
+    @apply flex items-center;
+    position: relative;
+    flex: 0 0 auto;
+  }
+  
+  .owner-step-button {
+    @apply flex flex-col items-center gap-2 cursor-pointer transition-all duration-300 ease-in-out;
+    padding: 0.75rem 1rem;
+    min-width: 100px;
+    position: relative;
+    z-index: 2;
+    background: transparent;
+    border: none;
+    outline: none;
+  }
+  
+  .owner-step-button:hover:not(.owner-step-button--active) {
+    transform: translateY(-2px);
+  }
+  
+  .owner-step-button:focus-visible {
+    @apply outline-none ring-2 ring-emerald-500 ring-offset-2 rounded-lg;
+  }
+  
+  .owner-step-circle {
+    @apply flex items-center justify-center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    background-color: #e5e7eb;
+    border: 2px solid #d1d5db;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+  }
+  
+  .owner-step-number {
+    @apply text-sm font-semibold;
+    color: #6b7280;
+    transition: color 0.3s ease;
+  }
+  
+  .owner-step-checkmark {
+    width: 1.25rem;
+    height: 1.25rem;
+    color: white;
+    animation: checkmarkAppear 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  @keyframes checkmarkAppear {
+    0% {
+      opacity: 0;
+      transform: scale(0.5) rotate(-180deg);
+    }
+    50% {
+      transform: scale(1.1) rotate(0deg);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1) rotate(0deg);
+    }
+  }
+  
+  .owner-step-label {
+    @apply text-xs font-medium;
+    color: #9ca3af;
+    transition: color 0.3s ease;
+    text-align: center;
+    white-space: nowrap;
+  }
+  
+  /* Active state */
+  .owner-step-button--active .owner-step-circle {
+    background-color: #059669;
+    border-color: #059669;
+    box-shadow: 0 0 0 4px rgba(5, 150, 105, 0.1);
+    transform: scale(1.1);
+    animation: pulseActive 2s ease-in-out infinite;
+  }
+  
+  @keyframes pulseActive {
+    0%, 100% {
+      box-shadow: 0 0 0 4px rgba(5, 150, 105, 0.1);
+    }
+    50% {
+      box-shadow: 0 0 0 6px rgba(5, 150, 105, 0.15);
+    }
+  }
+  
+  .owner-step-button--active .owner-step-number {
+    color: white;
+  }
+  
+  .owner-step-button--active .owner-step-label {
+    color: #059669;
+    font-weight: 600;
+  }
+  
+  /* Completed state */
+  .owner-step-button--completed .owner-step-circle {
+    background-color: #059669;
+    border-color: #059669;
+    animation: completedPulse 0.5s ease-out;
+  }
+  
+  @keyframes completedPulse {
+    0% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.15);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+  
+  .owner-step-button--completed .owner-step-label {
+    color: #059669;
+    font-weight: 500;
+  }
+  
+  /* Past state (steps before active) */
+  .owner-step-button--past .owner-step-circle {
+    background-color: #d1fae5;
+    border-color: #059669;
+  }
+  
+  .owner-step-button--past .owner-step-number {
+    color: #059669;
+  }
+  
+  .owner-step-button--past .owner-step-label {
+    color: #6b7280;
+  }
+  
+  /* Connector lines */
+  .owner-step-connector {
+    @apply flex items-center;
+    width: 80px;
+    height: 2px;
+    position: relative;
+    margin: 0 0.5rem;
+    z-index: 1;
+  }
+  
+  .owner-step-connector-line {
+    width: 100%;
+    height: 2px;
+    background-color: #e5e7eb;
+    border-radius: 1px;
+    transition: background-color 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .owner-step-connector-line::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, #059669, #10b981);
+    transition: left 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .owner-step-connector--completed .owner-step-connector-line {
+    background-color: #d1fae5;
+  }
+  
+  .owner-step-connector--completed .owner-step-connector-line::after {
+    left: 0;
+  }
+  
+  .owner-step-connector--active .owner-step-connector-line {
+    background-color: #e5e7eb;
+  }
+  
+  .owner-step-connector--active .owner-step-connector-line::after {
+    left: 0;
+    animation: connectorFill 0.8s ease-out forwards;
+  }
+  
+  @keyframes connectorFill {
+    0% {
+      left: -100%;
+    }
+    100% {
+      left: 0;
+    }
+  }
+  
+  /* Responsive adjustments */
+  @media (max-width: 768px) {
+    .owner-steps-wrapper {
+      @apply gap-0;
+      padding: 0 0.5rem;
+    }
+    
+    .owner-step-button {
+      min-width: 70px;
+      padding: 0.5rem 0.5rem;
+    }
+    
+    .owner-step-circle {
+      width: 2rem;
+      height: 2rem;
+    }
+    
+    .owner-step-number {
+      @apply text-xs;
+    }
+    
+    .owner-step-label {
+      @apply text-[10px];
+      font-size: 0.625rem;
+    }
+    
+    .owner-step-connector {
+      width: 40px;
+      margin: 0 0.25rem;
+    }
+  }
+  
+  @media (max-width: 640px) {
+    .owner-steps-wrapper {
+      @apply flex-wrap;
+      gap: 0.5rem;
+    }
+    
+    .owner-step-connector {
+      display: none;
+    }
+    
+    .owner-step-item {
+      flex: 1 1 calc(50% - 0.5rem);
+      justify-content: center;
+    }
+  }
+  
+  /* ---------- Vertical Stepper (Left Side) ---------- */
+  .owner-steps-container-vertical {
+    position: relative;
+    padding-right: 0.25rem;
+    overflow: visible;
+    height: 100%;
+    width: 100%;
+  }
+  
+  .owner-steps-wrapper-vertical {
+    @apply flex flex-col;
+    position: relative;
+    height: 100%;
+    overflow: visible;
+  }
+  
+  .owner-step-item-vertical {
+    @apply flex items-start;
+    position: relative;
+    margin-bottom: 0;
+    min-height: 2rem;
+    width: 100%;
+  }
+  
+  .owner-step-button-vertical {
+    @apply flex items-center justify-center cursor-pointer transition-all duration-300 ease-in-out;
+    padding: 0.5rem 0;
+    position: relative;
+    z-index: 2;
+    background: transparent;
+    border: none;
+    outline: none;
+    width: 100%;
+  }
+  
+  .owner-step-button-vertical:hover:not(.owner-step-button-vertical--active) {
+    transform: scale(1.1);
+  }
+  
+  .owner-step-button-vertical:focus-visible {
+    @apply outline-none ring-2 ring-emerald-500 ring-offset-2 rounded-lg;
+  }
+  
+  .owner-step-circle-vertical {
+    @apply flex items-center justify-center flex-shrink-0;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    background-color: #e5e7eb;
+    border: 2px solid #d1d5db;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+  }
+  
+  .owner-step-number-vertical {
+    @apply text-sm font-semibold;
+    color: #6b7280;
+    transition: color 0.3s ease;
+  }
+  
+  .owner-step-checkmark-vertical {
+    width: 1rem;
+    height: 1rem;
+    color: white;
+    animation: checkmarkAppear 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  /* Active state - vertical */
+  .owner-step-button-vertical--active .owner-step-circle-vertical {
+    background-color: #059669;
+    border-color: #059669;
+    box-shadow: 0 0 0 4px rgba(5, 150, 105, 0.1);
+    transform: scale(1.1);
+    animation: pulseActive 2s ease-in-out infinite;
+  }
+  
+  .owner-step-button-vertical--active .owner-step-number-vertical {
+    color: white;
+  }
+  
+  /* Completed state - vertical */
+  .owner-step-button-vertical--completed .owner-step-circle-vertical {
+    background-color: #059669;
+    border-color: #059669;
+    animation: completedPulse 0.5s ease-out;
+  }
+  
+  /* Past state - vertical */
+  .owner-step-button-vertical--past .owner-step-circle-vertical {
+    background-color: #d1fae5;
+    border-color: #059669;
+  }
+  
+  .owner-step-button-vertical--past .owner-step-number-vertical {
+    color: #059669;
+  }
+  
+  /* Vertical connector lines */
+  .owner-step-connector-vertical {
+    @apply flex items-center justify-center;
+    width: 2px;
+    height: 3rem;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    top: 2.5rem;
+    z-index: 1;
+    margin: 0;
+  }
+  
+  .owner-step-connector-line-vertical {
+    width: 2px;
+    height: 100%;
+    background-color: #e5e7eb;
+    border-radius: 1px;
+    transition: background-color 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .owner-step-connector-line-vertical::after {
+    content: '';
+    position: absolute;
+    top: -100%;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(180deg, #059669, #10b981);
+    transition: top 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .owner-step-connector-vertical--completed .owner-step-connector-line-vertical {
+    background-color: #d1fae5;
+  }
+  
+  .owner-step-connector-vertical--completed .owner-step-connector-line-vertical::after {
+    top: 0;
+  }
+  
+  .owner-step-connector-vertical--active .owner-step-connector-line-vertical {
+    background-color: #e5e7eb;
+  }
+  
+  .owner-step-connector-vertical--active .owner-step-connector-line-vertical::after {
+    top: 0;
+    animation: connectorFillVertical 0.8s ease-out forwards;
+  }
+  
+  @keyframes connectorFillVertical {
+    0% {
+      top: -100%;
+    }
+    100% {
+      top: 0;
+    }
+  }
+  /* Vertical left stepper (desktop) */
+  .owner-vertical-steps {
+    position: relative;
+    width: 100%;
+  }
+  .owner-vertical-line {
+    position: absolute; left: 2.25rem; top: 0; bottom: 0; width: 2px; background: rgba(15,23,42,0.06);
+  }
+  .owner-vertical-progress {
+    position: absolute; left: 2.25rem; top: 0; width: 2px; background: linear-gradient(to bottom, #059669, #10b981); border-radius: 1px;
+  }
+  .owner-vertical-step { @apply relative mb-6 flex items-center gap-3 cursor-default; }
+  .owner-vertical-step .step-num { @apply inline-flex items-center justify-center w-8 h-8 rounded-full bg-emerald-50 text-emerald-700 font-semibold; }
+  .owner-vertical-step--active .step-num { @apply bg-emerald-600 text-white; }
+  .owner-vertical-step .step-label { @apply text-sm text-gray-700; }
+  @media (min-width: 768px) {
+    .owner-vertical-steps { @apply sticky top-6 pr-6; }
+  }
 }

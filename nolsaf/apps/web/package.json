@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@headlessui/react": "^2.2.9",
     "@nolsaf/shared": "file:../../packages/shared",
     "axios": "^1.12.2",
     "bootstrap": "^5.3.8",

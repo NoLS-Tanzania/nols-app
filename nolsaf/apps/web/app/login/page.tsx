@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { Lock } from 'lucide-react';
 import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
@@ -44,6 +45,12 @@ export default function LoginPage() {
             placeholder="you@example.com"
           />
         </label>
+        <div className="text-right">
+          <button type="button" onClick={() => router.push('/account/forgot-password')} className="text-sm text-slate-600 hover:underline inline-flex items-center gap-2">
+            <Lock className="w-4 h-4" />
+            <span>Forgot password?</span>
+          </button>
+        </div>
         <label className="block text-sm">
           <span className="block mb-1">Role</span>
           <select

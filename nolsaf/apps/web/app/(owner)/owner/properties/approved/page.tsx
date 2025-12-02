@@ -16,10 +16,18 @@ export default function ApprovedProps() {
   // start a minimum wait timer (5s) before allowing the empty state to show
   const timer = setTimeout(() => setMinWaitElapsed(true), 5000);
 
-    api.get<any[]>("/owner/properties/mine", { params: { status: "APPROVED" } })
+    api.get<any>("/owner/properties/mine", { params: { status: "APPROVED" } })
       .then(r => {
         if (!mounted) return;
-        setList(r.data || []);
+        const data = r.data;
+        // Normalize response to an array in case backend returns an object wrapper
+        if (Array.isArray(data)) {
+          setList(data);
+        } else if (data && Array.isArray((data as any).items)) {
+          setList((data as any).items);
+        } else {
+          setList([]);
+        }
       })
       .catch(() => {
         if (!mounted) return;
@@ -67,7 +75,7 @@ export default function ApprovedProps() {
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">Approved</h1>
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {list.map(p => (
+        {(Array.isArray(list) ? list : []).map((p: any) => (
           <div key={p.id} className="bg-white border rounded-2xl p-3">
             <div className="font-medium">{p.title}</div>
             <div className="text-xs opacity-70">{p.type}</div>

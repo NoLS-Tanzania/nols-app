@@ -27,7 +27,9 @@ export default function ReportsFilter({ onChange }: { onChange: (f: ReportsFilte
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (token) api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-    api.get<any[]>("/owner/properties/mine?status=APPROVED").then(r => setProps(r.data));
+    api.get<{ items: any[] }>("/owner/properties/mine", { params: { status: "APPROVED", pageSize: 100 } })
+      .then(r => setProps(Array.isArray((r.data as any)?.items) ? (r.data as any).items : []))
+      .catch(() => setProps([]));
   }, []);
 
   useEffect(() => { onChange(filters); }, [filters, onChange]);
@@ -54,7 +56,7 @@ export default function ReportsFilter({ onChange }: { onChange: (f: ReportsFilte
       <div className="flex items-center justify-end">
         <a
           className="px-3 py-2 rounded-xl border"
-          href={`${process.env.NEXT_PUBLIC_API_URL}/owner/revenue/invoices.csv?date_from=${filters.from}&date_to=${filters.to}${filters.propertyId?`&propertyId=${filters.propertyId}`:""}`}
+          href={`/api/owner/revenue/invoices.csv?date_from=${filters.from}&date_to=${filters.to}${filters.propertyId?`&propertyId=${filters.propertyId}`:""}`}
           target="_blank"
         >Export CSV</a>
       </div>

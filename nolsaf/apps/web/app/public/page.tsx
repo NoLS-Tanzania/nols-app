@@ -10,6 +10,9 @@ import PropertyCard from '../../components/PropertyCard';
 import AttentionBlink from '../../components/AttentionBlink';
 import CountryCard from '../../components/CountryCard';
 import BookingFlowCard from '../../components/BookingFlowCard';
+import FounderStory from '../../components/FounderStory';
+import Testimonials from '../../components/Testimonials';
+import LatestUpdate from '../../components/LatestUpdate';
 import LayoutFrame from '../../components/LayoutFrame';
 import { DayPicker } from 'react-day-picker';
 /* react-day-picker in this project/version doesn't export a Range type,
@@ -1048,7 +1051,9 @@ export default function Page() {
 
           {/* Booking flow card: explain booking steps and allow driver options */}
           <BookingFlowCard />
-          <SectionSeparator className="my-6" />
+          <FounderStory />
+          <Testimonials />
+          <LatestUpdate />
         </div>
       </section>
     </main>

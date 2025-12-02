@@ -6,7 +6,8 @@ import Link from "next/link";
 import { Calendar, Eye, Check, ExternalLink } from "lucide-react";
 import TableRow from "@/components/TableRow";
 
-const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL });
+// Use same-origin requests so Next.js rewrites proxy to API and avoid CORS
+const api = axios.create();
 
 export default function RecentBookings() {
   const [list, setList] = useState<any[] | null>(null);
@@ -65,8 +66,8 @@ export default function RecentBookings() {
     const onOnline = () => fetchData();
     window.addEventListener('online', onOnline);
 
-    // socket updates from server — refetch when owner bookings update
-  const socket = io(process.env.NEXT_PUBLIC_API_URL ?? '', { transports: ['websocket'] });
+    // socket updates from server — refetch when owner bookings update (same-origin path)
+    const socket = io('/', { path: '/socket.io', transports: ['websocket'] });
     socket.on('owner:bookings:updated', () => fetchData());
 
     return () => {

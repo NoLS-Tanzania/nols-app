@@ -36,7 +36,7 @@ export default function RevenueFilter({
 
   useEffect(() => {
     onChange(filters);
-  }, [filters]);
+  }, [filters, onChange]);
 
   const csvDownload = async () => {
     const token = localStorage.getItem("token");
@@ -47,7 +47,7 @@ export default function RevenueFilter({
     if (filters.date_to) params.set("date_to", filters.date_to);
 
     // Use fetch to attach Authorization header and trigger download
-    const resp = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/owner/revenue/invoices.csv?${params.toString()}`, {
+    const resp = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/owner/revenue/invoices.csv?${params.toString()}`, {
       headers: { Authorization: token ? `Bearer ${token}` : "" }
     });
     const blob = await resp.blob();
@@ -63,6 +63,7 @@ export default function RevenueFilter({
     <div className="bg-white border rounded-2xl p-3 grid md:grid-cols-[1fr_1fr_1fr_auto] gap-3">
       {showStatus && !statusFixed && (
         <select
+          aria-label="Filter by status"
           className="border rounded-xl px-3 py-2"
           value={filters.status ?? ""}
           onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value || undefined }))}
@@ -75,8 +76,8 @@ export default function RevenueFilter({
           <option>REJECTED</option>
         </select>
       )}
-
       <select
+        aria-label="Filter by property"
         className="border rounded-xl px-3 py-2"
         value={filters.propertyId ?? ""}
         onChange={(e) =>
@@ -94,12 +95,16 @@ export default function RevenueFilter({
       <div className="flex gap-2">
         <input
           type="date"
+          title="Filter start date"
+          aria-label="Filter start date"
           className="border rounded-xl px-3 py-2 w-full"
           value={filters.date_from ?? ""}
           onChange={(e) => setFilters((f) => ({ ...f, date_from: e.target.value || null }))}
         />
         <input
           type="date"
+          title="Filter end date"
+          aria-label="Filter end date"
           className="border rounded-xl px-3 py-2 w-full"
           value={filters.date_to ?? ""}
           onChange={(e) => setFilters((f) => ({ ...f, date_to: e.target.value || null }))}

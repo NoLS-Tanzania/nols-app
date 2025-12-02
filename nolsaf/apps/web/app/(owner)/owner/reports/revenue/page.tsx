@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import axios from "axios";
+import TableRow from "@/components/TableRow";
 import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, CartesianGrid, ResponsiveContainer, BarChart, Bar } from "recharts";
 
 type ReportsFilters = {
@@ -79,7 +80,7 @@ export default function Revenue() {
               </tr></thead>
               <tbody>
                 {data.table.map((r:any)=>(
-                  <tr key={r.id} className="border-t">
+                  <TableRow key={r.id} className="border-t">
                     <td>{new Date(r.issuedAt).toLocaleDateString()}</td>
                     <td>{r.invoiceNumber}</td>
                     <td>{r.property}</td>
@@ -88,7 +89,7 @@ export default function Revenue() {
                     <td>TZS {fmt(r.commissionAmount)}</td>
                     <td>TZS {fmt(r.net)}</td>
                     <td>{r.status}</td>
-                  </tr>
+                  </TableRow>
                 ))}
               </tbody>
             </table>

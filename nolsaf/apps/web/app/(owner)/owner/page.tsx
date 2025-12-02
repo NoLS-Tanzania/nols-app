@@ -2,7 +2,9 @@
 import { useEffect, useState } from "react";
 import OwnerPageHeader from "@/components/OwnerPageHeader";
 import Link from "next/link";
-import { Building2, LineChart, FileText, MessageCircle, User } from "lucide-react";
+import { Building2, LineChart, FileText, MessageCircle, User, CalendarCheck, Eye } from "lucide-react";
+import Chart from "@/components/Chart";
+import axios from "axios";
 
 function readOwnerName(): string | null {
   if (typeof window === "undefined") return null;
@@ -35,30 +37,40 @@ function readOwnerName(): string | null {
 
 export default function OwnerPage() {
   const [ownerName, setOwnerName] = useState<string | null>(null);
+  const monthlyLabels: string[] = [];
+  const monthlyProps: number[] = [];
+  const monthlyRevenue: number[] = [];
+  const weeklyLabels: string[] = [];
+  const weeklyProps: number[] = [];
+  const weeklyBookings: number[] = [];
 
   useEffect(() => {
     const n = readOwnerName();
     if (n) setOwnerName(n);
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+    const api = axios.create({ baseURL: "" });
+    if (token) api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+
+    // Intentionally keep charts empty until real data is provided by API.
   }, []);
 
   return (
     <div className="">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+      {/* use full width inside the layout's centered frame so content reaches the right marker */}
+      <div className="w-full space-y-6">
       <OwnerPageHeader
-        icon={<User className="h-10 w-10 text-blue-600" />}
+        icon={<User className="h-10 w-10 text-[#02665e]" />}
         title={(
           <>
-            {ownerName ? (
-              <>
-                <div className="text-sm text-blue-600">Welcome {ownerName}</div>
-                <div className="text-2xl font-bold text-gray-900">Owner Dashboard</div>
-              </>
-            ) : (
-              <div className="text-2xl font-bold">Owner Dashboard</div>
+            {ownerName && (
+              <span className="block text-sm font-medium text-[#02665e]">Welcome {ownerName}</span>
             )}
+            <span className="block text-3xl md:text-4xl font-extrabold tracking-tight bg-gradient-to-r from-[#02665e] to-teal-400 bg-clip-text text-transparent">
+              Owner Dashboard
+            </span>
           </>
         )}
-        subtitle="Now you can overview your properties and performance"
+        subtitle={"Now you can overview your properties and performance"}
       />
 
   {/* Decorative quick-stats row under the header */}
@@ -111,8 +123,70 @@ export default function OwnerPage() {
       </div>
 
       <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
-        <div className="card h-32" />
-        <div className="card h-32" />
+        {/* Properties Listed vs Revenue */}
+        <div className="bg-white rounded-lg border shadow-sm p-4">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Building2 className="h-5 w-5 text-blue-600" />
+              <span className="font-semibold text-gray-900">Properties Listed vs Revenue</span>
+            </div>
+            <Link href="/owner/reports/overview" aria-label="View details" className="text-[#02665e] hover:opacity-80">
+              <Eye className="h-4 w-4" />
+            </Link>
+          </div>
+          <div className="mt-2">
+            <Chart
+              type="line"
+              data={{
+                labels: monthlyLabels,
+                datasets: [
+                  { label: "Properties Listed", data: monthlyProps, borderColor: "#2563eb", backgroundColor: "rgba(37,99,235,0.2)", tension: 0.3 },
+                  { label: "Revenue (TZS)", data: monthlyRevenue, borderColor: "#059669", backgroundColor: "rgba(5,150,105,0.2)", tension: 0.3, yAxisID: "y1" },
+                ],
+              }}
+              options={{
+                responsive: true,
+                interaction: { mode: "index", intersect: false },
+                plugins: { legend: { position: "bottom" } },
+                scales: {
+                  x: { title: { display: true, text: "Month" } },
+                  y: { title: { display: true, text: "Properties" }, beginAtZero: true },
+                  y1: { title: { display: true, text: "Revenue (TZS)" }, beginAtZero: true, position: "right", grid: { drawOnChartArea: false } },
+                },
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Properties vs Bookings */}
+        <div className="bg-white rounded-lg border shadow-sm p-4">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <CalendarCheck className="h-5 w-5 text-violet-600" />
+              <span className="font-semibold text-gray-900">Properties vs Bookings</span>
+            </div>
+            <Link href="/owner/reports/overview" aria-label="View details" className="text-[#02665e] hover:opacity-80">
+              <Eye className="h-4 w-4" />
+            </Link>
+          </div>
+          <div className="mt-2">
+            <Chart
+              type="bar"
+              data={{
+                labels: weeklyLabels,
+                datasets: [
+                  { label: "Active Properties", data: weeklyProps, backgroundColor: "#2563eb" },
+                  { label: "Bookings", data: weeklyBookings, backgroundColor: "#7c3aed" },
+                ],
+              }}
+              options={{
+                responsive: true,
+                plugins: { legend: { position: "bottom" } },
+                scales: { x: { title: { display: true, text: "Day" } }, y: { title: { display: true, text: "Count" }, beginAtZero: true } },
+              }}
+            />
+          </div>
+        </div>
       </div>
       </div>
     </div>

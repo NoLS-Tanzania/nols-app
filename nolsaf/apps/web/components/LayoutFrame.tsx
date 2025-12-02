@@ -9,6 +9,8 @@ type LayoutFrameProps = {
   variant?: "solid" | "dashed"; // marker style
   labelLeft?: string | null;
   labelRight?: string | null;
+  box?: boolean; // draw a rounded box border around the centered frame
+  boxRadiusClass?: string; // e.g. 'rounded-xl'
   className?: string;
 };
 
@@ -34,8 +36,10 @@ export default function LayoutFrame({
   topVariant = "sm",
   colorVariant = "muted",
   variant = "solid",
-  labelLeft = "content edge",
+  labelLeft = null,
   labelRight = null,
+  box = false,
+  boxRadiusClass = 'rounded-2xl',
   className = "",
 }: LayoutFrameProps) {
   const heightClass = HEIGHT_MAP[heightVariant] ?? HEIGHT_MAP.sm;
@@ -46,11 +50,20 @@ export default function LayoutFrame({
   return (
     <div className={`w-full pointer-events-none ${className}`} aria-hidden>
       <div className="max-w-6xl mx-auto relative px-4">
-        {/* left marker */}
-        <div className={`absolute left-0 -translate-x-1/2 ${topClass} ${heightClass} border-l-2 ${dashClass} ${colorClass}`} />
+        {/* optional boxed frame */}
+        {box ? (
+          <div className={`absolute inset-0 pointer-events-none flex items-stretch`}>
+            <div className={`absolute inset-0 border ${dashClass} ${colorClass} ${boxRadiusClass} pointer-events-none`} />
+          </div>
+        ) : (
+          <>
+            {/* left marker */}
+            <div className={`absolute left-0 -translate-x-1/2 ${topClass} ${heightClass} border-l-2 ${dashClass} ${colorClass}`} />
 
-        {/* right marker */}
-        <div className={`absolute right-0 translate-x-1/2 ${topClass} ${heightClass} border-l-2 ${dashClass} ${colorClass}`} />
+            {/* right marker */}
+            <div className={`absolute right-0 translate-x-1/2 ${topClass} ${heightClass} border-l-2 ${dashClass} ${colorClass}`} />
+          </>
+        )}
 
         {/* optional labels */}
         {labelLeft ? (

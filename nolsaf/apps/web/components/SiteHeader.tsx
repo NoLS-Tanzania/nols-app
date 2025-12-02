@@ -146,7 +146,25 @@ export default function SiteHeader({
     <header
       className={`fixed top-0 left-0 right-0 z-50 text-white/95 ${(isAdmin || isOwner) ? "bg-[#02665e]" : "bg-brand-primary"} shadow-none`}
     >
-      <div className="mx-auto max-w-6xl px-4 h-16 flex items-center justify-between md:ml-64">
+      <div className={`mx-auto max-w-6xl px-4 h-16 flex items-center justify-between ${isAdmin ? 'md:ml-64' : ''}`}>
+        {/* Owner: small toggle to hide/show sidebar. Uses a global event so Layout can listen */}
+        {isOwner ? (
+          <button
+            onClick={() => {
+              try {
+                window.dispatchEvent(new CustomEvent('toggle-owner-sidebar', { detail: { source: 'header' } }));
+              } catch (e) {
+                // ignore
+              }
+            }}
+            aria-label="Toggle sidebar"
+            className="hidden md:inline-flex items-center justify-center h-9 w-9 rounded-md bg-white/10 text-white/90 hover:bg-white/20 mr-3"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+              <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        ) : null}
         {isAdmin ? (
           <Link href="/" className="inline-flex items-center" aria-label="NoLSAF Home">
             <Image

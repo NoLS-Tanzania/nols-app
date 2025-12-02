@@ -4,7 +4,8 @@ import axios from "axios";
 import ReportsFilter, { ReportsFilters } from "@/components/ReportsFilter";
 import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, CartesianGrid, ResponsiveContainer, BarChart, Bar } from "recharts";
 
-const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL });
+// Use same-origin requests to leverage Next.js rewrites and avoid CORS
+const api = axios.create();
 
 export default function Overview() {
   const [filters, setFilters] = useState<ReportsFilters | null>(null);
@@ -17,7 +18,7 @@ export default function Overview() {
 
   useEffect(() => {
     if (!filters) return;
-    api.get("/owner/reports/overview", { params: filters }).then(r => setData(r.data));
+    api.get("/api/owner/reports/overview", { params: filters }).then(r => setData(r.data)).catch(()=>setData(null));
   }, [filters]);
 
   return (

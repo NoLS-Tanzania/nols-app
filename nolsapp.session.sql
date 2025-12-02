@@ -14,7 +14,7 @@ SET time_zone = '+00:00';
 DROP TABLE IF EXISTS `User`;
 CREATE TABLE `User` (
   `id`              INT AUTO_INCREMENT PRIMARY KEY,
-  `role`            ENUM('ADMIN','OWNER','CUSTOMER') NOT NULL DEFAULT 'CUSTOMER',
+  `role`            ENUM('ADMIN','OWNER','DRIVER','CUSTOMER') NOT NULL DEFAULT 'CUSTOMER',
   `name`            VARCHAR(160) NULL,
   `email`           VARCHAR(190) NULL UNIQUE,
   `phone`           VARCHAR(40)  NULL UNIQUE,
@@ -255,6 +255,16 @@ GROUP BY ownerId;
 INSERT INTO `User` (`role`,`name`,`email`,`phone`,`passwordHash`)
 VALUES ('ADMIN','System Admin','admin@example.com',NULL,NULL)
 ON DUPLICATE KEY UPDATE `updatedAt` = `updatedAt`;
+
+-- Seed a Public User (id = 2) for testing logins as a CUSTOMER
+-- Adjust the `id` if it conflicts with existing rows in your DB.
+INSERT INTO `User` (`id`,`role`,`name`,`email`,`phone`,`passwordHash`,`createdAt`,`updatedAt`)
+VALUES (2, 'CUSTOMER', 'Public User', 'user@example.com', NULL, NULL, NOW(), NOW())
+ON DUPLICATE KEY UPDATE
+  `role` = VALUES(`role`),
+  `name` = VALUES(`name`),
+  `email` = VALUES(`email`),
+  `updatedAt` = NOW();
 
 
 -- ==========================

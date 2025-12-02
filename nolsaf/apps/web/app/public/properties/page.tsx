@@ -55,11 +55,11 @@ export default function PropertiesPage({ searchParams }: Props) {
     if (district && (!p.district || p.district.toLowerCase() !== district.toLowerCase())) return false;
     if (state && p.state && p.state.toLowerCase() !== state.toLowerCase()) return false;
     if (amenities.length) {
-      const ok = amenities.every(a => (p.amenities || []).map(String).map(s=>s.toLowerCase()).includes(a.toLowerCase()));
+      const ok = amenities.every(amen => (p.amenities || []).map((x: unknown) => String(x).toLowerCase()).includes(amen.toLowerCase()));
       if (!ok) return false;
     }
     if (types.length) {
-      const ok = types.every(t => (p.types || []).map(String).map(s=>s.toLowerCase()).includes(t.toLowerCase()));
+      const ok = types.every(t => (p.types || []).map(String).map((s: string) => s.toLowerCase()).includes(t.toLowerCase()));
       if (!ok) return false;
     }
     if (checkIn) {

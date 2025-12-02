@@ -2,7 +2,7 @@
 
 import "@/styles/globals.css";
 import type { ReactNode } from "react";
-import ToastContainer from "@/components/ToastContainer";
+import ToastContainer from "../components/ToastContainer";
 
 /**
  * Root shell: keep it neutral (no role header, no sidebars).

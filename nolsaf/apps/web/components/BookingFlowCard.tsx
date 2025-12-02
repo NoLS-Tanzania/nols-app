@@ -3,12 +3,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { User } from 'lucide-react';
 import VoiceRecorder from './VoiceRecorder';
 
 export default function BookingFlowCard() {
   const [busy, setBusy] = useState(false);
   const [bookingCode, setBookingCode] = useState<string | null>(null);
-  const [submitted, setSubmitted] = useState(false);
   const [activeStep, setActiveStep] = useState<number | null>(5);
   const [imgError, setImgError] = useState(false);
   // voice recorder handled by reusable component
@@ -100,7 +100,6 @@ export default function BookingFlowCard() {
 
   const makeBooking = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitted(true);
     setBusy(true);
     setBookingCode(null);
 
@@ -159,7 +158,8 @@ export default function BookingFlowCard() {
   // progress step derived from booking state (kept for future use)
 
   return (
-    <section className="mt-2">
+    <>
+      <section className="mt-2">
       <div className="public-container">
         {/* heading moved to a centered overlay inside the display */}
         <article ref={containerRef} className="rounded-lg border bg-white p-6 shadow-md">
@@ -257,13 +257,12 @@ export default function BookingFlowCard() {
                       if (!stepData || imgError) return null;
                       return (
                         <div className="mb-1 w-full rounded-md flex justify-center">
-                          <div className="relative w-full max-w-md">
+                          <div className="relative w-full max-w-md overflow-hidden rounded-md h-48 md:h-64 lg:h-72">
                             <Image
                               src={stepData}
                               alt={`Step ${activeStep} illustration`}
-                              width={480}
-                              height={128}
-                              className={`w-full h-auto object-contain rounded-md transition-all duration-500 ease-in-out ${isInteracting ? 'scale-95 opacity-80' : 'scale-100 opacity-100'}`}
+                              fill
+                              className={`object-cover transition-transform duration-500 ease-in-out ${isInteracting ? 'scale-95 opacity-80' : 'scale-100 opacity-100'}`}
                               onError={() => setImgError(true)}
                             />
 
@@ -434,6 +433,17 @@ export default function BookingFlowCard() {
           {/* status/info removed per request */}
         </article>
       </div>
-    </section>
+      </section>
+
+      <div className="w-full my-8">
+        <div className="max-w-6xl mx-auto px-4 flex justify-center">
+          <div className="w-16 h-16 rounded-full overflow-hidden border border-slate-200 bg-white shadow-sm flex items-center justify-center" role="img" aria-label="Founder">
+            <User className="w-8 h-8 text-emerald-600" aria-hidden="false" />
+          </div>
+        </div>
+      </div>
+
+      
+    </>
   );
 }

@@ -15,8 +15,17 @@ export default function PendingProps() {
     let mounted = true;
   const timer = setTimeout(() => setMinWaitElapsed(true), 5000);
 
-    api.get<any[]>("/owner/properties/mine", { params: { status: "PENDING" } })
-      .then(r => { if (!mounted) return; setList(r.data || []); })
+    // Fetch both PENDING and DRAFT so users can find saved drafts here too
+    Promise.all([
+      api.get<{ items: any[] }>("/owner/properties/mine", { params: { status: "PENDING", pageSize: 50 } }),
+      api.get<{ items: any[] }>("/owner/properties/mine", { params: { status: "DRAFT", pageSize: 50 } }),
+    ])
+      .then(([pending, draft]) => {
+        if (!mounted) return;
+        const pendingItems = Array.isArray((pending.data as any)?.items) ? (pending.data as any).items : [];
+        const draftItems = Array.isArray((draft.data as any)?.items) ? (draft.data as any).items : [];
+        setList([...pendingItems, ...draftItems]);
+      })
       .catch(() => { if (!mounted) return; setList([]); })
       .finally(() => { if (!mounted) return; setLoading(false); });
 
@@ -44,7 +53,7 @@ export default function PendingProps() {
       <div className="min-h-[260px] flex flex-col items-center justify-center text-center">
         <Hourglass className="h-12 w-12 text-blue-500 mb-2" />
         <h1 className="text-2xl font-semibold">Pending</h1>
-        <div className="text-sm opacity-90 mt-2">Includes awaiting approval & requested fixes.</div>
+        <div className="text-sm opacity-90 mt-2">Includes awaiting approval, requested fixes, and saved drafts.</div>
         <div className="text-sm opacity-90 mt-2">Nothing pending.</div>
       </div>
     );
@@ -59,6 +68,11 @@ export default function PendingProps() {
           <div key={p.id} className="bg-white border rounded-2xl p-3">
             <div className="font-medium">{p.title}</div>
             <div className="text-xs opacity-70">{p.type}</div>
+            {p.status && (
+              <div className="mt-1 inline-block text-[10px] px-2 py-1 rounded-full border bg-white">
+                {p.status}
+              </div>
+            )}
           </div>
         ))}
       </div>

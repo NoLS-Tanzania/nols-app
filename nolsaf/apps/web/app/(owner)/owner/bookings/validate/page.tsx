@@ -187,7 +187,8 @@ export default function CheckinValidation() {
     let mounted = true;
     (async () => {
       try {
-        const r = await fetch((process.env.NEXT_PUBLIC_API_URL || '') + '/api/public/support');
+        // Use same-origin path to leverage Next.js rewrites and avoid CORS
+        const r = await fetch('/api/public/support');
         if (!mounted) return;
         if (r.ok) {
           const j = await r.json();
@@ -268,24 +269,44 @@ export default function CheckinValidation() {
 
           {/* Move resultMsg here so it's below the spinner/checking area and looks clean */}
           {resultMsg && (
-            <div className="mt-3 rounded border bg-white p-3 text-sm text-red-800 shadow-sm w-full">
-              <div className="mx-auto max-w-xs">
-                <div>
-                  {resultMsg.includes("Network error")
-                    ? "Check your internet connection or contact the NoLSAF team for assistance."
-                    : resultMsg}
-                </div>
-
-                {resultMsg.includes("Network error") && (
-                  <div className="mt-2 text-xs text-muted-foreground">
-                    <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
-                      <span>Contact:</span>
-                      <a className="underline" href={`mailto:${supportEmail}`}>{supportEmail}</a>
-                      <span className="hidden sm:inline mx-2">|</span>
-                      <a className="underline" href={`tel:${supportPhone.replace(/\s+/g, '')}`}>{supportPhone}</a>
-                    </div>
+            <div className="mt-3 w-full">
+              <div
+                className="relative overflow-hidden rounded-2xl border border-red-200 bg-gradient-to-br from-red-50 to-white p-4 shadow-sm animate-in fade-in duration-300"
+                role="alert"
+                aria-live="polite"
+              >
+                <div className="mx-auto max-w-sm text-center">
+                  <div className="flex items-center justify-center gap-2">
+                    <span className="inline-flex h-2 w-2 rounded-full bg-red-500 animate-pulse" aria-hidden />
+                    <span className="text-sm font-medium text-red-700">
+                      {resultMsg.includes("Network error")
+                        ? "Check your internet connection or contact the NoLSAF team for assistance."
+                        : resultMsg}
+                    </span>
                   </div>
-                )}
+
+                  {resultMsg.includes("Network error") && (
+                    <div className="mt-3 text-xs text-gray-600">
+                      <div className="flex flex-col items-center justify-center gap-3">
+                        <span className="opacity-80 animate-pulse">Contact:</span>
+                        <div className="flex items-center gap-2">
+                          <label className="inline-flex items-center gap-2 px-3 py-1 rounded-full border bg-white shadow-sm hover:shadow transition cursor-pointer">
+                            <input type="radio" name="contactChoice" defaultChecked className="accent-red-600" />
+                            <a className="font-medium hover:text-red-700 transition-colors" href={`mailto:${supportEmail}`}>{supportEmail}</a>
+                          </label>
+                          <span className="mx-1 text-gray-300">|</span>
+                          <label className="inline-flex items-center gap-2 px-3 py-1 rounded-full border bg-white shadow-sm hover:shadow transition cursor-pointer">
+                            <input type="radio" name="contactChoice" className="accent-red-600" />
+                            <a className="font-medium hover:text-red-700 transition-colors" href={`tel:${supportPhone.replace(/\s+/g, '')}`}>{supportPhone}</a>
+                          </label>
+                        </div>
+                      </div>
+                      <div className="mt-3 opacity-70">
+                        Tip: After confirmation, the guest will appear under <b>Checked-In</b>.
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}

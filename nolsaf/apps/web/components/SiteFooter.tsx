@@ -3,13 +3,13 @@
 import Link from "next/link";
 import Image from "next/image";
 
-export default function SiteFooter({ withRail = true }: { withRail?: boolean }) {
+export default function SiteFooter({ withRail = true, topSeparator = true }: { withRail?: boolean; topSeparator?: boolean }) {
   const year = new Date().getFullYear();
   const innerRailClass = withRail ? 'md:ml-56' : '';
   return (
     <footer className={`w-full mt-12 page-bottom-buffer bg-slate-50`}> 
-      {/* full-width separator line (brand color) */}
-      <div className="w-full h-0.5 bg-[#02665e]" />
+      {/* full-width separator line (brand color) - optional */}
+      {topSeparator ? <div className="w-full h-0.5 bg-[#02665e]" /> : null}
       <h2 className="sr-only">Footer</h2>
 
       <div className={`max-w-6xl mx-auto px-4 py-6 flex flex-col items-center gap-4 ${innerRailClass}`}>
