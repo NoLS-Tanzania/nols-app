@@ -1,10 +1,11 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { FileCheck2, Phone } from "lucide-react";
+import { FileCheck2 } from "lucide-react";
+import Support from "@/components/Support";
 import axios from "axios";
 import { useRouter } from "next/navigation";
 
-const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL });
+const api = axios.create();
 
 type Preview = {
   bookingId: number;
@@ -312,18 +313,8 @@ export default function CheckinValidation() {
           )}
 
           {contactSuggest && (
-            <div className="mt-4 rounded border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700 w-full">
-              <div className="mb-2">Still searching? Try again, or contact support:</div>
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-2 text-center">
-                <Phone className="h-4 w-4 text-emerald-600" />
-                <a href={`tel:${supportPhone.replace(/\s+/g, '')}`} className="font-medium underline">
-                  {supportPhone}
-                </a>
-                <span className="mx-2">•</span>
-                <a href={`mailto:${supportEmail}`} className="font-medium underline">
-                  {supportEmail}
-                </a>
-              </div>
+            <div className="mt-4 w-full">
+              <Support compact />
               <div className="mt-2">
                 <button className="btn btn-sm" onClick={() => validate(code)}>
                   Retry

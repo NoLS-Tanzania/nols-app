@@ -1,10 +1,16 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
-import { Users, ChevronLeft, ChevronRight } from "lucide-react";
+import { Building2, ChevronLeft, ChevronRight, Search, X, Eye, Download } from "lucide-react";
 import axios from "axios";
 import { io, Socket } from "socket.io-client";
+import TableRow from "@/components/TableRow";
 
-const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL });
+// Use relative paths in browser to leverage Next.js rewrites (avoids CORS issues)
+const API = typeof window === 'undefined' 
+  ? (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000")
+  : '';
+
+const api = axios.create({ baseURL: API });
 function authify(){ const t = typeof window!=="undefined" ? localStorage.getItem("token"):null; if(t) api.defaults.headers.common["Authorization"]=`Bearer ${t}`;}
 
 type Row = {
@@ -81,11 +87,29 @@ export default function AdminOwnersPage() {
 
   // optional counts fetch; keep zeros if endpoint missing
   useEffect(() => {
+    authify(); // Ensure auth header is set
     (async () => {
       try {
-        const r = await api.get<Record<string, number>>('/admin/owners/counts');
-        if (r?.data) setCounts((p) => ({ ...p, ...r.data }));
-      } catch (e) { /* ignore */ }
+        const r = await api.get<Record<string, number>>('/admin/owners/counts', {
+          headers: {
+            'x-role': 'ADMIN',
+            'Content-Type': 'application/json'
+          },
+          validateStatus: (status) => status < 500 // Don't throw on 4xx errors
+        });
+        
+        // Check if response is actually JSON
+        const contentType = r.headers['content-type'];
+        if (contentType && contentType.includes('application/json') && r?.data && typeof r.data === 'object') {
+          setCounts((p) => ({ ...p, ...r.data }));
+        }
+      } catch (e: any) {
+        // Silently ignore - counts are optional
+        // Only log if it's not a 401/403 (auth errors are expected if not logged in)
+        if (e?.response?.status !== 401 && e?.response?.status !== 403) {
+          console.warn('Failed to fetch owner counts:', e?.message || e);
+        }
+      }
     })();
   }, []);
 
@@ -129,10 +153,10 @@ export default function AdminOwnersPage() {
   // live refresh when KYC/suspend changes
   useEffect(()=>{
     authify();
-    // Use relative paths in browser to leverage Next.js rewrites (avoids CORS issues)
-    const url = typeof window === 'undefined' 
-      ? (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "")
-      : undefined;
+    // Use direct API URL for Socket.IO in browser to ensure WebSocket works in dev
+    const url = typeof window !== 'undefined'
+      ? (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000")
+      : (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "");
     const token = typeof window!=="undefined" ? localStorage.getItem("token"):null;
   const s: Socket = io(url, { transports: ['websocket'], auth: token? { token } : undefined });
     s.on("admin:owner:updated", load);
@@ -143,61 +167,99 @@ export default function AdminOwnersPage() {
   const pages = useMemo(()=> Math.max(1, Math.ceil(total / pageSize)),[total]);
 
   return (
-    <div className="p-6 space-y-4">
-      <div className="flex flex-col items-center text-center">
-        <div className="rounded-full bg-blue-50 p-3 inline-flex items-center justify-center">
-          <Users className="h-6 w-6 text-blue-600" />
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+        <div className="flex flex-col items-center text-center mb-4">
+          <Building2 className="h-8 w-8 text-gray-400 mb-3" />
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900">
+            Owners
+          </h1>
+          <p className="mt-1 text-sm text-gray-600">
+            Manage platform owners and KYC status
+          </p>
         </div>
-        <h1 className="mt-3 text-2xl font-semibold">Owners</h1>
-        <div className="mt-2 w-full max-w-3xl flex flex-col sm:flex-row items-center sm:items-center justify-between gap-3">
-          <p className="text-sm text-gray-500 m-0">Manage platform owners and KYC status</p>
-          <div className="flex items-center">
-            <div className="relative w-full max-w-md">
-              <div className="border rounded-full bg-white shadow-sm">
-                <input
-                  className="w-full px-4 py-2 pr-4 rounded-full outline-none text-sm"
-                  placeholder="Search name/email/phone"
-                  value={q}
-                  onChange={(e) => setQ(e.target.value)}
-                  aria-label="Search owners"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') { e.preventDefault(); setPage(1); load(); }
-                    if (e.key === 'Escape') { /* nothing to clear here */ }
-                  }}
-                />
-              </div>
-                {/* Suggestions dropdown: shows up to 5 recommended matches while typing */}
-                {suggestions.length > 0 && (
-                  <div className="absolute left-0 right-0 mt-2 z-10">
-                    <div className="bg-white border rounded shadow max-h-56 overflow-auto">
-                      {suggestions.map((s) => (
-                        <button
-                          key={s.id}
-                          type="button"
-                          onClick={() => {
-                            setQ(s.name ?? s.email);
-                            setSuggestions([]);
-                            setPage(1);
-                            handleSearch().catch(() => {});
-                          }}
-                          className="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm"
-                        >
-                          <div className="font-medium">{s.name ?? s.email}</div>
-                          <div className="text-xs opacity-60">{s.email}</div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-            </div>
-          </div>
+        <div className="flex justify-center mt-4">
+          <button 
+            className="inline-flex items-center gap-2 px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:border-[#02665e] hover:text-[#02665e] transition-all duration-200 font-medium text-sm"
+            onClick={() => alert('Export owners - implement server side export')}
+          >
+            <Download className="h-4 w-4" />
+            Export owners
+          </button>
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row items-center gap-2 justify-center">
-        <div className="w-full max-w-3xl mx-auto flex justify-center">
-          <div className="relative w-full">
-            <div ref={scrollRef} className="flex gap-2 justify-center overflow-x-auto px-2 -mx-2 sm:flex-wrap snap-x snap-mandatory">
+      {/* Search and Filters */}
+      <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm overflow-hidden">
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 max-w-4xl mx-auto">
+          {/* Search Box */}
+          <div className="relative w-full sm:flex-1 min-w-0 sm:max-w-md">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <input
+                type="text"
+                className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] outline-none text-sm box-border"
+                placeholder="Search name, email, or phone"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') { e.preventDefault(); setPage(1); load(); }
+                }}
+                aria-label="Search owners"
+              />
+              {q && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQ("");
+                    setPage(1);
+                    load();
+                  }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                  aria-label="Clear search"
+                  title="Clear search"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            {/* Suggestions dropdown */}
+            {suggestions.length > 0 && (
+              <div className="absolute left-0 right-0 mt-2 z-10">
+                <div className="bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 overflow-auto">
+                  {suggestions.map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => {
+                        setQ(s.name ?? s.email);
+                        setSuggestions([]);
+                        setPage(1);
+                        handleSearch().catch(() => {});
+                      }}
+                      className="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm transition-colors"
+                    >
+                      <div className="font-medium">{s.name ?? s.email}</div>
+                      <div className="text-xs text-gray-500">{s.email}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Status Filter */}
+          <div className="relative w-full sm:w-auto sm:flex-shrink-0">
+            <div 
+              ref={scrollRef} 
+              className="status-filter-scroll flex gap-2 justify-start sm:justify-center overflow-x-auto px-2 -mx-2 sm:flex-wrap snap-x snap-mandatory"
+              style={{ 
+                WebkitOverflowScrolling: 'touch',
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none'
+              } as React.CSSProperties}
+            >
               {[
                 { label: "All", value: "" },
                 { label: "Active", value: "ACTIVE" },
@@ -210,34 +272,46 @@ export default function AdminOwnersPage() {
                   key={s.value}
                   type="button"
                   onClick={() => { setStatus(s.value); setPage(1); }}
-                  className={"px-3 py-1 rounded-full border text-sm flex items-center gap-2 flex-shrink-0 " + (status === s.value ? 'bg-gray-100 border-gray-300' : 'bg-white hover:bg-gray-50')}
+                  className={`px-3 py-1.5 rounded-full border text-sm flex items-center gap-2 flex-shrink-0 transition-all duration-200 snap-start ${
+                    status === s.value 
+                      ? 'bg-[#02665e] text-white border-[#02665e] shadow-sm' 
+                      : 'bg-white hover:bg-gray-50 border-gray-300 text-gray-700'
+                  }`}
                 >
-                  <span>{s.label}</span>
-                  <span className={"text-xs px-2 py-0.5 rounded-full " + badgeClasses(s.value)}>{counts[s.value ?? ''] ?? 0}</span>
+                  <span className="whitespace-nowrap">{s.label}</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full whitespace-nowrap ${
+                    status === s.value 
+                      ? 'bg-white/20 text-white' 
+                      : badgeClasses(s.value)
+                  }`}>
+                    {counts[s.value ?? ''] ?? 0}
+                  </span>
                 </button>
               ))}
             </div>
 
             {showScrollControls && (
               <>
-                <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-8 sm:hidden bg-gradient-to-r from-white to-transparent" />
-                <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 sm:hidden bg-gradient-to-l from-white to-transparent" />
+                <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-12 sm:hidden bg-gradient-to-r from-white via-white to-transparent z-10" />
+                <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-12 sm:hidden bg-gradient-to-l from-white via-white to-transparent z-10" />
 
                 <button
                   type="button"
-                  onClick={() => scrollRef.current?.scrollBy({ left: -200, behavior: "smooth" })}
-                  className="sm:hidden absolute left-1 top-1/2 -translate-y-1/2 bg-white border rounded-full p-1 shadow opacity-40 hover:opacity-100 focus:opacity-100 transition-opacity"
+                  onClick={() => scrollRef.current?.scrollBy({ left: -150, behavior: "smooth" })}
+                  className="sm:hidden absolute left-2 top-1/2 -translate-y-1/2 bg-white border-2 border-gray-300 rounded-full p-2 shadow-lg opacity-90 hover:opacity-100 focus:opacity-100 active:scale-95 transition-all z-20 touch-manipulation"
                   aria-label="Scroll left"
+                  title="Scroll left"
                 >
-                  <ChevronLeft className="h-4 w-4" />
+                  <ChevronLeft className="h-4 w-4 text-gray-700" />
                 </button>
                 <button
                   type="button"
-                  onClick={() => scrollRef.current?.scrollBy({ left: 200, behavior: "smooth" })}
-                  className="sm:hidden absolute right-1 top-1/2 -translate-y-1/2 bg-white border rounded-full p-1 shadow opacity-40 hover:opacity-100 focus:opacity-100 transition-opacity"
+                  onClick={() => scrollRef.current?.scrollBy({ left: 150, behavior: "smooth" })}
+                  className="sm:hidden absolute right-2 top-1/2 -translate-y-1/2 bg-white border-2 border-gray-300 rounded-full p-2 shadow-lg opacity-90 hover:opacity-100 focus:opacity-100 active:scale-95 transition-all z-20 touch-manipulation"
                   aria-label="Scroll right"
+                  title="Scroll right"
                 >
-                  <ChevronRight className="h-4 w-4" />
+                  <ChevronRight className="h-4 w-4 text-gray-700" />
                 </button>
               </>
             )}
@@ -245,59 +319,111 @@ export default function AdminOwnersPage() {
         </div>
       </div>
 
-      {/* Responsive table: hide less-important columns on small screens */}
-      <div className="border rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="text-left p-2">Owner</th>
-              <th className="text-left p-2 hidden md:table-cell">Contact</th>
-              <th className="text-left p-2 hidden md:table-cell">Properties</th>
-              <th className="text-left p-2">KYC</th>
-              <th className="text-left p-2">Status</th>
-              <th className="text-left p-2 hidden md:table-cell">Joined</th>
-              <th className="text-right p-2">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(items || []).map(o => (
-              <tr key={o.id} className="border-t">
-                <td className="p-2">
-                  <div className="font-medium truncate">{o.name ?? "-"}</div>
-                  {/* on small screens we show a compact secondary line to keep rows useful */}
-                  <div className="text-xs text-gray-500 md:hidden">{o.email} {o.phone ? `• ${o.phone}` : ''}</div>
-                </td>
-                <td className="p-2 hidden md:table-cell">
-                  <div>{o.email}</div>
-                  <div className="opacity-70">{o.phone ?? "-"}</div>
-                </td>
-                <td className="p-2 hidden md:table-cell">{o._count.properties}</td>
-                <td className="p-2">
-                  <span className={`px-2 py-0.5 rounded border text-xs ${badge(o.kycStatus)}`} aria-label={`KYC: ${kycLabel(o.kycStatus)}`}>{kycLabel(o.kycStatus)}</span>
-                </td>
-                <td className="p-2">
-                  {o.suspendedAt ? <span className="px-2 py-0.5 rounded border text-xs bg-red-50 border-red-200 text-red-700">Suspended</span>
-                                  : <span className="px-2 py-0.5 rounded border text-xs bg-emerald-50 border-emerald-200 text-emerald-700">Active</span>}
-                </td>
-                <td className="p-2 hidden md:table-cell">{new Date(o.createdAt).toLocaleDateString()}</td>
-                <td className="p-2 text-right">
-                  <a href={`/admin/owners/${o.id}`} className="px-3 py-1 rounded bg-emerald-600 text-white">Open</a>
-                </td>
+      {/* Table */}
+      <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Owner</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Contact</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Properties</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">KYC</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Joined</th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
-            ))}
-            {itemsCount === 0 && (
-              <tr><td colSpan={7} className="p-4 text-center opacity-60">No owners found.</td></tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {itemsCount === 0 ? (
+                <TableRow hover={false}>
+                  <td colSpan={7} className="px-6 py-8 text-center text-sm text-gray-500">
+                    No owners found.
+                  </td>
+                </TableRow>
+              ) : (
+                (items || []).map(o => (
+                  <TableRow key={o.id}>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="font-medium text-gray-900 truncate">{o.name ?? "-"}</div>
+                      <div className="text-xs text-gray-500 md:hidden mt-1">
+                        {o.email} {o.phone ? `• ${o.phone}` : ''}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap hidden md:table-cell">
+                      <div className="text-sm text-gray-900">{o.email}</div>
+                      <div className="text-sm text-gray-500">{o.phone ?? "-"}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap hidden md:table-cell">
+                      <div className="text-sm text-gray-900 font-medium">{o._count.properties}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${badge(o.kycStatus)}`} aria-label={`KYC: ${kycLabel(o.kycStatus)}`}>
+                        {kycLabel(o.kycStatus)}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {o.suspendedAt ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700 border border-red-200">
+                          Suspended
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          Active
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap hidden md:table-cell">
+                      <div className="text-sm text-gray-900">
+                        {new Date(o.createdAt).toLocaleDateString('en-US', { 
+                          year: 'numeric', 
+                          month: 'short', 
+                          day: 'numeric' 
+                        })}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <a 
+                        href={`/admin/owners/${o.id}`}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-[#02665e] border border-[#02665e] rounded-lg hover:bg-[#02665e] hover:text-white transition-all duration-200"
+                      >
+                        <Eye className="h-4 w-4" />
+                        View
+                      </a>
+                    </td>
+                  </TableRow>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      <div className="flex items-center justify-between">
-        <div className="text-xs opacity-70">Total: {total}</div>
-        <div className="flex gap-2">
-          <button disabled={page<=1} onClick={()=>setPage(p=>p-1)} className="px-3 py-1 rounded border disabled:opacity-50">Prev</button>
-          <div className="text-sm px-2 py-1">Page {page} / {pages}</div>
-          <button disabled={page>=pages} onClick={()=>setPage(p=>p+1)} className="px-3 py-1 rounded border disabled:opacity-50">Next</button>
+      {/* Pagination */}
+      <div className="flex items-center justify-between bg-white rounded-lg border border-gray-200 px-6 py-4 shadow-sm">
+        <div className="text-sm text-gray-700">
+          Total: <span className="font-medium">{total}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <button 
+            disabled={page <= 1} 
+            onClick={() => setPage(p => p - 1)} 
+            className="inline-flex items-center justify-center p-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:border-[#02665e] hover:text-[#02665e] transition-all duration-200"
+            aria-label="Previous page"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <div className="text-sm text-gray-700 px-3">
+            Page <span className="font-medium">{page}</span> / <span className="font-medium">{pages}</span>
+          </div>
+          <button 
+            disabled={page >= pages} 
+            onClick={() => setPage(p => p + 1)} 
+            className="inline-flex items-center justify-center p-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:border-[#02665e] hover:text-[#02665e] transition-all duration-200"
+            aria-label="Next page"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
         </div>
       </div>
     </div>
@@ -306,10 +432,10 @@ export default function AdminOwnersPage() {
 
 function badge(status:string){
   // Use similar semantic colors as the status buttons (slightly stronger bg)
-  if (status === "APPROVED_KYC") return "bg-emerald-100 border-emerald-200 text-emerald-700";
-  if (status === "REJECTED_KYC") return "bg-red-100 border-red-200 text-red-700";
-  if (status === "PENDING_KYC") return "bg-amber-100 border-amber-200 text-amber-800";
-  return "bg-gray-100 border-gray-200 text-gray-700";
+  if (status === "APPROVED_KYC") return "bg-emerald-50 border border-emerald-200 text-emerald-700";
+  if (status === "REJECTED_KYC") return "bg-red-50 border border-red-200 text-red-700";
+  if (status === "PENDING_KYC") return "bg-amber-50 border border-amber-200 text-amber-800";
+  return "bg-gray-50 border border-gray-200 text-gray-700";
 }
 
 function kycLabel(status: string) {

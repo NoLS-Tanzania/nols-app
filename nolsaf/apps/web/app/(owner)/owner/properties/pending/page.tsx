@@ -2,7 +2,12 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { Hourglass } from "lucide-react";
-const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL });
+// Ensure API requests hit the correct JSON endpoint
+const baseURL =
+  typeof window !== "undefined" && (process.env.NEXT_PUBLIC_API_URL || window.location.origin)
+    ? (process.env.NEXT_PUBLIC_API_URL as string) || window.location.origin
+    : process.env.NEXT_PUBLIC_API_URL || "";
+const api = axios.create({ baseURL, responseType: "json" });
 
 export default function PendingProps() {
   const [list, setList] = useState<any[]>([]);
@@ -26,7 +31,12 @@ export default function PendingProps() {
         const draftItems = Array.isArray((draft.data as any)?.items) ? (draft.data as any).items : [];
         setList([...pendingItems, ...draftItems]);
       })
-      .catch(() => { if (!mounted) return; setList([]); })
+      .catch((err) => {
+        if (!mounted) return;
+        // Gracefully handle non-JSON or network errors
+        console.error("Failed to load owner properties:", err?.message || err);
+        setList([]);
+      })
       .finally(() => { if (!mounted) return; setLoading(false); });
 
     return () => { mounted = false; clearTimeout(timer); };

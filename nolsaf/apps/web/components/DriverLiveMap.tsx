@@ -3,7 +3,8 @@ import React, { useEffect, useState, useRef, useCallback } from "react";
 import { Check, X, Flag, CheckCircle } from 'lucide-react';
 import axios from "axios";
 
-const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL });
+// Use same-origin for HTTP calls so Next.js rewrites proxy to the API in dev
+const api = axios.create({ baseURL: "" });
 
 export default function DriverLiveMap({ liveOnly }: { liveOnly?: boolean } = {}) {
   const [data, setData] = useState<any | null>(null);
@@ -125,7 +126,8 @@ export default function DriverLiveMap({ liveOnly }: { liveOnly?: boolean } = {})
       try {
         const { io } = await import("socket.io-client");
         const token = localStorage.getItem("token");
-        const base = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
+        // Prefer explicit API host for sockets in dev to avoid Next rewrite issues with WS
+        const base = (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000").replace(/\/$/, "");
         socket = io(base, { transportOptions: { polling: { extraHeaders: { Authorization: token ? `Bearer ${token}` : undefined } } }, transports: ["websocket"] });
 
         socket.on("connect", () => {

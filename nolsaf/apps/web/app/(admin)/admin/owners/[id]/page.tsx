@@ -43,10 +43,10 @@ export default function OwnerDetailPage({ params }: { params: { id: string }}) {
 
   // live updates
   useEffect(()=>{
-    // Use relative paths in browser to leverage Next.js rewrites (avoids CORS issues)
-    const url = typeof window === 'undefined' 
-      ? (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "")
-      : undefined;
+    // Use direct API URL for Socket.IO in browser to ensure WebSocket works in dev
+    const url = typeof window !== 'undefined'
+      ? (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000")
+      : (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "");
     const token = typeof window!=="undefined" ? localStorage.getItem("token"):null;
     const s: Socket = io(url, { auth: token? { token } : undefined });
     const refresh = ()=>{ load(); loadDocs(); };

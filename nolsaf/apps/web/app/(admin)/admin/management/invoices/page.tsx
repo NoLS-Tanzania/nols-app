@@ -1,5 +1,7 @@
 "use client";
 import React, { useEffect, useState } from 'react';
+import TableRow from "@/components/TableRow";
+import { Receipt, ChevronLeft, ChevronRight, Download, CheckCircle, DollarSign } from "lucide-react";
 
 type InvoiceRow = {
   id: number;
@@ -13,7 +15,9 @@ type InvoiceRow = {
 };
 
 export default function InvoicesManagementPage(){
-  const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+  const apiBase = typeof window === 'undefined'
+    ? (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000")
+    : '';
   const [items, setItems] = useState<InvoiceRow[]>([]);
   const [page, setPage] = useState(1);
   const [pageSize] = useState(25);
@@ -26,15 +30,23 @@ export default function InvoicesManagementPage(){
     setLoading(true);
     (async () => {
       try {
-        const r = await fetch(`${apiBase}/api/admin/invoices?page=${page}&pageSize=${pageSize}`);
+        const url = `${apiBase.replace(/\/$/, '')}/api/admin/invoices?page=${page}&pageSize=${pageSize}`;
+        const r = await fetch(url);
         if (!r.ok) throw new Error('fetch failed');
-        const j = await r.json();
-        if (!mounted) return;
-        setItems(j.items ?? []);
-        setTotal(j.total ?? 0);
-      } catch (e) {
+        const contentType = r.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const j = await r.json();
+          if (!mounted) return;
+          setItems(j.items ?? []);
+          setTotal(j.total ?? 0);
+        } else {
+          throw new Error("Invalid response format");
+        }
+      } catch (e: any) {
         console.error('invoices fetch', e);
-        setItems([]);
+        if (mounted) {
+          setItems([]);
+        }
       } finally { if (mounted) setLoading(false); }
     })();
     return () => { mounted = false; };
@@ -43,7 +55,7 @@ export default function InvoicesManagementPage(){
   async function approve(inv: InvoiceRow) {
     if (!confirm('Approve invoice #' + inv.id + '?')) return;
     try {
-      const r = await fetch(`${apiBase}/api/admin/invoices/${inv.id}/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+      const r = await fetch(`${apiBase.replace(/\/$/, '')}/api/admin/invoices/${inv.id}/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
       if (!r.ok) throw new Error('approve failed');
       const j = await r.json();
       setItems((cur) => cur.map(i => i.id === inv.id ? (j.invoice as InvoiceRow) : i));
@@ -57,7 +69,7 @@ export default function InvoicesManagementPage(){
 
   async function markPaid(inv: InvoiceRow, method = 'BANK', ref = '') {
     try {
-      const r = await fetch(`${apiBase}/api/admin/invoices/${inv.id}/mark-paid`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ method, ref }) });
+      const r = await fetch(`${apiBase.replace(/\/$/, '')}/api/admin/invoices/${inv.id}/mark-paid`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ method, ref }) });
       if (!r.ok) throw new Error('mark-paid failed');
       const j = await r.json();
       setItems((cur) => cur.map(i => i.id === inv.id ? (j.invoice as InvoiceRow) : i));
@@ -69,87 +81,208 @@ export default function InvoicesManagementPage(){
   }
 
   function downloadReceipt(inv: InvoiceRow) {
-    const url = `${apiBase}/api/admin/invoices/${inv.id}/receipt.png`;
+    const url = `${apiBase.replace(/\/$/, '')}/api/admin/invoices/${inv.id}/receipt.png`;
     window.open(url, '_blank');
   }
 
+  function getStatusBadgeClass(status: string) {
+    const statusLower = status.toLowerCase();
+    if (statusLower.includes('paid') || statusLower.includes('approved')) {
+      return "inline-flex items-center px-2 py-1 rounded-md bg-green-50 text-green-700 text-xs font-medium";
+    }
+    if (statusLower.includes('pending') || statusLower.includes('unpaid')) {
+      return "inline-flex items-center px-2 py-1 rounded-md bg-yellow-50 text-yellow-700 text-xs font-medium";
+    }
+    if (statusLower.includes('cancel') || statusLower.includes('reject')) {
+      return "inline-flex items-center px-2 py-1 rounded-md bg-red-50 text-red-700 text-xs font-medium";
+    }
+    return "inline-flex items-center px-2 py-1 rounded-md bg-gray-50 text-gray-700 text-xs font-medium";
+  }
+
+  function formatCurrency(amount: number) {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2
+    }).format(amount);
+  }
+
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-semibold">Invoices & Payments</h1>
-        <div className="text-sm text-gray-500">Total: {total}</div>
-      </div>
-
-      <div className="bg-white border rounded overflow-auto">
-        <table className="min-w-full text-sm">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-3 py-2 text-left">#</th>
-              <th className="px-3 py-2 text-left">Invoice</th>
-              <th className="px-3 py-2 text-left">Property</th>
-              <th className="px-3 py-2 text-left">Issued</th>
-              <th className="px-3 py-2 text-right">Total</th>
-              <th className="px-3 py-2 text-right">Net Payable</th>
-              <th className="px-3 py-2 text-left">Status</th>
-              <th className="px-3 py-2">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && <tr><td colSpan={8} className="p-4">Loading…</td></tr>}
-            {!loading && items.map(i => (
-              <tr key={i.id} className="border-t">
-                <td className="px-3 py-2">{i.id}</td>
-                <td className="px-3 py-2">{i.invoiceNumber ?? '—'}</td>
-                <td className="px-3 py-2">{i.booking?.property?.title ?? '—'}</td>
-                <td className="px-3 py-2">{new Date(i.issuedAt).toLocaleString()}</td>
-                <td className="px-3 py-2 text-right">{i.total?.toLocaleString()}</td>
-                <td className="px-3 py-2 text-right">{i.netPayable?.toLocaleString()}</td>
-                <td className="px-3 py-2">{i.status}</td>
-                <td className="px-3 py-2">
-                  <div className="flex gap-2">
-                    <button className="btn btn-xs" onClick={() => approve(i)}>Approve</button>
-                    <button className="btn btn-xs btn-ghost" onClick={() => openMarkPaid(i)}>Mark Paid</button>
-                    <button className="btn btn-xs btn-link" onClick={() => downloadReceipt(i)}>Receipt</button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {!loading && items.length === 0 && <tr><td colSpan={8} className="p-4">No invoices</td></tr>}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="flex items-center justify-between mt-4">
-        <div>
-          <button className="btn btn-sm" onClick={() => setPage(p => Math.max(1, p - 1))}>Prev</button>
-          <button className="btn btn-sm ml-2" onClick={() => setPage(p => p + 1)}>Next</button>
+    <div className="space-y-6">
+      <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+        <div className="flex flex-col items-center text-center mb-4">
+          <Receipt className="h-8 w-8 text-gray-400 mb-3" />
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900">
+            Invoices & Payments
+          </h1>
+          <p className="mt-1 text-sm text-gray-600">
+            Total: {total}
+          </p>
         </div>
-        <div className="text-sm text-gray-500">Page {page}</div>
+      </div>
+
+      <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoice</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Property</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Issued</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Net Payable</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {loading ? (
+                <TableRow hover={false}>
+                  <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-500">
+                    Loading…
+                  </td>
+                </TableRow>
+              ) : items.length === 0 ? (
+                <TableRow hover={false}>
+                  <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-500">
+                    No invoices
+                  </td>
+                </TableRow>
+              ) : (
+                items.map(i => (
+                  <TableRow key={i.id}>
+                    <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
+                      {i.id}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-700">
+                      {i.invoiceNumber ?? '—'}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-700">
+                      {i.booking?.property?.title ?? '—'}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">
+                      {new Date(i.issuedAt).toLocaleDateString()}
+                      <br />
+                      <span className="text-xs text-gray-500">
+                        {new Date(i.issuedAt).toLocaleTimeString()}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-900 text-right whitespace-nowrap font-medium">
+                      {formatCurrency(i.total)}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-900 text-right whitespace-nowrap font-medium">
+                      {formatCurrency(i.netPayable)}
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      <span className={getStatusBadgeClass(i.status)}>
+                        {i.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      <div className="flex gap-2 justify-center flex-wrap">
+                        <button 
+                          className="px-3 py-1 text-xs font-medium text-[#02665e] border border-[#02665e] rounded hover:bg-[#02665e] hover:text-white transition-all duration-200 active:bg-[#02665e] active:text-white touch-manipulation flex items-center gap-1"
+                          onClick={() => approve(i)}
+                        >
+                          <CheckCircle className="h-3 w-3" />
+                          Approve
+                        </button>
+                        <button 
+                          className="px-3 py-1 text-xs font-medium text-gray-700 border border-gray-300 rounded hover:border-green-500 hover:text-green-600 transition-all duration-200 active:border-green-500 active:text-green-600 touch-manipulation flex items-center gap-1"
+                          onClick={() => openMarkPaid(i)}
+                        >
+                          <DollarSign className="h-3 w-3" />
+                          Mark Paid
+                        </button>
+                        <button 
+                          className="px-3 py-1 text-xs font-medium text-gray-700 border border-gray-300 rounded hover:border-blue-500 hover:text-blue-600 transition-all duration-200 active:border-blue-500 active:text-blue-600 touch-manipulation flex items-center gap-1"
+                          onClick={() => downloadReceipt(i)}
+                        >
+                          <Download className="h-3 w-3" />
+                          Receipt
+                        </button>
+                      </div>
+                    </td>
+                  </TableRow>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
+        <div className="flex gap-2">
+          <button 
+            className="p-2 border border-gray-300 rounded-lg hover:border-[#02665e] hover:text-[#02665e] transition-all duration-200 active:border-[#02665e] active:text-[#02665e] touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page === 1 || loading}
+            aria-label="Previous page"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <button 
+            className="p-2 border border-gray-300 rounded-lg hover:border-[#02665e] hover:text-[#02665e] transition-all duration-200 active:border-[#02665e] active:text-[#02665e] touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+            onClick={() => setPage(p => p + 1)}
+            disabled={items.length < pageSize || loading || (page * pageSize >= total)}
+            aria-label="Next page"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="text-sm text-gray-600">
+          Page <span className="font-semibold text-gray-900">{page}</span>
+          {total > 0 && (
+            <span className="ml-2 text-gray-500">
+              (Total: {total})
+            </span>
+          )}
+        </div>
       </div>
 
       {markPaidModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4">
-          <div className="bg-white rounded p-6 w-full max-w-md">
-            <h2 className="text-lg font-semibold mb-4">Mark Invoice Paid</h2>
-            <p className="text-sm mb-4">Invoice #{markPaidModal.id} — {markPaidModal.invoiceNumber ?? '—'}</p>
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md border border-gray-200">
+            <h2 className="text-lg font-semibold mb-4 text-gray-900">Mark Invoice Paid</h2>
+            <p className="text-sm mb-4 text-gray-600">Invoice #{markPaidModal.id} — {markPaidModal.invoiceNumber ?? '—'}</p>
             <div className="mb-4">
-              <label htmlFor="pmethod" className="block text-sm">Payment Method</label>
-              <select id="pmethod" className="input w-full" defaultValue="BANK">
+              <label htmlFor="pmethod" className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
+              <select 
+                id="pmethod" 
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] outline-none"
+                defaultValue="BANK"
+              >
                 <option value="BANK">Bank</option>
                 <option value="MOMO">Mobile Money</option>
               </select>
             </div>
             <div className="mb-4">
-              <label htmlFor="pref" className="block text-sm">Reference</label>
-              <input id="pref" className="input w-full" />
+              <label htmlFor="pref" className="block text-sm font-medium text-gray-700 mb-1">Reference</label>
+              <input 
+                id="pref" 
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] outline-none"
+                placeholder="Enter payment reference"
+              />
             </div>
             <div className="flex justify-end gap-2">
-              <button className="btn btn-ghost" onClick={() => setMarkPaidModal(null)}>Cancel</button>
-              <button className="btn btn-primary" onClick={() => {
-                const method = (document.getElementById('pmethod') as HTMLSelectElement).value;
-                const ref = (document.getElementById('pref') as HTMLInputElement).value;
-                markPaid(markPaidModal, method, ref);
-              }}>Mark Paid</button>
+              <button 
+                className="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-all duration-200"
+                onClick={() => setMarkPaidModal(null)}
+              >
+                Cancel
+              </button>
+              <button 
+                className="px-4 py-2 text-sm font-medium text-white bg-[#02665e] rounded-lg hover:bg-[#015b54] transition-all duration-200"
+                onClick={() => {
+                  const method = (document.getElementById('pmethod') as HTMLSelectElement).value;
+                  const ref = (document.getElementById('pref') as HTMLInputElement).value;
+                  markPaid(markPaidModal, method, ref);
+                }}
+              >
+                Mark Paid
+              </button>
             </div>
           </div>
         </div>

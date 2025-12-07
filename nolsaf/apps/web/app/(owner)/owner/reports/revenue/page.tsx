@@ -24,7 +24,7 @@ const ReportsFilter = ({ onChange }: { onChange: (f: ReportsFilters | null) => v
   );
 };
 
-const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL });
+const api = axios.create();
 
 export default function Revenue() {
   const [filters, setFilters] = useState<ReportsFilters | null>(null);

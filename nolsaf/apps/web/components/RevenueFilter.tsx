@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 
-const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL });
+const api = axios.create();
 
 export type RevenueFilters = {
   status?: string;
@@ -47,7 +47,7 @@ export default function RevenueFilter({
     if (filters.date_to) params.set("date_to", filters.date_to);
 
     // Use fetch to attach Authorization header and trigger download
-    const resp = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/owner/revenue/invoices.csv?${params.toString()}`, {
+    const resp = await fetch(`/api/owner/revenue/invoices.csv?${params.toString()}`, {
       headers: { Authorization: token ? `Bearer ${token}` : "" }
     });
     const blob = await resp.blob();

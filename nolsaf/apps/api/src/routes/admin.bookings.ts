@@ -114,28 +114,47 @@ router.get("/", async (req, res) => {
 /**
  * GET /admin/bookings/counts
  * Query: start=YYYY-MM-DD&end=YYYY-MM-DD  (inclusive start, inclusive end)
+ *        OR no params for simple status counts
  * Returns: { "2025-10-23": { total: 10, statuses: { NEW: 5, CONFIRMED: 3, CHECKED_IN: 2, ... } }, ... }
+ *          OR { "NEW": 5, "CONFIRMED": 3, ... } if no date params
  */
 router.get("/counts", async (req, res) => {
-  const { start, end, month } = req.query as any;
+  try {
+    const { start, end, month } = req.query as any;
 
-  let s: Date | null = null;
-  let e: Date | null = null;
-  if (month) {
-    // month format YYYY-MM
-    const [y, m] = String(month).split("-").map(Number);
-    if (!y || isNaN(m)) return res.status(400).json({ error: "Invalid month" });
-    s = new Date(y, m - 1, 1);
-    e = new Date(y, m, 0); // last day
-  } else if (start && end) {
-    s = new Date(String(start));
-    e = new Date(String(end));
-  } else if (start) {
-    s = new Date(String(start));
-    e = new Date(s);
-  } else {
-    return res.status(400).json({ error: "start/end or month required" });
-  }
+    // If no date params, return simple status counts
+    if (!start && !end && !month) {
+      const statuses = ["NEW", "CONFIRMED", "CHECKED_IN", "PENDING_CHECKIN", "CHECKED_OUT", "CANCELED"];
+      const counts: Record<string, number> = {};
+      
+      for (const status of statuses) {
+        try {
+          counts[status] = await prisma.booking.count({ where: { status } });
+        } catch (e) {
+          counts[status] = 0;
+        }
+      }
+      
+      return res.json(counts);
+    }
+
+    let s: Date | null = null;
+    let e: Date | null = null;
+    if (month) {
+      // month format YYYY-MM
+      const [y, m] = String(month).split("-").map(Number);
+      if (!y || isNaN(m)) return res.status(400).json({ error: "Invalid month" });
+      s = new Date(y, m - 1, 1);
+      e = new Date(y, m, 0); // last day
+    } else if (start && end) {
+      s = new Date(String(start));
+      e = new Date(String(end));
+    } else if (start) {
+      s = new Date(String(start));
+      e = new Date(s);
+    } else {
+      return res.status(400).json({ error: "start/end or month required" });
+    }
 
   // normalize to local midnight
   s.setHours(0, 0, 0, 0);
@@ -188,7 +207,11 @@ router.get("/counts", async (req, res) => {
     }
   }
 
-  res.json(out);
+    res.json(out);
+  } catch (err: any) {
+    console.error('Error in GET /admin/bookings/counts:', err);
+    res.status(500).json({ error: 'Internal server error', message: err?.message || 'Unknown error' });
+  }
 });
 
 /** GET /admin/bookings/:id — full detail */

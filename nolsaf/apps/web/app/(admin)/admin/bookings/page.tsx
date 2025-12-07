@@ -7,7 +7,8 @@ import axios from "axios";
 import type { Socket } from "socket.io-client";
 import { io } from "socket.io-client";
 
-const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL });
+// Use same-origin for HTTP calls so Next.js rewrites proxy to the API
+const api = axios.create({ baseURL: "" });
 function authify() {
   const t = typeof window !== "undefined" ? localStorage.getItem("token") : null;
   if (t) api.defaults.headers.common["Authorization"] = `Bearer ${t}`;
@@ -178,11 +179,17 @@ export default function AdminBookingsPage() {
 
   async function load() {
     setLoading(true);
-    const r = await api.get<{ items: Row[] }>("/admin/bookings", {
-      params: { status, date: Array.isArray(date) ? date.join(',') : date, q, page: 1, pageSize: 40 },
-    });
-    setList(r.data.items);
-    setLoading(false);
+    try {
+      const r = await api.get<{ items: Row[] }>("/admin/bookings", {
+        params: { status, date: Array.isArray(date) ? date.join(',') : date, q, page: 1, pageSize: 40 },
+      });
+      setList(r.data?.items ?? []);
+    } catch (err) {
+      console.error('Failed to load bookings', err);
+      setList([]);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function fetchCounts() {
@@ -199,10 +206,10 @@ export default function AdminBookingsPage() {
     authify();
     load();
 
-    // Use relative paths in browser to leverage Next.js rewrites (avoids CORS issues)
-    const url = typeof window === 'undefined' 
-      ? (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "")
-      : undefined;
+    // Use explicit socket URL for browser to ensure WebSocket works in dev
+    const url = typeof window !== 'undefined'
+      ? (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000")
+      : (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "");
 
     // Attach token via auth for server-side verify (optional)
     const token =
@@ -271,31 +278,17 @@ export default function AdminBookingsPage() {
   }, [status]);
 
   return (
-    <div className="p-6 space-y-4">
-      <div className="flex flex-col items-center text-center">
-          <div className="rounded-full bg-blue-50 p-3 inline-flex items-center justify-center">
-            <Calendar className="h-6 w-6 text-blue-600" aria-hidden />
-          </div>
-          <h1 className="mt-2 text-2xl font-semibold">Bookings</h1>
-          <div className="mt-1 w-full max-w-3xl flex flex-col sm:flex-row items-center sm:items-center justify-between gap-3">
-            <p className="text-sm text-gray-500 m-0">View and manage guest bookings and codes</p>
-          <div className="flex items-center">
-            <div className="relative w-full max-w-md">
-              <div className="border rounded-full bg-white shadow-sm relative">
-                <input
-                  ref={searchRef}
-                  className="w-full pl-4 pr-4 py-2 rounded-full outline-none text-sm"
-                  placeholder="Search (guest, code, property)"
-                  value={q}
-                  onChange={(e) => setQ(e.target.value)}
-                  aria-label="Search bookings"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') { e.preventDefault(); load(); }
-                  }}
-                />
-              </div>
-            </div>
-          </div>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+        <div className="flex flex-col items-center text-center mb-4">
+          <Calendar className="h-8 w-8 text-gray-400 mb-3" />
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900">
+            Bookings
+          </h1>
+          <p className="mt-1 text-sm text-gray-600">
+            View and manage guest bookings and codes
+          </p>
         </div>
       </div>
 
@@ -363,169 +356,178 @@ export default function AdminBookingsPage() {
         </div>
       </div>
 
-      {loading && <div>Loading…</div>}
-      {!loading && list.length === 0 && (
-        <div className="text-sm opacity-70">No bookings.</div>
-      )}
-
-      {!loading && list.length > 0 && (
-        <>
-          {/* Mobile: collapsible cards */}
-          <div className="sm:hidden space-y-2">
-            {list.map((b) => (
-              <div key={`m-${b.id}`} className="border rounded-lg p-3 bg-white">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="font-medium">#{b.id} • {b.property.title}</div>
-                    <div className="text-xs opacity-70">{b.guestName ?? '-'}</div>
-                    <div className="text-xs opacity-70">{new Date(b.checkIn).toLocaleDateString()} → {new Date(b.checkOut).toLocaleDateString()}</div>
-                  </div>
-                  <div className="flex flex-col items-end gap-2">
-                    <div className="text-sm">{new Intl.NumberFormat().format(b.totalAmount)} TZS</div>
-                    <StatusBadge s={b.status} />
-                    <button
-                      onClick={() => toggleMobile(b.id)}
-                      aria-expanded={!!openIds[b.id] ? 'true' : 'false'}
-                      aria-controls={`booking-${b.id}-details`}
-                      className="text-xs text-blue-600"
-                    >
-                      {openIds[b.id] ? 'Hide' : 'Details'}
-                    </button>
-                  </div>
-                </div>
-                <div id={`booking-${b.id}-details`} className={`${openIds[b.id] ? 'block' : 'hidden'} mt-2 text-xs`}> 
-                  <div>Room: {b.roomCode ?? '-'}</div>
-                  <div className="mt-2">
-                    <a className="px-3 py-1 rounded bg-emerald-600 text-white text-xs" href={`/admin/bookings/${b.id}`}>Open</a>
-                  </div>
-                </div>
-              </div>
-            ))}
+      {/* Table */}
+      <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+        {loading ? (
+          <div className="px-6 py-12 text-center">
+            <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-gray-300 border-t-[#02665e]"></div>
+            <p className="mt-3 text-sm text-gray-500">Loading bookings...</p>
           </div>
+        ) : list.length === 0 ? (
+          <div className="px-6 py-12 text-center">
+            <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+            <p className="text-sm text-gray-500">No bookings found.</p>
+            <p className="text-xs text-gray-400 mt-1">Try adjusting your filters or search query.</p>
+          </div>
+        ) : (
+          <>
+            {/* Mobile: collapsible cards */}
+            <div className="sm:hidden space-y-2 p-4">
+              {list.map((b) => (
+                <div key={`m-${b.id}`} className="border rounded-lg p-3 bg-white">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="font-medium">#{b.id} • {b.property.title}</div>
+                      <div className="text-xs opacity-70">{b.guestName ?? '-'}</div>
+                      <div className="text-xs opacity-70">{new Date(b.checkIn).toLocaleDateString()} → {new Date(b.checkOut).toLocaleDateString()}</div>
+                    </div>
+                    <div className="flex flex-col items-end gap-2">
+                      <div className="text-sm">{new Intl.NumberFormat().format(b.totalAmount)} TZS</div>
+                      <StatusBadge s={b.status} />
+                      <button
+                        onClick={() => toggleMobile(b.id)}
+                        aria-expanded={!!openIds[b.id] ? 'true' : 'false'}
+                        aria-controls={`booking-${b.id}-details`}
+                        className="text-xs text-blue-600"
+                      >
+                        {openIds[b.id] ? 'Hide' : 'Details'}
+                      </button>
+                    </div>
+                  </div>
+                  <div id={`booking-${b.id}-details`} className={`${openIds[b.id] ? 'block' : 'hidden'} mt-2 text-xs`}> 
+                    <div>Room: {b.roomCode ?? '-'}</div>
+                    <div className="mt-2">
+                      <a className="px-3 py-1 rounded bg-emerald-600 text-white text-xs" href={`/admin/bookings/${b.id}`}>Open</a>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
 
-          {/* Desktop/table: hidden on small screens */}
-          <div className="hidden sm:block overflow-x-auto bg-white rounded border">
-            <table className="min-w-full text-sm">
-              <thead className="bg-gray-50">
-                <tr>
-                  {visibleColumns.map((c) => (
-                    <th key={c} className="px-3 py-2 text-left font-medium">
-                      {(() => {
-                        switch (c) {
-                          case 'bookingCode':
-                            return 'Booking';
-                          case 'guestName':
-                            return 'Guest';
-                          case 'owner':
-                            return 'Owner';
-                          case 'region':
-                            return 'Region';
-                          case 'propertyRoom':
-                            return 'Property / Room';
-                          case 'amountPaid':
-                            return 'Amount';
-                          case 'status':
-                            return 'Status';
-                          case 'checkIn':
-                            return 'Check‑in';
-                          case 'checkOut':
-                            return 'Check‑out';
-                          case 'nights':
-                            return 'Nights';
-                          case 'actions':
-                            return '';
-                          case 'contact':
-                            return 'Contact';
-                          case 'paymentDate':
-                            return 'Payment';
-                          case 'roomNumber':
-                            return 'Room';
-                          case 'cancelledAt':
-                            return 'Cancelled At';
-                          case 'cancelReason':
-                            return 'Reason';
-                          case 'amountRefunded':
-                            return 'Refunded';
-                          default:
-                            return c;
-                        }
-                      })()}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {list.map((b) => (
-                  <tr key={b.id} className="border-t hover:bg-gray-50">
+            {/* Desktop/table: hidden on small screens */}
+            <div className="hidden sm:block overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
                     {visibleColumns.map((c) => (
-                      <td key={c} className="px-3 py-2 align-top">
+                      <th key={c} className="px-3 py-2 text-left font-medium">
                         {(() => {
                           switch (c) {
                             case 'bookingCode':
-                              return (
-                                <div className="font-medium">#{b.id}{b.code?.code ? ` • ${b.code.code}` : ''}</div>
-                              );
+                              return 'Booking';
                             case 'guestName':
-                              return b.guestName ?? '-';
+                              return 'Guest';
                             case 'owner':
-                              return b.property?.ownerId ?? '—';
+                              return 'Owner';
                             case 'region':
-                              return '—';
+                              return 'Region';
                             case 'propertyRoom':
-                              return (
-                                <div className="flex flex-col">
-                                  <span className="font-medium">{b.property.title}</span>
-                                  <span className="text-xs opacity-70">{b.roomCode ?? '-'}</span>
-                                </div>
-                              );
+                              return 'Property / Room';
                             case 'amountPaid':
-                              return `${new Intl.NumberFormat().format(b.totalAmount)} TZS`;
+                              return 'Amount';
                             case 'status':
-                              return <StatusBadge s={b.status} />;
+                              return 'Status';
                             case 'checkIn':
-                              return new Date(b.checkIn).toLocaleDateString();
+                              return 'Check‑in';
                             case 'checkOut':
-                              return new Date(b.checkOut).toLocaleDateString();
+                              return 'Check‑out';
                             case 'nights':
-                              try {
-                                const d1 = new Date(b.checkIn);
-                                const d2 = new Date(b.checkOut);
-                                const nights = Math.max(0, Math.round((+d2 - +d1) / (1000 * 60 * 60 * 24)));
-                                return nights;
-                              } catch (e) {
-                                return '-';
-                              }
+                              return 'Nights';
                             case 'actions':
-                              return (
-                                <div className="flex items-center gap-2">
-                                  <a className="px-3 py-1 rounded bg-emerald-600 text-white text-xs" href={`/admin/bookings/${b.id}`}>Open</a>
-                                </div>
-                              );
+                              return '';
                             case 'contact':
-                              return <div className="text-xs opacity-70">{b.guestName ? '—' : '—'}</div>;
+                              return 'Contact';
                             case 'paymentDate':
-                              return '-';
+                              return 'Payment';
                             case 'roomNumber':
-                              return b.roomCode ?? '-';
+                              return 'Room';
                             case 'cancelledAt':
-                              return '-';
+                              return 'Cancelled At';
                             case 'cancelReason':
-                              return '-';
+                              return 'Reason';
                             case 'amountRefunded':
-                              return '-';
+                              return 'Refunded';
                             default:
-                              return null;
+                              return c;
                           }
                         })()}
-                      </td>
+                      </th>
                     ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
+                </thead>
+                <tbody>
+                  {list.map((b) => (
+                    <tr key={b.id} className="border-t hover:bg-gray-50">
+                      {visibleColumns.map((c) => (
+                        <td key={c} className="px-3 py-2 align-top">
+                          {(() => {
+                            switch (c) {
+                              case 'bookingCode':
+                                return (
+                                  <div className="font-medium">#{b.id}{b.code?.code ? ` • ${b.code.code}` : ''}</div>
+                                );
+                              case 'guestName':
+                                return b.guestName ?? '-';
+                              case 'owner':
+                                return b.property?.ownerId ?? '—';
+                              case 'region':
+                                return '—';
+                              case 'propertyRoom':
+                                return (
+                                  <div className="flex flex-col">
+                                    <span className="font-medium">{b.property.title}</span>
+                                    <span className="text-xs opacity-70">{b.roomCode ?? '-'}</span>
+                                  </div>
+                                );
+                              case 'amountPaid':
+                                return `${new Intl.NumberFormat().format(b.totalAmount)} TZS`;
+                              case 'status':
+                                return <StatusBadge s={b.status} />;
+                              case 'checkIn':
+                                return new Date(b.checkIn).toLocaleDateString();
+                              case 'checkOut':
+                                return new Date(b.checkOut).toLocaleDateString();
+                              case 'nights':
+                                try {
+                                  const d1 = new Date(b.checkIn);
+                                  const d2 = new Date(b.checkOut);
+                                  const nights = Math.max(0, Math.round((+d2 - +d1) / (1000 * 60 * 60 * 24)));
+                                  return nights;
+                                } catch (e) {
+                                  return '-';
+                                }
+                              case 'actions':
+                                return (
+                                  <div className="flex items-center gap-2">
+                                    <a className="px-3 py-1 rounded bg-emerald-600 text-white text-xs" href={`/admin/bookings/${b.id}`}>Open</a>
+                                  </div>
+                                );
+                              case 'contact':
+                                return <div className="text-xs opacity-70">{b.guestName ? '—' : '—'}</div>;
+                              case 'paymentDate':
+                                return '-';
+                              case 'roomNumber':
+                                return b.roomCode ?? '-';
+                              case 'cancelledAt':
+                                return '-';
+                              case 'cancelReason':
+                                return '-';
+                              case 'amountRefunded':
+                                return '-';
+                              default:
+                                return null;
+                            }
+                          })()}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

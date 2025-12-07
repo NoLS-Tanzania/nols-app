@@ -3,6 +3,7 @@
 import { Wallet, CreditCard, Eye, Smartphone } from "lucide-react";
 import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
+import TableRow from "@/components/TableRow";
 
 export default function Page() {
 
@@ -147,168 +148,296 @@ export default function Page() {
     load();
     return ()=>{ mounted = false; };
   },[api]);
+  const filteredPayments = payments.filter(p => 
+    activeTab === 'waiting' 
+      ? (p.status !== 'Completed' && p.status !== 'Success') 
+      : (p.status === 'Completed' || p.status === 'Success')
+  );
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col items-center text-center">
-        <div className="rounded-full bg-blue-50 p-3 inline-flex items-center justify-center">
-          <Wallet className="h-6 w-6 text-blue-600" />
+      {/* Header */}
+      <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+        <div className="flex flex-col items-center text-center mb-4">
+          <Wallet className="h-8 w-8 text-gray-400 mb-3" />
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900">
+            Payments
+          </h1>
+          <p className="mt-1 text-sm text-gray-600">
+            Track and reconcile incoming and outgoing payments
+          </p>
         </div>
-        <h1 className="mt-3 text-2xl font-semibold">Payments</h1>
-        <p className="text-sm text-gray-500">Track and reconcile incoming and outgoing payments</p>
-        {/* Buttons moved here so they appear directly under the header */}
-        <div className="mt-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-center gap-3">
-            <div className="flex items-center gap-2">
-              <button onClick={()=>setActiveTab('waiting')} className={`px-3 py-1 rounded-full border transition-colors duration-150 ${activeTab==='waiting' ? 'bg-gray-200 text-gray-900 border-gray-300' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'}`}>
-                Waiting <span className="ml-2 inline-block px-2 py-0.5 text-xs rounded-full bg-yellow-100 text-yellow-800">{payments.filter(p=>p.status!=='Completed'&&p.status!=='Success').length}</span>
-              </button>
-              <button onClick={()=>setActiveTab('paid')} className={`px-3 py-1 rounded-full border transition-colors duration-150 ${activeTab==='paid' ? 'bg-gray-200 text-gray-900 border-gray-300' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'}`}>
-                Paid History <span className="ml-2 inline-block px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-800">{payments.filter(p=>p.status==='Completed'||p.status==='Success').length}</span>
-              </button>
-              {loading && <div className="ml-4 text-sm text-gray-500">Loading...</div>}
-            </div>
-            
-          </div>
+        
+        {/* Tabs */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-center gap-3 mt-4">
+          <button 
+            onClick={() => setActiveTab('waiting')} 
+            className={`px-4 py-2 rounded-full border text-sm font-medium transition-all duration-200 ${
+              activeTab === 'waiting' 
+                ? 'bg-[#02665e] text-white border-[#02665e] shadow-sm' 
+                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            Waiting 
+            <span className={`ml-2 inline-block px-2 py-0.5 text-xs rounded-full ${
+              activeTab === 'waiting' 
+                ? 'bg-white/20 text-white' 
+                : 'bg-yellow-100 text-yellow-800'
+            }`}>
+              {payments.filter(p => p.status !== 'Completed' && p.status !== 'Success').length}
+            </span>
+          </button>
+          <button 
+            onClick={() => setActiveTab('paid')} 
+            className={`px-4 py-2 rounded-full border text-sm font-medium transition-all duration-200 ${
+              activeTab === 'paid' 
+                ? 'bg-[#02665e] text-white border-[#02665e] shadow-sm' 
+                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            Paid History 
+            <span className={`ml-2 inline-block px-2 py-0.5 text-xs rounded-full ${
+              activeTab === 'paid' 
+                ? 'bg-white/20 text-white' 
+                : 'bg-green-100 text-green-800'
+            }`}>
+              {payments.filter(p => p.status === 'Completed' || p.status === 'Success').length}
+            </span>
+          </button>
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-md p-6">
-        {/* Table header is provided in the table below; removed duplicate mobile header */}
-
-        <div>
-          
-
-          <div className="overflow-x-auto border border-gray-200 rounded-md shadow-sm">
-            <table className="min-w-full table-auto border-collapse">
+      {/* Table */}
+      <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+        {loading ? (
+          <div className="px-6 py-12 text-center">
+            <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-gray-300 border-t-[#02665e]"></div>
+            <p className="mt-3 text-sm text-gray-500">Loading payments...</p>
+          </div>
+        ) : filteredPayments.length === 0 ? (
+          <div className="px-6 py-12 text-center">
+            <Wallet className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+            <p className="text-sm text-gray-500">No {activeTab === 'waiting' ? 'pending' : 'completed'} payments found.</p>
+            <p className="text-xs text-gray-400 mt-1">Switch tabs to view {activeTab === 'waiting' ? 'paid history' : 'pending payments'}.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
-                <tr className="text-sm text-gray-600 border-b divide-x divide-gray-200">
-                  <th className="px-3 py-2 text-left w-36">Date</th>
-                  <th className="px-3 py-2 text-left w-32">Owner</th>
-                  <th className="px-3 py-2 text-left w-40">Invoice</th>
-                  <th className="px-3 py-2 text-left w-40">Method</th>
-                  <th className="px-3 py-2 text-right w-30">Amount</th>
-                  <th className="px-3 py-2 text-left w-28">Status</th>
-                  <th className="px-3 py-2 text-center w-20">{activeTab === 'waiting' ? 'Pay' : 'Receipt'}</th>
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Owner</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoice</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Method</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">{activeTab === 'waiting' ? 'Pay' : 'Receipt'}</th>
                 </tr>
               </thead>
-              <tbody className="text-sm">
-                {payments.filter(p => activeTab==='waiting' ? (p.status!=='Completed' && p.status!=='Success') : (p.status==='Completed' || p.status==='Success')).map((p, i) => (
-                  <tr key={(p.id||p.txn||i)} className="bg-white border-b last:border-b-0">
-                    <td className="px-3 py-2 align-top">
-                      <div className="font-medium">{formatDateOnly(p.date)}</div>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredPayments.map((p, i) => (
+                  <TableRow key={p.id || p.txn || i}>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">{formatDateOnly(p.date)}</div>
                       <div className="text-xs text-gray-500">{formatTimeWithSeconds(p.date)}</div>
                     </td>
-                    <td className="px-3 py-2 align-top">{(p as any).ownerId||(p as any).owner||(p as any).owner_id||'-'}</td>
-                    <td className="px-3 py-2 align-top"><code className="text-xs text-gray-700">{p.invoice || p.txn}</code></td>
-                    <td className="px-3 py-2 align-top flex items-center gap-2">
-                      {isMobileMoney(p.method, p) ? (
-                        <Smartphone className="h-4 w-4 text-blue-500" />
-                      ) : (
-                        <CreditCard className="h-4 w-4 text-blue-500" />
-                      )}
-                      <span className="truncate">{formatMethodDisplay(p.method, p)}</span>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {(p as any).ownerId || (p as any).owner || (p as any).owner_id || '-'}
                     </td>
-                    <td className="px-2 py-2 align-top text-right">{formatCurrency(p.amount, p.currency)}</td>
-                    <td className="px-3 py-2 align-top">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${p.status==='Completed'||p.status==='Success' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>{p.status}</span>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <code className="text-xs text-gray-700 bg-gray-50 px-2 py-1 rounded border border-gray-200">{p.invoice || p.txn}</code>
                     </td>
-                    <td className="px-3 py-2 align-top text-center">
-                      <button onClick={async()=>{
-                        // open modal and lazy-load details if available
-                        setSelectedPayment(p);
-                        setModalOpen(true);
-                        // attempt to fetch full invoice details
-                        setModalLoading(true);
-                        try{
-                          const res = await api.get(`/admin/payments/${p.id || p.txn}`);
-                          const data = res?.data;
-                          // normalize if response wraps the item
-                          const item = Array.isArray(data) ? data[0] : (data.payment || data.item || data);
-                          if (item) setSelectedPayment(curr => ({ ...(curr||p), ...item } as Payment));
-                        }catch(e){
-                          // ignore — we'll show whatever we have in `p`
-                        }finally{ setModalLoading(false); }
-                      }} className="text-indigo-600 hover:text-indigo-900" aria-label={activeTab === 'waiting' ? 'View invoice to process payment' : 'View receipt'}>
-                        <Eye className="h-4 w-4 inline" />
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        {isMobileMoney(p.method, p) ? (
+                          <Smartphone className="h-4 w-4 text-[#02665e]" />
+                        ) : (
+                          <CreditCard className="h-4 w-4 text-[#02665e]" />
+                        )}
+                        <span className="text-sm text-gray-900">{formatMethodDisplay(p.method, p)}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium text-gray-900">
+                      {formatCurrency(p.amount, p.currency)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        p.status === 'Completed' || p.status === 'Success' 
+                          ? 'bg-green-50 text-green-700 border border-green-200' 
+                          : 'bg-yellow-50 text-yellow-800 border border-yellow-200'
+                      }`}>
+                        {p.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                      <button 
+                        onClick={async () => {
+                          setSelectedPayment(p);
+                          setModalOpen(true);
+                          setModalLoading(true);
+                          try {
+                            const res = await api.get(`/admin/payments/${p.id || p.txn}`);
+                            const data = res?.data;
+                            const item = Array.isArray(data) ? data[0] : (data.payment || data.item || data);
+                            if (item) setSelectedPayment(curr => ({ ...(curr || p), ...item } as Payment));
+                          } catch (e) {
+                            // ignore
+                          } finally { 
+                            setModalLoading(false); 
+                          }
+                        }} 
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-sm text-[#02665e] border border-[#02665e] rounded-lg hover:bg-[#02665e] hover:text-white transition-all duration-200"
+                        aria-label={activeTab === 'waiting' ? 'View invoice to process payment' : 'View receipt'}
+                      >
+                        <Eye className="h-4 w-4" />
+                        <span className="hidden sm:inline">{activeTab === 'waiting' ? 'Pay' : 'View'}</span>
                       </button>
                     </td>
-                  </tr>
+                  </TableRow>
                 ))}
               </tbody>
             </table>
           </div>
+        )}
+        
+        {!loading && filteredPayments.length > 0 && (
+          <div className="px-6 py-3 border-t border-gray-200 bg-gray-50 text-sm text-gray-500 text-center">
+            Showing recent payments. Use tabs to switch between waiting and paid history.
+          </div>
+        )}
+      </div>
 
-          {/* Modal: view invoice / process payment */}
-          {modalOpen && selectedPayment && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center">
-              <div className="absolute inset-0 bg-black/40" onClick={()=>{ if(!processing) { setModalOpen(false); setSelectedPayment(null); } }} />
-              <div className="relative bg-white rounded-lg shadow-lg w-full max-w-2xl p-6 z-10">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-semibold">Invoice {selectedPayment.invoice || selectedPayment.txn}</h3>
-                  <button onClick={()=>{ if(!processing){ setModalOpen(false); setSelectedPayment(null); } }} className="text-gray-500 hover:text-gray-700">Close</button>
+      {/* Modal: view invoice / process payment */}
+      {modalOpen && selectedPayment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div 
+            className="absolute inset-0 bg-black/40 transition-opacity" 
+            onClick={() => { 
+              if (!processing) { 
+                setModalOpen(false); 
+                setSelectedPayment(null); 
+              } 
+            }} 
+          />
+          <div className="relative bg-white rounded-lg shadow-xl w-full max-w-2xl p-6 z-10 border border-gray-200">
+            <div className="flex justify-between items-center mb-6 pb-4 border-b border-gray-200">
+              <h3 className="text-xl font-semibold text-gray-900">
+                Invoice {selectedPayment.invoice || selectedPayment.txn}
+              </h3>
+              <button 
+                onClick={() => { 
+                  if (!processing) { 
+                    setModalOpen(false); 
+                    setSelectedPayment(null); 
+                  } 
+                }} 
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+                aria-label="Close modal"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            {modalLoading ? (
+              <div className="py-12 text-center">
+                <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-gray-300 border-t-[#02665e]"></div>
+                <p className="mt-3 text-sm text-gray-500">Loading invoice details...</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Date</div>
+                    <div className="text-sm font-medium text-gray-900">
+                      {formatDateOnly(selectedPayment.date)} {formatTimeWithSeconds(selectedPayment.date)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Owner</div>
+                    <div className="text-sm font-medium text-gray-900">
+                      {(selectedPayment as any).ownerId || (selectedPayment as any).owner || '-'}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Amount</div>
+                    <div className="text-sm font-medium text-gray-900">
+                      {formatCurrency(selectedPayment.amount, selectedPayment.currency)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Method</div>
+                    <div className="text-sm font-medium text-gray-900">
+                      {formatMethodDisplay(selectedPayment.method, selectedPayment)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Status</div>
+                    <div>
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        selectedPayment.status === 'Completed' || selectedPayment.status === 'Success' 
+                          ? 'bg-green-50 text-green-700 border border-green-200' 
+                          : 'bg-yellow-50 text-yellow-800 border border-yellow-200'
+                      }`}>
+                        {selectedPayment.status}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                {modalLoading ? (
-                  <div className="py-8 text-center">Loading invoice...</div>
-                ) : (
-                  <div className="space-y-3">
-                    <div className="flex justify-between">
-                      <div className="text-sm text-gray-600">Date</div>
-                      <div className="text-sm font-medium">{formatDateOnly(selectedPayment.date)} {formatTimeWithSeconds(selectedPayment.date)}</div>
-                    </div>
-                    <div className="flex justify-between">
-                      <div className="text-sm text-gray-600">Owner</div>
-                      <div className="text-sm font-medium">{(selectedPayment as any).ownerId || (selectedPayment as any).owner || '-'}</div>
-                    </div>
-                    <div className="flex justify-between">
-                      <div className="text-sm text-gray-600">Amount</div>
-                      <div className="text-sm font-medium">{formatCurrency(selectedPayment.amount, selectedPayment.currency)}</div>
-                    </div>
-                    <div className="flex justify-between">
-                      <div className="text-sm text-gray-600">Method</div>
-                      <div className="text-sm font-medium">{formatMethodDisplay(selectedPayment.method, selectedPayment)}</div>
-                    </div>
-                    <div className="flex justify-between">
-                      <div className="text-sm text-gray-600">Status</div>
-                      <div className="text-sm font-medium">{selectedPayment.status}</div>
-                    </div>
-                    <div className="pt-4 flex gap-3">
-                      {activeTab === 'waiting' && (
-                        <button disabled={processing} onClick={async()=>{
-                          if (!selectedPayment) return;
-                          if (!confirm('Mark this payment as completed?')) return;
-                          setProcessing(true);
-                          try{
-                            // Try a backend call to mark payment processed. Endpoint may vary; attempt common patterns.
-                            await api.post(`/admin/payments/${selectedPayment.id}/process`);
-                            // optimistic update in the table
+                <div className="pt-4 flex gap-3 border-t border-gray-200">
+                  {activeTab === 'waiting' && (
+                    <button 
+                      disabled={processing} 
+                      onClick={async () => {
+                        if (!selectedPayment) return;
+                        if (!confirm('Mark this payment as completed?')) return;
+                        setProcessing(true);
+                        try {
+                          await api.post(`/admin/payments/${selectedPayment.id}/process`);
+                          setPayments(prev => prev.map(x => x.id === selectedPayment.id ? ({ ...x, status: 'Completed' }) : x));
+                          setModalOpen(false);
+                          setSelectedPayment(null);
+                        } catch (err) {
+                          try {
+                            await api.patch(`/admin/payments/${selectedPayment.id}`, { status: 'Completed' });
                             setPayments(prev => prev.map(x => x.id === selectedPayment.id ? ({ ...x, status: 'Completed' }) : x));
                             setModalOpen(false);
                             setSelectedPayment(null);
-                          }catch(err){
-                            // fallback: try PATCH
-                            try{
-                              await api.patch(`/admin/payments/${selectedPayment.id}`, { status: 'Completed' });
-                              setPayments(prev => prev.map(x => x.id === selectedPayment.id ? ({ ...x, status: 'Completed' }) : x));
-                              setModalOpen(false);
-                              setSelectedPayment(null);
-                            }catch(e){
-                              alert('Failed to mark payment completed — check server logs.');
-                            }
-                          }finally{ setProcessing(false); }
-                        }} className="px-4 py-2 bg-indigo-600 text-white rounded">Mark as paid</button>
-                      )}
-                      <a href={(process.env.NEXT_PUBLIC_API_URL || '') + `/account/receipt/${selectedPayment.receiptId || selectedPayment.id}.pdf`} target="_blank" rel="noreferrer" className="px-4 py-2 border rounded text-indigo-600">Open PDF</a>
-                      <button onClick={()=>{ setModalOpen(false); setSelectedPayment(null); }} className="px-4 py-2 border rounded">Close</button>
-                    </div>
-                  </div>
-                )}
+                          } catch (e) {
+                            alert('Failed to mark payment completed — check server logs.');
+                          }
+                        } finally { 
+                          setProcessing(false); 
+                        }
+                      }} 
+                      className="px-4 py-2 bg-[#02665e] text-white rounded-lg hover:bg-[#013a37] transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {processing ? 'Processing...' : 'Mark as paid'}
+                    </button>
+                  )}
+                  <a 
+                    href={(process.env.NEXT_PUBLIC_API_URL || '') + `/account/receipt/${selectedPayment.receiptId || selectedPayment.id}.pdf`} 
+                    target="_blank" 
+                    rel="noreferrer" 
+                    className="px-4 py-2 border border-gray-300 rounded-lg text-[#02665e] hover:bg-gray-50 transition-colors duration-200"
+                  >
+                    Open PDF
+                  </a>
+                  <button 
+                    onClick={() => { 
+                      setModalOpen(false); 
+                      setSelectedPayment(null); 
+                    }} 
+                    className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors duration-200"
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
-
-          <div className="mt-4 text-sm text-gray-500">Showing recent payments. Use tabs to switch between waiting and paid history.</div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

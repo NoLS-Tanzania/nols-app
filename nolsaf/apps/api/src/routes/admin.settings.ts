@@ -39,10 +39,31 @@ router.post("/numbering/preview", async (req, res) => {
 
 /** Users & roles (list, change role, enable/disable) */
 router.get("/users", async (req, res) => {
-  const q = (req.query.q as string | undefined)?.trim();
-  const where: any = q ? { OR: [{ email: { contains: q } }, { fullName: { contains: q } }] } : {};
-  const users = await prisma.user.findMany({ where, orderBy: { id: "desc" }, take: 100 });
-  res.json(users.map((u: any) => ({ id: u.id, email: u.email, fullName: u.fullName, role: u.role, twoFactorEnabled: u.twoFactorEnabled })));
+  try {
+    const q = (req.query.q as string | undefined)?.trim();
+    const where: any = q ? { 
+      OR: [
+        { email: { contains: q, mode: 'insensitive' } }, 
+        { name: { contains: q, mode: 'insensitive' } }
+      ] 
+    } : {};
+    const users = await prisma.user.findMany({ 
+      where, 
+      orderBy: { id: "desc" }, 
+      take: 100,
+      select: { id: true, email: true, name: true, role: true, twoFactorEnabled: true }
+    });
+    res.json(users.map((u: any) => ({ 
+      id: u.id, 
+      email: u.email, 
+      fullName: u.name || u.email, // Map name to fullName for frontend compatibility
+      role: u.role, 
+      twoFactorEnabled: u.twoFactorEnabled 
+    })));
+  } catch (err: any) {
+    console.error('Error in GET /admin/settings/users:', err);
+    res.status(500).json({ error: 'Internal server error', message: err?.message || 'Unknown error' });
+  }
 });
 
 router.post("/users/:id/role", async (req, res) => {

@@ -49,7 +49,7 @@ export default function OnboardRole({ params }: { params: { role: string } }) {
   ));
 
   const IdIcon: any = (props: any) => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <svg suppressHydrationWarning viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" {...props}>
       <rect x="2" y="4" width="20" height="16" rx="2" />
       <circle cx="9" cy="10" r="2" />
       <path d="M16 8v6" />
@@ -58,7 +58,7 @@ export default function OnboardRole({ params }: { params: { role: string } }) {
   );
 
   const TruckIcon: any = (Icons as any).Truck ?? ((props: any) => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <svg suppressHydrationWarning viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" {...props}>
       <rect x="1" y="3" width="15" height="13" rx="2" />
       <path d="M16 8h4v5" />
       <circle cx="5.5" cy="18.5" r="1.5" />

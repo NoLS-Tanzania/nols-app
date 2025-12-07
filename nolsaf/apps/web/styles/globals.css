@@ -1918,6 +1918,25 @@ a[aria-label="Toggle theme"].mobile {
   .sidebar-scroll:hover { scrollbar-color: rgba(255,255,255,0.22) transparent; }
 }
 
+/* Hide scrollbar visuals while preserving scrollability (main content) */
+.no-scrollbar { overflow: auto; }
+.no-scrollbar { -ms-overflow-style: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* Status filter horizontal scroll - hide scrollbar on small devices */
+.status-filter-scroll { overflow-x: auto; }
+.status-filter-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+.status-filter-scroll::-webkit-scrollbar { display: none; }
+
+/* Scrollbar hide utility */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 /* Touch helper: prevent default touch panning while interacting with draggable controls */
 .touch-action-none { -ms-touch-action: none; touch-action: none; }
 

@@ -4,7 +4,8 @@ import { Settings as SettingsIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import axios from "axios";
 
-const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL });
+// Use same-origin relative paths so Next.js rewrites proxy to the API in dev
+const api = axios.create({ baseURL: "" });
 
 export default function AdminSettings() {
   const [s,setS]=useState<any>(null);
@@ -86,15 +87,26 @@ function Security({s,setS}:{s:any;setS:any}){
 function Users(){
   const [q,setQ]=useState(""); const [list,setList]=useState<any[]>([]);
   const load = useCallback(async ()=>{
-    const t=localStorage.getItem("token");
-    const r = await axios.get<any[]>(`${process.env.NEXT_PUBLIC_API_URL}/admin/settings/users`, {
-      params:{q},
-      headers:{ Authorization:`Bearer ${t}` }
-    });
-    setList(r.data || []);
+    try {
+      const r = await api.get<any[]>(`/admin/settings/users`, {
+        params:{q}
+      });
+      setList(r.data || []);
+    } catch (err: any) {
+      console.error('Failed to load users:', err);
+      setList([]);
+    }
   }, [q]);
   useEffect(()=>{ load(); },[load]);
-  const changeRole=async(id:number,role:string)=>{ const t=localStorage.getItem("token"); await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/admin/settings/users/${id}/role`,{role},{headers:{Authorization:`Bearer ${t}`}}); load(); };
+  const changeRole=async(id:number,role:string)=>{
+    try {
+      await api.post(`/admin/settings/users/${id}/role`,{role});
+      load();
+    } catch (err: any) {
+      console.error('Failed to change role:', err);
+      alert('Failed to change user role. Please try again.');
+    }
+  };
   return <div className="bg-white border rounded-2xl p-3">
     <div className="flex gap-2">
       <input className="border rounded-xl px-3 py-2" placeholder="Search users..." value={q} onChange={e=>setQ(e.target.value)} />

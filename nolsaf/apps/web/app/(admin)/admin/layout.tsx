@@ -1,57 +1,88 @@
+"use client";
 import "@/styles/globals.css";
+import { useState, useEffect, useRef } from "react";
 import type { ReactNode } from "react";
 import SiteHeader from "@/components/SiteHeader";
 import AdminFooter from "@/components/AdminFooter";
 import AdminNav from "@/components/AdminSidebar";
-import AdminMiniFooter from "@/components/AdminMiniFooter";
-
+import LayoutFrame from "@/components/LayoutFrame";
+import SectionSeparator from "@/components/SectionSeparator";
 export default function AdminLayout({ children }: { children: ReactNode }) {
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const mainRef = useRef<HTMLDivElement | null>(null);
+  const sidebarRef = useRef<HTMLDivElement | null>(null);
+  const syncingRef = useRef(false);
+
+  // Listen for global toggle events dispatched from the header to control sidebar
+  useEffect(() => {
+    const handler = () => setSidebarOpen((v) => !v);
+    window.addEventListener("toggle-admin-sidebar", handler as EventListener);
+    return () => window.removeEventListener("toggle-admin-sidebar", handler as EventListener);
+  }, []);
+
+  // One-way scroll sync: scrolling the main content should also scroll the sidebar.
+  // Scrolling the sidebar should NOT affect the main content.
+  useEffect(() => {
+    const mainEl = mainRef.current;
+    const sideEl = sidebarRef.current;
+    if (!mainEl || !sideEl) return;
+
+    const onMainScroll = () => {
+      // Only sync when sidebar is visible on md+ screens
+      const isVisible = sidebarOpen && window.matchMedia('(min-width: 768px)').matches;
+      if (!isVisible) return;
+      if (syncingRef.current) return;
+      syncingRef.current = true;
+      try {
+        sideEl.scrollTop = mainEl.scrollTop;
+      } finally {
+        syncingRef.current = false;
+      }
+    };
+
+    mainEl.addEventListener('scroll', onMainScroll, { passive: true });
+    return () => {
+      mainEl.removeEventListener('scroll', onMainScroll as EventListener);
+    };
+  }, [sidebarOpen]);
+
   return (
     <div className="min-h-screen flex flex-col bg-neutral-50">
-      {/* Header is full-width; content is constrained. We pin the sidebar on md+ and offset the inner content to avoid overlap. */}
+      {/* Full-width header */}
       <SiteHeader role="ADMIN" />
 
-      {/* Fixed left sidebar for md+ screens */}
-  <aside className="hidden md:block admin-sidebar-fixed p-4 shadow-sm text-white bg-[#02665e] border-r border-[#015149]">
-        {/* Sidebar scroll container: independent vertical scroll, contains overscroll so wheel/touch doesn't bubble to main */}
-        <div className="pt-16 h-full sidebar-scroll overscroll-contain">
-          {/* removed the 'Admin' heading per request; only navigation remains */}
-          <AdminNav variant="dark" />
-        </div>
-      </aside>
+      {/* Centered container so LayoutFrame spans both sidebar and content (like Owner) */}
+      <div className="flex-1 w-full">
+        <div className="max-w-6xl mx-auto w-full px-4 relative">
+          {/* Content frame/markers */}
+          <LayoutFrame heightVariant="sm" topVariant="sm" colorVariant="muted" variant="solid" box />
 
-  {/* Main centered content; top padding accounts for fixed header (h-16) and add left padding on md+ equal to sidebar width (w-64) */}
-  <div className="flex-1 mx-auto max-w-6xl w-full px-4 pt-16 pb-6 md:pl-0 content-with-footer">
-        <div className="md:ml-0 w-full">
-          <main className="md:ml-0 md:pl-0 lg:pl-0">
-            {/* On md+ screens provide left offset so content doesn't sit under fixed sidebar */}
-            <div className="w-full">
-              <div className="md:ml-0 md:pl-0">
-                <div className="md:pl-0 lg:pl-0">
-                  <div className="md:ml-0">
-                    <div className="md:mx-0">
-                      {/* Apply responsive left margin to the container that holds the page content */}
-                      <div className="w-full">
-                        {/* On md and up, add left margin equal to sidebar width */}
-                        <div className="md:ml-56">{children}</div>
-                      </div>
-                    </div>
-                  </div>
+          {/* Sidebar inside the frame container on md+; hide/show via header toggle */}
+          <aside ref={sidebarRef} className={`absolute left-0 top-16 w-56 p-4 shadow-sm text-[#02665e] bg-white border-r border-gray-200 ${sidebarOpen ? 'hidden md:block' : 'hidden md:hidden'} h-[calc(100vh-4rem)] overflow-y-auto`}>
+            <div className="sidebar-scroll">
+              <AdminNav variant="light" />
+            </div>
+          </aside>
+
+          {/* Main content: match Owner spacing and styling (no extra border/bg) */}
+          <div
+            ref={mainRef}
+            className={`pt-16 pb-6 ${sidebarOpen ? 'owner-content-gap' : ''}`}
+          >
+            <main>
+              <div className="w-full">
+                <div className="mx-auto max-w-6xl">
+                  {children}
                 </div>
               </div>
-            </div>
-          </main>
+            </main>
+          </div>
         </div>
       </div>
 
-      <div className="mini-footer-above hidden md:block">
-        <AdminMiniFooter />
-      </div>
-
-      {/* Admin footer (static, sits at end of content) */}
+      {/* Apply the same footer separator used on Owner pages */}
+      <SectionSeparator className="mt-6" />
       <AdminFooter />
-
-      {/* Floating help button removed — AdminMiniFooter now contains support */}
     </div>
   );
 }

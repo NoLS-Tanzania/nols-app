@@ -46,7 +46,7 @@ export default function SectionSeparator({ label, className = "", variant = 'lin
               <div className="w-3 h-3 rounded-full bg-emerald-400 shadow-sm" />
               <div className="relative">
                 <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-md">
-                  <svg className="w-5 h-5 text-emerald-600" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                  <svg suppressHydrationWarning className="w-5 h-5 text-emerald-600" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
                     <path d="M12 2C8.686 2 6 4.686 6 8c0 5.25 6 12 6 12s6-6.75 6-12c0-3.314-2.686-6-6-6z" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
                     <circle cx="12" cy="8" r="2" fill="currentColor" />
                   </svg>
@@ -66,7 +66,7 @@ export default function SectionSeparator({ label, className = "", variant = 'lin
           <div className="flex items-center gap-3" role="separator" aria-hidden={label ? "false" : "true"}>
             <div className="flex-1 h-px bg-gray-300" />
             <div className="w-7 h-7 flex items-center justify-center bg-white border border-gray-300 rounded-full">
-              <svg className="w-3 h-3 text-gray-500" viewBox="0 0 8 8" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+              <svg suppressHydrationWarning className="w-3 h-3 text-gray-500" viewBox="0 0 8 8" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
                 <circle cx="4" cy="4" r="2" fill="currentColor" />
               </svg>
             </div>

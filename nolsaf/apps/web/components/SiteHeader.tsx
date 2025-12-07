@@ -21,6 +21,7 @@ export default function SiteHeader({
   const [touchedIcon, setTouchedIcon] = useState<string | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [adminSidebarVisible, setAdminSidebarVisible] = useState(true);
 
   const handleTouch = (id: string) => {
     setTouchedIcon(id);
@@ -81,6 +82,14 @@ export default function SiteHeader({
     };
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
+  }, [isAdmin]);
+
+  // Sync header left margin with admin sidebar visibility to avoid leftover gap
+  useEffect(() => {
+    if (!isAdmin) return;
+    const handler = () => setAdminSidebarVisible((v) => !v);
+    window.addEventListener('toggle-admin-sidebar', handler as EventListener);
+    return () => window.removeEventListener('toggle-admin-sidebar', handler as EventListener);
   }, [isAdmin]);
 
   const toggleTheme = () => {
@@ -146,7 +155,7 @@ export default function SiteHeader({
     <header
       className={`fixed top-0 left-0 right-0 z-50 text-white/95 ${(isAdmin || isOwner) ? "bg-[#02665e]" : "bg-brand-primary"} shadow-none`}
     >
-      <div className={`mx-auto max-w-6xl px-4 h-16 flex items-center justify-between ${isAdmin ? 'md:ml-64' : ''}`}>
+      <div className={`mx-auto max-w-6xl px-4 h-16 flex items-center justify-between ${isAdmin && adminSidebarVisible ? 'md:ml-64' : ''}`}>
         {/* Owner: small toggle to hide/show sidebar. Uses a global event so Layout can listen */}
         {isOwner ? (
           <button
@@ -159,6 +168,23 @@ export default function SiteHeader({
             }}
             aria-label="Toggle sidebar"
             className="hidden md:inline-flex items-center justify-center h-9 w-9 rounded-md bg-white/10 text-white/90 hover:bg-white/20 mr-3"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+              <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        ) : null}
+        {isAdmin ? (
+          <button
+            onClick={() => {
+              try {
+                window.dispatchEvent(new CustomEvent('toggle-admin-sidebar', { detail: { source: 'header' } }));
+              } catch (e) {
+                // ignore
+              }
+            }}
+            aria-label="Toggle sidebar"
+            className="hidden md:inline-flex items-center justify-center h-9 w-9 rounded-md bg白/10 text白/90 hover:bg白/20 mr-3"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
               <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />

@@ -1,12 +1,20 @@
 "use client";
 import AdminPageHeader from "@/components/AdminPageHeader";
-import { LayoutDashboard } from "lucide-react";
+import { Truck } from "lucide-react";
 import DriversDashboard from "./dashboard/page";
 
 export default function AdminDriversPage() {
   return (
-    <div className="space-y-6 p-6">
-      <AdminPageHeader title="Drivers" icon={<LayoutDashboard className="h-8 w-8" />} />
+    <div className="space-y-6">
+      <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+        <div className="flex flex-col items-center text-center mb-4">
+          <div className="h-16 w-16 rounded-full bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center mb-4">
+            <Truck className="h-8 w-8 text-blue-600" />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900">Drivers</h1>
+          <p className="text-sm text-gray-500 mt-1">Manage platform drivers and their activities</p>
+        </div>
+      </div>
       <DriversDashboard />
     </div>
   );

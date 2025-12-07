@@ -1,9 +1,15 @@
 .container {
   width: 100%;
+  height: 100%;
   display: block;
+  position: relative;
+  overflow: hidden;
+  max-height: 100%;
 }
 .canvas {
   display: block;
   width: 100% !important;
-  height: auto !important;
+  height: 100% !important;
+  max-height: 100%;
+  object-fit: contain;
 }

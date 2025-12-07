@@ -29,6 +29,7 @@ import adminBookingsRouter from "./routes/admin.bookings";
 import { limitCodeSearch } from "./middleware/rateLimit.js";// apps/api/src/index.ts 
 import adminRevenueRouter from "./routes/admin.revenue";
 import adminPaymentsRouter from "./routes/admin.payments";
+import adminSettingsRouter from "./routes/admin.settings";
 import paymentWebhooksRouter from "./routes/webhooks.payments";
 import adminStatsRouter from "./routes/admin.stats";
 import adminUsersRouter from "./routes/admin.users";
@@ -36,6 +37,13 @@ import adminBonusesRouter from "./routes/admin.bonuses";
 import adminOwnersRouter from "./routes/admin.owners.js";
 import adminDriversRouter from "./routes/admin.drivers";
 import adminDriversSummaryRouter from "./routes/admin.drivers.summary";
+import adminGroupStaysSummaryRouter from "./routes/admin.groupStays.summary";
+import adminGroupStaysBookingsRouter from "./routes/admin.groupStays.bookings";
+import adminGroupStaysRequestsRouter from "./routes/admin.groupStays.requests";
+import adminGroupStaysPassengersRouter from "./routes/admin.groupStays.passengers";
+import adminGroupStaysArrangementsRouter from "./routes/admin.groupStays.arrangements";
+import adminPlanWithUsSummaryRouter from "./routes/admin.planWithUs.summary";
+import adminPlanWithUsRequestsRouter from "./routes/admin.planWithUs.requests";
 import adminPropertiesRouter from "./routes/admin.properties.js";
 import adminAuditsRouter from "./routes/admin.audits";
 import adminSummaryRouter from './routes/admin.summary';
@@ -119,8 +127,16 @@ app.use("/admin/revenue", adminRevenueRouter);
 // also expose API-prefixed route so frontend using `/api/admin/revenue` works
 app.use('/api/admin/revenue', adminRevenueRouter as express.RequestHandler);
 app.use("/admin/payments", adminPaymentsRouter);
+app.use("/admin/settings", adminSettingsRouter);
 app.use("/admin/drivers", adminDriversRouter);
 app.use('/admin/drivers/summary', adminDriversSummaryRouter);
+app.use('/admin/group-stays/summary', adminGroupStaysSummaryRouter);
+app.use('/admin/group-stays/bookings', adminGroupStaysBookingsRouter);
+app.use('/admin/group-stays/requests', adminGroupStaysRequestsRouter);
+app.use('/admin/group-stays/passengers', adminGroupStaysPassengersRouter);
+app.use('/admin/group-stays/arrangements', adminGroupStaysArrangementsRouter);
+app.use('/admin/plan-with-us/summary', adminPlanWithUsSummaryRouter);
+app.use('/admin/plan-with-us/requests', adminPlanWithUsRequestsRouter);
 app.use("/admin/stats", adminStatsRouter);
 app.use("/admin/users", adminUsersRouter);
 app.use("/admin/bonuses", adminBonusesRouter);
@@ -148,7 +164,7 @@ app.use('/api/public/support', publicSupportRouter);
 app.use('/api/group-bookings', requireRole() as express.RequestHandler, groupBookingsRouter);
 
 // Start server
-const PORT = Number(process.env.PORT) || 4000;
+const PORT = Number(process.env.PORT) || 3001;
 const HOST = process.env.HOST || '0.0.0.0';
 server.listen(PORT, HOST, () => {
   console.log(`Server listening on http://${HOST}:${PORT}`);

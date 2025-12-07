@@ -6,10 +6,10 @@ import Image from 'next/image';
 export default function AdminFooter() {
   const year = new Date().getFullYear();
   return (
-    <footer aria-label="Footer" className="footer-with-rail border-t">
+    <footer aria-label="Footer" className="bg-white">
       <h2 className="sr-only">Footer</h2>
 
-      <div className="max-w-6xl mx-auto px-4 py-3 md:ml-56 flex flex-col items-center gap-4">
+      <div className="max-w-6xl mx-auto px-4 py-3 flex flex-col items-center gap-4">
         <nav aria-label="Footer navigation" className="w-full flex justify-center">
           <ul className="flex flex-wrap items-center justify-center gap-6 text-sm">
             <li><a role="button" onClick={() => window.dispatchEvent(new CustomEvent('open-legal', { detail: { type: 'terms' } }))} className="text-[#02665e] font-semibold no-underline hover:no-underline">Terms of Service</a></li>

@@ -1,10 +1,11 @@
 "use client";
 import { useEffect, useMemo, useState, useRef } from "react";
-import { Home, ChevronLeft, ChevronRight } from "lucide-react";
+import { FileText, ChevronLeft, ChevronRight, Search, X, Eye } from "lucide-react";
 import axios from "axios";
 import { io, Socket } from "socket.io-client";
 
-const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL });
+// Use same-origin base so Next.js rewrites proxy to API and avoids CORS
+const api = axios.create({ baseURL: "" });
 function authify() {
   const t = typeof window !== "undefined" ? localStorage.getItem("token") : null;
   if (t) api.defaults.headers.common["Authorization"] = `Bearer ${t}`;
@@ -126,10 +127,10 @@ export default function AdminPropertiesPage() {
 
   // live refresh on moderation events
   useEffect(() => {
-    // Use relative paths in browser to leverage Next.js rewrites (avoids CORS issues)
-    const url = typeof window === 'undefined' 
-      ? (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "")
-      : undefined;
+    // Use direct API URL for Socket.IO in browser to ensure WebSocket works in dev
+    const url = typeof window !== 'undefined'
+      ? (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000")
+      : (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "");
     const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
     const s: Socket = io(url, { auth: token ? { token } : undefined });
     const refresh = () => load();
@@ -200,88 +201,111 @@ export default function AdminPropertiesPage() {
 
 
   return (
-    <div className="p-6 space-y-4">
-      <div className="flex flex-col items-center text-center">
-        <div className="rounded-full bg-blue-50 p-3 inline-flex items-center justify-center">
-          <Home className="h-6 w-6 text-blue-600" />
-        </div>
-        <h1 className="mt-3 text-2xl font-semibold">Property Moderation</h1>
-        <div className="mt-2 w-full max-w-3xl flex flex-col sm:flex-row items-center sm:items-center justify-between gap-3">
-          <p className="text-sm text-gray-500 m-0">Review and manage property listings</p>
-          <div className="flex items-center">
-            <div className="relative w-full max-w-md">
-              <div className="border rounded-full bg-white shadow-sm">
-                <input
-                  className="w-full px-4 py-2 pr-4 rounded-full outline-none text-sm"
-                  placeholder="Search title/region/district"
-                  value={q}
-                  onChange={(e) => setQ(e.target.value)}
-                  aria-label="Search properties"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleSearch();
-                    }
-                    if (e.key === 'Escape') {
-                      setSuggestions([]);
-                    }
-                  }}
-                />
-              </div>
-              {/* Suggestions dropdown: shows up to 5 recommended matches while typing */}
-              {suggestions.length > 0 && (
-                <div className="absolute left-0 right-0 mt-2 z-10">
-                  <div className="bg-white border rounded shadow max-h-56 overflow-auto">
-                    {suggestions.map((s) => (
-                      <button
-                        key={s.id}
-                        type="button"
-                        onClick={() => {
-                          setQ(s.title);
-                          setSuggestions([]);
-                          // run full search for the chosen suggestion
-                          handleSearch().catch(() => {});
-                        }}
-                        className="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm"
-                      >
-                        <div className="font-medium">{s.title}</div>
-                        <div className="text-xs opacity-60">{s.regionName ?? '-'}{s.district ? `, ${s.district}` : ''}</div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+        <div className="flex flex-col items-center text-center mb-4">
+          <FileText className="h-8 w-8 text-gray-400 mb-3" />
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900">
+            Property Moderation
+          </h1>
+          <p className="mt-1 text-sm text-gray-600">
+            Review and manage property listings
+          </p>
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-          <div className="w-full max-w-3xl mx-auto flex justify-center">
-          {/* Status buttons (Drafts, Pending, Approved, Need Fixes, Rejected, Suspended) */}
+      {/* Search and Filters */}
+      <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
+        <div className="flex flex-col gap-4 max-w-4xl mx-auto">
+          {/* Search Box */}
+          <div className="relative w-full">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <input
+              className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] outline-none text-sm box-border transition-all duration-200"
+              placeholder="Search title/region/district"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              aria-label="Search properties"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleSearch();
+                }
+                if (e.key === 'Escape') {
+                  setSuggestions([]);
+                }
+              }}
+            />
+            {q && (
+              <button
+                type="button"
+                onClick={() => { setQ(''); setSuggestions([]); }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
+                aria-label="Clear search"
+                title="Clear search"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+            {/* Suggestions dropdown */}
+            {suggestions.length > 0 && (
+              <div className="absolute left-0 right-0 mt-2 z-10">
+                <div className="bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 overflow-auto">
+                  {suggestions.map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => {
+                        setQ(s.title);
+                        setSuggestions([]);
+                        handleSearch().catch(() => {});
+                      }}
+                      className="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm transition-colors"
+                    >
+                      <div className="font-medium">{s.title}</div>
+                      <div className="text-xs text-gray-500">{s.regionName ?? '-'}{s.district ? `, ${s.district}` : ''}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Status Filters */}
           <div className="relative w-full">
             <div
               ref={scrollRef}
               className="flex gap-2 justify-center overflow-x-auto px-2 -mx-2 sm:flex-wrap snap-x snap-mandatory"
             >
-            {[
-              { label: "Drafts", value: "DRAFT" },
-              { label: "Pending", value: "PENDING" },
-              { label: "Approved", value: "APPROVED" },
-              { label: "Need Fixes", value: "NEEDS_FIXES" },
-              { label: "Rejected", value: "REJECTED" },
-              { label: "Suspended", value: "SUSPENDED" },
-            ].map((s) => (
-              <button
-                key={s.value}
-                type="button"
-                onClick={() => setStatus(s.value)}
-                className={"px-3 py-1 rounded-full border text-sm flex items-center gap-2 flex-shrink-0 " + (status === s.value ? 'bg-gray-100 border-gray-300' : 'bg-white hover:bg-gray-50')}
-              >
-                <span>{s.label}</span>
-                <span className={"text-xs px-2 py-0.5 rounded-full " + badgeClasses(s.value)}>{counts[s.value] ?? 0}</span>
-              </button>
-            ))}
+              {[
+                { label: "Drafts", value: "DRAFT" },
+                { label: "Pending", value: "PENDING" },
+                { label: "Approved", value: "APPROVED" },
+                { label: "Need Fixes", value: "NEEDS_FIXES" },
+                { label: "Rejected", value: "REJECTED" },
+                { label: "Suspended", value: "SUSPENDED" },
+              ].map((s) => (
+                <button
+                  key={s.value}
+                  type="button"
+                  onClick={() => setStatus(s.value)}
+                  className={`px-3 py-1.5 rounded-full border text-sm flex items-center gap-2 flex-shrink-0 transition-all duration-200 ${
+                    status === s.value 
+                      ? 'bg-[#02665e] text-white border-[#02665e] shadow-sm' 
+                      : 'bg-white hover:bg-gray-50 border-gray-300 text-gray-700'
+                  }`}
+                >
+                  <span>{s.label}</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${
+                    status === s.value 
+                      ? 'bg-white/20 text-white' 
+                      : badgeClasses(s.value)
+                  }`}>
+                    {counts[s.value] ?? 0}
+                  </span>
+                </button>
+              ))}
             </div>
 
             {/* left/right gradient hints (small screens only) */}
@@ -294,7 +318,7 @@ export default function AdminPropertiesPage() {
                 <button
                   type="button"
                   onClick={() => scrollRef.current?.scrollBy({ left: -200, behavior: "smooth" })}
-                  className="sm:hidden absolute left-1 top-1/2 -translate-y-1/2 bg-white border rounded-full p-1 shadow opacity-40 hover:opacity-100 focus:opacity-100 transition-opacity"
+                  className="sm:hidden absolute left-1 top-1/2 -translate-y-1/2 bg-white border border-gray-300 rounded-full p-1.5 shadow-sm opacity-60 hover:opacity-100 focus:opacity-100 transition-opacity hover:border-[#02665e]"
                   aria-label="Scroll left"
                 >
                   <ChevronLeft className="h-4 w-4" />
@@ -302,7 +326,7 @@ export default function AdminPropertiesPage() {
                 <button
                   type="button"
                   onClick={() => scrollRef.current?.scrollBy({ left: 200, behavior: "smooth" })}
-                  className="sm:hidden absolute right-1 top-1/2 -translate-y-1/2 bg-white border rounded-full p-1 shadow opacity-40 hover:opacity-100 focus:opacity-100 transition-opacity"
+                  className="sm:hidden absolute right-1 top-1/2 -translate-y-1/2 bg-white border border-gray-300 rounded-full p-1.5 shadow-sm opacity-60 hover:opacity-100 focus:opacity-100 transition-opacity hover:border-[#02665e]"
                   aria-label="Scroll right"
                 >
                   <ChevronRight className="h-4 w-4" />
@@ -311,97 +335,114 @@ export default function AdminPropertiesPage() {
             )}
           </div>
         </div>
-
-        <div className="flex items-center gap-2 justify-end">
-          {/* search moved to header area */}
-        </div>
       </div>
 
-      {loading && <div>Loading…</div>}
-      {!loading && itemsCount === 0 && <div className="text-sm opacity-70">No properties.</div>}
-
-      {itemsCount > 0 && (
-        <div className="grid gap-3">
-          {/* header row */}
-          <div className="grid grid-cols-[32px_72px_1fr_220px_120px_160px_90px] gap-2 px-2 text-xs uppercase opacity-70">
-            <div>
-              <input
-                type="checkbox"
-                checked={allChecked}
-                onChange={toggleAll}
-                aria-label="Select all properties"
-                title="Select all properties"
-              />
-            </div>
-            <div>Photos</div>
-            <div>Property</div>
-            <div>Owner</div>
-            <div>Status</div>
-            <div>Location</div>
-            <div>Open</div>
+      {/* Table */}
+      <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+        {loading ? (
+          <div className="px-6 py-12 text-center">
+            <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-gray-300 border-t-[#02665e]"></div>
+            <p className="mt-3 text-sm text-gray-500">Loading properties...</p>
           </div>
-
-          {(items || []).map((p) => (
-            <div
-              key={p.id}
-              className="grid grid-cols-[32px_72px_1fr_220px_120px_160px_90px] gap-2 items-center bg-white border rounded-xl p-2"
-            >
+        ) : itemsCount === 0 ? (
+          <div className="px-6 py-12 text-center">
+            <FileText className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+            <p className="text-sm text-gray-500">No properties found.</p>
+            <p className="text-xs text-gray-400 mt-1">Try adjusting your filters or search query.</p>
+          </div>
+        ) : (
+          <div className="grid gap-3 p-4">
+            {/* header row */}
+            <div className="grid grid-cols-[32px_72px_1fr_220px_120px_160px_90px] gap-2 px-2 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200">
               <div>
                 <input
                   type="checkbox"
-                  checked={sel.includes(p.id)}
-                  onChange={() => toggleOne(p.id)}
-                  title={`Select property #${p.id}`}
-                  aria-label={`Select property #${p.id}`}
+                  checked={allChecked}
+                  onChange={toggleAll}
+                  aria-label="Select all properties"
+                  title="Select all properties"
+                  className="cursor-pointer"
                 />
               </div>
-
-              {/* photos */}
-              <div className="flex -space-x-2 items-center">
-                {(p.photos ?? []).slice(0, 3).map((u, i) => (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img key={i} src={u} alt="" className="w-10 h-10 rounded border object-cover" />
-                ))}
-                {(p.photos?.length ?? 0) > 3 && (
-                  <span className="text-[11px] px-1.5 py-0.5 rounded border bg-white">+{(p.photos!.length - 3)}</span>
-                )}
-              </div>
-
-              {/* property */}
-              <div className="min-w-[260px]">
-                <div className="font-medium">
-                  {p.title} <span className="text-xs opacity-60">• {p.type}</span>
-                </div>
-                {p.updatedAt && (
-                  <div className="text-[11px] opacity-60">Updated: {new Date(p.updatedAt).toLocaleString()}</div>
-                )}
-              </div>
-
-              {/* owner */}
-              <div className="text-xs">
-                {p.owner?.name ?? "-"}
-                <div className="opacity-60">{p.owner?.phone ?? p.owner?.email ?? ""}</div>
-              </div>
-
-              {/* status */}
-              <div className="text-xs px-2 py-1 rounded border w-max">{p.status}</div>
-
-              {/* location */}
-              <div className="text-xs">
-                {p.regionName ?? "-"}
-                {p.district ? `, ${p.district}` : ""}
-              </div>
-
-              {/* open */}
-              <div>
-                <a className="px-3 py-1 rounded bg-emerald-600 text-white" href={`/admin/properties/${p.id}`}>
-                  Open
-                </a>
-              </div>
+              <div>Photos</div>
+              <div>Property</div>
+              <div>Owner</div>
+              <div>Status</div>
+              <div>Location</div>
+              <div>Actions</div>
             </div>
-          ))}
-        </div>
-      )}
+
+            {(items || []).map((p) => (
+              <div
+                key={p.id}
+                className="grid grid-cols-[32px_72px_1fr_220px_120px_160px_90px] gap-2 items-center bg-white border border-gray-200 rounded-lg p-3 hover:shadow-md transition-all duration-200"
+              >
+                <div>
+                  <input
+                    type="checkbox"
+                    checked={sel.includes(p.id)}
+                    onChange={() => toggleOne(p.id)}
+                    title={`Select property #${p.id}`}
+                    aria-label={`Select property #${p.id}`}
+                    className="cursor-pointer"
+                  />
+                </div>
+
+                {/* photos */}
+                <div className="flex -space-x-2 items-center">
+                  {(p.photos ?? []).slice(0, 3).map((u, i) => (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img key={i} src={u} alt="" className="w-10 h-10 rounded border border-gray-200 object-cover shadow-sm" />
+                  ))}
+                  {(p.photos?.length ?? 0) > 3 && (
+                    <span className="text-[11px] px-1.5 py-0.5 rounded-full border border-gray-200 bg-white shadow-sm text-gray-600">+{(p.photos!.length - 3)}</span>
+                  )}
+                </div>
+
+                {/* property */}
+                <div className="min-w-[260px]">
+                  <div className="font-medium text-gray-900">
+                    {p.title} <span className="text-xs text-gray-500 font-normal">• {p.type}</span>
+                  </div>
+                  {p.updatedAt && (
+                    <div className="text-[11px] text-gray-500 mt-0.5">Updated: {new Date(p.updatedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</div>
+                  )}
+                </div>
+
+                {/* owner */}
+                <div className="text-sm text-gray-900">
+                  {p.owner?.name ?? "-"}
+                  <div className="text-xs text-gray-500 mt-0.5">{p.owner?.phone ?? p.owner?.email ?? ""}</div>
+                </div>
+
+                {/* status */}
+                <div>
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${badgeClasses(p.status)}`}>
+                    {p.status}
+                  </span>
+                </div>
+
+                {/* location */}
+                <div className="text-sm text-gray-700">
+                  {p.regionName ?? "-"}
+                  {p.district ? <span className="text-xs text-gray-500">, {p.district}</span> : ""}
+                </div>
+
+                {/* open */}
+                <div>
+                  <a 
+                    href={`/admin/properties/${p.id}`}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-sm text-[#02665e] border border-[#02665e] rounded-lg hover:bg-[#02665e] hover:text-white transition-all duration-200"
+                  >
+                    <Eye className="h-4 w-4" />
+                    <span className="hidden sm:inline">View</span>
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

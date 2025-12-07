@@ -1,11 +1,11 @@
 "use client";
 // AdminPageHeader removed in favor of a centered, compact header for this page
 import { Settings } from "lucide-react";
-import * as ipaddr from 'ipaddr.js';
 import axios from "axios";
 import { useCallback, useEffect, useState } from "react";
 
-const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL });
+// Use relative base URL so Next.js dev rewrites proxy to API (avoids CORS)
+const api = axios.create({ baseURL: "" });
 
 export default function SystemSettingsPage(){
   interface SystemSettings {
@@ -45,71 +45,17 @@ export default function SystemSettingsPage(){
   // Local-only fields (feature flags / templates) kept in local state; backend integration can be added later
   const [featureFlags, setFeatureFlags] = useState<string>('{}');
   const [notificationTemplates, setNotificationTemplates] = useState<string>('{}');
-  const [gatewayProvider, setGatewayProvider] = useState<string>('');
-  const [gatewayApiKey, setGatewayApiKey] = useState<string>('');
   const [invoiceTemplate, setInvoiceTemplate] = useState<string>('');
   const [payoutCron, setPayoutCron] = useState<string>('');
   const [invoicePreviewHtml, setInvoicePreviewHtml] = useState<string>('');
   const [bonusOwnerId, setBonusOwnerId] = useState<string>('');
   const [bonusPercentInput, setBonusPercentInput] = useState<number>(0);
   const [bonusPreview, setBonusPreview] = useState<any>(null);
-  const [quickIps, setQuickIps] = useState<string>('');
-  const [quickSaving, setQuickSaving] = useState<boolean>(false);
-  const [quickErrors, setQuickErrors] = useState<string[]>([]);
   // support contact (editable by admin)
   const [supportEmail, setSupportEmail] = useState<string>('');
   const [supportPhone, setSupportPhone] = useState<string>('');
 
-  // parse comma/newline separated entries into trimmed tokens
-  const parseIps = (text: string) => {
-    return text
-      .split(/[,\n]/)
-      .map(s => s.trim())
-      .filter(Boolean);
-  };
-
-  const isValidIpOrCidr = (s: string) => {
-    try{
-      if (s.includes('/')){
-        const [addr, mask] = s.split('/');
-        if (!addr || !mask) return false;
-        const parsed = ipaddr.parse(addr);
-        // will throw if invalid
-        const m = Number(mask);
-        if (parsed.kind() === 'ipv4') return Number.isInteger(m) && m >= 0 && m <= 32;
-        if (parsed.kind() === 'ipv6') return Number.isInteger(m) && m >= 0 && m <= 128;
-        return false;
-      } else {
-        ipaddr.parse(s);
-        return true;
-      }
-    }catch(e){ return false; }
-  };
-
   const [toast, setToast] = useState<string | null>(null);
-
-  const handleQuickSave = async () => {
-    const entries = parseIps(quickIps);
-    if (entries.length === 0) return alert('Enter IPs first');
-    const invalid = entries.filter(e => !isValidIpOrCidr(e));
-    setQuickErrors(invalid);
-    if (invalid.length > 0) {
-      alert('Some entries are not valid IPs/CIDRs. Please fix them.');
-      return;
-    }
-
-    try{
-      setQuickSaving(true);
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-      const res = await fetch((process.env.NEXT_PUBLIC_API_URL || '') + '/admin/allowlist', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) },
-        body: JSON.stringify({ ips: entries })
-      });
-      if(res.ok){ setToast('Allowlist updated'); setQuickIps(''); setQuickErrors([]); setTimeout(()=>setToast(null), 3000); } else { const t = await res.text(); console.error(t); alert('Failed to update allowlist'); }
-    }catch(err){ console.error(err); alert('Failed to update allowlist'); }
-    finally{ setQuickSaving(false); }
-  };
 
   const load = useCallback(async ()=>{
     const t = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -129,8 +75,6 @@ export default function SystemSettingsPage(){
     if (!s) return;
     setFeatureFlags(JSON.stringify(s.featureFlags ?? {}, null, 2));
     setNotificationTemplates(JSON.stringify(s.notificationTemplates ?? {}, null, 2));
-    setGatewayProvider('');
-    setGatewayApiKey('');
     setInvoiceTemplate(s.invoiceTemplate ?? '');
     setPayoutCron(s.payoutCron ?? '');
     setSupportEmail(s.supportEmail ?? '');
@@ -164,19 +108,6 @@ export default function SystemSettingsPage(){
       console.error(err);
       alert('Failed to save system settings');
     }
-  };
-
-  const saveGatewaySettings = async () => {
-    // Payment gateway keys should be stored securely on server; placeholder action for now
-    alert('Saving gateway settings is not implemented on the backend yet. Please provide a secure endpoint.');
-  };
-
-  const testGatewayConnection = async () => {
-    // Placeholder: show a fake result or call a dedicated endpoint when available
-    setTimeout(()=>{
-      const ok = gatewayProvider && gatewayApiKey;
-      document.getElementById('gatewayTestResult')!.textContent = ok ? 'Connection OK (simulated)' : 'Missing provider or API key';
-    }, 300);
   };
 
   const saveFlagsAndTemplates = async () => {
@@ -236,69 +167,83 @@ export default function SystemSettingsPage(){
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex flex-col items-center text-center">
-        <div className="rounded-full bg-blue-50 p-3 inline-flex items-center justify-center">
-            <Settings className="h-6 w-6 text-blue-600" />
-          </div>
-        <h1 className="mt-3 text-2xl font-semibold">System Settings</h1>
-        <p className="text-sm text-gray-500">Edit global platform settings</p>
-        {loading && <div className="mt-2 text-sm text-gray-500">Loading...</div>}
-        {toast && (
-          <div className="fixed top-4 right-4 z-50">
-            <div className="bg-green-600 text-white px-4 py-2 rounded shadow">{toast}</div>
-          </div>
-        )}
+    <div className="space-y-6">
+      <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+        <div className="flex flex-col items-center text-center mb-4">
+          <Settings className="h-8 w-8 text-gray-400 mb-3" />
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900">
+            System Settings
+          </h1>
+          <p className="mt-1 text-sm text-gray-600">
+            Edit global platform settings
+          </p>
+          {loading && <div className="mt-2 text-sm text-gray-500">Loading...</div>}
+        </div>
       </div>
 
-  <div className="bg-white rounded-lg shadow-md p-6">
+      {toast && (
+        <div className="fixed top-4 right-4 z-50">
+          <div className="bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg">{toast}</div>
+        </div>
+      )}
+
+      <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
         {/* main settings card content */}
 
         <div className="space-y-6">
           {/* Payment Settings */}
-          <div className="border rounded-lg p-6">
+          <div className="border border-gray-200 rounded-lg p-6 shadow-sm">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Payment Settings</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label htmlFor="commissionPercent" className="block text-sm font-medium text-gray-700 mb-2">Commission Rate (%)</label>
-                <input id="commissionPercent" type="number" placeholder="Commission rate (%)" value={s?.commissionPercent ?? 0} className="w-full px-3 py-2 border border-gray-300 rounded-lg" onChange={e=>setS((prev: any)=>({...(prev||{}), commissionPercent: Number(e.target.value)}))} />
+                <input id="commissionPercent" type="number" placeholder="Commission rate (%)" value={s?.commissionPercent ?? 0} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] outline-none" onChange={e=>setS((prev: any)=>({...(prev||{}), commissionPercent: Number(e.target.value)}))} />
               </div>
               <div>
                 <label htmlFor="currency" className="block text-sm font-medium text-gray-700 mb-2">Currency</label>
-                <select id="currency" className="w-full px-3 py-2 border border-gray-300 rounded-lg" value={s?.currency||'TZS'} onChange={e=>setS((prev: any)=>({...(prev||{}), currency: e.target.value}))}>
+                <select id="currency" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] outline-none" value={s?.currency||'TZS'} onChange={e=>setS((prev: any)=>({...(prev||{}), currency: e.target.value}))}>
                   <option value="USD">USD - US Dollar</option>
                   <option value="TZS">TZS - Tanzanian Shilling</option>
                   <option value="EUR">EUR - Euro</option>
                 </select>
               </div>
-
-              <div className="md:col-span-2 mt-4 border-t pt-4">
-                <h4 className="text-md font-semibold mb-2">Payment Gateway</h4>
-                <label htmlFor="gatewayProvider" className="text-sm text-gray-600">Provider</label>
-                <input id="gatewayProvider" className="w-full mt-1 px-3 py-2 border rounded" placeholder="stripe|paypal" value={gatewayProvider} onChange={e=>setGatewayProvider(e.target.value)} />
-                <label htmlFor="gatewayApiKey" className="text-sm text-gray-600 mt-2">API Key</label>
-                <input id="gatewayApiKey" className="w-full mt-1 px-3 py-2 border rounded" placeholder="sk_test_..." value={gatewayApiKey} onChange={e=>setGatewayApiKey(e.target.value)} />
-                <div className="mt-3 flex gap-2">
-                  <button onClick={testGatewayConnection} className="px-3 py-2 bg-indigo-600 text-white rounded">Test Connection</button>
-                  <button onClick={saveGatewaySettings} className="px-3 py-2 bg-green-600 text-white rounded">Save Gateway</button>
-                </div>
-                <div id="gatewayTestResult" className="mt-3 text-sm text-gray-700"></div>
-              </div>
             </div>
           </div>
 
           {/* Notification Settings */}
-          <div className="border rounded-lg p-6">
+          <div className="border border-gray-200 rounded-lg p-6 shadow-sm">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Notification Settings</h3>
-            <div className="space-y-3">
-              <label className="flex items-center">
-                <input type="checkbox" checked={Boolean(s.emailEnabled)} className="mr-2" onChange={e=>setS({...s, emailEnabled: e.target.checked})} />
-                <span className="text-sm text-gray-700">Email notifications for new invoices</span>
-              </label>
-              <label className="flex items-center">
-                <input type="checkbox" checked={Boolean(s.smsEnabled)} className="mr-2" onChange={e=>setS({...s, smsEnabled: e.target.checked})} />
-                <span className="text-sm text-gray-700">SMS alerts for urgent matters</span>
-              </label>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                <div className="flex flex-col">
+                  <span className="text-sm font-medium text-gray-900">Email notifications for new invoices</span>
+                  <span className="text-xs text-gray-500 mt-1">Enable email notifications when new invoices are created</span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={Boolean(s.emailEnabled)} 
+                    className="sr-only peer" 
+                    onChange={e=>setS({...s, emailEnabled: e.target.checked})} 
+                  />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[#02665e] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#02665e]"></div>
+                </label>
+              </div>
+              <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                <div className="flex flex-col">
+                  <span className="text-sm font-medium text-gray-900">SMS alerts for urgent matters</span>
+                  <span className="text-xs text-gray-500 mt-1">Enable SMS notifications for urgent system alerts</span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={Boolean(s.smsEnabled)} 
+                    className="sr-only peer" 
+                    onChange={e=>setS({...s, smsEnabled: e.target.checked})} 
+                  />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[#02665e] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#02665e]"></div>
+                </label>
+              </div>
               <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
                   <label className="text-sm text-gray-600">Support email</label>
@@ -309,10 +254,20 @@ export default function SystemSettingsPage(){
                   <input className="w-full mt-1 px-3 py-2 border rounded" value={supportPhone} onChange={e=>setSupportPhone(e.target.value)} placeholder="+255 736 766 726" />
                 </div>
               </div>
-              <label className="flex items-center">
-                <input type="checkbox" className="mr-2" defaultChecked={false} />
-                <span className="text-sm text-gray-700">Weekly summary reports</span>
-              </label>
+              <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                <div className="flex flex-col">
+                  <span className="text-sm font-medium text-gray-900">Weekly summary reports</span>
+                  <span className="text-xs text-gray-500 mt-1">Receive weekly email summaries of platform activity</span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    defaultChecked={false}
+                    className="sr-only peer" 
+                  />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[#02665e] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#02665e]"></div>
+                </label>
+              </div>
 
               <div className="mt-4 border-t pt-4">
                 <h4 className="text-md font-semibold mb-2">Feature Flags & Notification Templates</h4>
@@ -328,13 +283,35 @@ export default function SystemSettingsPage(){
           </div>
 
           {/* Security & Sessions & Tax & Invoicing etc. */}
-          <div className="border rounded-lg p-6">
+          <div className="border border-gray-200 rounded-lg p-6 shadow-sm">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Security & Sessions</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <label className="flex items-center gap-3"><input id="admin2fa" type="checkbox" checked={Boolean(s?.requireAdmin2FA)} onChange={e=>setS(prev=>({...(prev||{}), requireAdmin2FA: e.target.checked}))} /> <span className="text-sm text-gray-700">Require 2FA for admin users</span></label>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                <div className="flex flex-col">
+                  <span className="text-sm font-medium text-gray-900">Require 2FA for admin users</span>
+                  <span className="text-xs text-gray-500 mt-1">Enforce two-factor authentication for all admin accounts</span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input 
+                    id="admin2fa"
+                    type="checkbox" 
+                    checked={Boolean(s?.requireAdmin2FA)} 
+                    className="sr-only peer" 
+                    onChange={e=>setS(prev=>({...(prev||{}), requireAdmin2FA: e.target.checked}))} 
+                  />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[#02665e] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#02665e]"></div>
+                </label>
+              </div>
               <div>
-                <label htmlFor="sessionTtl" className="text-sm text-gray-600 mt-2">Session TTL (minutes)</label>
-                <input id="sessionTtl" type="number" min={5} className="w-32 mt-1 px-3 py-2 border rounded" value={s?.sessionIdleMinutes ?? 60} onChange={e=>setS(prev=>({...(prev||{}), sessionIdleMinutes: Number(e.target.value)}))} />
+                <label htmlFor="sessionTtl" className="block text-sm font-medium text-gray-700 mb-2">Session TTL (minutes)</label>
+                <input 
+                  id="sessionTtl" 
+                  type="number" 
+                  min={5} 
+                  className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] outline-none" 
+                  value={s?.sessionIdleMinutes ?? 60} 
+                  onChange={e=>setS(prev=>({...(prev||{}), sessionIdleMinutes: Number(e.target.value)}))} 
+                />
               </div>
             </div>
 
@@ -354,43 +331,9 @@ export default function SystemSettingsPage(){
             </div>
           </div>
 
-          {/* IP Allowlist (informational; managed under Management/Allowlist) */}
-          <div className="border rounded-lg p-6">
-            <h4 className="text-md font-semibold mb-2">IP Allowlist</h4>
-            <p className="text-sm text-gray-700">Manage IP addresses or CIDR ranges (comma or newline separated) that are allowed to access admin tools. Leave blank to disable the allowlist.</p>
-            <p className="text-sm text-gray-500 mt-2 font-medium">Allowed IPs / CIDRs</p>
-
-            <textarea
-              id="ipAllowlistQuick"
-              rows={6}
-              className="mt-2 block w-full rounded-md border-gray-200 shadow-sm"
-              placeholder="e.g. 203.0.113.5, 198.51.100.0/24"
-              value={quickIps}
-              onChange={e=>setQuickIps(e.target.value)}
-            />
-
-            <div className="mt-3 flex gap-2">
-              <button onClick={handleQuickSave} className={`px-3 py-2 rounded ${quickSaving ? 'bg-gray-300 text-gray-700' : 'bg-green-600 text-white hover:bg-green-700'}`}>
-                {quickSaving ? 'Saving...' : 'Save to Allowlist'}
-              </button>
-
-              <button onClick={()=>{ navigator.clipboard?.writeText(quickIps || '') }} className="px-3 py-2 bg-gray-200 rounded">Copy</button>
-
-              <a href="/admin/management/allowlist" className="px-3 py-2 bg-indigo-600 text-white rounded">Open Allowlist</a>
-            </div>
-
-            {quickErrors.length > 0 && (
-              <div className="mt-2 text-sm text-red-600">
-                <div>Invalid entries:</div>
-                <ul className="list-disc ml-5">
-                  {quickErrors.map((e, i) => <li key={i}>{e}</li>)}
-                </ul>
-              </div>
-            )}
-          </div>
 
           {/* Scheduling */}
-          <div className="border rounded-lg p-6">
+          <div className="border border-gray-200 rounded-lg p-6 shadow-sm">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Scheduling</h3>
             <label htmlFor="payoutCron" className="text-sm text-gray-600">Cron Expression</label>
             <input id="payoutCron" className="w-full mt-1 px-3 py-2 border rounded" placeholder="e.g. 0 2 1 * *" value={payoutCron} onChange={e=>setPayoutCron(e.target.value)} />
@@ -404,7 +347,7 @@ export default function SystemSettingsPage(){
           </div>
 
           {/* Bonus Settings (UI only) */}
-          <div className="border rounded-lg p-6">
+          <div className="border border-gray-200 rounded-lg p-6 shadow-sm">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Bonus Settings</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
               <div>
@@ -427,26 +370,53 @@ export default function SystemSettingsPage(){
                   <button onClick={()=>alert('Not implemented')} className="text-sm px-3 py-1 bg-gray-100 rounded">Refresh</button>
                 </div>
               </div>
-              <div id="recentBonusesList" className="mt-3 space-y-2 text-sm text-gray-700">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+              <div id="recentBonusesList" className="mt-3 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label htmlFor="bonusOwnerId" className="text-sm text-gray-600">Owner ID</label>
-                    <input id="bonusOwnerId" className="w-full mt-1 px-3 py-2 border rounded" value={bonusOwnerId} onChange={e=>setBonusOwnerId(e.target.value)} />
+                    <label htmlFor="bonusOwnerId" className="block text-sm font-medium text-gray-700 mb-2">Owner ID</label>
+                    <input 
+                      id="bonusOwnerId" 
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] outline-none" 
+                      value={bonusOwnerId} 
+                      onChange={e=>setBonusOwnerId(e.target.value)} 
+                      placeholder="Enter owner ID"
+                    />
                   </div>
                   <div>
-                    <label htmlFor="bonusPercentInput" className="text-sm text-gray-600">Bonus (%)</label>
-                    <input id="bonusPercentInput" type="number" className="w-full mt-1 px-3 py-2 border rounded" value={bonusPercentInput} onChange={e=>setBonusPercentInput(Number(e.target.value))} />
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={previewBonus} className="px-3 py-2 bg-gray-200 rounded">Preview</button>
-                    <button onClick={grantBonus} className="px-3 py-2 bg-green-600 text-white rounded">Grant</button>
-                  </div>
-                  <div>
-                    <div className="text-sm text-gray-500">Preview shows computed bonus based on owner paid invoices in the last 30 days.</div>
+                    <label htmlFor="bonusPercentInput" className="block text-sm font-medium text-gray-700 mb-2">Bonus (%)</label>
+                    <input 
+                      id="bonusPercentInput" 
+                      type="number" 
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] outline-none" 
+                      value={bonusPercentInput} 
+                      onChange={e=>setBonusPercentInput(Number(e.target.value))} 
+                      placeholder="Enter bonus percentage"
+                    />
                   </div>
                 </div>
+                <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={previewBonus} 
+                      className="inline-flex items-center gap-2 px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:border-gray-400 hover:bg-gray-50 transition-all duration-200 font-medium text-sm cursor-pointer"
+                    >
+                      Preview
+                    </button>
+                    <button 
+                      onClick={grantBonus} 
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-[#02665e] text-white rounded-lg hover:bg-[#015b54] transition-all duration-200 font-medium text-sm cursor-pointer"
+                    >
+                      Grant
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500 sm:ml-2">
+                    Preview shows computed bonus based on owner paid invoices in the last 30 days.
+                  </p>
+                </div>
                 {bonusPreview && (
-                  <pre className="mt-3 bg-gray-50 p-3 rounded text-sm overflow-auto">{JSON.stringify(bonusPreview, null, 2)}</pre>
+                  <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                    <pre className="text-sm text-gray-700 overflow-auto whitespace-pre-wrap">{JSON.stringify(bonusPreview, null, 2)}</pre>
+                  </div>
                 )}
               </div>
             </div>
@@ -455,7 +425,18 @@ export default function SystemSettingsPage(){
         </div>
 
         <div className="mt-6">
-          <button onClick={saveSystemSettings} disabled={loading} className={`px-6 py-2 rounded-lg ${loading ? 'bg-gray-300 text-gray-700' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>Save Settings</button>
+          <button 
+            onClick={saveSystemSettings} 
+            disabled={loading} 
+            className={`inline-flex items-center gap-2 px-6 py-2 rounded-lg font-medium transition-all duration-200 ${
+              loading 
+                ? 'bg-gray-400 text-gray-700 cursor-not-allowed' 
+                : 'bg-[#02665e] text-white hover:bg-[#015b54] cursor-pointer'
+            }`}
+          >
+            <Settings className="h-4 w-4" />
+            Save Settings
+          </button>
         </div>
       </div>
     </div>

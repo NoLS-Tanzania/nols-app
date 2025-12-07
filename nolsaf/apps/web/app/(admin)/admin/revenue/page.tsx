@@ -164,10 +164,10 @@ export default function AdminRevenue() {
 
   // 🔌 Socket.io: refresh when an invoice is marked PAID by webhook/admin action
   useEffect(() => {
-    // Use relative paths in browser to leverage Next.js rewrites (avoids CORS issues)
-    const url = typeof window === 'undefined' 
-      ? (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "")
-      : undefined;
+    // Use direct API URL for Socket.IO in browser to ensure WebSocket works in dev
+    const url = typeof window !== 'undefined'
+      ? (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000")
+      : (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "");
     const token =
       typeof window !== "undefined" ? localStorage.getItem("token") : null;
 

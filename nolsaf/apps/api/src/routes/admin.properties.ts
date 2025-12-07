@@ -114,6 +114,23 @@ router.get("/", (async (req: AuthedRequest, res) => {
   res.json(response);
 }) as RequestHandler);
 
+/** GET /admin/properties/counts - return counts by status for quick badges */
+router.get("/counts", (async (_req: AuthedRequest, res) => {
+  try {
+    const statuses = ["DRAFT","PENDING","APPROVED","NEEDS_FIXES","REJECTED","SUSPENDED"] as const;
+    const results: Record<string, number> = {};
+    await Promise.all(statuses.map(async (s) => {
+      const c = await prisma.property.count({ where: { status: s as any } });
+      results[s] = c;
+    }));
+    res.json(results);
+  } catch (err: any) {
+    console.error("/admin/properties/counts failed:", err?.message || err);
+    // Fail-open with zeros to avoid breaking UI
+    res.json({ DRAFT:0, PENDING:0, APPROVED:0, NEEDS_FIXES:0, REJECTED:0, SUSPENDED:0 });
+  }
+}) as RequestHandler);
+
 /** GET /admin/properties/:id */
 router.get(
   "/:id",

@@ -7,7 +7,7 @@ import { Plus, ChevronDown, Minus, ChevronLeft, ChevronRight, Home, Building, Bu
 import axios from "axios";
 import { REGIONS, REGION_BY_ID } from "@/lib/tzRegions";
 
-const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL });
+const api = axios.create();
 function authify(){ const t = typeof window!=="undefined" ? localStorage.getItem("token") : null; if(t) api.defaults.headers.common["Authorization"]=`Bearer ${t}`; }
 
 // Safe icon renderer: renders the icon component if available, otherwise renders a small placeholder span

@@ -8,6 +8,76 @@ import { Prisma } from "@prisma/client";
 export const router = Router();
 router.use(requireAuth as unknown as RequestHandler, requireRole("ADMIN") as unknown as RequestHandler);
 
+/** GET /admin/owners/counts */
+router.get("/counts", async (req, res) => {
+  try {
+    // Get total count first (this should always work)
+    const total = await prisma.user.count({ where: { role: "OWNER" } }).catch(() => 0);
+    
+    // Try to get other counts, but handle cases where fields might not exist
+    let active = 0;
+    let suspended = 0;
+    let pendingKYC = 0;
+    let approvedKYC = 0;
+    let rejectedKYC = 0;
+
+    try {
+      // Try suspendedAt field - if it doesn't exist, all are "active"
+      const [activeCount, suspendedCount] = await Promise.all([
+        prisma.user.count({ where: { role: "OWNER", suspendedAt: null } }).catch(() => total),
+        prisma.user.count({ where: { role: "OWNER", suspendedAt: { not: null } } }).catch(() => 0),
+      ]);
+      active = activeCount;
+      suspended = suspendedCount;
+    } catch (e) {
+      // If suspendedAt field doesn't exist, assume all are active
+      active = total;
+      suspended = 0;
+    }
+
+    try {
+      // Try kycStatus field - if it doesn't exist, all are 0
+      const [pending, approved, rejected] = await Promise.all([
+        prisma.user.count({ where: { role: "OWNER", kycStatus: "PENDING_KYC" } }).catch(() => 0),
+        prisma.user.count({ where: { role: "OWNER", kycStatus: "APPROVED_KYC" } }).catch(() => 0),
+        prisma.user.count({ where: { role: "OWNER", kycStatus: "REJECTED_KYC" } }).catch(() => 0),
+      ]);
+      pendingKYC = pending;
+      approvedKYC = approved;
+      rejectedKYC = rejected;
+    } catch (e) {
+      // If kycStatus field doesn't exist, all are 0
+      pendingKYC = 0;
+      approvedKYC = 0;
+      rejectedKYC = 0;
+    }
+
+    // Return flat structure matching frontend expectations
+    return res.status(200).json({
+      "": total,
+      "ACTIVE": active,
+      "SUSPENDED": suspended,
+      "PENDING_KYC": pendingKYC,
+      "APPROVED_KYC": approvedKYC,
+      "REJECTED_KYC": rejectedKYC,
+    });
+  } catch (err: any) {
+    console.error('Unhandled error in GET /admin/owners/counts:', err);
+    // Always return JSON, never HTML
+    return res.status(500).json({ 
+      error: 'Internal server error',
+      message: err?.message || 'Unknown error',
+      // Return default counts on error so frontend doesn't break
+      "": 0,
+      "ACTIVE": 0,
+      "SUSPENDED": 0,
+      "PENDING_KYC": 0,
+      "APPROVED_KYC": 0,
+      "REJECTED_KYC": 0,
+    });
+  }
+});
+
 /** GET /admin/owners?q=&status=&page=&pageSize= */
 router.get("/", async (req, res) => {
   try {
