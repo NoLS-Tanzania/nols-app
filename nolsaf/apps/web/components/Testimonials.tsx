@@ -100,15 +100,16 @@ export default function Testimonials() {
           <p className="mt-1 text-sm text-slate-600">Real stories from travellers, drivers and <strong className="text-[#039e92] font-semibold">hosts</strong> who use NoLSAF.</p>
 
           <div
-            className="mt-4 flex gap-3 flex-wrap justify-center"
+            className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4 justify-items-center"
             onMouseEnter={() => stop()}
             onMouseLeave={() => start()}
             onFocus={() => stop()}
             onBlur={() => start()}
+            style={{ minHeight: '200px' }}
           >
             {TESTIMONIALS.map((t, i) =>
               isVisibleNew(i) ? (
-                <figure key={i} aria-label="Testimonial" className="p-3 border rounded-lg transition-opacity duration-500 ease-in-out hover:shadow-lg focus:outline-none cursor-pointer flex flex-col justify-between max-w-[360px]">
+                <figure key={i} aria-label="Testimonial" className="w-full lg:max-w-none p-3 border rounded-lg transition-all duration-250 ease-out hover:shadow-lg hover:-translate-y-0.5 focus:outline-none cursor-pointer flex flex-col justify-between" style={{ backfaceVisibility: 'hidden', transform: 'translateZ(0)', WebkitFontSmoothing: 'antialiased' }}>
                   <h4 className="text-sm italic mb-2 text-[#02665e]">{t.title}</h4>
                   <blockquote className="text-sm text-slate-700 whitespace-normal break-words"><span dangerouslySetInnerHTML={{ __html: t.text }} /></blockquote>
                   <figcaption className="mt-3 flex items-center gap-3">

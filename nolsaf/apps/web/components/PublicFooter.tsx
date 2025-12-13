@@ -95,17 +95,9 @@ function IconLinkButton({
 
 export default function PublicFooter({ withRail = true }: { withRail?: boolean }) {
   const year = new Date().getFullYear();
-  const innerRailClass = withRail ? 'md:ml-56' : '';
-  const [contactSubject, setContactSubject] = useState<string>('');
-  const [contactBody, setContactBody] = useState<string>('');
   const [newsletterEmail, setNewsletterEmail] = useState<string>('');
   const [newsletterLoading, setNewsletterLoading] = useState(false);
   const [newsletterStatus, setNewsletterStatus] = useState<null | { ok: boolean; message: string }>(null);
-
-  const openMailClient = () => {
-    const mailto = `mailto:info@nolsaf.org?subject=${encodeURIComponent(contactSubject)}&body=${encodeURIComponent(contactBody)}`;
-    window.location.href = mailto;
-  };
 
   const subscribeNewsletter = async () => {
     setNewsletterStatus(null);
@@ -144,19 +136,18 @@ export default function PublicFooter({ withRail = true }: { withRail?: boolean }
       <SectionSeparator />
       <h2 className="sr-only">Footer</h2>
 
-      <div className={`max-w-6xl mx-auto px-4 py-6 ${innerRailClass}`}>
-        {/* Reorganized footer: 3 columns for better balance */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+      <div className="public-container py-6">
+        {/* Reorganized footer: 3 balanced columns */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-10 items-start">
           {/* Column 1: Brand + short intro + Newsletter */}
-          <div>
+          <div className="space-y-4 md:space-y-5">
             <div className="flex items-start gap-3">
-              <Image src="/assets/NoLS2025-04.png" alt="NoLSAF" width={100} height={28} className="object-contain" />
+              <Image src="/assets/NoLS2025-04.png" alt="NoLSAF" width={110} height={30} className="object-contain" />
             </div>
-            <p className="text-sm text-gray-600 mt-3">NoLSAF connects travellers, owners and drivers with safe, local stays and services across Tanzania.</p>
+            <p className="text-sm text-gray-600 leading-relaxed max-w-sm">NoLSAF connects travellers, owners and drivers with safe, local stays and services across East Africa.</p>
 
-            {/* Newsletter signup moved here for prominence */}
-            <div className="mt-4">
-              <label htmlFor="newsletter-email-2" className="text-sm font-medium text-gray-800 block mb-2">Newsletter</label>
+            <div className="space-y-2 max-w-sm">
+              <label htmlFor="newsletter-email-2" className="text-sm font-semibold text-gray-800 block">Newsletter</label>
               <div className="flex gap-2">
                 <input
                   id="newsletter-email-2"
@@ -164,11 +155,11 @@ export default function PublicFooter({ withRail = true }: { withRail?: boolean }
                   value={newsletterEmail}
                   onChange={(e) => setNewsletterEmail(e.target.value)}
                   placeholder="Your email"
-                  className="flex-1 border rounded-xl px-3 py-2 text-sm"
+                  className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e]"
                   aria-label="Newsletter email"
                 />
                 <button
-                  className={`px-3 py-2 rounded-xl border bg-[#02665e] text-white text-sm ${newsletterLoading ? 'opacity-70 cursor-wait' : 'hover:bg-[#02564f]'}`}
+                  className={`px-3 py-2 rounded-xl border border-transparent bg-[#02665e] text-white text-sm font-semibold shadow-sm transition ${newsletterLoading ? 'opacity-70 cursor-wait' : 'hover:bg-[#02564f]'}`}
                   onClick={subscribeNewsletter}
                   disabled={newsletterLoading}
                 >
@@ -176,58 +167,27 @@ export default function PublicFooter({ withRail = true }: { withRail?: boolean }
                 </button>
               </div>
               {newsletterStatus && (
-                <div className={`mt-2 text-sm ${newsletterStatus.ok ? 'text-emerald-600' : 'text-rose-600'}`}>{newsletterStatus.message}</div>
+                <div className={`text-sm ${newsletterStatus.ok ? 'text-emerald-600' : 'text-rose-600'}`}>{newsletterStatus.message}</div>
               )}
             </div>
           </div>
 
-          {/* Column 2: About + Resources (two stacked lists) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Column 2: About */}
+          <div className="space-y-3 md:space-y-4">
+            <h3 className="text-lg font-semibold text-gray-800 mb-1">About NoLSAF</h3>
+            <ul className="space-y-2 text-sm list-none pl-0">
+              <li><Link href="/about/who" className="text-gray-700 hover:text-[#02665e] no-underline">Who are we</Link></li>
+              <li><Link href="/about/what" className="text-gray-700 hover:text-[#02665e] no-underline">What we do</Link></li>
+              <li><Link href="/about/why" className="text-gray-700 hover:text-[#02665e] no-underline">Why us</Link></li>
+              <li><Link href="/about/story" className="text-gray-700 hover:text-[#02665e] no-underline">Our Best Story</Link></li>
+            </ul>
+          </div>
+
+          {/* Column 3: Resources */}
+          <div className="space-y-3 md:space-y-4">
             <div>
-              <h3 className="text-lg font-semibold text-gray-800 mb-3">About NoLSAF</h3>
-              <ul className="space-y-2 text-sm">
-                <li><Link href="/about/who" className="text-gray-700 hover:text-[#02665e] no-underline">Who are we</Link></li>
-                <li><Link href="/about/what" className="text-gray-700 hover:text-[#02665e] no-underline">What we do</Link></li>
-                <li><Link href="/about/why" className="text-gray-700 hover:text-[#02665e] no-underline">Why us</Link></li>
-                <li><Link href="/about/story" className="text-gray-700 hover:text-[#02665e] no-underline">Our Best Story</Link></li>
-              </ul>
-
-              {/* Move Contact here under About */}
-              <div className="mt-4">
-                <h4 className="text-sm font-medium text-gray-800 mb-2">Contact</h4>
-                <label htmlFor="contact-subject-about" className="sr-only">Subject</label>
-                <input
-                  id="contact-subject-about"
-                  type="text"
-                  value={contactSubject}
-                  onChange={(e) => setContactSubject(e.target.value)}
-                  onFocus={() => { if (!contactSubject) setContactSubject('Inquiry from website'); }}
-                  placeholder="Subject (optional)"
-                  className="w-full mb-2 border rounded px-2 py-1 text-sm"
-                />
-
-                <label htmlFor="contact-body-about" className="sr-only">Message</label>
-                <textarea
-                  id="contact-body-about"
-                  value={contactBody}
-                  onChange={(e) => setContactBody(e.target.value)}
-                  placeholder="Write your message here..."
-                  className="w-full h-24 border rounded px-2 py-1 text-sm resize-y"
-                />
-
-                <div className="mt-2">
-                  <button
-                    className="px-3 py-2 rounded-xl border bg-[#02665e] text-white text-sm"
-                    onClick={(e) => { e.preventDefault(); openMailClient(); }}
-                  >
-                    Email NoLSAF
-                  </button>
-                </div>
-              </div>
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-gray-800 mb-3">Resources</h3>
-              <ul className="space-y-2 text-sm">
+              <h3 className="text-lg font-semibold text-gray-800 mb-1">Resources</h3>
+              <ul className="space-y-2 text-sm list-none pl-0">
                 <li><Link href="/version" className="text-gray-700 hover:text-[#02665e] no-underline">v0.1.0</Link></li>
                 <li><Link href="/careers" className="text-gray-700 hover:text-[#02665e] no-underline">Careers</Link></li>
                 <li><Link href="/blog" className="text-gray-700 hover:text-[#02665e] no-underline">Blog</Link></li>
@@ -235,28 +195,27 @@ export default function PublicFooter({ withRail = true }: { withRail?: boolean }
               </ul>
             </div>
           </div>
+        </div>
 
-          {/* Column 3: Contact card + Legal */}
-          <div>
-            <h3 className="text-lg font-semibold text-gray-800 mb-3">Legal</h3>
-            <ul className="space-y-2 text-sm">
-              <li>
-                <button onClick={() => window.dispatchEvent(new CustomEvent('open-legal', { detail: { type: 'terms' } }))} className="text-[#02665e] font-semibold no-underline hover:no-underline">Terms of Service</button>
-              </li>
-              <li>
-                <button onClick={() => window.dispatchEvent(new CustomEvent('open-legal', { detail: { type: 'privacy' } }))} className="text-[#02665e] font-semibold no-underline hover:no-underline">Privacy Policy</button>
-              </li>
-              <li>
-                <button onClick={() => window.dispatchEvent(new CustomEvent('open-legal', { detail: { type: 'security' } }))} className="text-[#02665e] font-semibold no-underline hover:no-underline">Security Policy</button>
-              </li>
-            </ul>
+        {/* Full-width legal bar */}
+        <div className="w-full mt-8 pt-6 border-t border-slate-200">
+          <div className="flex flex-wrap items-center justify-center gap-4 text-sm text-slate-700 font-semibold">
+            <Link href="/terms" className="text-slate-700 hover:text-[#02665e] hover:underline no-underline">
+              Terms of Service
+            </Link>
+            <Link href="/privacy" className="text-slate-700 hover:text-[#02665e] hover:underline no-underline">
+              Privacy Policy
+            </Link>
+            <Link href="/security" className="text-slate-700 hover:text-[#02665e] hover:underline no-underline">
+              Security Policy
+            </Link>
           </div>
         </div>
         {/* separator above the centered logo */}
-        <SectionSeparator className="my-4" />
+        <SectionSeparator className="my-6" />
 
         {/* Centered logo and copyright (centered within footer) */}
-        <div className="w-full flex flex-col items-center gap-1 mt-1">
+        <div className="w-full flex flex-col items-center gap-2 mt-2">
           <Image src="/assets/NoLS2025-04.png" alt="NoLSAF" width={120} height={30} className="object-contain" />
           <div className="text-sm text-[#02665e] font-semibold">© {year} NoLSAF — All rights reserved</div>
         </div>

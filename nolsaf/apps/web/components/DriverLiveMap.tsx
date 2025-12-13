@@ -27,7 +27,7 @@ export default function DriverLiveMap({ liveOnly }: { liveOnly?: boolean } = {})
     }
   };
 
-  const createMarkerEl = useCallback((available: boolean | undefined) => {
+  const createMarkerEl = useCallback((available?: boolean) => {
     const el = document.createElement('div');
     el.className = 'nols-marker rounded-full';
     // size and color
@@ -50,7 +50,7 @@ export default function DriverLiveMap({ liveOnly }: { liveOnly?: boolean } = {})
     let mounted = true;
     (async () => {
       try {
-        const r = await api.get("/driver/map");
+        const r = await api.get("/api/driver/map");
         if (!mounted) return;
         setData(r.data);
       } catch (e: any) {
@@ -335,3 +335,4 @@ export default function DriverLiveMap({ liveOnly }: { liveOnly?: boolean } = {})
     </div>
   );
 }
+

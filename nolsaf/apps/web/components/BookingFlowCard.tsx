@@ -9,13 +9,17 @@ import VoiceRecorder from './VoiceRecorder';
 export default function BookingFlowCard() {
   const [busy, setBusy] = useState(false);
   const [bookingCode, setBookingCode] = useState<string | null>(null);
-  const [activeStep, setActiveStep] = useState<number | null>(5);
+  const [activeStep, setActiveStep] = useState<number>(1);
   const [imgError, setImgError] = useState(false);
   // voice recorder handled by reusable component
   const containerRef = useRef<HTMLElement | null>(null);
   const timerRef = useRef<number | undefined>(undefined);
   const isInteractingRef = useRef(false);
   const [isInteracting, setIsInteracting] = useState(false);
+  // Animation state for transitions
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [prevStep, setPrevStep] = useState<number>(1);
+  const highlightRef = useRef<HTMLSpanElement>(null);
 
   const ROTATE_MS = 5000; // auto-rotate interval when idle
   const STEPS_COUNT = 5;
@@ -24,6 +28,37 @@ export default function BookingFlowCard() {
     // reset image error when changing steps so we try to load new image
     setImgError(false);
   }, [activeStep]);
+
+  // Handle step transitions with animation
+  const handleStepChange = useCallback((newStep: number) => {
+    if (newStep === activeStep || isTransitioning) return;
+    
+    setIsTransitioning(true);
+    setPrevStep(activeStep);
+    
+    // Update highlight bar position using CSS variables for animation
+    if (highlightRef.current) {
+      const stepWidth = 100 / STEPS_COUNT;
+      const prevOffset = ((activeStep - 1) * stepWidth);
+      const currentOffset = ((newStep - 1) * stepWidth);
+      
+      highlightRef.current.style.setProperty('--prev-offset', `${prevOffset}%`);
+      highlightRef.current.style.setProperty('--current-offset', `${currentOffset}%`);
+      highlightRef.current.classList.add('step-highlight-animate');
+    }
+    
+    // Trigger exit animation, then enter
+    setTimeout(() => {
+      setActiveStep(newStep);
+      // Remove animation class after animation completes to allow re-triggering
+      setTimeout(() => {
+        setIsTransitioning(false);
+        if (highlightRef.current) {
+          highlightRef.current.classList.remove('step-highlight-animate');
+        }
+      }, 600);
+    }, 200);
+  }, [activeStep, isTransitioning]);
 
   const clearIdleTimer = useCallback(() => {
     if (timerRef.current) {
@@ -34,17 +69,16 @@ export default function BookingFlowCard() {
 
   const scheduleIdleAdvance = useCallback((ms = ROTATE_MS) => {
     clearIdleTimer();
-    // don't schedule while user is interacting
-    if (isInteractingRef.current) return;
+    // don't schedule while user is interacting or transitioning
+    if (isInteractingRef.current || isTransitioning) return;
     timerRef.current = window.setTimeout(() => {
-      setActiveStep((prev) => {
-        if (prev === null) return 1;
-        return (prev % STEPS_COUNT) + 1;
-      });
+      const current = activeStep ?? 1;
+      const next = (current % STEPS_COUNT) + 1;
+      handleStepChange(next);
       // schedule next advance after another idle interval
       scheduleIdleAdvance(ROTATE_MS);
     }, ms) as unknown as number;
-  }, [clearIdleTimer]);
+  }, [clearIdleTimer, activeStep, isTransitioning, handleStepChange]);
 
   useEffect(() => {
     // start the idle rotation schedule on mount
@@ -157,6 +191,17 @@ export default function BookingFlowCard() {
 
   // progress step derived from booking state (kept for future use)
 
+  const steps = [
+    { label: 'Book', color: 'text-amber-500' },
+    { label: 'Pay', color: 'text-emerald-600' },
+    { label: 'Receive code', color: 'text-emerald-600' },
+    { label: 'Driver confirm', color: 'text-teal-500' },
+    { label: 'Arrive', color: 'text-blue-600' },
+  ];
+
+  const stepHighlightWidth = 100 / steps.length;
+  const highlightOffset = ((activeStep ?? 1) - 1) * stepHighlightWidth;
+
   return (
     <>
       <section className="mt-2">
@@ -167,29 +212,34 @@ export default function BookingFlowCard() {
 
           {/* Compact horizontal stepper: Book → Pay → Receive code → Driver confirm → Arrive */}
           <nav aria-label="Booking steps" className="mt-4">
-            <ol role="list" className="flex items-center justify-between gap-3 text-xs">
-                  {(
-                // define step descriptors including optional decorative image
-                  // define step descriptors (no image paths here — images render only when the step is active)
-                  [
-                    { label: 'Book', color: 'text-amber-500' },
-                    { label: 'Pay', color: 'text-emerald-600' },
-                    { label: 'Receive code', color: 'text-emerald-600' },
-                    { label: 'Driver confirm', color: 'text-teal-500' },
-                    { label: 'Arrive', color: 'text-blue-600' },
-                  ]
-              ).map((s, i) => {
+            <ol
+              role="list"
+              className="relative flex items-center justify-between gap-3 text-xs rounded-full px-4 py-2 shadow-sm transition-all overflow-hidden border border-slate-200 bg-gradient-to-r from-amber-50 via-emerald-50 to-blue-50"
+            >
+              <span
+                ref={highlightRef}
+                aria-hidden
+                className="absolute inset-y-1 rounded-full bg-white/80 shadow-sm"
+                style={{
+                  width: `${stepHighlightWidth}%`,
+                  transform: `translateX(${highlightOffset}%)`,
+                }}
+              />
+              {steps.map((s, i) => {
                 const stepNum = i + 1;
                 const iconClass = s.color;
 
                 return (
-                  <li key={s.label} className="flex-1 flex items-center gap-2">
+                  <li key={s.label} className="flex-1 flex items-center gap-2 relative z-10">
                     <button
                       type="button"
-                      onClick={() => setActiveStep(stepNum)}
+                      onClick={() => handleStepChange(stepNum)}
                       aria-pressed={activeStep === stepNum}
                       aria-label={s.label}
-                      className="flex items-center gap-2 p-0 bg-transparent border-0 rounded focus:outline-none focus:ring-2 focus:ring-blue-200 transform transition-transform duration-300 ease-in-out hover:scale-105"
+                      disabled={isTransitioning}
+                      className={`flex items-center gap-2 p-0 bg-transparent border-0 rounded focus:outline-none focus:ring-2 focus:ring-blue-200 transform transition-all duration-300 ease-out ${
+                        activeStep === stepNum ? 'scale-105' : 'hover:scale-105'
+                      } ${isTransitioning ? 'opacity-50 cursor-wait' : ''}`}
                     >
                       <svg className={`w-6 h-6 ${iconClass} transition-colors`} viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
                         {i === 0 && (
@@ -233,10 +283,10 @@ export default function BookingFlowCard() {
           <div className="mt-6">
             {activeStep ? (
               <div className="w-full flex justify-center">
-                <div className="max-w-2xl w-full">
+                <div className="max-w-3xl w-full">
                   <article
-                    onClick={() => setActiveStep(null)}
-                    className="relative rounded-lg border bg-gray-50 p-6 w-full transition-all duration-500 ease-in-out shadow-md"
+                    key={`step-${activeStep}`}
+                    className={`relative rounded-lg border bg-gradient-to-b from-white via-slate-50 to-slate-100 p-6 w-full min-h-[460px] shadow-md step-enter`}
                   >
                     {/* (Removed centered title/subtitle overlay per request) */}
                     {/* decorative image for the active step (optional) */}
@@ -256,13 +306,16 @@ export default function BookingFlowCard() {
                       console.debug('BookingFlowCard image debug', { activeStep, stepIndex, stepData, imgError });
                       if (!stepData || imgError) return null;
                       return (
-                        <div className="mb-1 w-full rounded-md flex justify-center">
-                          <div className="relative w-full max-w-md overflow-hidden rounded-md h-48 md:h-64 lg:h-72">
+                        <div className="mb-1 w-full rounded-xl flex justify-center">
+                          <div
+                            className="relative w-full max-w-full sm:max-w-xs md:max-w-sm lg:max-w-md xl:max-w-md overflow-hidden rounded-xl aspect-[4/3] sm:aspect-square md:aspect-square lg:aspect-square xl:aspect-square will-change-transform mx-auto"
+                            key={`img-${activeStep}-${stepData}`}
+                          >
                             <Image
                               src={stepData}
                               alt={`Step ${activeStep} illustration`}
                               fill
-                              className={`object-cover transition-transform duration-500 ease-in-out ${isInteracting ? 'scale-95 opacity-80' : 'scale-100 opacity-100'}`}
+                              className={`object-cover rounded-xl step-enter ${isInteracting ? 'scale-95 opacity-80' : 'scale-100 opacity-100'}`}
                               onError={() => setImgError(true)}
                             />
 
@@ -299,27 +352,27 @@ export default function BookingFlowCard() {
                                 </div>
 
                                 <div className="absolute left-1/2 top-[72%] -translate-x-1/2 -translate-y-1/2 z-20 pointer-events-none">
-                                  <div className="flex items-center gap-3 rounded-md p-2 pointer-events-auto">
-                                    <span className="w-10 h-10 flex items-center justify-center bg-white rounded p-1 shadow-sm transform transition duration-200 ease-in-out hover:scale-110 hover:shadow-md" aria-label="Airtel">
-                                      <Image src="/assets/airtel_money.png" alt="Airtel" width={32} height={32} className="object-contain" />
+                                  <div className="flex items-center gap-2 sm:gap-2.5 md:gap-3 lg:gap-2.5 xl:gap-2 rounded-md p-1.5 sm:p-2 pointer-events-auto">
+                                    <span className="w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 lg:w-9 lg:h-9 xl:w-8 xl:h-8 flex items-center justify-center bg-white rounded p-0.5 sm:p-1 shadow-sm transform transition duration-200 ease-in-out hover:scale-110 hover:shadow-md aspect-square" aria-label="Airtel">
+                                      <Image src="/assets/airtel_money.png" alt="Airtel" width={24} height={24} className="w-full h-full object-contain" />
                                     </span>
-                                    <span className="w-10 h-10 flex items-center justify-center bg-white rounded p-1 shadow-sm transform transition duration-200 ease-in-out hover:scale-110 hover:shadow-md" aria-label="Halopesa">
-                                      <Image src="/assets/halopesa.png" alt="Halopesa" width={32} height={32} className="object-contain" />
+                                    <span className="w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 lg:w-9 lg:h-9 xl:w-8 xl:h-8 flex items-center justify-center bg-white rounded p-0.5 sm:p-1 shadow-sm transform transition duration-200 ease-in-out hover:scale-110 hover:shadow-md aspect-square" aria-label="Halopesa">
+                                      <Image src="/assets/halopesa.png" alt="Halopesa" width={24} height={24} className="w-full h-full object-contain" />
                                     </span>
-                                    <span className="w-10 h-10 flex items-center justify-center bg-white rounded p-1 shadow-sm transform transition duration-200 ease-in-out hover:scale-110 hover:shadow-md" aria-label="Mixx by Yas">
-                                      <Image src="/assets/mix%20by%20yas.png" alt="Mixx by Yas" width={32} height={32} className="object-contain" />
+                                    <span className="w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 lg:w-9 lg:h-9 xl:w-8 xl:h-8 flex items-center justify-center bg-white rounded p-0.5 sm:p-1 shadow-sm transform transition duration-200 ease-in-out hover:scale-110 hover:shadow-md aspect-square" aria-label="Mixx by Yas">
+                                      <Image src="/assets/mix%20by%20yas.png" alt="Mixx by Yas" width={24} height={24} className="w-full h-full object-contain" />
                                     </span>
-                                    <span className="w-10 h-10 flex items-center justify-center bg-white rounded p-1 shadow-sm transform transition duration-200 ease-in-out hover:scale-110 hover:shadow-md" aria-label="T-Kash">
-                                      <Image src="/assets/T_kash_logo.png" alt="T-Kash" width={32} height={32} className="object-contain" />
+                                    <span className="w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 lg:w-9 lg:h-9 xl:w-8 xl:h-8 flex items-center justify-center bg-white rounded p-0.5 sm:p-1 shadow-sm transform transition duration-200 ease-in-out hover:scale-110 hover:shadow-md aspect-square" aria-label="T-Kash">
+                                      <Image src="/assets/T_kash_logo.png" alt="T-Kash" width={24} height={24} className="w-full h-full object-contain" />
                                     </span>
-                                    <span className="w-10 h-10 flex items-center justify-center bg-white rounded p-1 shadow-sm transform transition duration-200 ease-in-out hover:scale-110 hover:shadow-md" aria-label="MTN">
-                                      <Image src="/assets/MTN%20LOGO.png" alt="MTN" width={32} height={32} className="object-contain" />
+                                    <span className="w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 lg:w-9 lg:h-9 xl:w-8 xl:h-8 flex items-center justify-center bg-white rounded p-0.5 sm:p-1 shadow-sm transform transition duration-200 ease-in-out hover:scale-110 hover:shadow-md aspect-square" aria-label="MTN">
+                                      <Image src="/assets/MTN%20LOGO.png" alt="MTN" width={24} height={24} className="w-full h-full object-contain" />
                                     </span>
-                                    <span className="w-10 h-10 flex items-center justify-center bg-white rounded p-1 shadow-sm transform transition duration-200 ease-in-out hover:scale-110 hover:shadow-md" aria-label="M-Pesa">
-                                      <Image src="/assets/M-pesa.png" alt="M-Pesa" width={32} height={32} className="object-contain" />
+                                    <span className="w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 lg:w-9 lg:h-9 xl:w-8 xl:h-8 flex items-center justify-center bg-white rounded p-0.5 sm:p-1 shadow-sm transform transition duration-200 ease-in-out hover:scale-110 hover:shadow-md aspect-square" aria-label="M-Pesa">
+                                      <Image src="/assets/M-pesa.png" alt="M-Pesa" width={24} height={24} className="w-full h-full object-contain" />
                                     </span>
-                                    <span className="w-10 h-10 flex items-center justify-center bg-white rounded p-1 shadow-sm transform transition duration-200 ease-in-out hover:scale-110 hover:shadow-md" aria-label="Visa">
-                                      <Image src="/assets/visa_card.png" alt="Visa" width={32} height={32} className="object-contain" />
+                                    <span className="w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 lg:w-9 lg:h-9 xl:w-8 xl:h-8 flex items-center justify-center bg-white rounded p-0.5 sm:p-1 shadow-sm transform transition duration-200 ease-in-out hover:scale-110 hover:shadow-md aspect-square" aria-label="Visa">
+                                      <Image src="/assets/visa_card.png" alt="Visa" width={24} height={24} className="w-full h-full object-contain" />
                                     </span>
                                   </div>
                                 </div>

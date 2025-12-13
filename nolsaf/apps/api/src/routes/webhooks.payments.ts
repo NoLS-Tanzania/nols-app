@@ -1,20 +1,17 @@
 // apps/api/src/routes/webhooks.payments.ts
 import { Router } from "express";
 import { prisma } from "@nolsaf/prisma";
-import { hmacSha256Hex, safeEq } from "../lib/signature.js";
 import { makeQR } from "../lib/qr.js";
 import bodyParser from "body-parser"; // for raw parser here
 import { invalidateOwnerReports } from "../lib/cache.js";
+import { sendSms } from "../lib/sms.js";
+import crypto from "crypto";
+import { generateBookingCodeForBooking, sendBookingCodeNotification } from "../lib/bookingCodeService.js";
 
 const router = Router();
 
 // raw parser just for webhooks
 router.use(bodyParser.raw({ type: "*/*", limit: "1mb" }));
-
-/** helper: number close enough */
-function near(a: number, b: number, eps = 1) {
-  return Math.abs(a - b) <= eps; // TZS is integer typically; allow ±1 TZS drift
-}
 
 // naive sequences for receipt/invoice numbers if needed
 function nextReceiptNumber(prefix = "RCPT", seq: number) {
@@ -22,7 +19,7 @@ function nextReceiptNumber(prefix = "RCPT", seq: number) {
   return `${prefix}/${y}/${String(seq).padStart(5, "0")}`;
 }
 
-async function markInvoicePaid(invId: number, method: string, paymentRef: string) {
+async function markInvoicePaid(invId: number, method: string, paymentRef: string, phoneNumber?: string, provider?: string) {
   const inv = await prisma.invoice.findUnique({
     where: { id: invId },
     include: { booking: { include: { property: true } } },
@@ -41,8 +38,13 @@ async function markInvoicePaid(invId: number, method: string, paymentRef: string
     bookingId: inv.bookingId,
     issuedAt: inv.issuedAt,
     ref: paymentRef,
+    phoneNumber: phoneNumber || null,
+    provider: provider || method,
   });
   const { png, payload: qrPayload } = await makeQR(payload);
+
+  // Determine payment method from provider or method parameter
+  const finalPaymentMethod = provider || method || inv.paymentMethod || "AZAMPAY";
 
   const updated = await prisma.invoice.update({
     where: { id: invId },
@@ -50,7 +52,7 @@ async function markInvoicePaid(invId: number, method: string, paymentRef: string
       status: "PAID",
       paidBy: null, // webhook/system
       paidAt: new Date(),
-      paymentMethod: method,
+      paymentMethod: finalPaymentMethod,
       paymentRef: paymentRef || inv.paymentRef,
       receiptNumber,
       receiptQrPayload: qrPayload,
@@ -86,135 +88,206 @@ async function markInvoicePaid(invId: number, method: string, paymentRef: string
     console.warn('create payout (webhook) skipped or failed:', String(err));
   }
   // real-time toast for admins
-  (router as any).stack?.[0]?.handle?.app?.get?.("io")?.emit?.("admin:invoice:paid", {
-    invoiceId: updated.id,
-    ownerId: updated.ownerId,
-  });
+  // Access io from global context (set in index.ts)
+  const io = (global as any).io;
+  if (io) {
+    io.emit("admin:invoice:paid", {
+      invoiceId: updated.id,
+      ownerId: updated.ownerId,
+    });
+    
+    // Emit referral credit update if booking belongs to a referred user
+    try {
+      const booking = updated.booking;
+      if (booking?.userId) {
+        // Check if this user was referred by a driver
+        const user = await prisma.user.findUnique({
+          where: { id: booking.userId },
+          select: { referredBy: true, role: true }
+        });
+        
+        if (user?.referredBy) {
+          // Only emit for CUSTOMER/USER roles (they earn credits)
+          if (user.role === 'CUSTOMER' || user.role === 'USER') {
+            const bookingAmount = Number(updated.total || updated.netPayable || 0);
+            const creditsEarned = Math.round(bookingAmount * 0.0035); // 0.35% of booking
+            
+            // Emit credit notification to referring driver
+            io.to(`driver:${user.referredBy}`).emit('referral-notification', {
+              type: 'credits_earned',
+              message: `You earned ${creditsEarned.toLocaleString()} TZS credits from a booking!`,
+              referralData: {
+                userId: booking.userId,
+                bookingId: booking.id,
+                amount: bookingAmount,
+                creditsEarned,
+              }
+            });
+            
+            // Emit referral update to refresh dashboard
+            io.to(`driver:${user.referredBy}`).emit('referral-update', {
+              driverId: user.referredBy,
+              timestamp: Date.now(),
+              action: 'credits_earned',
+            });
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to emit referral credit update', e);
+    }
+  }
 
   return updated;
 }
 
-/** Common processor */
-async function processEvent(opts: {
-  provider: "MPESA" | "TIGOPESA";
-  rawBody: string;
-  headerSignature: string | undefined;
-  secret: string | undefined;
-}) {
-  const { provider, rawBody, headerSignature, secret } = opts;
-  if (!secret) throw new Error("secret missing");
-  if (!headerSignature) throw new Error("signature missing");
-
-  const computed = hmacSha256Hex(secret, rawBody);
-  if (!safeEq(computed, headerSignature)) throw new Error("bad signature");
-
-  const payload = JSON.parse(rawBody);
-
-  // ——— Map provider payloads to a normalized shape ———
-  // Adjust this to your exact gateway schema.
-  type Norm = {
-    eventId: string;
-    paymentRef?: string;  // your ref/order id you set when initiating
-    invoiceNumber?: string;
-    amount: number;
-    currency?: string;
-    status: "SUCCESS" | "FAILED" | "PENDING";
-    payer?: string;
-  };
-
-  let norm: Norm;
-  if (provider === "MPESA") {
-    norm = {
-      eventId: payload?.TransactionID ?? payload?.txId ?? payload?.id,
-      paymentRef: payload?.AccountReference ?? payload?.accountRef ?? payload?.orderId,
-      amount: Number(payload?.Amount ?? payload?.amount ?? 0),
-      currency: payload?.Currency ?? "TZS",
-      status: /success/i.test(payload?.ResultCode || payload?.status) ? "SUCCESS"
-            : /pending/i.test(payload?.status) ? "PENDING" : "FAILED",
-      payer: payload?.MSISDN ?? payload?.payer,
-    };
-  } else {
-    // Tigo Pesa example
-    norm = {
-      eventId: payload?.transactionId ?? payload?.id,
-      paymentRef: payload?.referenceId ?? payload?.orderId,
-      amount: Number(payload?.amount ?? 0),
-      currency: payload?.currency ?? "TZS",
-      status: /success|completed/i.test(payload?.status) ? "SUCCESS"
-            : /pending/i.test(payload?.status) ? "PENDING" : "FAILED",
-      payer: payload?.msisdn,
-    };
-  }
-
-  if (!norm.eventId) throw new Error("missing eventId");
-
-  // idempotency: if we’ve seen this event, return early
-  const existing = await prisma.paymentEvent.findUnique({ where: { eventId: norm.eventId } });
-  if (existing) return existing;
-
-  // try to locate the invoice by paymentRef or invoiceNumber
-  let invoice = null as any;
-  if (norm.paymentRef) {
-    invoice = await prisma.invoice.findFirst({ where: { paymentRef: norm.paymentRef } });
-  }
-  if (!invoice && norm.invoiceNumber) {
-    invoice = await prisma.invoice.findFirst({ where: { invoiceNumber: norm.invoiceNumber } });
-  }
-
-  // Record the event first (even if we don't find invoice yet)
-  const recorded = await prisma.paymentEvent.create({
-    data: {
-      provider,
-      eventId: norm.eventId,
-      invoiceId: invoice?.id ?? null,
-      amount: norm.amount,
-      currency: norm.currency ?? "TZS",
-      status: norm.status,
-      payload,
-    },
-  });
-
-  // If SUCCESS, try to mark invoice PAID (amount sanity check)
-  if (invoice && norm.status === "SUCCESS") {
-    const want = Number(invoice.netPayable);
-    if (near(norm.amount, want)) {
-      await markInvoicePaid(invoice.id, provider, norm.paymentRef || norm.invoiceNumber || norm.eventId);
-    }
-  }
-
-  return recorded;
+/** Helper: number close enough */
+function near(a: number, b: number, eps = 1) {
+  return Math.abs(a - b) <= eps; // TZS is integer typically; allow ±1 TZS drift
 }
 
-/** M-Pesa webhook: POST /webhooks/mpesa */
-router.post("/mpesa", async (req: any, res) => {
+/**
+ * POST /webhooks/azampay
+ * AzamPay webhook handler with signature verification
+ */
+router.post("/azampay", async (req: any, res) => {
   try {
-    const sig = req.header("X-Mpesa-Signature") || req.header("x-mpesa-signature");
-    const secret = process.env.MPESA_WEBHOOK_SECRET;
-    const rec = await processEvent({
-      provider: "MPESA",
-      rawBody: req.rawBody?.toString?.("utf8") ?? req.body?.toString?.() ?? "",
-      headerSignature: sig,
-      secret,
-    });
-    res.json({ ok: true, id: rec.id });
-  } catch (e: any) {
-    return res.status(400).json({ ok: false, error: e.message || "bad request" });
-  }
-});
+    const rawBody = req.rawBody?.toString?.("utf8") ?? req.body?.toString?.() ?? JSON.stringify(req.body);
+    const signature = req.header("X-Azampay-Signature") || req.header("x-azampay-signature");
+    const secret = process.env.AZAMPAY_WEBHOOK_SECRET;
 
-/** Tigo Pesa webhook: POST /webhooks/tigopesa */
-router.post("/tigopesa", async (req: any, res) => {
-  try {
-    const sig = req.header("X-Tigo-Signature") || req.header("x-tigo-signature");
-    const secret = process.env.TIGO_WEBHOOK_SECRET;
-    const rec = await processEvent({
-      provider: "TIGOPESA",
-      rawBody: req.rawBody?.toString?.("utf8") ?? req.body?.toString?.() ?? "",
-      headerSignature: sig,
-      secret,
+    if (!secret) {
+      console.warn("AZAMPAY_WEBHOOK_SECRET not configured");
+      return res.status(500).json({ ok: false, error: "Webhook secret not configured" });
+    }
+
+    if (!signature) {
+      return res.status(400).json({ ok: false, error: "Signature missing" });
+    }
+
+    // Verify signature
+    const computed = crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
+    if (computed !== signature) {
+      console.warn("Invalid AzamPay webhook signature");
+      return res.status(401).json({ ok: false, error: "Invalid signature" });
+    }
+
+    const payload = JSON.parse(rawBody);
+
+    // Normalize AzamPay payload
+    const eventId = payload.transactionId || payload.id || payload.externalId;
+    const paymentRef = payload.externalId || payload.referenceId || payload.orderId;
+    const amount = Number(payload.amount || payload.transactionAmount || 0);
+    const status = payload.status || payload.transactionStatus || "UNKNOWN";
+    
+    // Map AzamPay status to our status
+    let normalizedStatus: "SUCCESS" | "FAILED" | "PENDING" = "PENDING";
+    if (/success|completed|paid|approved/i.test(status)) {
+      normalizedStatus = "SUCCESS";
+    } else if (/failed|cancelled|rejected|declined/i.test(status)) {
+      normalizedStatus = "FAILED";
+    }
+
+    if (!eventId) {
+      return res.status(400).json({ ok: false, error: "Missing eventId/transactionId" });
+    }
+
+    // Idempotency: check if we've already processed this event
+    const existing = await prisma.paymentEvent.findFirst({
+      where: {
+        provider: "AZAMPAY",
+        eventId: eventId.toString(),
+      },
     });
-    res.json({ ok: true, id: rec.id });
+
+    if (existing && existing.status === normalizedStatus) {
+      return res.json({ ok: true, id: existing.id, message: "Event already processed" });
+    }
+
+    // Find invoice by paymentRef
+    let invoice = null as any;
+    if (paymentRef) {
+      invoice = await prisma.invoice.findFirst({
+        where: { paymentRef: paymentRef.toString() },
+        include: { booking: { include: { user: true, property: true } } },
+      });
+    }
+
+    // Record the payment event
+    const recorded = await prisma.paymentEvent.create({
+      data: {
+        provider: "AZAMPAY",
+        eventId: eventId.toString(),
+        invoiceId: invoice?.id ?? null,
+        amount: amount,
+        currency: payload.currency || "TZS",
+        status: normalizedStatus,
+        payload: payload,
+      },
+    });
+
+    // If payment is successful, mark invoice as paid
+    if (invoice && normalizedStatus === "SUCCESS") {
+      const want = Number(invoice.netPayable || invoice.total || 0);
+      
+      // Extract phone number and provider from payment event payload or invoice
+      const eventPayload = recorded.payload as any;
+      const phoneNumber = eventPayload?.phoneNumber || eventPayload?.accountNumber || invoice.booking?.user?.phone || null;
+      const provider = eventPayload?.provider || eventPayload?.paymentMethod || invoice.paymentMethod || "AZAMPAY";
+      
+      // Verify amount matches (allow small drift)
+      if (near(amount, want)) {
+        const updatedInvoice = await markInvoicePaid(
+          invoice.id,
+          "AZAMPAY",
+          paymentRef || eventId.toString(),
+          phoneNumber || undefined,
+          provider || undefined
+        );
+
+        // Generate booking code and send notification
+        if (updatedInvoice.booking?.id) {
+          try {
+            // Ensure booking code exists
+            await generateBookingCodeForBooking(updatedInvoice.booking.id);
+            
+            // Send booking code notification via SMS and Email
+            const notificationResult = await sendBookingCodeNotification(
+              updatedInvoice.booking.id,
+              { sendSms: true, sendEmail: true }
+            );
+            
+            if (notificationResult.errors.length > 0) {
+              console.warn("Booking code notification errors:", notificationResult.errors);
+            } else {
+              console.log(`Booking code sent: SMS=${notificationResult.smsSent}, Email=${notificationResult.emailSent}`);
+            }
+          } catch (codeError) {
+            console.error("Failed to generate/send booking code:", codeError);
+            // Don't fail the webhook if code generation fails
+          }
+        }
+
+        // Also send payment confirmation SMS (legacy, can be removed later)
+        try {
+          const userPhone = invoice.booking?.user?.phone;
+          if (userPhone) {
+            const receiptNumber = updatedInvoice.receiptNumber || `RCPT-${invoice.id}`;
+            const smsMessage = `Payment Successful! Your payment of ${amount.toLocaleString()} TZS has been received. Receipt: ${receiptNumber}. Thank you for using NoLSAF!`;
+            await sendSms(userPhone, smsMessage);
+          }
+        } catch (smsErr) {
+          console.warn("Failed to send payment confirmation SMS:", smsErr);
+          // Don't fail the webhook if SMS fails
+        }
+      } else {
+        console.warn(`Amount mismatch: expected ${want}, received ${amount}`);
+      }
+    }
+
+    res.json({ ok: true, id: recorded.id });
   } catch (e: any) {
+    console.error("AzamPay webhook error:", e);
     return res.status(400).json({ ok: false, error: e.message || "bad request" });
   }
 });

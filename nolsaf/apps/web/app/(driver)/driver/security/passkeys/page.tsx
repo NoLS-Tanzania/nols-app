@@ -2,8 +2,7 @@
 
 import React, { useEffect, useState } from "react"
 import Link from "next/link"
-import DriverPageHeader from "@/components/DriverPageHeader"
-import { ChevronLeft, Key, Trash } from 'lucide-react'
+import { ChevronLeft, Key, Trash, Fingerprint } from 'lucide-react'
 
 export default function PasskeysPage() {
   const [loading, setLoading] = useState(false)
@@ -151,65 +150,114 @@ export default function PasskeysPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="mx-auto max-w-3xl text-center -mb-4">
-        <DriverPageHeader title="Passkeys" />
+    <div className="w-full max-w-full space-y-6 overflow-x-hidden">
+      <div className="w-full text-center">
+        <div className="flex flex-col items-center mb-6">
+          <div className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-emerald-50 text-emerald-600">
+            <Fingerprint className="h-6 w-6" aria-hidden />
+          </div>
+          <h1 className="mt-3 text-2xl font-semibold text-gray-900">Passkeys</h1>
+          <p className="mt-2 text-sm text-slate-600 max-w-2xl">Passwordless sign-in with biometrics or security keys.</p>
+        </div>
       </div>
 
-      <section className="mx-auto max-w-3xl bg-white rounded-lg p-6 border">
-        <p className="text-sm text-slate-600 text-center mx-auto max-w-prose -mt-1">Passwordless sign-in with biometrics or security keys.</p>
-
-        <div className="mt-6 space-y-4">
-          <div className="mb-2 text-sm text-slate-600">
-            <strong>How to register a passkey:</strong>
-            <ol className="list-decimal list-inside mt-1 text-xs text-slate-500">
+      <section className="w-full max-w-full bg-white rounded-lg p-6 border-2 border-slate-200 shadow-sm overflow-x-hidden">
+        <div className="space-y-6">
+          {/* Instructions */}
+          <div className="p-4 border-2 border-slate-200 rounded-lg bg-slate-50">
+            <h3 className="text-sm font-semibold text-slate-900 mb-2">How to register a passkey:</h3>
+            <ol className="list-decimal list-inside space-y-1 text-sm text-slate-600">
               <li>Click the Register passkey button</li>
               <li>When the browser prompt appears, choose your security key or biometric option</li>
               <li>Complete the device interaction (PIN / touch / biometric)</li>
               <li>If registration fails, check the server challenge encoding (must be base64url)</li>
             </ol>
           </div>
-          <div className="p-4 border rounded-lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-semibold">Registered passkeys</h3>
-                <p className="text-xs text-slate-500">Manage devices and security keys registered for passwordless sign-in.</p>
-              </div>
+
+          {/* Registered Passkeys Section */}
+          <div className="p-5 border-2 border-slate-200 rounded-lg bg-white hover:border-emerald-300 hover:shadow-md transition-all">
+            <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
-                <button onClick={register} disabled={loading} className={`text-sm inline-flex items-center gap-2 ${loading ? 'text-slate-400 opacity-60 pointer-events-none' : 'text-sky-600'}`}>
-                  <Key className="h-4 w-4" aria-hidden />
-                  <span>{loading ? 'Registering…' : 'Register passkey'}</span>
-                </button>
+                <div className="h-10 w-10 rounded-lg bg-purple-50 flex items-center justify-center">
+                  <Key className="h-5 w-5 text-purple-600" />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-gray-900">Registered passkeys</h3>
+                  <p className="text-sm text-slate-500 mt-0.5">Manage devices and security keys registered for passwordless sign-in.</p>
+                </div>
               </div>
+              <button 
+                onClick={register} 
+                disabled={loading} 
+                className={`inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors border ${
+                  loading 
+                    ? 'text-slate-400 bg-slate-50 border-slate-200 opacity-60 cursor-not-allowed' 
+                    : 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 border-emerald-200 hover:border-emerald-300'
+                }`}
+              >
+                <Key className="h-4 w-4" aria-hidden />
+                <span>{loading ? 'Registering…' : 'Register passkey'}</span>
+              </button>
             </div>
 
             <div className="mt-4 space-y-2">
-              {keys.length === 0 && <div className="text-sm text-slate-500">No passkeys registered.</div>}
-              {keys.map(k => (
-                <div key={k.id} className="flex items-center justify-between p-2 border rounded">
-                  <div>
-                    <div className="text-sm font-medium">{k.name}</div>
-                    <div className="text-xs text-slate-500">{k.createdAt ? new Date(k.createdAt).toLocaleString() : '—'}</div>
+              {keys.length === 0 ? (
+                <div className="py-8 text-center">
+                  <div className="flex flex-col items-center">
+                    <Fingerprint className="h-12 w-12 text-slate-300 mb-3" />
+                    <div className="text-sm font-medium text-slate-600 mb-1">No passkeys registered</div>
+                    <div className="text-xs text-slate-500">Register a passkey to enable passwordless sign-in</div>
                   </div>
-                  <div>
-                    <button onClick={() => remove(k.id)} disabled={loading} className="text-sm text-red-600 inline-flex items-center gap-2">
+                </div>
+              ) : (
+                keys.map(k => (
+                  <div key={k.id} className="flex items-center justify-between p-3 border-2 border-slate-200 rounded-lg bg-white hover:border-slate-300 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className="h-8 w-8 rounded-lg bg-purple-50 flex items-center justify-center">
+                        <Key className="h-4 w-4 text-purple-600" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-semibold text-gray-900">{k.name}</div>
+                        <div className="text-xs text-slate-500 mt-0.5">
+                          {k.createdAt ? new Date(k.createdAt).toLocaleString() : '—'}
+                        </div>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => remove(k.id)} 
+                      disabled={loading} 
+                      className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors border border-red-200 hover:border-red-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
                       <Trash className="h-4 w-4" aria-hidden />
                       <span>Remove</span>
                     </button>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         </div>
 
-        {error && <div className="mt-4 text-sm text-red-600">{error}</div>}
-        {success && <div className="mt-4 text-sm text-green-600">{success}</div>}
+        {/* Error/Success Messages */}
+        {error && (
+          <div className="mt-4 rounded-md bg-red-50 border-2 border-red-200 p-3">
+            <div className="text-sm font-medium text-red-800">{error}</div>
+          </div>
+        )}
+        {success && (
+          <div className="mt-4 rounded-md bg-green-50 border-2 border-green-200 p-3">
+            <div className="text-sm font-medium text-green-800">{success}</div>
+          </div>
+        )}
 
-        <div className="mt-6 flex justify-end">
-          <Link href="/driver/security" className="text-sky-600 inline-flex items-center p-1 rounded hover:text-sky-700 transition-colors focus:outline-none focus:ring-2 focus:ring-sky-300 focus:ring-offset-1" aria-label="Back to Security">
-            <ChevronLeft className="h-4 w-4" aria-hidden />
-            <span className="sr-only">Back to Security</span>
+        <div className="mt-6 flex justify-start pt-4 border-t border-slate-200">
+          <Link 
+            href="/driver/security" 
+            className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-600 hover:text-slate-700 hover:bg-slate-50 rounded-md transition-colors border border-slate-200 hover:border-slate-300 no-underline"
+            aria-label="Back to Security"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            <span>Back to Security</span>
           </Link>
         </div>
       </section>

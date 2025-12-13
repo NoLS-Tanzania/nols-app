@@ -16,6 +16,44 @@ import LatestUpdate from '../../components/LatestUpdate';
 import TrustedBySection from '../../components/TrustedBySection';
 import LayoutFrame from '../../components/LayoutFrame';
 import { DayPicker } from 'react-day-picker';
+import axios from 'axios';
+
+// Component to fetch and display trust partners from API
+function TrustedBySectionWithData() {
+  const [brands, setBrands] = useState<Array<{ name: string; logoUrl?: string; href?: string }>>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const api = axios.create({ baseURL: "" });
+        const r = await api.get<{ items: Array<{ name: string; logoUrl: string | null; href: string | null }> }>("/admin/trust-partners/public");
+        setBrands(r.data?.items.map(item => ({
+          name: item.name,
+          logoUrl: item.logoUrl || undefined,
+          href: item.href || undefined,
+        })) || []);
+      } catch (err) {
+        console.error("Failed to load trust partners", err);
+        // Fallback to default partners if API fails
+        setBrands([
+          { name: "M-Pesa", logoUrl: "/assets/M-pesa.png", href: "https://www.vodacom.co.tz/m-pesa" },
+          { name: "Airtel Money", logoUrl: "/assets/airtel_money.png", href: "https://www.airtel.co.tz/airtel-money" },
+          { name: "Tigo Pesa", logoUrl: "/assets/mix by yas.png", href: "https://www.tigo.co.tz/tigo-pesa" },
+        ]);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, []);
+
+  if (loading) {
+    return null; // Don't show anything while loading
+  }
+
+  return <TrustedBySection brands={brands} />;
+}
 /* react-day-picker in this project/version doesn't export a Range type,
    so provide a local Range type compatible with the code below. */
 type Range = { from: Date; to?: Date };
@@ -1017,6 +1055,7 @@ export default function Page() {
             {/* Rotating country cards: the order cycles periodically to avoid left-side bias. */}
             <div
               className="grid grid-cols-1 md:grid-cols-3 gap-6"
+              style={{ contain: 'layout style' }}
               onMouseEnter={() => setRotatePaused(true)}
               onMouseLeave={() => setRotatePaused(false)}
               onFocus={() => setRotatePaused(true)}
@@ -1056,13 +1095,7 @@ export default function Page() {
           <Testimonials />
           <LatestUpdate />
 
-          <TrustedBySection
-            brands={[
-              { name: "M-Pesa", logoUrl: "/assets/M-pesa.png", href: "https://www.vodacom.co.tz/m-pesa" },
-              { name: "Airtel Money", logoUrl: "/assets/airtel_money.png", href: "https://www.airtel.co.tz/airtel-money" },
-              { name: "Tigo Pesa", logoUrl: "/assets/mix by yas.png", href: "https://www.tigo.co.tz/tigo-pesa" },
-            ]}
-          />
+          <TrustedBySectionWithData />
         </div>
       </section>
     </main>

@@ -41,14 +41,6 @@ export function buildPublicPropertiesUrl(q?: string, filters?: Filters) {
   return qs ? `/public/properties?${qs}` : `/public/properties`;
 }
 
-// Simple mock dataset for autocomplete suggestions — replace with API calls later.
-const MOCK_PROPERTIES = [
-  { id: 'p1', title: 'Beachfront Villa, Zanzibar', location: 'Zanzibar' },
-  { id: 'p2', title: 'Safari Lodge, Arusha', location: 'Arusha' },
-  { id: 'p3', title: 'City Apartment, Dar es Salaam', location: 'Dar es Salaam' },
-  { id: 'p4', title: 'Mount Kilimanjaro Cabin', location: 'Kilimanjaro' },
-  { id: 'p5', title: 'Ngorongoro Camp', location: 'Ngorongoro' },
-];
 
 export default function PublicSearch({
   initialQuery = "",
@@ -100,11 +92,10 @@ export default function PublicSearch({
       return;
     }
     debounceRef.current = window.setTimeout(() => {
-      const q = query.toLowerCase();
-      const results = MOCK_PROPERTIES.filter(p => p.title.toLowerCase().includes(q) || p.location.toLowerCase().includes(q));
-      setSuggestions(results);
+      // TODO: Replace with real API call for property suggestions
+      setSuggestions([]);
       setActiveIndex(-1);
-      setOpen(results.length > 0);
+      setOpen(false);
     }, 250);
     return () => {
       if (debounceRef.current) window.clearTimeout(debounceRef.current);

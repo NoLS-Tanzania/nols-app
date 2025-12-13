@@ -8,7 +8,13 @@ import GeneralReports from '@/components/GeneralReports';
   // Read-only widget limits (used by loaders). Persisted UI control was removed in favor of header-level prefs.
   const limits = (() => {
     if (typeof window === 'undefined') return { approvals: 6, invoices: 5, bookings: 6 };
-    try { return JSON.parse(localStorage.getItem('admin.widgetLimits') || '') || { approvals: 6, invoices: 5, bookings: 6 }; } catch { return { approvals: 6, invoices: 5, bookings: 6 }; }
+    try { 
+      const raw = localStorage.getItem('admin.widgetLimits');
+      if (!raw || raw === '') return { approvals: 6, invoices: 5, bookings: 6 };
+      return JSON.parse(raw) || { approvals: 6, invoices: 5, bookings: 6 }; 
+    } catch { 
+      return { approvals: 6, invoices: 5, bookings: 6 }; 
+    }
   })();
 // Use relative paths in browser to leverage Next.js rewrites (avoids CORS issues)
 // Only use absolute URL for server-side or when explicitly needed

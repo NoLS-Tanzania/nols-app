@@ -1,5 +1,4 @@
 "use client";
-import AdminPageHeader from "@/components/AdminPageHeader";
 import { LayoutDashboard, Calendar, Users, Truck, Building2, Shield, TrendingUp, UserSquare2 } from "lucide-react";
 import Chart from "@/components/Chart";
 import { useEffect, useState } from "react";
@@ -152,11 +151,15 @@ export default function Page() {
 
   return (
     <div className="space-y-6">
-      <AdminPageHeader
-        title="Management"
-        subtitle="Administrative tools and controls"
-        icon={<LayoutDashboard className="h-8 w-8" />}
-      />
+      <div className="flex flex-col items-center text-center mb-4">
+        <LayoutDashboard className="h-8 w-8 text-gray-400 mb-3" />
+        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900">
+          Management
+        </h1>
+        <p className="mt-1 text-sm text-gray-600">
+          Administrative tools and controls
+        </p>
+      </div>
 
       <div className="flex justify-center">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-5xl">
@@ -176,6 +179,12 @@ export default function Page() {
             <div className="absolute bottom-0 left-0 right-0 h-0 group-hover:h-1 bg-emerald-500 transition-all duration-200"></div>
             <div className="text-lg font-semibold text-[#02665e]">Users</div>
             <div className="text-sm text-gray-600 mt-2">Manage platform users, roles, and access permissions.</div>
+          </a>
+
+          <a href="/admin/management/updates" className="group block rounded-lg border border-gray-200 bg-white p-6 hover:border-purple-300 hover:shadow-md transition-all duration-200 no-underline relative overflow-hidden">
+            <div className="absolute bottom-0 left-0 right-0 h-0 group-hover:h-1 bg-purple-500 transition-all duration-200"></div>
+            <div className="text-lg font-semibold text-[#02665e]">Updates</div>
+            <div className="text-sm text-gray-600 mt-2">Share news, events, and updates with pictures and videos to keep users informed.</div>
           </a>
         </div>
       </div>

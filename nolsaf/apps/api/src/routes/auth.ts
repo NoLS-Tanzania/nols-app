@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { prisma } from '@nolsaf/prisma';
 import { hashPassword } from '../lib/crypto.js';
 import crypto from 'crypto';
@@ -7,6 +8,9 @@ import { sendSms } from '../lib/sms.js';
 import { validatePasswordStrength, addPasswordToHistory } from '../lib/security.js';
 
 const router = Router();
+
+// Configure multer for file uploads (for profile creation with documents)
+const upload = multer({ storage: multer.memoryStorage() });
 
 // Simple in-memory OTP store for dev/testing only
 const OTP_TTL_MS = 2 * 60 * 1000; // 2 minutes
@@ -26,8 +30,10 @@ router.post('/send-otp', (req, res) => {
 
   const otp = generateOtp();
   otpStore[phone] = { otp, expiresAt: Date.now() + OTP_TTL_MS, role };
-  // Log the OTP to console for development (simulate SMS)
-  console.log(`[MOCK SMS] OTP for ${phone}${role ? ` (role=${role})` : ''}: ${otp}`);
+  // Log OTP only in development mode (not in production)
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`[DEV] OTP for ${phone}${role ? ` (role=${role})` : ''}: ${otp}`);
+  }
 
   // In development it's useful to return the OTP; remove in production
   const payload: any = { ok: true, message: 'OTP sent' };
@@ -136,7 +142,7 @@ router.post('/login', (req, res) => {
  * falls back to a safe stub response if the database/schema isn't ready (local dev mode).
  */
 router.post('/register', async (req, res) => {
-  const { email, name, phone, password, role } = req.body as any;
+  const { email, name, phone, password, role, referralCode } = req.body as any;
   const desiredRole = (role || 'USER').toUpperCase();
 
   const allowed = ['USER', 'OWNER', 'DRIVER'];
@@ -145,8 +151,30 @@ router.post('/register', async (req, res) => {
   // For safety, never allow creating ADMIN via this public endpoint
   if (desiredRole === 'ADMIN') return res.status(403).json({ error: 'cannot create admin via public registration' });
 
+  // Get Socket.IO instance from app
+  const io: any = (req as any).app?.get?.('io');
+
   // Try to create a real user if Prisma is available and DB schema matches; otherwise fallback to stub
   try {
+    // Check for referral code and find referring driver
+    let referredBy: string | number | null = null;
+    if (referralCode) {
+      try {
+        // Extract driver ID from referral code (format: DRIVER-XXXXXX)
+        const match = String(referralCode).match(/^DRIVER-(\d+)$/i);
+        if (match) {
+          referredBy = parseInt(match[1], 10);
+          // Verify the driver exists
+          const driver = await prisma.user.findUnique({ where: { id: referredBy, role: 'DRIVER' } as any });
+          if (!driver) {
+            referredBy = null; // Invalid referral code
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to process referral code', referralCode, e);
+      }
+    }
+
     const pwHash = password ? await hashPassword(String(password)) : null;
     const created = await prisma.user.create({
       data: {
@@ -155,14 +183,162 @@ router.post('/register', async (req, res) => {
         phone: phone ?? null,
         role: desiredRole,
         passwordHash: pwHash ?? null,
+        referredBy: referredBy as any,
+        referralCode: referralCode || null,
       } as any,
-      select: { id: true, email: true }
+      select: { id: true, email: true, name: true, phone: true, role: true }
     });
+
+    // Emit Socket.IO notification to referring driver if applicable
+    if (referredBy && io) {
+      try {
+        // Emit notification to driver immediately
+        io.to(`driver:${referredBy}`).emit('referral-notification', {
+          type: 'new_referral',
+          message: `${created.name || created.email || 'Someone'} just registered using your referral link!`,
+          referralData: {
+            userId: created.id,
+            name: created.name,
+            email: created.email,
+            role: desiredRole,
+            registeredAt: new Date().toISOString(),
+          }
+        });
+
+        // Emit full referral update (will trigger frontend to refresh data)
+        io.to(`driver:${referredBy}`).emit('referral-update', {
+          driverId: referredBy,
+          timestamp: Date.now(),
+          action: 'new_referral',
+        });
+      } catch (e) {
+        console.warn('Failed to emit referral notification', e);
+      }
+    }
+
     return res.status(201).json({ id: created.id, email: created.email, role: desiredRole });
   } catch (err) {
     // If Prisma fails (missing schema/enum), log and return a safe response so the public UI can continue working in dev.
     console.warn('Prisma create failed in /api/auth/register (falling back to stub):', err);
     return res.status(201).json({ id: null, email: String(email), role: desiredRole, warning: 'created-stub' });
+  }
+});
+
+/**
+ * POST /api/auth/profile
+ * Creates or updates user profile after OTP verification and onboarding
+ * Body: FormData with role, name, email, and optional referralCode
+ */
+router.post('/profile', upload.any(), async (req, res) => {
+  try {
+    // Parse form data (multer handles multipart/form-data)
+    const body = req.body;
+    const { role, name, email, referralCode } = body;
+    
+    // Get user from token (from previous OTP verification)
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // Get Socket.IO instance from app
+    const io: any = (req as any).app?.get?.('io');
+
+    // For now, decode token to get user ID (simplified - in production use proper JWT verification)
+    let userId: string | number | null = null;
+    try {
+      if (token.startsWith('dev.')) {
+        const decoded = Buffer.from(token.split('.')[1], 'base64').toString();
+        // Extract user ID from session or create user
+        // This is a simplified flow - in production you'd have proper user creation
+        const existingUser = await prisma.user.findFirst({ 
+          where: { email: String(email) } 
+        });
+        if (existingUser) {
+          userId = existingUser.id;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to decode token', e);
+    }
+
+    // Check for referral code and find referring driver
+    let referredBy: string | number | null = null;
+    if (referralCode) {
+      try {
+        // Extract driver ID from referral code (format: DRIVER-XXXXXX)
+        const match = String(referralCode).match(/^DRIVER-(\d+)$/i);
+        if (match) {
+          referredBy = parseInt(match[1], 10);
+          // Verify the driver exists
+          const driver = await prisma.user.findUnique({ where: { id: referredBy, role: 'DRIVER' } as any });
+          if (!driver) {
+            referredBy = null; // Invalid referral code
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to process referral code', referralCode, e);
+      }
+    }
+
+    // Update or create user with referral information
+    let updatedUser: any = null;
+    if (userId) {
+      updatedUser = await prisma.user.update({
+        where: { id: userId },
+        data: {
+          name: String(name),
+          email: String(email),
+          referredBy: referredBy as any,
+          referralCode: referralCode || null,
+        } as any,
+        select: { id: true, email: true, name: true, role: true }
+      });
+    } else {
+      // If user doesn't exist, create it (fallback)
+      updatedUser = await prisma.user.create({
+        data: {
+          email: String(email),
+          name: String(name),
+          role: (role || 'USER').toUpperCase(),
+          referredBy: referredBy as any,
+          referralCode: referralCode || null,
+        } as any,
+        select: { id: true, email: true, name: true, role: true }
+      });
+    }
+
+    // Emit Socket.IO notification to referring driver if applicable
+    if (referredBy && io && updatedUser) {
+      try {
+        // Emit notification to driver immediately
+        io.to(`driver:${referredBy}`).emit('referral-notification', {
+          type: 'new_referral',
+          message: `${updatedUser.name || updatedUser.email || 'Someone'} just registered using your referral link!`,
+          referralData: {
+            userId: updatedUser.id,
+            name: updatedUser.name,
+            email: updatedUser.email,
+            role: updatedUser.role,
+            registeredAt: new Date().toISOString(),
+          }
+        });
+
+        // Emit full referral update (will trigger frontend to refresh data)
+        io.to(`driver:${referredBy}`).emit('referral-update', {
+          driverId: referredBy,
+          timestamp: Date.now(),
+          action: 'new_referral',
+        });
+      } catch (e) {
+        console.warn('Failed to emit referral notification', e);
+      }
+    }
+
+    return res.json({ ok: true, user: updatedUser });
+  } catch (err: any) {
+    console.error('Failed to save profile', err);
+    return res.status(500).json({ error: 'Failed to save profile', message: err.message });
   }
 });
 

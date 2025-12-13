@@ -1,10 +1,9 @@
 "use client"
 
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useState, useRef } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
-import DriverPageHeader from "@/components/DriverPageHeader"
-import { Eye, Upload, Lock, Truck, Pencil } from 'lucide-react'
+import { Eye, Upload, Lock, Truck, Pencil, Settings, FileText, Shield, CheckCircle, AlertCircle, X } from 'lucide-react'
 
 export default function DriverManagementPage() {
   const searchParams = useSearchParams()
@@ -15,6 +14,8 @@ export default function DriverManagementPage() {
   const [loadingSettings, setLoadingSettings] = useState(false)
   const [licenseNumber, setLicenseNumber] = useState<string | null>(null)
   const [licenseExpires, setLicenseExpires] = useState<string | null>(null)
+  const [insuranceFile, setInsuranceFile] = useState<File | null>(null)
+  const insuranceFileInputRef = useRef<HTMLInputElement>(null)
 
   const isDocuments = tab === 'documents'
   const isSafety = tab === 'safety'
@@ -50,14 +51,19 @@ export default function DriverManagementPage() {
   }, [])
 
   return (
-    <div className="space-y-6">
-      <div className="mx-auto max-w-3xl text-center">
-        <DriverPageHeader title="Management" />
-        <p className="mt-2 text-sm text-slate-600">Central area to manage driver documents, safety records and account settings.</p>
+    <div className="w-full max-w-full space-y-6 overflow-x-hidden">
+      <div className="w-full text-center">
+        <div className="flex flex-col items-center mb-6">
+          <div className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-emerald-50 text-emerald-600">
+            <Settings className="h-6 w-6" aria-hidden />
+          </div>
+          <h1 className="mt-3 text-2xl font-semibold text-gray-900">Management</h1>
+          <p className="mt-2 text-sm text-slate-600 max-w-2xl">Central area to manage driver documents, safety records and account settings.</p>
+        </div>
       </div>
 
-      <section className="mx-auto max-w-3xl bg-white rounded-lg p-6 border">
-        <div className="flex gap-3 justify-center flex-wrap">
+      <section className="w-full max-w-full bg-white rounded-lg p-6 border-2 border-slate-200 shadow-sm overflow-x-hidden">
+        <div className="flex gap-3 justify-center flex-wrap mb-6">
           <button
             onClick={() => {
               const willOpen = tab !== 'documents'
@@ -67,29 +73,23 @@ export default function DriverManagementPage() {
               setLoadingDocs(willOpen)
               if (willOpen) setTimeout(() => setLoadingDocs(false), 700)
             }}
-            className={`px-4 py-2 rounded-md border ${isDocuments ? 'bg-slate-50 border-slate-200' : 'bg-white hover:bg-slate-50'}`}
+            className={`px-4 py-2 rounded-md border-2 text-sm font-medium transition-colors ${
+              isDocuments
+                ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
+                : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300'
+            }`}
           >
-            {isDocuments ? (
-              loadingDocs ? (
-                <div className="flex items-center justify-center">
-                  <span aria-hidden className="dot-spinner dot-sm">
-                    <span className="dot dot-blue" />
-                    <span className="dot dot-black" />
-                    <span className="dot dot-yellow" />
-                    <span className="dot dot-green" />
-                  </span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <span aria-hidden className={`inline-block h-2 w-2 rounded-full transition-colors ${isDocuments ? 'bg-white' : 'bg-slate-300'}`} />
-                  <span>Documents</span>
-                </div>
-              )
-            ) : (
-              <div className="flex items-center gap-2">
-                <span aria-hidden className={`inline-block h-2 w-2 rounded-full transition-colors ${isDocuments ? 'bg-white' : 'bg-slate-300'}`} />
-                <span>Documents</span>
+            {loadingDocs ? (
+              <div className="flex items-center justify-center">
+                <span aria-hidden className="dot-spinner dot-sm">
+                  <span className="dot dot-blue" />
+                  <span className="dot dot-black" />
+                  <span className="dot dot-yellow" />
+                  <span className="dot dot-green" />
+                </span>
               </div>
+            ) : (
+              <span>Documents</span>
             )}
           </button>
 
@@ -102,29 +102,23 @@ export default function DriverManagementPage() {
               setLoadingSafety(willOpen)
               if (willOpen) setTimeout(() => setLoadingSafety(false), 700)
             }}
-            className={`px-4 py-2 rounded-md border ${isSafety ? 'bg-slate-50 border-slate-200' : 'bg-white hover:bg-slate-50'}`}
+            className={`px-4 py-2 rounded-md border-2 text-sm font-medium transition-colors ${
+              isSafety
+                ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
+                : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300'
+            }`}
           >
-            {isSafety ? (
-              loadingSafety ? (
-                <div className="flex items-center justify-center">
-                  <span aria-hidden className="dot-spinner dot-sm">
-                    <span className="dot dot-blue" />
-                    <span className="dot dot-black" />
-                    <span className="dot dot-yellow" />
-                    <span className="dot dot-green" />
-                  </span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <span aria-hidden className={`inline-block h-2 w-2 rounded-full transition-colors ${isSafety ? 'bg-white' : 'bg-slate-300'}`} />
-                  <span>Safety Measures</span>
-                </div>
-              )
-            ) : (
-              <div className="flex items-center gap-2">
-                <span aria-hidden className={`inline-block h-2 w-2 rounded-full transition-colors ${isSafety ? 'bg-white' : 'bg-slate-300'}`} />
-                <span>Safety Measures</span>
+            {loadingSafety ? (
+              <div className="flex items-center justify-center">
+                <span aria-hidden className="dot-spinner dot-sm">
+                  <span className="dot dot-blue" />
+                  <span className="dot dot-black" />
+                  <span className="dot dot-yellow" />
+                  <span className="dot dot-green" />
+                </span>
               </div>
+            ) : (
+              <span>Safety Measures</span>
             )}
           </button>
 
@@ -137,29 +131,23 @@ export default function DriverManagementPage() {
               setLoadingSettings(willOpen)
               if (willOpen) setTimeout(() => setLoadingSettings(false), 700)
             }}
-            className={`px-4 py-2 rounded-md border ${isSettings ? 'bg-slate-50 border-slate-200' : 'bg-white hover:bg-slate-50'}`}
+            className={`px-4 py-2 rounded-md border-2 text-sm font-medium transition-colors ${
+              isSettings
+                ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
+                : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300'
+            }`}
           >
-            {isSettings ? (
-              loadingSettings ? (
-                <div className="flex items-center justify-center">
-                  <span aria-hidden className="dot-spinner dot-sm">
-                    <span className="dot dot-blue" />
-                    <span className="dot dot-black" />
-                    <span className="dot dot-yellow" />
-                    <span className="dot dot-green" />
-                  </span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <span aria-hidden className={`inline-block h-2 w-2 rounded-full transition-colors ${isSettings ? 'bg-white' : 'bg-slate-300'}`} />
-                  <span>Settings</span>
-                </div>
-              )
-            ) : (
-              <div className="flex items-center gap-2">
-                <span aria-hidden className={`inline-block h-2 w-2 rounded-full transition-colors ${isSettings ? 'bg-white' : 'bg-slate-300'}`} />
-                <span>Settings</span>
+            {loadingSettings ? (
+              <div className="flex items-center justify-center">
+                <span aria-hidden className="dot-spinner dot-sm">
+                  <span className="dot dot-blue" />
+                  <span className="dot dot-black" />
+                  <span className="dot dot-yellow" />
+                  <span className="dot dot-green" />
+                </span>
               </div>
+            ) : (
+              <span>Settings</span>
             )}
           </button>
         </div>
@@ -167,53 +155,125 @@ export default function DriverManagementPage() {
         <div className="mt-6">
           {tab === 'documents' && (
             <div>
-              <p className="mt-2 text-sm text-slate-600 text-center mx-auto max-w-prose">Upload or review your documents (license, ID, insurance).</p>
+              <p className="mb-6 text-sm text-slate-600 text-center mx-auto max-w-prose">Upload or review your documents (license, ID, insurance).</p>
 
-              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="p-4 border rounded-lg">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="text-sm font-semibold">Driver License</h3>
-                      <p className="text-xs text-slate-500">License No: {licenseNumber ?? '—'}</p>
-                      <p className="text-xs text-slate-500">Expires: {licenseExpires ?? '—'}</p>
-                    </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {/* Driver License Card */}
+                <div className="p-5 border-2 border-slate-200 rounded-lg bg-white hover:border-emerald-300 hover:shadow-md transition-all">
+                  <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-2">
-                      <Link href="/driver/management/license" className="text-sky-600 inline-flex items-center p-1 rounded hover:text-sky-700 transition-colors focus:outline-none focus:ring-2 focus:ring-sky-300 focus:ring-offset-1" aria-label="View driver license">
-                        <Eye className="h-4 w-4" aria-hidden />
-                        <span className="sr-only">View driver license</span>
-                      </Link>
+                      <div className="h-10 w-10 rounded-lg bg-emerald-50 flex items-center justify-center">
+                        <FileText className="h-5 w-5 text-emerald-600" />
+                      </div>
+                      <h3 className="text-base font-semibold text-gray-900">Driver License</h3>
                     </div>
                   </div>
+                  <div className="space-y-2 mb-4">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-600">License No:</span>
+                      <span className="font-medium text-slate-900">{licenseNumber ?? '—'}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-600">Expires:</span>
+                      <span className="font-medium text-slate-900">{licenseExpires ?? '—'}</span>
+                    </div>
+                  </div>
+                  <Link 
+                    href="/driver/management/license" 
+                    className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-md transition-colors border border-emerald-200 hover:border-emerald-300 no-underline"
+                    aria-label="View driver license"
+                  >
+                    <Eye className="h-4 w-4" />
+                    <span>View License</span>
+                  </Link>
                 </div>
 
-                <div className="p-4 border rounded-lg">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="text-sm font-semibold">Insurance</h3>
-                      <p className="text-xs text-slate-500">Status: Not provided</p>
-                    </div>
+                {/* Insurance Card */}
+                <div className="p-5 border-2 border-slate-200 rounded-lg bg-white hover:border-emerald-300 hover:shadow-md transition-all">
+                  <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-2">
-                      <button className="text-sky-600 inline-flex items-center p-1 rounded hover:text-sky-700 transition-colors" aria-label="Upload insurance">
-                        <Upload className="h-4 w-4" aria-hidden />
-                        <span className="sr-only">Upload insurance</span>
+                      <div className="h-10 w-10 rounded-lg bg-amber-50 flex items-center justify-center">
+                        <Shield className="h-5 w-5 text-amber-600" />
+                      </div>
+                      <h3 className="text-base font-semibold text-gray-900">Insurance</h3>
+                    </div>
+                  </div>
+                  <div className="space-y-2 mb-4">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-600">Status:</span>
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                        <AlertCircle className="h-3 w-3 mr-1" />
+                        Not provided
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <input
+                    ref={insuranceFileInputRef}
+                    type="file"
+                    accept="image/*,.pdf"
+                    onChange={(e) => setInsuranceFile(e.target.files?.[0] ?? null)}
+                    className="hidden"
+                    id="insurance-upload"
+                  />
+                  
+                  {!insuranceFile ? (
+                    <label
+                      htmlFor="insurance-upload"
+                      className="flex flex-col items-center justify-center w-full px-4 py-6 border-2 border-dashed border-slate-300 rounded-lg cursor-pointer bg-slate-50 hover:bg-slate-100 hover:border-emerald-500 transition-all duration-200 group"
+                    >
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <Upload className="w-6 h-6 text-slate-400 group-hover:text-emerald-600 transition-colors" />
+                        <p className="text-sm text-slate-600 group-hover:text-slate-900">
+                          <span className="font-medium text-emerald-600">Click to upload</span> or drag and drop
+                        </p>
+                        <p className="text-xs text-slate-500">JPG, PNG or PDF (MAX. 5MB)</p>
+                      </div>
+                    </label>
+                  ) : (
+                    <div className="p-3 bg-emerald-50 border-2 border-emerald-200 rounded-lg flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <CheckCircle className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                        <span className="text-xs text-emerald-700 font-medium truncate">{insuranceFile.name}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setInsuranceFile(null)
+                          if (insuranceFileInputRef.current) {
+                            insuranceFileInputRef.current.value = ''
+                          }
+                        }}
+                        className="text-emerald-600 hover:text-emerald-700 flex-shrink-0"
+                        aria-label="Remove file"
+                      >
+                        <X className="w-4 h-4" />
                       </button>
                     </div>
-                  </div>
+                  )}
                 </div>
 
-                <div className="p-4 border rounded-lg">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="text-sm font-semibold">Contract</h3>
-                      <p className="text-xs text-slate-500">View the agreed contract between you and the platform.</p>
-                    </div>
+                {/* Contract Card */}
+                <div className="p-5 border-2 border-slate-200 rounded-lg bg-white hover:border-emerald-300 hover:shadow-md transition-all">
+                  <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-2">
-                      <Link href="/driver/management/contract" className="text-sky-600 inline-flex items-center p-1 rounded hover:text-sky-700 transition-colors" aria-label="View contract">
-                        <Eye className="h-4 w-4" aria-hidden />
-                        <span className="sr-only">View contract</span>
-                      </Link>
+                      <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center">
+                        <FileText className="h-5 w-5 text-blue-600" />
+                      </div>
+                      <h3 className="text-base font-semibold text-gray-900">Contract</h3>
                     </div>
                   </div>
+                  <div className="space-y-2 mb-4">
+                    <p className="text-xs text-slate-500">View the agreed contract between you and the platform.</p>
+                  </div>
+                  <Link 
+                    href="/driver/management/contract" 
+                    className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-md transition-colors border border-emerald-200 hover:border-emerald-300 no-underline"
+                    aria-label="View contract"
+                  >
+                    <Eye className="h-4 w-4" />
+                    <span>View Contract</span>
+                  </Link>
                 </div>
               </div>
             </div>
@@ -221,17 +281,33 @@ export default function DriverManagementPage() {
 
           {tab === 'safety' && (
             <div>
-              <p className="mt-2 text-sm text-slate-600 text-center mx-auto max-w-prose">View safety incidents and monthly safety summary.</p>
+              <p className="mb-6 text-sm text-slate-600 text-center mx-auto max-w-prose">View safety incidents and monthly safety summary.</p>
 
-              <div className="mt-4 grid grid-cols-1 gap-4">
-                <div className="p-4 border rounded-lg">
-                  <h3 className="text-sm font-semibold">Monthly Summary</h3>
-                  <p className="text-xs text-slate-500 mt-1">No incidents recorded in the selected period.</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-5 border-2 border-slate-200 rounded-lg bg-white">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="h-10 w-10 rounded-lg bg-emerald-50 flex items-center justify-center">
+                      <Shield className="h-5 w-5 text-emerald-600" />
+                    </div>
+                    <h3 className="text-base font-semibold text-gray-900">Monthly Summary</h3>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-slate-500">
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    <span>No incidents recorded in the selected period.</span>
+                  </div>
                 </div>
 
-                <div className="p-4 border rounded-lg">
-                  <h3 className="text-sm font-semibold">Incident Log</h3>
-                  <p className="text-xs text-slate-500 mt-1">No safety events to display.</p>
+                <div className="p-5 border-2 border-slate-200 rounded-lg bg-white">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center">
+                      <FileText className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <h3 className="text-base font-semibold text-gray-900">Incident Log</h3>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-slate-500">
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    <span>No safety events to display.</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -239,35 +315,50 @@ export default function DriverManagementPage() {
 
           {tab === 'settings' && (
             <div>
-              <p className="mt-2 text-sm text-slate-600 text-center mx-auto max-w-prose">Update your account and vehicle settings.</p>
+              <p className="mb-6 text-sm text-slate-600 text-center mx-auto max-w-prose">Update your account and vehicle settings.</p>
 
-              <div className="mt-4 space-y-3">
-                <div className="p-4 border rounded-lg flex items-center justify-between">
-                  <div>
-                    <h3 className="text-sm font-semibold inline-flex items-center gap-2">
-                      <Lock className="h-4 w-4 text-slate-600" aria-hidden />
-                      <span>Security</span>
-                    </h3>
-                    <p className="text-xs text-slate-500">Change password, contact details.</p>
+              <div className="space-y-4">
+                <div className="p-5 border-2 border-slate-200 rounded-lg bg-white hover:border-emerald-300 hover:shadow-md transition-all">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-lg bg-emerald-50 flex items-center justify-center">
+                        <Lock className="h-5 w-5 text-emerald-600" />
+                      </div>
+                      <div>
+                        <h3 className="text-base font-semibold text-gray-900">Security</h3>
+                        <p className="text-sm text-slate-500 mt-0.5">Change password, contact details.</p>
+                      </div>
+                    </div>
+                    <Link 
+                      href="/driver/security" 
+                      className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-md transition-colors border border-emerald-200 hover:border-emerald-300 no-underline"
+                      aria-label="Open security settings"
+                    >
+                      <Eye className="h-4 w-4" />
+                      <span>Open</span>
+                    </Link>
                   </div>
-                  <Link href="/driver/security" title="Open" className="text-sky-600 inline-flex items-center p-1 rounded hover:text-sky-700 transition-colors focus:outline-none focus:ring-2 focus:ring-sky-300 focus:ring-offset-1" aria-label="Open security settings">
-                    <Eye className="h-4 w-4" aria-hidden />
-                    <span className="sr-only">Open security settings</span>
-                  </Link>
                 </div>
 
-                <div className="p-4 border rounded-lg flex items-center justify-between">
-                  <div>
-                    <h3 className="text-sm font-semibold inline-flex items-center gap-2">
-                      <Truck className="h-4 w-4 text-slate-600" aria-hidden />
-                      <span>Vehicle</span>
-                    </h3>
-                    <p className="text-xs text-slate-500">Vehicle details and registration.</p>
+                <div className="p-5 border-2 border-slate-200 rounded-lg bg-white hover:border-emerald-300 hover:shadow-md transition-all">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center">
+                        <Truck className="h-5 w-5 text-blue-600" />
+                      </div>
+                      <div>
+                        <h3 className="text-base font-semibold text-gray-900">Vehicle</h3>
+                        <p className="text-sm text-slate-500 mt-0.5">Vehicle details and registration.</p>
+                      </div>
+                    </div>
+                    <button 
+                      className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-md transition-colors border border-emerald-200 hover:border-emerald-300"
+                      aria-label="Edit vehicle"
+                    >
+                      <Pencil className="h-4 w-4" />
+                      <span>Edit</span>
+                    </button>
                   </div>
-                  <button title="Edit" className="text-sky-600 inline-flex items-center p-1 rounded bg-white hover:bg-white hover:text-sky-700 transition-colors focus:outline-none focus:ring-2 focus:ring-sky-300 focus:ring-offset-1 border-0" aria-label="Edit vehicle">
-                    <Pencil className="h-4 w-4" aria-hidden />
-                    <span className="sr-only">Edit vehicle</span>
-                  </button>
                 </div>
               </div>
             </div>

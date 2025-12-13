@@ -28,10 +28,63 @@ router.get('/', async (req, res) => {
 
     const [total, users] = await Promise.all([
       prisma.user.count({ where }),
-      prisma.user.findMany({ where, skip: (p - 1) * pp, take: pp, orderBy: { createdAt: 'desc' }, select: { id: true, name: true, email: true, phone: true, role: true, createdAt: true, twoFactorEnabled: true } }),
+      prisma.user.findMany({ 
+        where, 
+        skip: (p - 1) * pp, 
+        take: pp, 
+        orderBy: { createdAt: 'desc' }, 
+        select: { 
+          id: true, 
+          name: true, 
+          email: true, 
+          phone: true, 
+          role: true, 
+          createdAt: true,
+          emailVerifiedAt: true,
+          phoneVerifiedAt: true,
+          twoFactorEnabled: true,
+          _count: {
+            select: {
+              bookings: true,
+            }
+          }
+        } 
+      }),
     ]);
 
-    res.json({ meta: { page: p, perPage: pp, total }, data: users });
+    // For customers, get booking stats
+    const usersWithStats = await Promise.all(users.map(async (user) => {
+      if (user.role !== 'CUSTOMER') {
+        return { ...user, bookingCount: 0, totalSpent: 0, lastBookingDate: null };
+      }
+
+      const bookingCount = await prisma.booking.count({
+        where: { userId: user.id },
+      });
+
+      const revenueResult = await prisma.invoice.aggregate({
+        where: {
+          booking: { userId: user.id },
+          status: { in: ['APPROVED', 'PAID'] },
+        },
+        _sum: { total: true },
+      });
+
+      const lastBooking = await prisma.booking.findFirst({
+        where: { userId: user.id },
+        orderBy: { createdAt: 'desc' },
+        select: { createdAt: true },
+      });
+
+      return {
+        ...user,
+        bookingCount,
+        totalSpent: Number(revenueResult._sum.total || 0),
+        lastBookingDate: lastBooking?.createdAt || null,
+      };
+    }));
+
+    res.json({ meta: { page: p, perPage: pp, total }, data: usersWithStats });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'failed' });

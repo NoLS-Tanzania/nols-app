@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React from "react";
-import { Home, LayoutDashboard, Users, UsersRound, UserSquare2, Truck, LineChart, Building2, Calendar, FileText, Wallet, Settings, ChevronDown, ChevronUp, ShieldCheck, Link2, Receipt, ListFilter, ClipboardList, CheckCircle } from "lucide-react";
+import { Home, LayoutDashboard, Users, UsersRound, UserSquare2, Truck, LineChart, Building2, Calendar, FileText, Wallet, Settings, ChevronDown, ChevronRight, ShieldCheck, Link2, Receipt, ListFilter, ClipboardList, CheckCircle, Award, Megaphone, UserPlus, Trophy, Star, Bell, BarChart3, Activity, Eye } from "lucide-react";
 import { useEffect, useState } from "react";
 
 type Item = {
@@ -10,6 +10,28 @@ type Item = {
   label: string;
   Icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
 };
+
+function Item({ href, label, Icon, isSubItem = false }: { href: string; label: string; Icon?: React.ComponentType<React.SVGProps<SVGSVGElement>>; isSubItem?: boolean }) {
+  const path = usePathname();
+  const active = path === href || path?.startsWith(href + "/");
+  return (
+    <Link
+      href={href}
+      className={`no-underline flex items-center justify-between rounded-lg px-4 py-3 text-sm font-medium transition-all duration-200 bg-white border border-transparent
+        ${active ? "text-[#02665e] border-[#02665e]/20" : "text-[#02665e] hover:bg-gray-50"}
+        ${isSubItem ? "ml-4" : ""}`}
+      style={{ backfaceVisibility: 'hidden', transform: 'translateZ(0)' }}
+    >
+      <div className="flex items-center gap-3">
+        {Icon ? (
+          <Icon className="h-4 w-4 text-[#02665e] flex-shrink-0" aria-hidden />
+        ) : null}
+        <span>{label}</span>
+      </div>
+      <ChevronRight className="h-4 w-4 text-[#02665e] opacity-60 flex-shrink-0" aria-hidden />
+    </Link>
+  );
+}
 
 // Top-level visible by default: Admin, Owners, Users.
 // All remaining admin sections live under the Admin mini-sidebar.
@@ -28,6 +50,7 @@ const adminDetails: Item[] = [
   { href: "/admin/owners", label: "Owners", Icon: Building2 },
   { href: "/admin/bookings", label: "Bookings", Icon: Calendar },
   { href: "/admin/properties", label: "Properties", Icon: FileText },
+  { href: "/admin/properties/previews", label: "Previews", Icon: Eye },
   { href: "/admin/payments", label: "Payments", Icon: Wallet },
 ];
 
@@ -37,6 +60,12 @@ const driverDetails: Item[] = [
   { href: "/admin/drivers/invoices", label: "Invoices", Icon: FileText },
   { href: "/admin/drivers/paid", label: "Paid", Icon: Wallet },
   { href: "/admin/drivers/revenues", label: "Revenues", Icon: LineChart },
+  { href: "/admin/drivers/referrals", label: "Referrals", Icon: UserPlus },
+  { href: "/admin/drivers/bonuses", label: "Bonuses", Icon: Award },
+  { href: "/admin/drivers/levels", label: "Levels", Icon: Trophy },
+  { href: "/admin/drivers/reminders", label: "Reminders", Icon: Bell },
+  { href: "/admin/drivers/stats", label: "Stats", Icon: BarChart3 },
+  { href: "/admin/drivers/activities", label: "All Activities", Icon: Activity },
 ];
 
 const groupStayDetails: Item[] = [
@@ -53,6 +82,13 @@ const planWithUsDetails: Item[] = [
   { href: "/admin/plan-with-us/recommended", label: "Recommended", Icon: CheckCircle },
 ];
 
+const userDetails: Item[] = [
+  { href: "/admin/users", label: "Dashboard", Icon: LayoutDashboard },
+  { href: "/admin/users/list", label: "All Users", Icon: Users },
+  { href: "/admin/users/transport-bookings", label: "Transport Bookings", Icon: Truck },
+  { href: "/admin/users/bookings", label: "Bookings", Icon: Calendar },
+];
+
 const managementDetails: Item[] = [
   { href: "/admin/management", label: "Dashboard", Icon: LayoutDashboard },
   { href: "/admin/management/audit-log", label: "Audit Log", Icon: ShieldCheck },
@@ -62,7 +98,9 @@ const managementDetails: Item[] = [
   { href: "/admin/management/ip-allowlist", label: "IP Allowlist", Icon: ListFilter },
   { href: "/admin/management/owners", label: "Owners", Icon: Building2 },
   { href: "/admin/management/properties", label: "Properties", Icon: FileText },
+  { href: "/admin/management/trust-partners", label: "Trust Partners", Icon: Award },
   { href: "/admin/management/settings", label: "Settings", Icon: Settings },
+  { href: "/admin/management/updates", label: "Updates", Icon: Megaphone },
   { href: "/admin/management/users", label: "Users", Icon: Users },
 ];
 
@@ -105,304 +143,152 @@ export default function AdminNav({ variant = "light" }: { variant?: "light" | "d
     // Visual chevrons for Users
     setUsersOpen(isUsers);
   }, [path]);
-  // no local collapsible groups at top-level; Admin dashboard contains detailed links
-  // Use inline-flex so hover/bg only covers the content and doesn't stretch full width
-  // Slightly larger type for better readability
-  const base = "inline-flex w-auto items-stretch rounded-md text-lg transition no-underline";
-  const focusRing = variant === "dark" ? "focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40" : "focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300";
-  // For dark variant keep the sidebar background intact; set active background explicitly to match sidebar color (#02665e)
-  // Ensure idle state is explicitly transparent so it doesn't get a white panel behind it.
-  const active = variant === "dark"
-    ? "bg-[#02665e] text-white"
-    : "bg-[#e6f4f2] text-[#02665e]";
-  const idle = variant === "dark"
-    ? "bg-transparent text-white hover:bg-[#015b54]/70"
-    : "text-[#02665e] hover:bg-[#eaf7f5]";
 
   return (
-    <nav className="space-y-2.5">
-      {items.map(({ href, label, Icon }) => {
-        const isActive = path.startsWith(href);
-        // Special handling for the top-level Admin entry: toggle the detailed admin sidebar
-        if (href === "/admin") {
-          return (
-            <div key={href}>
-              {/* Owner top-level is a toggle only; the actual Dashboard link performs Owner tasks */}
-              <div className="block">
-                <button
-                  type="button"
-                  aria-expanded={adminOpen}
-                  aria-controls="owner-details"
-                  onClick={() => setAdminOpen((s) => !s)}
-                  className={`${focusRing} ${base} ${isActive ? active : idle} px-4 py-3 w-full flex items-center gap-3 justify-between`}
-                >
-                  <span className="flex items-center gap-3">
-                    <Icon className="h-6 w-6 flex-shrink-0" aria-hidden="true" />
-                    <span className="truncate">{label}</span>
-                  </span>
-                  <span className="flex items-center">
-                    {adminOpen ? (
-                      <ChevronUp className="h-4 w-4 text-[#02665e]" />
-                    ) : (
-                      <ChevronDown className="h-4 w-4 text-[#02665e]" />
-                    )}
-                  </span>
-                </button>
-              </div>
+    <div className="bg-gray-50 rounded-2xl p-3 border border-gray-200">
+      <div className="space-y-2">
+        {/* Home */}
+        <Item href="/admin/home" label="Home" Icon={Home} />
 
-              {/* Render admin detailed sidebar immediately after Owner item so it pushes subsequent items down */}
-              {adminOpen && (
-                <div id="owner-details" className="mt-2 space-y-1 pl-4">
-                  {adminDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => {
-                    const isActiveDetail = path.startsWith(dHref);
-                    return (
-                      <Link key={dHref} href={dHref} aria-current={isActiveDetail ? "page" : undefined} className={`${focusRing} block`}>
-                        <span className={`${base} ${isActiveDetail ? active : idle} px-3 py-2 text-sm flex items-center gap-2`}>
-                          <DIcon className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
-                          <span className="truncate">{dLabel}</span>
-                        </span>
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        }
-
-        // Render Drivers as a toggle with its own mini-sidebar
-        if (href === "/admin/drivers") {
-          const isActiveDriver = path.startsWith(href);
-          return (
-            <div key={href}>
-              <div className="block">
-                <button
-                  type="button"
-                  aria-expanded={driverOpen}
-                  aria-controls="driver-details"
-                  onClick={() => setDriverOpen((s) => !s)}
-                  className={`${focusRing} ${base} ${isActiveDriver ? active : idle} px-4 py-3 w-full flex items-center gap-3 justify-between`}
-                >
-                  <span className="flex items-center gap-3">
-                    <Truck className="h-6 w-6 flex-shrink-0" aria-hidden="true" />
-                    <span className="truncate">Drivers</span>
-                  </span>
-                  <span className="flex items-center">
-                    {driverOpen ? (
-                      <ChevronUp className="h-4 w-4 text-[#02665e]" />
-                    ) : (
-                      <ChevronDown className="h-4 w-4 text-[#02665e]" />
-                    )}
-                  </span>
-                </button>
-              </div>
-
-              {driverOpen && (
-                <div id="driver-details" className="mt-2 space-y-1 pl-4">
-                  {driverDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => {
-                    const isActiveDetail = path.startsWith(dHref);
-                    return (
-                      <Link key={dHref} href={dHref} aria-current={isActiveDetail ? "page" : undefined} className={`${focusRing} block`}>
-                        <span className={`${base} ${isActiveDetail ? active : idle} px-3 py-2 text-sm flex items-center gap-2`}>
-                          <DIcon className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
-                          <span className="truncate">{dLabel}</span>
-                        </span>
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        }
-
-        // Render Management as a toggle with its own mini-sidebar
-        if (href === "/admin/management") {
-          const isActiveManagement = path.startsWith(href);
-          return (
-            <div key={href}>
-              <div className="block">
-                <button
-                  type="button"
-                  aria-expanded={managementOpen}
-                  aria-controls="management-details"
-                  onClick={() => setManagementOpen((s) => !s)}
-                  className={`${focusRing} ${base} ${isActiveManagement ? active : idle} px-4 py-3 w-full flex items-center gap-3 justify-between`}
-                >
-                  <span className="flex items-center gap-3">
-                    <LayoutDashboard className="h-6 w-6 flex-shrink-0" aria-hidden="true" />
-                    <span className="truncate">Management</span>
-                  </span>
-                  <span className="flex items-center">
-                    {managementOpen ? (
-                      <ChevronUp className="h-4 w-4 text-[#02665e]" />
-                    ) : (
-                      <ChevronDown className="h-4 w-4 text-[#02665e]" />
-                    )}
-                  </span>
-                </button>
-              </div>
-
-              {managementOpen && (
-                <div id="management-details" className="mt-2 space-y-1 pl-4">
-                  {managementDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => {
-                    const isActiveDetail = path.startsWith(dHref);
-                    return (
-                      <Link key={dHref} href={dHref} aria-current={isActiveDetail ? "page" : undefined} className={`${focusRing} block`}>
-                        <span className={`${base} ${isActiveDetail ? active : idle} px-3 py-2 text-sm flex items-center gap-2`}>
-                          <DIcon className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
-                          <span className="truncate">{dLabel}</span>
-                        </span>
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        }
-
-        // Render Users with a visual chevron (no submenu)
-        if (href === "/admin/users") {
-          const isActiveUsers = path.startsWith(href);
-          return (
-            <div key={href}>
-              <div className="block">
-                <button
-                  type="button"
-                  aria-expanded={usersOpen}
-                  aria-controls="users-details"
-                  onClick={() => setUsersOpen((s) => !s)}
-                  className={`${focusRing} ${base} ${isActiveUsers ? active : idle} px-4 py-3 w-full flex items-center gap-3 justify-between`}
-                >
-                  <span className="flex items-center gap-3">
-                    <Icon className="h-6 w-6 flex-shrink-0" aria-hidden="true" />
-                    <span className="truncate">Users</span>
-                  </span>
-                  <span className="flex items-center">
-                    {usersOpen ? (
-                      <ChevronUp className="h-4 w-4 text-[#02665e]" />
-                    ) : (
-                      <ChevronDown className="h-4 w-4 text-[#02665e]" />
-                    )}
-                  </span>
-                </button>
-              </div>
-            </div>
-          );
-        }
-
-        // Render Group Stay as a toggle with its own mini-sidebar
-        if (href === "/admin/group-stays") {
-          const isActiveGroup = path.startsWith(href);
-          return (
-            <div key={href}>
-              <div className="block">
-                <button
-                  type="button"
-                  aria-expanded={groupStayOpen}
-                  aria-controls="groupstay-details"
-                  onClick={() => setGroupStayOpen((s) => !s)}
-                  className={`${focusRing} ${base} ${isActiveGroup ? active : idle} px-4 py-3 w-full flex items-center gap-3 justify-between`}
-                >
-                  <span className="flex items-center gap-3">
-                    <UsersRound className="h-6 w-6 flex-shrink-0" aria-hidden="true" />
-                    <span className="truncate">Group Stay</span>
-                  </span>
-                  <span className="flex items-center">
-                    {groupStayOpen ? (
-                      <ChevronUp className="h-4 w-4 text-[#02665e]" />
-                    ) : (
-                      <ChevronDown className="h-4 w-4 text-[#02665e]" />
-                    )}
-                  </span>
-                </button>
-              </div>
-
-              {groupStayOpen && (
-                <div id="groupstay-details" className="mt-2 space-y-1 pl-4">
-                  {groupStayDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => {
-                    const isActiveDetail = path.startsWith(dHref);
-                    return (
-                      <Link key={dHref} href={dHref} aria-current={isActiveDetail ? "page" : undefined} className={`${focusRing} block`}>
-                        <span className={`${base} ${isActiveDetail ? active : idle} px-3 py-2 text-sm flex items-center gap-2`}>
-                          <DIcon className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
-                          <span className="truncate">{dLabel}</span>
-                        </span>
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        }
-
-        // Render Plan with US as a toggle with its own mini-sidebar
-        if (href === "/admin/plan-with-us") {
-          const isActivePlan = path.startsWith(href);
-          return (
-            <div key={href}>
-              <div className="block">
-                <button
-                  type="button"
-                  aria-expanded={planWithUsOpen}
-                  aria-controls="planwithus-details"
-                  onClick={() => setPlanWithUsOpen((s) => !s)}
-                  className={`${focusRing} ${base} ${isActivePlan ? active : idle} px-4 py-3 w-full flex items-center gap-3 justify-between`}
-                >
-                  <span className="flex items-center gap-3">
-                    <ClipboardList className="h-6 w-6 flex-shrink-0" aria-hidden="true" />
-                    <span className="truncate">Plan with US</span>
-                  </span>
-                  <span className="flex items-center">
-                    {planWithUsOpen ? (
-                      <ChevronUp className="h-4 w-4 text-[#02665e]" />
-                    ) : (
-                      <ChevronDown className="h-4 w-4 text-[#02665e]" />
-                    )}
-                  </span>
-                </button>
-              </div>
-
-              {planWithUsOpen && (
-                <div id="planwithus-details" className="mt-2 space-y-1 pl-4">
-                  {planWithUsDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => {
-                    const isActiveDetail = path.startsWith(dHref);
-                    return (
-                      <Link key={dHref} href={dHref} aria-current={isActiveDetail ? "page" : undefined} className={`${focusRing} block`}>
-                        <span className={`${base} ${isActiveDetail ? active : idle} px-3 py-2 text-sm flex items-center gap-2`}>
-                          <DIcon className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
-                          <span className="truncate">{dLabel}</span>
-                        </span>
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        }
-
-        return (
-          <Link
-            key={href}
-            href={href}
-            aria-current={isActive ? "page" : undefined}
-            className={`${focusRing} block`}
+        {/* Admin/Owners */}
+        <div>
+          <button 
+            onClick={() => setAdminOpen(v => !v)} 
+            className="w-full flex items-center justify-between rounded-lg px-4 py-3 text-sm font-medium text-[#02665e] bg-white border border-gray-300 hover:bg-gray-50 transition-all duration-200"
+            style={{ backfaceVisibility: 'hidden', transform: 'translateZ(0)' }}
           >
-            {/* Inner wrapper controls background/hover width */}
-            <span className={`${base} ${isActive ? active : idle} px-4 py-3 flex items-center gap-3` }>
-              <Icon className="h-6 w-6 flex-shrink-0" aria-hidden="true" />
-              <span className="truncate">{label}</span>
-            </span>
-          </Link>
-        );
-      })}
+            <span>Owners</span>
+            {adminOpen ? (
+              <ChevronDown className="h-4 w-4 text-[#02665e] opacity-60" aria-hidden />
+            ) : (
+              <ChevronRight className="h-4 w-4 text-[#02665e] opacity-60" aria-hidden />
+            )}
+          </button>
+          {adminOpen && (
+            <div className="mt-2 space-y-2">
+              {adminDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => (
+                <Item key={dHref} href={dHref} label={dLabel} Icon={DIcon} isSubItem />
+              ))}
+            </div>
+          )}
+        </div>
 
-      
+        {/* Drivers */}
+        <div>
+          <button 
+            onClick={() => setDriverOpen(v => !v)} 
+            className="w-full flex items-center justify-between rounded-lg px-4 py-3 text-sm font-medium text-[#02665e] bg-white border border-gray-300 hover:bg-gray-50 transition-all duration-200"
+            style={{ backfaceVisibility: 'hidden', transform: 'translateZ(0)' }}
+          >
+            <span>Drivers</span>
+            {driverOpen ? (
+              <ChevronDown className="h-4 w-4 text-[#02665e] opacity-60" aria-hidden />
+            ) : (
+              <ChevronRight className="h-4 w-4 text-[#02665e] opacity-60" aria-hidden />
+            )}
+          </button>
+          {driverOpen && (
+            <div className="mt-2 space-y-2">
+              {driverDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => (
+                <Item key={dHref} href={dHref} label={dLabel} Icon={DIcon} isSubItem />
+              ))}
+            </div>
+          )}
+        </div>
 
-      {/* Detailed admin links are available from the Admin dashboard page. */}
-    </nav>
+        {/* Users */}
+        <div>
+          <button 
+            onClick={() => setUsersOpen(v => !v)} 
+            className="w-full flex items-center justify-between rounded-lg px-4 py-3 text-sm font-medium text-[#02665e] bg-white border border-gray-300 hover:bg-gray-50 transition-all duration-200"
+            style={{ backfaceVisibility: 'hidden', transform: 'translateZ(0)' }}
+          >
+            <span>Users</span>
+            {usersOpen ? (
+              <ChevronDown className="h-4 w-4 text-[#02665e] opacity-60" aria-hidden />
+            ) : (
+              <ChevronRight className="h-4 w-4 text-[#02665e] opacity-60" aria-hidden />
+            )}
+          </button>
+          {usersOpen && (
+            <div className="mt-2 space-y-2">
+              {userDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => (
+                <Item key={dHref} href={dHref} label={dLabel} Icon={DIcon} isSubItem />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Group Stay */}
+        <div>
+          <button 
+            onClick={() => setGroupStayOpen(v => !v)} 
+            className="w-full flex items-center justify-between rounded-lg px-4 py-3 text-sm font-medium text-[#02665e] bg-white border border-gray-300 hover:bg-gray-50 transition-all duration-200"
+            style={{ backfaceVisibility: 'hidden', transform: 'translateZ(0)' }}
+          >
+            <span>Group Stay</span>
+            {groupStayOpen ? (
+              <ChevronDown className="h-4 w-4 text-[#02665e] opacity-60" aria-hidden />
+            ) : (
+              <ChevronRight className="h-4 w-4 text-[#02665e] opacity-60" aria-hidden />
+            )}
+          </button>
+          {groupStayOpen && (
+            <div className="mt-2 space-y-2">
+              {groupStayDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => (
+                <Item key={dHref} href={dHref} label={dLabel} Icon={DIcon} isSubItem />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Plan with US */}
+        <div>
+          <button 
+            onClick={() => setPlanWithUsOpen(v => !v)} 
+            className="w-full flex items-center justify-between rounded-lg px-4 py-3 text-sm font-medium text-[#02665e] bg-white border border-gray-300 hover:bg-gray-50 transition-all duration-200"
+            style={{ backfaceVisibility: 'hidden', transform: 'translateZ(0)' }}
+          >
+            <span>Plan with US</span>
+            {planWithUsOpen ? (
+              <ChevronDown className="h-4 w-4 text-[#02665e] opacity-60" aria-hidden />
+            ) : (
+              <ChevronRight className="h-4 w-4 text-[#02665e] opacity-60" aria-hidden />
+            )}
+          </button>
+          {planWithUsOpen && (
+            <div className="mt-2 space-y-2">
+              {planWithUsDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => (
+                <Item key={dHref} href={dHref} label={dLabel} Icon={DIcon} isSubItem />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Management */}
+        <div>
+          <button 
+            onClick={() => setManagementOpen(v => !v)} 
+            className="w-full flex items-center justify-between rounded-lg px-4 py-3 text-sm font-medium text-[#02665e] bg-white border border-gray-300 hover:bg-gray-50 transition-all duration-200"
+            style={{ backfaceVisibility: 'hidden', transform: 'translateZ(0)' }}
+          >
+            <span>Management</span>
+            {managementOpen ? (
+              <ChevronDown className="h-4 w-4 text-[#02665e] opacity-60" aria-hidden />
+            ) : (
+              <ChevronRight className="h-4 w-4 text-[#02665e] opacity-60" aria-hidden />
+            )}
+          </button>
+          {managementOpen && (
+            <div className="mt-2 space-y-2">
+              {managementDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => (
+                <Item key={dHref} href={dHref} label={dLabel} Icon={DIcon} isSubItem />
+              ))}
+            </div>
+          )}
+        </div>
+
+      </div>
+    </div>
   );
 }

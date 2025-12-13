@@ -26,20 +26,45 @@ export default function TrustedBy({ title = "Trusted by", brands, className = ""
         </div>
       )}
       <div className="overflow-hidden">
-        <div className="flex items-center gap-6 sm:gap-8 whitespace-nowrap py-2">
+        <div className="flex items-center gap-2 sm:gap-3 md:gap-4 lg:gap-3 xl:gap-2 whitespace-nowrap py-2">
           {brands.map((b, i) => (
             b.href ? (
-              <a key={i} href={b.href} className="inline-flex items-center gap-2 opacity-80 hover:opacity-100 transition">
+              <a 
+                key={i} 
+                href={b.href} 
+                className="inline-flex items-center justify-center opacity-80 hover:opacity-100 transition group"
+                title={b.name}
+              >
                 {b.logoUrl ? (
-                  <Image src={b.logoUrl} alt={`${b.name} logo`} width={120} height={40} className="h-6 sm:h-8 w-auto" />
+                  <div className="h-6 w-16 sm:h-7 sm:w-20 md:h-8 md:w-24 lg:h-7 lg:w-20 xl:h-6 xl:w-[4.5rem] bg-white border border-gray-200 rounded-lg p-0.5 sm:p-1 flex items-center justify-center hover:border-emerald-500 transition-colors">
+                    <Image 
+                      src={b.logoUrl} 
+                      alt={`${b.name} logo`} 
+                      width={80} 
+                      height={32} 
+                      className="h-full w-full object-contain" 
+                    />
+                  </div>
                 ) : (
                   <span className="text-sm sm:text-base font-semibold text-gray-700">{b.name}</span>
                 )}
               </a>
             ) : (
-              <span key={i} className="inline-flex items-center gap-2 opacity-80">
+              <span 
+                key={i} 
+                className="inline-flex items-center justify-center opacity-80 group"
+                title={b.name}
+              >
                 {b.logoUrl ? (
-                  <Image src={b.logoUrl} alt={`${b.name} logo`} width={120} height={40} className="h-6 sm:h-8 w-auto" />
+                  <div className="h-6 w-16 sm:h-7 sm:w-20 md:h-8 md:w-24 lg:h-7 lg:w-20 xl:h-6 xl:w-[4.5rem] bg-white border border-gray-200 rounded-lg p-0.5 sm:p-1 flex items-center justify-center">
+                    <Image 
+                      src={b.logoUrl} 
+                      alt={`${b.name} logo`} 
+                      width={80} 
+                      height={32} 
+                      className="h-full w-full object-contain" 
+                    />
+                  </div>
                 ) : (
                   <span className="text-sm sm:text-base font-semibold text-gray-700">{b.name}</span>
                 )}

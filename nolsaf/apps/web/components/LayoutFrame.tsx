@@ -49,7 +49,7 @@ export default function LayoutFrame({
 
   return (
     <div className={`w-full pointer-events-none ${className}`} aria-hidden>
-      <div className="max-w-6xl mx-auto relative px-4">
+      <div className="max-w-6xl mx-auto relative px-2 sm:px-3 md:px-4">
         {/* optional boxed frame */}
         {box ? (
           <div className={`absolute inset-0 pointer-events-none flex items-stretch`}>

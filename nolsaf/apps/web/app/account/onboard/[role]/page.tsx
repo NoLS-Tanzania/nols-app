@@ -4,12 +4,16 @@ import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import * as Icons from 'lucide-react';
-import VerifiedIcon from '../../../../components/VerifiedIcon';
+import { User, Mail, UserCircle, Globe, CreditCard, FileText, Upload, CheckCircle2, Truck, MapPin, Phone, ChevronDown, AlertCircle, ChevronLeft, ChevronRight, Loader2, Car, X, Clock, Building2, UserCircle2, ArrowLeft } from 'lucide-react';
 
 export default function OnboardRole({ params }: { params: { role: string } }) {
   const role = (params.role || '').toLowerCase();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  
+  // Get referral code from URL
+  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+  const referralCode = searchParams?.get('ref') || null;
   // driver fields
   
   const [plateNumber, setPlateNumber] = useState('');
@@ -96,6 +100,9 @@ export default function OnboardRole({ params }: { params: { role: string } }) {
       fd.append('role', role);
       fd.append('name', name);
       fd.append('email', email);
+      if (referralCode) {
+        fd.append('referralCode', referralCode);
+      }
       if (role === 'driver') {
       fd.append('gender', gender || '');
       fd.append('nationality', nationality || '');
@@ -156,6 +163,27 @@ export default function OnboardRole({ params }: { params: { role: string } }) {
     }
   };
 
+  // Comprehensive validation for all required driver steps before submission
+  const isAllDriverStepsValid = () => {
+    if (role !== 'driver') return true;
+    
+    // Step 1: Personal Details
+    const step1Valid = name.trim().length > 0 && emailRe.test(email.trim());
+    
+    // Step 2: Driving Details
+    const step2Valid = licenseNumber.trim().length > 0 && 
+                       vehicleType.trim().length > 0 && 
+                       plateNumber.trim().length > 0;
+    
+    // Step 3: Payment Details
+    const step3Valid = paymentPhone.trim().length > 0 && paymentVerified === true;
+    
+    // Step 4: Uploads (driving license and national ID are required)
+    const step4Valid = licenseFile !== null && idFile !== null;
+    
+    return step1Valid && step2Valid && step3Valid && step4Valid;
+  };
+
   // Per-field touched/errors to show inline messages
   const [touched, setTouched] = useState<Record<string, boolean>>({
     name: false,
@@ -197,9 +225,11 @@ export default function OnboardRole({ params }: { params: { role: string } }) {
 
   // validateStepFields replaced by inline validation in handleNext (keeps single-source focus behavior)
 
+  const maxSteps = role === 'driver' ? 5 : 2; // Traveller and owner have 2 steps
+
   const handleNext = () => {
     if (isStepValid()) {
-      setStepIndex(i => Math.min(5, i + 1));
+      setStepIndex(i => Math.min(maxSteps, i + 1));
       return;
     }
 
@@ -246,8 +276,14 @@ export default function OnboardRole({ params }: { params: { role: string } }) {
       paymentRef.current?.focus();
       return;
     }
+    
     setPaymentLoading(true);
     try {
+      // Call API to send payment verification OTP
+      const response = await api.post('/api/auth/send-otp', {
+        phone: paymentPhone.trim(),
+      });
+      
       const resp = await fetch('/api/auth/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -282,8 +318,10 @@ export default function OnboardRole({ params }: { params: { role: string } }) {
       paymentOtpRef.current?.focus();
       return;
     }
+    
     setPaymentLoading(true);
     try {
+      // Verify payment OTP with API
       const resp = await fetch('/api/auth/verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -311,96 +349,413 @@ export default function OnboardRole({ params }: { params: { role: string } }) {
   
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
-      <div className="max-w-3xl w-full bg-white rounded-lg shadow overflow-hidden">
-        <div className="p-6 bg-gradient-to-b from-white via-slate-50 to-white">
-          <div className="flex flex-col items-center text-center gap-2">
-            <div className="min-w-0">
-              <h1 className="text-2xl sm:text-3xl font-semibold">{title}</h1>
-              <p className="text-sm text-slate-600 mt-1 max-w-2xl mx-auto">{help}</p>
+    <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-slate-50 py-6 px-4">
+      <div className={`${role !== 'driver' ? 'max-w-md' : 'max-w-4xl'} w-full bg-white rounded-xl shadow-lg overflow-hidden border border-slate-100`}>
+        {/* Modern Header */}
+        <div className={`relative bg-gradient-to-r from-[#02665e] to-[#014e47] ${role !== 'driver' ? 'px-4 py-3' : 'px-6 py-5'}`}>
+          <div className="flex flex-col items-center text-center gap-1.5">
+            <div className={`${role !== 'driver' ? 'w-10 h-10' : 'w-12 h-12'} rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center`}>
+              {role === 'driver' ? (
+                <Truck className="w-6 h-6 text-white" />
+              ) : role === 'owner' ? (
+                <Building2 className="w-5 h-5 text-white" />
+              ) : (
+                <UserCircle2 className="w-5 h-5 text-white" />
+              )}
+            </div>
+            <h1 className={`${role !== 'driver' ? 'text-xl sm:text-2xl' : 'text-2xl sm:text-3xl'} font-bold text-white`}>{title}</h1>
+            <p className={`${role !== 'driver' ? 'text-xs' : 'text-xs sm:text-sm'} text-white/90 ${role !== 'driver' ? 'max-w-xs' : 'max-w-2xl'} mx-auto`}>{help}</p>
             </div>
 
-            <div className="mt-4 w-full">
-                <div className="w-full -mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto snap-x snap-mandatory scroll-smooth">
-                  <nav className="min-w-max flex items-center gap-6 sm:justify-center">
-                  {[1,2,3,4,5].map((s, i) => (
-                    <div key={s} className="snap-center flex items-center gap-3">
+          {/* Modern Step Indicator */}
+          <div className={`${role !== 'driver' ? 'mt-3' : 'mt-5'} w-full`}>
+            <div className="w-full overflow-x-auto snap-x snap-mandatory scroll-smooth pb-2">
+              <nav className={`${role !== 'driver' ? 'flex items-center justify-center' : 'min-w-max flex items-center'} gap-4 sm:justify-center`}>
+                {(role === 'driver' ? [
+                  { num: 1, label: 'Personal', icon: User },
+                  { num: 2, label: 'Driving', icon: Truck },
+                  { num: 3, label: 'Payment', icon: CreditCard },
+                  { num: 4, label: 'Uploads', icon: Upload },
+                  { num: 5, label: 'Review', icon: CheckCircle2 }
+                ] : [
+                  { num: 1, label: 'Personal', icon: User },
+                  { num: 2, label: 'Review', icon: CheckCircle2 }
+                ]).map((step, i) => {
+                  const Icon = step.icon;
+                  const isActive = stepIndex === step.num;
+                  const isCompleted = stepIndex > step.num;
+                  return (
+                    <div key={step.num} className="snap-center flex items-center gap-3">
                       <button
                         type="button"
-                        onClick={() => setStepIndex(s)}
-                        className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-semibold transition-transform transform ${stepIndex===s ? 'bg-emerald-600 text-white shadow-md scale-105' : 'bg-slate-100 text-slate-700 hover:scale-105'} focus:outline-none focus:ring-2 focus:ring-emerald-200`}
-                        aria-current={stepIndex===s ? 'step' : undefined}
-                        aria-label={`Step ${s}`}
+                        onClick={() => setStepIndex(step.num)}
+                        className={`group flex flex-col items-center gap-2 transition-all duration-300 ${
+                          isActive ? 'scale-110' : 'hover:scale-105'
+                        }`}
+                        aria-current={isActive ? 'step' : undefined}
+                        aria-label={`Step ${step.num}: ${step.label}`}
                       >
-                        {s}
+                        {role !== 'driver' ? (
+                          // For travellers/owners: show icon instead of number
+                          <div className={`relative flex items-center justify-center ${role !== 'driver' ? 'w-10 h-10' : 'w-8 h-8'} rounded-lg text-xs font-semibold transition-all duration-300 ${
+                            isActive 
+                              ? 'bg-white text-[#02665e] shadow-lg ring-2 ring-white/30' 
+                              : isCompleted
+                              ? 'bg-white text-[#02665e] shadow-md'
+                              : 'bg-white/10 text-white/70 hover:bg-white/20'
+                          }`}>
+                            {isCompleted ? (
+                              <CheckCircle2 className={`${role !== 'driver' ? 'w-5 h-5' : 'w-4 h-4'} text-[#02665e]`} />
+                            ) : (
+                              <Icon className={`${role !== 'driver' ? 'w-5 h-5' : 'w-4 h-4'} ${isActive ? 'text-[#02665e]' : 'text-white/70'}`} />
+                            )}
+                          </div>
+                        ) : (
+                          // For drivers: keep numbers
+                          <div className={`relative flex items-center justify-center w-8 h-8 rounded-lg text-xs font-semibold transition-all duration-300 ${
+                            isActive 
+                              ? 'bg-white text-[#02665e] shadow-lg ring-2 ring-white/30' 
+                              : isCompleted
+                              ? 'bg-white text-[#02665e] shadow-md'
+                              : 'bg-white/10 text-white/70 hover:bg-white/20'
+                          }`}>
+                            {isCompleted ? (
+                              <CheckCircle2 className="w-4 h-4 text-[#02665e]" />
+                            ) : (
+                              <span className={isActive ? 'text-[#02665e]' : 'text-white/70'}>{step.num}</span>
+                            )}
+                          </div>
+                        )}
+                        <span className={`text-[9px] sm:text-[10px] font-medium transition-colors ${
+                          isActive 
+                            ? 'text-white' 
+                            : isCompleted
+                            ? 'text-[#02665e] font-semibold'
+                            : 'text-white/80'
+                        }`}>
+                          {step.label}
+                        </span>
                       </button>
-                      <div className="hidden sm:block text-xs text-slate-600">{s === 1 ? 'Personal' : s === 2 ? 'Driving' : s === 3 ? 'Payment' : s === 4 ? 'Uploads' : 'Review'}</div>
-                      {i < 4 ? <div className={`w-12 h-1 rounded ${stepIndex > s ? 'bg-emerald-500' : 'bg-slate-200'} transition-colors`} /> : null}
+                      {i < (role === 'driver' ? 4 : 1) && (
+                        <div className={`w-6 sm:w-10 h-0.5 rounded-full transition-all duration-300 ${
+                          isCompleted ? 'bg-white' : 'bg-white/30'
+                        }`} />
+                      )}
                     </div>
-                  ))}
+                  );
+                })}
                   </nav>
-                </div>
-
-                {/* Progress bars removed: inline connectors between step buttons are sufficient */}
             </div>
           </div>
         </div>
 
-        <div className="p-6">
+        <div className={role !== 'driver' ? 'p-4' : 'p-6'}>
           {error && !(error === 'Please provide both name and email' && role === 'driver' && stepIndex !== 5) && (
-            <div className="mb-4 text-sm text-red-700">{error}</div>
+            <div className={`mb-4 ${role !== 'driver' ? 'p-2.5' : 'p-3'} bg-red-50 border-l-4 border-red-500 rounded-r-lg flex items-start gap-2`}>
+              <AlertCircle className={`${role !== 'driver' ? 'w-3.5 h-3.5' : 'w-4 h-4'} text-red-500 flex-shrink-0 mt-0.5`} />
+              <p className={`${role !== 'driver' ? 'text-xs' : 'text-sm'} text-red-700 flex-1`}>{error}</p>
+            </div>
           )}
-          {success && <div className="mb-4 text-sm text-green-700">{success}</div>}
+          {success && (
+            <div className={`mb-4 ${role !== 'driver' ? 'p-2.5' : 'p-3'} bg-emerald-50 border-l-4 border-emerald-500 rounded-r-lg flex items-start gap-2`}>
+              <CheckCircle2 className={`${role !== 'driver' ? 'w-3.5 h-3.5' : 'w-4 h-4'} text-emerald-500 flex-shrink-0 mt-0.5`} />
+              <p className={`${role !== 'driver' ? 'text-xs' : 'text-sm'} text-emerald-700 flex-1`}>{success}</p>
+            </div>
+          )}
 
-          {/* Non-driver simple form */}
+          {/* Content area */}
           {role !== 'driver' ? (
-            <form onSubmit={submitProfile} className="space-y-4">
+            <form onSubmit={submitProfile} className={role !== 'driver' ? 'space-y-4' : 'space-y-6'}>
+              {/* Step contents for traveller/owner */}
+              {stepIndex === 1 && (
+                <div className={`space-y-4 rounded-xl p-5 border-2 border-slate-100 bg-gradient-to-br from-white to-slate-50/50 shadow-sm transition-all duration-300 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
+                  <div className="flex items-center gap-2 pb-3 border-b border-slate-200">
+                    <div className="w-8 h-8 rounded-lg bg-[#02665e]/10 flex items-center justify-center">
+                      <User className="w-4 h-4 text-[#02665e]" />
+                    </div>
+                    <h3 className="text-lg font-bold text-slate-900">Personal Details</h3>
+                  </div>
+
+                  <div className="space-y-4">
               <div>
-                <label htmlFor="onboard-name" className="block text-sm font-medium text-slate-700">Full name</label>
-                <input id="onboard-name" value={name} onChange={e => setName(e.target.value)} className="mt-1 block w-full border border-slate-200 rounded-md px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-300" placeholder="Your full name" />
+                      <label className={`block ${role !== 'driver' ? 'text-xs' : 'text-sm'} font-semibold text-slate-900 ${role !== 'driver' ? 'mb-1' : 'mb-1.5'} flex items-center gap-2`}>
+                        <User className={`${role !== 'driver' ? 'w-3 h-3' : 'w-3.5 h-3.5'} text-slate-500`} />
+                        Full name
+                        <span className="text-red-500">*</span>
+                      </label>
+                      <input 
+                        ref={nameRef} 
+                        value={name} 
+                        onChange={e => setName(e.target.value)} 
+                        onBlur={() => { setTouched(prev => ({ ...prev, name: true })); setFieldErrors(prev => ({ ...prev, name: validateField('name') })); }} 
+                        className={`w-full ${role !== 'driver' ? 'px-3 py-2 text-xs' : 'px-3 py-2.5 text-sm'} border-2 rounded-lg transition-all duration-200 ${
+                          touched.name && fieldErrors.name
+                            ? 'border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-100'
+                            : 'border-slate-200 focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/10'
+                        } bg-white shadow-sm hover:shadow-md focus:outline-none`}
+                        placeholder="Your full name"
+                      />
+                      {touched.name && fieldErrors.name && (
+                        <div className={`${role !== 'driver' ? 'text-[10px] mt-1' : 'text-xs mt-1.5'} text-red-600 flex items-center gap-1`}>
+                          <AlertCircle className={`${role !== 'driver' ? 'w-2.5 h-2.5' : 'w-3 h-3'}`} />
+                          {fieldErrors.name}
+                        </div>
+                      )}
               </div>
 
               <div>
-                <label htmlFor="onboard-email" className="block text-sm font-medium text-slate-700">Email</label>
-                <input id="onboard-email" type="email" value={email} onChange={e => setEmail(e.target.value)} className="mt-1 block w-full border border-slate-200 rounded-md px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-300" placeholder="you@example.com" />
+                      <label className={`block ${role !== 'driver' ? 'text-xs' : 'text-sm'} font-semibold text-slate-900 ${role !== 'driver' ? 'mb-1' : 'mb-1.5'} flex items-center gap-2`}>
+                        <Mail className={`${role !== 'driver' ? 'w-3 h-3' : 'w-3.5 h-3.5'} text-slate-500`} />
+                        Email
+                        <span className="text-red-500">*</span>
+                      </label>
+                      <input 
+                        ref={emailRef} 
+                        type="email" 
+                        value={email} 
+                        onChange={e => setEmail(e.target.value)} 
+                        onBlur={() => { setTouched(prev => ({ ...prev, email: true })); setFieldErrors(prev => ({ ...prev, email: validateField('email') })); }} 
+                        className={`w-full ${role !== 'driver' ? 'px-3 py-2 text-xs' : 'px-3 py-2.5 text-sm'} border-2 rounded-lg transition-all duration-200 ${
+                          touched.email && fieldErrors.email
+                            ? 'border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-100'
+                            : 'border-slate-200 focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/10'
+                        } bg-white shadow-sm hover:shadow-md focus:outline-none`}
+                        placeholder="you@example.com"
+                      />
+                      {touched.email && fieldErrors.email && (
+                        <div className={`${role !== 'driver' ? 'text-[10px] mt-1' : 'text-xs mt-1.5'} text-red-600 flex items-center gap-1`}>
+                          <AlertCircle className={`${role !== 'driver' ? 'w-2.5 h-2.5' : 'w-3 h-3'}`} />
+                          {fieldErrors.email}
               </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
 
-              <div className="flex items-center gap-3">
-                <button type="submit" disabled={loading} className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-md disabled:opacity-60">{loading ? 'Saving...' : 'Save and continue'}</button>
-                <Link href="/public" className="text-sm text-slate-600">Return to public site</Link>
+              {stepIndex === 2 && (
+                <div className={`${role !== 'driver' ? 'space-y-3 rounded-lg p-4' : 'space-y-4 rounded-xl p-5'} border-2 border-slate-100 bg-gradient-to-br from-white to-slate-50/50 shadow-sm transition-all duration-300 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
+                  <div className={`flex items-center gap-2 ${role !== 'driver' ? 'pb-2' : 'pb-3'} border-b border-slate-200`}>
+                    <div className={`${role !== 'driver' ? 'w-7 h-7' : 'w-8 h-8'} rounded-lg bg-[#02665e]/10 flex items-center justify-center`}>
+                      <CheckCircle2 className={`${role !== 'driver' ? 'w-3.5 h-3.5' : 'w-4 h-4'} text-[#02665e]`} />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className={`${role !== 'driver' ? 'text-base' : 'text-lg'} font-bold text-slate-900`}>Review your details</h3>
+                      <p className={`${role !== 'driver' ? 'text-[10px]' : 'text-xs'} text-slate-600 mt-0.5`}>Please confirm the information below before submitting your profile.</p>
+                    </div>
+                  </div>
+
+                  <div className={role !== 'driver' ? 'space-y-3' : 'space-y-4'}>
+                    <div className={role !== 'driver' ? 'space-y-2' : 'space-y-3'}>
+                      <div className={`flex items-center gap-2 ${role !== 'driver' ? 'pb-1.5' : 'pb-2'} border-b border-slate-400`}>
+                        <h4 className={`${role !== 'driver' ? 'text-xs' : 'text-sm'} font-semibold text-slate-700`}>Personal Details</h4>
+                      </div>
+                      <div className={`grid grid-cols-1 ${role !== 'driver' ? '' : 'md:grid-cols-2'} ${role !== 'driver' ? 'gap-2' : 'gap-3'}`}>
+                        <div className={`${role !== 'driver' ? 'p-2.5' : 'p-3'} bg-white border-2 border-slate-200 rounded-lg hover:border-slate-300 transition-colors`}>
+                          <div className={`flex items-center justify-between ${role !== 'driver' ? 'mb-1.5' : 'mb-2'}`}>
+                            <label className={`${role !== 'driver' ? 'text-[10px]' : 'text-xs'} font-semibold text-slate-700 flex items-center gap-1.5`}>
+                              <User className={`${role !== 'driver' ? 'w-2.5 h-2.5' : 'w-3 h-3'} text-slate-400`} />
+                              Full name
+                              <span className="text-red-500">*</span>
+                            </label>
+                            <button type="button" onClick={() => setStepIndex(1)} className={`${role !== 'driver' ? 'text-[10px]' : 'text-xs'} text-[#02665e] hover:text-[#02665e]/80 hover:underline font-medium`}>Edit</button>
+                          </div>
+                          <div className={`${role !== 'driver' ? 'text-xs' : 'text-sm'} text-slate-900 font-medium`}>{name || <span className="text-slate-400 italic">Not provided</span>}</div>
+                          {touched.name && fieldErrors.name && (
+                            <div className={`${role !== 'driver' ? 'text-[10px] mt-0.5' : 'text-xs mt-1'} text-red-600 flex items-center gap-1`}>
+                              <AlertCircle className={`${role !== 'driver' ? 'w-2.5 h-2.5' : 'w-3 h-3'}`} />
+                              {fieldErrors.name}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className={`${role !== 'driver' ? 'p-2.5' : 'p-3'} bg-white border-2 border-slate-200 rounded-lg hover:border-slate-300 transition-colors`}>
+                          <div className={`flex items-center justify-between ${role !== 'driver' ? 'mb-1.5' : 'mb-2'}`}>
+                            <label className={`${role !== 'driver' ? 'text-[10px]' : 'text-xs'} font-semibold text-slate-700 flex items-center gap-1.5`}>
+                              <Mail className={`${role !== 'driver' ? 'w-2.5 h-2.5' : 'w-3 h-3'} text-slate-400`} />
+                              Email
+                              <span className="text-red-500">*</span>
+                            </label>
+                            <button type="button" onClick={() => setStepIndex(1)} className={`${role !== 'driver' ? 'text-[10px]' : 'text-xs'} text-[#02665e] hover:text-[#02665e]/80 hover:underline font-medium`}>Edit</button>
+                          </div>
+                          <div className={`${role !== 'driver' ? 'text-xs' : 'text-sm'} text-slate-900 font-medium`}>{email || <span className="text-slate-400 italic">Not provided</span>}</div>
+                          {touched.email && fieldErrors.email && (
+                            <div className={`${role !== 'driver' ? 'text-[10px] mt-0.5' : 'text-xs mt-1'} text-red-600 flex items-center gap-1`}>
+                              <AlertCircle className={`${role !== 'driver' ? 'w-2.5 h-2.5' : 'w-3 h-3'}`} />
+                              {fieldErrors.email}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className={`flex items-center justify-between ${role !== 'driver' ? 'pt-3' : 'pt-4'} border-t border-slate-200`}>
+                <div className="flex items-center gap-2">
+                  {stepIndex > 1 && (
+                    <button 
+                      type="button" 
+                      onClick={() => setStepIndex(i => Math.max(1, i-1))} 
+                      className={`${role !== 'driver' ? 'px-3 py-1.5 text-xs' : 'px-4 py-2 text-sm'} border-2 border-slate-300 rounded-lg bg-white text-slate-700 font-medium hover:bg-slate-50 hover:border-slate-400 transition-all duration-200 shadow-sm hover:shadow-md`}
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <ChevronLeft className={`${role !== 'driver' ? 'w-3 h-3' : 'w-3.5 h-3.5'}`} />
+                        Back
+                      </span>
+                    </button>
+                  )}
+                  <Link 
+                    href="/public" 
+                    className={`flex items-center gap-2 ${role !== 'driver' ? 'px-2.5 py-1.5 text-xs' : 'px-3 py-2 text-sm'} text-slate-600 hover:text-[#02665e] hover:bg-slate-50 rounded-lg transition-all duration-200 font-medium group no-underline`}
+                  >
+                    <ArrowLeft className={`${role !== 'driver' ? 'w-3.5 h-3.5' : 'w-4 h-4'} group-hover:-translate-x-0.5 transition-transform`} />
+                    <span>Return to public site</span>
+                  </Link>
+                </div>
+                <div className="flex items-center gap-2">
+                  {stepIndex < 2 ? (
+                    <button
+                      type="button"
+                      onClick={handleNext}
+                      disabled={!isStepValid()}
+                      className={`${role !== 'driver' ? 'px-4 py-2 text-xs' : 'px-6 py-2.5 text-sm'} rounded-lg font-semibold transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 ${
+                        isStepValid() 
+                          ? 'bg-[#02665e] hover:bg-[#014e47] text-white' 
+                          : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                      }`}
+                    >
+                      <span className="flex items-center gap-1.5">
+                        Next
+                        <ChevronRight className={`${role !== 'driver' ? 'w-3 h-3' : 'w-3.5 h-3.5'}`} />
+                      </span>
+                    </button>
+                  ) : (
+                    <button 
+                      type="submit" 
+                      disabled={loading || (role !== 'driver' && (!name.trim() || !emailRe.test(email.trim())))} 
+                      className={`${role !== 'driver' ? 'px-4 py-2 text-xs' : 'px-6 py-2.5 text-sm'} rounded-lg font-semibold transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 disabled:transform-none disabled:hover:shadow-md ${
+                        loading || (role !== 'driver' && (!name.trim() || !emailRe.test(email.trim())))
+                          ? 'bg-slate-200 text-slate-400 cursor-not-allowed opacity-60'
+                          : 'bg-[#02665e] hover:bg-[#014e47] text-white'
+                      }`}
+                    >
+                      {loading ? (
+                        <span className="flex items-center gap-1.5">
+                          <Loader2 className={`${role !== 'driver' ? 'w-3 h-3' : 'w-3.5 h-3.5'} animate-spin`} />
+                          Saving...
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1.5">
+                          <CheckCircle2 className={`${role !== 'driver' ? 'w-3 h-3' : 'w-3.5 h-3.5'}`} />
+                          Save and continue
+                        </span>
+                      )}
+                    </button>
+                  )}
+                </div>
               </div>
             </form>
           ) : (
             <form onSubmit={submitProfile} className="space-y-6">
               {/* Step contents with small animation */}
               {stepIndex === 1 && (
-                <div className={`space-y-4 rounded-md p-5 border border-slate-100 bg-white transition-transform duration-200 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
-                  <h3 className="text-lg font-medium text-slate-800">Personal Details</h3>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700">Full name</label>
-                    <input ref={nameRef} value={name} onChange={e => setName(e.target.value)} onBlur={() => { setTouched(prev => ({ ...prev, name: true })); setFieldErrors(prev => ({ ...prev, name: validateField('name') })); }} className="mt-1 block w-full border border-slate-200 rounded-md px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-300" placeholder="Your full name" />
-                    {touched.name && fieldErrors.name && <div className="text-xs text-red-600 mt-1">{fieldErrors.name}</div>}
+                <div className={`space-y-4 rounded-xl p-5 border-2 border-slate-100 bg-gradient-to-br from-white to-slate-50/50 shadow-sm transition-all duration-300 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
+                  <div className="flex items-center gap-2 pb-3 border-b border-slate-200">
+                    <div className="w-8 h-8 rounded-lg bg-[#02665e]/10 flex items-center justify-center">
+                      <User className="w-4 h-4 text-[#02665e]" />
+                    </div>
+                    <h3 className="text-lg font-bold text-slate-900">Personal Details</h3>
                   </div>
+
+                  <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700">Email</label>
-                    <input ref={emailRef} type="email" value={email} onChange={e => setEmail(e.target.value)} onBlur={() => { setTouched(prev => ({ ...prev, email: true })); setFieldErrors(prev => ({ ...prev, email: validateField('email') })); }} className="mt-1 block w-full border border-slate-200 rounded-md px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-300" placeholder="you@example.com" />
-                    {touched.email && fieldErrors.email && <div className="text-xs text-red-600 mt-1">{fieldErrors.email}</div>}
+                      <label className="block text-sm font-semibold text-slate-900 mb-1.5 flex items-center gap-2">
+                        <UserCircle className="w-3.5 h-3.5 text-slate-500" />
+                        Full name
+                        <span className="text-red-500">*</span>
+                      </label>
+                      <input 
+                        ref={nameRef} 
+                        value={name} 
+                        onChange={e => setName(e.target.value)} 
+                        onBlur={() => { setTouched(prev => ({ ...prev, name: true })); setFieldErrors(prev => ({ ...prev, name: validateField('name') })); }} 
+                        className={`w-full px-3 py-2.5 border-2 rounded-lg transition-all duration-200 ${
+                          touched.name && fieldErrors.name 
+                            ? 'border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-100' 
+                            : 'border-slate-200 focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/10'
+                        } bg-white shadow-sm hover:shadow-md text-sm`}
+                        placeholder="Enter your full name"
+                      />
+                      {touched.name && fieldErrors.name && (
+                        <div className="text-xs text-red-600 mt-2 flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3" />
+                          {fieldErrors.name}
+                  </div>
+                      )}
+                    </div>
+
+                  <div>
+                      <label className="block text-sm font-semibold text-slate-900 mb-1.5 flex items-center gap-2">
+                        <Mail className="w-3.5 h-3.5 text-slate-500" />
+                        Email
+                        <span className="text-red-500">*</span>
+                      </label>
+                      <input 
+                        ref={emailRef} 
+                        type="email" 
+                        value={email} 
+                        onChange={e => setEmail(e.target.value)} 
+                        onBlur={() => { setTouched(prev => ({ ...prev, email: true })); setFieldErrors(prev => ({ ...prev, email: validateField('email') })); }} 
+                        className={`w-full px-3 py-2.5 border-2 rounded-lg transition-all duration-200 ${
+                          touched.email && fieldErrors.email 
+                            ? 'border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-100' 
+                            : 'border-slate-200 focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/10'
+                        } bg-white shadow-sm hover:shadow-md text-sm`}
+                        placeholder="you@example.com"
+                      />
+                      {touched.email && fieldErrors.email && (
+                        <div className="text-xs text-red-600 mt-2 flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3" />
+                          {fieldErrors.email}
+                        </div>
+                      )}
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div>
-                      <label htmlFor="gender-select" className="block text-sm font-medium text-slate-700">Gender</label>
-                      <select id="gender-select" value={gender} onChange={e => setGender(e.target.value)} className="mt-1 block w-full border border-slate-200 rounded-md px-2 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-300">
-                        <option value="">Select</option>
+                        <label htmlFor="gender-select" className="block text-sm font-semibold text-slate-900 mb-1.5">
+                          Gender
+                        </label>
+                        <div className="relative">
+                          <select 
+                            id="gender-select" 
+                            value={gender} 
+                            onChange={e => setGender(e.target.value)} 
+                            className="onboard-select w-full px-3 pr-10 py-2.5 border-2 border-slate-200 rounded-lg bg-white shadow-sm hover:shadow-md focus:outline-none focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/10 transition-all duration-200 cursor-pointer text-sm"
+                          >
+                            <option value="">Select gender</option>
                         <option value="male">Male</option>
                         <option value="female">Female</option>
                         <option value="other">Other</option>
                       </select>
+                          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                        </div>
                     </div>
 
                     <div>
-                      <label htmlFor="nationality-select" className="block text-sm font-medium text-slate-700">Nationality</label>
-                      <select id="nationality-select" value={nationality} onChange={e => setNationality(e.target.value)} className="mt-1 block w-full border border-slate-200 rounded-md px-2 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-300">
+                        <label htmlFor="nationality-select" className="block text-sm font-semibold text-slate-900 mb-1.5 flex items-center gap-2">
+                          <Globe className="w-3.5 h-3.5 text-slate-500" />
+                          Nationality
+                        </label>
+                        <div className="relative">
+                          <select 
+                            id="nationality-select" 
+                            value={nationality} 
+                            onChange={e => setNationality(e.target.value)} 
+                            className="onboard-select w-full px-3 pr-10 py-2.5 border-2 border-slate-200 rounded-lg bg-white shadow-sm hover:shadow-md focus:outline-none focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/10 transition-all duration-200 cursor-pointer text-sm"
+                          >
                         <option value="Tanzanian">Tanzanian</option>
                         <option value="Kenyan">Kenyan</option>
                         <option value="Ugandan">Ugandan</option>
@@ -408,81 +763,313 @@ export default function OnboardRole({ params }: { params: { role: string } }) {
                         <option value="Burundian">Burundian</option>
                         <option value="Other">Other</option>
                       </select>
+                          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                        </div>
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-slate-700">NIN (optional)</label>
-                      <input value={nin} onChange={e => setNin(e.target.value)} className="mt-1 block w-full border border-slate-200 rounded-md px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-300" placeholder="National ID number" />
+                        <label className="block text-sm font-semibold text-slate-900 mb-1.5">
+                          NIN <span className="text-slate-500 font-normal">(optional)</span>
+                        </label>
+                        <input 
+                          value={nin} 
+                          onChange={e => setNin(e.target.value)} 
+                          className="w-full px-3 py-2.5 border-2 border-slate-200 rounded-lg bg-white shadow-sm hover:shadow-md focus:outline-none focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/10 transition-all duration-200 text-sm" 
+                          placeholder="National ID number"
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
               )}
 
               {stepIndex === 2 && (
-                <div className={`space-y-4 rounded-md p-5 border border-slate-100 bg-white transition-transform duration-200 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
-                  <h3 className="text-lg font-medium text-slate-800">Driving Details</h3>
+                <div className={`space-y-4 rounded-xl p-5 border-2 border-slate-100 bg-gradient-to-br from-white to-slate-50/50 shadow-sm transition-all duration-300 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
+                  <div className="flex items-center gap-2 pb-3 border-b border-slate-200">
+                    <div className="w-8 h-8 rounded-lg bg-[#02665e]/10 flex items-center justify-center">
+                      <Truck className="w-4 h-4 text-[#02665e]" />
+                    </div>
+                    <h3 className="text-lg font-bold text-slate-900">Driving Details</h3>
+                  </div>
+
+                  <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700">License number</label>
-                    <input ref={licenseRef} value={licenseNumber} onChange={e => setLicenseNumber(e.target.value)} onBlur={() => { setTouched(prev => ({ ...prev, licenseNumber: true })); setFieldErrors(prev => ({ ...prev, licenseNumber: validateField('licenseNumber') })); }} className="mt-1 block w-full border border-slate-200 rounded-md px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-300" placeholder="e.g., DL-12345" />
-                    {touched.licenseNumber && fieldErrors.licenseNumber && <div className="text-xs text-red-600 mt-1">{fieldErrors.licenseNumber}</div>}
+                      <label className="block text-sm font-semibold text-slate-900 mb-1.5 flex items-center gap-2">
+                        <FileText className="w-3.5 h-3.5 text-slate-500" />
+                        License number
+                        <span className="text-red-500">*</span>
+                      </label>
+                      <input 
+                        ref={licenseRef} 
+                        value={licenseNumber} 
+                        onChange={e => setLicenseNumber(e.target.value)} 
+                        onBlur={() => { setTouched(prev => ({ ...prev, licenseNumber: true })); setFieldErrors(prev => ({ ...prev, licenseNumber: validateField('licenseNumber') })); }} 
+                        className={`w-full px-3 py-2.5 border-2 rounded-lg transition-all duration-200 text-sm ${
+                          touched.licenseNumber && fieldErrors.licenseNumber 
+                            ? 'border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-100' 
+                            : 'border-slate-200 focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/10'
+                        } bg-white shadow-sm hover:shadow-md`}
+                        placeholder="e.g., DL-12345"
+                      />
+                      {touched.licenseNumber && fieldErrors.licenseNumber && (
+                        <div className="text-xs text-red-600 mt-2 flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3" />
+                          {fieldErrors.licenseNumber}
+                        </div>
+                      )}
                   </div>
 
                     <div>
-                    <label className="block text-sm font-medium text-slate-700">Type of vehicle</label>
-                    <div ref={vehicleTypeRef} tabIndex={-1} className="flex flex-col sm:flex-row sm:justify-center gap-2 mt-2">
-                      {['Bajaji','Bodaboda','Vehicle'].map(t => (
-                        <label key={t} className={`flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 rounded cursor-pointer border text-center ${vehicleType === t ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-slate-700 border-slate-200'}`}>
-                          <input type="radio" name="vehicleType" checked={vehicleType === t} onChange={() => { setVehicleType(t); setTouched(prev => ({ ...prev, vehicleType: true })); setFieldErrors(prev => ({ ...prev, vehicleType: validateField('vehicleType') })); }} className="sr-only" />
-                          <span className="text-sm">{t}</span>
+                      <label className="block text-sm font-semibold text-slate-900 mb-2 flex items-center gap-2">
+                        <Truck className="w-3.5 h-3.5 text-slate-500" />
+                        Type of vehicle
+                        <span className="text-red-500">*</span>
+                      </label>
+                      <div ref={vehicleTypeRef} tabIndex={-1} className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        {[
+                          { label: 'Bajaji', icon: Car },
+                          { label: 'Bodaboda', icon: Icons.Bike },
+                          { label: 'Vehicle', icon: Truck }
+                        ].map(({ label, icon: Icon }) => (
+                          <label 
+                            key={label} 
+                            className={`group relative flex items-center justify-center gap-2 px-4 py-3 rounded-lg cursor-pointer border-2 transition-all duration-200 ${
+                              vehicleType === label 
+                                ? 'bg-[#02665e] text-white border-[#02665e] shadow-md scale-105' 
+                                : 'bg-white text-slate-700 border-slate-200 hover:border-[#02665e]/50 hover:shadow-md'
+                            }`}
+                          >
+                            <input 
+                              type="radio" 
+                              name="vehicleType" 
+                              checked={vehicleType === label} 
+                              onChange={() => { setVehicleType(label); setTouched(prev => ({ ...prev, vehicleType: true })); setFieldErrors(prev => ({ ...prev, vehicleType: validateField('vehicleType') })); }} 
+                              className="sr-only" 
+                            />
+                            <Icon className={`w-4 h-4 ${vehicleType === label ? 'text-white' : 'text-slate-400'}`} />
+                            <span className="font-medium text-xs sm:text-sm">{label}</span>
                         </label>
                       ))}
-                      {touched.vehicleType && fieldErrors.vehicleType && <div className="text-xs text-red-600 mt-2">{fieldErrors.vehicleType}</div>}
                     </div>
+                      {touched.vehicleType && fieldErrors.vehicleType && (
+                        <div className="text-xs text-red-600 mt-2 flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3" />
+                          {fieldErrors.vehicleType}
+                        </div>
+                      )}
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-sm font-medium text-slate-700">Plate number</label>
-                      <input ref={plateRef} value={plateNumber} onChange={e => setPlateNumber(e.target.value)} onBlur={() => { setTouched(prev => ({ ...prev, plateNumber: true })); setFieldErrors(prev => ({ ...prev, plateNumber: validateField('plateNumber') })); }} className="mt-1 block w-full border border-slate-200 rounded-md px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-300" placeholder="Plate number" />
-                      {touched.plateNumber && fieldErrors.plateNumber && <div className="text-xs text-red-600 mt-1">{fieldErrors.plateNumber}</div>}
+                        <label className="block text-sm font-semibold text-slate-900 mb-1.5 flex items-center gap-2">
+                          <FileText className="w-3.5 h-3.5 text-slate-500" />
+                          Plate number
+                          <span className="text-red-500">*</span>
+                        </label>
+                        <input 
+                          ref={plateRef} 
+                          value={plateNumber} 
+                          onChange={e => setPlateNumber(e.target.value)} 
+                          onBlur={() => { setTouched(prev => ({ ...prev, plateNumber: true })); setFieldErrors(prev => ({ ...prev, plateNumber: validateField('plateNumber') })); }} 
+                          className={`w-full px-3 py-2.5 border-2 rounded-lg transition-all duration-200 text-sm ${
+                            touched.plateNumber && fieldErrors.plateNumber 
+                              ? 'border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-100' 
+                              : 'border-slate-200 focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/10'
+                          } bg-white shadow-sm hover:shadow-md`}
+                          placeholder="Plate number"
+                        />
+                        {touched.plateNumber && fieldErrors.plateNumber && (
+                          <div className="text-xs text-red-600 mt-2 flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3" />
+                            {fieldErrors.plateNumber}
+                          </div>
+                        )}
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-700">Operation / Parking area</label>
-                      <input value={operationArea} onChange={e => setOperationArea(e.target.value)} className="mt-1 block w-full border border-slate-200 rounded-md px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-300" placeholder="e.g., Dar es Salaam - Ilala" />
+                        <label className="block text-sm font-semibold text-slate-900 mb-1.5 flex items-center gap-2">
+                          <MapPin className="w-3.5 h-3.5 text-slate-500" />
+                          Operation / Parking area
+                        </label>
+                        <input 
+                          value={operationArea} 
+                          onChange={e => setOperationArea(e.target.value)} 
+                          className="w-full px-3 py-2.5 border-2 border-slate-200 rounded-lg bg-white shadow-sm hover:shadow-md focus:outline-none focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/10 transition-all duration-200 text-sm" 
+                          placeholder="e.g., Dar es Salaam - Ilala"
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
               )}
 
               {stepIndex === 3 && (
-                <div className={`space-y-4 rounded-md p-5 border border-slate-100 bg-white transition-transform duration-200 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
-                  <h3 className="text-lg font-medium text-slate-800">Payment Details</h3>
-                  <p className="text-sm text-slate-600">Provide a phone number used to receive payments (any supported mobile-money provider).</p>
+                <div className={`space-y-4 rounded-xl p-5 border-2 border-slate-100 bg-gradient-to-br from-white to-slate-50/50 shadow-sm transition-all duration-300 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
+                  <div className="flex items-center gap-2 pb-3 border-b border-slate-200">
+                    <div className="w-8 h-8 rounded-lg bg-[#02665e]/10 flex items-center justify-center">
+                      <CreditCard className="w-4 h-4 text-[#02665e]" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-bold text-slate-900">Payment Details</h3>
+                      <p className="text-xs text-slate-600 mt-0.5">Provide a phone number used to receive payments (any supported mobile-money provider).</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700">Payment phone</label>
-                    <div className="mt-1 relative">
-                      <div className="flex gap-2">
-                        <input ref={paymentRef} value={paymentPhone} onChange={e => { setPaymentPhone(e.target.value); if (!paymentVerified) setPaymentVerified(false); }} onBlur={() => { setTouched(prev => ({ ...prev, paymentPhone: true })); setFieldErrors(prev => ({ ...prev, paymentPhone: validateField('paymentPhone') })); }} readOnly={paymentVerified} aria-readonly={paymentVerified} className={`flex-1 block w-full border border-slate-200 rounded-md px-3 py-2 shadow-sm ${paymentVerified ? 'bg-slate-50 text-slate-700 pr-12' : 'focus:outline-none focus:ring-2 focus:ring-teal-300'}`} placeholder="e.g., +2557xxxxxxxx" />
+                      <label className="block text-sm font-semibold text-slate-900 mb-2 flex items-center gap-2">
+                        <Phone className="w-3.5 h-3.5 text-slate-500" />
+                        Payment phone
+                        <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative min-w-0">
+                        <div className="flex gap-2 items-stretch min-w-0">
+                          <div className="relative flex-1 min-w-0">
+                            <input 
+                              ref={paymentRef} 
+                              value={paymentPhone} 
+                              onChange={e => { setPaymentPhone(e.target.value); if (!paymentVerified) setPaymentVerified(false); }} 
+                              onBlur={() => { setTouched(prev => ({ ...prev, paymentPhone: true })); setFieldErrors(prev => ({ ...prev, paymentPhone: validateField('paymentPhone') })); }} 
+                              readOnly={paymentVerified} 
+                              aria-readonly={paymentVerified} 
+                              className={`w-full max-w-full px-3 py-2.5 text-sm border-2 rounded-lg transition-all duration-200 box-border ${
+                                paymentVerified 
+                                  ? 'bg-slate-50 text-slate-700 border-slate-200 pr-10' 
+                                  : touched.paymentPhone && fieldErrors.paymentPhone
+                                  ? 'border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-100'
+                                  : 'border-slate-200 focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/10'
+                              } bg-white shadow-sm hover:shadow-md focus:outline-none`}
+                              placeholder="e.g., +255712345678"
+                            />
+                            {paymentVerified && (
+                              <div className="absolute right-3 top-1/2 -translate-y-1/2 flex-shrink-0">
+                                <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                              </div>
+                            )}
+                          </div>
                         {!paymentVerified && (
-                          <button type="button" onClick={sendPaymentOtp} disabled={paymentLoading} className={`px-3 py-2 rounded-md ${paymentSent ? 'bg-slate-100 text-slate-700' : 'bg-emerald-600 text-white hover:bg-emerald-700'}`}>{paymentSent ? (paymentLoading ? 'Sending...' : 'Sent') : (paymentLoading ? 'Sending...' : 'Send code')}</button>
+                            <button 
+                              type="button" 
+                              onClick={sendPaymentOtp} 
+                              disabled={paymentLoading || !paymentPhone.trim()} 
+                              className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 flex-shrink-0 whitespace-nowrap ${
+                                paymentSent 
+                                  ? 'bg-slate-100 text-slate-700 cursor-not-allowed' 
+                                  : paymentLoading || !paymentPhone.trim()
+                                  ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                                  : 'bg-[#02665e] text-white hover:bg-[#02665e]/90 hover:shadow-md active:scale-95'
+                              }`}
+                            >
+                              {paymentLoading ? (
+                                <>
+                                  <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
+                                  <span className="hidden sm:inline">Sending...</span>
+                                </>
+                              ) : paymentSent ? (
+                                <>
+                                  <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                                  <span className="hidden sm:inline">Sent</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Phone className="w-4 h-4 flex-shrink-0" />
+                                  <span className="hidden sm:inline">Send code</span>
+                                </>
+                              )}
+                            </button>
                         )}
                       </div>
-
-                      {paymentVerified && (
-                        <VerifiedIcon size={5} className="" />
+                        {touched.paymentPhone && fieldErrors.paymentPhone && (
+                          <div className="text-xs text-red-600 mt-2 flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3" />
+                            {fieldErrors.paymentPhone}
+                          </div>
                       )}
                     </div>
-                    {touched.paymentPhone && fieldErrors.paymentPhone && <div className="text-xs text-red-600 mt-1">{fieldErrors.paymentPhone}</div>}
+                    </div>
 
                     {paymentSent && !paymentVerified && (
-                      <div className="mt-3">
-                        <label className="block text-sm font-medium text-slate-700">Enter OTP</label>
-                        <div className="mt-1 flex gap-2 items-center">
-                          <input ref={paymentOtpRef} inputMode="numeric" value={paymentOtp} onChange={e => setPaymentOtp(e.target.value.replace(/[^0-9]/g, ''))} className="block w-40 border border-slate-200 rounded-md px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" placeholder="123456" />
-                          <button type="button" onClick={verifyPaymentOtp} disabled={paymentLoading} className={`px-3 py-2 rounded-md bg-emerald-600 text-white hover:bg-emerald-700`}>{paymentLoading ? 'Verifying...' : 'Verify'}</button>
-                          <div className="text-sm text-slate-600">{paymentCountdown > 0 ? `Resend in ${paymentCountdown}s` : <button type="button" onClick={resendPaymentOtp} disabled={paymentLoading} className="text-sky-600">Resend</button>}</div>
+                      <div className="p-4 bg-slate-50 border-2 border-slate-200 rounded-lg space-y-3">
+                        <label className="block text-sm font-semibold text-slate-900 flex items-center gap-2">
+                          <CreditCard className="w-3.5 h-3.5 text-slate-500" />
+                          Enter verification code
+                        </label>
+                        <div className="flex gap-2 items-center flex-wrap">
+                          <input 
+                            ref={paymentOtpRef} 
+                            inputMode="numeric" 
+                            maxLength={6}
+                            value={paymentOtp} 
+                            onChange={e => setPaymentOtp(e.target.value.replace(/[^0-9]/g, ''))} 
+                            className="flex-1 min-w-[140px] px-3 py-2.5 text-sm font-medium border-2 border-slate-200 rounded-lg bg-white shadow-sm hover:shadow-md focus:outline-none focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/10 transition-all duration-200" 
+                            placeholder="123456"
+                          />
+                          <button 
+                            type="button" 
+                            onClick={verifyPaymentOtp} 
+                            disabled={paymentLoading || !paymentOtp.trim()} 
+                            className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
+                              paymentLoading || !paymentOtp.trim()
+                                ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                                : 'bg-[#02665e] text-white hover:bg-[#02665e]/90 hover:shadow-md active:scale-95'
+                            }`}
+                          >
+                            {paymentLoading ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                <span>Verifying...</span>
+                              </>
+                            ) : (
+                              <>
+                                <CheckCircle2 className="w-4 h-4" />
+                                <span>Verify</span>
+                              </>
+                            )}
+                          </button>
                         </div>
-                        {paymentMessage && <div className="text-xs mt-2 text-slate-700">{paymentMessage}</div>}
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <div className="text-xs text-slate-600 flex items-center gap-1">
+                            {paymentCountdown > 0 ? (
+                              <>
+                                <Clock className="w-3.5 h-3.5" />
+                                <span>Resend code in {paymentCountdown}s</span>
+                              </>
+                            ) : (
+                              <button 
+                                type="button" 
+                                onClick={resendPaymentOtp} 
+                                disabled={paymentLoading} 
+                                className="text-[#02665e] hover:text-[#02665e]/80 hover:underline font-medium flex items-center gap-1"
+                              >
+                                <Phone className="w-3.5 h-3.5" />
+                                <span>Resend code</span>
+                              </button>
+                            )}
+                      </div>
+                        </div>
+                        {paymentMessage && (
+                          <div className={`text-xs p-2 rounded-lg flex items-start gap-2 ${
+                            paymentMessage.toLowerCase().includes('success') || paymentMessage.toLowerCase().includes('verified')
+                              ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
+                              : 'bg-red-50 border border-red-200 text-red-700'
+                          }`}>
+                            {paymentMessage.toLowerCase().includes('success') || paymentMessage.toLowerCase().includes('verified') ? (
+                              <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                            ) : (
+                              <AlertCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                            )}
+                            <span className="flex-1">{paymentMessage}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {paymentVerified && (
+                      <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-2">
+                        <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-emerald-700">Payment phone verified</p>
+                          <p className="text-xs text-emerald-600">{paymentPhone}</p>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -490,191 +1077,454 @@ export default function OnboardRole({ params }: { params: { role: string } }) {
               )}
 
               {stepIndex === 4 && (
-                <div className={`space-y-4 rounded-md p-5 border border-slate-100 bg-white transition-transform duration-200 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
-                  <h3 className="text-lg font-medium text-slate-800">Upload verification documents</h3>
-                  <div>
-                    <label htmlFor="license-upload" className="block text-sm font-medium text-slate-700">Upload driving license (jpg, png, pdf)</label>
-                    <input id="license-upload" type="file" accept="image/*,.pdf" onChange={e => setLicenseFile(e.target.files?.[0] ?? null)} />
-                    {licenseFile && <div className="text-xs text-slate-600">Selected: {licenseFile.name}</div>}
+                <div className={`space-y-4 rounded-xl p-5 border-2 border-slate-100 bg-gradient-to-br from-white to-slate-50/50 shadow-sm transition-all duration-300 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
+                  <div className="flex items-center gap-2 pb-3 border-b border-slate-200">
+                    <div className="w-8 h-8 rounded-lg bg-[#02665e]/10 flex items-center justify-center">
+                      <Upload className="w-4 h-4 text-[#02665e]" />
+                    </div>
+                    <h3 className="text-lg font-bold text-slate-900">Upload verification documents</h3>
                   </div>
+
+                  <div className="space-y-4">
                   <div>
-                    <label htmlFor="id-upload" className="block text-sm font-medium text-slate-700">Upload national ID (jpg, png, pdf)</label>
-                    <input id="id-upload" type="file" accept="image/*,.pdf" onChange={e => setIdFile(e.target.files?.[0] ?? null)} />
-                    {idFile && <div className="text-xs text-slate-600">Selected: {idFile.name}</div>}
+                      <label htmlFor="license-upload" className="block text-sm font-semibold text-slate-900 mb-2 flex items-center gap-2">
+                        <FileText className="w-3.5 h-3.5 text-slate-500" />
+                        Upload driving license
+                        <span className="text-red-500">*</span>
+                        <span className="text-xs font-normal text-slate-500">(jpg, png, pdf)</span>
+                      </label>
+                      <label htmlFor="license-upload" className="flex flex-col items-center justify-center w-full px-4 py-6 border-2 border-dashed border-slate-300 rounded-lg cursor-pointer bg-slate-50 hover:bg-slate-100 hover:border-[#02665e] transition-all duration-200 group">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Upload className="w-6 h-6 text-slate-400 group-hover:text-[#02665e] transition-colors" />
+                          <p className="text-sm text-slate-600 group-hover:text-slate-900">
+                            <span className="font-medium text-[#02665e]">Click to upload</span> or drag and drop
+                          </p>
+                          <p className="text-xs text-slate-500">JPG, PNG or PDF (MAX. 5MB)</p>
                   </div>
+                        <input 
+                          id="license-upload" 
+                          type="file" 
+                          accept="image/*,.pdf" 
+                          onChange={e => setLicenseFile(e.target.files?.[0] ?? null)} 
+                          className="hidden"
+                        />
+                      </label>
+                      {licenseFile && (
+                        <div className="mt-2 p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                            <span className="text-xs text-emerald-700 font-medium truncate">{licenseFile.name}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setLicenseFile(null)}
+                            className="text-emerald-600 hover:text-emerald-700 flex-shrink-0"
+                            aria-label="Remove file"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
                   <div>
-                    <label htmlFor="vehicle-reg-upload" className="block text-sm font-medium text-slate-700">Upload vehicle registration (optional)</label>
-                    <input id="vehicle-reg-upload" type="file" accept="image/*,.pdf" onChange={e => setVehicleRegFile(e.target.files?.[0] ?? null)} />
-                    {vehicleRegFile && <div className="text-xs text-slate-600">Selected: {vehicleRegFile.name}</div>}
+                      <label htmlFor="id-upload" className="block text-sm font-semibold text-slate-900 mb-2 flex items-center gap-2">
+                        <IdIcon className="w-3.5 h-3.5 text-slate-500" />
+                        Upload national ID
+                        <span className="text-red-500">*</span>
+                        <span className="text-xs font-normal text-slate-500">(jpg, png, pdf)</span>
+                      </label>
+                      <label htmlFor="id-upload" className="flex flex-col items-center justify-center w-full px-4 py-6 border-2 border-dashed border-slate-300 rounded-lg cursor-pointer bg-slate-50 hover:bg-slate-100 hover:border-[#02665e] transition-all duration-200 group">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Upload className="w-6 h-6 text-slate-400 group-hover:text-[#02665e] transition-colors" />
+                          <p className="text-sm text-slate-600 group-hover:text-slate-900">
+                            <span className="font-medium text-[#02665e]">Click to upload</span> or drag and drop
+                          </p>
+                          <p className="text-xs text-slate-500">JPG, PNG or PDF (MAX. 5MB)</p>
+                  </div>
+                        <input 
+                          id="id-upload" 
+                          type="file" 
+                          accept="image/*,.pdf" 
+                          onChange={e => setIdFile(e.target.files?.[0] ?? null)} 
+                          className="hidden"
+                        />
+                      </label>
+                      {idFile && (
+                        <div className="mt-2 p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                            <span className="text-xs text-emerald-700 font-medium truncate">{idFile.name}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setIdFile(null)}
+                            className="text-emerald-600 hover:text-emerald-700 flex-shrink-0"
+                            aria-label="Remove file"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                  <div>
+                      <label htmlFor="vehicle-reg-upload" className="block text-sm font-semibold text-slate-900 mb-2 flex items-center gap-2">
+                        <Truck className="w-3.5 h-3.5 text-slate-500" />
+                        Upload vehicle registration
+                        <span className="text-xs font-normal text-slate-500">(optional)</span>
+                      </label>
+                      <label htmlFor="vehicle-reg-upload" className="flex flex-col items-center justify-center w-full px-4 py-6 border-2 border-dashed border-slate-300 rounded-lg cursor-pointer bg-slate-50 hover:bg-slate-100 hover:border-[#02665e] transition-all duration-200 group">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Upload className="w-6 h-6 text-slate-400 group-hover:text-[#02665e] transition-colors" />
+                          <p className="text-sm text-slate-600 group-hover:text-slate-900">
+                            <span className="font-medium text-[#02665e]">Click to upload</span> or drag and drop
+                          </p>
+                          <p className="text-xs text-slate-500">JPG, PNG or PDF (MAX. 5MB)</p>
+                        </div>
+                        <input 
+                          id="vehicle-reg-upload" 
+                          type="file" 
+                          accept="image/*,.pdf" 
+                          onChange={e => setVehicleRegFile(e.target.files?.[0] ?? null)} 
+                          className="hidden"
+                        />
+                      </label>
+                      {vehicleRegFile && (
+                        <div className="mt-2 p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                            <span className="text-xs text-emerald-700 font-medium truncate">{vehicleRegFile.name}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setVehicleRegFile(null)}
+                            className="text-emerald-600 hover:text-emerald-700 flex-shrink-0"
+                            aria-label="Remove file"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
 
               {stepIndex === 5 && (
-                <div className={`space-y-4 rounded-md p-6 border border-slate-100 bg-white transition-transform duration-200 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="text-lg font-semibold text-slate-900">Review your details</h3>
-                      <p className="text-sm text-slate-500 mt-1">Please confirm the information below before submitting your profile.</p>
+                <div className={`space-y-4 rounded-xl p-5 border-2 border-slate-100 bg-gradient-to-br from-white to-slate-50/50 shadow-sm transition-all duration-300 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
+                  <div className="flex items-center gap-2 pb-3 border-b border-slate-200">
+                    <div className="w-8 h-8 rounded-lg bg-[#02665e]/10 flex items-center justify-center">
+                      <CheckCircle2 className="w-4 h-4 text-[#02665e]" />
                     </div>
-                    <div className="hidden sm:flex items-center gap-3">
-                      <span className="inline-flex items-center px-2.5 py-1 rounded bg-green-50 text-green-700 text-xs font-medium">Ready to submit</span>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-bold text-slate-900">Review your details</h3>
+                      <p className="text-xs text-slate-600 mt-0.5">Please confirm the information below before submitting your profile.</p>
+                    </div>
+                    <div className="hidden sm:flex items-center">
+                      <span className="inline-flex items-center px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold">
+                        <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
+                        Ready to submit
+                      </span>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/** Info cards */}
-                    <div className="col-span-1">
-                      <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                        <div className="text-xs text-slate-500">Full name <span className="text-red-500 ml-1" aria-hidden>*</span></div>
-                            <div className="mt-1">
-                              <input id="onboard-name" value={name} onChange={e => setName(e.target.value)} onBlur={() => { setTouched(prev => ({ ...prev, name: true })); setFieldErrors(prev => ({ ...prev, name: validateField('name') })); }} className="block w-full border border-slate-200 rounded-md px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-300 text-sm" placeholder="Full name" />
-                              {touched.name && fieldErrors.name && <div className="text-xs text-red-600 mt-1">{fieldErrors.name}</div>}
+                  <div className="space-y-4">
+                    {/* Personal Details Section */}
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+                        <User className="w-4 h-4 text-slate-500" />
+                        <h4 className="text-sm font-semibold text-slate-900">Personal Details</h4>
                             </div>
-                              <button type="button" onClick={() => setStepIndex(1)} className="mt-2 text-xs text-blue-600 hover:underline">Edit</button>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="p-3 bg-white border-2 border-slate-200 rounded-lg hover:border-slate-300 transition-colors">
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                              <User className="w-3 h-3 text-slate-400" />
+                              Full name
+                              <span className="text-red-500">*</span>
+                            </label>
+                            <button type="button" onClick={() => setStepIndex(1)} className="text-xs text-[#02665e] hover:text-[#02665e]/80 hover:underline font-medium">Edit</button>
                       </div>
+                          <div className="text-sm text-slate-900 font-medium">{name || <span className="text-slate-400 italic">Not provided</span>}</div>
+                          {touched.name && fieldErrors.name && (
+                            <div className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                              <AlertCircle className="w-3 h-3" />
+                              {fieldErrors.name}
+                            </div>
+                          )}
                     </div>
 
-                    <div className="col-span-1">
-                      <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                        <div className="text-xs text-slate-500">Email <span className="text-red-500 ml-1" aria-hidden>*</span></div>
-                          <div className="mt-1">
-                            <input id="onboard-email" type="email" value={email} onChange={e => setEmail(e.target.value)} onBlur={() => { setTouched(prev => ({ ...prev, email: true })); setFieldErrors(prev => ({ ...prev, email: validateField('email') })); }} className="block w-full border border-slate-200 rounded-md px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-300 text-sm" placeholder="you@example.com" />
-                            {touched.email && fieldErrors.email && <div className="text-xs text-red-600 mt-1">{fieldErrors.email}</div>}
+                        <div className="p-3 bg-white border-2 border-slate-200 rounded-lg hover:border-slate-300 transition-colors">
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                              <Mail className="w-3 h-3 text-slate-400" />
+                              Email
+                              <span className="text-red-500">*</span>
+                            </label>
+                            <button type="button" onClick={() => setStepIndex(1)} className="text-xs text-[#02665e] hover:text-[#02665e]/80 hover:underline font-medium">Edit</button>
                           </div>
-                          <button type="button" onClick={() => setStepIndex(1)} className="mt-2 text-xs text-blue-600 hover:underline">Edit</button>
+                          <div className="text-sm text-slate-900 font-medium">{email || <span className="text-slate-400 italic">Not provided</span>}</div>
+                          {touched.email && fieldErrors.email && (
+                            <div className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                              <AlertCircle className="w-3 h-3" />
+                              {fieldErrors.email}
                       </div>
+                          )}
                     </div>
 
-                    <div className="col-span-1">
-                      <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                        <div className="text-xs text-slate-500">Gender</div>
-                        <div className="mt-1 text-sm text-slate-900">{gender || <span className="text-slate-400">—</span>}</div>
-                        <button type="button" onClick={() => setStepIndex(1)} className="mt-2 text-xs text-blue-600 hover:underline">Edit</button>
+                        <div className="p-3 bg-white border-2 border-slate-200 rounded-lg hover:border-slate-300 transition-colors">
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                              <UserCircle className="w-3 h-3 text-slate-400" />
+                              Gender
+                            </label>
+                            <button type="button" onClick={() => setStepIndex(1)} className="text-xs text-[#02665e] hover:text-[#02665e]/80 hover:underline font-medium">Edit</button>
                       </div>
+                          <div className="text-sm text-slate-900 font-medium capitalize">{gender || <span className="text-slate-400 italic">—</span>}</div>
                     </div>
 
-                    <div className="col-span-1">
-                      <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                        <div className="text-xs text-slate-500">Nationality</div>
-                        <div className="mt-1 text-sm text-slate-900">{nationality || <span className="text-slate-400">—</span>}</div>
-                        <button type="button" onClick={() => setStepIndex(1)} className="mt-2 text-xs text-blue-600 hover:underline">Edit</button>
+                        <div className="p-3 bg-white border-2 border-slate-200 rounded-lg hover:border-slate-300 transition-colors">
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                              <Globe className="w-3 h-3 text-slate-400" />
+                              Nationality
+                            </label>
+                            <button type="button" onClick={() => setStepIndex(1)} className="text-xs text-[#02665e] hover:text-[#02665e]/80 hover:underline font-medium">Edit</button>
                       </div>
+                          <div className="text-sm text-slate-900 font-medium">{nationality || <span className="text-slate-400 italic">—</span>}</div>
                     </div>
 
-                    <div className="col-span-1">
-                      <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                        <div className="text-xs text-slate-500">NIN</div>
-                        <div className="mt-1 text-sm text-slate-900">{nin || <span className="text-slate-400">—</span>}</div>
-                        <button type="button" onClick={() => setStepIndex(1)} className="mt-2 text-xs text-blue-600 hover:underline">Edit</button>
-                      </div>
-                    </div>
-
-                    <div className="col-span-1">
-                      <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                        <div className="text-xs text-slate-500">License number <span className="text-red-500 ml-1" aria-hidden>*</span></div>
-                          <div className="mt-1">
-                            <input value={licenseNumber} onChange={e => setLicenseNumber(e.target.value)} onBlur={() => { setTouched(prev => ({ ...prev, licenseNumber: true })); setFieldErrors(prev => ({ ...prev, licenseNumber: validateField('licenseNumber') })); }} className="block w-full border border-slate-200 rounded-md px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-300 text-sm" placeholder="e.g., DL-12345" />
-                            {touched.licenseNumber && fieldErrors.licenseNumber && <div className="text-xs text-red-600 mt-1">{fieldErrors.licenseNumber}</div>}
-                            <button type="button" onClick={() => setStepIndex(2)} className="mt-2 text-xs text-blue-600 hover:underline">Edit</button>
+                        <div className="p-3 bg-white border-2 border-slate-200 rounded-lg hover:border-slate-300 transition-colors">
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                              <CreditCard className="w-3 h-3 text-slate-400" />
+                              NIN
+                            </label>
+                            <button type="button" onClick={() => setStepIndex(1)} className="text-xs text-[#02665e] hover:text-[#02665e]/80 hover:underline font-medium">Edit</button>
                           </div>
-                      </div>
-                    </div>
-
-                    <div className="col-span-1">
-                      <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                        <div className="text-xs text-slate-500">Vehicle type <span className="text-red-500 ml-1" aria-hidden>*</span></div>
-                        <div className="mt-1">
-                          <div className="text-sm text-slate-900">{vehicleType || <span className="text-slate-400">—</span>}</div>
-                          {touched.vehicleType && fieldErrors.vehicleType && <div className="text-xs text-red-600 mt-1">{fieldErrors.vehicleType}</div>}
-                          <button type="button" onClick={() => setStepIndex(2)} className="mt-2 text-xs text-blue-600 hover:underline">Edit</button>
+                          <div className="text-sm text-slate-900 font-medium">{nin || <span className="text-slate-400 italic">—</span>}</div>
                         </div>
                       </div>
                     </div>
 
-                    <div className="col-span-1">
-                      <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                        <div className="text-xs text-slate-500">Plate number <span className="text-red-500 ml-1" aria-hidden>*</span></div>
-                        <div className="mt-1">
-                          <input value={plateNumber} onChange={e => setPlateNumber(e.target.value)} onBlur={() => { setTouched(prev => ({ ...prev, plateNumber: true })); setFieldErrors(prev => ({ ...prev, plateNumber: validateField('plateNumber') })); }} className="block w-full border border-slate-200 rounded-md px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-300 text-sm" placeholder="Plate number" />
-                          {touched.plateNumber && fieldErrors.plateNumber && <div className="text-xs text-red-600 mt-1">{fieldErrors.plateNumber}</div>}
-                          <button type="button" onClick={() => setStepIndex(2)} className="mt-2 text-xs text-blue-600 hover:underline">Edit</button>
+                    {/* Driving Details Section */}
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+                        <Truck className="w-4 h-4 text-slate-500" />
+                        <h4 className="text-sm font-semibold text-slate-900">Driving Details</h4>
+                          </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="p-3 bg-white border-2 border-slate-200 rounded-lg hover:border-slate-300 transition-colors">
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                              <FileText className="w-3 h-3 text-slate-400" />
+                              License number
+                              <span className="text-red-500">*</span>
+                            </label>
+                            <button type="button" onClick={() => setStepIndex(2)} className="text-xs text-[#02665e] hover:text-[#02665e]/80 hover:underline font-medium">Edit</button>
+                      </div>
+                          <div className="text-sm text-slate-900 font-medium">{licenseNumber || <span className="text-slate-400 italic">Not provided</span>}</div>
+                          {touched.licenseNumber && fieldErrors.licenseNumber && (
+                            <div className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                              <AlertCircle className="w-3 h-3" />
+                              {fieldErrors.licenseNumber}
+                            </div>
+                          )}
+                    </div>
+
+                        <div className="p-3 bg-white border-2 border-slate-200 rounded-lg hover:border-slate-300 transition-colors">
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                              <Car className="w-3 h-3 text-slate-400" />
+                              Vehicle type
+                              <span className="text-red-500">*</span>
+                            </label>
+                            <button type="button" onClick={() => setStepIndex(2)} className="text-xs text-[#02665e] hover:text-[#02665e]/80 hover:underline font-medium">Edit</button>
+                        </div>
+                          <div className="text-sm text-slate-900 font-medium capitalize">{vehicleType || <span className="text-slate-400 italic">Not selected</span>}</div>
+                          {touched.vehicleType && fieldErrors.vehicleType && (
+                            <div className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                              <AlertCircle className="w-3 h-3" />
+                              {fieldErrors.vehicleType}
+                      </div>
+                          )}
+                    </div>
+
+                        <div className="p-3 bg-white border-2 border-slate-200 rounded-lg hover:border-slate-300 transition-colors">
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                              <Truck className="w-3 h-3 text-slate-400" />
+                              Plate number
+                              <span className="text-red-500">*</span>
+                            </label>
+                            <button type="button" onClick={() => setStepIndex(2)} className="text-xs text-[#02665e] hover:text-[#02665e]/80 hover:underline font-medium">Edit</button>
+                        </div>
+                          <div className="text-sm text-slate-900 font-medium">{plateNumber || <span className="text-slate-400 italic">Not provided</span>}</div>
+                          {touched.plateNumber && fieldErrors.plateNumber && (
+                            <div className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                              <AlertCircle className="w-3 h-3" />
+                              {fieldErrors.plateNumber}
+                      </div>
+                          )}
+                    </div>
+
+                        <div className="p-3 bg-white border-2 border-slate-200 rounded-lg hover:border-slate-300 transition-colors">
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                              <MapPin className="w-3 h-3 text-slate-400" />
+                              Operation / Parking area
+                            </label>
+                            <button type="button" onClick={() => setStepIndex(2)} className="text-xs text-[#02665e] hover:text-[#02665e]/80 hover:underline font-medium">Edit</button>
+                          </div>
+                          <div className="text-sm text-slate-900 font-medium">{operationArea || <span className="text-slate-400 italic">—</span>}</div>
                         </div>
                       </div>
                     </div>
 
-                    <div className="col-span-1">
-                      <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                        <div className="text-xs text-slate-500">Operation / Parking area</div>
-                        <div className="mt-1 text-sm text-slate-900">{operationArea || <span className="text-slate-400">—</span>}</div>
-                        <button type="button" onClick={() => setStepIndex(2)} className="mt-2 text-xs text-blue-600 hover:underline">Edit</button>
-                      </div>
-                    </div>
-
-                    <div className="col-span-1 md:col-span-2">
-                      <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 relative">
-                        <div className="flex items-center justify-between">
-                          <div className="text-xs text-slate-500">Payment phone <span className="text-red-500 ml-1" aria-hidden>*</span></div>
-                          <div>{paymentVerified ? <VerifiedIcon size={4} /> : <span className="text-xs inline-flex items-center px-2 py-0.5 rounded bg-yellow-50 text-yellow-700">Not verified</span>}</div>
+                    {/* Payment Details Section */}
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+                        <CreditCard className="w-4 h-4 text-slate-500" />
+                        <h4 className="text-sm font-semibold text-slate-900">Payment Details</h4>
                         </div>
-                        <div className="mt-1">
-                          <input value={paymentPhone} onChange={e => { setPaymentPhone(e.target.value); if (!paymentVerified) setPaymentVerified(false); }} onBlur={() => { setTouched(prev => ({ ...prev, paymentPhone: true })); setFieldErrors(prev => ({ ...prev, paymentPhone: validateField('paymentPhone') })); }} readOnly={paymentVerified} aria-readonly={paymentVerified} className={`block w-full border border-slate-200 rounded-md px-3 py-2 shadow-sm ${paymentVerified ? 'bg-slate-50 text-slate-700' : 'focus:outline-none focus:ring-2 focus:ring-teal-300'} text-sm`} placeholder="e.g., +2557xxxxxxxx" />
-                          {touched.paymentPhone && fieldErrors.paymentPhone && <div className="text-xs text-red-600 mt-1">{fieldErrors.paymentPhone}</div>}
+                      <div className="p-3 bg-white border-2 border-slate-200 rounded-lg hover:border-slate-300 transition-colors">
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                            <Phone className="w-3 h-3 text-slate-400" />
+                            Payment phone
+                            <span className="text-red-500">*</span>
+                          </label>
+                          <div className="flex items-center gap-2">
+                            {paymentVerified ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium">
+                                <CheckCircle2 className="w-3 h-3" />
+                                Verified
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-yellow-50 border border-yellow-200 text-yellow-700 text-xs font-medium">
+                                <AlertCircle className="w-3 h-3" />
+                                Not verified
+                              </span>
+                            )}
+                            <button type="button" onClick={() => setStepIndex(3)} className="text-xs text-[#02665e] hover:text-[#02665e]/80 hover:underline font-medium">Edit</button>
                         </div>
-                        <button type="button" onClick={() => setStepIndex(3)} className="mt-2 text-xs text-blue-600 hover:underline">Edit</button>
                       </div>
+                        <div className="text-sm text-slate-900 font-medium">{paymentPhone || <span className="text-slate-400 italic">Not provided</span>}</div>
+                        {touched.paymentPhone && fieldErrors.paymentPhone && (
+                          <div className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3" />
+                            {fieldErrors.paymentPhone}
+                          </div>
+                        )}
                     </div>
                   </div>
 
-                  <div className="pt-2 border-t border-slate-100">
-                    <div className="text-xs text-slate-500">Uploaded files</div>
-                    <div className="mt-2 flex flex-col gap-2">
-                      <div className="flex items-center gap-3">
-                        <span className="inline-flex items-center justify-center w-8 h-8 rounded bg-sky-50 text-sky-600"><FileTextIcon className="w-4 h-4" /></span>
-                        <div className="flex-1">
-                          <div className="text-sm text-slate-900">Driving license</div>
-                          <div className="text-xs text-slate-500">{licenseFile ? licenseFile.name : 'Not uploaded'}</div>
+                    {/* Uploaded Files Section */}
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+                        <Upload className="w-4 h-4 text-slate-500" />
+                        <h4 className="text-sm font-semibold text-slate-900">Uploaded Files</h4>
                         </div>
-                        <button type="button" onClick={() => setStepIndex(4)} className="text-xs text-blue-600">Edit</button>
+                      <div className="space-y-2">
+                        <div className="p-3 bg-white border-2 border-slate-200 rounded-lg hover:border-slate-300 transition-colors flex items-center justify-between">
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                              <FileText className="w-5 h-5 text-blue-600" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-semibold text-slate-900">Driving license</div>
+                              <div className="text-xs text-slate-500 truncate">{licenseFile ? licenseFile.name : <span className="text-slate-400 italic">Not uploaded</span>}</div>
+                            </div>
+                          </div>
+                          <button type="button" onClick={() => setStepIndex(4)} className="text-xs text-[#02665e] hover:text-[#02665e]/80 hover:underline font-medium flex-shrink-0 ml-2">Edit</button>
                       </div>
 
-                      <div className="flex items-center gap-3">
-                        <span className="inline-flex items-center justify-center w-8 h-8 rounded bg-sky-50 text-sky-600"><IdIcon className="w-4 h-4" /></span>
-                        <div className="flex-1">
-                          <div className="text-sm text-slate-900">National ID</div>
-                          <div className="text-xs text-slate-500">{idFile ? idFile.name : 'Not uploaded'}</div>
+                        <div className="p-3 bg-white border-2 border-slate-200 rounded-lg hover:border-slate-300 transition-colors flex items-center justify-between">
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
+                              <IdIcon className="w-5 h-5 text-emerald-600" />
                         </div>
-                        <button type="button" onClick={() => setStepIndex(4)} className="text-xs text-blue-600">Edit</button>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-semibold text-slate-900">National ID</div>
+                              <div className="text-xs text-slate-500 truncate">{idFile ? idFile.name : <span className="text-slate-400 italic">Not uploaded</span>}</div>
+                            </div>
+                          </div>
+                          <button type="button" onClick={() => setStepIndex(4)} className="text-xs text-[#02665e] hover:text-[#02665e]/80 hover:underline font-medium flex-shrink-0 ml-2">Edit</button>
                       </div>
 
-                      <div className="flex items-center gap-3">
-                        <span className="inline-flex items-center justify-center w-8 h-8 rounded bg-sky-50 text-sky-600"><TruckIcon className="w-4 h-4" /></span>
-                        <div className="flex-1">
-                          <div className="text-sm text-slate-900">Vehicle registration</div>
-                          <div className="text-xs text-slate-500">{vehicleRegFile ? vehicleRegFile.name : 'Not uploaded'}</div>
+                        <div className="p-3 bg-white border-2 border-slate-200 rounded-lg hover:border-slate-300 transition-colors flex items-center justify-between">
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
+                              <Truck className="w-5 h-5 text-amber-600" />
                         </div>
-                        <button type="button" onClick={() => setStepIndex(4)} className="text-xs text-blue-600">Edit</button>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-semibold text-slate-900">Vehicle registration</div>
+                              <div className="text-xs text-slate-500 truncate">{vehicleRegFile ? vehicleRegFile.name : <span className="text-slate-400 italic">Not uploaded</span>}</div>
+                            </div>
+                          </div>
+                          <button type="button" onClick={() => setStepIndex(4)} className="text-xs text-[#02665e] hover:text-[#02665e]/80 hover:underline font-medium flex-shrink-0 ml-2">Edit</button>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
               )}
 
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between pt-4 border-t border-slate-200">
                 <div className="flex items-center gap-2">
-                  {stepIndex > 1 && <button type="button" onClick={() => setStepIndex(i => Math.max(1, i-1))} className="px-3 py-2 border rounded-md bg-white text-slate-700">Back</button>}
+                  {stepIndex > 1 && (
+                    <button 
+                      type="button" 
+                      onClick={() => setStepIndex(i => Math.max(1, i-1))} 
+                      className="px-4 py-2 border-2 border-slate-300 rounded-lg bg-white text-slate-700 font-medium hover:bg-slate-50 hover:border-slate-400 transition-all duration-200 shadow-sm hover:shadow-md text-sm"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <ChevronLeft className="w-3.5 h-3.5" />
+                        Back
+                      </span>
+                    </button>
+                  )}
                 </div>
-                <div className="flex items-center gap-3">
-                  {stepIndex < 5 ? (
+                <div className="flex items-center gap-2">
+                  {stepIndex < maxSteps ? (
                       <button
                         type="button"
                         onClick={handleNext}
-                        className={`px-4 py-2 rounded-md ${isStepValid() ? 'bg-teal-600 hover:bg-teal-700 text-white' : 'bg-slate-200 text-slate-400'}`}
-                      >
+                      disabled={!isStepValid()}
+                      className={`px-6 py-2.5 rounded-lg font-semibold transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 text-sm ${
+                        isStepValid() 
+                          ? 'bg-[#02665e] hover:bg-[#014e47] text-white' 
+                          : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                      }`}
+                    >
+                      <span className="flex items-center gap-1.5">
                         Next
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </span>
                       </button>
                     ) : (
-                      <button type="submit" disabled={loading} className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-md disabled:opacity-60">{loading ? 'Saving...' : 'Submit and finish'}</button>
+                    <button 
+                      type="submit" 
+                      disabled={loading || !isAllDriverStepsValid()} 
+                      className={`px-6 py-2.5 rounded-lg font-semibold transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 disabled:transform-none disabled:hover:shadow-md text-sm ${
+                        loading || !isAllDriverStepsValid()
+                          ? 'bg-slate-200 text-slate-400 cursor-not-allowed opacity-60'
+                          : 'bg-[#02665e] hover:bg-[#014e47] text-white'
+                      }`}
+                    >
+                      {loading ? (
+                        <span className="flex items-center gap-1.5">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          Saving...
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          Submit and finish
+                        </span>
+                      )}
+                    </button>
                     )}
                 </div>
               </div>

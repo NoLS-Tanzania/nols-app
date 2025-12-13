@@ -92,7 +92,7 @@ export default function PublicHeader({
         {/* Left: logo + optional nav */}
         <div className="flex items-center gap-4 z-20">
           <Link href="/" className="inline-flex items-center" aria-label="NoLSAF Home">
-            <Image src="/assets/nolsnewlog.png" alt="NoLSAF" width={140} height={36} className="h-8 w-auto" />
+            <Image src="/assets/NoLS2025-04.png" alt="NoLSAF" width={120} height={30} className="h-8 w-auto" />
           </Link>
 
           <nav className="hidden sm:flex items-center gap-4">

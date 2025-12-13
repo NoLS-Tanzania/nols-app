@@ -1,0 +1,543 @@
+"use client";
+
+import { Megaphone, Plus, Image as ImageIcon, Video, X, Edit, Trash2, Eye, Calendar, Loader2 } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import axios from "axios";
+
+const api = axios.create({ baseURL: "" });
+
+interface Update {
+  id: string;
+  title: string;
+  content: string;
+  images?: string[];
+  videos?: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export default function UpdatesPage() {
+  const [updates, setUpdates] = useState<Update[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [formData, setFormData] = useState({
+    title: "",
+    content: "",
+    images: [] as File[],
+    videoUrls: [] as string[], // Changed to YouTube URLs
+    existingImages: [] as string[],
+    existingVideos: [] as string[],
+  });
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [newVideoUrl, setNewVideoUrl] = useState(""); // For adding new YouTube URLs
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    loadUpdates();
+  }, []);
+
+  const loadUpdates = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem("token");
+      const res = await api.get("/api/admin/updates", {
+        headers: { Authorization: `Bearer ${token}`, "x-role": "ADMIN" },
+      });
+      setUpdates(res.data?.items || []);
+    } catch (err: any) {
+      console.error("Failed to load updates:", err);
+      setError(err?.response?.data?.message || "Failed to load updates");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    const imageFiles = files.filter((f) => f.type.startsWith("image/"));
+    setFormData({ ...formData, images: [...formData.images, ...imageFiles] });
+    
+    // Create previews
+    imageFiles.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setImagePreviews((prev) => [...prev, e.target?.result as string]);
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const extractYouTubeId = (url: string): string | null => {
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    const match = url.match(regExp);
+    return (match && match[2].length === 11) ? match[2] : null;
+  };
+
+  const addVideoUrl = () => {
+    if (!newVideoUrl.trim()) return;
+    const videoId = extractYouTubeId(newVideoUrl.trim());
+    if (!videoId) {
+      setError("Please enter a valid YouTube URL");
+      return;
+    }
+    const embedUrl = `https://www.youtube.com/embed/${videoId}`;
+    setFormData({
+      ...formData,
+      videoUrls: [...formData.videoUrls, embedUrl],
+    });
+    setNewVideoUrl("");
+    setError(null);
+  };
+
+  const removeImage = (index: number) => {
+    const newImages = formData.images.filter((_, i) => i !== index);
+    const newPreviews = imagePreviews.filter((_, i) => i !== index);
+    setFormData({ ...formData, images: newImages });
+    setImagePreviews(newPreviews);
+  };
+
+  const removeExistingImage = (url: string) => {
+    setFormData({
+      ...formData,
+      existingImages: formData.existingImages.filter((img) => img !== url),
+    });
+  };
+
+  const removeVideoUrl = (index: number) => {
+    setFormData({
+      ...formData,
+      videoUrls: formData.videoUrls.filter((_, i) => i !== index),
+    });
+  };
+
+  const removeExistingVideo = (url: string) => {
+    setFormData({
+      ...formData,
+      existingVideos: formData.existingVideos.filter((vid) => vid !== url),
+    });
+  };
+
+  const resetForm = () => {
+    setFormData({
+      title: "",
+      content: "",
+      images: [],
+      videoUrls: [],
+      existingImages: [],
+      existingVideos: [],
+    });
+    setImagePreviews([]);
+    setNewVideoUrl("");
+    setEditingId(null);
+    setShowForm(false);
+    setError(null);
+    setSuccess(null);
+  };
+
+  const handleEdit = (update: Update) => {
+    setFormData({
+      title: update.title,
+      content: update.content,
+      images: [],
+      videoUrls: [],
+      existingImages: update.images || [],
+      existingVideos: update.videos || [],
+    });
+    setImagePreviews([]);
+    setNewVideoUrl("");
+    setEditingId(update.id);
+    setShowForm(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setUploading(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const token = localStorage.getItem("token");
+      const fd = new FormData();
+      fd.append("title", formData.title);
+      fd.append("content", formData.content);
+      
+      formData.images.forEach((img) => fd.append("images", img));
+      // Combine new video URLs with existing videos
+      const allVideos = [...formData.videoUrls, ...formData.existingVideos];
+      allVideos.forEach((vid) => fd.append("existingVideos", vid));
+      formData.existingImages.forEach((img) => fd.append("existingImages", img));
+
+      if (editingId) {
+        await api.put(`/api/admin/updates/${editingId}`, fd, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "x-role": "ADMIN",
+            "Content-Type": "multipart/form-data",
+          },
+        });
+        setSuccess("Update updated successfully!");
+      } else {
+        await api.post("/api/admin/updates", fd, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "x-role": "ADMIN",
+            "Content-Type": "multipart/form-data",
+          },
+        });
+        setSuccess("Update created successfully!");
+      }
+
+      resetForm();
+      loadUpdates();
+    } catch (err: any) {
+      setError(err?.response?.data?.message || "Failed to save update");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this update?")) return;
+
+    try {
+      const token = localStorage.getItem("token");
+      await api.delete(`/api/admin/updates/${id}`, {
+        headers: { Authorization: `Bearer ${token}`, "x-role": "ADMIN" },
+      });
+      setSuccess("Update deleted successfully!");
+      loadUpdates();
+    } catch (err: any) {
+      setError(err?.response?.data?.message || "Failed to delete update");
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+      <div className="flex flex-col items-center text-center mb-4">
+        <Megaphone className="h-8 w-8 text-gray-400 mb-3" />
+        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900">
+          Updates Management
+        </h1>
+        <p className="mt-1 text-sm text-gray-600">
+          Share news and events with your users
+        </p>
+      </div>
+
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-800">
+          {error}
+        </div>
+      )}
+
+      {success && (
+        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800">
+          {success}
+        </div>
+      )}
+
+      <div className="flex justify-between items-center">
+        <h2 className="text-xl font-semibold text-gray-900">All Updates</h2>
+        <button
+          onClick={() => {
+            resetForm();
+            setShowForm(true);
+          }}
+          className="flex items-center gap-2 px-4 py-2 bg-[#02665e] text-white rounded-lg hover:bg-[#014e47] transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+          Create Update
+        </button>
+      </div>
+
+      {showForm && (
+        <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm max-w-full overflow-hidden">
+          <h3 className="text-lg font-semibold mb-4">
+            {editingId ? "Edit Update" : "Create New Update"}
+          </h3>
+          <form onSubmit={handleSubmit} className="space-y-4 max-w-full">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Title *
+              </label>
+              <input
+                type="text"
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                className="w-full max-w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#02665e] box-border"
+                required
+                placeholder="Update title"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Content *
+              </label>
+              <textarea
+                value={formData.content}
+                onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                className="w-full max-w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#02665e] h-32 resize-y box-border"
+                required
+                placeholder="Update content..."
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="min-w-0">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Images
+                </label>
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleImageSelect}
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => imageInputRef.current?.click()}
+                  className="w-full max-w-full px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg hover:border-[#02665e] transition-colors flex items-center justify-center gap-2 text-gray-600 box-border"
+                >
+                  <ImageIcon className="w-5 h-5 flex-shrink-0" />
+                  <span className="truncate">Add Images</span>
+                </button>
+                {(imagePreviews.length > 0 || formData.existingImages.length > 0) && (
+                  <div className="mt-2 grid grid-cols-3 gap-2">
+                    {formData.existingImages.map((img, idx) => (
+                      <div key={`existing-${idx}`} className="relative group min-w-0">
+                        <img
+                          src={img}
+                          alt={`Preview ${idx + 1}`}
+                          className="w-full h-24 object-cover rounded border"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeExistingImage(img)}
+                          className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                    {imagePreviews.map((preview, idx) => (
+                      <div key={idx} className="relative group min-w-0">
+                        <img
+                          src={preview}
+                          alt={`Preview ${idx + 1}`}
+                          className="w-full h-24 object-cover rounded border"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeImage(idx)}
+                          className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="min-w-0">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  YouTube Videos
+                </label>
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newVideoUrl}
+                      onChange={(e) => {
+                        setNewVideoUrl(e.target.value);
+                        setError(null);
+                      }}
+                      placeholder="Paste YouTube URL here"
+                      className="flex-1 min-w-0 max-w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#02665e] box-border text-sm"
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          addVideoUrl();
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={addVideoUrl}
+                      className="px-4 py-2 bg-[#02665e] text-white rounded-lg hover:bg-[#014e47] transition-colors flex-shrink-0 whitespace-nowrap text-sm"
+                    >
+                      <Video className="w-4 h-4 inline mr-1" />
+                      Add
+                    </button>
+                  </div>
+                  {(formData.videoUrls.length > 0 || formData.existingVideos.length > 0) && (
+                    <div className="space-y-2 max-w-full">
+                      {formData.existingVideos.map((vid, idx) => (
+                        <div key={`existing-vid-${idx}`} className="relative group w-full">
+                          <div className="aspect-video w-full rounded border overflow-hidden bg-gray-100">
+                            <iframe
+                              src={vid}
+                              className="w-full h-full"
+                              frameBorder="0"
+                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                              allowFullScreen
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeExistingVideo(vid)}
+                            className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                      {formData.videoUrls.map((embedUrl, idx) => (
+                        <div key={idx} className="relative group w-full">
+                          <div className="aspect-video w-full rounded border overflow-hidden bg-gray-100">
+                            <iframe
+                              src={embedUrl}
+                              className="w-full h-full"
+                              frameBorder="0"
+                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                              allowFullScreen
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeVideoUrl(idx)}
+                            className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                type="submit"
+                disabled={uploading}
+                className="flex-1 px-4 py-2 bg-[#02665e] text-white rounded-lg hover:bg-[#014e47] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+              >
+                {uploading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  "Save Update"
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={resetForm}
+                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {loading ? (
+        <div className="text-center py-12 text-gray-500">Loading updates...</div>
+      ) : updates.length === 0 ? (
+        <div className="text-center py-12 text-gray-500">
+          No updates yet. Create your first update!
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4">
+          {updates.map((update) => (
+            <div
+              key={update.id}
+              className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm hover:shadow-md transition-shadow"
+            >
+              <div className="flex justify-between items-start mb-4">
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                    {update.title}
+                  </h3>
+                  <div className="flex items-center gap-2 text-sm text-gray-500">
+                    <Calendar className="w-4 h-4" />
+                    <span>{formatDate(update.createdAt)}</span>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleEdit(update)}
+                    className="p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                    title="Edit"
+                  >
+                    <Edit className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(update.id)}
+                    className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
+                    title="Delete"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              <p className="text-gray-700 mb-4 whitespace-pre-wrap">{update.content}</p>
+
+              {update.images && update.images.length > 0 && (
+                <div className="mb-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                    {update.images.map((img, idx) => (
+                      <img
+                        key={idx}
+                        src={img}
+                        alt={`${update.title} - Image ${idx + 1}`}
+                        className="w-full h-32 object-cover rounded border"
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {update.videos && update.videos.length > 0 && (
+                <div className="space-y-2">
+                  {update.videos.map((vid, idx) => (
+                    <div key={idx} className="w-full aspect-video rounded border overflow-hidden bg-gray-100">
+                      <iframe
+                        src={vid}
+                        className="w-full h-full"
+                        frameBorder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

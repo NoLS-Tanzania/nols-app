@@ -1,8 +1,8 @@
 import 'dotenv/config';
 import express from 'express';
 import http from 'http';
-import cors from 'cors';
 import helmet from 'helmet';
+import cors from 'cors';
 import morgan from 'morgan';
 import { Server } from 'socket.io';
 import authRoutes from './routes/auth';
@@ -19,6 +19,8 @@ import { router as account } from "./routes/account";
 import { router as adminEmail } from "./routes/admin.auth.email";
 import { router as publicEmailVerify } from "./routes/public.email.verify";
 import publicSupportRouter from './routes/public.support';
+import publicUpdatesRouter from './routes/public.updates';
+import publicBookingRouter from './routes/public.booking';
 // import { router as ownerPhone } from "./routes/owner.phone.verify";
 import { router as upCld } from "./routes/uploads.cloudinary";
 import { router as upS3 } from "./routes/uploads.s3";
@@ -31,12 +33,18 @@ import adminRevenueRouter from "./routes/admin.revenue";
 import adminPaymentsRouter from "./routes/admin.payments";
 import adminSettingsRouter from "./routes/admin.settings";
 import paymentWebhooksRouter from "./routes/webhooks.payments";
+import azampayPaymentsRouter from "./routes/payments.azampay.js";
 import adminStatsRouter from "./routes/admin.stats";
 import adminUsersRouter from "./routes/admin.users";
+import adminUsersSummaryRouter from "./routes/admin.users.summary";
+import adminUsersTransportBookingsRouter from "./routes/admin.users.transportBookings";
+import adminHelpOwnersRouter from "./routes/admin.helpOwners";
 import adminBonusesRouter from "./routes/admin.bonuses";
 import adminOwnersRouter from "./routes/admin.owners.js";
 import adminDriversRouter from "./routes/admin.drivers";
 import adminDriversSummaryRouter from "./routes/admin.drivers.summary";
+import adminDriversLevelsRouter from "./routes/admin.drivers.levels";
+import adminDriversLevelMessagesRouter from "./routes/admin.drivers.level-messages";
 import adminGroupStaysSummaryRouter from "./routes/admin.groupStays.summary";
 import adminGroupStaysBookingsRouter from "./routes/admin.groupStays.bookings";
 import adminGroupStaysRequestsRouter from "./routes/admin.groupStays.requests";
@@ -44,21 +52,76 @@ import adminGroupStaysPassengersRouter from "./routes/admin.groupStays.passenger
 import adminGroupStaysArrangementsRouter from "./routes/admin.groupStays.arrangements";
 import adminPlanWithUsSummaryRouter from "./routes/admin.planWithUs.summary";
 import adminPlanWithUsRequestsRouter from "./routes/admin.planWithUs.requests";
+import adminTrustPartnersRouter from "./routes/admin.trustPartners";
 import adminPropertiesRouter from "./routes/admin.properties.js";
 import adminAuditsRouter from "./routes/admin.audits";
 import adminSummaryRouter from './routes/admin.summary';
 import adminNotificationsRouter from "./routes/admin.notifications";
+import adminUpdatesRouter from "./routes/admin.updates";
 import ownerMessagesRouter from './routes/owner.messages';
 import ownerNotificationsRouter from './routes/owner.notifications';
 import { router as ownerBookingsRouter } from "./routes/owner.booking";
 import admin2faRouter from "./routes/admin.2fa.js";
 import driverRouter from "./routes/driver.stats";
 import driverRemindersRouter from './routes/driver.reminders';
+import driverBonusRouter from './routes/driver.bonus';
+import driverLevelRouter from './routes/driver.level';
+import driverReferralRouter from './routes/driver.referral';
+import driverReferralEarningsRouter from './routes/driver.referral-earnings';
+import driverReferralPerformanceRouter from './routes/driver.referral-performance';
+import driverMessagesRouter from './routes/driver.messages';
+import driverMatchingRouter from './routes/driver.matching';
+import driverPerformanceRouter from './routes/driver.performance';
+import driverNotificationsRouter from './routes/driver.notifications';
+import driverLicenseRouter from './routes/driver.license';
 import groupBookingsRouter from "./routes/groupBookings.js";
+import adminReferralEarningsRouter from './routes/admin.referral-earnings';
+import propertyReviewsRouter from './routes/property.reviews';
+import customerBookingsRouter from './routes/customer.bookings';
+import customerRidesRouter from './routes/customer.rides';
+import customerGroupStaysRouter from './routes/customer.groupStays';
 
 // moved the POST handler to after the app is created
 // Create app and server before using them
 const app = express();
+
+// Allow local web origin (Next.js dev) to call the API
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'http://localhost:3001',
+  'http://127.0.0.1:3001',
+  process.env.WEB_ORIGIN || '',
+  process.env.APP_ORIGIN || '',
+].filter(Boolean);
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin) || allowedOrigins.length === 0) {
+      callback(null, true);
+    } else {
+      callback(null, true); // Allow all for development
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-role'],
+}));
+app.options('*', cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin) || allowedOrigins.length === 0) {
+      callback(null, true);
+    } else {
+      callback(null, true);
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-role'],
+}));
 
 // endpoint for codes search (uses rate-limit middleware)
 app.post("/codes/search", limitCodeSearch, async (req, res) => {
@@ -67,45 +130,71 @@ app.post("/codes/search", limitCodeSearch, async (req, res) => {
 });
 
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: '*' } });
+const io = new Server(server, { 
+  cors: { 
+    origin: allowedOrigins.length > 0 ? allowedOrigins : '*',
+    credentials: true,
+    methods: ['GET', 'POST'],
+  } 
+});
+
+// Make io globally available for webhook routes
+(global as any).io = io;
 
 // Socket.IO handlers
 io.on('connection', (socket) => {
   console.log('Socket connected', socket.id);
+  
+  // Handle driver room joining for referral updates
+  socket.on('join-driver-room', async (data: { driverId: string | number }) => {
+    if (data.driverId) {
+      const room = `driver:${data.driverId}`;
+      socket.join(room);
+      console.log(`Driver ${data.driverId} joined room ${room}`);
+    }
+  });
+
+  // Handle driver room leaving
+  socket.on('leave-driver-room', (data: { driverId: string | number }) => {
+    if (data.driverId) {
+      const room = `driver:${data.driverId}`;
+      socket.leave(room);
+      console.log(`Driver ${data.driverId} left room ${room}`);
+    }
+  });
+
+  // Handle admin room joining
+  socket.on('join-admin-room', async () => {
+    socket.join('admin');
+    console.log(`Admin joined admin room`);
+  });
+
+  // Handle admin room leaving
+  socket.on('leave-admin-room', () => {
+    socket.leave('admin');
+    console.log(`Admin left admin room`);
+  });
+
   socket.on('disconnect', () => console.log('Socket disconnected', socket.id));
 });
 
+// Helper function to emit referral updates to driver
+export function emitReferralUpdate(driverId: string | number, referralData: any) {
+  io.to(`driver:${driverId}`).emit('referral-update', referralData);
+}
+
+// Helper function to emit referral notification to driver
+export function emitReferralNotification(driverId: string | number, notification: {
+  type: 'new_referral' | 'referral_active' | 'credits_earned';
+  message: string;
+  referralData?: any;
+}) {
+  io.to(`driver:${driverId}`).emit('referral-notification', notification);
+}
+
 // Global security middleware (CSP, CORS, HPP, rate limit)
+// configureSecurity already handles CORS with regex allowing localhost on any port
 configureSecurity(app);
-
-// CORS: always allow local dev + any values from CORS_ORIGIN
-const DEFAULT_ORIGINS = [
-  "http://localhost:3000",
-  "http://127.0.0.1:3000",
-  "http://localhost:3001",
-  "http://127.0.0.1:3001",
-  // Allow local Next dev on port 3002 (used by the web dev server in this workspace)
-  "http://localhost:3002",
-  "http://127.0.0.1:3002",
-];
-const ENV_ORIGINS = process.env.CORS_ORIGIN
-  ? process.env.CORS_ORIGIN.split(",").map((s) => s.trim()).filter(Boolean)
-  : [];
-const ALLOWED_ORIGINS = Array.from(new Set([...DEFAULT_ORIGINS, ...ENV_ORIGINS]));
-
-const corsOptions: cors.CorsOptions = {
-  origin(origin, cb) {
-    if (!origin) return cb(null, true); // non-browser or same-origin
-    if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
-    return cb(null, false);
-  },
-  credentials: true,
-  methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
-};
-// app-level cors is already applied in configureSecurity; also enable explicit whitelisting
-app.use(cors(corsOptions));
-app.options("*", cors(corsOptions));
 
 // JSON parser (keep small limit); note: raw body handled below for webhooks
 app.use(express.json({ limit: "1mb" }));
@@ -130,6 +219,8 @@ app.use("/admin/payments", adminPaymentsRouter);
 app.use("/admin/settings", adminSettingsRouter);
 app.use("/admin/drivers", adminDriversRouter);
 app.use('/admin/drivers/summary', adminDriversSummaryRouter);
+app.use('/admin/drivers/levels', adminDriversLevelsRouter);
+app.use('/api/admin/drivers/level-messages', adminAllowlist, requireRole('ADMIN') as express.RequestHandler, adminDriversLevelMessagesRouter);
 app.use('/admin/group-stays/summary', adminGroupStaysSummaryRouter);
 app.use('/admin/group-stays/bookings', adminGroupStaysBookingsRouter);
 app.use('/admin/group-stays/requests', adminGroupStaysRequestsRouter);
@@ -137,15 +228,22 @@ app.use('/admin/group-stays/passengers', adminGroupStaysPassengersRouter);
 app.use('/admin/group-stays/arrangements', adminGroupStaysArrangementsRouter);
 app.use('/admin/plan-with-us/summary', adminPlanWithUsSummaryRouter);
 app.use('/admin/plan-with-us/requests', adminPlanWithUsRequestsRouter);
+app.use('/admin/trust-partners', adminTrustPartnersRouter);
 app.use("/admin/stats", adminStatsRouter);
 app.use("/admin/users", adminUsersRouter);
+app.use("/admin/users/summary", adminUsersSummaryRouter);
+app.use("/admin/users/transport-bookings", adminUsersTransportBookingsRouter);
+app.use("/admin/help-owners", adminHelpOwnersRouter);
 app.use("/admin/bonuses", adminBonusesRouter);
+app.use("/admin/referral-earnings", adminReferralEarningsRouter);
 app.use("/webhooks", paymentWebhooksRouter);
+app.use("/api/payments/azampay", azampayPaymentsRouter);
 app.use("/admin/owners", adminOwnersRouter);
 app.use("/admin/properties", adminPropertiesRouter);
 app.use('/api/admin/summary', requireRole('ADMIN') as express.RequestHandler, adminSummaryRouter as express.RequestHandler);
 app.use('/api/admin/audits', requireRole('ADMIN') as express.RequestHandler, adminAuditsRouter as express.RequestHandler);
 app.use('/api/admin/notifications', requireRole('ADMIN') as express.RequestHandler, adminNotificationsRouter as express.RequestHandler);
+app.use('/api/admin/updates', adminUpdatesRouter as express.RequestHandler);
 app.use('/api/owner/revenue', requireRole('OWNER') as express.RequestHandler, ownerRevenue);
 // Owner-scoped messages & notifications (demo implementations)
 app.use('/api/owner/messages', requireRole('OWNER') as express.RequestHandler, ownerMessagesRouter as express.RequestHandler);
@@ -155,16 +253,46 @@ app.use('/api/admin/email', adminAllowlist, adminEmail);
 app.use('/api/driver', requireRole('DRIVER') as express.RequestHandler, driverRouter as express.RequestHandler);
 // Driver reminders (list available to drivers; creation reserved for ADMIN)
 app.use('/api/driver/reminders', driverRemindersRouter as express.RequestHandler);
+// Driver bonus endpoints
+app.use('/api/driver/bonus', requireRole('DRIVER') as express.RequestHandler, driverBonusRouter as express.RequestHandler);
+// Driver level endpoints
+app.use('/api/driver/level', requireRole('DRIVER') as express.RequestHandler, driverLevelRouter as express.RequestHandler);
+// Driver referral endpoints
+app.use('/api/driver/referral', requireRole('DRIVER') as express.RequestHandler, driverReferralRouter as express.RequestHandler);
+// Driver referral earnings endpoints
+app.use('/api/driver/referral-earnings', requireRole('DRIVER') as express.RequestHandler, driverReferralEarningsRouter as express.RequestHandler);
+// Driver referral performance metrics
+app.use('/api/driver/referral/performance', requireRole('DRIVER') as express.RequestHandler, driverReferralPerformanceRouter as express.RequestHandler);
+// Driver messaging (prepared messages and send)
+app.use('/api/driver/messages', requireRole('DRIVER') as express.RequestHandler, driverMessagesRouter as express.RequestHandler);
+// Driver matching (find best driver for trip request)
+app.use('/api/driver/matching', driverMatchingRouter as express.RequestHandler);
+// Driver performance metrics for bonus eligibility
+app.use('/api/driver/performance', requireRole('DRIVER') as express.RequestHandler, driverPerformanceRouter as express.RequestHandler);
+// Driver notifications
+app.use('/api/driver/notifications', requireRole('DRIVER') as express.RequestHandler, driverNotificationsRouter as express.RequestHandler);
+// Driver license
+app.use('/api/driver/license', requireRole('DRIVER') as express.RequestHandler, driverLicenseRouter as express.RequestHandler);
 // app.use('/api/owner/phone', ownerPhone);
 app.use("/admin/2fa", admin2faRouter);
 app.use("/owner/bookings", ownerBookingsRouter);
 // Public support contact endpoint
 app.use('/api/public/support', publicSupportRouter);
+// Public updates endpoint
+app.use('/api/public/updates', publicUpdatesRouter);
+// Public booking view (for QR code scanning)
+app.use('/api/public/booking', publicBookingRouter);
+// Customer account endpoints (for travellers/customers)
+app.use('/api/customer/bookings', customerBookingsRouter as express.RequestHandler);
+app.use('/api/customer/rides', customerRidesRouter as express.RequestHandler);
+app.use('/api/customer/group-stays', customerGroupStaysRouter as express.RequestHandler);
 // Group bookings (requires authentication)
 app.use('/api/group-bookings', requireRole() as express.RequestHandler, groupBookingsRouter);
+// Property reviews (public GET, authenticated POST)
+app.use('/api/property-reviews', propertyReviewsRouter);
 
 // Start server
-const PORT = Number(process.env.PORT) || 3001;
+const PORT = Number(process.env.PORT) || 4000;
 const HOST = process.env.HOST || '0.0.0.0';
 server.listen(PORT, HOST, () => {
   console.log(`Server listening on http://${HOST}:${PORT}`);

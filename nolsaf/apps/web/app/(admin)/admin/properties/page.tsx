@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState, useRef } from "react";
 import { FileText, ChevronLeft, ChevronRight, Search, X, Eye } from "lucide-react";
 import axios from "axios";
 import { io, Socket } from "socket.io-client";
+import PropertyPreview from "@/components/PropertyPreview";
 
 // Use same-origin base so Next.js rewrites proxy to API and avoids CORS
 const api = axios.create({ baseURL: "" });
@@ -30,6 +31,7 @@ export default function AdminPropertiesPage() {
   const [loading, setLoading] = useState(true);
   const [sel, setSel] = useState<number[]>([]);
   const [suggestions, setSuggestions] = useState<Row[]>([]);
+  const [selectedPropertyId, setSelectedPropertyId] = useState<number | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({
     DRAFT: 0,
     PENDING: 0,
@@ -430,19 +432,54 @@ export default function AdminPropertiesPage() {
 
                 {/* open */}
                 <div>
-                  <a 
-                    href={`/admin/properties/${p.id}`}
+                  <button
+                    onClick={() => setSelectedPropertyId(p.id)}
                     className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-sm text-[#02665e] border border-[#02665e] rounded-lg hover:bg-[#02665e] hover:text-white transition-all duration-200"
                   >
                     <Eye className="h-4 w-4" />
                     <span className="hidden sm:inline">View</span>
-                  </a>
+                  </button>
                 </div>
               </div>
             ))}
           </div>
         )}
       </div>
+
+      {/* PropertyPreview Modal/Overlay */}
+      {selectedPropertyId && (
+        <div className="fixed inset-0 z-50 bg-white overflow-auto">
+          <div className="sticky top-0 z-10 bg-white border-b border-gray-200 shadow-sm">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+              <button
+                onClick={() => {
+                  setSelectedPropertyId(null);
+                  load(); // Refresh the list after actions
+                }}
+                className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors font-medium"
+              >
+                <ChevronLeft className="h-5 w-5" />
+                <span>Back to Properties List</span>
+              </button>
+            </div>
+          </div>
+          <PropertyPreview
+            propertyId={selectedPropertyId}
+            mode="admin"
+            onApproved={() => {
+              setSelectedPropertyId(null);
+              load();
+            }}
+            onRejected={() => {
+              setSelectedPropertyId(null);
+              load();
+            }}
+            onUpdated={() => {
+              load();
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }

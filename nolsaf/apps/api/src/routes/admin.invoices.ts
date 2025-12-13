@@ -99,7 +99,67 @@ router.post("/:id/pay", async (req, res) => {
 
   if (!updated) return res.status(404).json({ error: "Not found" });
   try { await invalidateOwnerReports(updated.ownerId); } catch (e) { /* ignore */ }
-  req.app.get("io").emit("admin:invoice:paid", { id: updated.id });
+  
+  const io = req.app.get("io");
+  io.emit("admin:invoice:paid", { id: updated.id });
+  
+  // Create referral earnings and emit updates if booking belongs to a referred user
+  try {
+    const invoice = await prisma.invoice.findUnique({
+      where: { id: updated.id },
+      include: { booking: { select: { userId: true, id: true } } }
+    });
+    
+    if (invoice?.booking?.userId) {
+      // Import and create referral earning
+      const { createReferralEarning } = await import('../lib/referral-earnings.js');
+      const earning = await createReferralEarning(
+        invoice.booking.userId,
+        invoice.booking.id,
+        updated.id,
+        Number(invoice.total || 0)
+      );
+
+      if (earning) {
+        // Check if this user was referred by a driver
+        const user = await prisma.user.findUnique({
+          where: { id: invoice.booking.userId },
+          select: { referredBy: true, role: true }
+        });
+        
+        if (user?.referredBy) {
+          // Only emit for CUSTOMER/USER roles (they earn credits)
+          if (user.role === 'CUSTOMER' || user.role === 'USER') {
+            const bookingAmount = Number(invoice.total || 0);
+            const creditsEarned = Number(earning.amount || 0);
+            
+            // Emit credit notification to referring driver
+            io.to(`driver:${user.referredBy}`).emit('referral-notification', {
+              type: 'credits_earned',
+              message: `You earned ${creditsEarned.toLocaleString()} TZS credits from a booking!`,
+              referralData: {
+                userId: invoice.booking.userId,
+                bookingId: invoice.bookingId,
+                amount: bookingAmount,
+                creditsEarned,
+                earningId: earning.id,
+              }
+            });
+            
+            // Emit referral update to refresh dashboard
+            io.to(`driver:${user.referredBy}`).emit('referral-update', {
+              driverId: user.referredBy,
+              timestamp: Date.now(),
+              action: 'credits_earned',
+            });
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to create referral earning or emit update', e);
+  }
+  
   res.json({ ok: true, status: updated.status, receiptNumber: updated.receiptNumber });
 });
 

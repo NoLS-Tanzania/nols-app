@@ -1,7 +1,8 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import Image from "next/image";
+import { User, Upload, CreditCard, Wallet, X, CheckCircle, Save, Lock, LogOut, Trash2, Calendar, MapPin, Globe, Phone, Mail, FileText, Truck, Car, Pencil, AlertCircle, UserCircle, Shield } from 'lucide-react';
 const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL });
 
 export default function DriverProfile() {
@@ -12,28 +13,21 @@ export default function DriverProfile() {
   const [paymentMethods, setPaymentMethods] = useState<any[] | null>(null);
   const [loadingPaymentMethods, setLoadingPaymentMethods] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const avatarFileInputRef = useRef<HTMLInputElement>(null);
+  const licenseFileInputRef = useRef<HTMLInputElement>(null);
+  const idFileInputRef = useRef<HTMLInputElement>(null);
+  const vehicleRegFileInputRef = useRef<HTMLInputElement>(null);
+  const insuranceFileInputRef = useRef<HTMLInputElement>(null);
+  const [licenseFile, setLicenseFile] = useState<File | null>(null);
+  const [idFile, setIdFile] = useState<File | null>(null);
+  const [vehicleRegFile, setVehicleRegFile] = useState<File | null>(null);
+  const [insuranceFile, setInsuranceFile] = useState<File | null>(null);
 
   useEffect(() => {
     let mounted = true;
     const t = localStorage.getItem("token");
-    const isDev = process.env.NODE_ENV !== 'production';
-    const demoMode = !t && isDev;
-    if (demoMode) {
-      setForm({
-        fullName: 'Demo Driver',
-        email: 'driver@example.com',
-        phone: '+255700000001',
-        region: 'Dar es Salaam',
-        district: 'CBD',
-        nationality: 'Tanzanian',
-        timezone: 'Africa/Dar_es_Salaam',
-        avatarUrl: '',
-        dateOfBirth: '1990-01-01',
-        gender: 'male',
-      });
-      setLoading(false);
-      return;
-    }
     if (!t) {
       if (typeof window !== 'undefined') window.location.href = '/login';
       return;
@@ -73,6 +67,7 @@ export default function DriverProfile() {
 
   const save = async () => {
     setSaving(true);
+    setEditingField(null); // Close any open edit fields
     try {
       const payload: any = {
         fullName: form.fullName,
@@ -80,12 +75,40 @@ export default function DriverProfile() {
         nationality: form.nationality,
         avatarUrl: form.avatarUrl,
         timezone: form.timezone,
+        region: form.region,
+        district: form.district,
+        nin: form.nin || form.nationalId,
+        licenseNumber: form.licenseNumber,
+        vehicleType: form.vehicleType,
+        plateNumber: form.plateNumber,
+        operationArea: form.operationArea || form.parkingArea,
+        paymentPhone: form.paymentPhone,
       };
       // include optional driver fields
       if (typeof form.dateOfBirth !== 'undefined') payload.dateOfBirth = form.dateOfBirth;
       if (typeof form.gender !== 'undefined') payload.gender = form.gender;
 
-      await api.put("/account/profile", payload);
+      // Handle file uploads if any
+      const formData = new FormData();
+      Object.keys(payload).forEach(key => {
+        if (payload[key] !== null && payload[key] !== undefined) {
+          formData.append(key, payload[key]);
+        }
+      });
+      
+      if (licenseFile) formData.append('licenseFile', licenseFile);
+      if (idFile) formData.append('idFile', idFile);
+      if (vehicleRegFile) formData.append('vehicleRegFile', vehicleRegFile);
+      if (insuranceFile) formData.append('insuranceFile', insuranceFile);
+
+      // Use FormData if files exist, otherwise use JSON
+      if (licenseFile || idFile || vehicleRegFile || insuranceFile) {
+        await api.put("/account/profile", formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+      } else {
+        await api.put("/account/profile", payload);
+      }
       // also save payout details (owner fields) if present
       try {
         const payoutPayload: any = {
@@ -105,7 +128,10 @@ export default function DriverProfile() {
         // ignore payout save errors
         console.warn('Failed to save payout details', e);
       }
-      alert("Saved");
+      setSuccess("Profile saved successfully!");
+      setError(null);
+      // Auto-hide success message after 3 seconds
+      setTimeout(() => setSuccess(null), 3000);
       // update local `me` shortcut and global window.ME
       try {
         const updatedMe = { ...(me ?? {}), ...payload, bankAccountName: form.bankAccountName, bankName: form.bankName, bankAccountNumber: form.bankAccountNumber, bankBranch: form.bankBranch, mobileMoneyProvider: form.mobileMoneyProvider, mobileMoneyNumber: form.mobileMoneyNumber, payoutPreferred: form.payoutPreferred };
@@ -114,106 +140,498 @@ export default function DriverProfile() {
       } catch (e) { /* ignore */ }
     } catch (err: any) {
       console.error('Failed to save profile', err);
-      alert('Could not save profile: ' + String(err?.message ?? err));
+      setError('Could not save profile: ' + String(err?.message ?? err));
+      setSuccess(null);
     } finally {
       setSaving(false);
     }
   };
 
-  if (loading) return <div>Loading...</div>;
-  if (error) return <div className="text-rose-600">Error loading profile: {error}</div>;
+  if (loading) {
+    return (
+      <div className="w-full max-w-full flex items-center justify-center py-12">
+        <div className="text-center">
+          <div className="dot-spinner dot-md mx-auto" aria-hidden>
+            <span className="dot dot-blue" />
+            <span className="dot dot-black" />
+            <span className="dot dot-yellow" />
+            <span className="dot dot-green" />
+          </div>
+          <p className="text-sm text-slate-500 mt-4">Loading profile…</p>
+        </div>
+      </div>
+    );
+  }
+  
+  if (error) {
+    return (
+      <div className="w-full max-w-full">
+        <div className="rounded-md bg-red-50 border-2 border-red-200 p-4">
+          <div className="text-sm font-medium text-red-800">Error loading profile: {error}</div>
+        </div>
+      </div>
+    );
+  }
 
-  return (
-    <div className="max-w-4xl mx-auto">
-      <div className="border rounded-lg p-6 bg-white shadow-sm space-y-4">
-        <h1 className="text-2xl font-semibold mb-6">Your Profile</h1>
-        <div className="grid md:grid-cols-2 gap-3">
-        <Input label="Full name" value={form.fullName||""} onChange={v=>setForm({...form, fullName:v})}/>
-        <Input label="Email" value={form.email||""} onChange={v=>setForm({...form, email:v})} disabled />
-        <Input label="Phone" value={form.phone||""} onChange={v=>setForm({...form, phone:v})}/>
-        <Input label="Region" value={form.region||""} onChange={v=>setForm({...form, region:v})}/>
-        <Input label="District" value={form.district||""} onChange={v=>setForm({...form, district:v})}/>
-        <Input label="Nationality" value={form.nationality||""} onChange={v=>setForm({...form, nationality:v})}/>
-        <Input label="Timezone" value={form.timezone||""} onChange={v=>setForm({...form, timezone:v})}/>
-
-        <label className="text-sm grid gap-1">
-          <span className="opacity-70">Date of birth</span>
-          <input className="border rounded-xl px-3 py-2" type="date" value={form.dateOfBirth||""} onChange={e=>setForm({...form, dateOfBirth: e.target.value})} />
-        </label>
-
-        <label className="text-sm grid gap-1">
-          <span className="opacity-70">Gender</span>
-          <select className="border rounded-xl px-3 py-2" value={form.gender||""} onChange={e=>setForm({...form, gender: e.target.value})}>
-            <option value="">Select</option>
-            <option value="male">Male</option>
-            <option value="female">Female</option>
-            <option value="other">Other</option>
-            <option value="prefer_not_to_say">Prefer not to say</option>
-          </select>
-        </label>
-
-        <label className="text-sm grid gap-1">
-          <span className="opacity-70">Avatar</span>
-          <div className="flex items-center gap-3">
+  const renderField = (label: string, value: any, icon: any, required: boolean = false, fieldKey?: string, fieldType: 'text' | 'select' | 'date' = 'text', selectOptions?: { value: string; label: string }[]) => {
+    const Icon = icon;
+    const displayValue = value || (required ? 'Not provided' : '—');
+    const isEmpty = !value;
+    
+    return (
+      <div className="p-4 bg-white border-2 border-slate-200 rounded-lg hover:border-slate-300 transition-colors">
+        <div className="flex items-center justify-between mb-2">
+          <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+            <Icon className="w-3.5 h-3.5 text-slate-500" />
+            {label}
+            {required && <span className="text-red-500">*</span>}
+          </label>
+          {fieldKey && (
+            <button 
+              type="button" 
+              onClick={() => setEditingField(editingField === fieldKey ? null : fieldKey)}
+              className="text-xs text-emerald-600 hover:text-emerald-700 hover:underline font-medium flex items-center gap-1"
+            >
+              <Pencil className="w-3 h-3" />
+              {editingField === fieldKey ? 'Cancel' : 'Edit'}
+            </button>
+          )}
+        </div>
+        {editingField === fieldKey && fieldKey ? (
+          fieldType === 'select' && selectOptions ? (
+            <select
+              value={value || ''}
+              onChange={(e) => setForm({...form, [fieldKey]: e.target.value})}
+              className="block w-full rounded-md border-2 border-emerald-200 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200 transition-colors"
+              autoFocus
+              onBlur={() => setEditingField(null)}
+            >
+              <option value="">Select</option>
+              {selectOptions.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          ) : fieldType === 'date' ? (
             <input
-              type="file"
-              id="avatarInput"
-              accept="image/*"
-              onChange={async (e) => {
-                const f = e.target.files?.[0];
-                if (!f) return;
-                const reader = new FileReader();
-                reader.onload = () => {
-                  setForm((prev: any) => ({ ...prev, avatarUrl: String(reader.result) }));
-                };
-                reader.readAsDataURL(f);
+              type="date"
+              value={value || ''}
+              onChange={(e) => setForm({...form, [fieldKey]: e.target.value})}
+              className="block w-full rounded-md border-2 border-emerald-200 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200 transition-colors"
+              autoFocus
+              onBlur={() => setEditingField(null)}
+            />
+          ) : (
+            <input
+              type="text"
+              value={value || ''}
+              onChange={(e) => setForm({...form, [fieldKey]: e.target.value})}
+              className="block w-full rounded-md border-2 border-emerald-200 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200 transition-colors"
+              autoFocus
+              onBlur={() => setEditingField(null)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') setEditingField(null);
               }}
             />
-            {form.avatarUrl ? (
-              <Image src={form.avatarUrl} alt="avatar" width={48} height={48} className="rounded-full object-cover border" />
-            ) : (
-              <div className="h-12 w-12 rounded-full bg-gray-100 flex items-center justify-center border">No avatar</div>
-            )}
+          )
+        ) : (
+          <div className={`text-sm font-medium ${isEmpty ? 'text-slate-400 italic' : 'text-slate-900'}`}>
+            {fieldType === 'date' && value ? new Date(value).toLocaleDateString() : displayValue}
           </div>
-        </label>
+        )}
+      </div>
+    );
+  };
+
+  const renderFileField = (label: string, file: File | null, fileUrl: string | null, icon: any, inputRef: React.RefObject<HTMLInputElement>, onFileChange: (file: File | null) => void, accept: string = "image/*,.pdf") => {
+    const Icon = icon;
+    const hasFile = file || fileUrl;
+    
+    return (
+      <div className="p-4 bg-white border-2 border-slate-200 rounded-lg hover:border-slate-300 transition-colors">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+              <Icon className="w-5 h-5 text-blue-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold text-slate-900">{label}</div>
+              <div className="text-xs text-slate-500 truncate">
+                {hasFile ? (
+                  file ? file.name : (fileUrl ? 'Uploaded' : 'Not uploaded')
+                ) : (
+                  <span className="text-slate-400 italic">Not uploaded</span>
+                )}
+              </div>
+            </div>
+          </div>
+          <input
+            ref={inputRef}
+            type="file"
+            accept={accept}
+            onChange={(e) => {
+              const f = e.target.files?.[0] || null;
+              onFileChange(f);
+              if (f && inputRef.current) {
+                const reader = new FileReader();
+                reader.onload = () => {
+                  // Handle file upload logic here
+                };
+                reader.readAsDataURL(f);
+              }
+            }}
+            className="hidden"
+          />
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            className="text-xs text-emerald-600 hover:text-emerald-700 hover:underline font-medium flex items-center gap-1 flex-shrink-0 ml-2"
+          >
+            <Upload className="w-3 h-3" />
+            {hasFile ? 'Change' : 'Upload'}
+          </button>
+        </div>
+        {file && (
+          <div className="mt-2 p-2 bg-emerald-50 border border-emerald-200 rounded flex items-center justify-between">
+            <span className="text-xs text-emerald-700 font-medium truncate flex-1">{file.name}</span>
+            <button
+              type="button"
+              onClick={() => {
+                onFileChange(null);
+                if (inputRef.current) inputRef.current.value = '';
+              }}
+              className="text-emerald-600 hover:text-emerald-700 ml-2"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="w-full max-w-full space-y-6 overflow-x-hidden">
+      {/* Header */}
+      <div className="w-full text-center">
+        <div className="flex flex-col items-center mb-6">
+          {form.avatarUrl ? (
+            <div className="relative mb-4">
+              <Image 
+                src={form.avatarUrl} 
+                alt="avatar" 
+                width={80} 
+                height={80} 
+                className="rounded-full object-cover border-4 border-emerald-200 shadow-lg transition-all hover:scale-105" 
+              />
+              <button
+                type="button"
+                onClick={() => avatarFileInputRef.current?.click()}
+                className="absolute bottom-0 right-0 h-8 w-8 rounded-full bg-emerald-600 text-white flex items-center justify-center hover:bg-emerald-700 transition-all shadow-md hover:scale-110"
+                aria-label="Change avatar"
+              >
+                <Upload className="h-4 w-4" />
+              </button>
+            </div>
+          ) : (
+            <div className="relative mb-4">
+              <div className="h-20 w-20 rounded-full bg-gradient-to-br from-emerald-100 to-blue-100 flex items-center justify-center border-4 border-emerald-200 shadow-lg">
+                <User className="h-10 w-10 text-emerald-600" />
+              </div>
+              <button
+                type="button"
+                onClick={() => avatarFileInputRef.current?.click()}
+                className="absolute bottom-0 right-0 h-8 w-8 rounded-full bg-emerald-600 text-white flex items-center justify-center hover:bg-emerald-700 transition-all shadow-md hover:scale-110"
+                aria-label="Upload avatar"
+              >
+                <Upload className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+          <input
+            ref={avatarFileInputRef}
+            type="file"
+            id="avatarInput"
+            accept="image/*"
+            onChange={async (e) => {
+              const f = e.target.files?.[0];
+              if (!f) return;
+              const reader = new FileReader();
+              reader.onload = () => {
+                setForm((prev: any) => ({ ...prev, avatarUrl: String(reader.result) }));
+              };
+              reader.readAsDataURL(f);
+            }}
+            className="hidden"
+          />
+          <h1 className="text-2xl font-semibold text-gray-900">Your Profile</h1>
+          <p className="mt-1 text-sm text-slate-600">Review and update your information</p>
+        </div>
       </div>
 
-      <div className="pt-6 border-t">
-        <h2 className="text-lg font-medium">Payment Methods</h2>
+      {/* Success/Error Messages */}
+      {success && (
+        <div className="rounded-md bg-green-50 border-2 border-green-200 p-4 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="flex items-center gap-2 text-sm font-medium text-green-800">
+            <CheckCircle className="h-5 w-5" />
+            <span>{success}</span>
+          </div>
+        </div>
+      )}
+      {error && (
+        <div className="rounded-md bg-red-50 border-2 border-red-200 p-4 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="flex items-center gap-2 text-sm font-medium text-red-800">
+            <X className="h-5 w-5" />
+            <span>{error}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Personal Details Section */}
+      <section className="w-full max-w-full bg-white rounded-xl p-6 border-2 border-slate-200 shadow-sm overflow-x-hidden hover:shadow-md transition-shadow duration-300">
+        <div className="flex items-center gap-2 mb-6 pb-3 border-b border-slate-200">
+          <User className="w-5 h-5 text-slate-600" />
+          <h2 className="text-lg font-semibold text-slate-900">Personal Details</h2>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {renderField("Full name", form.fullName, User, true, 'fullName')}
+          {renderField("Email", form.email, Mail, true)}
+          {renderField(
+            "Gender", 
+            form.gender ? form.gender.charAt(0).toUpperCase() + form.gender.slice(1) : null, 
+            User, 
+            false, 
+            'gender',
+            'select',
+            [
+              { value: 'male', label: 'Male' },
+              { value: 'female', label: 'Female' },
+              { value: 'other', label: 'Other' },
+              { value: 'prefer_not_to_say', label: 'Prefer not to say' }
+            ]
+          )}
+          {renderField("Nationality", form.nationality, Globe, false, 'nationality')}
+          {renderField("NIN", form.nin || form.nationalId, CreditCard, false, 'nin')}
+          {renderField("Phone", form.phone, Phone, false, 'phone')}
+          {renderField("Region", form.region, MapPin, false, 'region')}
+          {renderField("District", form.district, MapPin, false, 'district')}
+          {renderField("Date of birth", form.dateOfBirth, Calendar, false, 'dateOfBirth', 'date')}
+          {renderField("Timezone", form.timezone, Globe, false, 'timezone')}
+        </div>
+      </section>
+
+      {/* Driving Details Section */}
+      <section className="w-full max-w-full bg-white rounded-xl p-6 border-2 border-slate-200 shadow-sm overflow-x-hidden hover:shadow-md transition-shadow duration-300">
+        <div className="flex items-center gap-2 mb-6 pb-3 border-b border-slate-200">
+          <Truck className="w-5 h-5 text-slate-600" />
+          <h2 className="text-lg font-semibold text-slate-900">Driving Details</h2>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {renderField("License number", form.licenseNumber, FileText, true, 'licenseNumber')}
+          {renderField(
+            "Vehicle type", 
+            form.vehicleType ? form.vehicleType.charAt(0).toUpperCase() + form.vehicleType.slice(1) : null, 
+            Car, 
+            true, 
+            'vehicleType',
+            'select',
+            [
+              { value: 'bajaji', label: 'Bajaji' },
+              { value: 'bodaboda', label: 'Bodaboda' },
+              { value: 'vehicle', label: 'Vehicle' }
+            ]
+          )}
+          {renderField("Plate number", form.plateNumber, Truck, true, 'plateNumber')}
+          {renderField("Operation / Parking area", form.operationArea || form.parkingArea, MapPin, false, 'operationArea')}
+        </div>
+      </section>
+
+      {/* Payment Details Section */}
+      <section className="w-full max-w-full bg-white rounded-xl p-6 border-2 border-slate-200 shadow-sm overflow-x-hidden hover:shadow-md transition-shadow duration-300">
+        <div className="flex items-center gap-2 mb-6 pb-3 border-b border-slate-200">
+          <CreditCard className="w-5 h-5 text-slate-600" />
+          <h2 className="text-lg font-semibold text-slate-900">Payment Details</h2>
+        </div>
+        
+        <div className="space-y-4">
+          <div className="p-4 bg-white border-2 border-slate-200 rounded-lg hover:border-slate-300 transition-colors">
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                <Phone className="w-3.5 h-3.5 text-slate-500" />
+                Payment phone
+                <span className="text-red-500">*</span>
+              </label>
+              <div className="flex items-center gap-2">
+                {form.paymentVerified || form.paymentPhoneVerified ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium">
+                    <CheckCircle className="w-3 h-3" />
+                    Verified
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-700 text-xs font-medium">
+                    <AlertCircle className="w-3 h-3" />
+                    Not verified
+                  </span>
+                )}
+                <button 
+                  type="button" 
+                  onClick={() => setEditingField(editingField === 'paymentPhone' ? null : 'paymentPhone')}
+                  className="text-xs text-emerald-600 hover:text-emerald-700 hover:underline font-medium flex items-center gap-1"
+                >
+                  <Pencil className="w-3 h-3" />
+                  {editingField === 'paymentPhone' ? 'Cancel' : 'Edit'}
+                </button>
+              </div>
+            </div>
+            {editingField === 'paymentPhone' ? (
+              <input
+                type="tel"
+                value={form.paymentPhone || ''}
+                onChange={(e) => setForm({...form, paymentPhone: e.target.value})}
+                className="block w-full rounded-md border-2 border-emerald-200 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200 transition-colors"
+                autoFocus
+                onBlur={() => setEditingField(null)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') setEditingField(null);
+                }}
+              />
+            ) : (
+              <div className={`text-sm font-medium ${!form.paymentPhone ? 'text-slate-400 italic' : 'text-slate-900'}`}>
+                {form.paymentPhone || 'Not provided'}
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* Uploaded Files Section */}
+      <section className="w-full max-w-full bg-white rounded-xl p-6 border-2 border-slate-200 shadow-sm overflow-x-hidden hover:shadow-md transition-shadow duration-300">
+        <div className="flex items-center gap-2 mb-6 pb-3 border-b border-slate-200">
+          <Upload className="w-5 h-5 text-slate-600" />
+          <h2 className="text-lg font-semibold text-slate-900">Uploaded Files</h2>
+        </div>
+        
+        <div className="space-y-3">
+          {renderFileField(
+            "Driving license",
+            licenseFile,
+            form.licenseFileUrl || form.drivingLicenseUrl,
+            FileText,
+            licenseFileInputRef,
+            setLicenseFile,
+            "image/*,.pdf"
+          )}
+          {renderFileField(
+            "National ID",
+            idFile,
+            form.idFileUrl || form.nationalIdUrl,
+            UserCircle,
+            idFileInputRef,
+            setIdFile,
+            "image/*,.pdf"
+          )}
+          {renderFileField(
+            "Vehicle registration",
+            vehicleRegFile,
+            form.vehicleRegFileUrl || form.vehicleRegistrationUrl,
+            Truck,
+            vehicleRegFileInputRef,
+            setVehicleRegFile,
+            "image/*,.pdf"
+          )}
+          {renderFileField(
+            "Insurance",
+            insuranceFile,
+            form.insuranceFileUrl || form.insuranceUrl,
+            Shield,
+            insuranceFileInputRef,
+            setInsuranceFile,
+            "image/*,.pdf"
+          )}
+        </div>
+      </section>
+
+      {/* Payment Methods Section */}
+      <section className="w-full max-w-full bg-white rounded-xl p-6 border-2 border-slate-200 shadow-sm overflow-x-hidden hover:shadow-md transition-shadow duration-300">
+        <div className="flex items-center gap-2 mb-6 pb-4 border-b border-slate-200">
+          <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center">
+            <Wallet className="h-5 w-5 text-blue-600" />
+          </div>
+          <h2 className="text-xl font-semibold text-gray-900">Payment Methods</h2>
+        </div>
+        
         {loadingPaymentMethods ? (
-          <div className="py-4">Loading payment methods…</div>
+          <div className="py-8 text-center">
+            <div className="dot-spinner dot-sm mx-auto" aria-hidden>
+              <span className="dot dot-blue" />
+              <span className="dot dot-black" />
+              <span className="dot dot-yellow" />
+              <span className="dot dot-green" />
+            </div>
+            <p className="text-sm text-slate-500 mt-4">Loading payment methods…</p>
+          </div>
         ) : (
-          <div className="space-y-3 py-4">
+          <div className="space-y-4">
             {/* Payout details from user record */}
             {(form.bankAccountNumber || form.mobileMoneyNumber || form.bankName) ? (
-              <div className="p-3 border rounded-lg">
-                <div className="font-medium">Saved payout details</div>
-                {form.bankName && (
-                  <div className="text-sm">Bank: {form.bankName} — Account: {maskAccount(form.bankAccountNumber)}</div>
-                )}
-                {form.mobileMoneyProvider && form.mobileMoneyNumber && (
-                  <div className="text-sm">Mobile money ({form.mobileMoneyProvider}): {maskPhone(form.mobileMoneyNumber)}</div>
-                )}
-                {form.payoutPreferred && <div className="text-sm opacity-70">Preferred: {form.payoutPreferred}</div>}
+              <div className="p-4 border-2 border-slate-200 rounded-lg bg-white">
+                <div className="flex items-center gap-2 mb-3">
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                  <div className="font-semibold text-gray-900">Saved payout details</div>
+                </div>
+                <div className="space-y-2 text-sm text-slate-700">
+                  {form.bankName && (
+                    <div className="flex items-center gap-2">
+                      <CreditCard className="h-4 w-4 text-slate-500" />
+                      <span>Bank: <strong>{form.bankName}</strong> — Account: <strong className="font-mono">{maskAccount(form.bankAccountNumber)}</strong></span>
+                    </div>
+                  )}
+                  {form.mobileMoneyProvider && form.mobileMoneyNumber && (
+                    <div className="flex items-center gap-2">
+                      <CreditCard className="h-4 w-4 text-slate-500" />
+                      <span>Mobile money (<strong>{form.mobileMoneyProvider}</strong>): <strong className="font-mono">{maskPhone(form.mobileMoneyNumber)}</strong></span>
+                    </div>
+                  )}
+                  {form.payoutPreferred && (
+                    <div className="text-xs text-slate-500 mt-2">Preferred: {form.payoutPreferred}</div>
+                  )}
+                </div>
               </div>
             ) : (
-              <div className="p-3 text-sm opacity-70">No saved payout details.</div>
+              <div className="p-6 text-center border-2 border-slate-200 rounded-lg bg-slate-50">
+                <Wallet className="h-12 w-12 text-slate-300 mx-auto mb-3" />
+                <div className="text-sm font-medium text-slate-600 mb-1">No saved payout details</div>
+                <div className="text-xs text-slate-500">Add payout details to receive payments</div>
+              </div>
             )}
 
             {/* Recent payment methods used for payments */}
             <div>
-              <div className="font-medium">Recent payment sources</div>
+              <div className="flex items-center gap-2 mb-3">
+                <CreditCard className="h-5 w-5 text-slate-600" />
+                <div className="font-semibold text-gray-900">Recent payment sources</div>
+              </div>
               {(!paymentMethods || paymentMethods.length === 0) ? (
-                <div className="text-sm opacity-70 py-2">No recent payment methods found.</div>
+                <div className="p-6 text-center border-2 border-slate-200 rounded-lg bg-slate-50">
+                  <CreditCard className="h-12 w-12 text-slate-300 mx-auto mb-3" />
+                  <div className="text-sm font-medium text-slate-600 mb-1">No recent payment methods found</div>
+                  <div className="text-xs text-slate-500">Your payment methods will appear here</div>
+                </div>
               ) : (
-                <div className="space-y-2 py-2">
+                <div className="space-y-2">
                   {paymentMethods.map((m:any, i:number) => (
-                    <div key={i} className="flex items-center justify-between p-2 border rounded">
-                      <div>
-                        <div className="text-sm">{String(m.method || m.ref || 'Unknown').toUpperCase()}</div>
-                        {m.ref && <div className="text-xs opacity-70">Ref: {maskRef(String(m.ref))}</div>}
+                    <div key={i} className="flex items-center justify-between p-3 border-2 border-slate-200 rounded-lg bg-white hover:border-slate-300 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-lg bg-blue-50 flex items-center justify-center">
+                          <CreditCard className="h-4 w-4 text-blue-600" />
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">{String(m.method || m.ref || 'Unknown').toUpperCase()}</div>
+                          {m.ref && <div className="text-xs text-slate-500 font-mono">Ref: {maskRef(String(m.ref))}</div>}
+                        </div>
                       </div>
-                      <div className="text-xs opacity-60">{m.paidAt ? new Date(m.paidAt).toLocaleDateString() : ''}</div>
+                      <div className="text-xs text-slate-500">{m.paidAt ? new Date(m.paidAt).toLocaleDateString() : ''}</div>
                     </div>
                   ))}
                 </div>
@@ -221,53 +639,75 @@ export default function DriverProfile() {
             </div>
           </div>
         )}
-      </div>
+      </section>
 
-      <div className="flex items-center gap-3">
-        <button
-          className={`px-3 py-2 rounded-xl border ${saving ? 'opacity-80 cursor-wait' : ''}`}
-          onClick={save}
-          disabled={saving}
-          aria-live="polite"
-        >
-          {saving ? 'Saving…' : 'Save'}
-        </button>
+      {/* Actions Section */}
+      <section className="w-full max-w-full bg-white rounded-xl p-6 border-2 border-slate-200 shadow-sm overflow-x-hidden">
+        <div className="flex items-center gap-2 mb-6 pb-4 border-b border-slate-200">
+          <div className="h-10 w-10 rounded-lg bg-slate-50 flex items-center justify-center">
+            <Lock className="h-5 w-5 text-slate-600" />
+          </div>
+          <h2 className="text-xl font-semibold text-gray-900">Account Actions</h2>
+        </div>
         
-        <button className="px-3 py-2 rounded-xl border" onClick={() => { window.location.href = '/driver/security'; }}>Change password</button>
-        <button className="px-3 py-2 rounded-xl border" onClick={() => { localStorage.removeItem('token'); window.location.href = '/login'; }}>Logout</button>
-        <button
-          className="px-3 py-2 rounded-xl border text-white bg-rose-600 hover:bg-rose-700"
-          onClick={async () => {
-            const ok = confirm('Are you sure you want to delete your account? This is irreversible.');
-            if (!ok) return;
-            try {
-              const t = localStorage.getItem('token');
-              if (!t) { window.location.href = '/login'; return; }
-              api.defaults.headers.common['Authorization'] = `Bearer ${t}`;
-              await api.delete('/account');
-              // clear local session and redirect to goodbye/login
-              localStorage.removeItem('token');
-              alert('Account deleted');
-              window.location.href = '/';
-            } catch (err: any) {
-              console.error('Failed to delete account', err);
-              alert('Could not delete account: ' + String(err?.message ?? err));
-            }
-          }}
-        >
-          Delete Account
-        </button>
-      </div>
-      </div>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <button
+            className={`inline-flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200 border-2 shadow-sm hover:shadow-md ${
+              saving 
+                ? 'text-slate-400 bg-slate-50 border-slate-200 opacity-60 cursor-wait' 
+                : 'text-white bg-emerald-600 hover:bg-emerald-700 border-emerald-600 hover:border-emerald-700 hover:scale-105'
+            }`}
+            onClick={save}
+            disabled={saving}
+            aria-live="polite"
+          >
+            <Save className="h-4 w-4" />
+            <span>{saving ? 'Saving…' : 'Save Changes'}</span>
+          </button>
+          
+          <button 
+            className="inline-flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-all duration-200 border-2 border-slate-200 hover:border-slate-300 shadow-sm hover:shadow-md hover:scale-105" 
+            onClick={() => { window.location.href = '/driver/security'; }}
+          >
+            <Lock className="h-4 w-4" />
+            <span>Change Password</span>
+          </button>
+          
+          <button 
+            className="inline-flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-all duration-200 border-2 border-slate-200 hover:border-slate-300 shadow-sm hover:shadow-md hover:scale-105" 
+            onClick={() => { localStorage.removeItem('token'); window.location.href = '/login'; }}
+          >
+            <LogOut className="h-4 w-4" />
+            <span>Logout</span>
+          </button>
+          
+          <button
+            className="inline-flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-all duration-200 border-2 border-red-600 hover:border-red-700 shadow-sm hover:shadow-md hover:scale-105"
+            onClick={async () => {
+              const ok = confirm('Are you sure you want to delete your account? This is irreversible.');
+              if (!ok) return;
+              try {
+                const t = localStorage.getItem('token');
+                if (!t) { window.location.href = '/login'; return; }
+                api.defaults.headers.common['Authorization'] = `Bearer ${t}`;
+                await api.delete('/account');
+                // clear local session and redirect to goodbye/login
+                localStorage.removeItem('token');
+                alert('Account deleted');
+                window.location.href = '/';
+              } catch (err: any) {
+                console.error('Failed to delete account', err);
+                alert('Could not delete account: ' + String(err?.message ?? err));
+              }
+            }}
+          >
+            <Trash2 className="h-4 w-4" />
+            <span>Delete Account</span>
+          </button>
+        </div>
+      </section>
     </div>
   );
-}
-
-function Input({ label, value, onChange, disabled=false, type = "text" }:{label:string; value:string; onChange:(v:string)=>void; disabled?:boolean; type?:string}) {
-  return <label className="text-sm grid gap-1">
-    <span className="opacity-70">{label}</span>
-    <input className="border rounded-xl px-3 py-2" value={value} onChange={e=>onChange(e.target.value)} disabled={disabled} type={type} />
-  </label>;
 }
 
 // Helpers to mask sensitive values for display

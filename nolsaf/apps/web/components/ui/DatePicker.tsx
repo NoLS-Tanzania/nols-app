@@ -272,19 +272,28 @@ export default function DatePicker({
               <div className="flex items-start justify-between">
                 <div>{cell.d}</div>
                 {perDayCounts[isoKey] && (
-                  <button
-                    type="button"
+                  <span
                     onClick={(e) => {
                       e.stopPropagation();
                       // clicking the tiny badge sets the filter to this date and closes the picker
                       onSelect(isoKey);
                       onClose?.();
                     }}
-                    className="ml-2 text-[10px] px-1 py-0.5 rounded-full bg-gray-100 text-gray-800"
+                    className="ml-2 text-[10px] px-1 py-0.5 rounded-full bg-gray-100 text-gray-800 cursor-pointer hover:bg-gray-200"
                     title={`Total: ${perDayCounts[isoKey].total}`}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onSelect(isoKey);
+                        onClose?.();
+                      }
+                    }}
                   >
                     {perDayCounts[isoKey].total}
-                  </button>
+                  </span>
                 )}
               </div>
             </button>

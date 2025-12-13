@@ -278,25 +278,28 @@ export default function DriverPayoutsPage() {
       }
     }
   return (
-    <div className="space-y-6">
-      <section className="mx-auto max-w-3xl bg-white rounded-lg p-6 border text-center">
-        <div className="flex items-center justify-center gap-1">
-          <Wallet className="h-6 w-6 text-gray-800" aria-hidden />
-          <h1 className="text-xl font-semibold">Payouts</h1>
+    <div className="w-full max-w-full space-y-6 overflow-x-hidden">
+      <section className="w-full max-w-full bg-white rounded-lg p-6 border-2 border-slate-200 shadow-sm overflow-x-hidden">
+        <div className="flex flex-col items-center mb-6">
+          <div className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-emerald-50 text-emerald-600">
+            <Wallet className="h-6 w-6" aria-hidden />
+          </div>
+          <h1 className="mt-3 text-2xl font-semibold text-gray-900">Payouts</h1>
         </div>
-        {/* removed sample/demo loader button - payouts come from the API */}
 
-        {/* Replace static helper text with the project's dot-spinner while checking */}
-        <div className="mt-4">
+        <div className="mt-6">
           {loading ? (
-            <Spinner size="sm" className="mx-auto" ariaLabel="Checking for payouts" />
+            <div className="flex items-center justify-center space-x-3 text-gray-600 mb-4">
+              <Spinner size="sm" className="mx-auto" ariaLabel="Checking for payouts" />
+              <span>Loading payouts…</span>
+            </div>
           ) : (
-            <div className="mt-4 overflow-x-auto">
-              <div className="flex items-center justify-between mb-2">
-                <div className="text-sm text-slate-600">Showing {payouts.length} payouts</div>
+            <div className="mt-4">
+              <div className="flex items-center justify-between mb-4">
+                <div className="text-sm font-medium text-slate-700">Showing {payouts.length} payouts</div>
                 <div className="flex items-center gap-2">
-                  <label htmlFor="payout-page-size" className="text-sm text-slate-500">Rows:</label>
-                  <select id="payout-page-size" value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }} className="text-sm border rounded px-2 py-1">
+                  <label htmlFor="payout-page-size" className="text-sm text-slate-600">Rows:</label>
+                  <select id="payout-page-size" value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }} className="text-sm border-2 border-slate-200 rounded-md px-3 py-1.5 bg-white hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
                     {[5,10,25,50].map(n => (
                       <option key={n} value={n}>{n}</option>
                     ))}
@@ -427,46 +430,42 @@ export default function DriverPayoutsPage() {
                   // row-level hover shadow is used instead of per-cell hover styles
 
                   return (
-                              <>
-                        <div className="overflow-x-auto">
-                      <table className="min-w-full divide-y table-auto">
-                        <thead>
-                          <tr className="bg-slate-50">
-                            {PAYOUT_COLUMNS.map(col => (
-                              <th key={col.key} className={`px-4 py-2 text-${col.align === 'right' ? 'right' : 'left'} text-sm font-medium text-slate-600 ${col.sortable === false ? '' : 'cursor-pointer select-none'}`}
-                                onClick={() => {
-                                  if (col.sortable === false) return;
-                                  if (sortBy === col.key) setSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
-                                  else { setSortBy(col.key); setSortDir('asc'); }
-                                  setPage(1);
-                                }}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <span>{col.label}</span>
-                                  {col.sortable !== false && sortBy === col.key ? (
-                                    <span className="text-xs">{sortDir === 'asc' ? '▲' : '▼'}</span>
-                                  ) : null}
-                                </div>
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y">
-                          {pageRows.length === 0 ? (
-                            <tr className="bg-white">
-                              <td colSpan={PAYOUT_COLUMNS.length} className="px-4 py-10 text-center text-sm text-slate-600">
-                                <div className="flex flex-col items-center">
-                                  <svg width="120" height="80" viewBox="0 0 120 80" fill="none" xmlns="http://www.w3.org/2000/svg" className="mb-4">
-                                    <rect x="10" y="20" width="100" height="48" rx="6" fill="#f8fafc" stroke="#e6eef6" />
-                                    <rect x="20" y="30" width="40" height="8" rx="2" fill="#e6eef6" />
-                                    <rect x="20" y="44" width="70" height="6" rx="2" fill="#eef6fb" />
-                                    <circle cx="92" cy="50" r="8" fill="#3b82f6" />
-                                  </svg>
-                                  <div>No payouts yet. Check back later.</div>
-                                </div>
-                              </td>
+                    <>
+                      <div className="overflow-x-auto rounded-lg border border-slate-200 max-w-full">
+                        <table className="w-full divide-y divide-slate-200 table-auto">
+                          <thead>
+                            <tr className="bg-slate-50">
+                              {PAYOUT_COLUMNS.map(col => (
+                                <th key={col.key} className={`px-6 py-3 text-${col.align === 'right' ? 'right' : 'left'} text-xs font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-200 ${col.sortable === false ? '' : 'cursor-pointer select-none hover:bg-slate-100'}`}
+                                  onClick={() => {
+                                    if (col.sortable === false) return;
+                                    if (sortBy === col.key) setSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
+                                    else { setSortBy(col.key); setSortDir('asc'); }
+                                    setPage(1);
+                                  }}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <span>{col.label}</span>
+                                    {col.sortable !== false && sortBy === col.key ? (
+                                      <span className="text-xs font-bold">{sortDir === 'asc' ? '▲' : '▼'}</span>
+                                    ) : null}
+                                  </div>
+                                </th>
+                              ))}
                             </tr>
-                          ) : pageRows.map((payout, idx) => {
+                          </thead>
+                          <tbody className="bg-white divide-y divide-slate-100">
+                            {pageRows.length === 0 ? (
+                              <tr className="bg-white">
+                                <td colSpan={PAYOUT_COLUMNS.length} className="px-6 py-12 text-center">
+                                  <div className="flex flex-col items-center">
+                                    <Wallet className="h-12 w-12 text-slate-300 mb-3" />
+                                    <div className="text-sm font-medium text-slate-600 mb-1">No payouts yet</div>
+                                    <div className="text-xs text-slate-500">Check back later</div>
+                                  </div>
+                                </td>
+                              </tr>
+                            ) : pageRows.map((payout, idx) => {
                             const date = payout.date || payout.createdAt || payout.paidAt || "";
                             const invoice = payout.invoiceNumber || payout.invoiceId || payout.invoice || "-";
                             const trip = payout.tripCode || payout.trip || payout.reference || "-";
@@ -475,14 +474,14 @@ export default function DriverPayoutsPage() {
                             const invoiceHref = payout.invoiceId ? `/driver/invoices/${payout.invoiceId}` : `#`;
 
                             return (
-                              <TableRow key={payout.id || invoice || `payout-${idx}`} className="bg-white">
-                                <td className="px-4 py-3 text-sm text-slate-700">{fmt(date)}</td>
-                                <td className="px-4 py-3 text-sm text-slate-700">{invoice}</td>
-                                <td className="px-4 py-3 text-sm text-slate-700">{trip}</td>
-                                <td className="px-4 py-3 text-sm text-slate-700">{timeFmt(paidAt)}</td>
-                                <td className="px-4 py-3 text-sm text-slate-700">{renderPaidTo(payout)}</td>
-                                <td className="px-4 py-3 text-sm text-slate-700">{typeof net === "number" ? net.toFixed(2) : net}</td>
-                                <td className="px-4 py-3 text-sm text-slate-700 text-right relative">
+                              <TableRow key={payout.id || invoice || `payout-${idx}`} className="hover:bg-slate-50 transition-colors">
+                                <td className="px-6 py-4 text-sm font-medium text-slate-900 whitespace-nowrap">{fmt(date)}</td>
+                                <td className="px-6 py-4 text-sm text-slate-700 font-medium">{invoice}</td>
+                                <td className="px-6 py-4 text-sm text-slate-700 font-mono font-medium">{trip}</td>
+                                <td className="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">{timeFmt(paidAt)}</td>
+                                <td className="px-6 py-4 text-sm text-slate-700">{renderPaidTo(payout)}</td>
+                                <td className="px-6 py-4 text-sm font-semibold text-slate-900 text-right whitespace-nowrap">{typeof net === "number" ? net.toFixed(2) : net}</td>
+                                <td className="px-6 py-4 text-sm text-right relative whitespace-nowrap">
                                   <div className="flex items-center justify-end">
                                       {(() => {
                                       const idKey = String(payout.id || invoice || `payout-${idx}`)
@@ -494,27 +493,27 @@ export default function DriverPayoutsPage() {
                                             onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === idKey ? null : idKey) }}
                                             aria-haspopup="true"
                                             aria-label="Payout actions"
-                                            className="p-1 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-200"
+                                            className="p-1.5 rounded-md hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-200 transition-colors"
                                             title="Actions"
                                           >
                                             <Eye className="h-5 w-5 text-sky-600 cursor-pointer" aria-hidden />
                                           </button>
 
                                           {openMenuId === idKey && (
-                                            <div className="absolute right-0 mt-2 w-44 bg-white border rounded shadow z-10 payout-actions-popover">
+                                            <div className="absolute right-0 mt-2 w-44 bg-white border-2 border-slate-200 rounded-lg shadow-lg z-10 payout-actions-popover">
                                               <div className="py-1">
-                                                <button onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); if (payout.invoiceId) { window.location.href = `/driver/invoices/${payout.invoiceId}` } else { window.location.href = invoiceHref } }} className="w-full text-left px-3 py-2 text-sm text-sky-600 hover:bg-slate-50 flex items-center space-x-2">
+                                                <button onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); if (payout.invoiceId) { window.location.href = `/driver/invoices/${payout.invoiceId}` } else { window.location.href = invoiceHref } }} className="w-full text-left px-4 py-2 text-sm text-sky-600 hover:bg-slate-50 flex items-center space-x-2 transition-colors">
                                                   <Eye className="h-4 w-4" />
                                                   <span>View invoice</span>
                                                 </button>
 
                                                 {receiptUrl ? (
-                                                  <button onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); generatePdfReceipt(payout) }} className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-slate-900 flex items-center space-x-2">
+                                                  <button onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); generatePdfReceipt(payout) }} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-slate-900 flex items-center space-x-2 transition-colors">
                                                     <Download className="h-4 w-4" />
                                                     <span>Download PDF</span>
                                                   </button>
                                                 ) : (
-                                                  <div className="w-full text-left px-3 py-2 text-sm text-slate-400 flex items-center space-x-2">
+                                                  <div className="w-full text-left px-4 py-2 text-sm text-slate-400 flex items-center space-x-2">
                                                     <X className="h-4 w-4 text-slate-400" />
                                                     <span>Receipt not available</span>
                                                   </div>
@@ -532,14 +531,14 @@ export default function DriverPayoutsPage() {
                           })}
                         </tbody>
                       </table>
-                        </div>
+                      </div>
 
                       {/* pagination controls */}
-                      <div className="mt-3 flex items-center justify-between">
-                        <div className="text-sm text-slate-600">Page {current} of {totalPages}</div>
+                      <div className="mt-4 flex items-center justify-between pt-4 border-t border-slate-200">
+                        <div className="text-sm font-medium text-slate-700">Page {current} of {totalPages}</div>
                         <div className="flex items-center gap-2">
-                          <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={current===1} className="px-3 py-1 rounded border bg-white disabled:opacity-50">Prev</button>
-                          <button onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={current===totalPages} className="px-3 py-1 rounded border bg-white disabled:opacity-50">Next</button>
+                          <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={current===1} className="px-4 py-2 text-sm font-medium rounded-md border-2 border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">Prev</button>
+                          <button onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={current===totalPages} className="px-4 py-2 text-sm font-medium rounded-md border-2 border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">Next</button>
                         </div>
                       </div>
                     </>

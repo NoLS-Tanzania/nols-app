@@ -370,8 +370,13 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
               </div>
             </div>
             <div className="ml-4">
-              <Link href="/public" onClick={onClose} aria-label="Return to Public" title="Return to Public" className="text-slate-500 hover:text-slate-700 inline-flex items-center">
-                <ArrowLeft className="w-5 h-5" aria-hidden />
+              <Link 
+                href="/public" 
+                onClick={onClose} 
+                className="flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:text-[#02665e] hover:bg-slate-50 rounded-lg transition-all duration-200 font-medium group no-underline"
+              >
+                <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
+                <span>Return to public site</span>
               </Link>
             </div>
           </div>

@@ -1,9 +1,8 @@
 "use client";
 import React, { useState, useCallback, useRef } from "react";
-import DriverPageHeader from "@/components/DriverPageHeader";
 import DatePicker from "@/components/ui/DatePicker";
 import TableRow from "@/components/TableRow";
-import { ListChecks, Wallet, CreditCard, Calendar } from "lucide-react";
+import { ListChecks, Wallet, CreditCard, Calendar, Shield, AlertTriangle } from "lucide-react";
 
 export default function DriverHistoryPage() {
   const [showPicker, setShowPicker] = useState(false);
@@ -38,8 +37,7 @@ export default function DriverHistoryPage() {
           params.set("date", selected);
         }
       }
-      const base = process.env.NEXT_PUBLIC_API_URL || "";
-      const url = `${base}/driver/trips${params.toString() ? "?" + params.toString() : ""}`;
+      const url = `/api/driver/trips${params.toString() ? "?" + params.toString() : ""}`;
       const res = await fetch(url, { signal: controller.signal, headers: token ? { Authorization: `Bearer ${token}` } : undefined });
       if (!res.ok) {
         setTrips([]);
@@ -77,8 +75,7 @@ export default function DriverHistoryPage() {
           params.set("date", selected);
         }
       }
-      const base = process.env.NEXT_PUBLIC_API_URL || "";
-      const url = `${base}/driver/safety${params.toString() ? "?" + params.toString() : ""}`;
+      const url = `/api/driver/safety${params.toString() ? "?" + params.toString() : ""}`;
       const res = await fetch(url, { signal: controller.signal, headers: token ? { Authorization: `Bearer ${token}` } : undefined });
       if (!res.ok) {
         setSafetyReports([]);
@@ -137,8 +134,7 @@ export default function DriverHistoryPage() {
           params.set("date", selected);
         }
       }
-      const base = process.env.NEXT_PUBLIC_API_URL || "";
-      const url = `${base}/driver/payouts${params.toString() ? "?" + params.toString() : ""}`;
+      const url = `/api/driver/payouts${params.toString() ? "?" + params.toString() : ""}`;
       const res = await fetch(url, { signal: controller.signal, headers: token ? { Authorization: `Bearer ${token}` } : undefined });
       if (!res.ok) {
         setInvoices([]);
@@ -171,13 +167,37 @@ export default function DriverHistoryPage() {
     return selected;
   }
 
+  const renderComplianceBadge = (compliance: number | null) => {
+    if (compliance === null) return <span className="text-slate-500">—</span>;
+    
+    let bgColor = 'bg-green-100 text-green-700';
+    if (compliance < 70) {
+      bgColor = 'bg-red-100 text-red-700';
+    } else if (compliance < 85) {
+      bgColor = 'bg-amber-100 text-amber-700';
+    } else if (compliance < 95) {
+      bgColor = 'bg-yellow-100 text-yellow-700';
+    }
+
+    return (
+      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${bgColor}`}>
+        {compliance}%
+      </span>
+    );
+  };
+
   return (
-    <div className="space-y-6">
-      <div className="mx-auto max-w-3xl">
-        <DriverPageHeader title="History" />
+    <div className="w-full max-w-full space-y-6 overflow-x-hidden">
+      <div className="w-full text-center">
+        <div className="flex flex-col items-center mb-6">
+          <div className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-emerald-50 text-emerald-600">
+            <Calendar className="h-6 w-6" aria-hidden />
+          </div>
+          <h1 className="mt-3 text-2xl font-semibold text-gray-900">History</h1>
+        </div>
       </div>
 
-      <div className="mx-auto max-w-3xl mt-4 flex items-center gap-3">
+      <div className="w-full max-w-full mt-4 flex items-center gap-3 flex-wrap">
         <button
           onClick={() => {
             const willOpen = !showTrips;
@@ -193,24 +213,23 @@ export default function DriverHistoryPage() {
               fetchTrips();
             }
           }}
-          className={`px-4 py-2 rounded-md border border-gray-200 text-sm font-medium transition duration-150 ease-in-out transform active:scale-95 bg-white text-gray-700 hover:bg-gray-50`}
+          className={`px-4 py-2 rounded-md border-2 text-sm font-medium transition-colors ${
+            showTrips
+              ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
+              : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300'
+          }`}
         >
-          {showTrips ? (
-            loadingTrips ? (
-              <div className="flex items-center justify-center">
-                <span aria-hidden className="dot-spinner dot-sm">
-                  <span className="dot dot-blue" />
-                  <span className="dot dot-black" />
-                  <span className="dot dot-yellow" />
-                  <span className="dot dot-green" />
-                </span>
-              </div>
-            ) : null
-          ) : (
-            <div className="flex items-center gap-2">
-              <span aria-hidden className={`inline-block h-2 w-2 rounded-full transition-colors ${showTrips ? 'bg-white' : 'bg-slate-300'}`} />
-              <span>My Trips</span>
+          {loadingTrips ? (
+            <div className="flex items-center justify-center">
+              <span aria-hidden className="dot-spinner dot-sm">
+                <span className="dot dot-blue" />
+                <span className="dot dot-black" />
+                <span className="dot dot-yellow" />
+                <span className="dot dot-green" />
+              </span>
             </div>
+          ) : (
+            <span>My Trips</span>
           )}
         </button>
 
@@ -229,24 +248,23 @@ export default function DriverHistoryPage() {
               fetchInvoices();
             }
           }}
-          className={`px-4 py-2 rounded-md border border-gray-200 text-sm font-medium transition duration-150 ease-in-out transform active:scale-95 bg-white text-gray-700 hover:bg-gray-50`}
+          className={`px-4 py-2 rounded-md border-2 text-sm font-medium transition-colors ${
+            showInvoices
+              ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
+              : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300'
+          }`}
         >
-          {showInvoices ? (
-            loadingInvoices ? (
-              <div className="flex items-center justify-center">
-                <span aria-hidden className="dot-spinner dot-sm">
-                  <span className="dot dot-blue" />
-                  <span className="dot dot-black" />
-                  <span className="dot dot-yellow" />
-                  <span className="dot dot-green" />
-                </span>
-              </div>
-            ) : null
-          ) : (
-            <div className="flex items-center gap-2">
-              <span aria-hidden className={`inline-block h-2 w-2 rounded-full transition-colors ${showInvoices ? 'bg-white' : 'bg-slate-300'}`} />
-              <span>Invoices</span>
+          {loadingInvoices ? (
+            <div className="flex items-center justify-center">
+              <span aria-hidden className="dot-spinner dot-sm">
+                <span className="dot dot-blue" />
+                <span className="dot dot-black" />
+                <span className="dot dot-yellow" />
+                <span className="dot dot-green" />
+              </span>
             </div>
+          ) : (
+            <span>Invoices</span>
           )}
         </button>
 
@@ -265,24 +283,23 @@ export default function DriverHistoryPage() {
               fetchSafetyReports();
             }
           }}
-          className="px-4 py-2 rounded-md border border-gray-200 text-sm font-medium transition duration-150 ease-in-out transform active:scale-95 bg-white text-gray-700 hover:bg-gray-50"
+          className={`px-4 py-2 rounded-md border-2 text-sm font-medium transition-colors ${
+            showSafety
+              ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
+              : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300'
+          }`}
         >
-          {showSafety ? (
-            loadingSafety ? (
-              <div className="flex items-center justify-center">
-                <span aria-hidden className="dot-spinner dot-sm">
-                  <span className="dot dot-blue" />
-                  <span className="dot dot-black" />
-                  <span className="dot dot-yellow" />
-                  <span className="dot dot-green" />
-                </span>
-              </div>
-            ) : null
-          ) : (
-            <div className="flex items-center gap-2">
-              <span aria-hidden className={`inline-block h-2 w-2 rounded-full transition-colors ${showSafety ? 'bg-white' : 'bg-slate-300'}`} />
-              <span>Safety Measures</span>
+          {loadingSafety ? (
+            <div className="flex items-center justify-center">
+              <span aria-hidden className="dot-spinner dot-sm">
+                <span className="dot dot-blue" />
+                <span className="dot dot-black" />
+                <span className="dot dot-yellow" />
+                <span className="dot dot-green" />
+              </span>
             </div>
+          ) : (
+            <span>Safety Measures</span>
           )}
         </button>
 
@@ -291,7 +308,7 @@ export default function DriverHistoryPage() {
           <div className="text-sm text-gray-600 mr-2">{renderSelected()}</div>
           <button
             onClick={() => setShowPicker((s) => !s)}
-            className={`px-3 py-2 rounded border border-gray-200 text-sm font-medium transition duration-150 ease-in-out transform active:scale-95 bg-white text-gray-700 hover:bg-gray-50 flex items-center gap-2`}
+            className="px-3 py-2 rounded-md border-2 border-slate-200 text-sm font-medium transition-colors bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300 flex items-center gap-2"
             aria-label="Toggle date picker"
           >
             <Calendar className="h-4 w-4" />
@@ -301,28 +318,30 @@ export default function DriverHistoryPage() {
       </div>
 
       {showPicker && (
-        <div className="mx-auto max-w-3xl">
-          <DatePicker
-            selected={selected}
-            onSelect={(s) => {
-              setSelected(s);
-              // keep picker open to allow further adjustments; close on explicit action
-            }}
-            onClose={() => setShowPicker(false)}
-            allowRange={true}
-          />
+        <div className="w-full max-w-full">
+          <div className="bg-white rounded-lg p-4 border-2 border-slate-200 shadow-sm">
+            <DatePicker
+              selected={selected}
+              onSelect={(s) => {
+                setSelected(s);
+                // keep picker open to allow further adjustments; close on explicit action
+              }}
+              onClose={() => setShowPicker(false)}
+              allowRange={true}
+            />
+          </div>
         </div>
       )}
 
       
 
       {showTrips && (
-        <section className="mx-auto max-w-3xl bg-white rounded-lg p-6 border">
-          <div className="flex items-center justify-center">
-            <div className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-blue-50 text-blue-600">
+        <section className="w-full max-w-full bg-white rounded-lg p-6 border-2 border-slate-200 shadow-sm overflow-x-hidden">
+          <div className="flex items-center justify-center mb-6">
+            <div className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-emerald-50 text-emerald-600">
               <ListChecks className="h-6 w-6" aria-hidden />
             </div>
-            <h2 className="ml-3 text-lg font-semibold">My Trips</h2>
+            <h2 className="ml-3 text-xl font-semibold text-gray-900">My Trips</h2>
           </div>
 
           <div className="mt-4">
@@ -338,38 +357,39 @@ export default function DriverHistoryPage() {
               </div>
             )}
 
-            <div className="mt-4 overflow-x-auto">
-              <table className="min-w-full divide-y table-auto">
+            <div className="mt-4 overflow-x-auto rounded-lg border border-slate-200 max-w-full">
+              <table className="w-full divide-y divide-slate-200 table-auto">
                 <thead>
                   <tr className="bg-slate-50">
-                    <th className="px-4 py-2 text-left text-sm font-medium text-slate-600">Date</th>
-                    <th className="px-4 py-2 text-left text-sm font-medium text-slate-600">Pick-Up</th>
-                    <th className="px-4 py-2 text-left text-sm font-medium text-slate-600">Drop-Off</th>
-                    <th className="px-4 py-2 text-left text-sm font-medium text-slate-600">Trip Code</th>
-                    <th className="px-4 py-2 text-right text-sm font-medium text-slate-600">Amount</th>
-                    <th className="px-4 py-2 text-left text-sm font-medium text-slate-600">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-200">Date</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-200">Pick-Up</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-200">Drop-Off</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-200">Trip Code</th>
+                    <th className="px-6 py-3 text-right text-xs font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-200">Amount</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-200">Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y">
+                <tbody className="bg-white divide-y divide-slate-100">
                   {trips && trips.length > 0 ? (
                     trips.map((t: any) => (
-                      <TableRow key={t.id}>
-                        <td className="px-4 py-3 text-sm text-slate-700">{t.date ?? t.datetime ?? '-'}</td>
-                        <td className="px-4 py-3 text-sm text-slate-700">{t.pickup || t.from || '—'}</td>
-                        <td className="px-4 py-3 text-sm text-slate-700">{t.dropoff || t.to || '—'}</td>
-                        <td className="px-4 py-3 text-sm text-slate-700 font-mono">{t.trip_code || t.code || t.reference || t.tripCode || '—'}</td>
-                        <td className="px-4 py-3 text-sm text-slate-700 text-right">{t.amount ?? t.fare ?? t.total ?? '—'}</td>
-                        <td className="px-4 py-3 text-sm text-slate-700">Finished</td>
+                      <TableRow key={t.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-6 py-4 text-sm font-medium text-slate-900 whitespace-nowrap">{t.date ?? t.datetime ?? '-'}</td>
+                        <td className="px-6 py-4 text-sm text-slate-700">{t.pickup || t.from || '—'}</td>
+                        <td className="px-6 py-4 text-sm text-slate-700">{t.dropoff || t.to || '—'}</td>
+                        <td className="px-6 py-4 text-sm text-slate-700 font-mono font-medium">{t.trip_code || t.code || t.reference || t.tripCode || '—'}</td>
+                        <td className="px-6 py-4 text-sm font-semibold text-slate-900 text-right whitespace-nowrap">{t.amount ?? t.fare ?? t.total ?? '—'}</td>
+                        <td className="px-6 py-4 text-sm">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                            Finished
+                          </span>
+                        </td>
                       </TableRow>
                     ))
                   ) : (
                     <tr>
-                      <td className="px-4 py-3 text-sm text-slate-500">—</td>
-                      <td className="px-4 py-3 text-sm text-slate-500">—</td>
-                      <td className="px-4 py-3 text-sm text-slate-500">—</td>
-                      <td className="px-4 py-3 text-sm text-slate-500">—</td>
-                      <td className="px-4 py-3 text-sm text-slate-500 text-right">—</td>
-                      <td className="px-4 py-3 text-sm text-slate-500">—</td>
+                      <td colSpan={6} className="px-6 py-8 text-center text-sm text-slate-500">
+                        {loadingTrips ? 'Loading trips…' : 'No trips found'}
+                      </td>
                     </tr>
                   )}
                 </tbody>
@@ -380,12 +400,12 @@ export default function DriverHistoryPage() {
       )}
 
       {showInvoices && (
-        <section className="mx-auto max-w-3xl bg-white rounded-lg p-6 border">
-          <div className="flex items-center justify-center">
-            <div className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-amber-50 text-amber-600">
+        <section className="w-full max-w-full bg-white rounded-lg p-6 border-2 border-slate-200 shadow-sm overflow-x-hidden">
+          <div className="flex items-center justify-center mb-6">
+            <div className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-emerald-50 text-emerald-600">
               <Wallet className="h-6 w-6" aria-hidden />
             </div>
-            <h2 className="ml-3 text-lg font-semibold">Invoices (Paid payouts)</h2>
+            <h2 className="ml-3 text-xl font-semibold text-gray-900">Invoices (Paid Payouts)</h2>
           </div>
 
           <div className="mt-4">
@@ -401,20 +421,20 @@ export default function DriverHistoryPage() {
               </div>
             )}
 
-            <div className="mt-4 overflow-x-auto">
-              <table className="min-w-full divide-y table-auto">
+            <div className="mt-4 overflow-x-auto rounded-lg border border-slate-200 max-w-full">
+              <table className="w-full divide-y divide-slate-200 table-auto">
                 <thead>
                   <tr className="bg-slate-50">
-                    <th className="px-4 py-2 text-left text-sm font-medium text-slate-600">Date</th>
-                    <th className="px-4 py-2 text-left text-sm font-medium text-slate-600">Invoice #</th>
-                    <th className="px-4 py-2 text-left text-sm font-medium text-slate-600">Trip Code</th>
-                    <th className="px-4 py-2 text-left text-sm font-medium text-slate-600">Paid At</th>
-                    <th className="px-4 py-2 text-left text-sm font-medium text-slate-600">Paid To</th>
-                    <th className="px-4 py-2 text-right text-sm font-medium text-slate-600">Net Paid</th>
-                    <th className="px-4 py-2 text-left text-sm font-medium text-slate-600">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-200">Date</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-200">Invoice #</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-200">Trip Code</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-200">Paid At</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-200">Paid To</th>
+                    <th className="px-6 py-3 text-right text-xs font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-200">Net Paid</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-200">Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y">
+                <tbody className="bg-white divide-y divide-slate-100">
                   {invoices && invoices.length > 0 ? (
                     invoices.map((p: any, idx: number) => {
                       const date = p.date || p.createdAt || p.paidAt || "";
@@ -460,26 +480,26 @@ export default function DriverHistoryPage() {
                       const statusText = String(p.status || p.state || (p.paidAt ? 'Paid' : '') || '-');
 
                       return (
-                        <TableRow key={p.id || invoice || `history-${idx}`} className="bg-white">
-                          <td className="px-4 py-3 text-sm text-slate-700">{fmt(date)}</td>
-                          <td className="px-4 py-3 text-sm text-slate-700">{invoice}</td>
-                          <td className="px-4 py-3 text-sm text-slate-700">{trip}</td>
-                          <td className="px-4 py-3 text-sm text-slate-700">{timeFmt(paidAt)}</td>
-                          <td className="px-4 py-3 text-sm text-slate-700">{renderPaidTo(p)}</td>
-                          <td className="px-4 py-3 text-sm text-slate-700 text-right">{typeof net === 'number' ? net.toFixed(2) : net}</td>
-                          <td className="px-4 py-3 text-sm text-slate-700">{statusText}</td>
+                        <TableRow key={p.id || invoice || `history-${idx}`} className="hover:bg-slate-50 transition-colors">
+                          <td className="px-6 py-4 text-sm font-medium text-slate-900 whitespace-nowrap">{fmt(date)}</td>
+                          <td className="px-6 py-4 text-sm text-slate-700 font-medium">{invoice}</td>
+                          <td className="px-6 py-4 text-sm text-slate-700 font-mono font-medium">{trip}</td>
+                          <td className="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">{timeFmt(paidAt)}</td>
+                          <td className="px-6 py-4 text-sm text-slate-700">{renderPaidTo(p)}</td>
+                          <td className="px-6 py-4 text-sm font-semibold text-slate-900 text-right whitespace-nowrap">{typeof net === 'number' ? net.toFixed(2) : net}</td>
+                          <td className="px-6 py-4 text-sm">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                              {statusText}
+                            </span>
+                          </td>
                         </TableRow>
                       );
                     })
                   ) : (
                     <tr>
-                      <td className="px-4 py-3 text-sm text-slate-500">—</td>
-                      <td className="px-4 py-3 text-sm text-slate-500">—</td>
-                      <td className="px-4 py-3 text-sm text-slate-500">—</td>
-                      <td className="px-4 py-3 text-sm text-slate-500">—</td>
-                      <td className="px-4 py-3 text-sm text-slate-500">—</td>
-                      <td className="px-4 py-3 text-sm text-slate-500 text-right">—</td>
-                      <td className="px-4 py-3 text-sm text-slate-500">—</td>
+                      <td colSpan={7} className="px-6 py-8 text-center text-sm text-slate-500">
+                        {loadingInvoices ? 'Loading invoices…' : 'No invoices found'}
+                      </td>
                     </tr>
                   )}
                 </tbody>
@@ -490,12 +510,12 @@ export default function DriverHistoryPage() {
       )}
 
       {showSafety && (
-        <section className="mx-auto max-w-3xl bg-white rounded-lg p-6 border">
-          <div className="flex items-center justify-center">
-            <div className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-red-50 text-red-600">
-              <ListChecks className="h-6 w-6" aria-hidden />
+        <section className="w-full max-w-full bg-white rounded-lg p-6 border-2 border-slate-200 shadow-sm overflow-x-hidden">
+          <div className="flex items-center justify-center mb-6">
+            <div className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-emerald-50 text-emerald-600">
+              <Shield className="h-6 w-6" aria-hidden />
             </div>
-            <h2 className="ml-3 text-lg font-semibold">Safety Measures — Monthly report</h2>
+            <h2 className="ml-3 text-xl font-semibold text-gray-900">Safety Measures — Monthly Report</h2>
           </div>
 
           <div className="mt-4">
@@ -511,43 +531,56 @@ export default function DriverHistoryPage() {
               </div>
             )}
 
-            <div className="mt-4 overflow-x-auto">
-              <table className="min-w-full divide-y table-auto">
+            <div className="mt-4 overflow-x-auto rounded-lg border border-slate-200 max-w-full">
+              <table className="w-full divide-y divide-slate-200 table-auto">
                 <thead>
                   <tr className="bg-slate-50">
-                    <th className="px-4 py-2 text-left text-sm font-medium text-slate-600">Month</th>
-                    <th className="px-4 py-2 text-right text-sm font-medium text-slate-600">Trips Reviewed</th>
-                    <th className="px-4 py-2 text-right text-sm font-medium text-slate-600">Infractions</th>
-                    <th className="px-4 py-2 text-right text-sm font-medium text-slate-600">Compliance %</th>
-                    <th className="px-4 py-2 text-left text-sm font-medium text-slate-600">Notes</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-200">Month</th>
+                    <th className="px-6 py-3 text-right text-xs font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-200">Trips Reviewed</th>
+                    <th className="px-6 py-3 text-right text-xs font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-200">Infractions</th>
+                    <th className="px-6 py-3 text-right text-xs font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-200">Compliance %</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-200">Notes</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y">
+                <tbody className="bg-white divide-y divide-slate-100">
                   {safetyReports && safetyReports.length > 0 ? (
                     safetyReports.map((r: any) => {
                       const monthLabel = r.month || r.period || r.label || r.monthLabel || r.monthName || String(r.month);
                       const trips = Number(r.trips ?? r.reviewed ?? 0) || 0;
                       const infractions = Number(r.infractions ?? r.issues ?? 0) || 0;
                       const compliance = trips > 0 ? Math.max(0, Math.round((1 - infractions / trips) * 100)) : null;
-                      const notes = r.notes || (infractions > 0 ? `Driver had ${infractions} infractions` : 'No issues');
+                      const notes = r.notes || (infractions > 0 ? `${infractions} infraction${infractions > 1 ? 's' : ''} recorded` : 'No issues reported');
 
                       return (
-                        <TableRow key={monthLabel} className="bg-white">
-                          <td className="px-4 py-3 text-sm text-slate-700">{monthLabel}</td>
-                          <td className="px-4 py-3 text-sm text-slate-700 text-right">{trips}</td>
-                          <td className="px-4 py-3 text-sm text-slate-700 text-right">{infractions}</td>
-                          <td className="px-4 py-3 text-sm text-slate-700 text-right">{compliance === null ? '—' : `${compliance}%`}</td>
-                          <td className="px-4 py-3 text-sm text-slate-700">{notes}</td>
+                        <TableRow key={monthLabel} className="hover:bg-slate-50 transition-colors">
+                          <td className="px-6 py-4 text-sm font-medium text-slate-900 whitespace-nowrap">{monthLabel}</td>
+                          <td className="px-6 py-4 text-sm text-slate-700 text-right whitespace-nowrap">{trips}</td>
+                          <td className="px-6 py-4 text-sm text-slate-700 text-right whitespace-nowrap">
+                            {infractions > 0 ? (
+                              <span className="inline-flex items-center gap-1 text-red-600 font-medium">
+                                <AlertTriangle className="h-4 w-4" />
+                                {infractions}
+                              </span>
+                            ) : (
+                              <span className="text-slate-500">0</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-right whitespace-nowrap">
+                            {renderComplianceBadge(compliance)}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-slate-700">{notes}</td>
                         </TableRow>
                       );
                     })
                   ) : (
                     <tr>
-                      <td className="px-4 py-3 text-sm text-slate-500">—</td>
-                      <td className="px-4 py-3 text-sm text-slate-500 text-right">—</td>
-                      <td className="px-4 py-3 text-sm text-slate-500 text-right">—</td>
-                      <td className="px-4 py-3 text-sm text-slate-500 text-right">—</td>
-                      <td className="px-4 py-3 text-sm text-slate-500">No reports found</td>
+                      <td colSpan={5} className="px-6 py-12 text-center">
+                        <div className="flex flex-col items-center">
+                          <Shield className="h-12 w-12 text-slate-300 mb-3" />
+                          <div className="text-sm font-medium text-slate-600 mb-1">No safety reports available</div>
+                          <div className="text-xs text-slate-500">Safety reports will appear here once available</div>
+                        </div>
+                      </td>
                     </tr>
                   )}
                 </tbody>

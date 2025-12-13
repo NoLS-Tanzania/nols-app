@@ -5,10 +5,12 @@
   "type": "module",
   "main": "src/index.ts",
   "files": ["src"],
+  "scripts": {
+    "generate": "prisma generate --schema ../../prisma/schema.prisma"
+  },
   "dependencies": {
     "@prisma/client": "^5.22.0"
-  }
-  ,
+  },
   "devDependencies": {
     "prisma": "^5.22.0"
   }

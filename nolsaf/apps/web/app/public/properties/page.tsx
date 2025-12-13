@@ -7,21 +7,6 @@ import SectionSeparator from '../../../components/SectionSeparator';
 
 type Props = { searchParams?: { [key: string]: string | undefined } };
 
-const MOCK_PROPERTIES: Array<any> = [
-  { id: 't1', title: 'All Villas', category: 'Villa', count: 98, href: '/public/properties?types=Villa', imageUrl: '/assets/villa.jpg' },
-  { id: 't2', title: 'All Apartments', category: 'Apartment', count: 640, href: '/public/properties?types=Apartment', imageUrl: '/assets/Apartments.jpg' },
-  { id: 't3', title: 'All Hotels', category: 'Hotel', count: 1912, href: '/public/properties?types=Hotel', imageUrl: '/assets/five_star.jpg' },
-  { id: 't4', title: 'All Hostels', category: 'Hostel', count: 120, href: '/public/properties?types=Hostel', imageUrl: '/assets/Hostel.jpg' },
-  { id: 't5', title: 'All Lodges', category: 'Lodge', count: 452, href: '/public/properties?types=Lodge', imageUrl: '/assets/Bengaruru.jpg' },
-  { id: 't6', title: 'All Condos', category: 'Condo', count: 823, href: '/public/properties?types=Condo', imageUrl: '/assets/Condo.jpg' },
-  { id: 't7', title: 'All Guest Houses', category: 'Guest House', count: 210, href: '/public/properties?types=Guest%20House', imageUrl: '/assets/guest_house.jpg' },
-  { id: 't8', title: 'All Bungalows', category: 'Bungalow', count: 45, href: '/public/properties?types=Bungalow', imageUrl: '/assets/Bungalow.jpg' },
-  { id: 't9', title: 'All Cabins', category: 'Cabin', count: 127, href: '/public/properties?types=Cabin', imageUrl: '/assets/cabin.jpg' },
-  { id: 't10', title: 'All Homestays', category: 'Homestay', count: 78, href: '/public/properties?types=Homestay', imageUrl: '/assets/Homestay.jpg' },
-  { id: 't11', title: 'All Townhouses', category: 'Townhouse', count: 56, href: '/public/properties?types=Townhouse', imageUrl: '/assets/TownHouses.jpg' },
-  { id: 't12', title: 'All Houses', category: 'House', count: 300, href: '/public/properties?types=House', imageUrl: '/assets/Local_houses.jpg' },
-  { id: 't13', title: 'Tourist Sites', category: 'Tourist Site', count: 85, href: '/public/properties?types=Tourist%20Site', imageUrl: '/assets/Villagestay.jpg' },
-];
 
 function parseList(v?: string) {
   if (!v) return [];
@@ -40,39 +25,7 @@ export default function PropertiesPage({ searchParams }: Props) {
   const checkIn = searchParams?.checkIn;
   const checkOut = searchParams?.checkOut;
 
-  const results = MOCK_PROPERTIES.filter(p => {
-    if (q) {
-      const matched = (p.title + ' ' + p.location).toLowerCase().includes(q);
-      if (!matched) return false;
-    }
-    if (minPrice !== undefined && !Number.isNaN(minPrice)) {
-      if (p.price < minPrice) return false;
-    }
-    if (maxPrice !== undefined && !Number.isNaN(maxPrice)) {
-      if (p.price > maxPrice) return false;
-    }
-    if (region && (!p.location || p.location.toLowerCase() !== region.toLowerCase())) return false;
-    if (district && (!p.district || p.district.toLowerCase() !== district.toLowerCase())) return false;
-    if (state && p.state && p.state.toLowerCase() !== state.toLowerCase()) return false;
-    if (amenities.length) {
-      const ok = amenities.every(amen => (p.amenities || []).map((x: unknown) => String(x).toLowerCase()).includes(amen.toLowerCase()));
-      if (!ok) return false;
-    }
-    if (types.length) {
-      const ok = types.every(t => (p.types || []).map(String).map((s: string) => s.toLowerCase()).includes(t.toLowerCase()));
-      if (!ok) return false;
-    }
-    if (checkIn) {
-      // ensure the property is available from <= checkIn
-      if (p.availableFrom && p.availableFrom > checkIn) return false;
-    }
-    if (checkOut) {
-      // ensure availableTo >= checkOut
-      if (p.availableTo && p.availableTo < checkOut) return false;
-    }
-
-    return true;
-  });
+  const results: Array<any> = [];
 
   return (
     <>

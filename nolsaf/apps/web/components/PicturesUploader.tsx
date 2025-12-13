@@ -50,7 +50,7 @@ export default function PicturesUploader({
 				{images.map((u, i) => (
 					<div
 						key={i}
-						className={`w-28 h-28 border-2 rounded-lg relative overflow-hidden group transition-colors ${saved?.[i] ? "border-green-500" : "border-gray-200 hover:border-blue-400"}`}
+						className={`w-48 h-48 border-2 rounded-lg relative overflow-hidden group transition-colors ${saved?.[i] ? "border-green-500" : "border-gray-200 hover:border-blue-400"}`}
 					>
 						{uploading?.[i] && (
 							<div className="absolute inset-0 bg-black/30 flex items-center justify-center z-10">
@@ -62,7 +62,7 @@ export default function PicturesUploader({
 						)}
 						{/* Use Next/Image for http(s); for blob/data, fallback to plain img and suppress linter for LCP warning since it's a small thumbnail */}
 						{/^https?:\/\//i.test(u) ? (
-							<Image src={u} alt={`${title} ${i + 1}`} width={112} height={112} className="w-full h-full object-cover" />
+							<Image src={u} alt={`${title} ${i + 1}`} width={192} height={192} className="w-full h-full object-cover" />
 						) : (
 							// eslint-disable-next-line @next/next/no-img-element
 							<img src={u} alt={`${title} ${i + 1}`} className="w-full h-full object-cover" />
@@ -88,8 +88,10 @@ export default function PicturesUploader({
 						<div className="absolute bottom-1.5 left-1.5 bg-black/60 text-white text-[11px] px-2 py-0.5 rounded">{i + 1}</div>
 					</div>
 				))}
-				<label className="w-28 h-28 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center text-sm cursor-pointer hover:border-blue-400 hover:bg-gray-50 transition-colors gap-2">
-					<span className="text-gray-600 font-medium">Browse & Upload</span>
+				<label className="w-48 h-48 border-2 border-dashed border-emerald-300 bg-emerald-50/40 rounded-xl flex flex-col items-center justify-center text-sm cursor-pointer hover:border-emerald-400 hover:bg-emerald-50 transition-all gap-2 shadow-inner">
+					<div className="w-10 h-10 rounded-full bg-white shadow flex items-center justify-center text-emerald-600 text-lg font-semibold">+</div>
+					<span className="text-gray-700 font-semibold">Browse & Upload</span>
+					<span className="text-[11px] text-gray-500">JPG, PNG, WEBP</span>
 					<input
 						id={inputId}
 						ref={inputRef}

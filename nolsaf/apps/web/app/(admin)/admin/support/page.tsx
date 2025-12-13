@@ -1,8 +1,8 @@
 "use client";
 
 // AdminPageHeader intentionally not used here; using a centered custom header for Support page
-import { LifeBuoy, Mail, Phone } from "lucide-react";
-import React, { useMemo, useState } from "react";
+import { LifeBuoy, Mail, MessageCircle, ChevronDown, Send, CheckCircle, AlertCircle } from "lucide-react";
+import React, { useState } from "react";
 
 const DEFAULT_FAQS = [
   {
@@ -50,19 +50,13 @@ const DEFAULT_FAQS = [
 ];
 
 export default function Page() {
-  const [query, setQuery] = useState("");
   const [contactName, setContactName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [contactMessage, setContactMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  const faqs = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return DEFAULT_FAQS;
-    return DEFAULT_FAQS.filter(f => f.q.toLowerCase().includes(q) || f.a.toLowerCase().includes(q));
-  }, [query]);
+  const [openFaq, setOpenFaq] = useState<number | null>(0);
 
   async function submitContact(e?: React.FormEvent) {
     e?.preventDefault();
@@ -92,128 +86,237 @@ export default function Page() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-6">
-      <div className="max-w-3xl mx-auto text-center">
-        <div className="inline-flex items-center justify-center rounded-full bg-indigo-50 p-3">
-          <LifeBuoy className="h-6 w-6 text-indigo-600" />
+    <div className="min-h-screen bg-white">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+        {/* Header Section with Animation */}
+        <div className="max-w-3xl mx-auto text-center mb-12 animate-[fadeIn_0.5s_ease-out]">
+          <div className="inline-flex items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 p-4 shadow-lg transform transition-all duration-300 hover:scale-110 hover:shadow-xl">
+            <LifeBuoy className="h-8 w-8 text-white" />
+          </div>
+          <h1 className="mt-6 text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 tracking-tight">
+            Support
+          </h1>
+          <p className="mt-3 text-base sm:text-lg text-gray-600">
+            Help center, FAQs, and contact options
+          </p>
         </div>
-        <h1 className="mt-3 text-2xl sm:text-3xl font-semibold text-gray-900">Support</h1>
-        <p className="mt-1 text-sm text-gray-600">Help center, FAQs, and contact options</p>
-      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-4">
-        <main className="md:col-span-2 space-y-6">
-          <section className="bg-white border border-gray-100 rounded-lg shadow-sm p-6">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <h2 className="text-xl font-semibold text-gray-800">Knowledge base & FAQs</h2>
-                <p className="text-sm text-gray-500">Search common questions or browse curated help articles.</p>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+          {/* Main Content - Knowledge Base */}
+          <main className="lg:col-span-2 space-y-6">
+            {/* Knowledge Base Section */}
+            <section className="bg-white rounded-xl border border-gray-100 p-6 sm:p-8 transition-all duration-300 overflow-hidden">
+              <div className="mb-6">
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Knowledge base & FAQs</h2>
+                <p className="text-sm text-gray-600">Browse curated help articles and frequently asked questions.</p>
               </div>
-              <div className="w-72">
-                <input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search FAQs, e.g. properties, owners, bookings"
-                  className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                />
-              </div>
-            </div>
 
-            <div className="mt-6 space-y-3">
-              {faqs.length === 0 && <div className="text-sm text-gray-500">No results found for your search.</div>}
-              {faqs.map((f, idx) => (
-                <details key={idx} className="group" open={idx === 0}>
-                  <summary className="flex items-center justify-between cursor-pointer bg-gray-50 hover:bg-gray-100 rounded-md px-4 py-3 font-medium text-gray-700">
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm text-gray-800">{f.q}</span>
-                      {f.category && <span className="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full">{f.category}</span>}
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <span className="text-xs text-gray-400">{(f as any).updated ?? ''}</span>
-                      <span className="text-gray-400 group-open:rotate-180 transition-transform">▾</span>
-                    </div>
-                  </summary>
-
-                  {/* Finance FAQ: render answer in a highlighted info box to distinguish it visually */}
-                  {f.category === 'Finance' && f.q.toLowerCase().includes('commission') ? (
-                    <div className="mt-3">
-                      <div className="bg-white border border-indigo-100 p-4 rounded-md">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full">{f.category}</span>
-                            <span className="text-xs text-gray-600">{(f as any).updated ?? ''} ▾</span>
+              <div className="space-y-0">
+                {DEFAULT_FAQS.map((f, idx) => {
+                    const isOpen = openFaq === idx;
+                    return (
+                      <div
+                        key={idx}
+                        className="overflow-hidden transition-all duration-300"
+                      >
+                        <button
+                          onClick={() => setOpenFaq(isOpen ? null : idx)}
+                          className="w-full flex items-center justify-between py-4 text-left transition-colors duration-200 border-b border-gray-100 last:border-b-0"
+                        >
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <span className="text-sm font-medium text-gray-900 flex-1">{f.q}</span>
+                            {f.category && (
+                              <span className="text-xs bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-full font-medium whitespace-nowrap">
+                                {f.category}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 ml-4">
+                            <span className="text-xs text-gray-400 whitespace-nowrap">{f.updated}</span>
+                            <ChevronDown
+                              className={`h-5 w-5 text-gray-400 transition-transform duration-300 ${
+                                isOpen ? 'transform rotate-180' : ''
+                              }`}
+                            />
+                          </div>
+                        </button>
+                        <div
+                          className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                            isOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+                          }`}
+                        >
+                          <div className="pb-4 pt-2">
+                            <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">
+                              {f.a}
+                            </div>
                           </div>
                         </div>
-                        <div className="text-sm text-gray-800">{f.a}</div>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="mt-2 p-4 bg-white text-sm text-gray-700 border border-t-0 border-gray-100 rounded-b-md">{f.a}</div>
-                  )}
-                </details>
-              ))}
-      </div>
-          </section>
+                    );
+                  })}
+              </div>
+            </section>
+          </main>
 
-          <section className="bg-white border border-gray-100 rounded-lg shadow-sm p-6">
-            <h3 className="text-lg font-semibold text-gray-800">Troubleshooting</h3>
-            <ul className="mt-3 list-disc ml-5 text-sm text-gray-600 space-y-2">
-              <li>Check API status: make sure the backend API is running on the configured host and port.</li>
-              <li>Verify your network connection and retry the action.</li>
-              <li>When investigating user issues, reproduce with an owner preview session and collect logs where possible.</li>
-            </ul>
-          </section>
-        </main>
-
-        <aside className="space-y-6">
-          <div className="bg-white border border-gray-100 rounded-lg shadow-sm p-5">
-            <div className="flex items-start gap-3">
-              <Mail className="w-6 h-6 text-indigo-600" />
-              <div>
-                <div className="text-sm font-medium text-gray-800">Email</div>
-                <div className="text-sm text-gray-500">support@nolsapp.com</div>
+          {/* Sidebar - Contact Information */}
+          <aside className="space-y-6 w-full lg:max-w-sm">
+            {/* Email Card */}
+            <div 
+              className="bg-white rounded-xl border border-gray-100 p-6 transition-all duration-300 ease-in-out hover:-translate-y-1 group cursor-pointer"
+              onMouseEnter={(e) => e.currentTarget.style.borderColor = '#02665e'}
+              onMouseLeave={(e) => e.currentTarget.style.borderColor = '#e5e7eb'}
+            >
+              <div className="flex items-start gap-4">
+                <div className="flex-shrink-0 transition-transform duration-300 ease-in-out group-hover:scale-110">
+                  <Mail className="h-6 w-6 transition-colors duration-300 ease-in-out" style={{ color: '#02665e' }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-gray-900 mb-1 transition-colors duration-300 ease-in-out group-hover:text-gray-800">Email</div>
+                  <a
+                    href="mailto:support@nolsapp.com"
+                    className="text-sm transition-all duration-300 ease-in-out break-all no-underline hover:tracking-wide"
+                    style={{ color: '#02665e' }}
+                    onMouseEnter={(e) => e.currentTarget.style.color = '#024a44'}
+                    onMouseLeave={(e) => e.currentTarget.style.color = '#02665e'}
+                  >
+                    support@nolsapp.com
+                  </a>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="bg-white border border-gray-100 rounded-lg shadow-sm p-5">
-            <div className="flex items-start gap-3">
-              <Phone className="w-6 h-6 text-indigo-600" />
-              <div>
-                <div className="text-sm font-medium text-gray-800">Phone</div>
-                <div className="text-sm text-gray-500">+255 736 766 726</div>
+            {/* WhatsApp Card */}
+            <div 
+              className="bg-white rounded-xl border border-gray-100 p-6 transition-all duration-300 ease-in-out hover:-translate-y-1 group cursor-pointer"
+              onMouseEnter={(e) => e.currentTarget.style.borderColor = '#02665e'}
+              onMouseLeave={(e) => e.currentTarget.style.borderColor = '#e5e7eb'}
+            >
+              <div className="flex items-start gap-4">
+                <div className="flex-shrink-0 transition-transform duration-300 ease-in-out group-hover:scale-110">
+                  <MessageCircle className="h-6 w-6 transition-colors duration-300 ease-in-out" style={{ color: '#02665e' }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-gray-900 mb-1 transition-colors duration-300 ease-in-out group-hover:text-gray-800">WhatsApp</div>
+                  <a
+                    href="https://wa.me/255736766726"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm transition-all duration-300 ease-in-out no-underline hover:tracking-wide"
+                    style={{ color: '#02665e' }}
+                    onMouseEnter={(e) => e.currentTarget.style.color = '#024a44'}
+                    onMouseLeave={(e) => e.currentTarget.style.color = '#02665e'}
+                  >
+                    +255 736 766 726
+                  </a>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="bg-white border border-gray-100 rounded-lg shadow-sm p-5">
-            <h4 className="text-sm font-semibold text-gray-800">Contact support</h4>
-            <form className="mt-3 space-y-3" onSubmit={submitContact}>
-              <div>
-                <label className="block text-xs text-gray-600 mb-1">Your name (optional)</label>
-                <input className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" placeholder="Your name" value={contactName} onChange={(e) => setContactName(e.target.value)} />
-              </div>
+            {/* Contact Form Card */}
+            <div className="bg-white rounded-xl border border-gray-100 p-5 sm:p-6 transition-all duration-300 overflow-hidden">
+              <h4 className="text-lg font-bold text-gray-900 mb-4">Contact support</h4>
+              <form className="space-y-3.5" onSubmit={submitContact}>
+                <div className="w-full">
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                    Your name <span className="text-gray-400">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full box-border border border-gray-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
+                    placeholder="Your name"
+                    value={contactName}
+                    onChange={(e) => setContactName(e.target.value)}
+                  />
+                </div>
 
-              <div>
-                <label className="block text-xs text-gray-600 mb-1">Your email</label>
-                <input className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" placeholder="you@company.com" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} />
-              </div>
+                <div className="w-full">
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                    Your email <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    className="w-full box-border border border-gray-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
+                    placeholder="you@company.com"
+                    value={contactEmail}
+                    onChange={(e) => setContactEmail(e.target.value)}
+                  />
+                </div>
 
-              <div>
-                <label className="block text-xs text-gray-600 mb-1">Message</label>
-                <textarea className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm h-28 resize-y focus:outline-none focus:ring-2 focus:ring-indigo-400" placeholder="How can we help?" value={contactMessage} onChange={(e) => setContactMessage(e.target.value)} />
-              </div>
+                <div className="w-full">
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                    Message <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    required
+                    rows={4}
+                    className="w-full box-border border border-gray-200 rounded-lg px-3.5 py-2.5 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 overflow-y-auto"
+                    placeholder="How can we help?"
+                    value={contactMessage}
+                    onChange={(e) => setContactMessage(e.target.value)}
+                    style={{ maxHeight: '120px' }}
+                  />
+                </div>
 
-              <div className="flex items-center gap-2">
-                <button type="submit" className="inline-flex items-center justify-center bg-indigo-600 text-white px-3 py-1.5 rounded-md text-sm hover:bg-indigo-700 disabled:opacity-60" disabled={sending}>{sending ? 'Sending…' : 'Send message'}</button>
-                <a className="inline-flex items-center justify-center bg-white border border-gray-200 px-3 py-1.5 rounded-md text-sm text-gray-700 no-underline hover:shadow-sm" href={`mailto:support@nolsapp.com?subject=${encodeURIComponent('Support request')}`}>Email directly</a>
-              </div>
+                <div className="flex flex-col gap-2.5 w-full box-border">
+                  <button
+                    type="submit"
+                    disabled={sending}
+                    className="w-full box-border inline-flex items-center justify-center gap-2 text-white px-4 py-2.5 rounded-lg text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 transform hover:-translate-y-0.5"
+                    style={{ 
+                      background: 'linear-gradient(to right, #02665e, #024a44)',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!sending) e.currentTarget.style.background = 'linear-gradient(to right, #024a44, #013a35)';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!sending) e.currentTarget.style.background = 'linear-gradient(to right, #02665e, #024a44)';
+                    }}
+                  >
+                    {sending ? (
+                      <>
+                        <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span>Sending…</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-4 w-4" />
+                        <span>Send message</span>
+                      </>
+                    )}
+                  </button>
+                  <a
+                    href={`mailto:support@nolsapp.com?subject=${encodeURIComponent('Support request')}`}
+                    className="w-full box-border inline-flex items-center justify-center gap-2 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 transform hover:-translate-y-0.5 no-underline"
+                    style={{ 
+                      background: 'linear-gradient(to right, #02665e, #024a44)',
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(to right, #024a44, #013a35)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(to right, #02665e, #024a44)'}
+                  >
+                    Email directly
+                  </a>
+                </div>
 
-              {sent && <div className="text-sm text-green-600">{sent}</div>}
-              {error && <div className="text-sm text-red-600">{error}</div>}
-            </form>
-          </div>
-        </aside>
+                {/* Success Message */}
+                {sent && (
+                  <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700 w-full box-border animate-[fadeIn_0.3s_ease-out]">
+                    <CheckCircle className="h-5 w-5 flex-shrink-0" />
+                    <span className="break-words">{sent}</span>
+                  </div>
+                )}
+
+                {/* Error Message */}
+                {error && (
+                  <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 w-full box-border animate-[fadeIn_0.3s_ease-out]">
+                    <AlertCircle className="h-5 w-5 flex-shrink-0" />
+                    <span className="break-words">{error}</span>
+                  </div>
+                )}
+              </form>
+            </div>
+          </aside>
+        </div>
       </div>
     </div>
   );

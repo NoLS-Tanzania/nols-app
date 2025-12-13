@@ -17,7 +17,9 @@ const baseBodySchema = z.object({
   description: z.string().max(10_000).optional().nullable(),
 
   // location
-  regionId: z.number().int().positive().optional(),
+  // regionId: Accept string (slug like "dar-es-salaam") or number (code like 11)
+  // Database stores as VARCHAR(50), so both formats work
+  regionId: z.union([z.string().min(1), z.number().int().positive()]).optional(),
   regionName: z.string().optional(),
   district: z.string().optional(),
   street: z.string().optional().nullable(),
@@ -272,6 +274,13 @@ router.post("/:id/submit", (async (req: AuthedRequest, res) => {
 
   // ✅ BEFORE RETURN — ENSURE LAYOUT IS FRESH
   try { await regenerateAndSaveLayout(id); } catch {}
+
+  // Notify owner that property has been submitted
+  const { notifyOwner } = await import("../lib/notifications.js");
+  await notifyOwner(ownerId, "property_submitted", { 
+    propertyId: id, 
+    propertyTitle: p.title 
+  });
 
   res.json({ ok: true, id: updated.id, status: updated.status });
 }) as RequestHandler);

@@ -30,13 +30,27 @@ export default function UserMenu() {
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-44 bg-white rounded-md shadow-lg ring-1 ring-black/10 overflow-hidden z-50">
+        <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg ring-1 ring-black/10 overflow-hidden z-50">
           <div className="py-1">
             <Link href="/account" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">My account</Link>
+            <Link href="/account/bookings" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">My Bookings</Link>
+            <Link href="/account/rides" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">My Rides</Link>
+            <Link href="/account/group-stays" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">My Group Stay</Link>
+            <div className="border-t border-gray-100" />
             <Link href="/account/profile" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Profile</Link>
             <Link href="/account/security" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Settings</Link>
             <div className="border-t border-gray-100" />
-            <Link href="/account/login" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Sign out</Link>
+            <Link 
+              href="/login" 
+              className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+              onClick={() => {
+                if (typeof window !== "undefined") {
+                  localStorage.removeItem("token");
+                }
+              }}
+            >
+              Sign out
+            </Link>
           </div>
         </div>
       )}

@@ -18,9 +18,9 @@ router.get("/overview", async (_req, res) => {
   try {
     const overview = await (await import('../services/adminStats.js')).getOverview();
     res.json(overview);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'failed' });
+  } catch (err: any) {
+    console.error('Error in overview:', err);
+    res.status(500).json({ error: 'failed', message: err?.message || String(err) });
   }
 });
 
@@ -34,9 +34,9 @@ router.get('/revenue-series', async (req, res) => {
     const { from, to, region } = req.query as any;
     const result: SeriesResponse = await getRevenueSeries(from, to, region);
     res.json(result);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'failed' });
+  } catch (err: any) {
+    console.error('Error in revenue-series:', err);
+    res.status(500).json({ error: 'failed', message: err?.message || String(err) });
   }
 });
 
@@ -66,9 +66,9 @@ router.get('/revenue-by-type', async (req, res) => {
     const { from, to, region } = req.query as any;
     const result: SeriesResponse = await getRevenueByType(from, to, region);
     res.json(result);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'failed' });
+  } catch (err: any) {
+    console.error('Error in revenue-by-type:', err);
+    res.status(500).json({ error: 'failed', message: err?.message || String(err) });
   }
 });
 
@@ -81,9 +81,9 @@ router.get('/active-properties-breakdown', async (req, res) => {
     const { groupBy = 'propertyType', region } = req.query as any;
     const result: BreakdownResponse = await getActivePropertiesBreakdown(groupBy, region);
     res.json(result);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'failed' });
+  } catch (err: any) {
+    console.error('Error in active-properties-breakdown:', err);
+    res.status(500).json({ error: 'failed', message: err?.message || String(err) });
   }
 });
 
@@ -96,9 +96,9 @@ router.get('/invoice-status', async (req, res) => {
     const { from, to } = req.query as any;
     const result = await getInvoiceStatus(from, to);
     res.json(result);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'failed' });
+  } catch (err: any) {
+    console.error('Error in invoice-status:', err);
+    res.status(500).json({ error: 'failed', message: err?.message || String(err) });
   }
 });
 

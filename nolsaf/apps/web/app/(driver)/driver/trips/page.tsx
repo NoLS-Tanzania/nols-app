@@ -15,7 +15,7 @@ export default function DriverTripsPage() {
     setLoading(true)
     try {
       const token = typeof window !== "undefined" ? localStorage.getItem("token") : null
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/driver/trips`, {
+      const res = await fetch(`/api/driver/trips`, {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       })
 
@@ -128,14 +128,33 @@ export default function DriverTripsPage() {
     return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
   }
 
+  const renderStatusBadge = (status: string) => {
+    const statusLower = (status || '').toLowerCase();
+    let bgColor = 'bg-gray-100 text-gray-700';
+    if (statusLower.includes('completed') || statusLower.includes('finished') || statusLower.includes('done')) {
+      bgColor = 'bg-green-100 text-green-700';
+    } else if (statusLower.includes('pending') || statusLower.includes('waiting')) {
+      bgColor = 'bg-amber-100 text-amber-700';
+    } else if (statusLower.includes('cancelled') || statusLower.includes('canceled')) {
+      bgColor = 'bg-red-100 text-red-700';
+    } else if (statusLower.includes('in_progress') || statusLower.includes('active')) {
+      bgColor = 'bg-blue-100 text-blue-700';
+    }
+    return (
+      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${bgColor}`}>
+        {status || '—'}
+      </span>
+    );
+  };
+
   return (
-    <div className="space-y-6">
-      <section className="mx-auto max-w-3xl bg-white rounded-lg p-6 border text-center">
-        <div className="flex flex-col items-center">
-          <div className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-blue-50 text-blue-600">
+    <div className="w-full max-w-full space-y-6 overflow-x-hidden">
+      <section className="w-full max-w-full bg-white rounded-lg p-6 border-2 border-slate-200 shadow-sm overflow-x-hidden">
+        <div className="flex flex-col items-center mb-6">
+          <div className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-emerald-50 text-emerald-600">
             <ListChecks className="h-6 w-6" aria-hidden />
           </div>
-          <h1 className="mt-3 text-2xl font-semibold">My Trips</h1>
+          <h1 className="mt-3 text-2xl font-semibold text-gray-900">My Trips</h1>
         </div>
 
         <div className="mt-6">
@@ -151,41 +170,37 @@ export default function DriverTripsPage() {
             </div>
           )}
 
-          <div className="mt-4 overflow-x-auto">
-            <table className="min-w-full divide-y table-auto">
+          <div className="mt-4 overflow-x-auto rounded-lg border border-slate-200 max-w-full">
+            <table className="w-full divide-y divide-slate-200 table-auto">
               <thead>
                 <tr className="bg-slate-50">
-                  <th className="px-4 py-2 text-left text-sm font-medium text-slate-600">Date</th>
-                  <th className="px-4 py-2 text-left text-sm font-medium text-slate-600">Time</th>
-                  <th className="px-4 py-2 text-left text-sm font-medium text-slate-600">Pick-Up</th>
-                  <th className="px-4 py-2 text-left text-sm font-medium text-slate-600">Drop-off</th>
-                  <th className="px-4 py-2 text-left text-sm font-medium text-slate-600">Trip Code</th>
-                  <th className="px-4 py-2 text-left text-sm font-medium text-slate-600">Status</th>
-                  <th className="px-4 py-2 text-right text-sm font-medium text-slate-600">Amount</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-200">Date</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-200">Time</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-200">Pick-Up</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-200">Drop-off</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-200">Trip Code</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-200">Status</th>
+                  <th className="px-6 py-3 text-right text-xs font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-200">Amount</th>
                 </tr>
               </thead>
-              <tbody className="divide-y">
+              <tbody className="bg-white divide-y divide-slate-100">
                 {trips && trips.length > 0 ? (
                   trips.map((t: any) => (
-                    <TableRow key={t.id}>
-                        <td className="px-4 py-3 text-sm text-slate-700">{formatDate(t.datetime || t.date)}</td>
-                        <td className="px-4 py-3 text-sm text-slate-700">{formatTime(t.datetime || t.date)}</td>
-                        <td className="px-4 py-3 text-sm text-slate-700">{t.pickup || t.from || '—'}</td>
-                        <td className="px-4 py-3 text-sm text-slate-700">{t.dropoff || t.to || '—'}</td>
-                        <td className="px-4 py-3 text-sm text-slate-700 font-mono">{t.trip_code || t.code || t.reference || t.tripCode || '—'}</td>
-                        <td className="px-4 py-3 text-sm text-slate-700">{t.status || '—'}</td>
-                        <td className="px-4 py-3 text-sm text-slate-700 text-right">{formatAmount(t.amount ?? t.fare ?? t.total)}</td>
+                    <TableRow key={t.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-6 py-4 text-sm font-medium text-slate-900 whitespace-nowrap">{formatDate(t.datetime || t.date)}</td>
+                        <td className="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">{formatTime(t.datetime || t.date)}</td>
+                        <td className="px-6 py-4 text-sm text-slate-700">{t.pickup || t.from || '—'}</td>
+                        <td className="px-6 py-4 text-sm text-slate-700">{t.dropoff || t.to || '—'}</td>
+                        <td className="px-6 py-4 text-sm text-slate-700 font-mono font-medium">{t.trip_code || t.code || t.reference || t.tripCode || '—'}</td>
+                        <td className="px-6 py-4 text-sm whitespace-nowrap">{renderStatusBadge(t.status)}</td>
+                        <td className="px-6 py-4 text-sm font-semibold text-slate-900 text-right whitespace-nowrap">{formatAmount(t.amount ?? t.fare ?? t.total)}</td>
                       </TableRow>
                   ))
                 ) : (
                   <tr>
-                    <td className="px-4 py-3 text-sm text-slate-500">—</td>
-                    <td className="px-4 py-3 text-sm text-slate-500">—</td>
-                    <td className="px-4 py-3 text-sm text-slate-500">—</td>
-                    <td className="px-4 py-3 text-sm text-slate-500">—</td>
-                    <td className="px-4 py-3 text-sm text-slate-500">—</td>
-                    <td className="px-4 py-3 text-sm text-slate-500">—</td>
-                    <td className="px-4 py-3 text-sm text-slate-500 text-right">—</td>
+                    <td colSpan={7} className="px-6 py-8 text-center text-sm text-slate-500">
+                      {loading ? 'Loading trips…' : 'No trips found'}
+                    </td>
                   </tr>
                 )}
               </tbody>

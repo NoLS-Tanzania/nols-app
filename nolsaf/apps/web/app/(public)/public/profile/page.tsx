@@ -16,15 +16,6 @@ export default function PublicProfile() {
   useEffect(() => {
     let mounted = true;
     const t = localStorage.getItem("token");
-    const isDev = process.env.NODE_ENV !== 'production';
-    const demoMode = !t && isDev;
-    if (demoMode) {
-      const demo = { fullName: 'Demo User', email: 'user@example.com', phone: '+255700000002', avatarUrl: '' };
-      setMe(demo);
-      setForm(demo);
-      setLoading(false);
-      return;
-    }
     if (!t) {
       if (typeof window !== 'undefined') window.location.href = '/login';
       return;

@@ -5,7 +5,7 @@ import Image from "next/image";
 import PicturesUploader from "@/components/PicturesUploader";
 import { Plus, ChevronDown, Minus, ChevronLeft, ChevronRight, Home, Building, Building2, TreePine, Hotel, HelpCircle, Car, Coffee, Beer, Thermometer, Package, Shield, Bandage, FireExtinguisher, ShoppingBag, Store, PartyPopper, Gamepad, Dumbbell, Bus, Fuel, Sparkles, ScrollText, ShowerHead, Flame, Toilet as ToiletIcon, Wind, Trash2, Brush, ScanFace, FootprintsIcon, Shirt, RectangleHorizontal, Waves, Wifi, Table2, Armchair, CircleDot, Tv, MonitorPlay, Gamepad2, AirVent, Refrigerator, Phone, LampDesk, Heater, LockKeyhole, Eclipse, Sofa, Bed, BedDouble, BedSingle, WashingMachine, CheckCircle2, XCircle, AlertCircle, UtensilsCrossed, MapPin, Link as LinkIcon } from "lucide-react";
 import axios from "axios";
-import { REGIONS, REGION_BY_ID } from "@/lib/tzRegions";
+import { REGIONS, REGION_BY_ID, REGIONS_FULL_DATA } from "@/lib/tzRegions";
 
 const api = axios.create();
 function authify(){ const t = typeof window!=="undefined" ? localStorage.getItem("token") : null; if(t) api.defaults.headers.common["Authorization"]=`Bearer ${t}`; }
@@ -229,26 +229,199 @@ export default function AddProperty() {
   const [wardNotAvailable, setWardNotAvailable] = useState<boolean>(false);
   const [customWard, setCustomWard] = useState<string>("");
   const regionName = useMemo(() => REGION_BY_ID[regionId]?.name ?? "", [regionId]);
-  const districts = useMemo(() => REGION_BY_ID[regionId]?.districts ?? [], [regionId]);
+  
+  // Helper function to normalize names for matching (handles special chars, case, whitespace)
+  const normalizeName = (name: string): string => {
+    return name.toLowerCase()
+      .replace(/[''""]/g, "'") // Normalize different quote types
+      .replace(/\s+/g, " ") // Normalize whitespace
+      .trim();
+  };
+  
+  // Helper function to create region slug from name
+  const createRegionSlug = (name: string): string => {
+    return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+  };
+  
+  // Get districts from REGIONS_FULL_DATA to ensure all regions work consistently
+  const districts = useMemo(() => {
+    if (!regionId) return [];
+    
+    // Find the region in full data
+    const regionData = REGIONS_FULL_DATA.find((r: any) => {
+      const regionSlug = createRegionSlug(r.name);
+      return regionSlug === regionId;
+    });
+    
+    if (!regionData || !regionData.districts) {
+      console.log('Districts: Region not found or has no districts:', regionId);
+      return [];
+    }
+    
+    // Return district names
+    return regionData.districts.map((d: any) => d.name);
+  }, [regionId]);
   
   const wards = useMemo(() => {
-    // Wards mapping - to be populated with actual ward data per district
-    // Format: { "regionId-district": ["ward1", "ward2", ...] }
-    const WARDS_BY_DISTRICT: Record<string, string[]> = {
-      // Example structure - to be populated with actual data
-      // "dar-es-salaam-ilala": ["Ward 1", "Ward 2", "Ward 3"],
-      // "dar-es-salaam-kinondoni": ["Ward A", "Ward B", "Ward C"],
-    };
+    // Get wards from REGIONS_FULL_DATA using actual Tanzania locations database
     if (!regionId || !district) return [];
-    const key = `${regionId}-${district.toLowerCase().replace(/\s+/g, '-')}`;
-    return WARDS_BY_DISTRICT[key] || [];
+    
+    // Find the region in full data
+    const regionData = REGIONS_FULL_DATA.find((r: any) => {
+      const regionSlug = createRegionSlug(r.name);
+      return regionSlug === regionId;
+    });
+    
+    if (!regionData) {
+      console.log('Wards: Region not found:', regionId);
+      return [];
+    }
+    
+    // Find the district using normalized matching
+    const districtData = regionData.districts.find((d: any) => 
+      normalizeName(d.name) === normalizeName(district)
+    );
+    
+    if (!districtData || !districtData.wards) {
+      console.log('Wards: District not found or has no wards:', district, 'in region:', regionId);
+      return [];
+    }
+    
+    // Return ward names
+    return districtData.wards.map((w: any) => w.name);
   }, [regionId, district]);
+
+  // Get ward postcode when ward is selected
+  const selectedWardPostcode = useMemo(() => {
+    if (!regionId || !district || !ward) return null;
+    
+    console.log('🔍 Looking for postcode:', { regionId, district, ward });
+    
+    // Try to find region - check both slug matching and direct name matching
+    let regionData = REGIONS_FULL_DATA.find((r: any) => {
+      const regionSlug = createRegionSlug(r.name);
+      return regionSlug === regionId;
+    });
+    
+    // Fallback: try direct name match (case-insensitive)
+    if (!regionData) {
+      regionData = REGIONS_FULL_DATA.find((r: any) => 
+        normalizeName(r.name) === normalizeName(regionId) || 
+        r.name.toUpperCase() === regionId.toUpperCase()
+      );
+    }
+    
+    if (!regionData) {
+      console.log('❌ Postcode: Region not found:', regionId);
+      console.log('   Available region slugs:', REGIONS_FULL_DATA.map((r: any) => ({ name: r.name, slug: createRegionSlug(r.name) })));
+      return null;
+    }
+    
+    console.log('✅ Found region:', regionData.name);
+    
+    const districtData = regionData.districts.find((d: any) => 
+      normalizeName(d.name) === normalizeName(district)
+    );
+    
+    if (!districtData || !districtData.wards) {
+      console.log('❌ Postcode: District not found or has no wards:', district);
+      console.log('   Available districts:', regionData.districts.map((d: any) => d.name));
+      return null;
+    }
+    
+    console.log('✅ Found district:', districtData.name, 'with', districtData.wards.length, 'wards');
+    
+    const wardData = districtData.wards.find((w: any) => 
+      normalizeName(w.name) === normalizeName(ward)
+    );
+    
+    if (!wardData) {
+      console.log('❌ Postcode: Ward not found:', ward);
+      console.log('   Available wards:', districtData.wards.map((w: any) => w.name));
+      return null;
+    }
+    
+    console.log('✅ Found ward:', wardData.name);
+    console.log('   Ward data:', { code: wardData.code, postcode: wardData.postcode });
+    
+    // Get postcode - prefer postcode field, fallback to code
+    // Handle null, undefined, and empty string values
+    let postcode = wardData.postcode;
+    
+    // If postcode is null, undefined, or empty, try the code field
+    if (postcode === null || postcode === undefined || postcode === '' || String(postcode).trim() === '') {
+      postcode = wardData.code;
+    }
+    
+    // Handle null/undefined/empty code as well
+    if (postcode === null || postcode === undefined || postcode === '' || String(postcode).trim() === '') {
+      postcode = null;
+    }
+    
+    // Convert to string and validate it's not empty
+    const postcodeStr = (postcode !== null && postcode !== undefined && String(postcode).trim() !== '') 
+      ? String(postcode).trim() 
+      : null;
+    
+    if (postcodeStr) {
+      console.log('✅✅✅ Found postcode:', postcodeStr, 'for ward:', ward, 'in district:', district, 'region:', regionId);
+    } else {
+      // Log detailed info for debugging
+      console.log('❌❌❌ No postcode found for ward:', ward);
+      console.log('   Region:', regionId, 'District:', district);
+      console.log('   Ward data structure:', JSON.stringify(wardData, null, 2));
+      console.log('   Note: Source CSV data may not have ward codes for this region');
+    }
+    
+    return postcodeStr;
+  }, [regionId, district, ward]);
+
+  // Get streets for the selected ward
+  const streets = useMemo(() => {
+    if (!regionId || !district || !ward) return [];
+    
+    const regionData = REGIONS_FULL_DATA.find((r: any) => {
+      const regionSlug = createRegionSlug(r.name);
+      return regionSlug === regionId;
+    });
+    
+    if (!regionData) return [];
+    
+    const districtData = regionData.districts.find((d: any) => 
+      normalizeName(d.name) === normalizeName(district)
+    );
+    
+    if (!districtData || !districtData.wards) return [];
+    
+    const wardData = districtData.wards.find((w: any) => 
+      normalizeName(w.name) === normalizeName(ward)
+    );
+    
+    return wardData?.streets || [];
+  }, [regionId, district, ward]);
 
   const [street, setStreet] = useState("");
   const [apartment] = useState("");
   const [city, setCity] = useState("");
   const [zip, setZip] = useState("");
-  
+
+  // Auto-fill zip code when ward is selected (if postcode is available)
+  // Always update zip when ward changes to ensure it's synced with the selected ward
+  useEffect(() => {
+    console.log('Postcode effect triggered:', { selectedWardPostcode, ward, zip });
+    
+    if (selectedWardPostcode) {
+      console.log('Setting zip to:', selectedWardPostcode);
+      setZip(selectedWardPostcode);
+    } else if (ward && !selectedWardPostcode) {
+      // Clear zip if ward is selected but has no postcode
+      console.log('Clearing zip - ward selected but no postcode');
+      setZip("");
+    } else if (!ward) {
+      // Clear zip when ward is cleared
+      setZip("");
+    }
+  }, [selectedWardPostcode, ward]);
 
   // overall counts + description
   const [totalBedrooms, setTotalBedrooms] = useState<number | "">("");
@@ -322,12 +495,19 @@ export default function AddProperty() {
     if (!type) missing.push('Property type');
     if (!regionId) missing.push('Region');
     if (!district) missing.push('District');
-    if (!ward && !customWard.trim()) missing.push('Ward');
+    if (!ward) missing.push('Ward');
     if (street.trim().length === 0) missing.push('Street address');
+    // Only require zip code if a postcode is available (some regions don't have postcodes in source data)
+    // If selectedWardPostcode exists, zip must be filled; otherwise it's optional
+    if (selectedWardPostcode && (!zip || zip.trim().length === 0)) {
+      missing.push('Zip code');
+    }
 
     if (missing.length) {
       // mark fields as touched so inline errors appear
-      setTouchedBasics((t) => ({ ...t, title: true, type: true, regionId: true, district: true, ward: true, street: true }));
+      const touchedFields: Record<string, boolean> = { title: true, type: true, regionId: true, district: true, ward: true, street: true };
+      if (selectedWardPostcode) touchedFields.zip = true;
+      setTouchedBasics((t) => ({ ...t, ...touchedFields }));
       setAnnouncement(`Please complete: ${missing.join(', ')}.`);
       return false;
     }
@@ -354,6 +534,14 @@ export default function AddProperty() {
       scrollToStep(nextStep);
     }
   };
+
+  const previewNextStep = () => {
+    if (currentStep < 5) {
+      const nextStep = currentStep + 1;
+      setVisitedSteps(prev => new Set([...prev, nextStep]));
+      scrollToStep(nextStep, true);
+    }
+  };
   
   const goToPreviousStep = () => {
     if (currentStep > 0) {
@@ -363,12 +551,12 @@ export default function AddProperty() {
     }
   };
 
-  const scrollToStep = (i: number) => {
+  const scrollToStep = (i: number, skipValidation = false) => {
     setCurrentStep(i);
     // Mark step as visited
     setVisitedSteps(prev => new Set([...prev, i]));
-    // Prevent navigating away from Basics if required fields are missing.
-    if (i > 0) {
+    // Prevent navigating away from Basics if required fields are missing unless skipped
+    if (i > 0 && !skipValidation) {
       const ok = validateBasics();
       if (!ok) {
         setCurrentStep(0);
@@ -518,30 +706,54 @@ export default function AddProperty() {
     setPricePerNight("");
   };
 
-  const payload = () => ({
-    title,
-    type: toServerType(type),
-    description: desc || null,
-    // location mirrors
-    regionId: regionId ? Number(regionId) : undefined, regionName, district, ward: ward || customWard,
-    street, apartment, city, zip,
+  const payload = () => {
+    // Map hotelStar string values to numbers for backend validation
+    const hotelStarMap: Record<string, number | null> = {
+      "": null,
+      "basic": 1,
+      "simple": 2,
+      "moderate": 3,
+      "high": 4,
+      "luxury": 5,
+    };
+    
+    // Send regionId - prefer numeric code if available, otherwise use slug (string)
+    // Database stores regionId as VARCHAR(50), so both formats work
+    const regionData = REGION_BY_ID[regionId];
+    const regionCode = regionData?.code ? Number(regionData.code) : undefined;
+    
+    return {
+      title,
+      type: toServerType(type),
+      description: desc || null,
+      // location - send numeric code if available (for regions with codes), otherwise send slug
+      ...(regionId ? { regionId: regionCode || regionId } : {}),
+      regionName: regionName || undefined,
+      district: district || undefined,
+      ward: ward || null,
+      street: street || null,
+      apartment: apartment || null,
+      city: city || undefined,
+      zip: zip || undefined,
 
-    photos,
+      photos,
 
-    hotelStar: isHotel ? hotelStar : null,
+      // hotelStar must be a number (1-5) or null, not a string
+      hotelStar: isHotel && hotelStar && hotelStar !== "" ? (hotelStarMap[hotelStar] ?? null) : null,
 
-    roomsSpec: definedRooms,
+      roomsSpec: definedRooms,
 
-    totalBedrooms: numOrNull(totalBedrooms),
-    totalBathrooms: numOrNull(totalBathrooms),
-    maxGuests: numOrNull(maxGuests),
+      totalBedrooms: numOrNull(totalBedrooms),
+      totalBathrooms: numOrNull(totalBathrooms),
+      maxGuests: numOrNull(maxGuests),
 
-    // Backend currently expects an array of strings for services
-    services: servicesToArray(services),
+      // Backend currently expects an array of strings for services
+      services: servicesToArray(services),
 
-    basePrice: inferBasePrice(definedRooms),
-    currency: "TZS",
-  });
+      basePrice: inferBasePrice(definedRooms),
+      currency: "TZS",
+    };
+  };
 
   function servicesToArray(s: ServicesState): string[] {
     const out: string[] = [];
@@ -646,22 +858,135 @@ export default function AddProperty() {
 
   return (
     <div id="addPropertyView" className="w-full py-6 sm:py-8">
+      <style dangerouslySetInnerHTML={{__html: `
+        #addPropertyView {
+          overflow-x: hidden !important;
+        }
+        #addPropertyView select {
+          -webkit-appearance: none !important;
+          -moz-appearance: none !important;
+          appearance: none !important;
+          background-image: none !important;
+        }
+        #addPropertyView select::-ms-expand {
+          display: none !important;
+        }
+        /* Small screens - prevent overflow */
+        @media (max-width: 767px) {
+          #addPropertyView {
+            padding-left: 0.5rem !important;
+            padding-right: 0.5rem !important;
+          }
+          #addPropertyView > div {
+            padding-left: 0.75rem !important;
+            padding-right: 0.75rem !important;
+          }
+          #addPropertyView input[type="text"],
+          #addPropertyView input[type="number"] {
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+          }
+          /* Other type input - ensure it's constrained on mobile */
+          @media (max-width: 767px) {
+            #addPropertyView input[placeholder="Please specify"] {
+              max-width: 100% !important;
+              width: 100% !important;
+              box-sizing: border-box !important;
+            }
+          }
+          #addPropertyView .grid[class*="grid-cols"]:not([role="radiogroup"]) {
+            display: grid !important;
+            grid-template-columns: 1fr !important;
+            gap: 1rem !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+          }
+          /* Property type grid - ensure 2 columns on small screens */
+          #addPropertyView [role="radiogroup"] {
+            display: grid !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 0.5rem !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+          }
+          #addPropertyView .grid[class*="grid-cols"]:not([role="radiogroup"]) > div {
+            width: 100% !important;
+            min-width: 0 !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+            overflow: hidden !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+          }
+          #addPropertyView [role="radiogroup"] > label {
+            width: 100% !important;
+            min-width: 0 !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+          }
+          #addPropertyView .grid[class*="grid-cols"]:not([role="radiogroup"]) > div > input,
+          #addPropertyView .grid[class*="grid-cols"]:not([role="radiogroup"]) > div > div > select,
+          #addPropertyView .grid[class*="grid-cols"]:not([role="radiogroup"]) > div > div > input {
+            width: 100% !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+            padding-left: 1rem !important;
+            padding-right: 1rem !important;
+          }
+        }
+        /* Large screens - uniform columns */
+        @media (min-width: 768px) {
+          #addPropertyView .grid[class*="grid-cols"] {
+            display: grid !important;
+          }
+          #addPropertyView .grid[class*="grid-cols"][class*="md:grid-cols-3"] {
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+          }
+          #addPropertyView .grid[class*="grid-cols"][class*="md:grid-cols-4"] {
+            grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+          }
+          #addPropertyView .grid[class*="grid-cols"] > div {
+            width: 100% !important;
+            min-width: 0 !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+            flex-shrink: 0 !important;
+          }
+          #addPropertyView .grid[class*="grid-cols"] > div > input,
+          #addPropertyView .grid[class*="grid-cols"] > div > div > select,
+          #addPropertyView .grid[class*="grid-cols"] > div > div > input {
+            width: 100% !important;
+            box-sizing: border-box !important;
+          }
+        }
+      `}} />
       {/* Live region for screen reader announcements about step changes and validation */}
       <div aria-live="polite" className="sr-only" role="status">{announcement}</div>
-      <div className="bg-white rounded shadow-md p-6 border-l-4 border-emerald-500 overflow-hidden">
+      <div className="bg-white rounded shadow-md p-4 sm:p-6 border-l-4 border-emerald-500 overflow-hidden w-full max-w-full box-border">
   <div className="w-full relative" ref={stepperContainerRef} data-progress={progressHeight}>
         {/* header constrained so it doesn't stretch full width */}
-        <div className="mb-6 text-center max-w-md mx-auto">
-          <Plus className="h-10 w-10 text-blue-500 mx-auto mb-2" />
-          <h1 className="text-2xl font-bold text-gray-900">Add New Property</h1>
-
-          <span className="inline-block w-20 h-1 rounded-full bg-gradient-to-r from-primary-600 to-emerald-500 shadow-sm mt-2" />
-          <p className="mt-2 text-center max-w-prose mx-auto text-sm text-gray-700 leading-relaxed">
-            add clear, accurate details and at least <span className="font-semibold text-primary-600">5 high-quality photos</span> (exterior, living area, bedroom, bathroom, kitchen) so we can review and publish your property faster.
+        <div className="mb-4 text-center max-w-3xl mx-auto bg-white/80 backdrop-blur rounded-2xl shadow-sm border border-gray-100 p-5 sm:p-6">
+          <div className="flex flex-col items-center gap-3">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold border border-emerald-100">
+              <Plus className="h-4 w-4" />
+              <span>New Listing</span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Add New Property</h1>
+            <span className="inline-block w-24 h-1 rounded-full bg-gradient-to-r from-emerald-500 to-sky-500 shadow-sm" />
+            <p className="text-sm sm:text-base text-gray-600 leading-relaxed max-w-2xl">
+              Share clear, accurate details and include at least <span className="font-semibold text-emerald-600">5 high-quality photos</span> covering the exterior, living area, bedroom, bathroom, and kitchen. This helps us review and publish your property faster.
           </p>
+            <p className="text-xs sm:text-sm text-emerald-700 font-medium">Step 1 of 6 · Basic details</p>
+          </div>
           
           {/* Mobile horizontal stepper */}
-          <nav className="owner-steps-container mt-6 mb-8 md:hidden" aria-label="Property creation steps">
+          <nav className="owner-steps-container mt-6 mb-2 md:hidden" aria-label="Property creation steps">
             <div className="owner-steps-wrapper" />
           </nav>
         </div>
@@ -740,8 +1065,12 @@ export default function AddProperty() {
           {showBasics && (
             <div id="propertyBasicsInner" className="w-full">
               <div className="space-y-6 w-full">
-                <div className="w-full max-w-sm sm:max-w-md lg:max-w-lg">
-                  <div className="relative">
+                <div className="w-full max-w-lg sm:max-w-xl">
+                  <div className="flex flex-col space-y-2">
+                    <label htmlFor="propertyName" className="block text-sm font-medium text-gray-700">
+                      Property Name <span className="text-red-500">*</span>
+                    </label>
+                    <p className="text-xs text-gray-500">Keep it short and clear, e.g., “Cozy 2BR in City Center”.</p>
                     <input
                       id="propertyName"
                       aria-describedby={touchedBasics.title && title.trim().length < 3 ? 'nameError' : undefined}
@@ -749,42 +1078,29 @@ export default function AddProperty() {
                       onChange={e => setTitle(e.target.value)}
                       onBlur={() => setTouchedBasics(t => ({ ...t, title: true }))}
                       type="text"
-                      placeholder=" "
-                      className={`peer w-full h-10 sm:h-11 border rounded-xl px-3 sm:px-4 text-sm text-gray-900 bg-white transition-colors duration-200 focus:outline-none focus:ring-2 ${
+                      placeholder="Enter property name"
+                      className={`w-full h-12 px-4 text-sm rounded-lg shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 ${
                         touchedBasics.title && title.trim().length < 3 
-                          ? 'border-red-400 focus:border-red-500 focus:ring-red-200 bg-red-50' 
-                          : 'border-gray-300 hover:border-gray-400 focus:border-gray-500 focus:ring-gray-200'
+                          ? 'border-2 border-red-400 bg-red-50 text-gray-900 focus:ring-red-200 focus:border-red-500' 
+                          : 'border border-gray-300 bg-white text-gray-900 placeholder-gray-400 hover:border-gray-400 focus:ring-emerald-500/20 focus:border-emerald-500'
                       }`}
                       aria-required={true}
                     />
-                    <label
-                      htmlFor="propertyName"
-                      className={`absolute left-3 sm:left-4 px-1 bg-white pointer-events-none transition-all duration-150 ${
-                        touchedBasics.title && title.trim().length < 3 ? 'text-red-600' : 'text-gray-600'
-                      } text-xs top-2 peer-placeholder-shown:top-1/2 peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:text-sm peer-focus:top-2 peer-focus:translate-y-0 peer-focus:text-xs`}
-                    >
-                      Property Name <span className="text-red-600">*</span>
-                    </label>
-                  </div>
                   {touchedBasics.title && title.trim().length < 3 && (
-                    <div id="nameError" className="flex items-start gap-1.5 text-xs text-red-600 mt-1.5 px-1">
-                      <svg className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                      </svg>
-                      <span className="leading-tight">Please enter at least 3 characters.</span>
+                      <p id="nameError" className="text-xs text-red-600 mt-0.5">Please enter at least 3 characters</p>
+                    )}
                     </div>
-                  )}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-800 mb-3" id="propertyTypeLabel">
-                    Select type of your Property <span className="text-red-600">*</span>
+                  <label className="block text-sm font-semibold text-gray-800 mb-4" id="propertyTypeLabel">
+                    Select type of your Property <span className="text-red-500">*</span>
                   </label>
 
                   <div
                     role="radiogroup"
                     aria-labelledby="propertyTypeLabel"
-                    className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-2 w-full"
+                    className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 w-full"
                   >
                       {PROPERTY_TYPES.map((pt) => {
                         const selected = type === pt;
@@ -795,13 +1111,12 @@ export default function AddProperty() {
                         return (
                           <label
                             key={pt}
-                            className={`group flex flex-col items-start gap-2 p-3.5 sm:p-4 rounded-xl border border-gray-200 border-l-4 cursor-pointer transition-colors duration-200 focus-within:ring-2 focus-within:ring-gray-200 focus-within:border-gray-500 ${styles.leftBorder} ${
+                          className={`group relative flex flex-col items-center text-center gap-2.5 p-4 rounded-lg border cursor-pointer transition-all duration-200 ${
                               selected 
-                                ? `bg-gradient-to-br ${styles.bg} shadow-sm` 
-                                : `bg-white hover:shadow-md hover:border-gray-400 ${styles.hoverBorder}`
+                              ? `${styles.border} bg-white shadow-md ${styles.leftBorder}` 
+                              : `border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm`
                             }`}
                           >
-                            <div className="flex items-center gap-3 w-full">
                               <input
                                 type="radio"
                                 name="propertyType"
@@ -811,22 +1126,38 @@ export default function AddProperty() {
                                   setType(pt); 
                                   setTouchedBasics(t => ({ ...t, type: true })); 
                                 }}
-                                className="w-4 h-4 text-gray-700 border-gray-300 focus:ring-gray-400 focus:ring-2 cursor-pointer flex-shrink-0"
+                            className="sr-only"
                               />
+                          <div className={`w-12 h-12 rounded-lg flex items-center justify-center transition-all duration-200 ${
+                            selected 
+                              ? styles.bg.replace('from-white to-', 'bg-gradient-to-br from-').replace('-50', '-50/80 to-white')
+                              : 'bg-gray-50 group-hover:bg-gray-100'
+                          }`}>
                               <IconComponent 
-                                className={`w-5 h-5 flex-shrink-0 transition-colors duration-200 ${
+                              className={`w-6 h-6 transition-colors duration-200 ${
                                   selected 
-                                    ? 'text-blue-600'
-                                    : 'text-blue-400 group-hover:text-blue-600'
+                                  ? styles.text
+                                  : 'text-gray-400 group-hover:text-gray-600'
                                 }`}
                               />
-                              <div className="flex-1 min-w-0">
-                                <div className={`font-semibold text-sm transition-colors ${
+                          </div>
+                          <div className="w-full">
+                            <div className={`font-semibold text-sm mb-0.5 transition-colors ${
                                   selected ? 'text-gray-900' : 'text-gray-700 group-hover:text-gray-900'
                                 }`}>{pt}</div>
+                            <div className={`text-xs transition-colors line-clamp-2 ${
+                              selected 
+                                ? 'text-gray-500' 
+                                : 'text-gray-400 group-hover:text-gray-500'
+                            }`}>{labelText}</div>
                               </div>
+                          {selected && (
+                            <div className={`absolute top-2 right-2 w-5 h-5 rounded-full ${styles.border.replace('border-', 'bg-')} flex items-center justify-center shadow-sm`}>
+                              <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                              </svg>
                             </div>
-                            <div className="text-xs text-gray-500 ml-7 line-clamp-2 group-hover:text-gray-600 transition-colors">{labelText}</div>
+                          )}
                           </label>
                         );
                       })}
@@ -837,22 +1168,29 @@ export default function AddProperty() {
                     )}
 
                     {type === 'Other' && (
-                      <input value={otherType} onChange={e => setOtherType(e.target.value)} className="mt-3 w-full h-9 border rounded-lg px-3" placeholder="Please specify" />
+                      <div className="mt-3 w-full max-w-xs sm:max-w-sm box-border">
+                        <input 
+                          value={otherType} 
+                          onChange={e => setOtherType(e.target.value)} 
+                          className="w-full h-11 px-3 text-sm text-gray-900 placeholder-gray-400 bg-white border border-gray-300 rounded-lg shadow-sm transition-all duration-200 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 box-border" 
+                          placeholder="Please specify" 
+                        />
+                      </div>
                     )}
 
                     {type === 'Hotel' && (
-                      <div className="mt-4 flex items-center gap-3">
-                        <label htmlFor="hotelStarRating" className="text-sm font-semibold text-gray-800 whitespace-nowrap">
-                          Hotel Star Rating <span className="text-red-600">*</span>
+                      <div className="mt-4 flex flex-col space-y-2 w-full max-w-xs sm:max-w-sm">
+                        <label htmlFor="hotelStarRating" className="text-sm font-medium text-gray-800">
+                          Hotel Star Rating <span className="text-red-500">*</span>
                         </label>
-                        <div className="relative flex-1 max-w-xs">
+                        <div className="relative">
                           <select
                             id="hotelStarRating"
                             title="Hotel Star Rating"
                             aria-required={true}
                             value={hotelStar}
                             onChange={e => setHotelStar(e.target.value)}
-                            className="groupstays-select w-full h-10 border-2 border-gray-300 rounded-lg px-3 pr-10 text-gray-900 bg-white hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500 transition-all duration-200 text-sm"
+                            className="w-full h-12 pl-4 pr-10 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg shadow-sm transition-all duration-200 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 appearance-none cursor-pointer"
                           >
                             {HOTEL_STAR_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                           </select>
@@ -864,18 +1202,27 @@ export default function AddProperty() {
                     )}
                 </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-gray-800 mb-3">Where is your property located? <span className="text-red-600">*</span></label>
-                  <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+                {/* Property Location Section */}
+                <div className="space-y-6 sm:space-y-8 w-full max-w-full overflow-hidden">
+                  <div className="space-y-1">
+                    <h2 className="text-xl font-semibold text-gray-900">Where is your property located? <span className="text-red-500">*</span></h2>
+                    <p className="text-sm text-gray-500">Provide the location details for your property</p>
+                  </div>
+
+                  {/* Region, District, Ward - Uniform Grid Layout */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {/* Region */}
-                    <div className="w-full sm:w-auto">
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Region <span className="text-red-600">*</span></label>
-                      <div className="relative w-full sm:w-48 sm:flex-none">
+                    <div className="flex flex-col space-y-2">
+                      <label className="block text-sm font-medium text-gray-700">
+                        Region <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
                         <select
                           title="Region"
                           value={regionId}
-                          onChange={e => { setRegionId(e.target.value); setDistrict(''); setWard(''); setWardNotAvailable(false); setCustomWard(''); }}
-                          className="groupstays-select w-full h-11 sm:h-12 border border-gray-300 rounded-xl px-3 pr-10 text-gray-900 bg-white hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-200 focus:border-gray-500 transition-colors duration-200 text-sm"
+                          onChange={e => { setRegionId(e.target.value); setDistrict(''); setWard(''); }}
+                          style={{ WebkitAppearance: 'none', MozAppearance: 'none', appearance: 'none' }}
+                          className="w-full h-12 pl-4 pr-10 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg shadow-sm transition-all duration-200 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 cursor-pointer"
                           aria-required={true}
                         >
                           <option value="">Select region</option>
@@ -883,28 +1230,31 @@ export default function AddProperty() {
                             <option key={r.id} value={r.id}>{r.name}</option>
                           ))}
                         </select>
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
-                          <ChevronDown className="h-4 w-4" />
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400 z-10">
+                          <ChevronDown className="h-5 w-5" />
                         </div>
                       </div>
                     </div>
 
                     {/* District */}
-                    <div className="w-full sm:w-auto">
-                      <label className="block text-xs font-medium text-gray-700 mb-1">District <span className="text-red-600">*</span></label>
-                      <div className="relative w-full sm:w-48 sm:flex-none">
+                    <div className="flex flex-col space-y-2">
+                      <label className="block text-sm font-medium text-gray-700">
+                        District <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
                         <select
                           title="District"
                           value={district}
-                          onChange={e => { setDistrict(e.target.value); setWard(''); setWardNotAvailable(false); setCustomWard(''); }}
+                          onChange={e => { setDistrict(e.target.value); setWard(''); setStreet(''); setZip(''); }}
                           onBlur={() => setTouchedBasics(t => ({ ...t, district: true }))}
                           disabled={!regionId}
-                          className={`groupstays-select w-full h-11 sm:h-12 rounded-xl px-3 pr-10 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-colors duration-200 text-sm ${
+                          style={{ WebkitAppearance: 'none', MozAppearance: 'none', appearance: 'none' }}
+                          className={`w-full h-12 pl-4 pr-10 text-sm rounded-lg shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 cursor-pointer ${
                             touchedBasics.district && !district 
-                              ? 'border border-red-400 bg-red-50' 
+                              ? 'border-2 border-red-400 bg-red-50 text-gray-900 focus:ring-red-200 focus:border-red-500' 
                               : !regionId
                               ? 'border border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
-                              : 'border border-gray-300 bg-white hover:border-gray-400 focus:border-gray-500'
+                              : 'border border-gray-300 bg-white text-gray-900 hover:border-gray-400 focus:ring-emerald-500/20 focus:border-emerald-500'
                           }`}
                           aria-required={true}
                           aria-describedby={touchedBasics.district && !district ? 'districtError' : undefined}
@@ -914,207 +1264,282 @@ export default function AddProperty() {
                             <option key={d} value={d}>{d}</option>
                           ))}
                         </select>
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
-                          <ChevronDown className="h-4 w-4" />
+                        <div className={`absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none z-10 ${!regionId ? 'text-gray-300' : 'text-gray-400'}`}>
+                          <ChevronDown className="h-5 w-5" />
                         </div>
                       </div>
                       {touchedBasics.district && !district && (
-                        <div id="districtError" className="text-xs text-red-600 mt-1">Please select a district.</div>
+                        <p id="districtError" className="text-xs text-red-600 mt-0.5">Please select a district</p>
                       )}
                     </div>
 
                     {/* Ward */}
-                    <div className="w-full sm:w-auto">
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Ward <span className="text-red-600">*</span></label>
-                      <div className="w-48 shrink-0">
-                        {!wardNotAvailable ? (
-                          <div className="relative w-48 shrink-0">
+                    <div className="flex flex-col space-y-2">
+                      <label className="block text-sm font-medium text-gray-700">
+                        Ward <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
                             <select
                               title="Ward"
                               value={ward}
-                              onChange={e => {
-                                const value = e.target.value;
-                                if (value === 'not-available') {
-                                  setWardNotAvailable(true);
-                                  setWard('');
-                                } else {
-                                  setWard(value);
-                                  setWardNotAvailable(false);
-                                  setCustomWard('');
-                                }
-                              }}
+                          onChange={e => { setWard(e.target.value); setStreet(''); setZip(''); }}
                               onBlur={() => setTouchedBasics(t => ({ ...t, ward: true }))}
                               disabled={!district}
-                              className={`groupstays-select w-48 h-11 sm:h-12 rounded-xl px-3 pr-10 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-colors duration-200 text-sm ${
-                                touchedBasics.ward && !ward && !customWard.trim()
-                                  ? 'border border-red-400 bg-red-50' 
+                          style={{ WebkitAppearance: 'none', MozAppearance: 'none', appearance: 'none' }}
+                          className={`w-full h-12 pl-4 pr-10 text-sm rounded-lg shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 cursor-pointer ${
+                            touchedBasics.ward && !ward
+                              ? 'border-2 border-red-400 bg-red-50 text-gray-900 focus:ring-red-200 focus:border-red-500' 
                                   : !district
                                   ? 'border border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
-                                  : 'border border-gray-300 bg-white hover:border-gray-400 focus:border-gray-500'
+                              : 'border border-gray-300 bg-white text-gray-900 hover:border-gray-400 focus:ring-emerald-500/20 focus:border-emerald-500'
                               }`}
                               aria-required={true}
-                              aria-describedby={touchedBasics.ward && !ward && !customWard.trim() ? 'wardError' : undefined}
+                          aria-describedby={touchedBasics.ward && !ward ? 'wardError' : undefined}
                             >
                               <option value="">{district ? 'Select ward' : 'Select district first'}</option>
                               {wards.map((w: string) => (
                                 <option key={w} value={w}>{w}</option>
                               ))}
-                              {district && <option value="not-available">Not available</option>}
                             </select>
-                            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
-                              <ChevronDown className="h-4 w-4" />
+                        <div className={`absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none z-10 ${!district ? 'text-gray-300' : 'text-gray-400'}`}>
+                          <ChevronDown className="h-5 w-5" />
                             </div>
                           </div>
-                        ) : (
-                          <input
-                            type="text"
-                            title="Enter ward name"
-                            value={customWard}
-                            onChange={e => setCustomWard(e.target.value)}
-                            onBlur={() => setTouchedBasics(t => ({ ...t, ward: true }))}
-                            placeholder="Enter ward name"
-                            className={`w-48 h-11 sm:h-12 rounded-xl px-3 pr-10 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-colors duration-200 text-sm text-gray-900 ${
-                              touchedBasics.ward && !customWard.trim()
-                                ? 'border border-red-400 bg-red-50' 
-                                : !district
-                                ? 'border border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
-                                : 'border border-gray-300 bg-white hover:border-gray-400 focus:border-gray-500'
-                            }`}
-                            disabled={!district}
-                            aria-required={true}
-                            aria-describedby={touchedBasics.ward && !customWard.trim() ? 'wardError' : undefined}
-                          />
-                        )}
-                      </div>
-                      {touchedBasics.ward && !ward && !customWard.trim() && (
-                        <div id="wardError" className="text-xs text-red-600 mt-1">Please select or enter a ward.</div>
+                      {touchedBasics.ward && !ward && (
+                        <p id="wardError" className="text-xs text-red-600 mt-0.5">Please select a ward</p>
                       )}
                     </div>
                   </div>
 
-                  <div className="mt-3 w-full max-w-sm sm:max-w-md lg:max-w-lg mx-auto px-3 sm:px-0">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 items-end gap-3 sm:gap-3 md:gap-4">
-                      <div className="min-w-0">
-                        <label htmlFor="streetAddress" className="block text-xs text-gray-700 mb-1 sm:sr-only">Street Address</label>
-                        <input
+                  {/* Street Address, City, Zip Code - Uniform Grid Layout */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="flex flex-col space-y-2">
+                      <label htmlFor="streetAddress" className="block text-sm font-medium text-gray-700">
+                        Street Address <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <select
                           id="streetAddress"
-                          aria-required={true}
+                          title="Street"
                           value={street}
                           onChange={e => setStreet(e.target.value)}
                           onBlur={() => setTouchedBasics(t => ({ ...t, street: true }))}
-                          type="text"
-                          className={`w-full h-10 sm:h-11 border rounded-xl px-3 sm:px-4 text-sm text-gray-900 placeholder-gray-400 transition-colors duration-200 focus:outline-none focus:ring-2 ${
-                            touchedBasics.street && street.trim().length === 0 
-                              ? 'border-red-400 focus:border-red-500 focus:ring-red-200 bg-red-50' 
-                              : 'border-gray-300 bg-white hover:border-gray-400 focus:border-gray-500 focus:ring-gray-200'
+                          disabled={!ward}
+                          style={{ WebkitAppearance: 'none', MozAppearance: 'none', appearance: 'none' }}
+                          className={`w-full h-12 pl-4 pr-10 text-sm rounded-lg shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 cursor-pointer ${
+                            touchedBasics.street && !street
+                              ? 'border-2 border-red-400 bg-red-50 text-gray-900 focus:ring-red-200 focus:border-red-500' 
+                              : !ward
+                              ? 'border border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
+                              : 'border border-gray-300 bg-white text-gray-900 hover:border-gray-400 focus:ring-emerald-500/20 focus:border-emerald-500'
                           }`}
-                          placeholder="Street address, building or plot"
-                        />
+                          aria-required={true}
+                          aria-describedby={touchedBasics.street && !street ? 'streetError' : undefined}
+                        >
+                          <option value="">{ward ? 'Select street' : 'Select ward first'}</option>
+                          {streets.map((s: string) => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                        </select>
+                        <div className={`absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none z-10 ${!ward ? 'text-gray-300' : 'text-gray-400'}`}>
+                          <ChevronDown className="h-5 w-5" />
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <label htmlFor="city" className="block text-xs text-gray-700 mb-1 sm:sr-only">City (optional)</label>
+                      {touchedBasics.street && !street && (
+                        <p id="streetError" className="text-xs text-red-600 mt-0.5">Please select a street</p>
+                      )}
+                      </div>
+                    <div className="flex flex-col space-y-2">
+                      <label htmlFor="city" className="block text-sm font-medium text-gray-700">
+                        City <span className="text-xs text-gray-400 font-normal">(optional)</span>
+                      </label>
                         <input
                           id="city"
                           type="text"
                           value={city}
                           onChange={e => setCity(e.target.value)}
-                          className="w-full h-10 sm:h-11 border border-gray-300 rounded-xl px-3 sm:px-4 text-sm text-gray-900 placeholder-gray-400 bg-white hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-200 focus:border-gray-500 transition-colors duration-200"
-                          placeholder="City (optional)"
+                        className="w-full h-12 px-4 text-sm text-gray-900 placeholder-gray-400 bg-white border border-gray-300 rounded-lg shadow-sm transition-all duration-200 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                        placeholder="City"
                         />
                       </div>
-                      <div className="min-w-0">
-                        <label htmlFor="zip" className="block text-xs text-gray-700 mb-1 sm:sr-only">Zip code (optional)</label>
+                    <div className="flex flex-col space-y-2">
+                      <label htmlFor="zip" className="block text-sm font-medium text-gray-700">
+                        Zip Code {selectedWardPostcode ? <span className="text-red-500">*</span> : <span className="text-xs text-gray-400 font-normal">(optional)</span>}
+                      </label>
                         <input
                           id="zip"
                           type="text"
                           value={zip}
                           onChange={e => setZip(e.target.value)}
-                          className="w-full h-10 sm:h-11 border border-gray-300 rounded-xl px-3 sm:px-4 text-sm text-gray-900 placeholder-gray-400 bg-white hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-200 focus:border-gray-500 transition-colors duration-200"
-                          placeholder="Zip code (optional)"
+                          onBlur={() => setTouchedBasics(t => ({ ...t, zip: true }))}
+                          readOnly={!!selectedWardPostcode}
+                          className={`w-full h-12 px-4 text-sm rounded-lg shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 ${
+                            touchedBasics.zip && selectedWardPostcode && (!zip || zip.trim().length === 0)
+                              ? 'border-2 border-red-400 bg-red-50 text-gray-900 focus:ring-red-200 focus:border-red-500' 
+                              : selectedWardPostcode
+                              ? 'border border-gray-300 bg-gray-50 text-gray-700 cursor-not-allowed'
+                              : 'border border-gray-300 bg-white text-gray-900 placeholder-gray-400 hover:border-gray-400 focus:ring-emerald-500/20 focus:border-emerald-500'
+                          }`}
+                          placeholder={selectedWardPostcode ? "Auto-filled from ward" : "Zip code (enter manually if not auto-filled)"}
+                          aria-required={!!selectedWardPostcode}
+                          aria-describedby={touchedBasics.zip && selectedWardPostcode && (!zip || zip.trim().length === 0) ? 'zipError' : undefined}
                         />
+                      {touchedBasics.zip && selectedWardPostcode && (!zip || zip.trim().length === 0) && (
+                        <p id="zipError" className="text-xs text-red-600 mt-0.5">Zip code is required</p>
+                      )}
+                      {selectedWardPostcode && zip && (
+                        <p className="text-xs text-emerald-600 mt-0.5">Auto-filled from selected ward</p>
+                      )}
+                      {!selectedWardPostcode && ward && (
+                        <p className="text-xs text-amber-600 mt-0.5">Postcode not available for this ward - please enter manually</p>
+                      )}
                       </div>
                     </div>
                   </div>
-
-                  
                 </div>
+              {/* Nearby Amenities Section */}
+              <div className="mt-8 space-y-6">
+                <div className="space-y-1">
+                  <h2 className="text-xl font-semibold text-gray-900">Nearby Amenities</h2>
+                  <p className="text-sm text-gray-500">Tell us about nearby facilities that guests might find useful</p>
               </div>
-              {/* Additional proximity sections */}
-              <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Petrol Station Proximity */}
-                <div className="group bg-gradient-to-br from-white to-slate-50 rounded-2xl p-6 border-2 border-slate-100 hover:border-slate-300 hover:shadow-xl transition-all duration-300">
-                  <div className="mb-4">
-                    <h3 className="text-lg font-bold text-gray-800">Is your property near a Petrol Station?</h3>
+                  <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-200">
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-orange-50 rounded-lg">
+                          <Fuel className="w-5 h-5 text-orange-600" />
                   </div>
-                  <div className="mb-3 flex items-center gap-3" role="group" aria-label="Petrol station proximity">
+                        <h3 className="text-base font-semibold text-gray-900">Is your property near a Petrol Station?</h3>
+                      </div>
+                      
+                      <div className="flex items-stretch gap-3 w-full" role="group" aria-label="Petrol station proximity">
                     <button
                       type="button"
                       onClick={() => setServices(s => ({ ...s, nearPetrolStation: true }))}
-                      className={`inline-flex items-center gap-2 px-4 py-2 rounded-full border-2 transition-all duration-200 ${services.nearPetrolStation ? 'border-[#02665e] text-[#02665e] bg-gradient-to-br from-[#02665e]/10 to-[#02665e]/5' : 'border-slate-300 text-gray-800 bg-white hover:border-slate-400'}`}
+                          className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 font-medium text-sm transition-all duration-200 min-w-0 ${
+                            services.nearPetrolStation 
+                              ? 'border-emerald-500 bg-emerald-50 text-emerald-700 shadow-sm' 
+                              : 'border-gray-200 text-gray-600 bg-white hover:border-gray-300 hover:bg-gray-50'
+                          }`}
                       aria-pressed={services.nearPetrolStation}
                     >
-                      <Fuel className={`w-4 h-4 ${services.nearPetrolStation ? 'text-[#02665e]' : 'text-gray-500'}`} />
-                      <span className="font-semibold text-sm">Yes</span>
+                          <Fuel className={`w-4 h-4 flex-shrink-0 ${services.nearPetrolStation ? 'text-emerald-600' : 'text-gray-400'}`} />
+                          <span className="whitespace-nowrap">Yes</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setServices(s => ({ ...s, nearPetrolStation: false, petrolStationName: '', petrolStationDistance: '' }))}
-                      className={`inline-flex items-center gap-2 px-4 py-2 rounded-full border-2 transition-all duration-200 ${!services.nearPetrolStation ? 'border-[#02665e] text-[#02665e] bg-gradient-to-br from-[#02665e]/10 to-[#02665e]/5' : 'border-slate-300 text-gray-800 bg-white hover:border-slate-400'}`}
+                          className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 font-medium text-sm transition-all duration-200 min-w-0 ${
+                            !services.nearPetrolStation 
+                              ? 'border-emerald-500 bg-emerald-50 text-emerald-700 shadow-sm' 
+                              : 'border-gray-200 text-gray-600 bg-white hover:border-gray-300 hover:bg-gray-50'
+                          }`}
                       aria-pressed={!services.nearPetrolStation}
                     >
-                      <Fuel className={`w-4 h-4 ${!services.nearPetrolStation ? 'text-[#02665e]' : 'text-gray-500'}`} />
-                      <span className="font-semibold text-sm">No</span>
+                          <Fuel className={`w-4 h-4 flex-shrink-0 ${!services.nearPetrolStation ? 'text-emerald-600' : 'text-gray-400'}`} />
+                          <span className="whitespace-nowrap">No</span>
                     </button>
                   </div>
-                  <div className={`overflow-hidden transition-all duration-300 ${services.nearPetrolStation ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`} aria-hidden={!services.nearPetrolStation}>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="space-y-1.5">
-                        <label className="block text-xs font-semibold text-gray-700">Station Name</label>
-                        <input value={services.petrolStationName || ''} onChange={e => setServices(s => ({ ...s, petrolStationName: e.target.value }))} className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-900 placeholder-gray-400 bg-white hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-200 focus:border-gray-500 transition-all duration-200" placeholder="e.g. Oryx, Puma, Total" />
+
+                      {services.nearPetrolStation && (
+                        <div className="pt-4 border-t border-gray-100 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <label className="block text-sm font-medium text-gray-700">Station Name</label>
+                              <input 
+                                value={services.petrolStationName || ''} 
+                                onChange={e => setServices(s => ({ ...s, petrolStationName: e.target.value }))} 
+                                className="w-full h-11 px-4 text-sm text-gray-900 placeholder-gray-400 bg-white border border-gray-300 rounded-lg shadow-sm transition-all duration-200 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" 
+                                placeholder="e.g. Oryx, Puma, Total" 
+                              />
                       </div>
-                      <div className="space-y-1.5">
-                        <label className="block text-xs font-semibold text-gray-700">Distance (km)</label>
-                        <input value={services.petrolStationDistance as any} onChange={e => setServices(s => ({ ...s, petrolStationDistance: numOrEmpty(e.target.value) }))} type="number" step="0.1" min="0" className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-900 placeholder-gray-400 bg-white hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-200 focus:border-gray-500 transition-all duration-200" placeholder="e.g. 1.2" />
+                            <div className="space-y-2">
+                              <label className="block text-sm font-medium text-gray-700">Distance (km)</label>
+                              <input 
+                                value={services.petrolStationDistance as any} 
+                                onChange={e => setServices(s => ({ ...s, petrolStationDistance: numOrEmpty(e.target.value) }))} 
+                                type="number" 
+                                step="0.1" 
+                                min="0" 
+                                className="w-full h-11 px-4 text-sm text-gray-900 placeholder-gray-400 bg-white border border-gray-300 rounded-lg shadow-sm transition-all duration-200 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" 
+                                placeholder="e.g. 1.2" 
+                              />
                       </div>
                     </div>
+                        </div>
+                      )}
                   </div>
                 </div>
 
                 {/* Bus Station Proximity */}
-                <div className="group bg-gradient-to-br from-white to-slate-50 rounded-2xl p-6 border-2 border-slate-100 hover:border-slate-300 hover:shadow-xl transition-all duration-300">
-                  <div className="mb-4">
-                    <h3 className="text-lg font-bold text-gray-800">Is your property near a Bus Station?</h3>
+                  <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-200">
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-blue-50 rounded-lg">
+                          <Bus className="w-5 h-5 text-blue-600" />
                   </div>
-                  <div className="mb-3 flex items-center gap-3" role="group" aria-label="Bus station proximity">
+                        <h3 className="text-base font-semibold text-gray-900">Is your property near a Bus Station?</h3>
+                      </div>
+                      
+                      <div className="flex items-stretch gap-3 w-full" role="group" aria-label="Bus station proximity">
                     <button
                       type="button"
                       onClick={() => setServices(s => ({ ...s, nearBusStation: true }))}
-                      className={`inline-flex items-center gap-2 px-4 py-2 rounded-full border-2 transition-all duration-200 ${services.nearBusStation ? 'border-[#02665e] text-[#02665e] bg-gradient-to-br from-[#02665e]/10 to-[#02665e]/5' : 'border-slate-300 text-gray-800 bg-white hover:border-slate-400'}`}
+                          className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 font-medium text-sm transition-all duration-200 min-w-0 ${
+                            services.nearBusStation 
+                              ? 'border-emerald-500 bg-emerald-50 text-emerald-700 shadow-sm' 
+                              : 'border-gray-200 text-gray-600 bg-white hover:border-gray-300 hover:bg-gray-50'
+                          }`}
                       aria-pressed={services.nearBusStation}
                     >
-                      <Bus className={`w-4 h-4 ${services.nearBusStation ? 'text-[#02665e]' : 'text-gray-500'}`} />
-                      <span className="font-semibold text-sm">Yes</span>
+                          <Bus className={`w-4 h-4 flex-shrink-0 ${services.nearBusStation ? 'text-emerald-600' : 'text-gray-400'}`} />
+                          <span className="whitespace-nowrap">Yes</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setServices(s => ({ ...s, nearBusStation: false, busStationName: '', busStationDistance: '' }))}
-                      className={`inline-flex items-center gap-2 px-4 py-2 rounded-full border-2 transition-all duration-200 ${!services.nearBusStation ? 'border-[#02665e] text-[#02665e] bg-gradient-to-br from-[#02665e]/10 to-[#02665e]/5' : 'border-slate-300 text-gray-800 bg-white hover:border-slate-400'}`}
+                          className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 font-medium text-sm transition-all duration-200 min-w-0 ${
+                            !services.nearBusStation 
+                              ? 'border-emerald-500 bg-emerald-50 text-emerald-700 shadow-sm' 
+                              : 'border-gray-200 text-gray-600 bg-white hover:border-gray-300 hover:bg-gray-50'
+                          }`}
                       aria-pressed={!services.nearBusStation}
                     >
-                      <Bus className={`w-4 h-4 ${!services.nearBusStation ? 'text-[#02665e]' : 'text-gray-500'}`} />
-                      <span className="font-semibold text-sm">No</span>
+                          <Bus className={`w-4 h-4 flex-shrink-0 ${!services.nearBusStation ? 'text-emerald-600' : 'text-gray-400'}`} />
+                          <span className="whitespace-nowrap">No</span>
                     </button>
                   </div>
-                  <div className={`overflow-hidden transition-all duration-300 ${services.nearBusStation ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`} aria-hidden={!services.nearBusStation}>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="space-y-1.5">
-                        <label className="block text-xs font-semibold text-gray-700">Station Name</label>
-                        <input value={services.busStationName || ''} onChange={e => setServices(s => ({ ...s, busStationName: e.target.value }))} className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-900 placeholder-gray-400 bg-white hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-200 focus:border-gray-500 transition-all duration-200" placeholder="e.g. Gerezani, Ubungo Terminal" />
+
+                      {services.nearBusStation && (
+                        <div className="pt-4 border-t border-gray-100 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <label className="block text-sm font-medium text-gray-700">Station Name</label>
+                              <input 
+                                value={services.busStationName || ''} 
+                                onChange={e => setServices(s => ({ ...s, busStationName: e.target.value }))} 
+                                className="w-full h-11 px-4 text-sm text-gray-900 placeholder-gray-400 bg-white border border-gray-300 rounded-lg shadow-sm transition-all duration-200 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" 
+                                placeholder="e.g. Gerezani, Ubungo Terminal" 
+                              />
                       </div>
-                      <div className="space-y-1.5">
-                        <label className="block text-xs font-semibold text-gray-700">Distance (km)</label>
-                        <input value={services.busStationDistance as any} onChange={e => setServices(s => ({ ...s, busStationDistance: numOrEmpty(e.target.value) }))} type="number" step="0.1" min="0" className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-900 placeholder-gray-400 bg-white hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-200 focus:border-gray-500 transition-all duration-200" placeholder="e.g. 3.0" />
+                            <div className="space-y-2">
+                              <label className="block text-sm font-medium text-gray-700">Distance (km)</label>
+                              <input 
+                                value={services.busStationDistance as any} 
+                                onChange={e => setServices(s => ({ ...s, busStationDistance: numOrEmpty(e.target.value) }))} 
+                                type="number" 
+                                step="0.1" 
+                                min="0" 
+                                className="w-full h-11 px-4 text-sm text-gray-900 placeholder-gray-400 bg-white border border-gray-300 rounded-lg shadow-sm transition-all duration-200 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" 
+                                placeholder="e.g. 3.0" 
+                              />
                       </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1124,7 +1549,17 @@ export default function AddProperty() {
           
           {/* Pagination for Basics */}
           {showBasics && (
-            <div className="mt-6 flex items-center justify-end pt-4 border-t border-gray-200">
+            <div className="mt-6 flex items-center justify-end gap-3 pt-4 border-t border-gray-200 flex-wrap">
+              <button
+                type="button"
+                onClick={previewNextStep}
+                disabled={currentStep >= 5}
+                className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                title="Preview next steps without validation"
+              >
+                Preview steps
+                <ChevronRight className="h-4 w-4" />
+              </button>
               <button
                 type="button"
                 onClick={goToNextStep}
@@ -1277,9 +1712,16 @@ export default function AddProperty() {
               </div>
 
               {/* room desc + images + price */}
-              <div className="mt-4">
+              <div className="mt-4 w-full max-w-full sm:max-w-xl box-border">
                 <label className="text-sm">Room description (optional)</label>
-                <textarea value={roomDescription} onChange={e=>setRoomDescription(e.target.value)} rows={3} className="mt-2 w-full rounded border border-gray-300 px-3 py-2" placeholder="Short description for this room type" />
+                <textarea
+                  value={roomDescription}
+                  onChange={e=>setRoomDescription(e.target.value)}
+                  rows={3}
+                  className="mt-2 w-full max-w-full sm:max-w-xl rounded border border-gray-300 px-3 py-2 box-border"
+                  placeholder="Short description for this room type"
+                  style={{ minHeight: 96 }}
+                />
               </div>
 
               <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 items-end">
@@ -1336,7 +1778,7 @@ export default function AddProperty() {
                                 <path fillRule="evenodd" d="M5.47 5.47a.75.75 0 011.06 0L12 10.94l5.47-5.47a.75.75 0 111.06 1.06L13.06 12l5.47 5.47a.75.75 0 11-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 11-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 010-1.06z" clipRule="evenodd" />
                               </svg>
                             </button>
-                            <Image src={u} alt={`Room ${idx+1} image ${i+1}`} width={80} height={80} className="w-full h-full object-cover" />
+                            <Image src={u} alt={`Room ${idx+1} image ${i+1}`} width={120} height={30} className="w-full h-full object-cover" />
                           </div>
                         ))}
                       </div>

@@ -8,21 +8,23 @@ import DriverSwitchOffline from "./DriverSwitchOffline";
 const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL });
 
 export default function DriverAvailabilitySwitch({ className = "" }: { className?: string }) {
-  const [available, setAvailable] = useState<boolean>(() => {
-    try {
-      const raw = localStorage.getItem("driver_available");
-      if (raw === "1" || raw === "true") return true;
-      if (raw === "0" || raw === "false") return false;
-    } catch (e) {
-      /* ignore */
-    }
-    return false;
-  });
+  // Start with false to match server-side render (prevents hydration mismatch)
+  const [available, setAvailable] = useState<boolean>(false);
+  const [isClient, setIsClient] = useState(false);
 
-  // Keep synced with any user object mounted on window or later prop updates (best-effort)
+  // Mark as client-side after mount to prevent hydration mismatch
   useEffect(() => {
+    setIsClient(true);
     try {
-      // If an external script or page sets window.__DRIVER_AVAILABLE, respect it once
+      // First, check localStorage
+      const raw = localStorage.getItem("driver_available");
+      if (raw === "1" || raw === "true") {
+        setAvailable(true);
+      } else if (raw === "0" || raw === "false") {
+        setAvailable(false);
+      }
+      
+      // Then, check window.__DRIVER_AVAILABLE if set
       const w = (window as any).__DRIVER_AVAILABLE;
       if (typeof w === "boolean") {
         setAvailable(w);
@@ -108,9 +110,13 @@ export default function DriverAvailabilitySwitch({ className = "" }: { className
           disabled={status === 'pending'}
           aria-label={available ? "Go offline" : "Go online"}
           title={available ? "Go offline" : "Go online"}
-          className={`inline-flex items-center justify-center h-10 w-10 rounded-full shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 ${status === 'pending' ? 'transform scale-95 opacity-80' : ''} ${available ? 'bg-green-600 text-white hover:bg-green-700 focus:ring-green-300' : 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-300'}`}
+          className={`inline-flex items-center justify-center h-10 w-10 rounded-full shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 ${status === 'pending' ? 'transform scale-95 opacity-80' : ''} ${isClient && available ? 'bg-green-600 text-white hover:bg-green-700 focus:ring-green-300' : 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-300'}`}
         >
-          <Power className={`h-5 w-5 transition-colors duration-200 ${available ? 'text-green-200' : 'text-red-200'}`} aria-hidden="true" />
+          <Power 
+            className={`h-5 w-5 transition-colors duration-200 ${!isClient ? 'text-red-200' : available ? 'text-green-200' : 'text-red-200'}`} 
+            aria-hidden="true"
+            suppressHydrationWarning
+          />
         </button>
 
         <div aria-live="polite" role="status">
@@ -122,10 +128,10 @@ export default function DriverAvailabilitySwitch({ className = "" }: { className
                 <span className="dot dot-yellow" />
                 <span className="dot dot-green" />
               </span>
-              <span className={available ? 'text-green-600' : 'text-red-600'}>{available ? 'Going live...' : 'Going offline...'}</span>
+              <span className={isClient && available ? 'text-green-600' : 'text-red-600'}>{isClient && available ? 'Going live...' : 'Going offline...'}</span>
             </div>
           ) : status === 'success' ? (
-            available ? <DriverSwitchOnline /> : <DriverSwitchOffline />
+            isClient && available ? <DriverSwitchOnline /> : <DriverSwitchOffline />
           ) : (
             null
           )}

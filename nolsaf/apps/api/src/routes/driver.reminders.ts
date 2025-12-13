@@ -12,10 +12,27 @@ router.get("/", requireAuth as any, async (req, res) => {
       return res.json([]);
     }
     const items = await (prisma as any).driverReminder.findMany({
-      where: { driverId: Number(user.id), OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] },
+      where: { 
+        driverId: Number(user.id), 
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] 
+      },
       orderBy: { createdAt: 'desc' },
     });
-    return res.json(items);
+    
+    // Format reminders for frontend
+    const formatted = items.map((r: any) => ({
+      id: String(r.id),
+      type: r.type || 'INFO',
+      message: r.message,
+      action: r.action || null,
+      actionLink: r.actionLink || null,
+      expiresAt: r.expiresAt ? new Date(r.expiresAt).toISOString() : null,
+      isRead: Boolean(r.read),
+      createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : new Date().toISOString(),
+      meta: r.meta || {},
+    }));
+    
+    return res.json(formatted);
   } catch (e) {
     console.warn('driver.reminders: failed to list', e);
     return res.status(500).json({ error: 'Failed to list reminders' });
@@ -31,7 +48,33 @@ router.post("/", requireAuth as any, async (req, res) => {
     if (!(prisma as any).driverReminder) return res.status(501).json({ error: 'Reminders not enabled' });
     const { driverId, type, message, action, actionLink, expiresAt, meta } = req.body;
     if (!driverId || !message) return res.status(400).json({ error: 'driverId and message required' });
-    const created = await (prisma as any).driverReminder.create({ data: { driverId: Number(driverId), type: type ?? 'info', message: String(message), action: action ?? null, actionLink: actionLink ?? null, expiresAt: expiresAt ? new Date(expiresAt) : null, meta: meta ?? null } });
+    const created = await (prisma as any).driverReminder.create({ 
+      data: { 
+        driverId: Number(driverId), 
+        type: type ?? 'INFO', 
+        message: String(message), 
+        action: action ?? null, 
+        actionLink: actionLink ?? null, 
+        expiresAt: expiresAt ? new Date(expiresAt) : null, 
+        meta: meta ?? null 
+      } 
+    });
+    
+    // Emit Socket.IO notification to driver
+    const app = (req as any).app;
+    const io = app?.get('io');
+    if (io && typeof io.emit === 'function') {
+      io.to(`driver:${driverId}`).emit('new-reminder', {
+        id: String(created.id),
+        type: created.type || 'INFO',
+        message: created.message,
+        action: created.action,
+        actionLink: created.actionLink,
+        expiresAt: created.expiresAt ? new Date(created.expiresAt).toISOString() : null,
+        createdAt: created.createdAt ? new Date(created.createdAt).toISOString() : new Date().toISOString(),
+      });
+    }
+    
     return res.json(created);
   } catch (e) {
     console.warn('driver.reminders: failed to create', e);

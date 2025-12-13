@@ -147,6 +147,50 @@ router.get(
   }) as RequestHandler
 );
 
+/** PATCH /admin/properties/:id - Admin can edit property details */
+router.patch("/:id", (async (req: AuthedRequest, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid id" });
+
+    const property = await prisma.property.findFirst({ 
+      where: { id },
+      include: { owner: { select: { id: true, name: true, email: true, phone: true } } }
+    });
+    if (!property) return res.status(404).json({ error: "Property not found" });
+
+    const { title, description, basePrice, currency } = req.body;
+
+    const updateData: any = {};
+    if (title !== undefined) updateData.title = String(title);
+    if (description !== undefined) updateData.description = String(description);
+    if (basePrice !== undefined) updateData.basePrice = Number(basePrice);
+    if (currency !== undefined) updateData.currency = String(currency);
+
+    const updated = await prisma.property.update({
+      where: { id },
+      data: updateData,
+      include: { owner: { select: { id: true, name: true, email: true, phone: true } } }
+    });
+
+    await auditLog({
+      actorId: req.user!.id,
+      actorRole: req.user!.role,
+      action: "PROPERTY_UPDATE",
+      entity: "PROPERTY",
+      entityId: id,
+      before: property,
+      after: updated,
+      ip: req.ip,
+      ua: req.headers["user-agent"] as string,
+    });
+
+    res.json(toAdminPropertyDTO(updated));
+  } catch (err: any) {
+    res.status(400).json({ error: err?.message || "Update failed" });
+  }
+}) as RequestHandler);
+
 /** GET /admin/properties/:id/images */
 router.get("/:id/images", (async (req: AuthedRequest, res) => {
   const id = Number(req.params.id);
@@ -214,7 +258,7 @@ router.post("/:id/approve", (async (req: AuthedRequest, res) => {
 
   const before = await prisma.property.findFirst({
     where: { id },
-    select: { status: true, ownerId: true },
+    select: { status: true, ownerId: true, title: true },
   });
   if (!before) { res.status(404).json({ error: "Not found" }); return; }
   if (!["PENDING", "SUSPENDED", "REJECTED"].includes(before.status)) {
@@ -232,7 +276,7 @@ router.post("/:id/approve", (async (req: AuthedRequest, res) => {
     emitEvent("property.status.changed", payload),
     invalidateAdminPropertyQueues(),
     invalidateOwnerPropertyLists(before.ownerId),
-    notifyOwner(before.ownerId, "property_approved", { propertyId: id }),
+    notifyOwner(before.ownerId, "property_approved", { propertyId: id, propertyTitle: before.title }),
     auditLog({
       actorId: req.user!.id,
       actorRole: req.user!.role,
@@ -258,7 +302,7 @@ router.post(":id/reject", (async (req: AuthedRequest, res) => {
 
   const before = await prisma.property.findFirst({
     where: { id },
-    select: { status: true, ownerId: true },
+    select: { status: true, ownerId: true, title: true },
   });
   if (!before) return res.status(404).json({ error: "Not found" });
   if (!["PENDING", "APPROVED"].includes(before.status)) {
@@ -284,6 +328,7 @@ router.post(":id/reject", (async (req: AuthedRequest, res) => {
     invalidateOwnerPropertyLists(before.ownerId),
     notifyOwner(before.ownerId, "property_rejected", {
       propertyId: id,
+      propertyTitle: before.title,
       reasons: parse.data.reasons,
       note: parse.data.note,
     }),
@@ -312,7 +357,7 @@ router.post(":id/suspend", (async (req: AuthedRequest, res) => {
 
   const before = await prisma.property.findFirst({
     where: { id },
-    select: { status: true, ownerId: true },
+    select: { status: true, ownerId: true, title: true },
   });
   if (!before) return res.status(404).json({ error: "Not found" });
   if (before.status === "SUSPENDED")
@@ -337,6 +382,7 @@ router.post(":id/suspend", (async (req: AuthedRequest, res) => {
     invalidateOwnerPropertyLists(before.ownerId),
     notifyOwner(before.ownerId, "property_suspended", {
       propertyId: id,
+      propertyTitle: before.title,
       reason: parse.data.reason,
     }),
     auditLog({
@@ -361,7 +407,7 @@ router.post(":id/unsuspend", (async (req: AuthedRequest, res) => {
   const id = Number(req.params.id);
   const before = await prisma.property.findFirst({
     where: { id },
-    select: { status: true, ownerId: true },
+    select: { status: true, ownerId: true, title: true },
   });
   if (!before) return res.status(404).json({ error: "Not found" });
   if (before.status !== "SUSPENDED")
@@ -380,7 +426,7 @@ router.post(":id/unsuspend", (async (req: AuthedRequest, res) => {
     emitEvent("property.status.changed", payload),
     invalidateAdminPropertyQueues(),
     invalidateOwnerPropertyLists(before.ownerId),
-    notifyOwner(before.ownerId, "property_unsuspended", { propertyId: id }),
+    notifyOwner(before.ownerId, "property_unsuspended", { propertyId: id, propertyTitle: before.title }),
     auditLog({
       actorId: req.user!.id,
       actorRole: req.user!.role,

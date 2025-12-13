@@ -201,28 +201,49 @@ export default function GeneralReports() {
     async function load() {
       try {
         const qs = `?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&region=${encodeURIComponent(region)}`;
+        
+        // Helper to safely parse JSON responses
+        const safeJsonParse = async (response: Response) => {
+          if (!response.ok) {
+            const text = await response.text();
+            throw new Error(`HTTP ${response.status}: ${text.substring(0, 100)}`);
+          }
+          const contentType = response.headers.get('content-type');
+          if (!contentType || !contentType.includes('application/json')) {
+            const text = await response.text();
+            throw new Error(`Expected JSON but got ${contentType}: ${text.substring(0, 100)}`);
+          }
+          return response.json();
+        };
+
         const r1 = await fetch(`${base}/admin/stats/revenue-series${qs}`, { headers: { 'x-role': 'ADMIN' } });
-        const rev = await r1.json();
+        const rev = await safeJsonParse(r1);
         setRevenueSeries(rev || { labels: [], data: [] });
 
         const r2 = await fetch(`${base}/admin/stats/active-properties-series${qs}`, { headers: { 'x-role': 'ADMIN' } });
-        const ap = await r2.json();
+        const ap = await safeJsonParse(r2);
         setActivePropsSeries(ap || { labels: [], data: [] });
 
         const r3 = await fetch(`${base}/admin/stats/revenue-by-type${qs}`, { headers: { 'x-role': 'ADMIN' } });
-        const rbt = await r3.json();
+        const rbt = await safeJsonParse(r3);
         setRevenueByType(rbt || { labels: [], data: [] });
 
         const q2 = `?groupBy=${encodeURIComponent(groupBy)}&region=${encodeURIComponent(region)}`;
         const r4 = await fetch(`${base}/admin/stats/active-properties-breakdown${q2}`, { headers: { 'x-role': 'ADMIN' } });
-        const apb = await r4.json();
+        const apb = await safeJsonParse(r4);
         setActivePropsBreakdown(apb || { labels: [], data: [] });
 
         const r5 = await fetch(`${base}/admin/stats/invoice-status?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, { headers: { 'x-role': 'ADMIN' } });
-        const invs = await r5.json();
+        const invs = await safeJsonParse(r5);
         setInvoiceStatusCounts(invs || {});
-      } catch (err) {
+      } catch (err: any) {
         console.error('Failed to load reports', err);
+        // Set empty data to prevent JSON parse errors
+        setRevenueSeries({ labels: [], data: [] });
+        setActivePropsSeries({ labels: [], data: [] });
+        setRevenueByType({ labels: [], data: [] });
+        setActivePropsBreakdown({ labels: [], data: [] });
+        setInvoiceStatusCounts({});
       }
     }
     void load();

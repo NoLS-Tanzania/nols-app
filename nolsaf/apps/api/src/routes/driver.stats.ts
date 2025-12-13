@@ -1,6 +1,7 @@
 import { Router } from "express";
 import type { RequestHandler } from "express";
 import { prisma } from "@nolsaf/prisma";
+import { Prisma } from "@prisma/client";
 import qrcode from 'qrcode';
 import { authenticator } from 'otplib';
 import crypto from 'crypto';
@@ -118,7 +119,7 @@ const getDashboard: RequestHandler = async (req, res) => {
         },
       }) || [];
     } catch (e) {
-      console.warn("Trip model not available, using mock data");
+      console.warn("Trip model not available, returning empty data");
     }
 
     const todaysRides = todaysTrips.length || 8;
@@ -269,8 +270,18 @@ const getMapData: RequestHandler = async (req, res) => {
     let assignments: any[] = [];
     try {
       if ((prisma as any).booking) {
-        const items = await (prisma as any).booking.findMany({ where: { driverId: user.id, status: { in: ["ASSIGNED", "IN_PROGRESS"] } }, select: { id: true, pickupLat: true, pickupLng: true, dropoffLat: true, dropoffLng: true, status: true, passengerName: true } });
-        assignments = (items || []).map((b: any) => ({ id: b.id, pickup: b.pickupLat && b.pickupLng ? { lat: Number(b.pickupLat), lng: Number(b.pickupLng) } : null, dropoff: b.dropoffLat && b.dropoffLng ? { lat: Number(b.dropoffLat), lng: Number(b.dropoffLng) } : null, status: b.status, passengerName: b.passengerName }));
+        const where: any = { driverId: user.id, status: { in: ["ASSIGNED", "IN_PROGRESS"] } };
+        const items = await (prisma as any).booking.findMany({ 
+          where, 
+          select: { id: true, pickupLat: true, pickupLng: true, dropoffLat: true, dropoffLng: true, status: true, passengerName: true } 
+        });
+        assignments = (items || []).map((b: any) => ({ 
+          id: b.id, 
+          pickup: b.pickupLat && b.pickupLng ? { lat: Number(b.pickupLat), lng: Number(b.pickupLng) } : null, 
+          dropoff: b.dropoffLat && b.dropoffLng ? { lat: Number(b.dropoffLat), lng: Number(b.dropoffLng) } : null, 
+          status: b.status, 
+          passengerName: b.passengerName 
+        }));
       }
     } catch (e) {
       // ignore
@@ -296,7 +307,7 @@ const getMapData: RequestHandler = async (req, res) => {
     return res.json({ driverLocation, assignments, nearbyDrivers });
   } catch (err) {
     console.warn('driver.map: failed', err);
-    return res.json({ driverLocation: { lat: -6.7924, lng: 39.2083 }, assignments: [], nearbyDrivers: [] });
+    return res.json({ driverLocation: null, assignments: [], nearbyDrivers: [] });
   }
 };
 router.get('/map', getMapData as unknown as RequestHandler);
@@ -501,6 +512,99 @@ const getPayouts: RequestHandler = async (req, res) => {
   }
 };
 router.get('/payouts', getPayouts as unknown as RequestHandler);
+
+/**
+ * GET /driver/invoices?page=&pageSize=
+ * Returns invoices for the authenticated driver.
+ * Similar to payouts but returns all invoices (not just PAID).
+ */
+const getInvoices: RequestHandler = async (req, res) => {
+  const user = (req as AuthedRequest).user!;
+  const page = Math.max(1, Number((req.query as any).page ?? 1));
+  const pageSize = Math.min(100, Math.max(1, Number((req.query as any).pageSize ?? 20)));
+  const skip = (page - 1) * pageSize;
+
+  try {
+    // Use Invoice -> Booking relationship to return invoices for this driver
+    if ((prisma as any).invoice && (prisma as any).booking) {
+      // First, try to query with a where clause if booking.driverId exists
+      let items: any[] = [];
+      let total = 0;
+      
+      try {
+        // Try querying with nested where clause first (more efficient)
+        const [itemsResult, totalResult] = await Promise.all([
+          prisma.invoice.findMany({
+            where: {
+              booking: {
+                driverId: user.id,
+              },
+            },
+            include: { booking: true },
+            orderBy: { id: 'desc' },
+            skip,
+            take: pageSize,
+          }),
+          prisma.invoice.count({
+            where: {
+              booking: {
+                driverId: user.id,
+              },
+            },
+          }),
+        ]);
+        items = itemsResult;
+        total = totalResult;
+      } catch (queryErr: any) {
+        // If nested where fails (e.g., driverId field doesn't exist), fall back to client-side filtering
+        console.warn('Nested where query failed, falling back to client-side filter:', queryErr?.message);
+        
+        // Fetch all invoices and filter client-side
+        const allItems = await prisma.invoice.findMany({
+          where: {},
+          include: { booking: true },
+          orderBy: { id: 'desc' },
+        });
+        
+        // Filter to only invoices for this driver
+        items = (allItems || [])
+          .filter((inv: any) => inv.booking && Number(inv.booking.driverId) === Number(user.id))
+          .slice(skip, skip + pageSize);
+        total = (allItems || []).filter((inv: any) => inv.booking && Number(inv.booking.driverId) === Number(user.id)).length;
+      }
+
+      // Map to response format
+      const mapped = items.map((inv: any) => ({
+        id: inv.id,
+        invoiceId: inv.id,
+        invoiceNumber: inv.invoiceNumber,
+        status: inv.status,
+        tripCode: inv.booking?.tripCode ?? inv.booking?.code ?? null,
+        issuedAt: inv.issuedAt,
+        paidAt: inv.paidAt,
+        paidTo: inv.paymentRef ?? inv.paymentMethod ?? null,
+        gross: inv.total ?? null,
+        commissionAmount: inv.commissionAmount ?? null,
+        netPaid: inv.netPayable ?? null,
+        receiptNumber: inv.receiptNumber ?? null,
+      }));
+      
+      return res.json({ total, page, pageSize, items: mapped });
+    }
+
+    return res.json({ total: 0, page, pageSize, items: [] });
+  } catch (err: any) {
+    console.error('driver.invoices: failed', err);
+    // If the DB schema is out-of-date (missing column), Prisma will throw P2022
+    if (err instanceof Prisma.PrismaClientKnownRequestError && (err.code === 'P2021' || err.code === 'P2022')) {
+      console.warn('Prisma schema mismatch error in /driver/invoices:', err.message);
+      return res.json({ total: 0, page, pageSize, items: [] });
+    }
+    console.error('Unhandled error in GET /driver/invoices:', err);
+    return res.status(500).json({ error: 'Internal server error', detail: err?.message || String(err) });
+  }
+};
+router.get('/invoices', getInvoices as unknown as RequestHandler);
 
 /**
  * POST /driver/location

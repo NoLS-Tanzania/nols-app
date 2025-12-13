@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-// @ts-ignore: Module alias '@repo/db' may not have type declarations available in this environment
-import { db } from "@repo/db";
+import { prisma } from "@nolsaf/prisma";
 
 const router = Router();
 

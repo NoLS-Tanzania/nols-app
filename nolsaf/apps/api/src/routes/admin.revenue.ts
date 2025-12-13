@@ -161,6 +161,51 @@ router.post("/invoices/:id/approve", async (req, res) => {
     });
 
     await invalidateOwnerReports(updated.ownerId);
+    
+    // Emit referral credit update if booking belongs to a referred user
+    try {
+      const booking = updated.booking;
+      if (booking?.userId) {
+        // Check if this user was referred by a driver
+        const user = await prisma.user.findUnique({
+          where: { id: booking.userId },
+          select: { referredBy: true, role: true }
+        });
+        
+        if (user?.referredBy) {
+          const io = req.app?.get?.('io');
+          if (io) {
+            // Only emit for CUSTOMER/USER roles (they earn credits)
+            if (user.role === 'CUSTOMER' || user.role === 'USER') {
+              const bookingAmount = Number(updated.total || updated.netPayable || 0);
+              const creditsEarned = Math.round(bookingAmount * 0.0035); // 0.35% of booking
+              
+              // Emit credit notification to referring driver
+              io.to(`driver:${user.referredBy}`).emit('referral-notification', {
+                type: 'credits_earned',
+                message: `You earned ${creditsEarned.toLocaleString()} TZS credits from a booking!`,
+                referralData: {
+                  userId: booking.userId,
+                  bookingId: booking.id,
+                  amount: bookingAmount,
+                  creditsEarned,
+                }
+              });
+              
+              // Emit referral update to refresh dashboard
+              io.to(`driver:${user.referredBy}`).emit('referral-update', {
+                driverId: user.referredBy,
+                timestamp: Date.now(),
+                action: 'credits_earned',
+              });
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to emit referral credit update', e);
+    }
+    
     res.json({
       ok: true,
       invoice: updated,
@@ -224,11 +269,53 @@ router.post("/invoices/:id/mark-paid", async (req, res) => {
     await invalidateOwnerReports(updated.ownerId);
 
     // 🔔 Notify Admin dashboards (and/or Owner if you also listen there)
+    const io = req.app.get("io");
     try {
-      req.app.get("io")?.emit?.("admin:invoice:paid", {
+      io?.emit?.("admin:invoice:paid", {
         invoiceId: updated.id,
         ownerId: updated.ownerId,
       });
+      
+      // Emit referral credit update if booking belongs to a referred user
+      try {
+        const booking = updated.booking;
+        if (booking?.userId) {
+          // Check if this user was referred by a driver
+          const user = await prisma.user.findUnique({
+            where: { id: booking.userId },
+            select: { referredBy: true, role: true }
+          });
+          
+          if (user?.referredBy && io) {
+            // Only emit for CUSTOMER/USER roles (they earn credits)
+            if (user.role === 'CUSTOMER' || user.role === 'USER') {
+              const bookingAmount = Number(updated.total || updated.netPayable || 0);
+              const creditsEarned = Math.round(bookingAmount * 0.0035); // 0.35% of booking
+              
+              // Emit credit notification to referring driver
+              io.to(`driver:${user.referredBy}`).emit('referral-notification', {
+                type: 'credits_earned',
+                message: `You earned ${creditsEarned.toLocaleString()} TZS credits from a booking!`,
+                referralData: {
+                  userId: booking.userId,
+                  bookingId: booking.id,
+                  amount: bookingAmount,
+                  creditsEarned,
+                }
+              });
+              
+              // Emit referral update to refresh dashboard
+              io.to(`driver:${user.referredBy}`).emit('referral-update', {
+                driverId: user.referredBy,
+                timestamp: Date.now(),
+                action: 'credits_earned',
+              });
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to emit referral credit update', e);
+      }
     } catch {}
 
     res.json({ ok: true, invoice: updated });

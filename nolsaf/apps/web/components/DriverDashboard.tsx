@@ -1,11 +1,64 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import axios from "axios";
-import { TrendingUp, AlertCircle, ArrowRight, FileText } from 'lucide-react';
+import { io, Socket } from "socket.io-client";
+
+// Add custom animations
+if (typeof document !== 'undefined') {
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes fade-in-up {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    .animate-fade-in-up {
+      animation: fade-in-up 0.6s ease-out forwards;
+      opacity: 0;
+    }
+    .delay-100 { animation-delay: 0.1s; }
+    .delay-200 { animation-delay: 0.2s; }
+    .delay-300 { animation-delay: 0.3s; }
+    .delay-400 { animation-delay: 0.4s; }
+    .delay-500 { animation-delay: 0.5s; }
+    .delay-600 { animation-delay: 0.6s; }
+  `;
+  style.setAttribute('data-dashboard-animations', 'true');
+  if (!document.head.querySelector('style[data-dashboard-animations]')) {
+    document.head.appendChild(style);
+  }
+}
+import {
+  TrendingUp,
+  AlertCircle,
+  ArrowRight,
+  FileText,
+  ShieldCheck,
+  Clock3,
+  Star,
+  CheckCircle2,
+  Eye,
+} from 'lucide-react';
 import DriverAvailabilitySwitch from "@/components/DriverAvailabilitySwitch";
 import StatCard from "./StatCard";
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell, BarChart, Bar } from "recharts";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+  Cell,
+  BarChart,
+  Bar,
+} from "recharts";
 
 const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL });
 
@@ -55,6 +108,7 @@ export default function DriverDashboard({ className }: { className?: string }) {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [reminders, setReminders] = useState<Array<DashboardStats['reminders'][number]>>([]);
+  const socketRef = useRef<Socket | null>(null);
   const [available, setAvailable] = useState<boolean>(() => {
     try {
       const raw = localStorage.getItem('driver_available');
@@ -93,6 +147,50 @@ export default function DriverDashboard({ className }: { className?: string }) {
       if (raw) setGoals(JSON.parse(raw));
     } catch (e) {
       // ignore
+    }
+  }, []);
+
+  // Setup Socket.IO for real-time reminder updates
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      const socket = io(process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000", {
+        auth: { token },
+      });
+
+      socket.on("connect", () => {
+        console.log("Socket connected for reminders");
+        try {
+          const userId = JSON.parse(atob(token.split(".")[1])).id;
+          socket.emit("join-driver-room", { driverId: userId });
+        } catch (e) {
+          console.warn("Failed to parse token for driver room", e);
+        }
+      });
+
+      // Listen for new reminders
+      socket.on("new-reminder", (data: any) => {
+        console.log("New reminder received:", data);
+        setReminders((prev) => {
+          // Check if reminder already exists
+          const exists = prev.some((r: any) => String(r.id) === String(data.id));
+          if (exists) return prev;
+          // Add new reminder at the beginning
+          return [data, ...prev];
+        });
+      });
+
+      socketRef.current = socket;
+
+      return () => {
+        try {
+          const userId = JSON.parse(atob(token.split(".")[1])).id;
+          socket.emit("leave-driver-room", { driverId: userId });
+        } catch (e) {
+          // ignore
+        }
+        socket.disconnect();
+      };
     }
   }, []);
 
@@ -150,11 +248,11 @@ export default function DriverDashboard({ className }: { className?: string }) {
         const t = localStorage.getItem("token");
         if (t) api.defaults.headers.common["Authorization"] = `Bearer ${t}`;
         
-        const res = await api.get("/driver/dashboard");
+        const res = await api.get("/api/driver/dashboard");
         setStats(res.data);
         // attempt to load persisted reminders separately (prefer dedicated endpoint)
         try {
-          const rr = await api.get('/driver/reminders');
+          const rr = await api.get('/api/driver/reminders');
           if (Array.isArray(rr.data)) {
             // merge server reminders with dashboard computed reminders (dedupe by id)
             const computed = Array.isArray(res.data?.reminders) ? res.data.reminders : [];
@@ -163,25 +261,6 @@ export default function DriverDashboard({ className }: { className?: string }) {
               if (r && r.id) mergedMap[String(r.id)] = r;
             });
             let merged = Object.values(mergedMap);
-            // if there are no reminders at all, include two example admin reminders
-            if (merged.length === 0) {
-              merged = [
-                {
-                  id: 'admin-expiring-doc',
-                  type: 'warning',
-                  message: 'Vehicle insurance will expire in 20 days (admin)',
-                  action: 'Renew Now',
-                  actionLink: '/driver/management?tab=documents',
-                },
-                {
-                  id: 'admin-policy-update',
-                  type: 'info',
-                  message: 'New payment policy effective next week (admin)',
-                  action: 'Read',
-                  actionLink: '/driver/announcements',
-                },
-              ];
-            }
             setReminders(merged as any);
           } else {
             // fallback to dashboard reminders
@@ -195,7 +274,7 @@ export default function DriverDashboard({ className }: { className?: string }) {
         // Attempt to derive today's earnings from payout records so the
         // Earnings stat reflects real payout amounts when available.
         try {
-          const pr = await api.get('/driver/payouts');
+          const pr = await api.get('/api/driver/payouts');
           const pdata = pr.data;
           const items = Array.isArray(pdata) ? pdata : Array.isArray(pdata.items) ? pdata.items : [];
           if (items && items.length) {
@@ -293,7 +372,17 @@ export default function DriverDashboard({ className }: { className?: string }) {
     return "Good evening";
   };
 
-  const fmtMoney = (n: number) => n.toLocaleString();
+  const fmtMoney = (n: number | null | undefined) => {
+    const val = Number.isFinite(Number(n)) ? Number(n) : 0;
+    return val.toLocaleString();
+  };
+
+  const acceptRate = stats?.acceptanceRate ?? 0;
+  const rating = stats?.rating ?? 0;
+  const onlineHours = Math.round(stats?.onlineHours ?? 0);
+  const rides = stats?.todaysRides ?? 0;
+  const earningsToday = stats?.todayEarnings ?? 0;
+  const earningsExtra = (stats?.earningsBreakdown?.tips ?? 0) + (stats?.earningsBreakdown?.bonus ?? 0);
 
   
 
@@ -303,9 +392,9 @@ export default function DriverDashboard({ className }: { className?: string }) {
         <div className="animate-pulse space-y-6">
           <div className="h-16 bg-gray-200 rounded-lg" />
           <div className="h-12 bg-gray-200 rounded-lg" />
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-24 bg-gray-200 rounded-lg" />
+              <div key={i} className="h-20 sm:h-24 bg-gray-200 rounded-lg" />
             ))}
           </div>
           <div className="h-64 bg-gray-200 rounded-lg" />
@@ -408,7 +497,7 @@ export default function DriverDashboard({ className }: { className?: string }) {
     try {
       const t = localStorage.getItem('token');
       if (t) api.defaults.headers.common['Authorization'] = `Bearer ${t}`;
-      await api.post(`/driver/reminders/${encodeURIComponent(id)}/read`);
+      await api.post(`/api/driver/reminders/${encodeURIComponent(id)}/read`);
     } catch (e) {
       // ignore errors, continue to remove locally
     }
@@ -416,24 +505,29 @@ export default function DriverDashboard({ className }: { className?: string }) {
   };
 
   return (
-    <div className={`space-y-6 ${className || ""}`}>
-      {/* Header with Greeting and Status Toggle */}
-      <div className="bg-transparent rounded-lg p-6 greeting-accent">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-semibold text-gray-900">{greeting()}, {name}</h1>
-            <p className="mt-1">
-              <span className={available ? 'text-emerald-600' : 'text-gray-600'}>
-                {available ? "You're online and ready for rides" : "You're offline"}
+    <div className={`w-full max-w-full space-y-6 ${className || ""}`}>
+      {/* Hero */}
+      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-blue-700 text-white rounded-2xl p-6 shadow-lg border border-slate-800">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="space-y-2">
+            <p className="text-sm text-slate-200">{greeting()}, {name}</p>
+            <h1 className="text-2xl md:text-3xl font-semibold leading-tight">You&apos;re online and ready for rides</h1>
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-sm font-medium text-white ring-1 ring-white/20">
+                <span className={`h-2 w-2 rounded-full ${available ? "bg-emerald-400" : "bg-red-400"} animate-pulse`} />
+                {available ? "Online" : "Offline"}
               </span>
-            </p>
+              <span className="text-slate-200 text-sm flex items-center gap-1">
+                <ShieldCheck className="h-4 w-4" /> Safe driving mode active
+              </span>
+            </div>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="text-right mr-3">
-              <div className="text-sm text-gray-600">Status:</div>
+          <div className="flex items-center gap-4">
+            <div className="text-right mr-1">
+              <div className="text-sm text-slate-200">Status</div>
               <div className="text-lg font-semibold flex items-center gap-2">
-                <span className={`status-dot ${available ? 'online' : 'offline'}`} />
-                {available ? 'Online' : 'Offline'}
+                <span className={`h-2.5 w-2.5 rounded-full ${available ? "bg-emerald-400" : "bg-red-400"}`} />
+                {available ? "Online" : "Offline"}
               </div>
             </div>
             <DriverAvailabilitySwitch />
@@ -441,138 +535,214 @@ export default function DriverDashboard({ className }: { className?: string }) {
         </div>
       </div>
 
-      {/* Goal Progress Bar */}
-      <div className="bg-white rounded-lg p-5 shadow-sm">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-blue-600" />
-            <span className="font-semibold text-gray-800">Week Goal</span>
-            {goals?.moneyUrgent && (
-              <span className="ml-2 inline-block text-xs px-2 py-0.5 rounded bg-red-100 text-red-700 font-medium">URGENT</span>
-            )}
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-600">{Math.round(
-              goals && goals.money ? Math.min((stats.todayEarnings / goals.money) * 100, 100) : stats.goalProgress
-            )}%</span>
-            <button onClick={() => setShowGoalsModal(true)} className="text-sm px-3 py-1 rounded-lg border bg-white hover:bg-gray-50">Set Goals</button>
-          </div>
-        </div>
-
-        <div className="mb-2">
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-emerald-600">{fmtMoney(stats.todayEarnings)}/</span>
-            <span className="text-sm font-medium text-red-600">{fmtMoney(goals && goals.money ? goals.money : stats.todayGoal)} TZS</span>
-          </div>
-        </div>
-
-        {/* Money progress bar */}
-        <div className="w-full bg-gray-200 rounded-full h-3 relative overflow-hidden mb-3">
-          <div
-            className={`bg-gradient-to-r from-blue-500 to-blue-600 h-3 rounded-full transition-all duration-500 absolute top-0 left-0 w-pct-${Math.round(goals && goals.money ? Math.min((stats.todayEarnings / goals.money) * 100, 100) : progressPct)}`}
-          />
-        </div>
-
-        {/* Trips progress (when trips goal set) */}
-        {goals && goals.trips ? (
-          <div>
-            <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
-              <div>Trips: {stats.todaysRides}/{goals.trips}</div>
-              <div>{Math.round(Math.min((stats.todaysRides / goals.trips) * 100, 100))}%</div>
-            <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-              <div
-                className={`bg-emerald-500 h-2 rounded-full w-pct-${Math.round(Math.min((stats.todaysRides / goals.trips) * 100, 100))}`}
-              />
+      {/* Goal + rating row */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
+        <div className="col-span-1 lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm p-4 sm:p-5 transition-all duration-300 hover:shadow-md hover:scale-[1.01] animate-fade-in-up delay-100">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600 flex-shrink-0 transition-all duration-300 hover:scale-110 hover:rotate-12" />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm text-slate-500 transition-colors duration-300">Week Goal</p>
+                <p className="text-lg sm:text-xl lg:text-2xl font-semibold text-slate-900 truncate transition-all duration-300">
+                  {fmtMoney(earningsToday)} / {fmtMoney(goals?.money ?? stats?.todayGoal ?? 0)} TZS
+                </p>
+              </div>
+              {goals?.moneyUrgent && (
+                <span className="ml-2 inline-block text-xs px-2 py-0.5 rounded bg-red-100 text-red-700 font-medium flex-shrink-0 transition-all duration-300 hover:scale-110 animate-pulse">URGENT</span>
+              )}
             </div>
+            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+              <span className="text-xs sm:text-sm text-slate-500 transition-all duration-300">{Math.round(goals && goals.money ? Math.min((earningsToday / (goals.money || 1)) * 100, 100) : progressPct)}%</span>
+              <button onClick={() => setShowGoalsModal(true)} className="text-xs sm:text-sm px-2 sm:px-3 py-1 rounded-lg border bg-white hover:bg-gray-50 whitespace-nowrap transition-all duration-300 hover:scale-105 active:scale-95 hover:shadow-sm">Set Goals</button>
             </div>
           </div>
-        ) : null}
 
-        {/* Goals Modal */}
-        {showGoalsModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div className="absolute inset-0 bg-black opacity-30" onClick={() => setShowGoalsModal(false)} />
-            <div className="relative bg-white rounded-lg shadow-lg w-full max-w-md p-6 z-10">
-              <h3 className="text-lg font-semibold mb-3">Set Your Goals</h3>
-              <div className="space-y-3">
-                <label htmlFor="formTrips" className="block text-sm text-gray-700">How many trips do you wish to accomplish this week?</label>
+          <div className="mt-4 h-3 w-full rounded-full bg-slate-100 overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-blue-500 to-emerald-500 transition-all"
+              style={{ width: `${goals && goals.money ? Math.min((earningsToday / (goals.money || 1)) * 100, 100) : progressPct}%` }}
+            />
+          </div>
+
+          {goals && goals.trips ? (
+            <div className="mt-3">
+              <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
+                <div>Trips: {rides}/{goals.trips}</div>
+                <div>{Math.round(Math.min((rides / goals.trips) * 100, 100))}%</div>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                <div
+                  className="bg-emerald-500 h-2 rounded-full transition-all"
+                  style={{ width: `${Math.round(Math.min((rides / goals.trips) * 100, 100))}%` }}
+                />
+              </div>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 sm:p-5 space-y-3 sm:space-y-4 transition-all duration-300 hover:shadow-md hover:scale-[1.02] animate-fade-in-up delay-200">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs sm:text-sm text-slate-500 transition-colors duration-300">Rating</p>
+              <p className="text-xl sm:text-2xl font-semibold text-slate-900 flex items-center gap-1 transition-all duration-300">
+                {rating.toFixed(1)} <Star className="h-4 w-4 sm:h-5 sm:w-5 text-amber-400 flex-shrink-0 transition-all duration-300 hover:scale-110 hover:rotate-12" />
+              </p>
+              <p className="text-xs text-slate-500 truncate transition-colors duration-300">{stats?.totalReviews ?? 0} reviews</p>
+            </div>
+            <div className="rounded-full bg-slate-50 p-2 sm:p-3 border border-slate-100 flex-shrink-0 transition-all duration-300 hover:bg-amber-50 hover:border-amber-200 hover:scale-110">
+              <Star className="h-5 w-5 sm:h-6 sm:w-6 text-amber-400 transition-all duration-300 hover:rotate-12" />
+            </div>
+          </div>
+          <div className="border-t border-slate-100 pt-3 transition-all duration-300">
+            <p className="text-xs sm:text-sm text-slate-500 flex items-center gap-2 transition-colors duration-300">
+              <Clock3 className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0 transition-all duration-300 hover:scale-110 hover:rotate-12" /> <span className="truncate">Online hours</span>
+            </p>
+            <p className="text-base sm:text-lg font-semibold text-slate-900 transition-all duration-300">{onlineHours} hrs</p>
+          </div>
+        </div>
+      </div>
+
+      {/* KPI bar */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="bg-white rounded-lg border border-slate-200 p-3 sm:p-4 shadow-sm flex items-center gap-2 sm:gap-3 transition-all duration-300 hover:shadow-md hover:scale-105 hover:border-blue-300 animate-fade-in-up delay-300 relative overflow-hidden group">
+          <div className="rounded-full bg-blue-50 p-2 sm:p-3 flex-shrink-0 transition-all duration-300 hover:bg-blue-100 hover:scale-110">
+            <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600 transition-all duration-300 hover:rotate-12" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs text-slate-500 transition-colors duration-300">Rides</p>
+            <p className="text-base sm:text-lg font-semibold text-slate-900 truncate transition-all duration-300">{rides}</p>
+            <p className="text-xs text-slate-500 truncate transition-colors duration-300">Accept: {acceptRate}%</p>
+          </div>
+          <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-200 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+        </div>
+        <div className="bg-white rounded-lg border border-slate-200 p-3 sm:p-4 shadow-sm flex items-center gap-2 sm:gap-3 transition-all duration-300 hover:shadow-md hover:scale-105 hover:border-emerald-300 animate-fade-in-up delay-400 relative overflow-hidden group">
+          <div className="rounded-full bg-emerald-50 p-2 sm:p-3 flex-shrink-0 transition-all duration-300 hover:bg-emerald-100 hover:scale-110">
+            <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600 transition-all duration-300 hover:scale-110" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs text-slate-500 transition-colors duration-300">Earnings</p>
+            <p className="text-base sm:text-lg font-semibold text-slate-900 truncate transition-all duration-300">{fmtMoney(earningsToday)}</p>
+            <p className="text-xs text-slate-500 truncate transition-colors duration-300">+{fmtMoney(earningsExtra)}</p>
+          </div>
+          <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-200 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+        </div>
+        <div className="bg-white rounded-lg border border-slate-200 p-3 sm:p-4 shadow-sm flex items-center gap-2 sm:gap-3 transition-all duration-300 hover:shadow-md hover:scale-105 hover:border-indigo-300 animate-fade-in-up delay-500 relative overflow-hidden group">
+          <div className="rounded-full bg-indigo-50 p-2 sm:p-3 flex-shrink-0 transition-all duration-300 hover:bg-indigo-100 hover:scale-110">
+            <CheckCircle2 className="h-4 w-4 sm:h-5 sm:w-5 text-indigo-600 transition-all duration-300 hover:scale-110 hover:rotate-12" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs text-slate-500 transition-colors duration-300">Completed</p>
+            <p className="text-base sm:text-lg font-semibold text-slate-900 truncate transition-all duration-300">{rides}</p>
+            <p className="text-xs text-slate-500 truncate transition-colors duration-300">Total trips</p>
+          </div>
+          <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-200 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+        </div>
+        <div className="bg-white rounded-lg border border-slate-200 p-3 sm:p-4 shadow-sm flex items-center gap-2 sm:gap-3 transition-all duration-300 hover:shadow-md hover:scale-105 hover:border-emerald-300 animate-fade-in-up delay-600 relative overflow-hidden group">
+          <div className="rounded-full bg-emerald-50 p-2 sm:p-3 flex-shrink-0 transition-all duration-300 hover:bg-emerald-100 hover:scale-110">
+            <CheckCircle2 className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600 transition-all duration-300 hover:scale-110 hover:rotate-12" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs text-slate-500 transition-colors duration-300">Goal progress</p>
+            <p className="text-base sm:text-lg font-semibold text-slate-900 truncate transition-all duration-300">
+              {Math.round(goals && goals.money ? Math.min((earningsToday / (goals.money || 1)) * 100, 100) : progressPct)}%
+            </p>
+            <p className="text-xs text-slate-500 truncate transition-colors duration-300">Week target</p>
+          </div>
+          <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-200 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+        </div>
+      </div>
+
+      {/* Goals Modal */}
+      {showGoalsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowGoalsModal(false)} />
+          <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-md p-6 z-10 border border-slate-100 overflow-hidden">
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900">Set Your Goals</h3>
+                <p className="text-sm text-slate-500">Track weekly trips and earnings to stay on target.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowGoalsModal(false)}
+                className="text-slate-500 hover:text-slate-700"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4 max-w-sm">
+              <div className="space-y-1">
+                <label htmlFor="formTrips" className="block text-sm font-medium text-slate-800">
+                  Weekly trips target
+                </label>
                 <input
                   id="formTrips"
                   type="number"
+                  min={0}
                   placeholder="e.g. 20"
                   title="Number of trips goal"
                   value={formTrips as any}
                   onChange={(e) => setFormTrips(e.target.value === '' ? '' : Number(e.target.value))}
-                  className="w-full p-2 border rounded"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
+                <p className="text-xs text-slate-500">How many rides you want to finish this week.</p>
+              </div>
 
-                <label htmlFor="formMoney" className="block text-sm text-gray-700">How much money do you wish to have this week? (TZS)</label>
+              <div className="space-y-1">
+                <label htmlFor="formMoney" className="block text-sm font-medium text-slate-800">
+                  Weekly earnings target (TZS)
+                </label>
                 <input
                   id="formMoney"
                   type="number"
+                  min={0}
                   placeholder="e.g. 100000"
                   title="Money goal in TZS"
                   value={formMoney as any}
                   onChange={(e) => setFormMoney(e.target.value === '' ? '' : Number(e.target.value))}
-                  className="w-full p-2 border rounded"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
-
-                <label className="inline-flex items-center gap-2 mt-2">
-                  <input type="checkbox" checked={formMoneyUrgent} onChange={(e) => setFormMoneyUrgent(e.target.checked)} />
-                  <span className="text-sm text-gray-700">Is the money urgent?</span>
-                </label>
+                <p className="text-xs text-slate-500">Total cash target for this week.</p>
               </div>
 
-              <div className="mt-4 flex items-center justify-end gap-2">
-                <button onClick={handleClearGoals} className="px-3 py-1 rounded border text-sm text-red-600">Clear</button>
-                <button onClick={() => setShowGoalsModal(false)} className="px-3 py-1 rounded border text-sm">Cancel</button>
-                <button onClick={handleSaveGoals} className="px-3 py-1 rounded bg-blue-600 text-white text-sm">Save</button>
+              <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={formMoneyUrgent}
+                  onChange={(e) => setFormMoneyUrgent(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 bg-blue-50 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+                />
+                Mark this earnings goal as urgent
+              </label>
+            </div>
+
+            <div className="mt-6 flex items-center justify-between gap-3">
+              <button
+                onClick={handleClearGoals}
+                className="text-sm text-red-600 hover:text-red-700"
+              >
+                Clear goals
+              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowGoalsModal(false)}
+                  className="px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-700 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveGoals}
+                  className="px-4 py-2 rounded-lg bg-[#02665e] text-white text-sm font-semibold shadow-sm hover:bg-[#015149]"
+                >
+                  Save goals
+                </button>
               </div>
             </div>
           </div>
-        )}
-      </div>
-
-      {/* Stats Grid (compact cards matching admin dimensions) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 mt-6">
-        <StatCard
-          label="Rides"
-          value={stats?.todaysRides ?? 0}
-          hint={`Accept: ${stats?.acceptanceRate ?? 0}%`}
-          color="blue"
-          href="/driver/history"
-          size="sm"
-        />
-
-        <StatCard
-          label="Earnings"
-          value={fmtMoney(stats?.todayEarnings ?? 0)}
-          hint={`+${fmtMoney((stats?.earningsBreakdown?.tips ?? 0) + (stats?.earningsBreakdown?.bonus ?? 0))}`}
-          color="emerald"
-          href="/driver/payouts"
-          size="sm"
-        />
-
-        <StatCard
-          label="Rating"
-          value={`${(stats?.rating ?? 0).toFixed(1)}★`}
-          hint={`${stats?.totalReviews ?? 0} reviews`}
-          color="amber"
-          href="/driver/profile"
-          size="sm"
-        />
-
-        <StatCard
-          label="Online"
-          value={`${Math.round(stats?.onlineHours ?? 0)} hrs`}
-          hint="Active"
-          color="purple"
-          href="/driver/profile"
-          size="sm"
-        />
-      </div>
-
-      {/* Peak Hours Alert removed per request */}
+        </div>
+      )}
 
       {/* Analytics Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -639,9 +809,10 @@ export default function DriverDashboard({ className }: { className?: string }) {
           <div className="font-semibold text-gray-800">RECENT TRIPS</div>
           <Link 
             href="/driver/history" 
-            className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1 no-underline"
+            className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1 no-underline transition-all duration-200 hover:scale-110"
+            title="View All History"
           >
-            View All History <ArrowRight className="h-4 w-4" />
+            <Eye className="h-5 w-5" />
           </Link>
         </div>
         <div className="space-y-3">
@@ -670,15 +841,29 @@ export default function DriverDashboard({ className }: { className?: string }) {
 
       {/* Reminders */}
       <div className="bg-white rounded-lg p-5 shadow-sm">
-        <div className="flex items-center gap-2 mb-4">
-          <AlertCircle className="h-5 w-5 text-amber-600" />
-          <div className="font-semibold text-gray-800">REMINDERS</div>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="h-5 w-5 text-amber-600" />
+            <div className="font-semibold text-gray-800">REMINDERS</div>
+            {reminders.filter((r: any) => !r.isRead).length > 0 && (
+              <span className="px-2 py-0.5 bg-red-500 text-white text-xs rounded-full">
+                {reminders.filter((r: any) => !r.isRead).length} New
+              </span>
+            )}
+          </div>
+          <Link 
+            href="/driver/reminders" 
+            className="text-sm text-emerald-600 hover:text-emerald-700 flex items-center gap-1 no-underline transition-all"
+          >
+            View All
+            <ArrowRight className="h-4 w-4" />
+          </Link>
         </div>
         <div className="space-y-3">
           {reminders.length === 0 ? (
             <div className="text-sm text-gray-600">You have no reminders right now.</div>
           ) : (
-            reminders.map((reminder) => {
+            reminders.slice(0, 5).map((reminder) => {
               const containerCls = reminder.type === 'warning' ? 'bg-amber-50 border border-amber-200' : 'bg-blue-50 border border-blue-200';
               return (
                 <div key={reminder.id} className={`flex items-center justify-between p-3 rounded-lg ${containerCls}`}>

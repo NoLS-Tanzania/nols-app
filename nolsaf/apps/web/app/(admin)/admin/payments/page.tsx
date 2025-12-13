@@ -112,12 +112,9 @@ export default function Page() {
     const load = async () => {
   setLoading(true);
       try{
-        const r = await api.get('/admin/payments');
-        let list: any = r?.data;
-        // common shapes: array or { items: [] } or { payments: [] }
-        if (!list) list = [];
-        if (list.items) list = list.items;
-        if (list.payments) list = list.payments;
+        const r = await api.get('/admin/payments/events');
+        let list: any = r?.data?.items || [];
+        // Handle the API response structure: { total, page, pageSize, items }
         if (!Array.isArray(list)) {
           // attempt to find array in data
           const arr = Object.values(r.data).find(v => Array.isArray(v));
@@ -126,9 +123,9 @@ export default function Page() {
         if (mounted) setPayments(list.map((p: any) => ({
           id: p.id || p.txn || p.transaction_id,
           date: p.date || p.createdAt || p.timestamp,
-          txn: p.txn || p.transaction_id,
-          invoice: p.invoice || p.code || p.invoiceNo,
-          method: p.method || p.payment_method || p.card_description,
+          txn: p.txn || p.transaction_id || p.eventId,
+          invoice: p.invoice?.invoiceNumber || p.invoice?.id || p.code || p.invoiceNo,
+          method: p.method || p.payment_method || p.provider || p.card_description,
           amount: Number(p.amount ?? p.value ?? 0),
           currency: p.currency || p.currencyCode || 'TZS',
           status: p.status || p.state || 'Pending',
@@ -276,12 +273,13 @@ export default function Page() {
                           setModalOpen(true);
                           setModalLoading(true);
                           try {
-                            const res = await api.get(`/admin/payments/${p.id || p.txn}`);
+                            const res = await api.get(`/admin/payments/events/${p.id || p.txn}`);
                             const data = res?.data;
                             const item = Array.isArray(data) ? data[0] : (data.payment || data.item || data);
                             if (item) setSelectedPayment(curr => ({ ...(curr || p), ...item } as Payment));
                           } catch (e) {
-                            // ignore
+                            // ignore - endpoint may not exist or payment not found
+                            console.warn('Failed to load payment details:', e);
                           } finally { 
                             setModalLoading(false); 
                           }
@@ -393,21 +391,18 @@ export default function Page() {
                         if (!confirm('Mark this payment as completed?')) return;
                         setProcessing(true);
                         try {
-                          await api.post(`/admin/payments/${selectedPayment.id}/process`);
+                          // Note: Payment processing endpoints need to be implemented in the API
+                          // For now, we'll just update the UI optimistically
+                          // TODO: Implement POST /admin/payments/events/:id/process or PATCH /admin/payments/events/:id in the API
                           setPayments(prev => prev.map(x => x.id === selectedPayment.id ? ({ ...x, status: 'Completed' }) : x));
                           setModalOpen(false);
                           setSelectedPayment(null);
+                          alert('Payment marked as completed. Note: This is a UI-only update. API endpoint needs to be implemented.');
                         } catch (err) {
-                          try {
-                            await api.patch(`/admin/payments/${selectedPayment.id}`, { status: 'Completed' });
-                            setPayments(prev => prev.map(x => x.id === selectedPayment.id ? ({ ...x, status: 'Completed' }) : x));
-                            setModalOpen(false);
-                            setSelectedPayment(null);
-                          } catch (e) {
-                            alert('Failed to mark payment completed — check server logs.');
-                          }
-                        } finally { 
-                          setProcessing(false); 
+                          console.error('Failed to process payment:', err);
+                          alert('Failed to mark payment completed. The API endpoint for processing payments needs to be implemented.');
+                        } finally {
+                          setProcessing(false);
                         }
                       }} 
                       className="px-4 py-2 bg-[#02665e] text-white rounded-lg hover:bg-[#013a37] transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"

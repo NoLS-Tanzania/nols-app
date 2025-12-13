@@ -1,11 +1,35 @@
 "use client";
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
-import { Bell, LifeBuoy, Settings as SettingsIcon, RefreshCw, Download, Sliders, Sun, Moon, Plus, FileText, Shield, Lock, Truck, User } from "lucide-react";
+import { Bell, LifeBuoy, Settings as SettingsIcon, RefreshCw, Download, Sliders, Sun, Moon, Plus, FileText, Shield, Lock, Truck, User, Gift, Calendar, LogOut, ChevronDown, Trophy, Share2 } from "lucide-react";
 import dynamic from 'next/dynamic';
 const LegalModal = dynamic(() => import('@/components/LegalModal'), { ssr: false });
 import ClientErrorBoundary from '@/components/ClientErrorBoundary';
+
+// Add dropdown animation styles
+if (typeof document !== 'undefined') {
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes fade-in-up {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    .animate-fade-in-up {
+      animation: fade-in-up 0.2s ease-out forwards;
+    }
+  `;
+  style.setAttribute('data-dropdown-animations', 'true');
+  if (!document.head.querySelector('style[data-dropdown-animations]')) {
+    document.head.appendChild(style);
+  }
+}
 
 export default function SiteHeader({
   role = "OWNER",
@@ -20,8 +44,12 @@ export default function SiteHeader({
   const [unreadCount, setUnreadCount] = useState<number | null>(null);
   const [touchedIcon, setTouchedIcon] = useState<string | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [userName, setUserName] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [adminSidebarVisible, setAdminSidebarVisible] = useState(true);
+  const profileDropdownRef = useRef<HTMLDivElement>(null);
 
   const handleTouch = (id: string) => {
     setTouchedIcon(id);
@@ -56,6 +84,8 @@ export default function SiteHeader({
         if (!r.ok) return;
         const data = await r.json();
         if (data.avatarUrl) setAvatarUrl(data.avatarUrl);
+        if (data.fullName) setUserName(data.fullName);
+        if (data.email) setUserEmail(data.email);
       } catch (err) {
         // ignore
       }
@@ -78,6 +108,10 @@ export default function SiteHeader({
       const target = e.target as HTMLElement;
       if (!target.closest('[data-settings-dropdown]')) {
         setSettingsOpen(false);
+      }
+      // Close profile dropdown when clicking outside
+      if (profileDropdownRef.current && !profileDropdownRef.current.contains(target as Node)) {
+        setProfileDropdownOpen(false);
       }
     };
     document.addEventListener('click', handleClickOutside);
@@ -157,7 +191,7 @@ export default function SiteHeader({
     >
       <div className={`mx-auto max-w-6xl px-4 h-16 flex items-center justify-between ${isAdmin && adminSidebarVisible ? 'md:ml-64' : ''}`}>
         {/* Owner: small toggle to hide/show sidebar. Uses a global event so Layout can listen */}
-        {isOwner ? (
+        {isOwner && !driverMode ? (
           <button
             onClick={() => {
               try {
@@ -191,14 +225,41 @@ export default function SiteHeader({
             </svg>
           </button>
         ) : null}
+        {driverMode ? (
+          <button
+            onClick={() => {
+              try {
+                window.dispatchEvent(new CustomEvent('toggle-driver-sidebar', { detail: { source: 'header' } }));
+              } catch (e) {
+                // ignore
+              }
+            }}
+            aria-label="Toggle sidebar"
+            className="hidden md:inline-flex items-center justify-center h-9 w-9 rounded-md bg-white/10 text-white/90 hover:bg-white/20 mr-3"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+              <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        ) : null}
         {isAdmin ? (
           <Link href="/" className="inline-flex items-center" aria-label="NoLSAF Home">
             <Image
               src="/assets/nolsnewlog.png"
               alt="NoLSAF"
-              width={140}
-              height={36}
-              className="h-10 w-auto"
+              width={120}
+              height={30}
+              className="h-8 w-auto"
+            />
+          </Link>
+        ) : isOwner ? (
+          <Link href="/" className="inline-flex items-center" aria-label="NoLSAF Home">
+            <Image
+              src="/assets/nolsnewlog.png"
+              alt="NoLSAF"
+              width={120}
+              height={30}
+              className="h-8 w-auto"
             />
           </Link>
         ) : null}
@@ -288,20 +349,35 @@ export default function SiteHeader({
           <div className="hidden md:inline-flex items-center gap-1">
             <button
               onClick={handleRefresh}
-              className={`inline-flex items-center justify-center rounded-md p-1.5 hover:bg-white/10 ${touchedIcon === 'refresh' ? 'bg-white/10' : ''}`}
+              className="inline-flex items-center justify-center p-1.5 bg-transparent border-0 transition-all duration-300 ease-out active:scale-75 hover:scale-110 active:opacity-70"
               aria-label="Refresh"
               title="Refresh"
               onTouchStart={() => handleTouch('refresh')}
+              onTouchEnd={() => setTouchedIcon(null)}
             >
-              <RefreshCw className={`h-5 w-5 text-white ${isRefreshing ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`h-5 w-5 text-white transition-all duration-300 ease-out ${isRefreshing ? 'animate-spin' : 'hover:rotate-180 active:rotate-360'}`} />
             </button>
 
-            <Link href="/driver/notifications" className="relative inline-flex items-center justify-center rounded-md p-1.5 hover:bg-white/10" aria-label="Notifications" title="Notifications">
-              <Bell className="h-5 w-5 text-white" />
+            <Link 
+              href="/driver/notifications" 
+              className="relative inline-flex items-center justify-center p-1.5 bg-transparent transition-all duration-300 ease-out active:scale-75 hover:scale-110 active:opacity-70"
+              aria-label="Notifications" 
+              title="Notifications"
+              onTouchStart={() => handleTouch('notifications')}
+              onTouchEnd={() => setTouchedIcon(null)}
+            >
+              <Bell className="h-5 w-5 text-white transition-all duration-300 ease-out hover:animate-pulse active:scale-125" />
             </Link>
 
-            <Link href="/driver/support" className="inline-flex items-center justify-center rounded-md p-1.5 hover:bg-white/10" aria-label="Request assistance" title="Request assistance">
-              <LifeBuoy className="h-5 w-5 text-white" />
+            <Link 
+              href="/driver/support" 
+              className="inline-flex items-center justify-center p-1.5 bg-transparent transition-all duration-300 ease-out active:scale-75 hover:scale-110 active:opacity-70"
+              aria-label="Request assistance" 
+              title="Request assistance"
+              onTouchStart={() => handleTouch('support')}
+              onTouchEnd={() => setTouchedIcon(null)}
+            >
+              <LifeBuoy className="h-5 w-5 text-white transition-all duration-300 ease-out hover:rotate-12 active:rotate-24" />
             </Link>
 
             <div className="relative" data-settings-dropdown>
@@ -310,11 +386,13 @@ export default function SiteHeader({
                   e.stopPropagation();
                   setSettingsOpen(!settingsOpen);
                 }}
-                className={`inline-flex items-center justify-center rounded-md p-1.5 hover:bg-white/10 ${settingsOpen ? 'bg-white/10' : ''}`}
+                className="inline-flex items-center justify-center p-1.5 bg-transparent border-0 transition-all duration-300 ease-out active:scale-75 hover:scale-110 active:opacity-70"
                 aria-label="Settings"
                 title="Settings"
+                onTouchStart={() => handleTouch('settings')}
+                onTouchEnd={() => setTouchedIcon(null)}
               >
-                <SettingsIcon className="h-5 w-5 text-white" />
+                <SettingsIcon className={`h-5 w-5 text-white transition-all duration-300 ease-out ${settingsOpen ? 'rotate-90' : 'hover:rotate-45 active:rotate-90'}`} />
               </button>
 
               {settingsOpen && (
@@ -378,17 +456,122 @@ export default function SiteHeader({
 
             <div className="mx-2 h-5 w-px bg-white/20" />
 
-            <Link href="/driver/profile" className="inline-flex items-center justify-center">
-              {avatarUrl ? (
-                <div className="h-10 w-10 rounded-full border border-white/20 overflow-hidden">
-                  <Image src={avatarUrl} alt="Profile" width={40} height={40} className="object-cover w-full h-full" />
-                </div>
+            <div ref={profileDropdownRef} className="relative">
+              <button
+                onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
+                className="inline-flex items-center justify-center gap-2 p-1 bg-transparent border-0 transition-all duration-300 ease-out active:scale-90 hover:scale-105 active:opacity-70"
+                aria-label="Profile menu"
+                aria-expanded={profileDropdownOpen}
+                onTouchStart={() => handleTouch('profile')}
+                onTouchEnd={() => setTouchedIcon(null)}
+              >
+                {avatarUrl ? (
+                  <div className="h-10 w-10 rounded-full border border-white/20 overflow-hidden transition-all duration-300 ease-out hover:border-white/40 hover:scale-110 active:scale-95 active:border-white/60">
+                    <Image src={avatarUrl} alt="Profile" width={40} height={40} className="object-cover w-full h-full transition-transform duration-300 ease-out hover:scale-110 active:scale-95" />
+                  </div>
                 ) : (
-                <div className="h-10 w-10 rounded-full border border-white/20 bg-white/10 flex items-center justify-center">
-                  <User className="h-5 w-5 text-white/90" />
+                  <div className="h-10 w-10 rounded-full border border-white/20 flex items-center justify-center transition-all duration-300 ease-out hover:border-white/40 hover:scale-110 active:scale-95 active:border-white/60">
+                    <User className="h-5 w-5 text-white/90 transition-all duration-300 ease-out active:scale-110" />
+                  </div>
+                )}
+                <ChevronDown className={`h-4 w-4 text-white/90 transition-all duration-300 ease-out ${profileDropdownOpen ? 'rotate-180' : 'hover:translate-y-0.5 active:translate-y-1'}`} />
+              </button>
+
+              {profileDropdownOpen && (
+                <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-50 animate-fade-in-up">
+                  {/* Profile Info Section */}
+                  <div className="px-3 py-2.5 border-b border-gray-100 bg-gradient-to-r from-emerald-50/50 to-slate-50/50">
+                    <div className="flex items-center gap-2.5">
+                      {avatarUrl ? (
+                        <div className="h-8 w-8 rounded-full border border-emerald-200 overflow-hidden flex-shrink-0 transition-transform duration-300 hover:scale-110">
+                          <Image src={avatarUrl} alt="Profile" width={32} height={32} className="object-cover w-full h-full" />
+                        </div>
+                      ) : (
+                        <div className="h-8 w-8 rounded-full border border-emerald-200 bg-emerald-100 flex items-center justify-center flex-shrink-0 transition-transform duration-300 hover:scale-110">
+                          <User className="h-4 w-4 text-emerald-600" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-sm text-gray-900 truncate">
+                          {userName || 'Driver'}
+                        </div>
+                        <div className="text-xs text-gray-500 truncate">
+                          {userEmail || 'No email'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Menu Items */}
+                  <div className="py-1">
+                    <Link
+                      href="/driver/profile"
+                      onClick={() => setProfileDropdownOpen(false)}
+                      className="flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 transition-all duration-200 no-underline group"
+                    >
+                      <User className="h-4 w-4 text-gray-500 group-hover:text-emerald-600 transition-all duration-200 group-hover:scale-110" />
+                      <span className="font-medium">My Profile</span>
+                    </Link>
+
+                    <Link
+                      href="/driver/bonus"
+                      onClick={() => setProfileDropdownOpen(false)}
+                      className="flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 transition-all duration-200 no-underline group"
+                    >
+                      <Gift className="h-4 w-4 text-gray-500 group-hover:text-emerald-600 transition-all duration-200 group-hover:scale-110" />
+                      <span className="font-medium">My Bonus</span>
+                    </Link>
+
+                    <Link
+                      href="/driver/level"
+                      onClick={() => setProfileDropdownOpen(false)}
+                      className="flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 transition-all duration-200 no-underline group"
+                    >
+                      <Trophy className="h-4 w-4 text-gray-500 group-hover:text-emerald-600 transition-all duration-200 group-hover:scale-110" />
+                      <span className="font-medium">Level</span>
+                    </Link>
+
+                    <Link
+                      href="/driver/referral"
+                      onClick={() => setProfileDropdownOpen(false)}
+                      className="flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 transition-all duration-200 no-underline group"
+                    >
+                      <Share2 className="h-4 w-4 text-gray-500 group-hover:text-emerald-600 transition-all duration-200 group-hover:scale-110" />
+                      <span className="font-medium">Referral</span>
+                    </Link>
+
+                    <Link
+                      href="/driver/history"
+                      onClick={() => setProfileDropdownOpen(false)}
+                      className="flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 transition-all duration-200 no-underline group"
+                    >
+                      <Calendar className="h-4 w-4 text-gray-500 group-hover:text-emerald-600 transition-all duration-200 group-hover:scale-110" />
+                      <span className="font-medium">History</span>
+                    </Link>
+
+                    <Link
+                      href="/driver/management"
+                      onClick={() => setProfileDropdownOpen(false)}
+                      className="flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 transition-all duration-200 no-underline group"
+                    >
+                      <SettingsIcon className="h-4 w-4 text-gray-500 group-hover:text-emerald-600 transition-all duration-200 group-hover:scale-110" />
+                      <span className="font-medium">Setting</span>
+                    </Link>
+
+                    <button
+                      onClick={() => {
+                        localStorage.removeItem('token');
+                        window.location.href = '/login';
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-all duration-200 no-underline group"
+                    >
+                      <LogOut className="h-4 w-4 group-hover:scale-110 transition-all duration-200" />
+                      <span className="font-medium">Logout</span>
+                    </button>
+                  </div>
                 </div>
               )}
-            </Link>
+            </div>
           </div>
         ) : isOwner ? (
           <div className="hidden md:inline-flex items-center gap-1">

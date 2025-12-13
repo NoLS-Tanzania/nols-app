@@ -4,6 +4,7 @@ import type { RequestHandler, Response } from 'express';
 import { prisma } from "@nolsaf/prisma";
 import { AuthedRequest, requireAuth, requireRole } from "../middleware/auth.js";
 import { invalidateOwnerReports } from "../lib/cache.js";
+import { validateBookingCode, markBookingCodeAsUsed } from "../lib/bookingCodeService.js";
 
 export const router = Router();
 router.use(
@@ -26,39 +27,45 @@ const validateBooking: RequestHandler = async (req, res) => {
   const { code } = req.body as { code: string };
   if (!code) return (res as Response).status(400).json({ error: "Code is required" });
 
-  const booking = await prisma.booking.findFirst({
-    where: { code: { code: code }, property: { ownerId: r.user!.id } },
-    include: { property: true, code: true }
-  });
+  // Use the booking code service to validate
+  const validation = await validateBookingCode(code.trim(), r.user!.id);
 
-  if (!booking) return (res as Response).status(400).json({ error: "Invalid or expired code" });
+  if (!validation.valid || !validation.booking) {
+    return (res as Response).status(400).json({ 
+      error: validation.error || "Invalid or expired code" 
+    });
+  }
 
-  // compute derived fields
+  const booking = validation.booking;
+  const codeRecord = booking.code;
+
+  // Compute derived fields
   const nights = differenceInCalendarDays(booking.checkOut, booking.checkIn);
 
-  // Map details (use your real fields if named differently)
+  // Map details with all booking information
   const details = {
     bookingId: booking.id,
+    code: codeRecord?.code || null,
     property: {
       id: booking.propertyId,
       title: booking.property?.title ?? "-",
       type: booking.property?.type ?? "-"
     },
     personal: {
-      fullName: (booking as any).guestName ?? (booking as any).customerName ?? "-",
-      phone: (booking as any).guestPhone ?? (booking as any).phone ?? "-",
-      nationality: (booking as any).nationality ?? "-",
-      sex: (booking as any).sex ?? "-",
-      ageGroup: (booking as any).ageGroup ?? ((booking as any).isChild ? "Child" : "Adult")
+      fullName: booking.guestName || booking.user?.name || "-",
+      phone: booking.guestPhone || booking.user?.phone || "-",
+      nationality: booking.nationality || "-",
+      sex: booking.sex || "-",
+      ageGroup: booking.ageGroup || (booking.user ? "Adult" : "-")
     },
     booking: {
-      roomType: (booking as any).roomType ?? (booking as any).unitType ?? "-",
-      rooms: (booking as any).rooms ?? 1,
+      roomType: booking.roomType || booking.roomCode || "-",
+      rooms: booking.rooms || 1,
       nights,
       checkIn: booking.checkIn,
       checkOut: booking.checkOut,
       status: booking.status,
-      totalAmount: booking.totalAmount
+      totalAmount: Number(booking.totalAmount || 0).toFixed(2)
     }
   };
 
@@ -75,14 +82,24 @@ const confirmCheckin: RequestHandler = async (req, res) => {
   // ensure this booking belongs to one of the owner's properties
   const booking = await prisma.booking.findFirst({
     where: { id: bookingId, property: { ownerId: r.user!.id } },
-    include: { property: true }
+    include: { property: true, code: true }
   });
   if (!booking) return (res as Response).status(404).json({ error: "Booking not found" });
 
-  // update booking status
-  const updated = await prisma.booking.update({
-    where: { id: booking.id },
-    data: { status: "CHECKED_IN" }
+  if (!booking.code) {
+    return (res as Response).status(400).json({ error: "No booking code found for this booking" });
+  }
+
+  // Mark code as used and update booking status using the service
+  const result = await markBookingCodeAsUsed(booking.code.id, r.user!.id);
+  
+  if (!result.success) {
+    return (res as Response).status(400).json({ error: result.error || "Failed to confirm check-in" });
+  }
+
+  // Fetch updated booking
+  const updated = await prisma.booking.findUnique({
+    where: { id: booking.id }
   });
 
   // attempt to persist confirmation to an audit table if it exists

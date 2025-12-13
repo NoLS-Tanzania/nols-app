@@ -49,15 +49,16 @@ async function idempotentConfirmAndCode(tx: typeof prisma, bookingId: number) {
 
 /**
  * GET /admin/bookings
- * Query: date=YYYY-MM-DD&status=&propertyId=&ownerId=&q=&page=&pageSize=
+ * Query: date=YYYY-MM-DD&status=&propertyId=&ownerId=&userId=&q=&page=&pageSize=
  */
 router.get("/", async (req, res) => {
-  const { date, status, propertyId, ownerId, q, page = "1", pageSize = "30" } = req.query as any;
+  const { date, status, propertyId, ownerId, userId, q, page = "1", pageSize = "30" } = req.query as any;
 
   const where: any = {};
   if (status) where.status = status;
   if (propertyId) where.propertyId = Number(propertyId);
   if (ownerId) where.property = { ownerId: Number(ownerId) };
+  if (userId) where.userId = Number(userId);
 
   if (date) {
     const d = new Date(String(date));
@@ -73,6 +74,7 @@ router.get("/", async (req, res) => {
       { guestName: { contains: q, mode: "insensitive" } },
       { property: { title: { contains: q, mode: "insensitive" } } },
       { code: { codeVisible: { contains: q, mode: "insensitive" } } },
+      { user: { email: { contains: q, mode: "insensitive" } } },
     ];
   }
 
@@ -85,6 +87,7 @@ router.get("/", async (req, res) => {
       include: {
         property: { select: { id: true, title: true, ownerId: true } },
         code: { select: { id: true, codeVisible: true, status: true } },
+        user: { select: { id: true, name: true, email: true } },
       },
       orderBy: { id: "desc" },
       skip,

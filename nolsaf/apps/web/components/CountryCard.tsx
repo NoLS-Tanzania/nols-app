@@ -67,6 +67,7 @@ export default function CountryCard({ id, name, flag = '', imageSrc, subtitle, b
       onBlur={() => onHover?.(null)}
       aria-label={`${name} — ${subtitle ?? ''}`}
       className={`relative rounded-lg overflow-hidden bg-white border card-raise ${highlighted ? 'ring-2 ring-emerald-300 shadow-lg' : 'shadow-sm'} ${accentClass} ${countryRailClassMap[(id || name || '').toLowerCase()] ?? ''}`}
+      style={{ contain: 'layout style paint', transform: 'translateZ(0)' }}
     >
       <div className="p-4 md:p-5">
         <div className="flex items-start gap-3">
@@ -124,8 +125,8 @@ export default function CountryCard({ id, name, flag = '', imageSrc, subtitle, b
                           aria-label={p}
                           className="group relative inline-block"
                         >
-                          <div className="w-8 h-6 flex items-center justify-center bg-white rounded-sm border border-slate-100 p-0.5">
-                            <Image src={icon} alt={p} width={28} height={16} className="object-contain" />
+                          <div className="w-8 h-6 flex items-center justify-center bg-white rounded-sm border border-slate-100 p-0.5 flex-shrink-0">
+                            <Image src={icon} alt={p} width={28} height={16} className="object-contain" style={{ width: 'auto', height: 'auto', maxWidth: '100%', maxHeight: '100%' }} />
                           </div>
                           <span className="pointer-events-none absolute -top-7 left-1/2 transform -translate-x-1/2 whitespace-nowrap rounded bg-slate-800 text-white text-xs px-2 py-1 opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-opacity text-center">
                             {p}
@@ -151,21 +152,21 @@ export default function CountryCard({ id, name, flag = '', imageSrc, subtitle, b
         ) : null}
 
         {imageSrc ? (
-          <div className="mt-3 md:mt-4">
-            <Image src={imageSrc} alt={`${name} preview`} width={280} height={140} className="rounded-md object-cover" />
+          <div className="mt-3 md:mt-4 relative w-full" style={{ aspectRatio: '2/1', minHeight: '140px' }}>
+            <Image src={imageSrc} alt={`${name} preview`} fill className="rounded-md object-cover" sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw" />
           </div>
         ) : null}
 
         <div className="mt-4">
-          <Link href={href} onClick={() => onClick?.(id)} className="inline-flex items-center px-5 py-2 bg-emerald-600 text-white rounded-full no-underline btn-explore" aria-label={`Explore ${name}`}>
-            <span className="mr-1">Explore</span>
+          <Link href={href} onClick={() => onClick?.(id)} className="inline-flex items-center px-5 py-2 bg-emerald-600 text-white rounded-full no-underline btn-explore" aria-label={`Explore ${name}`} style={{ backfaceVisibility: 'hidden', WebkitFontSmoothing: 'antialiased' }}>
+            <span className="mr-1" style={{ display: 'inline-block' }}>Explore</span>
             {(() => {
               const key = (id || name || '').toLowerCase();
               const cls = countryNameClassMap[key];
               if (cls) {
-                return <span className={`font-semibold ${cls}`}>{name}</span>;
+                return <span className={`font-semibold ${cls}`} style={{ display: 'inline-block' }}>{name}</span>;
               }
-              return <span className="font-semibold">{name}</span>;
+              return <span className="font-semibold" style={{ display: 'inline-block' }}>{name}</span>;
             })()}
           </Link>
         </div>
