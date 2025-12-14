@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { prisma } from "@nolsaf/prisma";
+import { Prisma } from "@prisma/client";
 import requireRole from "../middleware/auth";
 
 const router = Router();
@@ -13,7 +14,22 @@ router.get("/", requireRole("ADMIN"), async (req, res) => {
     res.json({ items: partners });
   } catch (err: any) {
     console.error("Failed to fetch trust partners", err);
-    res.status(500).json({ error: "Failed to fetch trust partners" });
+    console.error("Error details:", {
+      code: err?.code,
+      message: err?.message,
+      meta: err?.meta,
+    });
+    
+    // Check for Prisma errors - table might not exist
+    if (err instanceof Prisma.PrismaClientKnownRequestError) {
+      if (err.code === 'P2021' || err.code === 'P2022') {
+        console.warn('TrustPartner table may not exist:', err.message);
+        return res.json({ items: [] });
+      }
+    }
+    
+    // Return empty array instead of 500 to prevent UI crash
+    res.json({ items: [] });
   }
 });
 
@@ -33,7 +49,11 @@ router.get("/public", async (req, res) => {
     res.json({ items: partners });
   } catch (err: any) {
     console.error("Failed to fetch public trust partners", err);
-    res.status(500).json({ error: "Failed to fetch trust partners" });
+    // Return empty array instead of 500 to prevent UI crash
+    if (err instanceof Prisma.PrismaClientKnownRequestError && (err.code === 'P2021' || err.code === 'P2022')) {
+      return res.json({ items: [] });
+    }
+    res.json({ items: [] });
   }
 });
 

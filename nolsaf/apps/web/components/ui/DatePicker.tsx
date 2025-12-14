@@ -175,36 +175,45 @@ export default function DatePicker({
   }, [view.year, view.month]);
 
   return (
-    <div ref={rootRef} className="bg-white border rounded shadow-lg p-3 w-64 sm:w-72">
-      <div className="flex items-center justify-between mb-2">
+    <div ref={rootRef} className="bg-white border border-gray-200 rounded-xl shadow-2xl p-4 w-72 sm:w-80 backdrop-blur-sm">
+      {/* Header with month/year navigation */}
+      <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
         <button
           type="button"
           onClick={() => setView((v) => ({ year: v.month === 0 ? v.year - 1 : v.year, month: (v.month + 11) % 12 }))}
-          className="px-2 py-1 rounded hover:bg-gray-100"
+          className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-600 hover:text-gray-900"
+          aria-label="Previous month"
         >
-          ‹
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
         </button>
-        <div className="text-sm font-medium">
+        <div className="text-base font-semibold text-gray-900">
           {MONTHS[view.month]} {view.year}
         </div>
         <button
           type="button"
           onClick={() => setView((v) => ({ year: v.month === 11 ? v.year + 1 : v.year, month: (v.month + 1) % 12 }))}
-          className="px-2 py-1 rounded hover:bg-gray-100"
+          className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-600 hover:text-gray-900"
+          aria-label="Next month"
         >
-          ›
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
         </button>
       </div>
 
-      <div className="grid grid-cols-7 gap-1 text-center text-xs text-gray-500 mb-1">
+      {/* Weekday headers */}
+      <div className="grid grid-cols-7 gap-1 mb-2">
         {WEEKDAYS.map((w) => (
-          <div key={w} className="py-1">
+          <div key={w} className="text-center text-xs font-semibold text-gray-500 py-2">
             {w}
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-7 gap-1 text-sm">
+      {/* Calendar grid */}
+      <div className="grid grid-cols-7 gap-1">
         {days.map((cell, idx) => {
           const isoKey = `${cell.y}-${pad(cell.m + 1)}-${pad(cell.d)}`;
           const sel = isSelected(cell.y, cell.m, cell.d);
@@ -217,6 +226,8 @@ export default function DatePicker({
           if (cellDateY < todayY) isPast = true;
           else if (cellDateY === todayY && cellDateM < todayM) isPast = true;
           else if (cellDateY === todayY && cellDateM === todayM && cellDateD < todayD) isPast = true;
+
+          const hasCount = perDayCounts[isoKey] && perDayCounts[isoKey].total > 0;
 
           return (
             <button
@@ -251,56 +262,35 @@ export default function DatePicker({
                 // keep picker open to allow shift+click ranges; do not auto-close
               }}
               onFocus={() => setFocusedIdx(idx)}
-              className={
-                "py-1 rounded outline-none relative p-2 text-left " +
-                (cell.currentMonth ? "" : "text-gray-300") +
-                (sel
-                  ? " bg-emerald-600 text-white"
+              className={`
+                relative aspect-square flex items-center justify-center rounded-lg text-sm font-medium
+                transition-all duration-150 outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1
+                ${!cell.currentMonth ? "text-gray-300" : ""}
+                ${sel
+                  ? "bg-emerald-600 text-white shadow-md scale-105"
                   : isToday
-                  ? " bg-emerald-200 text-emerald-900 font-semibold"
+                  ? "bg-emerald-50 text-emerald-700 border-2 border-emerald-500 font-semibold"
                   : isPast
-                  ? " text-gray-400"
-                  : " hover:bg-sky-50")
-              }
+                  ? "text-gray-400 cursor-not-allowed"
+                  : "text-gray-700 hover:bg-gray-100 active:scale-95"}
+                ${hasCount && !sel ? "font-semibold" : ""}
+              `}
               title={(() => {
                 const key = `${cell.y}-${pad(cell.m + 1)}-${pad(cell.d)}`;
                 const c = perDayCounts[key];
                 if (!c) return undefined;
                 return Object.entries(c.statuses).map(([k, v]) => `${k}: ${v}`).join(", ");
               })()}
+              disabled={isPast && !sel}
             >
-              <div className="flex items-start justify-between">
-                <div>{cell.d}</div>
-                {perDayCounts[isoKey] && (
-                  <span
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      // clicking the tiny badge sets the filter to this date and closes the picker
-                      onSelect(isoKey);
-                      onClose?.();
-                    }}
-                    className="ml-2 text-[10px] px-1 py-0.5 rounded-full bg-gray-100 text-gray-800 cursor-pointer hover:bg-gray-200"
-                    title={`Total: ${perDayCounts[isoKey].total}`}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        onSelect(isoKey);
-                        onClose?.();
-                      }
-                    }}
-                  >
-                    {perDayCounts[isoKey].total}
-                  </span>
-                )}
-              </div>
+              <span className="relative z-10">{cell.d}</span>
+              {hasCount && !sel && (
+                <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-emerald-500"></span>
+              )}
             </button>
           );
         })}
       </div>
-
     </div>
   );
 }

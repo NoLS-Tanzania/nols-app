@@ -91,7 +91,7 @@ export default function AdminDriversInvoicesPage() {
       }
       if (q) params.q = q;
 
-      const r = await api.get<{ items: InvoiceRow[]; total: number }>("/admin/drivers/invoices", { params });
+      const r = await api.get<{ items: InvoiceRow[]; total: number }>("/api/admin/drivers/invoices", { params });
       setList(r.data?.items ?? []);
       setTotal(r.data?.total ?? 0);
     } catch (err) {
@@ -106,7 +106,7 @@ export default function AdminDriversInvoicesPage() {
   const loadHistogram = useCallback(async () => {
     setHistogramLoading(true);
     try {
-      const r = await api.get<InvoiceStatsResponse>("/admin/drivers/invoices/stats", {
+      const r = await api.get<InvoiceStatsResponse>("/api/admin/drivers/invoices/stats", {
         params: { period: histogramPeriod },
       });
       setHistogramData(r.data);

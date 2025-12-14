@@ -108,7 +108,7 @@ export default function LoginHistoryPage() {
                       <td className="px-6 py-4 text-sm text-slate-700">{r.platform ?? '—'}</td>
                       <td className="px-6 py-4 text-sm text-slate-700 whitespace-pre-wrap max-w-xs">{r.details ?? '—'}</td>
                       <td className="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">{formatDuration(r.timeUsed)}</td>
-                      <td className="px-6 py-4 text-sm whitespace-nowrap">{renderResultBadge(r.success)}</td>
+                      <td className="px-6 py-4 text-sm whitespace-nowrap">{renderResultBadge(r.success ?? null)}</td>
                     </TableRow>
                   ))
                 )}

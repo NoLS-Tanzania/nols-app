@@ -15,9 +15,10 @@ router.get("/", async (req, res) => {
     const where: any = { role: "DRIVER" };
     if (q) {
       where.OR = [
-        { name: { contains: q, mode: "insensitive" } },
-        { email: { contains: q, mode: "insensitive" } },
-        { phone: { contains: q, mode: "insensitive" } },
+        // MySQL doesn't support `mode: "insensitive"`, so use plain contains
+        { name: { contains: q } },
+        { email: { contains: q } },
+        { phone: { contains: q } },
       ];
     }
     if (status) {
@@ -34,7 +35,6 @@ router.get("/", async (req, res) => {
         select: {
           id: true, name: true, email: true, phone: true,
           suspendedAt: true, createdAt: true,
-          region: true, district: true, // Add region and district if they exist
           _count: true,
         },
         orderBy: { id: "desc" },
@@ -47,6 +47,12 @@ router.get("/", async (req, res) => {
   } catch (err: any) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && (err.code === 'P2021' || err.code === 'P2022')) {
       console.warn('Prisma schema mismatch when querying drivers list:', err.message);
+      const page = Number((req.query as any).page ?? 1);
+      const pageSize = Math.min(Number((req.query as any).pageSize ?? 50), 100);
+      return res.json({ total: 0, page, pageSize, items: [] });
+    }
+    if (err instanceof Prisma.PrismaClientValidationError) {
+      console.warn('Prisma validation error when querying drivers list:', err.message);
       const page = Number((req.query as any).page ?? 1);
       const pageSize = Math.min(Number((req.query as any).pageSize ?? 50), 100);
       return res.json({ total: 0, page, pageSize, items: [] });
@@ -92,22 +98,33 @@ router.get("/trips/stats", async (req, res) => {
     }
     startDate.setHours(0, 0, 0, 0);
 
-    // Get all trips in the date range
-    const trips = await prisma.booking.findMany({
+    // Transport trips live in TransportBooking (NOT Booking).
+    // Booking is for property stays and does not have driverId/scheduledAt/price.
+    if (!(prisma as any).transportBooking) {
+      return res.json({
+        stats: [],
+        period,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+      });
+    }
+
+    // Get all transport trips in the date range
+    const trips = await (prisma as any).transportBooking.findMany({
       where: {
         driverId: { not: null },
-        scheduledAt: {
+        scheduledDate: {
           gte: startDate,
           lte: endDate,
         },
       },
       select: {
-        scheduledAt: true,
+        scheduledDate: true,
         status: true,
-        price: true,
+        amount: true,
       },
       orderBy: {
-        scheduledAt: "asc",
+        scheduledDate: "asc",
       },
     });
 
@@ -115,13 +132,13 @@ router.get("/trips/stats", async (req, res) => {
     const dateMap = new Map<string, { count: number; completed: number; amount: number }>();
     
     trips.forEach((trip) => {
-      const dateKey = trip.scheduledAt.toISOString().split("T")[0];
+      const dateKey = trip.scheduledDate.toISOString().split("T")[0];
       const existing = dateMap.get(dateKey) || { count: 0, completed: 0, amount: 0 };
       existing.count += 1;
       if (trip.status === "COMPLETED") {
         existing.completed += 1;
       }
-      existing.amount += trip.price ?? 0;
+      existing.amount += Number(trip.amount ?? 0);
       dateMap.set(dateKey, existing);
     });
 
@@ -169,57 +186,82 @@ router.get("/trips", async (req, res) => {
     if (date) {
       const s = new Date(String(date) + "T00:00:00.000Z");
       const e = new Date(String(date) + "T23:59:59.999Z");
-      where.scheduledAt = { gte: s, lte: e };
+      where.scheduledDate = { gte: s, lte: e };
     } else if (start || end) {
       const s = start ? new Date(String(start) + "T00:00:00.000Z") : new Date(0);
       const e = end ? new Date(String(end) + "T23:59:59.999Z") : new Date();
-      where.scheduledAt = { gte: s, lte: e };
+      where.scheduledDate = { gte: s, lte: e };
     }
     
     // Search query
     if (q) {
-      where.OR = [
-        { tripCode: { contains: q, mode: "insensitive" } },
-        { pickup: { contains: q, mode: "insensitive" } },
-        { dropoff: { contains: q, mode: "insensitive" } },
-        { driver: { name: { contains: q, mode: "insensitive" } } },
-        { driver: { email: { contains: q, mode: "insensitive" } } },
-      ];
+      const term = String(q).trim();
+      if (term) {
+        // MySQL doesn't support `mode: "insensitive"`, so we use plain contains.
+        where.OR = [
+          { fromAddress: { contains: term } },
+          { toAddress: { contains: term } },
+          { fromDistrict: { contains: term } },
+          { toDistrict: { contains: term } },
+          { fromRegion: { contains: term } },
+          { toRegion: { contains: term } },
+          { paymentRef: { contains: term } },
+          // Optional relation filter needs `is`
+          { driver: { is: { name: { contains: term } } } },
+          { driver: { is: { email: { contains: term } } } },
+        ];
+      }
     }
     
     const skip = (Number(page) - 1) * Number(pageSize);
     const take = Math.min(Number(pageSize), 100);
     
+    if (!(prisma as any).transportBooking) {
+      return res.json({ total: 0, page: Number(page), pageSize: take, items: [] });
+    }
+
     const [items, total] = await Promise.all([
-      prisma.booking.findMany({
+      (prisma as any).transportBooking.findMany({
         where,
         include: {
           driver: {
             select: { id: true, name: true, email: true, phone: true },
           },
         },
-        orderBy: { scheduledAt: "desc" },
+        orderBy: { scheduledDate: "desc" },
         skip,
         take,
       }),
-      prisma.booking.count({ where }),
+      (prisma as any).transportBooking.count({ where }),
     ]);
     
-    const mapped = items.map((b: any) => ({
+    const fmtLoc = (kind: "from" | "to", row: any) => {
+      const addr = kind === "from" ? row.fromAddress : row.toAddress;
+      if (addr) return addr;
+      const ward = kind === "from" ? row.fromWard : row.toWard;
+      const district = kind === "from" ? row.fromDistrict : row.toDistrict;
+      const region = kind === "from" ? row.fromRegion : row.toRegion;
+      const parts = [ward, district, region].filter(Boolean);
+      return parts.length ? parts.join(", ") : "N/A";
+    };
+
+    const mapped = (items as any[]).map((b: any) => ({
       id: b.id,
-      tripCode: b.tripCode || b.code || b.reference || `TRIP-${b.id}`,
-      driver: b.driver ? {
-        id: b.driver.id,
-        name: b.driver.name || "Unknown Driver",
-        email: b.driver.email,
-        phone: b.driver.phone,
-      } : null,
-      pickup: b.pickup || b.pickupAddress || b.pickupLocation || "N/A",
-      dropoff: b.dropoff || b.dropoffAddress || b.dropoffLocation || "N/A",
-      scheduledAt: b.scheduledAt || b.date || b.createdAt,
-      amount: b.price ?? b.fare ?? b.total ?? 0,
+      tripCode: b.paymentRef || `TRIP-${b.id}`,
+      driver: b.driver
+        ? {
+            id: b.driver.id,
+            name: b.driver.name || "Unknown Driver",
+            email: b.driver.email,
+            phone: b.driver.phone,
+          }
+        : null,
+      pickup: fmtLoc("from", b),
+      dropoff: fmtLoc("to", b),
+      scheduledAt: (b.scheduledDate ?? b.createdAt)?.toISOString?.() ?? String(b.scheduledDate ?? b.createdAt ?? ""),
+      amount: Number(b.amount ?? 0),
       status: b.status || "PENDING",
-      createdAt: b.createdAt,
+      createdAt: (b.createdAt ?? b.updatedAt)?.toISOString?.() ?? String(b.createdAt ?? b.updatedAt ?? ""),
     }));
     
     return res.json({ total, page: Number(page), pageSize: take, items: mapped });
@@ -244,10 +286,10 @@ router.get("/invoices", async (req, res) => {
     
     // Filter by driver if specified
     if (driverId) {
-      where.booking = { driverId: Number(driverId) as any };
+      where.driverId = Number(driverId);
     } else {
-      // Only show invoices for bookings that have a driver assigned
-      where.booking = { driverId: { not: null } as any };
+      // Only show withdrawals for drivers
+      where.driverId = { not: null };
     }
     
     // Filter by status
@@ -259,65 +301,73 @@ router.get("/invoices", async (req, res) => {
     if (date) {
       const s = new Date(String(date) + "T00:00:00.000Z");
       const e = new Date(String(date) + "T23:59:59.999Z");
-      where.issuedAt = { gte: s, lte: e };
+      where.createdAt = { gte: s, lte: e };
     } else if (start || end) {
       const s = start ? new Date(String(start) + "T00:00:00.000Z") : new Date(0);
       const e = end ? new Date(String(end) + "T23:59:59.999Z") : new Date();
-      where.issuedAt = { gte: s, lte: e };
+      where.createdAt = { gte: s, lte: e };
     }
     
     // Search query
     if (q) {
-      where.OR = [
-        { invoiceNumber: { contains: q, mode: "insensitive" } },
-        { receiptNumber: { contains: q, mode: "insensitive" } },
-        { booking: { driver: { name: { contains: q, mode: "insensitive" } } } },
-        { booking: { driver: { email: { contains: q, mode: "insensitive" } } } },
-      ];
+      const term = String(q).trim();
+      if (term) {
+        // MySQL doesn't support `mode: "insensitive"`, so use plain contains.
+        where.OR = [
+          { paymentRef: { contains: term } },
+          { paymentMethod: { contains: term } },
+          { driver: { is: { name: { contains: term } } } },
+          { driver: { is: { email: { contains: term } } } },
+        ];
+      }
     }
     
     const skip = (Number(page) - 1) * Number(pageSize);
     const take = Math.min(Number(pageSize), 100);
     
     const [items, total] = await Promise.all([
-      prisma.invoice.findMany({
+      prisma.referralWithdrawal.findMany({
         where,
         include: {
-          booking: {
-            include: {
-              driver: {
-                select: { id: true, name: true, email: true, phone: true },
-              },
-            },
+          driver: {
+            select: { id: true, name: true, email: true, phone: true },
           },
         },
-        orderBy: { issuedAt: "desc" },
+        orderBy: { createdAt: "desc" },
         skip,
         take,
       }),
-      prisma.invoice.count({ where }),
+      prisma.referralWithdrawal.count({ where }),
     ]);
     
-    const mapped = items.map((inv: any) => ({
-      id: inv.id,
-      invoiceNumber: inv.invoiceNumber || `INV-${inv.id}`,
-      receiptNumber: inv.receiptNumber,
-      driver: inv.booking?.driver ? {
-        id: inv.booking.driver.id,
-        name: inv.booking.driver.name || "Unknown Driver",
-        email: inv.booking.driver.email,
-        phone: inv.booking.driver.phone,
-      } : null,
-      amount: inv.totalAmount ?? inv.total ?? inv.amount ?? 0,
-      status: inv.status || "PENDING",
-      issuedAt: inv.issuedAt || inv.createdAt,
-      createdAt: inv.createdAt,
+    const mapped = (items as any[]).map((w: any) => ({
+      id: w.id,
+      invoiceNumber: `WD-${w.id}`,
+      receiptNumber: w.paymentRef ?? null,
+      driver: w.driver
+        ? {
+            id: w.driver.id,
+            name: w.driver.name || "Unknown Driver",
+            email: w.driver.email,
+            phone: w.driver.phone,
+          }
+        : null,
+      amount: Number(w.totalAmount ?? 0),
+      status: w.status || "PENDING",
+      issuedAt: (w.createdAt ?? w.approvedAt ?? w.paidAt)?.toISOString?.() ?? String(w.createdAt ?? ""),
+      createdAt: (w.createdAt ?? w.updatedAt)?.toISOString?.() ?? String(w.createdAt ?? ""),
     }));
     
     return res.json({ total, page: Number(page), pageSize: take, items: mapped });
   } catch (err: any) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && (err.code === 'P2021' || err.code === 'P2022')) {
       console.warn('Prisma schema mismatch when querying driver invoices:', err.message);
+      const page = Number((req.query as any).page ?? 1);
+      const pageSize = Math.min(Number((req.query as any).pageSize ?? 50), 100);
+      return res.json({ total: 0, page, pageSize, items: [] });
+    }
+    if (err instanceof Prisma.PrismaClientValidationError) {
+      console.warn('Prisma validation error when querying driver invoices:', err.message);
       const page = Number((req.query as any).page ?? 1);
       const pageSize = Math.min(Number((req.query as any).pageSize ?? 50), 100);
       return res.json({ total: 0, page, pageSize, items: [] });
@@ -362,40 +412,35 @@ router.get("/invoices/stats", async (req, res) => {
     }
     startDate.setHours(0, 0, 0, 0);
 
-    // Get all invoices in the date range for driver bookings
-    const invoices = await prisma.invoice.findMany({
+    // Driver "invoice" statistics: use ReferralWithdrawal (driver withdrawal applications)
+    const withdrawals = await prisma.referralWithdrawal.findMany({
       where: {
-        booking: {
-          driverId: { not: null },
-        },
-        issuedAt: {
+        createdAt: {
           gte: startDate,
           lte: endDate,
         },
       },
       select: {
-        issuedAt: true,
+        createdAt: true,
         status: true,
         totalAmount: true,
-        total: true,
-        amount: true,
       },
       orderBy: {
-        issuedAt: "asc",
+        createdAt: "asc",
       },
     });
 
     // Group by date
     const dateMap = new Map<string, { count: number; paid: number; amount: number }>();
     
-    invoices.forEach((inv) => {
-      const dateKey = inv.issuedAt.toISOString().split("T")[0];
+    withdrawals.forEach((w) => {
+      const dateKey = w.createdAt.toISOString().split("T")[0];
       const existing = dateMap.get(dateKey) || { count: 0, paid: 0, amount: 0 };
       existing.count += 1;
-      if (inv.status === "PAID") {
+      if (w.status === "PAID") {
         existing.paid += 1;
       }
-      existing.amount += inv.totalAmount ?? inv.total ?? inv.amount ?? 0;
+      existing.amount += Number(w.totalAmount ?? 0);
       dateMap.set(dateKey, existing);
     });
 
@@ -413,6 +458,10 @@ router.get("/invoices/stats", async (req, res) => {
   } catch (err: any) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && (err.code === 'P2021' || err.code === 'P2022')) {
       console.warn('Prisma schema mismatch when querying invoice stats:', err.message);
+      return res.json({ stats: [], period: (req.query as any).period || "30d", startDate: new Date().toISOString(), endDate: new Date().toISOString() });
+    }
+    if (err instanceof Prisma.PrismaClientValidationError) {
+      console.warn('Prisma validation error when querying invoice stats:', err.message);
       return res.json({ stats: [], period: (req.query as any).period || "30d", startDate: new Date().toISOString(), endDate: new Date().toISOString() });
     }
     console.error('Unhandled error in GET /admin/drivers/invoices/stats:', err);
@@ -962,6 +1011,9 @@ router.get("/revenues/stats", async (req, res) => {
 router.get("/:id", async (req, res) => {
   try {
     const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      return res.status(400).json({ error: "Invalid driver id" });
+    }
     const driver = await prisma.user.findFirst({
       where: { id, role: "DRIVER" },
       select: {

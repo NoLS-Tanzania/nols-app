@@ -199,6 +199,18 @@ type ServicesState = {
   busStationDistance?: number | "";
 };
 
+// Helper function to normalize names for matching (handles special chars, case, whitespace)
+function normalizeName(name: string): string {
+  return name.toLowerCase()
+    .replace(/[''""]/g, "'") // Normalize different quote types
+    .replace(/\s+/g, " ") // Normalize whitespace
+    .trim();
+}
+
+// Helper function to create region slug from name
+function createRegionSlug(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+}
 
 export default function AddProperty() {
   useEffect(()=>{ authify(); },[]);
@@ -229,19 +241,6 @@ export default function AddProperty() {
   const [wardNotAvailable, setWardNotAvailable] = useState<boolean>(false);
   const [customWard, setCustomWard] = useState<string>("");
   const regionName = useMemo(() => REGION_BY_ID[regionId]?.name ?? "", [regionId]);
-  
-  // Helper function to normalize names for matching (handles special chars, case, whitespace)
-  const normalizeName = (name: string): string => {
-    return name.toLowerCase()
-      .replace(/[''""]/g, "'") // Normalize different quote types
-      .replace(/\s+/g, " ") // Normalize whitespace
-      .trim();
-  };
-  
-  // Helper function to create region slug from name
-  const createRegionSlug = (name: string): string => {
-    return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-  };
   
   // Get districts from REGIONS_FULL_DATA to ensure all regions work consistently
   const districts = useMemo(() => {

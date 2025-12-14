@@ -12,8 +12,91 @@
   display: none;  /* Chrome, Safari and Opera */
 }
 
-/* Mapbox GL CSS for the interactive map placeholder */
+/* Mapbox GL CSS */
 @import "mapbox-gl/dist/mapbox-gl.css";
+
+/* ---------- Driver map: Mapbox control tweaks ---------- */
+/* Make Mapbox NavigationControl (+ / - / compass) horizontal in driver live map,
+   and theme it to match the selected map theme. Scoped to #driver-live-map only. */
+#driver-live-map .mapboxgl-ctrl-top-right {
+  /* keep it slightly inset and away from the rounded frame edge */
+  top: 0.75rem;
+  right: 0.75rem;
+}
+
+/* Hard-enforce rounded corners on the whole driver map viewport */
+#driver-live-map {
+  border-radius: 0.75rem; /* rounded-xl */
+  overflow: hidden;
+}
+#driver-live-map > div {
+  border-radius: inherit;
+  overflow: hidden;
+}
+
+#driver-live-map .mapboxgl-ctrl-group {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  overflow: hidden; /* ensure rounded corners clip */
+}
+
+#driver-live-map .mapboxgl-ctrl-group button {
+  width: 44px;
+  height: 44px;
+}
+
+/* Replace vertical dividers with horizontal dividers */
+#driver-live-map .mapboxgl-ctrl-group button + button {
+  border-top: 0 !important;
+  border-left: 1px solid rgba(15, 23, 42, 0.12) !important;
+}
+
+/* Keep corners correct for row layout */
+#driver-live-map .mapboxgl-ctrl-group button:first-child {
+  border-top-left-radius: 10px !important;
+  border-bottom-left-radius: 10px !important;
+}
+#driver-live-map .mapboxgl-ctrl-group button:last-child {
+  border-top-right-radius: 10px !important;
+  border-bottom-right-radius: 10px !important;
+}
+
+/* Keep the driver map corners rounded across style/theme changes.
+   Mapbox can recreate internal DOM nodes on setStyle(); this ensures the canvas remains clipped. */
+#driver-live-map .mapboxgl-map,
+#driver-live-map .mapboxgl-canvas-container,
+#driver-live-map canvas.mapboxgl-canvas {
+  border-radius: 0.75rem !important; /* matches Tailwind rounded-xl */
+}
+#driver-live-map .mapboxgl-canvas-container {
+  overflow: hidden !important;
+}
+
+/* Dark map theme: dark glass background + light icons */
+#driver-live-map[data-map-theme="dark"] .mapboxgl-ctrl-group {
+  background: rgba(2, 6, 23, 0.55) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.35) !important;
+}
+
+#driver-live-map[data-map-theme="dark"] .mapboxgl-ctrl-group button {
+  background: transparent !important;
+}
+
+#driver-live-map[data-map-theme="dark"] .mapboxgl-ctrl-group button + button {
+  border-left: 1px solid rgba(255, 255, 255, 0.14) !important;
+}
+
+#driver-live-map[data-map-theme="dark"] .mapboxgl-ctrl-icon {
+  filter: invert(1) brightness(1.1);
+}
+
+/* Dark-mode satellite: gently reduce glare for night driving.
+   Apply the filter ONCE (canvas only) to avoid double-dimming. */
+#driver-live-map[data-map-theme="dark"][data-map-layer="satellite"] canvas.mapboxgl-canvas {
+  filter: brightness(0.90) contrast(1.12) saturate(1.02);
+}
 
 /* ---------- Globals ---------- */
 :root { color-scheme: light; }

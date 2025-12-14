@@ -166,7 +166,7 @@ export default function DriverWelcome({ className }: { className?: string }) {
               </div>
             </div>
           ) : null}
-          {/* Map placeholder: an element with id="driver-map" where Mapbox or another map lib can mount a responsive map.
+          {/* Map placeholder: an element with id="driver-map" where Google Maps will mount a responsive map.
               Heights are responsive: mobile ~16rem, small screens ~20rem, medium+ ~24rem. */}
           {/* Map container always in DOM to allow CSS transitions; visibility toggled via mapVisible */}
           <div className="mt-6">
@@ -187,7 +187,7 @@ export default function DriverWelcome({ className }: { className?: string }) {
               ) : mapError ? (
                 <div className="flex items-center justify-center h-full text-red-500">Map failed to load: {mapError}</div>
               ) : (
-                <div className="flex items-center justify-center h-full text-gray-400">Map placeholder — mount Mapbox here</div>
+                <div className="flex items-center justify-center h-full text-gray-400">Map placeholder — Google Maps coming soon</div>
               )}
             </div>
           </div>
@@ -196,13 +196,8 @@ export default function DriverWelcome({ className }: { className?: string }) {
     </section>
   );
 }
-// Initialize Mapbox map client-side inside the component lifecycle to avoid SSR issues.
-// The effect runs after the welcome card renders so the #driver-map element exists.
-// It reads the token from NEXT_PUBLIC_MAPBOX_TOKEN (inlined at build) or window fallback.
-// If an external script sets window.__DRIVER_LOCATION = { lng, lat } it'll be used as the initial center.
-// Cleanup removes the map instance on unmount or hot-reload.
-// Note: This code intentionally runs only in the browser.
+// Map provider: Google Maps
 export function initDriverMap() {
-  // noop placeholder to allow tests/imports; actual init runs in the effect below.
+  // noop placeholder to allow tests/imports
 }
 

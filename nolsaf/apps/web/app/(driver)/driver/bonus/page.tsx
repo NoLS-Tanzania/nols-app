@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useRef } from "react";
-import { Gift, TrendingUp, Calendar, CheckCircle, Clock, AlertCircle, Download, FileText, Trophy, BarChart3, Gem, Star, Target, Bell } from "lucide-react";
+import { Gift, TrendingUp, Calendar, CheckCircle, Clock, AlertCircle, Download, FileText, Trophy, BarChart3, Gem, Star, Target, Bell, X } from "lucide-react";
 import axios from "axios";
 import { io, Socket } from "socket.io-client";
 import {

@@ -12,12 +12,13 @@ type Props = {
 };
 
 export default function CitiesMap({ pins, highlightedId, onPinHover, onPinClick }: Props) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any | null>(null);
-  const mapboxglRef = useRef<any | null>(null);
+  const mapboxRef = useRef<any | null>(null);
   const markerRefs = useRef<Record<string, HTMLElement>>({});
 
   useEffect(() => {
-    // Ensure marker animations are disabled globally for this map component
+    // Ensure marker animations are disabled globally for this component
     const styleId = 'nols-citiesmap-disable-anim';
     if (!document.getElementById(styleId)) {
       const s = document.createElement('style');
@@ -25,23 +26,35 @@ export default function CitiesMap({ pins, highlightedId, onPinHover, onPinClick 
       s.textContent = `
         .nols-pin, .nols-pin * { animation: none !important; -webkit-animation: none !important; }
         .nols-pin { transition: transform 150ms ease, box-shadow 150ms ease, opacity 150ms ease !important; }
-        .mapboxgl-user-location-dot, .mapboxgl-user-location-dot * { animation: none !important; }
       `;
       document.head.appendChild(s);
     }
     if (typeof window === 'undefined') return;
+
+    const token =
+      (process.env.NEXT_PUBLIC_MAPBOX_TOKEN as string) ||
+      (process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN as string) ||
+      (window as any).__MAPBOX_TOKEN ||
+      '';
+
+    if (!token) return;
+    if (!containerRef.current) return;
+
     let map: any = null;
     (async () => {
       try {
-        const mapboxglModule = await import('mapbox-gl');
-        const mapboxgl = (mapboxglModule as any).default ?? mapboxglModule;
-        mapboxglRef.current = mapboxgl;
-        const token = (process.env.NEXT_PUBLIC_MAPBOX_TOKEN as string) || (window as any).__MAPBOX_TOKEN;
-        if (!token) return;
+        const mod = await import('mapbox-gl');
+        const mapboxgl = (mod as any).default ?? mod;
+        mapboxRef.current = mapboxgl;
         mapboxgl.accessToken = token;
-        const el = document.getElementById('cities-map');
-        if (!el) return;
-        map = new mapboxgl.Map({ container: el as HTMLElement, style: 'mapbox://styles/mapbox/light-v10', center: [37.0, -2.0], zoom: 5, interactive: true });
+
+        map = new mapboxgl.Map({
+          container: containerRef.current as HTMLElement,
+          style: 'mapbox://styles/mapbox/light-v10',
+          center: [37.0, -2.0],
+          zoom: 5,
+          interactive: true,
+        });
         mapRef.current = map;
         map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
 
@@ -49,13 +62,11 @@ export default function CitiesMap({ pins, highlightedId, onPinHover, onPinClick 
         pins.forEach((p) => {
           try {
             const btn = document.createElement('button');
-            // create a simple, non-animated marker element
             btn.className = 'nols-pin rounded-full border-2 border-white';
             btn.style.width = '14px';
             btn.style.height = '14px';
             btn.style.background = '#10b981';
             btn.style.cursor = 'pointer';
-            // Ensure the marker does NOT have any pulsing/animation applied by global CSS
             btn.style.animation = 'none';
             btn.style.transition = 'transform 150ms ease, box-shadow 150ms ease, opacity 150ms ease';
             btn.setAttribute('aria-label', `Show ${p.name}`);
@@ -65,16 +76,20 @@ export default function CitiesMap({ pins, highlightedId, onPinHover, onPinClick 
             new mapboxgl.Marker({ element: btn }).setLngLat([p.lng, p.lat]).addTo(map);
             markerRefs.current[p.id] = btn;
           } catch (e) {
-            // ignore per-marker errors
+            // ignore
           }
         });
       } catch (e) {
-        // console.warn('CitiesMap init failed', e);
+        // ignore
       }
     })();
 
     return () => {
-      try { if (map) map.remove(); } catch (e) {}
+      try {
+        if (map) map.remove();
+      } catch (e) {
+        // ignore
+      }
       mapRef.current = null;
       markerRefs.current = {};
     };
@@ -101,9 +116,9 @@ export default function CitiesMap({ pins, highlightedId, onPinHover, onPinClick 
 
   return (
     <div className="relative w-full h-72 md:h-96 rounded-md overflow-hidden">
-      <div id="cities-map" className="absolute inset-0 z-20" />
-      {/* static fallback (visible before map mounts) */}
-      <div className="absolute inset-0 z-10 bg-gradient-to-b from-sky-50 to-white flex items-center justify-center">
+      <div ref={containerRef} className="absolute inset-0 z-20" />
+      {/* static fallback (visible before map mounts / when token missing) */}
+      <div className="absolute inset-0 z-10 bg-gradient-to-b from-sky-50 to-white flex flex-col items-center justify-center gap-3 pointer-events-none">
         <svg width="220" height="120" viewBox="0 0 220 120" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
           <rect width="220" height="120" rx="8" fill="#F8FAFC" />
           <circle cx="70" cy="60" r="4" fill="#10B981" />

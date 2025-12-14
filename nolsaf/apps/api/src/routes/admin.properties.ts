@@ -1,6 +1,7 @@
 // apps/api/src/routes/admin.properties.ts
 import { Router, RequestHandler } from "express";
 import { prisma } from "@nolsaf/prisma";
+import { Prisma } from "@prisma/client";
 import { AuthedRequest, requireAuth } from "../middleware/auth.js";
 import { requireAdmin } from "../middleware/admin.js";
 import {
@@ -28,90 +29,149 @@ function broadcastStatus(req: any, payload: any) {
 
 /** GET /admin/properties?status=&q=&regionId=&type=&ownerId=&page=&pageSize= */
 router.get("/", (async (req: AuthedRequest, res) => {
-  const { status, q, regionId, type, ownerId, page = "1", pageSize = "20" } =
-    req.query as any;
+  try {
+    const { status, q, regionId, type, ownerId, page = "1", pageSize = "20" } =
+      req.query as any;
 
-  const where: any = {};
-  if (status) where.status = status;
-  if (regionId) where.regionId = regionId;
-  if (type) where.type = type;
-  if (ownerId) where.ownerId = Number(ownerId);
-  if (q) {
-    where.OR = [
-      { title: { contains: q, mode: "insensitive" } },
-      { regionName: { contains: q, mode: "insensitive" } },
-      { district: { contains: q, mode: "insensitive" } },
-    ];
+    const where: any = {};
+    if (status) where.status = status;
+    if (regionId) where.regionId = regionId;
+    if (type) where.type = type;
+    if (ownerId) where.ownerId = Number(ownerId);
+    if (q) {
+      // MySQL doesn't support mode: "insensitive", so we use contains which is case-sensitive
+      const searchTerm = String(q).trim();
+      if (searchTerm) {
+        where.OR = [
+          { title: { contains: searchTerm } },
+          { regionName: { contains: searchTerm } },
+          { district: { contains: searchTerm } },
+        ];
+      }
+    }
+
+    const skip = (Number(page) - 1) * Number(pageSize);
+    const take = Math.min(Number(pageSize), 200);
+
+    let items: any[] = [];
+    let total = 0;
+
+    try {
+      [items, total] = await Promise.all([
+        prisma.property.findMany({
+          where,
+          orderBy: { updatedAt: "desc" },
+          include: { owner: { select: { id: true, name: true, email: true } } },
+          skip,
+          take,
+        }),
+        prisma.property.count({ where }),
+      ]);
+    } catch (dbError: any) {
+      console.error('Database query failed in GET /admin/properties:', dbError);
+      console.error('Error details:', {
+        code: dbError?.code,
+        message: dbError?.message,
+        meta: dbError?.meta,
+      });
+      
+      // Check for Prisma errors
+      if (dbError instanceof Prisma.PrismaClientKnownRequestError) {
+        if (dbError.code === 'P2021' || dbError.code === 'P2022') {
+          console.warn('Prisma schema mismatch in GET /admin/properties:', dbError.message);
+        }
+      }
+      
+      // Return empty result instead of crashing
+      return res.json({
+        page: Number(page),
+        pageSize: take,
+        total: 0,
+        items: [],
+      });
+    }
+
+    interface AdminPropertyOwner {
+      id: number;
+      name: string | null;
+      email: string | null;
+    }
+
+    interface AdminPropertyRow {
+      id: number;
+      title: string;
+      status: string;
+      type: string | null;
+      owner: AdminPropertyOwner | null;
+      regionName?: string | null;
+      district?: string | null;
+      photos?: string[] | null;
+      updatedAt: Date;
+    }
+
+    interface AdminPropertyListItem {
+      id: number;
+      title: string;
+      status: string;
+      type: string | null;
+      owner: AdminPropertyOwner | null;
+      regionName?: string | null;
+      district?: string | null;
+      photos: string[];
+      updatedAt: Date;
+    }
+
+    interface AdminPropertyListResponse {
+      page: number;
+      pageSize: number;
+      total: number;
+      items: AdminPropertyListItem[];
+    }
+
+    const response: AdminPropertyListResponse = {
+      page: Number(page),
+      pageSize: take,
+      total,
+      items: (items as AdminPropertyRow[]).map((p) => ({
+        id: p.id,
+        title: p.title,
+        status: p.status,
+        type: p.type,
+        owner: p.owner,
+        regionName: p.regionName ?? null,
+        district: p.district ?? null,
+        photos: Array.isArray(p.photos) ? p.photos.slice(0, 3) : [],
+        updatedAt: p.updatedAt,
+      })),
+    };
+
+    res.json(response);
+  } catch (err: any) {
+    // Ultimate fallback - catch ANY error
+    console.error('CRITICAL ERROR in GET /admin/properties:', err);
+    console.error('Error type:', typeof err);
+    console.error('Error constructor:', err?.constructor?.name);
+    console.error('Error message:', err?.message);
+    console.error('Error stack:', err?.stack);
+    
+    // Check for Prisma errors
+    if (err instanceof Prisma.PrismaClientKnownRequestError) {
+      console.warn('Prisma error in GET /admin/properties:', err.code, err.message);
+    } else if (err instanceof Prisma.PrismaClientValidationError) {
+      console.warn('Prisma validation error in GET /admin/properties:', err.message);
+    }
+    
+    // Always return valid JSON response
+    const pageNum = Number((req.query as any)?.page) || 1;
+    const pageSizeNum = Math.min(Number((req.query as any)?.pageSize || 20), 200);
+    
+    return res.json({
+      page: pageNum,
+      pageSize: pageSizeNum,
+      total: 0,
+      items: [],
+    });
   }
-
-  const skip = (Number(page) - 1) * Number(pageSize);
-
-  const [items, total] = await Promise.all([
-    prisma.property.findMany({
-      where,
-      orderBy: { updatedAt: "desc" },
-      include: { owner: { select: { id: true, name: true, email: true } } },
-      skip,
-      take: Number(pageSize),
-    }),
-    prisma.property.count({ where }),
-  ]);
-
-  interface AdminPropertyOwner {
-    id: number;
-    name: string | null;
-    email: string | null;
-  }
-
-  interface AdminPropertyRow {
-    id: number;
-    title: string;
-    status: string;
-    type: string | null;
-    owner: AdminPropertyOwner | null;
-    regionName?: string | null;
-    district?: string | null;
-    photos?: string[] | null;
-    updatedAt: Date;
-  }
-
-  interface AdminPropertyListItem {
-    id: number;
-    title: string;
-    status: string;
-    type: string | null;
-    owner: AdminPropertyOwner | null;
-    regionName?: string | null;
-    district?: string | null;
-    photos: string[];
-    updatedAt: Date;
-  }
-
-  interface AdminPropertyListResponse {
-    page: number;
-    pageSize: number;
-    total: number;
-    items: AdminPropertyListItem[];
-  }
-
-  const response: AdminPropertyListResponse = {
-    page: Number(page),
-    pageSize: Number(pageSize),
-    total,
-    items: (items as AdminPropertyRow[]).map((p) => ({
-      id: p.id,
-      title: p.title,
-      status: p.status,
-      type: p.type,
-      owner: p.owner,
-      regionName: p.regionName ?? null,
-      district: p.district ?? null,
-      photos: (p.photos ?? []).slice(0, 3),
-      updatedAt: p.updatedAt,
-    })),
-  };
-
-  res.json(response);
 }) as RequestHandler);
 
 /** GET /admin/properties/counts - return counts by status for quick badges */

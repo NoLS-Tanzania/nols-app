@@ -121,6 +121,23 @@ model User {
   // User sessions
   sessions           Session[]     @relation("UserSessions")
 
+  // Live driver map (for DRIVER role)
+  driverLiveLocation DriverLiveLocation?
+  driverLocationPings DriverLocationPing[]
+
+  // Admin 2FA OTPs (for finance actions)
+  adminOtps          AdminOtp[]    @relation("AdminOtps")
+
+  // Email verification/change tokens
+  emailVerificationTokens EmailVerificationToken[]
+
+  // Phone verification OTPs
+  phoneOtps          PhoneOtp[]
+
+  // Admin notes written about owners
+  adminNotesWritten  AdminNote[]   @relation("AdminNotesAdmin")
+  adminNotesReceived AdminNote[]   @relation("AdminNotesOwner")
+
   @@index([role])
   @@index([email])
   @@index([phone])
@@ -393,6 +410,87 @@ model Session {
   @@index([revokedAt])
   @@index([lastSeenAt])
   @@map("Session")
+}
+
+// =========================================================
+//  ADMIN OTP MODEL - short-lived OTPs for admin actions
+// =========================================================
+model AdminOtp {
+  id        Int      @id @default(autoincrement())
+  adminId   Int
+  purpose   String   @db.VarChar(60)
+  codeHash  String   @db.VarChar(128)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  // Relations
+  admin     User     @relation("AdminOtps", fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId, purpose])
+  @@index([expiresAt])
+  @@index([usedAt])
+  @@map("AdminOtp")
+}
+
+// =========================================================
+//  EMAIL VERIFICATION TOKEN MODEL - email verify/change flow
+// =========================================================
+model EmailVerificationToken {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  token     String   @unique @db.VarChar(128)
+  newEmail  String?  @db.VarChar(190)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  // Relations
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("EmailVerificationToken")
+}
+
+// =========================================================
+//  PHONE OTP MODEL - phone verification flow
+// =========================================================
+model PhoneOtp {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  phone     String   @db.VarChar(40)
+  codeHash  String   @db.VarChar(255)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  // Relations
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([phone])
+  @@index([expiresAt])
+  @@index([usedAt])
+  @@map("PhoneOtp")
+}
+
+// =========================================================
+//  ADMIN NOTE MODEL - internal notes about owners
+// =========================================================
+model AdminNote {
+  id        Int      @id @default(autoincrement())
+  ownerId   Int
+  adminId   Int
+  text      String   @db.Text
+  createdAt DateTime @default(now())
+
+  // Relations
+  owner     User     @relation("AdminNotesOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  admin     User     @relation("AdminNotesAdmin", fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId])
+  @@index([adminId])
+  @@map("AdminNote")
 }
 
 // =========================================================
@@ -683,6 +781,9 @@ model TransportBooking {
   user            User      @relation("UserTransportBookings", fields: [userId], references: [id], onDelete: Cascade)
   driver          User?     @relation("DriverTransportBookings", fields: [driverId], references: [id], onDelete: SetNull)
   property        Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+
+  // Optional: GPS pings linked to this booking (for replay/analytics)
+  driverLocationPings DriverLocationPing[]
   
   @@index([userId])
   @@index([driverId])
@@ -691,6 +792,50 @@ model TransportBooking {
   @@index([scheduledDate])
   @@index([paymentStatus])
   @@map("TransportBooking")
+}
+
+// =========================================================
+//  DRIVER LIVE LOCATION - one row per driver (fast map reads)
+// =========================================================
+model DriverLiveLocation {
+  driverId    Int      @id
+  lat         Decimal  @db.Decimal(10, 6)
+  lng         Decimal  @db.Decimal(10, 6)
+  headingDeg  Int?
+  speedMps    Decimal? @db.Decimal(7, 2)
+  accuracyM   Decimal? @db.Decimal(7, 2)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  driver      User     @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@index([updatedAt])
+  @@index([lat, lng])
+  @@map("driver_live_locations")
+}
+
+// =========================================================
+//  DRIVER LOCATION PING - optional history for replay/analytics
+// =========================================================
+model DriverLocationPing {
+  id                BigInt   @id @default(autoincrement())
+  driverId          Int
+  transportBookingId Int?
+  lat               Decimal  @db.Decimal(10, 6)
+  lng               Decimal  @db.Decimal(10, 6)
+  headingDeg        Int?
+  speedMps          Decimal? @db.Decimal(7, 2)
+  accuracyM         Decimal? @db.Decimal(7, 2)
+
+  createdAt         DateTime @default(now())
+
+  driver            User     @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  transportBooking  TransportBooking? @relation(fields: [transportBookingId], references: [id], onDelete: SetNull)
+
+  @@index([driverId, createdAt])
+  @@index([transportBookingId, createdAt])
+  @@map("driver_location_pings")
 }
 
 // =========================================================
@@ -1111,4 +1256,68 @@ model Notification {
   @@index([ownerId, unread])
   
   @@map("Notification")
+}
+
+// =========================================================
+//  PLAN REQUEST MODEL - For "Plan With Us" custom trip planning requests
+// =========================================================
+model PlanRequest {
+  id                    Int       @id @default(autoincrement())
+  
+  /// Role of the requester: Event planner, School / Teacher, University, Community group, Other
+  role                  String    @db.VarChar(100)
+  
+  /// Type of trip: Local tourism, Safari, Cultural, Adventure / Hiking, Other
+  tripType              String    @db.VarChar(100)
+  
+  /// Request status: NEW, PENDING, IN_PROGRESS, COMPLETED
+  status                String    @default("NEW") @db.VarChar(50)
+  
+  /// Customer contact information
+  fullName              String    @db.VarChar(200)
+  email                 String    @db.VarChar(255)
+  phone                 String?   @db.VarChar(40)
+  
+  /// Trip details
+  destinations          String?   @db.VarChar(500)
+  dateFrom              DateTime?
+  dateTo                DateTime?
+  groupSize             Int?
+  budget                Decimal?  @db.Decimal(12, 2)
+  notes                 String?   @db.Text
+  
+  /// Transport requirements
+  transportRequired     Boolean?  @default(false)
+  vehicleType           String?   @db.VarChar(100)
+  pickupLocation        String?   @db.VarChar(500)
+  dropoffLocation       String?   @db.VarChar(500)
+  vehiclesNeeded        Int?
+  passengerCount        Int?
+  vehicleRequirements   String?   @db.Text
+  
+  /// Role-specific data stored as JSON (for event planner, school, university, community fields)
+  roleSpecificData      Json?
+  
+  /// Admin response fields
+  adminResponse         String?   @db.Text
+  suggestedItineraries  String?   @db.Text
+  requiredPermits       String?   @db.Text
+  estimatedTimeline     String?   @db.Text
+  assignedAgent         String?   @db.VarChar(200)
+  respondedAt           DateTime?
+  
+  /// Record creation timestamp
+  createdAt             DateTime  @default(now())
+  /// Record last update timestamp
+  updatedAt             DateTime  @updatedAt
+  
+  @@index([role])
+  @@index([tripType])
+  @@index([status])
+  @@index([email])
+  @@index([phone])
+  @@index([createdAt])
+  @@index([status, createdAt])
+  
+  @@map("plan_requests")
 }

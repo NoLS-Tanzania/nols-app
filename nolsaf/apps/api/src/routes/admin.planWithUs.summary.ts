@@ -2,6 +2,7 @@ import { Router } from "express";
 import type { RequestHandler } from "express";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { prisma } from "@nolsaf/prisma";
+import { Prisma } from "@prisma/client";
 
 export const router = Router();
 router.use(requireAuth as unknown as RequestHandler, requireRole("ADMIN") as unknown as RequestHandler);
@@ -40,10 +41,12 @@ router.get("/", async (_req, res) => {
 
     // Recent requests (last 5)
     const recentRequests: any[] = [];
+    let urgentRequests = 0;
 
     // Try to fetch from PlanRequest table if it exists
     try {
-      const allRequests = await (prisma as any).planRequest.findMany({
+      const prismaAny = prisma as any;
+      const allRequests = await prismaAny.planRequest.findMany({
         select: {
           id: true,
           role: true,
@@ -63,7 +66,7 @@ router.get("/", async (_req, res) => {
       canceledRequests = 0; // Removed canceled status
       
       // Count urgent requests (those with "urgent" in notes)
-      const urgentRequests = allRequests.filter((r: any) => {
+      urgentRequests = allRequests.filter((r: any) => {
         const notes = (r.notes || "").toLowerCase();
         return notes.includes("urgent") && (r.status === "NEW" || r.status === "PENDING");
       }).length;
@@ -107,9 +110,26 @@ router.get("/", async (_req, res) => {
           },
         };
       }));
-    } catch (e) {
+    } catch (e: any) {
       // If PlanRequest table doesn't exist yet, return empty data
-      console.warn("PlanRequest table may not exist yet:", e);
+      // Check if it's a Prisma error about missing model or property access error
+      const errorMessage = e?.message || String(e);
+      const isPrismaError = e instanceof Prisma.PrismaClientKnownRequestError || 
+                            e instanceof Prisma.PrismaClientUnknownRequestError ||
+                            e instanceof Prisma.PrismaClientInitializationError ||
+                            e instanceof Prisma.PrismaClientRustPanicError ||
+                            errorMessage.includes("planRequest") ||
+                            errorMessage.includes("model") ||
+                            errorMessage.includes("does not exist") ||
+                            errorMessage.includes("Cannot read property") ||
+                            errorMessage.includes("undefined");
+      
+      if (isPrismaError) {
+        console.warn("PlanRequest table/model does not exist yet or Prisma error:", errorMessage);
+      } else {
+        console.warn("Error fetching plan requests:", errorMessage);
+      }
+      // Return empty data structure - all values are already initialized to 0/empty
     }
 
     res.json({
@@ -118,7 +138,7 @@ router.get("/", async (_req, res) => {
       inProgressRequests,
       completedRequests,
       canceledRequests,
-      urgentRequests: urgentRequests || 0,
+      urgentRequests,
       roleCounts,
       tripTypeCounts,
       recentRequests,

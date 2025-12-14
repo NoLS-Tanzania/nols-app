@@ -36,7 +36,7 @@ export default function DriversDashboardPage() {
     authify();
     (async () => {
       try {
-        const r = await api.get<SummaryData>("/admin/drivers/summary");
+        const r = await api.get<SummaryData>("/api/admin/drivers/summary");
         if (r?.data) setSummary(r.data);
       } catch (e) {
         console.error("Failed to load drivers summary:", e);

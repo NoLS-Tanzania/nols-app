@@ -280,10 +280,6 @@ export default function OnboardRole({ params }: { params: { role: string } }) {
     setPaymentLoading(true);
     try {
       // Call API to send payment verification OTP
-      const response = await api.post('/api/auth/send-otp', {
-        phone: paymentPhone.trim(),
-      });
-      
       const resp = await fetch('/api/auth/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

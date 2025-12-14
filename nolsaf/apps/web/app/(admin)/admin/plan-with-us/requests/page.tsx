@@ -434,8 +434,8 @@ export default function AdminPlanWithUsRequestsPage() {
               </button>
               {pickerOpen && (
                 <>
-                  <div className="fixed inset-0 z-40" onClick={() => setPickerOpen(false)} />
-                  <div className="fixed z-50 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                  <div className="fixed inset-0 z-30 bg-black/20 backdrop-blur-sm" onClick={() => setPickerOpen(false)} />
+                  <div className="fixed z-40 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
                     <DatePicker
                       selected={date || undefined}
                       onSelect={(s) => {

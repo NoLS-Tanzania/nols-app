@@ -982,7 +982,7 @@ export default function DriverReferral() {
                 </button>
                 <button
                   onClick={applyWithdrawal}
-                  disabled={withdrawLoading || (withdrawAmount && Number(withdrawAmount) > earningsSummary.availableForWithdrawal)}
+                  disabled={withdrawLoading || (!!withdrawAmount && Number(withdrawAmount) > earningsSummary.availableForWithdrawal)}
                   className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                 >
                   {withdrawLoading ? 'Applying...' : 'Apply'}

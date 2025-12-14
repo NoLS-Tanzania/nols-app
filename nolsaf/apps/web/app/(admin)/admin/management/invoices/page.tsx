@@ -6,12 +6,39 @@ import { Receipt, ChevronLeft, ChevronRight, Download, CheckCircle, DollarSign }
 type InvoiceRow = {
   id: number;
   invoiceNumber?: string | null;
+  receiptNumber?: string | null;
   issuedAt: string;
   total: number;
-  netPayable: number;
+  commissionAmount?: number | null;
+  netPayable: number | null;
   status: string;
   ownerId: number;
-  booking?: { property?: { title?: string } } | null;
+  owner?: {
+    id: number;
+    name: string | null;
+    email: string | null;
+    phone: string | null;
+    role: string;
+  } | null;
+  booking?: { 
+    id: number;
+    property?: { 
+      id: number;
+      title: string | null;
+      type: string | null;
+    } | null;
+    user?: {
+      id: number;
+      name: string | null;
+      email: string | null;
+    } | null;
+  } | null;
+  verifiedByUser?: { id: number; name: string | null } | null;
+  approvedByUser?: { id: number; name: string | null } | null;
+  paidByUser?: { id: number; name: string | null } | null;
+  paidAt?: string | null;
+  paymentMethod?: string | null;
+  paymentRef?: string | null;
 };
 
 export default function InvoicesManagementPage(){
@@ -114,10 +141,13 @@ export default function InvoicesManagementPage(){
         <div className="flex flex-col items-center text-center mb-4">
           <Receipt className="h-8 w-8 text-gray-400 mb-3" />
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900">
-            Invoices & Payments
+            All Invoices Management
           </h1>
           <p className="mt-1 text-sm text-gray-600">
-            Total: {total}
+            Manage all invoices from owners, drivers, and bookings across the platform
+          </p>
+          <p className="mt-1 text-xs text-gray-500">
+            Total invoices: {total.toLocaleString()}
           </p>
         </div>
       </div>
@@ -127,8 +157,9 @@ export default function InvoicesManagementPage(){
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoice</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoice #</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Owner</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Property</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Issued</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
@@ -140,27 +171,42 @@ export default function InvoicesManagementPage(){
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <TableRow hover={false}>
-                  <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-500">
+                  <td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-500">
                     Loading…
                   </td>
                 </TableRow>
               ) : items.length === 0 ? (
                 <TableRow hover={false}>
-                  <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-500">
-                    No invoices
+                  <td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-500">
+                    No invoices found
                   </td>
                 </TableRow>
               ) : (
                 items.map(i => (
                   <TableRow key={i.id}>
-                    <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
-                      {i.id}
+                    <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap font-medium">
+                      #{i.id}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-700">
-                      {i.invoiceNumber ?? '—'}
+                      <div className="font-medium">{i.invoiceNumber ?? '—'}</div>
+                      {i.receiptNumber && (
+                        <div className="text-xs text-gray-500">Receipt: {i.receiptNumber}</div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-700">
+                      <div className="font-medium">{i.owner?.name ?? `Owner #${i.ownerId}`}</div>
+                      {i.owner?.email && (
+                        <div className="text-xs text-gray-500">{i.owner.email}</div>
+                      )}
+                      {i.owner?.phone && (
+                        <div className="text-xs text-gray-500">{i.owner.phone}</div>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-700">
                       {i.booking?.property?.title ?? '—'}
+                      {i.booking?.property?.type && (
+                        <div className="text-xs text-gray-500">{i.booking.property.type}</div>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">
                       {new Date(i.issuedAt).toLocaleDateString()}
@@ -170,39 +216,58 @@ export default function InvoicesManagementPage(){
                       </span>
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-900 text-right whitespace-nowrap font-medium">
-                      {formatCurrency(i.total)}
+                      {formatCurrency(Number(i.total))}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900 text-right whitespace-nowrap font-medium">
-                      {formatCurrency(i.netPayable)}
+                    <td className="px-4 py-3 text-sm text-gray-900 text-right whitespace-nowrap">
+                      <div className="font-medium">{i.netPayable ? formatCurrency(Number(i.netPayable)) : '—'}</div>
+                      {i.commissionAmount && (
+                        <div className="text-xs text-gray-500">Commission: {formatCurrency(Number(i.commissionAmount))}</div>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-sm">
                       <span className={getStatusBadgeClass(i.status)}>
                         {i.status}
                       </span>
+                      {i.paidAt && (
+                        <div className="text-xs text-gray-500 mt-1">
+                          Paid: {new Date(i.paidAt).toLocaleDateString()}
+                        </div>
+                      )}
+                      {i.paymentMethod && (
+                        <div className="text-xs text-gray-500">
+                          {i.paymentMethod}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-sm">
                       <div className="flex gap-2 justify-center flex-wrap">
-                        <button 
-                          className="px-3 py-1 text-xs font-medium text-[#02665e] border border-[#02665e] rounded hover:bg-[#02665e] hover:text-white transition-all duration-200 active:bg-[#02665e] active:text-white touch-manipulation flex items-center gap-1"
-                          onClick={() => approve(i)}
-                        >
-                          <CheckCircle className="h-3 w-3" />
-                          Approve
-                        </button>
-                        <button 
-                          className="px-3 py-1 text-xs font-medium text-gray-700 border border-gray-300 rounded hover:border-green-500 hover:text-green-600 transition-all duration-200 active:border-green-500 active:text-green-600 touch-manipulation flex items-center gap-1"
-                          onClick={() => openMarkPaid(i)}
-                        >
-                          <DollarSign className="h-3 w-3" />
-                          Mark Paid
-                        </button>
-                        <button 
-                          className="px-3 py-1 text-xs font-medium text-gray-700 border border-gray-300 rounded hover:border-blue-500 hover:text-blue-600 transition-all duration-200 active:border-blue-500 active:text-blue-600 touch-manipulation flex items-center gap-1"
-                          onClick={() => downloadReceipt(i)}
-                        >
-                          <Download className="h-3 w-3" />
-                          Receipt
-                        </button>
+                        {i.status !== 'APPROVED' && i.status !== 'PAID' && (
+                          <button 
+                            className="px-3 py-1 text-xs font-medium text-[#02665e] border border-[#02665e] rounded hover:bg-[#02665e] hover:text-white transition-all duration-200 active:bg-[#02665e] active:text-white touch-manipulation flex items-center gap-1"
+                            onClick={() => approve(i)}
+                          >
+                            <CheckCircle className="h-3 w-3" />
+                            Approve
+                          </button>
+                        )}
+                        {i.status !== 'PAID' && (
+                          <button 
+                            className="px-3 py-1 text-xs font-medium text-gray-700 border border-gray-300 rounded hover:border-green-500 hover:text-green-600 transition-all duration-200 active:border-green-500 active:text-green-600 touch-manipulation flex items-center gap-1"
+                            onClick={() => openMarkPaid(i)}
+                          >
+                            <DollarSign className="h-3 w-3" />
+                            Mark Paid
+                          </button>
+                        )}
+                        {i.receiptNumber && (
+                          <button 
+                            className="px-3 py-1 text-xs font-medium text-gray-700 border border-gray-300 rounded hover:border-blue-500 hover:text-blue-600 transition-all duration-200 active:border-blue-500 active:text-blue-600 touch-manipulation flex items-center gap-1"
+                            onClick={() => downloadReceipt(i)}
+                          >
+                            <Download className="h-3 w-3" />
+                            Receipt
+                          </button>
+                        )}
                       </div>
                     </td>
                   </TableRow>

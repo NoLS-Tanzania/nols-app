@@ -10,6 +10,11 @@ function authify() {
   if (t) api.defaults.headers.common["Authorization"] = `Bearer ${t}`;
 }
 
+// Helper to get API path with /api prefix
+function getApiPath(path: string): string {
+  return path.startsWith('/api/') ? path : `/api${path}`;
+}
+
 type TrustPartner = {
   id: number;
   name: string;
@@ -43,7 +48,7 @@ export default function AdminTrustPartnersPage() {
     setLoading(true);
     try {
       authify();
-      const r = await api.get<{ items: TrustPartner[] }>("/admin/trust-partners");
+      const r = await api.get<{ items: TrustPartner[] }>(getApiPath("/admin/trust-partners"));
       setPartners(r.data?.items ?? []);
     } catch (err) {
       console.error("Failed to load trust partners", err);
@@ -98,9 +103,9 @@ export default function AdminTrustPartnersPage() {
     try {
       authify();
       if (editingPartner) {
-        await api.patch(`/admin/trust-partners/${editingPartner.id}`, formData);
+        await api.patch(getApiPath(`/admin/trust-partners/${editingPartner.id}`), formData);
       } else {
-        await api.post("/admin/trust-partners", formData);
+        await api.post(getApiPath("/admin/trust-partners"), formData);
       }
       await load();
       handleCloseModal();
@@ -119,7 +124,7 @@ export default function AdminTrustPartnersPage() {
     setDeletingId(id);
     try {
       authify();
-      await api.delete(`/admin/trust-partners/${id}`);
+      await api.delete(getApiPath(`/admin/trust-partners/${id}`));
       await load();
     } catch (err: any) {
       console.error("Failed to delete trust partner", err);
@@ -132,7 +137,7 @@ export default function AdminTrustPartnersPage() {
   const handleToggleActive = async (partner: TrustPartner) => {
     try {
       authify();
-      await api.patch(`/admin/trust-partners/${partner.id}`, {
+      await api.patch(getApiPath(`/admin/trust-partners/${partner.id}`), {
         isActive: !partner.isActive,
       });
       await load();

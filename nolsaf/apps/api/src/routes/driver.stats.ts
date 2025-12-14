@@ -255,12 +255,22 @@ router.get("/dashboard", getDashboard as unknown as RequestHandler);
 const getMapData: RequestHandler = async (req, res) => {
   const user = (req as AuthedRequest).user!;
   try {
-    // Attempt to read driver's last known location from sessions or a driver_location table
+    // Attempt to read driver's last known location from DriverLiveLocation
     let driverLocation: any = null;
     try {
-      if ((prisma as any).driverLocation) {
-        const loc = await (prisma as any).driverLocation.findUnique({ where: { driverId: user.id } });
-  if (loc) driverLocation = { id: loc.driverId, lat: Number(loc.lat), lng: Number(loc.lng), updatedAt: loc.updatedAt };
+      if ((prisma as any).driverLiveLocation) {
+        const loc = await (prisma as any).driverLiveLocation.findUnique({ where: { driverId: user.id } });
+        if (loc) {
+          driverLocation = {
+            id: loc.driverId,
+            lat: Number(loc.lat),
+            lng: Number(loc.lng),
+            headingDeg: loc.headingDeg ?? null,
+            speedMps: loc.speedMps !== null && typeof loc.speedMps !== "undefined" ? Number(loc.speedMps) : null,
+            accuracyM: loc.accuracyM !== null && typeof loc.accuracyM !== "undefined" ? Number(loc.accuracyM) : null,
+            updatedAt: loc.updatedAt,
+          };
+        }
       }
     } catch (e) {
       // ignore
@@ -287,12 +297,40 @@ const getMapData: RequestHandler = async (req, res) => {
       // ignore
     }
 
-    // Nearby drivers: best-effort from driverLocation table
+    // Nearby drivers: best-effort from DriverLiveLocation with a small bounding box + recency filter
     let nearbyDrivers: any[] = [];
     try {
-      if ((prisma as any).driverLocation) {
-        const list = await (prisma as any).driverLocation.findMany({ take: 50 });
-        nearbyDrivers = (list || []).map((d: any) => ({ id: d.driverId, lat: Number(d.lat), lng: Number(d.lng) }));
+      if ((prisma as any).driverLiveLocation) {
+        const now = Date.now();
+        const since = new Date(now - 10 * 60 * 1000); // last 10 minutes
+        // Default: broad list
+        let where: any = { updatedAt: { gte: since } };
+        // If we have a driver center, tighten to a nearby bounding box (~15km)
+        if (driverLocation && typeof driverLocation.lat === "number" && typeof driverLocation.lng === "number") {
+          const lat = driverLocation.lat;
+          const lng = driverLocation.lng;
+          const d = 0.14; // approx degrees ~ 15km
+          where = {
+            updatedAt: { gte: since },
+            lat: { gte: lat - d, lte: lat + d },
+            lng: { gte: lng - d, lte: lng + d },
+          };
+        }
+        const list = await (prisma as any).driverLiveLocation.findMany({
+          where,
+          take: 75,
+          orderBy: { updatedAt: "desc" },
+          include: { driver: { select: { id: true, name: true, available: true } } },
+        });
+        nearbyDrivers = (list || [])
+          .filter((d: any) => d?.driverId !== user.id)
+          .map((d: any) => ({
+            id: d.driverId,
+            name: d.driver?.name ?? null,
+            available: typeof d.driver?.available === "boolean" ? d.driver.available : null,
+            lat: Number(d.lat),
+            lng: Number(d.lng),
+          }));
       }
     } catch (e) {
       // ignore
@@ -613,17 +651,54 @@ router.get('/invoices', getInvoices as unknown as RequestHandler);
  */
 const postLocation: RequestHandler = async (req, res) => {
   const user = (req as AuthedRequest).user!;
-  const { lat, lng } = req.body ?? {};
+  const { lat, lng, headingDeg, speedMps, accuracyM, transportBookingId } = req.body ?? {};
   if (typeof lat !== 'number' || typeof lng !== 'number') { res.status(400).json({ error: 'lat and lng required' }); return; }
   try {
-    if ((prisma as any).driverLocation) {
-      await (prisma as any).driverLocation.upsert({ where: { driverId: user.id }, update: { lat: String(lat), lng: String(lng), updatedAt: new Date() }, create: { driverId: user.id, lat: String(lat), lng: String(lng), updatedAt: new Date() } });
+    if ((prisma as any).driverLiveLocation) {
+      await (prisma as any).driverLiveLocation.upsert({
+        where: { driverId: user.id },
+        update: {
+          lat,
+          lng,
+          headingDeg: typeof headingDeg === "number" ? Math.round(headingDeg) : undefined,
+          speedMps: typeof speedMps === "number" ? speedMps : undefined,
+          accuracyM: typeof accuracyM === "number" ? accuracyM : undefined,
+          updatedAt: new Date(),
+        },
+        create: {
+          driverId: user.id,
+          lat,
+          lng,
+          headingDeg: typeof headingDeg === "number" ? Math.round(headingDeg) : undefined,
+          speedMps: typeof speedMps === "number" ? speedMps : undefined,
+          accuracyM: typeof accuracyM === "number" ? accuracyM : undefined,
+        },
+      });
+    }
+
+    // Optional history ping (only write when linked to a booking to avoid excessive growth)
+    try {
+      if ((prisma as any).driverLocationPing && typeof transportBookingId === "number") {
+        await (prisma as any).driverLocationPing.create({
+          data: {
+            driverId: user.id,
+            transportBookingId,
+            lat,
+            lng,
+            headingDeg: typeof headingDeg === "number" ? Math.round(headingDeg) : undefined,
+            speedMps: typeof speedMps === "number" ? speedMps : undefined,
+            accuracyM: typeof accuracyM === "number" ? accuracyM : undefined,
+          },
+        });
+      }
+    } catch (e) {
+      // ignore ping write errors
     }
     // broadcast via socket.io if available
     try {
       const io = (req.app && (req.app as any).get && (req.app as any).get('io'));
       if (io && typeof io.emit === 'function') {
-        io.emit('driver:location:update', { driverId: user.id, lat, lng });
+        io.emit('driver:location:update', { driverId: user.id, lat, lng, headingDeg, speedMps, accuracyM });
       }
     } catch (e) { /* ignore */ }
     res.json({ ok: true });

@@ -27,8 +27,9 @@ router.post("/verify/send", (async (req, res) => {
   });
 
   const url = `${process.env.APP_URL}/api/admin/email/verify?token=${token}`;
+  const greetingName = (me as any).fullName || me.name || me.email || "there";
   await sendMail(me.email, "Verify your email", `
-    <p>Hello ${me.fullName},</p>
+    <p>Hello ${greetingName},</p>
     <p>Verify your email by clicking this link:</p>
     <p><a href="${url}">${url}</a></p>
     <p>This link expires in 30 minutes.</p>
@@ -56,8 +57,9 @@ router.post("/change/send", (async (req, res) => {
   });
 
   const url = `${process.env.APP_URL}/api/admin/email/verify?token=${token}`;
+  const greetingName = (me as any).fullName || me.name || me.email || "there";
   await sendMail(newEmail, "Confirm your new email", `
-    <p>Hello ${me.fullName},</p>
+    <p>Hello ${greetingName},</p>
     <p>Confirm your new email by clicking this link:</p>
     <p><a href="${url}">${url}</a></p>
     <p>This link expires in 30 minutes.</p>

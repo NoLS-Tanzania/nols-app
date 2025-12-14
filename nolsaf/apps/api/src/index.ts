@@ -30,6 +30,7 @@ import { router as ownerPropLayout } from "./routes/owner.properties.layout";
 import adminBookingsRouter from "./routes/admin.bookings";
 import { limitCodeSearch } from "./middleware/rateLimit.js";// apps/api/src/index.ts 
 import adminRevenueRouter from "./routes/admin.revenue";
+import adminInvoicesRouter from "./routes/admin.invoices";
 import adminPaymentsRouter from "./routes/admin.payments";
 import adminSettingsRouter from "./routes/admin.settings";
 import paymentWebhooksRouter from "./routes/webhooks.payments";
@@ -212,13 +213,24 @@ app.use('/api/admin/properties', requireRole('ADMIN') as express.RequestHandler,
 app.use('/api/conversations', requireRole() as express.RequestHandler, conversationsRoutes);
 app.use('/api/bookings', requireRole() as express.RequestHandler, bookingsRoutes);
 app.use("/admin/bookings", adminBookingsRouter);
+// also expose API-prefixed route so frontend using `/api/admin/bookings` works
+app.use('/api/admin/bookings', adminBookingsRouter as express.RequestHandler);
+app.use("/admin/invoices", adminInvoicesRouter);
+// also expose API-prefixed route so frontend using `/api/admin/invoices` works
+app.use('/api/admin/invoices', adminInvoicesRouter as express.RequestHandler);
 app.use("/admin/revenue", adminRevenueRouter);
 // also expose API-prefixed route so frontend using `/api/admin/revenue` works
 app.use('/api/admin/revenue', adminRevenueRouter as express.RequestHandler);
 app.use("/admin/payments", adminPaymentsRouter);
 app.use("/admin/settings", adminSettingsRouter);
-app.use("/admin/drivers", adminDriversRouter);
+// IMPORTANT: mount /admin/drivers/summary BEFORE /admin/drivers to avoid ":id" catching "summary"
 app.use('/admin/drivers/summary', adminDriversSummaryRouter);
+// also expose API-prefixed route so frontend using `/api/admin/drivers/summary` works
+app.use('/api/admin/drivers/summary', adminDriversSummaryRouter as express.RequestHandler);
+// also expose API-prefixed drivers router (includes trips, invoices, etc.)
+// NOTE: keep this AFTER /api/admin/drivers/summary to avoid ":id" catching "summary"
+app.use('/api/admin/drivers', adminDriversRouter as express.RequestHandler);
+app.use("/admin/drivers", adminDriversRouter);
 app.use('/admin/drivers/levels', adminDriversLevelsRouter);
 app.use('/api/admin/drivers/level-messages', adminAllowlist, requireRole('ADMIN') as express.RequestHandler, adminDriversLevelMessagesRouter);
 app.use('/admin/group-stays/summary', adminGroupStaysSummaryRouter);
@@ -229,8 +241,12 @@ app.use('/admin/group-stays/arrangements', adminGroupStaysArrangementsRouter);
 app.use('/admin/plan-with-us/summary', adminPlanWithUsSummaryRouter);
 app.use('/admin/plan-with-us/requests', adminPlanWithUsRequestsRouter);
 app.use('/admin/trust-partners', adminTrustPartnersRouter);
+// also expose API-prefixed route so frontend using `/api/admin/trust-partners` works
+app.use('/api/admin/trust-partners', adminTrustPartnersRouter as express.RequestHandler);
 app.use("/admin/stats", adminStatsRouter);
 app.use("/admin/users", adminUsersRouter);
+// also expose API-prefixed route so frontend using `/api/admin/users` works
+app.use('/api/admin/users', adminUsersRouter as express.RequestHandler);
 app.use("/admin/users/summary", adminUsersSummaryRouter);
 app.use("/admin/users/transport-bookings", adminUsersTransportBookingsRouter);
 app.use("/admin/help-owners", adminHelpOwnersRouter);
@@ -239,7 +255,13 @@ app.use("/admin/referral-earnings", adminReferralEarningsRouter);
 app.use("/webhooks", paymentWebhooksRouter);
 app.use("/api/payments/azampay", azampayPaymentsRouter);
 app.use("/admin/owners", adminOwnersRouter);
+// also expose API-prefixed route so frontend using `/api/admin/owners` works
+app.use('/api/admin/owners', adminOwnersRouter as express.RequestHandler);
 app.use("/admin/properties", adminPropertiesRouter);
+// also expose API-prefixed route so frontend using `/api/admin/properties` works
+app.use('/api/admin/properties', adminPropertiesRouter as express.RequestHandler);
+// also expose non-api-prefixed route so Next rewrites `/admin/*` works
+app.use('/admin/summary', requireRole('ADMIN') as express.RequestHandler, adminSummaryRouter as express.RequestHandler);
 app.use('/api/admin/summary', requireRole('ADMIN') as express.RequestHandler, adminSummaryRouter as express.RequestHandler);
 app.use('/api/admin/audits', requireRole('ADMIN') as express.RequestHandler, adminAuditsRouter as express.RequestHandler);
 app.use('/api/admin/notifications', requireRole('ADMIN') as express.RequestHandler, adminNotificationsRouter as express.RequestHandler);

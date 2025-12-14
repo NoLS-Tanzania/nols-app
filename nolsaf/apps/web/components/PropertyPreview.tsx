@@ -1554,19 +1554,16 @@ export default function PropertyPreview({
                 {location.lat && location.lng && (
                   <div className="mt-6">
                     <div className="w-full h-80 bg-gray-200 rounded-xl overflow-hidden border border-gray-300 relative">
-                      {/* Interactive Map Placeholder - Ready for Google Maps Integration */}
-                      <iframe
-                        src={`https://www.google.com/maps/embed/v1/place?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || 'YOUR_API_KEY'}&q=${location.lat},${location.lng}&zoom=15`}
-                        width="100%"
-                        height="100%"
-                        style={{ border: 0 }}
-                        allowFullScreen
-                        loading="lazy"
-                        referrerPolicy="no-referrer-when-downgrade"
-                        className="absolute inset-0"
-                      />
-                      {/* Fallback if no API key */}
-                      {!process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY && (
+                      {/* Map preview (Mapbox Static Images) */}
+                      {process.env.NEXT_PUBLIC_MAPBOX_TOKEN || process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN ? (
+                        <img
+                          src={`https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/pin-s+10b981(${location.lng},${location.lat})/${location.lng},${location.lat},15,0/900x420?access_token=${encodeURIComponent(
+                            (process.env.NEXT_PUBLIC_MAPBOX_TOKEN || process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN) as string
+                          )}`}
+                          alt="Map preview"
+                          className="absolute inset-0 w-full h-full object-cover"
+                        />
+                      ) : (
                         <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
                           <div className="text-center">
                             <Map className="h-12 w-12 text-gray-400 mx-auto mb-2" />
@@ -1574,20 +1571,20 @@ export default function PropertyPreview({
                             <p className="text-sm text-gray-500 mt-1">
                               {location.lat}, {location.lng}
                             </p>
-                            <p className="text-xs text-gray-400 mt-2">Add Google Maps API key for interactive map</p>
+                            <p className="text-xs text-gray-400 mt-2">Add Mapbox token for map preview</p>
                           </div>
                         </div>
                       )}
                     </div>
                     <div className="mt-2 text-sm text-gray-600">
                       <a
-                        href={`https://www.google.com/maps/search/?api=1&query=${location.lat},${location.lng}`}
+                        href={`https://www.openstreetmap.org/?mlat=${location.lat}&mlon=${location.lng}#map=16/${location.lat}/${location.lng}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-emerald-600 hover:underline flex items-center gap-1"
                       >
                         <MapPin className="h-4 w-4" />
-                        View on Google Maps
+                        View on map
                       </a>
                     </div>
                   </div>

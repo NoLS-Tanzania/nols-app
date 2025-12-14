@@ -35,7 +35,7 @@ export default function SiteHeader({
   role = "OWNER",
   unreadMessages = 0,
   driverMode = false,
-}: { role?: "ADMIN" | "OWNER" | "DRIVER"; unreadMessages?: number; driverMode?: boolean }) {
+}: { role?: "ADMIN" | "OWNER" | "DRIVER" | "CUSTOMER"; unreadMessages?: number; driverMode?: boolean }) {
   const [open, setOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');

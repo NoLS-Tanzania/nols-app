@@ -92,7 +92,7 @@ export default function AdminDriversTripsPage() {
       }
       if (q) params.q = q;
 
-      const r = await api.get<{ items: TripRow[]; total: number }>("/admin/drivers/trips", { params });
+      const r = await api.get<{ items: TripRow[]; total: number }>("/api/admin/drivers/trips", { params });
       setList(r.data?.items ?? []);
       setTotal(r.data?.total ?? 0);
     } catch (err) {
@@ -107,7 +107,7 @@ export default function AdminDriversTripsPage() {
   const loadHistogram = useCallback(async () => {
     setHistogramLoading(true);
     try {
-      const r = await api.get<TripStatsResponse>("/admin/drivers/trips/stats", {
+      const r = await api.get<TripStatsResponse>("/api/admin/drivers/trips/stats", {
         params: { period: histogramPeriod },
       });
       setHistogramData(r.data);

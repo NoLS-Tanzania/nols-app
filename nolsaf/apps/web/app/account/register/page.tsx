@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import axios from 'axios';
-import { AlertCircle, Check, UserPlus, ChevronLeft, Lock, LogIn, User, Truck, Building2, Mail, ArrowLeft, Eye, EyeOff, Phone } from 'lucide-react';
+import { AlertCircle, Check, UserPlus, Lock, LogIn, User, Truck, Building2, Mail, ArrowLeft, Eye, EyeOff, Phone } from 'lucide-react';
 import { useRouter, useSearchParams } from "next/navigation";
 import AuthPageFlip from "@/components/AuthPageFlip";
 
