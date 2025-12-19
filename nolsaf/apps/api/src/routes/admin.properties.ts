@@ -106,6 +106,9 @@ router.get("/", (async (req: AuthedRequest, res) => {
       regionName?: string | null;
       district?: string | null;
       photos?: string[] | null;
+      basePrice?: number | null;
+      currency?: string | null;
+      services?: any;
       updatedAt: Date;
     }
 
@@ -118,6 +121,9 @@ router.get("/", (async (req: AuthedRequest, res) => {
       regionName?: string | null;
       district?: string | null;
       photos: string[];
+      basePrice?: number | null;
+      currency?: string | null;
+      services?: any;
       updatedAt: Date;
     }
 
@@ -141,6 +147,9 @@ router.get("/", (async (req: AuthedRequest, res) => {
         regionName: p.regionName ?? null,
         district: p.district ?? null,
         photos: Array.isArray(p.photos) ? p.photos.slice(0, 3) : [],
+        basePrice: p.basePrice ?? null,
+        currency: p.currency ?? null,
+        services: p.services ?? null,
         updatedAt: p.updatedAt,
       })),
     };
@@ -219,7 +228,7 @@ router.patch("/:id", (async (req: AuthedRequest, res) => {
     });
     if (!property) return res.status(404).json({ error: "Property not found" });
 
-    const { title, description, basePrice, currency } = req.body;
+    const { title, description, basePrice, currency, commissionPercent, discountRules, roomPrices } = req.body;
 
     const updateData: any = {};
     if (title !== undefined) updateData.title = String(title);
@@ -227,11 +236,92 @@ router.patch("/:id", (async (req: AuthedRequest, res) => {
     if (basePrice !== undefined) updateData.basePrice = Number(basePrice);
     if (currency !== undefined) updateData.currency = String(currency);
 
-    const updated = await prisma.property.update({
+    // Store commission and discount rules in services JSON field
+    if (commissionPercent !== undefined || discountRules !== undefined) {
+      // Get existing services or initialize as object
+      const existingServices = property.services && typeof property.services === 'object' 
+        ? property.services as any 
+        : {};
+      
+      const updatedServices = { ...existingServices };
+      
+      // Store commission percent (null means use system default)
+      if (commissionPercent !== undefined) {
+        if (commissionPercent === null) {
+          delete updatedServices.commissionPercent;
+        } else {
+          updatedServices.commissionPercent = Number(commissionPercent);
+        }
+      }
+      
+      // Store discount rules
+      if (discountRules !== undefined) {
+        if (Array.isArray(discountRules) && discountRules.length > 0) {
+          updatedServices.discountRules = discountRules;
+        } else {
+          delete updatedServices.discountRules;
+        }
+      }
+      
+      updateData.services = updatedServices;
+    }
+
+    let updated = await prisma.property.update({
       where: { id },
       data: updateData,
       include: { owner: { select: { id: true, name: true, email: true, phone: true } } }
     });
+
+    // Update room prices if provided
+    if (roomPrices && typeof roomPrices === 'object') {
+      const roomUpdatePromises = Object.entries(roomPrices).map(async ([roomId, price]) => {
+        const roomIdNum = Number(roomId);
+        if (!Number.isFinite(roomIdNum) || !Number.isFinite(Number(price))) return;
+        
+        try {
+          await prisma.room.updateMany({
+            where: { id: roomIdNum, propertyId: id },
+            data: { pricePerNight: Number(price) },
+          });
+        } catch (e) {
+          console.warn(`Failed to update room ${roomIdNum}:`, e);
+        }
+      });
+      
+      await Promise.all(roomUpdatePromises);
+      
+      // Also update roomsSpec JSON field to reflect new prices
+      // Fetch updated rooms from database to get accurate prices
+      const updatedRooms = await prisma.room.findMany({
+        where: { propertyId: id },
+        select: { id: true, pricePerNight: true },
+      });
+      
+      if (property.roomsSpec && Array.isArray(property.roomsSpec) && updatedRooms.length > 0) {
+        const updatedRoomsSpec = property.roomsSpec.map((room: any, index: number) => {
+          // Try to match by room ID first, then by index
+          const matchingRoom = updatedRooms.find((r: any) => 
+            room.id && Number(r.id) === Number(room.id)
+          ) || updatedRooms[index];
+          
+          if (matchingRoom && matchingRoom.pricePerNight !== null) {
+            return {
+              ...room,
+              pricePerNight: Number(matchingRoom.pricePerNight),
+              price: Number(matchingRoom.pricePerNight),
+            };
+          }
+          return room;
+        });
+        
+        // Update roomsSpec in the property
+        updated = await prisma.property.update({
+          where: { id },
+          data: { roomsSpec: updatedRoomsSpec },
+          include: { owner: { select: { id: true, name: true, email: true, phone: true } } }
+        });
+      }
+    }
 
     await auditLog({
       actorId: req.user!.id,
@@ -332,11 +422,36 @@ router.post("/:id/approve", (async (req: AuthedRequest, res) => {
 
   const payload = { id, from: before.status, to: "APPROVED", by: req.user!.id };
 
+  // Get admin and owner info for notifications
+  const [admin, property] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: { id: true, name: true, email: true },
+    }),
+    prisma.property.findUnique({
+      where: { id },
+      include: { owner: { select: { id: true, name: true, email: true } } },
+    }),
+  ]);
+
+  const notificationData = { 
+    propertyId: id, 
+    propertyTitle: before.title,
+    approvedBy: req.user!.id,
+    approvedByName: admin?.name || admin?.email || `Admin #${req.user!.id}`,
+    ownerId: before.ownerId,
+    ownerName: property?.owner?.name || null,
+    ownerEmail: property?.owner?.email || null,
+  };
+
+  const { notifyOwner, notifyAdmins } = await import("../lib/notifications.js");
+
   await Promise.all([
     emitEvent("property.status.changed", payload),
     invalidateAdminPropertyQueues(),
     invalidateOwnerPropertyLists(before.ownerId),
-    notifyOwner(before.ownerId, "property_approved", { propertyId: id, propertyTitle: before.title }),
+    notifyOwner(before.ownerId, "property_approved", notificationData),
+    notifyAdmins("property_approved", notificationData),
     auditLog({
       actorId: req.user!.id,
       actorRole: req.user!.role,
@@ -355,10 +470,15 @@ router.post("/:id/approve", (async (req: AuthedRequest, res) => {
 }) as RequestHandler);
 
 /** POST /admin/properties/:id/reject { reasons: string[], note?: string } */
-router.post(":id/reject", (async (req: AuthedRequest, res) => {
+router.post("/:id/reject", (async (req: AuthedRequest, res) => {
   const id = Number(req.params.id);
+  if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid property ID" });
+  
   const parse = RejectPropertyInput.safeParse(req.body);
-  if (!parse.success) return res.status(400).json({ error: parse.error.flatten() });
+  if (!parse.success) {
+    const errors = parse.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
+    return res.status(400).json({ error: `Validation failed: ${errors}` });
+  }
 
   const before = await prisma.property.findFirst({
     where: { id },
@@ -410,10 +530,15 @@ router.post(":id/reject", (async (req: AuthedRequest, res) => {
 }) as RequestHandler);
 
 /** POST /admin/properties/:id/suspend { reason } */
-router.post(":id/suspend", (async (req: AuthedRequest, res) => {
+router.post("/:id/suspend", (async (req: AuthedRequest, res) => {
   const id = Number(req.params.id);
+  if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid property ID" });
+  
   const parse = SuspendPropertyInput.safeParse(req.body);
-  if (!parse.success) return res.status(400).json({ error: parse.error.flatten() });
+  if (!parse.success) {
+    const errors = parse.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
+    return res.status(400).json({ error: `Validation failed: ${errors}` });
+  }
 
   const before = await prisma.property.findFirst({
     where: { id },
@@ -463,8 +588,9 @@ router.post(":id/suspend", (async (req: AuthedRequest, res) => {
 }) as RequestHandler);
 
 /** POST /admin/properties/:id/unsuspend */
-router.post(":id/unsuspend", (async (req: AuthedRequest, res) => {
+router.post("/:id/unsuspend", (async (req: AuthedRequest, res) => {
   const id = Number(req.params.id);
+  if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid property ID" });
   const before = await prisma.property.findFirst({
     where: { id },
     select: { status: true, ownerId: true, title: true },

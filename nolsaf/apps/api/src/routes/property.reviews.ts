@@ -130,14 +130,19 @@ router.post("/", requireAuth, async (req: AuthedRequest, res) => {
       return res.status(400).json({ error: "You have already reviewed this property" });
     }
 
-    // Verify property exists
+    // Verify property exists and check if user is the owner
     const property = await prisma.property.findFirst({
       where: { id: parsed.propertyId },
-      select: { id: true, status: true },
+      select: { id: true, status: true, ownerId: true },
     });
 
     if (!property) {
       return res.status(404).json({ error: "Property not found" });
+    }
+
+    // Prevent owners from reviewing their own properties
+    if (property.ownerId === userId) {
+      return res.status(403).json({ error: "Property owners cannot leave reviews on their own properties" });
     }
 
     // Verify booking if bookingId is provided

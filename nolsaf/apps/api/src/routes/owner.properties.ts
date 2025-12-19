@@ -22,6 +22,7 @@ const baseBodySchema = z.object({
   regionId: z.union([z.string().min(1), z.number().int().positive()]).optional(),
   regionName: z.string().optional(),
   district: z.string().optional(),
+  ward: z.string().optional().nullable(),
   street: z.string().optional().nullable(),
   apartment: z.string().optional().nullable(),
   city: z.string().optional(),
@@ -43,7 +44,14 @@ const baseBodySchema = z.object({
 
   // room & services
   roomsSpec: z.array(z.any()).default([]),
-  services: z.array(z.string()).default([]),
+  // services can be array of strings (legacy) or object with tags and nearbyFacilities
+  services: z.union([
+    z.array(z.string()),
+    z.object({
+      tags: z.array(z.string()).optional(),
+      nearbyFacilities: z.array(z.any()).optional(),
+    }),
+  ]).default([]),
 
   // pricing
   basePrice: z.number().nonnegative().optional().nullable(),
@@ -51,15 +59,69 @@ const baseBodySchema = z.object({
   
 });
 
+function normalizeHotelStar(v: unknown): string | null {
+  // DB schema stores hotelStar as string label (basic/simple/moderate/high/luxury)
+  if (v === null || typeof v === "undefined") return null;
+  const n = Number(v);
+  if (!Number.isFinite(n)) return null;
+  const map: Record<number, string> = {
+    1: "basic",
+    2: "simple",
+    3: "moderate",
+    4: "high",
+    5: "luxury",
+  };
+  return map[Math.trunc(n)] ?? String(v);
+}
 
-function cleanServices(services: unknown): string[] {
-  if (!Array.isArray(services)) return [];
-  const out = services
-    .filter((s): s is string => typeof s === "string")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  // unique + cap list length to avoid oversized payloads
-  return Array.from(new Set(out)).slice(0, 200);
+
+function cleanServices(services: unknown): any {
+  // Handle legacy array format
+  if (Array.isArray(services)) {
+    const out = services
+      .filter((s): s is string => typeof s === "string")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    return Array.from(new Set(out)).slice(0, 200);
+  }
+  
+  // Handle object format with tags, nearbyFacilities, and service properties
+  if (services && typeof services === 'object' && !Array.isArray(services)) {
+    const obj = services as any;
+    const result: any = {};
+    
+    // Preserve all service properties (parking, restaurant, bar, pool, etc.)
+    const serviceProperties = [
+      'parking', 'parkingPrice', 'breakfastIncluded', 'breakfastAvailable',
+      'restaurant', 'bar', 'pool', 'sauna', 'laundry', 'roomService',
+      'security24', 'firstAid', 'fireExtinguisher', 'onSiteShop', 'nearbyMall',
+      'socialHall', 'sportsGames', 'gym', 'wifi', 'ac'
+    ];
+    
+    for (const prop of serviceProperties) {
+      if (obj[prop] !== undefined && obj[prop] !== null && obj[prop] !== '') {
+        result[prop] = obj[prop];
+      }
+    }
+    
+    // Clean and add tags if present
+    if (Array.isArray(obj.tags)) {
+      const cleanTags = obj.tags
+        .filter((s): s is string => typeof s === "string")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      result.tags = Array.from(new Set(cleanTags)).slice(0, 200);
+    }
+    
+    // Preserve nearbyFacilities array if present
+    if (Array.isArray(obj.nearbyFacilities)) {
+      result.nearbyFacilities = obj.nearbyFacilities;
+    }
+    
+    return result;
+  }
+  
+  return [];
 }
 
 // Extra business validation hook used during submit; keep permissive for now
@@ -103,6 +165,31 @@ router.get("/mine", (async (req: AuthedRequest, res) => {
   });
 }) as RequestHandler);
 
+// ---------- GET BY ID ----------
+router.get("/:id", (async (req: AuthedRequest, res) => {
+  const ownerId = req.user!.id;
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid id" });
+
+  const property = await prisma.property.findFirst({
+    where: { id, ownerId },
+    include: {
+      owner: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+        },
+      },
+    },
+  });
+
+  if (!property) return res.status(404).json({ error: "Property not found" });
+
+  res.json(property);
+}) as RequestHandler);
+
 // ---------- CREATE ----------
 router.post("/", (async (req: AuthedRequest, res) => {
   try {
@@ -117,9 +204,11 @@ router.post("/", (async (req: AuthedRequest, res) => {
   description: cleanHtml(parsed.description ?? null),
         status: "DRAFT",
         // location …
-        regionId: parsed.regionId,
+        // Prisma schema expects String? for regionId, but UI may send numeric codes (e.g. 11)
+        regionId: parsed.regionId == null ? null : String(parsed.regionId),
         regionName: parsed.regionName,
         district: parsed.district,
+        ward: parsed.ward ?? null,
         street: parsed.street,
         apartment: parsed.apartment,
         city: parsed.city,
@@ -134,7 +223,7 @@ router.post("/", (async (req: AuthedRequest, res) => {
         // media …
         photos: parsed.photos,
         // hotel …
-        hotelStar: parsed.hotelStar ?? null,
+        hotelStar: normalizeHotelStar(parsed.hotelStar),
         // room & services …
         roomsSpec: parsed.roomsSpec,
         services: cleanServices(parsed.services),
@@ -191,9 +280,11 @@ router.put("/:id", (async (req: AuthedRequest, res) => {
         type: parsed.type,
   description: cleanHtml(parsed.description ?? null),
         // location …
-        regionId: parsed.regionId,
+        // Keep existing value if field omitted; coerce number -> string when provided
+        regionId: typeof parsed.regionId === "undefined" ? undefined : (parsed.regionId == null ? null : String(parsed.regionId)),
         regionName: parsed.regionName,
         district: parsed.district,
+        ward: parsed.ward ?? null,
         street: parsed.street,
         apartment: parsed.apartment,
         city: parsed.city,
@@ -208,7 +299,7 @@ router.put("/:id", (async (req: AuthedRequest, res) => {
         // media …
         photos: parsed.photos,
         // hotel …
-        hotelStar: parsed.hotelStar ?? null,
+        hotelStar: typeof parsed.hotelStar === "undefined" ? undefined : normalizeHotelStar(parsed.hotelStar),
         // room & services …
         roomsSpec: parsed.roomsSpec,
         services: cleanServices(parsed.services),
@@ -275,12 +366,17 @@ router.post("/:id/submit", (async (req: AuthedRequest, res) => {
   // ✅ BEFORE RETURN — ENSURE LAYOUT IS FRESH
   try { await regenerateAndSaveLayout(id); } catch {}
 
-  // Notify owner that property has been submitted
-  const { notifyOwner } = await import("../lib/notifications.js");
-  await notifyOwner(ownerId, "property_submitted", { 
+  // Notify owner and admins that property has been submitted
+  const { notifyOwner, notifyAdmins } = await import("../lib/notifications.js");
+  const propertyData = { 
     propertyId: id, 
-    propertyTitle: p.title 
-  });
+    propertyTitle: p.title,
+    ownerId: ownerId,
+  };
+  await Promise.all([
+    notifyOwner(ownerId, "property_submitted", propertyData),
+    notifyAdmins("property_submitted", propertyData),
+  ]);
 
   res.json({ ok: true, id: updated.id, status: updated.status });
 }) as RequestHandler);

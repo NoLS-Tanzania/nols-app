@@ -14,7 +14,7 @@ export function toAdminPropertyDTO(p: any) {
     },
     photos: p.photos ?? [],
     roomsSpec: p.roomsSpec ?? [],
-    services: Array.isArray(p.services) ? p.services : (p.services ?? []),
+    services: p.services ?? null, // Preserve full services object (may contain commissionPercent, discountRules)
     basePrice: p.basePrice,
     currency: p.currency,
     totalBedrooms: p.totalBedrooms ?? null,

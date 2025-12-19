@@ -21,6 +21,7 @@ import { router as publicEmailVerify } from "./routes/public.email.verify";
 import publicSupportRouter from './routes/public.support';
 import publicUpdatesRouter from './routes/public.updates';
 import publicBookingRouter from './routes/public.booking';
+import publicPropertiesRouter from './routes/public.properties';
 // import { router as ownerPhone } from "./routes/owner.phone.verify";
 import { router as upCld } from "./routes/uploads.cloudinary";
 import { router as upS3 } from "./routes/uploads.s3";
@@ -164,6 +165,42 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Generic user room (customers/owners can join for inbox messages + notifications)
+  socket.on('join-user-room', (data: { userId: string | number }) => {
+    if (data.userId) {
+      const room = `user:${data.userId}`;
+      socket.join(room);
+      console.log(`User ${data.userId} joined room ${room}`);
+    }
+  });
+
+  socket.on('leave-user-room', (data: { userId: string | number }) => {
+    if (data.userId) {
+      const room = `user:${data.userId}`;
+      socket.leave(room);
+      console.log(`User ${data.userId} left room ${room}`);
+    }
+  });
+
+  // Owner room (legacy convenience; also join user room)
+  socket.on('join-owner-room', (data: { ownerId: string | number }) => {
+    if (data.ownerId) {
+      const room = `owner:${data.ownerId}`;
+      socket.join(room);
+      socket.join(`user:${data.ownerId}`);
+      console.log(`Owner ${data.ownerId} joined room ${room}`);
+    }
+  });
+
+  socket.on('leave-owner-room', (data: { ownerId: string | number }) => {
+    if (data.ownerId) {
+      const room = `owner:${data.ownerId}`;
+      socket.leave(room);
+      socket.leave(`user:${data.ownerId}`);
+      console.log(`Owner ${data.ownerId} left room ${room}`);
+    }
+  });
+
   // Handle admin room joining
   socket.on('join-admin-room', async () => {
     socket.join('admin');
@@ -304,6 +341,8 @@ app.use('/api/public/support', publicSupportRouter);
 app.use('/api/public/updates', publicUpdatesRouter);
 // Public booking view (for QR code scanning)
 app.use('/api/public/booking', publicBookingRouter);
+// Public properties (approved listings for public search/browse)
+app.use('/api/public/properties', publicPropertiesRouter);
 // Customer account endpoints (for travellers/customers)
 app.use('/api/customer/bookings', customerBookingsRouter as express.RequestHandler);
 app.use('/api/customer/rides', customerRidesRouter as express.RequestHandler);

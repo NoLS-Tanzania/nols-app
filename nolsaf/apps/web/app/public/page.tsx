@@ -20,7 +20,12 @@ import axios from 'axios';
 
 // Component to fetch and display trust partners from API
 function TrustedBySectionWithData() {
-  const [brands, setBrands] = useState<Array<{ name: string; logoUrl?: string; href?: string }>>([]);
+  const [brands, setBrands] = useState<Array<{ name: string; logoUrl?: string; href?: string }>>([
+    { name: "M-Pesa", logoUrl: "/assets/M-pesa.png", href: "https://www.vodacom.co.tz/m-pesa" },
+    { name: "Airtel Money", logoUrl: "/assets/airtel_money.png", href: "https://www.airtel.co.tz/airtel-money" },
+    { name: "Tigo Pesa", logoUrl: "/assets/mix%20by%20yas.png", href: "https://www.tigo.co.tz/tigo-pesa" },
+    { name: "VISA", logoUrl: "/assets/visa_card.png", href: "https://www.visa.com" },
+  ]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -28,18 +33,34 @@ function TrustedBySectionWithData() {
       try {
         const api = axios.create({ baseURL: "" });
         const r = await api.get<{ items: Array<{ name: string; logoUrl: string | null; href: string | null }> }>("/admin/trust-partners/public");
-        setBrands(r.data?.items.map(item => ({
-          name: item.name,
-          logoUrl: item.logoUrl || undefined,
-          href: item.href || undefined,
-        })) || []);
+        const items = Array.isArray(r.data?.items) ? r.data.items : [];
+        const mapped = items
+          .map((item) => ({
+            name: item.name,
+            logoUrl: item.logoUrl || undefined,
+            href: item.href || undefined,
+          }))
+          .filter((b) => Boolean(b.name));
+
+        // If DB has no rows yet, show a safe default so the section is still visible in public.
+        if (mapped.length > 0) {
+          setBrands(mapped);
+        } else {
+          setBrands([
+            { name: "M-Pesa", logoUrl: "/assets/M-pesa.png", href: "https://www.vodacom.co.tz/m-pesa" },
+            { name: "Airtel Money", logoUrl: "/assets/airtel_money.png", href: "https://www.airtel.co.tz/airtel-money" },
+            { name: "Tigo Pesa", logoUrl: "/assets/mix%20by%20yas.png", href: "https://www.tigo.co.tz/tigo-pesa" },
+            { name: "VISA", logoUrl: "/assets/visa_card.png", href: "https://www.visa.com" },
+          ]);
+        }
       } catch (err) {
         console.error("Failed to load trust partners", err);
         // Fallback to default partners if API fails
         setBrands([
           { name: "M-Pesa", logoUrl: "/assets/M-pesa.png", href: "https://www.vodacom.co.tz/m-pesa" },
           { name: "Airtel Money", logoUrl: "/assets/airtel_money.png", href: "https://www.airtel.co.tz/airtel-money" },
-          { name: "Tigo Pesa", logoUrl: "/assets/mix by yas.png", href: "https://www.tigo.co.tz/tigo-pesa" },
+          { name: "Tigo Pesa", logoUrl: "/assets/mix%20by%20yas.png", href: "https://www.tigo.co.tz/tigo-pesa" },
+          { name: "VISA", logoUrl: "/assets/visa_card.png", href: "https://www.visa.com" },
         ]);
       } finally {
         setLoading(false);
@@ -48,11 +69,8 @@ function TrustedBySectionWithData() {
     load();
   }, []);
 
-  if (loading) {
-    return null; // Don't show anything while loading
-  }
-
-  return <TrustedBySection brands={brands} />;
+  // Keep layout stable: show something even while loading (fallback brands will be replaced if DB has items)
+  return <TrustedBySection brands={brands} className={loading ? "opacity-90" : ""} />;
 }
 /* react-day-picker in this project/version doesn't export a Range type,
    so provide a local Range type compatible with the code below. */
@@ -105,6 +123,178 @@ export default function Page() {
   const active = slides[idx];
   const timerRef = useRef<number | null>(null);
   const [paused, setPaused] = useState(false);
+
+  // Property type cards (counts + quick navigation)
+  type PropertyTypeKey =
+    | "HOTEL"
+    | "LODGE"
+    | "APARTMENT"
+    | "VILLA"
+    | "GUEST_HOUSE"
+    | "BUNGALOW"
+    | "CABIN"
+    | "HOMESTAY"
+    | "CONDO"
+    | "HOUSE";
+
+  type PublicPropertyCardLite = {
+    title: string;
+    location: string;
+    primaryImage: string | null;
+    basePrice: number | null;
+    currency: string | null;
+  };
+
+  const PROPERTY_TYPE_CARDS: Array<{
+    key: PropertyTypeKey;
+    title: string;
+    fallbackImageSrc: string;
+  }> = [
+    { key: "HOTEL", title: "Hotel", fallbackImageSrc: "/assets/hotel.jpg" },
+    { key: "LODGE", title: "Lodge", fallbackImageSrc: "/assets/guest_house.jpg" },
+    { key: "APARTMENT", title: "Apartment", fallbackImageSrc: "/assets/Local_houses.jpg" },
+    { key: "VILLA", title: "Villa", fallbackImageSrc: "/assets/villa.jpg" },
+    { key: "GUEST_HOUSE", title: "Guest house", fallbackImageSrc: "/assets/Villagestay.jpg" },
+    { key: "BUNGALOW", title: "Bungalow", fallbackImageSrc: "/assets/villa.jpg" },
+    { key: "CABIN", title: "Cabin", fallbackImageSrc: "/assets/campsite.jpg" },
+    { key: "HOMESTAY", title: "Homestay", fallbackImageSrc: "/assets/Local_houses.jpg" },
+    { key: "CONDO", title: "Condo", fallbackImageSrc: "/assets/Local_houses.jpg" },
+    { key: "HOUSE", title: "House", fallbackImageSrc: "/assets/Local_houses.jpg" },
+  ];
+
+  const [typeCounts, setTypeCounts] = useState<Record<string, number | null>>({});
+  const [typeSamples, setTypeSamples] = useState<Record<string, PublicPropertyCardLite | null>>({});
+  const [countsLoading, setCountsLoading] = useState(true);
+  const [blinkCounts, setBlinkCounts] = useState(false);
+
+  const [topCities, setTopCities] = useState<Array<{ city: string; count: number; imageSrc: string | null }>>([]);
+  const [citiesLoading, setCitiesLoading] = useState(true);
+
+  const cityKey = (s: string) => String(s || "").trim().toLowerCase();
+  const CITY_IMAGE_MAP: Record<string, string> = {
+    // Use stable, brand-safe hero images for key cities (Booking.com style tiles)
+    [cityKey("Dar es Salaam")]: "/assets/nolsaf%20picture%203.jpg",
+    [cityKey("Zanzibar")]: "/assets/nolsaf%20picture%201.jpg",
+    [cityKey("Arusha")]: "/assets/nolsaf%20picture%2022.jpg",
+    [cityKey("Dodoma")]: "/assets/Welcome.jpg",
+    [cityKey("Mwanza")]: "/assets/Local_houses.jpg",
+  };
+
+  const CITY_FALLBACK_IMAGES = [
+    "/assets/nolsaf%20picture%201.jpg",
+    "/assets/nolsaf%20picture%2022.jpg",
+    "/assets/nolsaf%20picture%203.jpg",
+    "/assets/Welcome.jpg",
+    "/assets/Local_houses.jpg",
+  ];
+
+  const fmtMoney = (amount: number | null | undefined, currency?: string | null) => {
+    if (amount == null || !Number.isFinite(Number(amount))) return "";
+    const cur = currency || "TZS";
+    try {
+      return new Intl.NumberFormat(undefined, { style: "currency", currency: cur, maximumFractionDigits: 0 }).format(Number(amount));
+    } catch {
+      return `${cur} ${Number(amount).toLocaleString()}`;
+    }
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadCounts() {
+      setCountsLoading(true);
+      try {
+        const pairs = await Promise.all(
+          PROPERTY_TYPE_CARDS.map(async (t) => {
+            const res = await fetch(`/api/public/properties?types=${encodeURIComponent(t.key)}&page=1&pageSize=1`, {
+              cache: "no-store",
+            });
+            if (!res.ok) return [t.key, null, null] as const;
+            const json = (await res.json()) as any;
+            const total = typeof json?.total === "number" ? json.total : Number(json?.total);
+            const first = Array.isArray(json?.items) && json.items.length ? json.items[0] : null;
+            const sample: PublicPropertyCardLite | null = first
+              ? {
+                  title: String(first.title || ""),
+                  location: String(first.location || ""),
+                  primaryImage: typeof first.primaryImage === "string" ? first.primaryImage : null,
+                  basePrice: first.basePrice != null ? Number(first.basePrice) : null,
+                  currency: first.currency ?? null,
+                }
+              : null;
+            return [t.key, Number.isFinite(total) ? total : null, sample] as const;
+          })
+        );
+        if (cancelled) return;
+        const next: Record<string, number | null> = {};
+        const nextSamples: Record<string, PublicPropertyCardLite | null> = {};
+        for (const [k, v, s] of pairs) {
+          next[k] = v;
+          nextSamples[k] = s;
+        }
+        setTypeCounts(next);
+        setTypeSamples(nextSamples);
+        setBlinkCounts(true);
+        window.setTimeout(() => setBlinkCounts(false), 1800);
+      } catch {
+        if (cancelled) return;
+      } finally {
+        if (!cancelled) setCountsLoading(false);
+      }
+    }
+    void loadCounts();
+    return () => {
+      cancelled = true;
+    };
+    // Intentionally run once per mount (counts can be refreshed on page reload)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadTopCities() {
+      setCitiesLoading(true);
+      try {
+        const res = await fetch(`/api/public/properties/top-cities?take=5`, { cache: "no-store" });
+        if (!res.ok) throw new Error("failed");
+        const json = (await res.json()) as any;
+        const items = Array.isArray(json?.items) ? json.items : [];
+        const mapped = items
+          .map((it: any) => ({
+            city: String(it?.city || "").trim(),
+            count: Number(it?.count ?? 0),
+            imageSrc: null as string | null, // image is chosen from local assets below
+          }))
+          .filter((x: any) => x.city && Number.isFinite(x.count) && x.count > 0);
+        // TEMP fallback (visual sample): if DB has no city data yet, show sample tiles so you can review the design.
+        // Remove this fallback once real city data is present.
+        const fallbackSample = [
+          { city: "Dar es Salaam", count: 128, imageSrc: null },
+          { city: "Zanzibar", count: 96, imageSrc: null },
+          { city: "Arusha", count: 74, imageSrc: null },
+          { city: "Mwanza", count: 41, imageSrc: null },
+          { city: "Dodoma", count: 33, imageSrc: null },
+        ];
+        if (!cancelled) setTopCities((mapped.length ? mapped : fallbackSample).slice(0, 5));
+      } catch {
+        // On error, still show sample tiles for design review (can be removed later)
+        if (!cancelled) {
+          setTopCities([
+            { city: "Dar es Salaam", count: 128, imageSrc: null },
+            { city: "Zanzibar", count: 96, imageSrc: null },
+            { city: "Arusha", count: 74, imageSrc: null },
+            { city: "Mwanza", count: 41, imageSrc: null },
+            { city: "Dodoma", count: 33, imageSrc: null },
+          ]);
+        }
+      } finally {
+        if (!cancelled) setCitiesLoading(false);
+      }
+    }
+    void loadTopCities();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   
   // Search form state for hero (first slide)
   const [q, setQ] = useState('');
@@ -1027,27 +1217,80 @@ export default function Page() {
           <SectionSeparator variant="dots" pillLabel="Explore" className="mt-6" />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mt-6">
-            {[
-              { title: 'Hotel', description: 'Hotel stays', href: '/public/properties?type=hotel', imageSrc: '/assets/hotel.jpg' },
-              { title: 'Lodge', description: 'Lodges & guest houses', href: '/public/properties?type=lodge', imageSrc: '/assets/guest_house.jpg' },
-              { title: 'Campsite', description: 'Campsites and outdoor stays', href: '/public/properties?type=campsite', imageSrc: '/assets/campsite.jpg' },
-              { title: 'Villa', description: 'Villas and private homes', href: '/public/properties?type=villa', imageSrc: '/assets/villa.jpg' },
-              { title: 'Bengaluru', description: 'City stays in Bengaluru', href: '/public/properties?city=bengaluru', imageSrc: '/assets/Bengaruru.jpg' },
-            ].map((c) => (
-              <PropertyCard key={c.title} title={c.title} description={c.description} href={c.href} imageSrc={c.imageSrc} />
-            ))}
+            {PROPERTY_TYPE_CARDS.map((c) => {
+              const count = typeCounts[c.key];
+              const sample = typeSamples[c.key];
+              const href = `/public/properties?types=${encodeURIComponent(c.key)}&page=1`;
+              return (
+                <PropertyCard
+                  key={c.key}
+                  title={c.title}
+                  description={
+                    sample
+                      ? `${sample.title}${sample.location ? ` • ${sample.location}` : ""}${sample.basePrice != null ? ` • from ${fmtMoney(sample.basePrice, sample.currency)}` : ""}`
+                      : `${c.title} stays`
+                  }
+                  href={href}
+                  imageSrc={sample?.primaryImage || c.fallbackImageSrc}
+                  topLeftBadge={
+                    <AttentionBlink active={blinkCounts}>
+                      <span
+                        className={[
+                          "inline-flex items-center gap-2 rounded-full px-2.5 py-1",
+                          "bg-white/80 backdrop-blur-md ring-1 ring-white/70",
+                          "text-[11px] font-semibold text-slate-900",
+                          countsLoading ? "animate-pulse" : "",
+                        ].join(" ")}
+                      >
+                        <span className="text-slate-600">Total</span>
+                        <span className="tabular-nums">{typeof count === "number" ? count.toLocaleString() : "—"}</span>
+                      </span>
+                    </AttentionBlink>
+                  }
+                  topLeftSubBadge={
+                    <span className="inline-flex items-center rounded-full px-2.5 py-1 bg-[#02665e]/90 text-white text-xs font-semibold ring-1 ring-white/40 backdrop-blur-md">
+                      {c.title}
+                    </span>
+                  }
+                />
+              );
+            })}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mt-6">
-            {[
-              { title: 'Airport Transfers', description: 'Reliable airport pickup & dropoff', href: '/public/services?service=airport', imageSrc: '/assets/Makundi.jpg' },
-              { title: 'Guided Tours', description: 'Book guided tours and experiences', href: '/public/services?service=tours', imageSrc: '/assets/Toursite.jpeg' },
-              { title: 'Vehicle Hire', description: 'Cars, vans and drivers for hire', href: '/public/services?service=vehicle', imageSrc: '/assets/udongo.jpg' },
-              { title: 'Event Transport', description: 'Transport solutions for events', href: '/public/services?service=events', imageSrc: '/assets/Local_houses.jpg' },
-              { title: 'Concierge', description: 'Concierge & planning services', href: '/public/services?service=concierge', imageSrc: '/assets/Villagestay.jpg' },
-            ].map((s) => (
-              <PropertyCard key={s.title} title={s.title} description={s.description} href={s.href} imageSrc={s.imageSrc} />
-            ))}
+          <div className="mt-8">
+            <SectionSeparator variant="map" pillLabel="Top Cities" className="mt-6" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mt-6">
+              {(citiesLoading ? Array.from({ length: 5 }) : topCities).map((c: any, idx: number) => {
+                if (!c || typeof c.city !== "string") {
+                  return (
+                    <div key={`city-skel-${idx}`} className="h-56 rounded-xl border-2 border-slate-100 bg-slate-50 animate-pulse" />
+                  );
+                }
+                const href = `/public/properties?city=${encodeURIComponent(c.city)}&page=1`;
+                const img =
+                  CITY_IMAGE_MAP[cityKey(c.city)] ||
+                  CITY_FALLBACK_IMAGES[idx % CITY_FALLBACK_IMAGES.length] ||
+                  "/assets/Local_houses.jpg";
+                return (
+                  <PropertyCard
+                    key={c.city}
+                    title={c.city}
+                    description=""
+                    href={href}
+                    imageSrc={img}
+                    hideCaption
+                    showVerified={false}
+                    ctaLabel="Explore"
+                    bottomOverlay={
+                      <div className="-mx-4 px-4 py-3 bg-gradient-to-t from-black/80 via-black/30 to-transparent">
+                        <div className="text-white font-bold text-lg leading-tight">{c.city}</div>
+                        <div className="text-white/90 text-xs font-semibold">{Number(c.count).toLocaleString()} properties</div>
+                      </div>
+                    }
+                  />
+                );
+              })}
+            </div>
           </div>
 
           <SectionSeparator variant="map" pillLabel="Cities" className="mt-10" />
@@ -1093,9 +1336,8 @@ export default function Page() {
           <BookingFlowCard />
           <FounderStory />
           <Testimonials />
-          <LatestUpdate />
-
           <TrustedBySectionWithData />
+          <LatestUpdate />
         </div>
       </section>
     </main>

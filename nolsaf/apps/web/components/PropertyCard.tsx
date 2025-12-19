@@ -13,26 +13,65 @@ type Props = {
   href?: string;
   imageSrc?: string;
   className?: string;
+  topLeftBadge?: React.ReactNode;
+  topLeftSubBadge?: React.ReactNode;
+  bottomOverlay?: React.ReactNode;
+  hideCaption?: boolean;
+  ctaLabel?: string;
+  showVerified?: boolean;
 };
 
-export default function PropertyCard({ title, description, href = '#', imageSrc, className = '' }: Props) {
+export default function PropertyCard({
+  title,
+  description,
+  href = "#",
+  imageSrc,
+  className = "",
+  topLeftBadge,
+  topLeftSubBadge,
+  bottomOverlay,
+  hideCaption = false,
+  ctaLabel = "Book Now",
+  showVerified = true,
+}: Props) {
   const [blinkActive, setBlinkActive] = useState(false);
   const router = useRouter();
 
   const onEnter = () => setBlinkActive(true);
   const onLeave = () => setBlinkActive(false);
+  const canNavigate = Boolean(href && href !== "#");
 
   return (
-    <div className={`relative border-2 border-[#02665e] rounded-xl overflow-hidden hover:shadow-md flex flex-col h-56 no-underline ${className}`}>
+    <div
+      className={`relative border-2 border-[#02665e] rounded-xl overflow-hidden hover:shadow-md flex flex-col h-56 no-underline ${className}`}
+      onPointerEnter={onEnter}
+      onPointerLeave={onLeave}
+      onFocus={onEnter}
+      onBlur={onLeave}
+      onTouchStart={onEnter}
+      onTouchEnd={onLeave}
+    >
 
-      {/* Main clickable area (covers most of the card) - use client navigation to avoid complex anchor children */}
-      <div
-        role="link"
-        tabIndex={0}
+      {/* Optional badges (top-left) */}
+      {topLeftBadge || topLeftSubBadge ? (
+        <div className="absolute top-3 left-3 z-20 pointer-events-none flex flex-col gap-2">
+          {topLeftBadge}
+          {topLeftSubBadge}
+        </div>
+      ) : null}
+
+      {/* Main clickable area (covers most of the card) */}
+      <button
+        type="button"
+        disabled={!canNavigate}
         aria-label={`${title} - view details`}
-        className="absolute inset-0 z-10 no-underline cursor-pointer"
-        onClick={() => router.push(href)}
-        onKeyDown={(e) => { if (e.key === 'Enter') router.push(href); }}
+        className={[
+          "absolute inset-0 z-10 no-underline",
+          canNavigate ? "cursor-pointer" : "cursor-default opacity-70",
+        ].join(" ")}
+        onClick={() => {
+          if (canNavigate) router.push(href);
+        }}
       >
         {imageSrc ? (
           <Image
@@ -47,33 +86,29 @@ export default function PropertyCard({ title, description, href = '#', imageSrc,
 
         <div className="relative z-20 flex flex-col h-full">
           <div className="flex-1" />
+          {bottomOverlay ? (
+            <div className="p-4 pt-0">
+              {bottomOverlay}
+            </div>
+          ) : null}
           <div className="mt-auto p-4">
             <AttentionBlink active={blinkActive}>
-              <span className="inline-flex items-center px-3 py-2 bg-[#02665e] text-white rounded-md">Book Now</span>
+              <span className="inline-flex items-center px-3 py-2 bg-[#02665e] text-white rounded-md">{ctaLabel}</span>
             </AttentionBlink>
           </div>
         </div>
-      </div>
+      </button>
 
       {/* Verified badge (reusable component) */}
-      <VerifiedIcon href={href} ariaLabel={`View details for ${title}`} />
-
-      {/* interaction area for touch/hover to control blink (keeps separate from link to avoid nested interactive elements) */}
-      <div className="absolute inset-0 z-30" 
-        onPointerEnter={onEnter}
-        onPointerLeave={onLeave}
-        onFocus={onEnter}
-        onBlur={onLeave}
-        onTouchStart={onEnter}
-        onTouchEnd={onLeave}
-        aria-hidden
-      />
+      {showVerified ? <VerifiedIcon href={href} ariaLabel={`View details for ${title}`} /> : null}
 
       {/* caption below the card (visible) */}
+      {!hideCaption ? (
       <div className="mt-3 px-1">
         <Link href={href} className="text-sm font-semibold text-slate-900 no-underline">{title}</Link>
         <div className="text-xs text-slate-600">{description}</div>
       </div>
+      ) : null}
     </div>
   );
 }

@@ -3,9 +3,8 @@
 import Link from "next/link";
 import Image from "next/image";
 import React, { useEffect, useState, useRef } from "react";
-import { ChevronDown, Search } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { REGIONS } from '@/lib/tzRegions';
-import PublicSearch from "@/components/PublicSearch";
 import UserMenu from '@/components/UserMenu';
 import ThemeToggle from "@/components/ThemeToggle";
 import GlobalPicker from "@/components/GlobalPicker";
@@ -19,17 +18,7 @@ export default function PublicHeader({
   /** smaller height when embedded */
   compact?: boolean;
 }) {
-  const [showSearchOverride, setShowSearchOverride] = useState<boolean>(false);
-  // show search only while the Properties nav is focused (override)
-  const showSearch = !compact && showSearchOverride;
   const [authed, setAuthed] = React.useState<boolean>(false);
-
-  // mobile: expanded search panel state and refs for outside-click handling
-  const [expandedSearch, setExpandedSearch] = useState<boolean>(false);
-  const searchPanelRef = useRef<HTMLDivElement | null>(null);
-  const searchBtnRef = useRef<HTMLButtonElement | null>(null);
-  const propertiesRef = useRef<HTMLDivElement | null>(null);
-  const desktopSearchRef = useRef<HTMLDivElement | null>(null);
 
   React.useEffect(() => {
     try {
@@ -44,48 +33,6 @@ export default function PublicHeader({
       setAuthed(false);
     }
   }, []);
-
-  // close expanded mobile search when clicking/tapping outside or pressing Escape
-  useEffect(() => {
-    const onDoc = (e: MouseEvent) => {
-      if (!expandedSearch) return;
-      const target = e.target as Node | null;
-      if (!target) return;
-      if (searchPanelRef.current && searchPanelRef.current.contains(target)) return;
-      if (searchBtnRef.current && searchBtnRef.current.contains(target)) return;
-      setExpandedSearch(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setExpandedSearch(false);
-    };
-    document.addEventListener('click', onDoc);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('click', onDoc);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [expandedSearch]);
-
-  // keep desktop search pinned while focus is inside Properties nav or the search area
-  useEffect(() => {
-    const onDoc = (e: Event) => {
-      if (!showSearchOverride) return;
-      const target = e.target as Node | null;
-      if (!target) return;
-      if (propertiesRef.current && propertiesRef.current.contains(target)) return;
-      if (desktopSearchRef.current && desktopSearchRef.current.contains(target)) return;
-      if (searchPanelRef.current && searchPanelRef.current.contains(target)) return;
-      if (searchBtnRef.current && searchBtnRef.current.contains(target)) return;
-      setShowSearchOverride(false);
-    };
-
-    document.addEventListener('click', onDoc);
-    document.addEventListener('focusin', onDoc);
-    return () => {
-      document.removeEventListener('click', onDoc);
-      document.removeEventListener('focusin', onDoc);
-    };
-  }, [showSearchOverride]);
   return (
     <header className={`fixed top-0 left-0 right-0 z-40 text-white/95 bg-[#02665e] ${compact ? 'h-12' : 'h-16'} shadow-none`}>
       <div className={`mx-auto max-w-6xl px-4 ${compact ? 'h-12' : 'h-16'} flex items-center md:ml-0`}>
@@ -97,12 +44,9 @@ export default function PublicHeader({
 
           <nav className="hidden sm:flex items-center gap-4">
             <Link href="/public" className="text-white font-bold no-underline text-base inline-flex items-center justify-center px-3 py-1.5 rounded-full transition transform duration-150 hover:bg-white/10 hover:opacity-95 hover:scale-105">Home</Link>
-            <div ref={propertiesRef}>
-              <Link href="/public/properties" className="text-white font-bold no-underline text-base inline-flex items-center justify-center px-3 py-1.5 rounded-full transition transform duration-150 hover:bg-white/10 hover:opacity-95 hover:scale-105"
-                onPointerDown={() => setShowSearchOverride(true)} onFocus={() => setShowSearchOverride(true)}>
+            <Link href="/public/properties" className="text-white font-bold no-underline text-base inline-flex items-center justify-center px-3 py-1.5 rounded-full transition transform duration-150 hover:bg-white/10 hover:opacity-95 hover:scale-105">
                 Properties
               </Link>
-            </div>
             <Link href="/public/group-stays" className="text-white font-bold no-underline text-base inline-flex items-center justify-center px-3 py-1.5 rounded-full transition transform duration-150 hover:bg-white/10 hover:opacity-95 hover:scale-105">Group Stays</Link>
             <Link href="/public/plan-with-us" className="text-white font-bold no-underline text-base inline-flex items-center justify-center px-3 py-1.5 rounded-full transition transform duration-150 hover:bg-white/10 hover:opacity-95 hover:scale-105">Plan With Us</Link>
 
@@ -111,37 +55,8 @@ export default function PublicHeader({
           </nav>
         </div>
 
-        {/* Center: search - desktop inline, mobile icon that expands */}
-        <div className="flex-1 flex justify-center items-center z-10 pointer-events-auto relative">
-          {/* Desktop: inline search when allowed */}
-          <div className="hidden sm:flex w-full justify-center">
-            {showSearch && (
-              <div ref={desktopSearchRef} className="w-40 sm:w-44 md:w-48 px-1">
-                <PublicSearch />
-              </div>
-            )}
-          </div>
-
-          {/* Mobile: small icon that expands a search panel */}
-          <div className="flex sm:hidden items-center gap-2">
-            <button
-              ref={searchBtnRef}
-              type="button"
-              aria-expanded={expandedSearch}
-              aria-label="Open search"
-              onClick={() => setExpandedSearch(v => !v)}
-              className="p-2 rounded-full bg-white/10 hover:bg-white/20"
-            >
-              <Search className="h-4 w-4 text-white" />
-            </button>
-
-            {expandedSearch && (
-              <div ref={searchPanelRef} className="absolute left-1/2 transform -translate-x-1/2 top-full mt-2 w-[92%] px-3 pointer-events-auto z-40">
-                <PublicSearch autoFocus />
-              </div>
-            )}
-          </div>
-        </div>
+        {/* Spacer (search removed from header) */}
+        <div className="flex-1" />
 
         {/* Right: auth buttons */}
         <div className="flex items-center gap-3 ml-4 z-20">

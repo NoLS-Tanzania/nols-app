@@ -1,11 +1,14 @@
 "use client";
 import type { ReactNode } from "react";
-import { useMemo, useRef, useState, useEffect } from "react";
+import { useMemo, useRef, useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import PicturesUploader from "@/components/PicturesUploader";
-import { Plus, ChevronDown, Minus, ChevronLeft, ChevronRight, Home, Building, Building2, TreePine, Hotel, HelpCircle, Car, Coffee, Beer, Thermometer, Package, Shield, Bandage, FireExtinguisher, ShoppingBag, Store, PartyPopper, Gamepad, Dumbbell, Bus, Fuel, Sparkles, ScrollText, ShowerHead, Flame, Toilet as ToiletIcon, Wind, Trash2, Brush, ScanFace, FootprintsIcon, Shirt, RectangleHorizontal, Waves, Wifi, Table2, Armchair, CircleDot, Tv, MonitorPlay, Gamepad2, AirVent, Refrigerator, Phone, LampDesk, Heater, LockKeyhole, Eclipse, Sofa, Bed, BedDouble, BedSingle, WashingMachine, CheckCircle2, XCircle, AlertCircle, UtensilsCrossed, MapPin, Link as LinkIcon } from "lucide-react";
+import { Plus, ChevronDown, Minus, ChevronLeft, ChevronRight, Home, Building, Building2, TreePine, Hotel, HelpCircle, Car, Coffee, Beer, Thermometer, Package, Shield, Bandage, FireExtinguisher, ShoppingBag, Store, PartyPopper, Gamepad, Dumbbell, Bus, Fuel, Sparkles, ScrollText, ShowerHead, Flame, Toilet as ToiletIcon, Wind, Trash2, Brush, ScanFace, FootprintsIcon, Shirt, RectangleHorizontal, Waves, Wifi, Table2, Armchair, CircleDot, Tv, MonitorPlay, Gamepad2, AirVent, Refrigerator, Phone, LampDesk, Heater, LockKeyhole, Eclipse, Sofa, Bed, BedDouble, BedSingle, WashingMachine, CheckCircle2, XCircle, AlertCircle, UtensilsCrossed, MapPin, Link as LinkIcon, BadgeCheck, Users, CreditCard, Smartphone, Navigation, Locate, Eye, X, Bath } from "lucide-react";
 import axios from "axios";
 import { REGIONS, REGION_BY_ID, REGIONS_FULL_DATA } from "@/lib/tzRegions";
+import { BATHROOM_ICONS, OTHER_AMENITIES_ICONS } from "@/lib/amenityIcons";
+import ServicesAndFacilities from "@/components/ServicesAndFacilities";
+import NearbyServices from "@/components/NearbyServices";
 
 const api = axios.create();
 function authify(){ const t = typeof window!=="undefined" ? localStorage.getItem("token") : null; if(t) api.defaults.headers.common["Authorization"]=`Bearer ${t}`; }
@@ -59,46 +62,6 @@ const HOTEL_STAR_OPTIONS = [
   { value: "luxury", label: "Luxury and exceptional service" },
 ];
 
-// Icon mapping for bathroom items
-const BATHROOM_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
-  "Free toiletries": Sparkles,
-  "Toilet paper": ScrollText,
-  "Shower": ShowerHead,
-  "Water Heater": Flame,
-  "Toilet": ToiletIcon,
-  "Hairdryer": Wind,
-  "Trash Bin": Trash2,
-  "Toilet Brush": Brush,
-  "Mirror": ScanFace,
-  "Slippers": FootprintsIcon,
-  "Bathrobe": Shirt,
-  "Bath Mat": RectangleHorizontal,
-  "Towel": Waves,
-};
-
-const OTHER_AMENITIES_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
-  "Free Wi-Fi": Wifi,
-  "Table": Table2,
-  "Chair": Armchair,
-  "Iron": CircleDot, // Using CircleDot as alternative for iron
-  "TV": Tv,
-  "Flat Screen TV": MonitorPlay,
-  "PS Station": Gamepad2,
-  "Wardrobe": Shirt,
-  "Air Conditioning": AirVent,
-  "Mini Fridge": Refrigerator,
-  "Coffee Maker": Coffee,
-  "Phone": Phone,
-  "Mirror": ScanFace,
-  "Bedside Lamps": LampDesk,
-  "Heating": Heater,
-  "Desk": Table2, // Using Table2 as alternative for desk
-  "Safe": LockKeyhole,
-  "Clothes Rack": Shirt, // Using Shirt as alternative for hanger/clothes rack
-  "Blackout Curtains": Eclipse,
-  "Couches": Sofa,
-};
-
 const BED_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   "twin": BedSingle,
   "full": BedDouble,
@@ -107,10 +70,45 @@ const BED_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
 };
 
 /** Facilities config */
-const FACILITY_TYPES = ["Hospital","Pharmacy","Polyclinic","Clinic"] as const;
+const FACILITY_TYPES = [
+  "Hospital",
+  "Pharmacy",
+  "Polyclinic",
+  "Clinic",
+  "Police station",
+  "Airport",
+  "Bus station",
+  "Petrol station",
+  "Conference center",
+  "Stadium",
+  "Main road",
+] as const;
 const REACH_MODES = ["Walking","Boda","Public Transport","Car/Taxi"] as const;
 type FacilityType = typeof FACILITY_TYPES[number];
 type ReachMode = typeof REACH_MODES[number];
+
+// Facility type to placeholder examples mapping
+const FACILITY_PLACEHOLDERS: Record<FacilityType, string> = {
+  "Hospital": "e.g. Aga Khan Hospital",
+  "Pharmacy": "e.g. Medipharm Pharmacy",
+  "Polyclinic": "e.g. City Polyclinic",
+  "Clinic": "e.g. Community Health Clinic",
+  "Police station": "e.g. Central Police Station",
+  "Airport": "e.g. Julius Nyerere International Airport",
+  "Bus station": "e.g. Ubungo Bus Terminal",
+  "Petrol station": "e.g. Total Petrol Station",
+  "Conference center": "e.g. Mlimani City Conference Center",
+  "Stadium": "e.g. Benjamin Mkapa Stadium",
+  "Main road": "e.g. Bagamoyo Road",
+};
+
+// Facility types that require ownership selection
+const FACILITIES_WITH_OWNERSHIP: FacilityType[] = ["Hospital", "Pharmacy", "Polyclinic", "Clinic"];
+
+// Helper function to check if facility type requires ownership
+const requiresOwnership = (type: FacilityType): boolean => {
+  return FACILITIES_WITH_OWNERSHIP.includes(type);
+};
 type NearbyFacility = {
   id: string;
   type: FacilityType;
@@ -212,10 +210,573 @@ function createRegionSlug(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 }
 
+// Property Location Map Component - Uses exact coordinates and postcode
+function PropertyLocationMap({ 
+  latitude, 
+  longitude, 
+  postcode,
+  onLocationDetected
+}: { 
+  latitude: number; 
+  longitude: number; 
+  postcode?: string | null;
+  onLocationDetected?: (lat: number, lng: number) => void;
+}) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<any | null>(null);
+  const markerRef = useRef<any | null>(null);
+  const popupRef = useRef<any | null>(null);
+  const centerMarkerRef = useRef<HTMLDivElement | null>(null);
+  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const hasAutoDetectedRef = useRef(false);
+
+  // Function to detect user's current location
+  const detectLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      setLocationError('Geolocation is not supported by your browser.');
+      return;
+    }
+
+    setIsDetectingLocation(true);
+    setLocationError(null);
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = parseFloat(position.coords.latitude.toFixed(6));
+        const lng = parseFloat(position.coords.longitude.toFixed(6));
+        
+        console.log('📍 Location detected:', { latitude: lat, longitude: lng, accuracy: position.coords.accuracy });
+        
+        // Update parent component if callback provided
+        if (onLocationDetected) {
+          onLocationDetected(lat, lng);
+        }
+        
+        // Center map on detected location
+        // The center pin marker will automatically show the location
+        if (mapRef.current) {
+          mapRef.current.flyTo({
+            center: [lng, lat],
+            zoom: 17,
+            duration: 1500,
+            essential: true
+          });
+        }
+        
+        setIsDetectingLocation(false);
+      },
+      (error) => {
+        setIsDetectingLocation(false);
+        let errorMsg = 'Failed to get your location.';
+        if (error.code === error.PERMISSION_DENIED) {
+          errorMsg = 'Location access denied. Please enable location permissions.';
+        } else if (error.code === error.POSITION_UNAVAILABLE) {
+          errorMsg = 'Location information unavailable.';
+        } else if (error.code === error.TIMEOUT) {
+          errorMsg = 'Location request timed out.';
+        }
+        setLocationError(errorMsg);
+        console.error('Geolocation error:', error);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      }
+    );
+  }, [onLocationDetected]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!containerRef.current) return;
+
+    // Check if coordinates are default/unset - if so, try auto-detection once
+    const hasDefaultCoords = (!Number.isFinite(latitude) || !Number.isFinite(longitude)) ||
+                             (latitude === 0 && longitude === 0) ||
+                             (Math.abs(latitude) < 0.001 && Math.abs(longitude) < 0.001);
+
+    // Auto-detect location on first load if coordinates are not set
+    if (hasDefaultCoords && !hasAutoDetectedRef.current && navigator.geolocation) {
+      hasAutoDetectedRef.current = true;
+      // Small delay to ensure map container is ready
+      setTimeout(() => {
+        detectLocation();
+      }, 500);
+      return; // Don't initialize map yet, wait for location
+    }
+
+    // Validate coordinates are valid numbers
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      console.warn('Invalid coordinates:', { latitude, longitude });
+      return;
+    }
+
+    // Ensure coordinates are within valid ranges
+    if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+      console.warn('Coordinates out of range:', { latitude, longitude });
+      return;
+    }
+
+    const token =
+      (process.env.NEXT_PUBLIC_MAPBOX_TOKEN as string) ||
+      (process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN as string) ||
+      (window as any).__MAPBOX_TOKEN ||
+      '';
+
+    if (!token) {
+      console.warn('Mapbox token not found');
+      return;
+    }
+
+    let map: any = null;
+    (async () => {
+      try {
+        const mod = await import('mapbox-gl');
+        const mapboxgl = (mod as any).default ?? mod;
+        mapboxgl.accessToken = token;
+
+        // Clean up existing map if any
+        if (mapRef.current) {
+          mapRef.current.remove();
+          mapRef.current = null;
+        }
+        if (markerRef.current) {
+          markerRef.current.remove();
+          markerRef.current = null;
+        }
+        if (popupRef.current) {
+          popupRef.current.remove();
+          popupRef.current = null;
+        }
+
+        // Use EXACT coordinates - no rounding
+        // IMPORTANT: Mapbox uses [longitude, latitude] format
+        const exactLng = Number(longitude);
+        const exactLat = Number(latitude);
+
+        // Log coordinates for debugging
+        console.log('Map initialization with coordinates:', {
+          latitude: exactLat,
+          longitude: exactLng,
+          postcode: postcode || 'not provided',
+          format: '[longitude, latitude]'
+        });
+
+        map = new mapboxgl.Map({
+          container: containerRef.current as HTMLElement,
+          style: 'mapbox://styles/mapbox/light-v10',
+          center: [exactLng, exactLat], // [longitude, latitude] - Mapbox format
+          zoom: 17, // Higher zoom for very precise location
+          interactive: true,
+        });
+
+        mapRef.current = map;
+
+        // Wait for map to load before adding controls and marker
+        map.on('load', () => {
+          // Add navigation controls
+          map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
+
+          // Add "Locate Me" button control
+          const locateButton = document.createElement('button');
+          locateButton.className = 'mapboxgl-ctrl-icon mapboxgl-ctrl-locate';
+          locateButton.type = 'button';
+          locateButton.setAttribute('aria-label', 'Locate me');
+          locateButton.setAttribute('title', 'Locate me');
+          locateButton.style.cssText = `
+            width: 30px;
+            height: 30px;
+            background-color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 0 2px rgba(0,0,0,0.1);
+            transition: all 0.2s;
+          `;
+          
+          // Add locate icon (using SVG)
+          const locateIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+          locateIcon.setAttribute('width', '18');
+          locateIcon.setAttribute('height', '18');
+          locateIcon.setAttribute('viewBox', '0 0 24 24');
+          locateIcon.setAttribute('fill', 'none');
+          locateIcon.setAttribute('stroke', isDetectingLocation ? '#10b981' : '#02665e');
+          locateIcon.setAttribute('stroke-width', '2');
+          locateIcon.setAttribute('stroke-linecap', 'round');
+          locateIcon.setAttribute('stroke-linejoin', 'round');
+          
+          const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+          circle.setAttribute('cx', '12');
+          circle.setAttribute('cy', '12');
+          circle.setAttribute('r', '10');
+          
+          const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+          dot.setAttribute('cx', '12');
+          dot.setAttribute('cy', '12');
+          dot.setAttribute('r', '3');
+          
+          locateIcon.appendChild(circle);
+          locateIcon.appendChild(dot);
+          locateButton.appendChild(locateIcon);
+          
+          locateButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            detectLocation();
+          });
+          
+          locateButton.addEventListener('mouseenter', () => {
+            locateButton.style.backgroundColor = '#f0f9ff';
+            locateButton.style.boxShadow = '0 0 0 2px rgba(2,102,94,0.2)';
+          });
+          
+          locateButton.addEventListener('mouseleave', () => {
+            locateButton.style.backgroundColor = '#fff';
+            locateButton.style.boxShadow = '0 0 0 2px rgba(0,0,0,0.1)';
+          });
+          
+          // Create control container
+          const locateControl = document.createElement('div');
+          locateControl.className = 'mapboxgl-ctrl mapboxgl-ctrl-group';
+          locateControl.appendChild(locateButton);
+          locateControl.style.cssText = 'margin: 10px;';
+          
+          // Add to map (top-right, below navigation controls)
+          const topRight = map.getContainer().querySelector('.mapboxgl-ctrl-top-right');
+          if (topRight) {
+            topRight.appendChild(locateControl);
+          }
+
+          // Add center pin marker (fixed at center of map viewport)
+          const centerMarkerContainer = document.createElement('div');
+          centerMarkerContainer.style.cssText = `
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -100%);
+            z-index: 1000;
+            pointer-events: none;
+            width: 40px;
+            height: 50px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+          `;
+          
+          const centerPin = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+          centerPin.setAttribute('width', '40');
+          centerPin.setAttribute('height', '50');
+          centerPin.setAttribute('viewBox', '0 0 24 24');
+          centerPin.setAttribute('fill', 'none');
+          centerPin.style.display = 'block';
+          
+          // Create pin shape (teardrop/pin icon like MapPin from Lucide)
+          // The pin point is at y=22 (bottom of viewBox), so we position it at the bottom
+          const pinPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          pinPath.setAttribute('d', 'M20 10c0 4.418-8 12-8 12s-8-7.582-8-12a8 8 0 1 1 16 0z');
+          pinPath.setAttribute('fill', '#3b82f6'); // Blue color like the image
+          pinPath.setAttribute('stroke', '#fff');
+          pinPath.setAttribute('stroke-width', '1.5');
+          
+          // White circle in center of pin
+          const whiteCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+          whiteCircle.setAttribute('cx', '12');
+          whiteCircle.setAttribute('cy', '10');
+          whiteCircle.setAttribute('r', '4');
+          whiteCircle.setAttribute('fill', '#fff');
+          
+          centerPin.appendChild(pinPath);
+          centerPin.appendChild(whiteCircle);
+          centerMarkerContainer.appendChild(centerPin);
+          
+          // Add to map container
+          const mapContainer = map.getContainer();
+          mapContainer.style.position = 'relative';
+          mapContainer.appendChild(centerMarkerContainer);
+          centerMarkerRef.current = centerMarkerContainer;
+          
+          // Update coordinates when map center changes
+          const updateCenterCoordinates = () => {
+            if (!map) return;
+            const center = map.getCenter();
+            const centerLat = center.lat;
+            const centerLng = center.lng;
+            
+            // Update parent component with center coordinates
+            if (onLocationDetected) {
+              onLocationDetected(centerLat, centerLng);
+            }
+          };
+          
+          // Listen to map move events to update coordinates
+          map.on('moveend', updateCenterCoordinates);
+          map.on('dragend', updateCenterCoordinates);
+
+          // If postcode is provided, try to geocode it and verify/adjust location
+          if (postcode) {
+            // First, try to geocode the postcode to get coordinates
+            fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(postcode)}.json?access_token=${token}&country=TZ&types=postcode`)
+              .then(res => res.json())
+              .then(data => {
+                if (data.features && data.features.length > 0) {
+                  const postcodeCoords = data.features[0].center; // [lng, lat]
+                  const distance = Math.sqrt(
+                    Math.pow(postcodeCoords[0] - exactLng, 2) + 
+                    Math.pow(postcodeCoords[1] - exactLat, 2)
+                  ) * 111; // Approximate km
+                  
+                  // If coordinates are far from postcode center, log warning
+                  if (distance > 5) {
+                    console.warn('Location may be inaccurate: coordinates are far from postcode center');
+                  }
+                }
+              })
+              .catch(() => {});
+
+            // Also do reverse geocoding to verify address
+            fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${exactLng},${exactLat}.json?access_token=${token}&types=postcode,address`)
+              .then(res => res.json())
+              .then(data => {
+                if (data.features && data.features.length > 0) {
+                  const feature = data.features[0];
+                  const context = feature.context || [];
+                  const postcodeFromApi = context.find((c: any) => c.id?.startsWith('postcode'))?.text;
+                  
+                  // Postcode mismatch detected but not logged to avoid console noise
+                }
+              })
+              .catch(() => {});
+          }
+        });
+
+        // Add mapbox CSS if not already added
+        if (!document.querySelector('link[href*="mapbox-gl.css"]')) {
+          const link = document.createElement('link');
+          link.href = 'https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.css';
+          link.rel = 'stylesheet';
+          document.head.appendChild(link);
+        }
+      } catch (error) {
+        console.error('Error initializing map:', error);
+      }
+    })();
+
+    return () => {
+      if (centerMarkerRef.current) {
+        try {
+          centerMarkerRef.current.remove();
+        } catch (e) {
+          // ignore
+        }
+        centerMarkerRef.current = null;
+      }
+      if (popupRef.current) {
+        try {
+          popupRef.current.remove();
+        } catch (e) {
+          // ignore
+        }
+        popupRef.current = null;
+      }
+      if (markerRef.current) {
+        try {
+          markerRef.current.remove();
+        } catch (e) {
+          // ignore
+        }
+        markerRef.current = null;
+      }
+      if (mapRef.current) {
+        try {
+          mapRef.current.remove();
+        } catch (e) {
+          // ignore
+        }
+        mapRef.current = null;
+      }
+    };
+  }, [latitude, longitude, postcode, detectLocation]);
+
+  return (
+    <div className="w-full">
+      <div className="relative">
+        <div 
+          ref={containerRef} 
+          className="w-full h-64 sm:h-80 rounded-lg overflow-hidden border-2 border-gray-200 shadow-sm bg-gray-50"
+          style={{ minHeight: '256px' }}
+        />
+        {/* Loading overlay when detecting location */}
+        {isDetectingLocation && (
+          <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
+            <div className="flex flex-col items-center gap-2">
+              <div className="w-8 h-8 border-4 border-[#02665e] border-t-transparent rounded-full animate-spin" />
+              <span className="text-sm font-medium text-[#02665e]">Detecting your location...</span>
+            </div>
+          </div>
+        )}
+      </div>
+      
+      {/* Location info and error messages */}
+      <div className="mt-2 space-y-1">
+        <div className="text-xs text-gray-600 flex items-center gap-2">
+          <MapPin className="w-3.5 h-3.5 text-[#02665e]" />
+          <span>
+            {Number.isFinite(latitude) && Number.isFinite(longitude) 
+              ? `Location: ${Number(latitude).toFixed(6)}, ${Number(longitude).toFixed(6)}`
+              : 'No location set. Click "Locate Me" button on map to detect your location.'}
+          </span>
+          {postcode && <span className="text-[#02665e] font-medium">• Postcode: {postcode}</span>}
+        </div>
+        
+        {locationError && (
+          <div className="text-xs text-rose-600 flex items-center gap-1">
+            <AlertCircle className="w-3.5 h-3.5" />
+            <span>{locationError}</span>
+          </div>
+        )}
+        
+        {!isDetectingLocation && Number.isFinite(latitude) && Number.isFinite(longitude) && (
+          <div className="text-xs text-emerald-600 flex items-center gap-1">
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>Location detected successfully</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function AddProperty() {
   useEffect(()=>{ authify(); },[]);
 
   const [propertyId, setPropertyId] = useState<number|null>(null);
+  const [loadingProperty, setLoadingProperty] = useState(false);
+  
+  // Auto-save state
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const DRAFT_STORAGE_KEY = 'property_draft';
+  const [showLivePreview, setShowLivePreview] = useState(false);
+
+  // Load existing property if ID is provided in query params
+  useEffect(() => {
+    const loadProperty = async () => {
+      if (typeof window === 'undefined') return;
+      
+      const urlParams = new URLSearchParams(window.location.search);
+      const idParam = urlParams.get('id');
+      
+      if (idParam && !propertyId) {
+        const id = parseInt(idParam, 10);
+        if (!isNaN(id)) {
+          setLoadingProperty(true);
+          try {
+            const response = await api.get(`/owner/properties/${id}`);
+            const property = response.data;
+            
+            if (property) {
+              setPropertyId(property.id);
+              
+              // Load basic info
+              if (property.title) setTitle(property.title);
+              if (property.type) setType(property.type);
+              if (property.hotelStar) setHotelStar(property.hotelStar);
+              if (property.regionId) setRegionId(property.regionId);
+              if (property.district) setDistrict(property.district);
+              if (property.ward) setWard(property.ward);
+              if (property.street) setStreet(property.street);
+              if (property.zip) setZip(property.zip);
+              if (property.latitude) setLatitude(property.latitude.toString());
+              if (property.longitude) setLongitude(property.longitude.toString());
+              if (property.description) setDesc(property.description);
+              if (property.totalBedrooms) setTotalBedrooms(property.totalBedrooms);
+              if (property.totalBathrooms) setTotalBathrooms(property.totalBathrooms);
+              if (property.maxGuests) setMaxGuests(property.maxGuests);
+              
+              // Load photos
+              if (property.images && Array.isArray(property.images)) {
+                const imageUrls = property.images.map((img: any) => img.url || img).filter(Boolean);
+                setPhotos(imageUrls);
+              }
+              
+              // Load rooms
+              if (property.roomsSpec) {
+                try {
+                  const rooms = typeof property.roomsSpec === 'string' 
+                    ? JSON.parse(property.roomsSpec) 
+                    : property.roomsSpec;
+                  if (Array.isArray(rooms)) {
+                    setDefinedRooms(rooms);
+                  }
+                } catch (e) {
+                  console.error("Error parsing roomsSpec:", e);
+                }
+              }
+              
+              // Load services
+              if (property.services) {
+                try {
+                  const services = typeof property.services === 'string' 
+                    ? JSON.parse(property.services) 
+                    : property.services;
+                  if (services) {
+                    setServices({
+                      parking: services.parking || "no",
+                      parkingPrice: services.parkingPrice || "",
+                      breakfastIncluded: services.breakfastIncluded || false,
+                      breakfastAvailable: services.breakfastAvailable || false,
+                      restaurant: services.restaurant || false,
+                      bar: services.bar || false,
+                      pool: services.pool || false,
+                      sauna: services.sauna || false,
+                      laundry: services.laundry || false,
+                      roomService: services.roomService || false,
+                      security24: services.security24 || false,
+                      firstAid: services.firstAid || false,
+                      fireExtinguisher: services.fireExtinguisher || false,
+                      onSiteShop: services.onSiteShop || false,
+                      nearbyMall: services.nearbyMall || false,
+                      socialHall: services.socialHall || false,
+                      sportsGames: services.sportsGames || false,
+                      gym: services.gym || false,
+                      distanceHospital: services.distanceHospital || "",
+                    });
+                  }
+                } catch (e) {
+                  console.error("Error parsing services:", e);
+                }
+              }
+              
+              // Load nearby facilities
+              if (property.services) {
+                try {
+                  const services = typeof property.services === 'string' 
+                    ? JSON.parse(property.services) 
+                    : property.services;
+                  if (services && services.nearbyFacilities && Array.isArray(services.nearbyFacilities)) {
+                    setNearbyFacilities(services.nearbyFacilities);
+                  }
+                } catch (e) {
+                  console.error("Error parsing nearbyFacilities:", e);
+                }
+              }
+            }
+          } catch (error) {
+            console.error("Error loading property:", error);
+            alert("Failed to load property. You can still create a new one.");
+          } finally {
+            setLoadingProperty(false);
+          }
+        }
+      }
+    };
+    
+    loadProperty();
+  }, [propertyId]);
 
   // collapses — only the active step is expanded to keep focus.
   // By default show only the first step; others are hidden until navigated.
@@ -253,7 +814,6 @@ export default function AddProperty() {
     });
     
     if (!regionData || !regionData.districts) {
-      console.log('Districts: Region not found or has no districts:', regionId);
       return [];
     }
     
@@ -272,7 +832,6 @@ export default function AddProperty() {
     });
     
     if (!regionData) {
-      console.log('Wards: Region not found:', regionId);
       return [];
     }
     
@@ -282,7 +841,6 @@ export default function AddProperty() {
     );
     
     if (!districtData || !districtData.wards) {
-      console.log('Wards: District not found or has no wards:', district, 'in region:', regionId);
       return [];
     }
     
@@ -293,8 +851,6 @@ export default function AddProperty() {
   // Get ward postcode when ward is selected
   const selectedWardPostcode = useMemo(() => {
     if (!regionId || !district || !ward) return null;
-    
-    console.log('🔍 Looking for postcode:', { regionId, district, ward });
     
     // Try to find region - check both slug matching and direct name matching
     let regionData = REGIONS_FULL_DATA.find((r: any) => {
@@ -311,37 +867,24 @@ export default function AddProperty() {
     }
     
     if (!regionData) {
-      console.log('❌ Postcode: Region not found:', regionId);
-      console.log('   Available region slugs:', REGIONS_FULL_DATA.map((r: any) => ({ name: r.name, slug: createRegionSlug(r.name) })));
       return null;
     }
-    
-    console.log('✅ Found region:', regionData.name);
     
     const districtData = regionData.districts.find((d: any) => 
       normalizeName(d.name) === normalizeName(district)
     );
     
     if (!districtData || !districtData.wards) {
-      console.log('❌ Postcode: District not found or has no wards:', district);
-      console.log('   Available districts:', regionData.districts.map((d: any) => d.name));
       return null;
     }
-    
-    console.log('✅ Found district:', districtData.name, 'with', districtData.wards.length, 'wards');
     
     const wardData = districtData.wards.find((w: any) => 
       normalizeName(w.name) === normalizeName(ward)
     );
     
     if (!wardData) {
-      console.log('❌ Postcode: Ward not found:', ward);
-      console.log('   Available wards:', districtData.wards.map((w: any) => w.name));
       return null;
     }
-    
-    console.log('✅ Found ward:', wardData.name);
-    console.log('   Ward data:', { code: wardData.code, postcode: wardData.postcode });
     
     // Get postcode - prefer postcode field, fallback to code
     // Handle null, undefined, and empty string values
@@ -361,16 +904,6 @@ export default function AddProperty() {
     const postcodeStr = (postcode !== null && postcode !== undefined && String(postcode).trim() !== '') 
       ? String(postcode).trim() 
       : null;
-    
-    if (postcodeStr) {
-      console.log('✅✅✅ Found postcode:', postcodeStr, 'for ward:', ward, 'in district:', district, 'region:', regionId);
-    } else {
-      // Log detailed info for debugging
-      console.log('❌❌❌ No postcode found for ward:', ward);
-      console.log('   Region:', regionId, 'District:', district);
-      console.log('   Ward data structure:', JSON.stringify(wardData, null, 2));
-      console.log('   Note: Source CSV data may not have ward codes for this region');
-    }
     
     return postcodeStr;
   }, [regionId, district, ward]);
@@ -403,24 +936,79 @@ export default function AddProperty() {
   const [apartment] = useState("");
   const [city, setCity] = useState("");
   const [zip, setZip] = useState("");
+  const [latitude, setLatitude] = useState<number | "">("");
+  const [longitude, setLongitude] = useState<number | "">("");
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [locationTrackingEnabled, setLocationTrackingEnabled] = useState(false);
+  const [freeCancellation, setFreeCancellation] = useState<boolean>(false);
+  const [paymentModes, setPaymentModes] = useState<string[]>([]);
 
   // Auto-fill zip code when ward is selected (if postcode is available)
   // Always update zip when ward changes to ensure it's synced with the selected ward
   useEffect(() => {
-    console.log('Postcode effect triggered:', { selectedWardPostcode, ward, zip });
-    
     if (selectedWardPostcode) {
-      console.log('Setting zip to:', selectedWardPostcode);
       setZip(selectedWardPostcode);
     } else if (ward && !selectedWardPostcode) {
       // Clear zip if ward is selected but has no postcode
-      console.log('Clearing zip - ward selected but no postcode');
       setZip("");
     } else if (!ward) {
       // Clear zip when ward is cleared
       setZip("");
     }
   }, [selectedWardPostcode, ward]);
+
+  // Auto-detect if location is already available
+  useEffect(() => {
+    if (latitude && longitude) {
+      setLocationTrackingEnabled(true);
+    }
+  }, [latitude, longitude]);
+
+  // Handle location tracking toggle
+  const handleLocationToggle = (enabled: boolean) => {
+    setLocationTrackingEnabled(enabled);
+    
+    if (enabled) {
+      // Request location when toggled on
+      if (!navigator.geolocation) {
+        alert("Geolocation is not supported by your browser.");
+        setLocationTrackingEnabled(false);
+        return;
+      }
+      setLocationLoading(true);
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          // Ensure correct coordinate order: latitude, longitude
+          const lat = parseFloat(position.coords.latitude.toFixed(6));
+          const lng = parseFloat(position.coords.longitude.toFixed(6));
+          
+          setLatitude(lat);
+          setLongitude(lng);
+          setLocationLoading(false);
+        },
+        (error) => {
+          setLocationLoading(false);
+          setLocationTrackingEnabled(false);
+          if (error.code === error.PERMISSION_DENIED) {
+            alert("Location access denied. Please enable location permissions in your browser settings.");
+          } else if (error.code === error.POSITION_UNAVAILABLE) {
+            alert("Location information unavailable. Please try again or enter coordinates manually.");
+          } else {
+            alert("An error occurred while getting your location. Please try again or enter coordinates manually.");
+          }
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        }
+      );
+    } else {
+      // Clear coordinates when toggled off
+      setLatitude("");
+      setLongitude("");
+    }
+  };
 
   // overall counts + description
   const [totalBedrooms, setTotalBedrooms] = useState<number | "">("");
@@ -469,12 +1057,6 @@ export default function AddProperty() {
     socialHall: false, sportsGames: false,
     gym: false,
     distanceHospital: "", // legacy; can keep for compatibility
-    nearPetrolStation: false,
-    petrolStationName: "",
-    petrolStationDistance: "",
-    nearBusStation: false,
-    busStationName: "",
-    busStationDistance: "",
   });
   const [nearbyFacilities, setNearbyFacilities] = useState<NearbyFacility[]>([]);
 
@@ -487,6 +1069,123 @@ export default function AddProperty() {
   // Inline validation state for Basics
   const [touchedBasics, setTouchedBasics] = useState<Record<string, boolean>>({});
   const [announcement, setAnnouncement] = useState<string>("");
+  
+  // Auto-save to localStorage (debounced) - defined after all state variables
+  const autoSaveDraft = useCallback(() => {
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+    }
+    
+    autoSaveTimeoutRef.current = setTimeout(() => {
+      try {
+        const draftData = {
+          title, type, otherType, hotelStar,
+          regionId, district, ward, street, city, zip,
+          latitude: typeof latitude === 'number' ? latitude : '',
+          longitude: typeof longitude === 'number' ? longitude : '',
+          desc, totalBedrooms, totalBathrooms, maxGuests,
+          photos, definedRooms, services, nearbyFacilities,
+          acceptGroupBooking, freeCancellation, paymentModes,
+          timestamp: new Date().toISOString(),
+        };
+        
+        localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draftData));
+        setAutoSaveStatus('saved');
+        
+        // Reset status after 2 seconds
+        setTimeout(() => setAutoSaveStatus('idle'), 2000);
+      } catch (error) {
+        console.error('Auto-save failed:', error);
+        setAutoSaveStatus('error');
+        setTimeout(() => setAutoSaveStatus('idle'), 3000);
+      }
+    }, 2000); // Debounce: save 2 seconds after last change
+  }, [
+    title, type, otherType, hotelStar,
+    regionId, district, ward, street, city, zip,
+    latitude, longitude, desc, totalBedrooms, totalBathrooms, maxGuests,
+    photos, definedRooms, services, nearbyFacilities,
+    acceptGroupBooking, freeCancellation, paymentModes,
+  ]);
+  
+  // Trigger auto-save on form changes
+  useEffect(() => {
+    // Don't auto-save if loading existing property
+    if (loadingProperty) return;
+    
+    // Don't auto-save empty forms
+    if (!title && !regionId && photos.length === 0) return;
+    
+    setAutoSaveStatus('saving');
+    autoSaveDraft();
+    
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+    };
+  }, [autoSaveDraft, loadingProperty, title, regionId, photos.length]);
+  
+  // Load draft on mount (if no propertyId is being loaded)
+  useEffect(() => {
+    if (propertyId || loadingProperty) return; // Skip if loading existing property
+    
+    try {
+      const savedDraft = localStorage.getItem(DRAFT_STORAGE_KEY);
+      if (savedDraft) {
+        const draft = JSON.parse(savedDraft);
+        const draftAge = new Date().getTime() - new Date(draft.timestamp).getTime();
+        const daysOld = draftAge / (1000 * 60 * 60 * 24);
+        
+        // Only restore if draft is less than 7 days old
+        if (daysOld < 7) {
+          const shouldRestore = window.confirm(
+            `You have a saved draft from ${daysOld < 1 ? 'today' : `${Math.floor(daysOld)} day(s) ago`}. Would you like to restore it?`
+          );
+          
+          if (shouldRestore) {
+            if (draft.title) setTitle(draft.title);
+            if (draft.type) setType(draft.type);
+            if (draft.otherType) setOtherType(draft.otherType);
+            if (draft.hotelStar) setHotelStar(draft.hotelStar);
+            if (draft.regionId) setRegionId(draft.regionId);
+            if (draft.district) setDistrict(draft.district);
+            if (draft.ward) setWard(draft.ward);
+            if (draft.street) setStreet(draft.street);
+            if (draft.city) setCity(draft.city);
+            if (draft.zip) setZip(draft.zip);
+            if (draft.latitude) setLatitude(typeof draft.latitude === 'number' ? draft.latitude : parseFloat(draft.latitude) || '');
+            if (draft.longitude) setLongitude(typeof draft.longitude === 'number' ? draft.longitude : parseFloat(draft.longitude) || '');
+            if (draft.desc) setDesc(draft.desc);
+            if (draft.totalBedrooms) setTotalBedrooms(draft.totalBedrooms);
+            if (draft.totalBathrooms) setTotalBathrooms(draft.totalBathrooms);
+            if (draft.maxGuests) setMaxGuests(draft.maxGuests);
+            if (draft.photos && Array.isArray(draft.photos)) setPhotos(draft.photos);
+            if (draft.definedRooms && Array.isArray(draft.definedRooms)) setDefinedRooms(draft.definedRooms);
+            if (draft.services) setServices(draft.services);
+            if (draft.nearbyFacilities && Array.isArray(draft.nearbyFacilities)) setNearbyFacilities(draft.nearbyFacilities);
+            if (draft.acceptGroupBooking !== undefined) setAcceptGroupBooking(draft.acceptGroupBooking);
+            if (draft.freeCancellation !== undefined) setFreeCancellation(draft.freeCancellation);
+            if (draft.paymentModes && Array.isArray(draft.paymentModes)) setPaymentModes(draft.paymentModes);
+          } else {
+            // Clear draft if user doesn't want to restore
+            localStorage.removeItem(DRAFT_STORAGE_KEY);
+          }
+        } else {
+          // Clear old drafts
+          localStorage.removeItem(DRAFT_STORAGE_KEY);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading draft:', error);
+    }
+  }, [propertyId, loadingProperty]);
+  
+  // Clear draft on successful submission
+  const clearDraft = useCallback(() => {
+    localStorage.removeItem(DRAFT_STORAGE_KEY);
+    setAutoSaveStatus('idle');
+  }, []);
 
   const validateBasics = () => {
     const missing: string[] = [];
@@ -734,6 +1433,8 @@ export default function AddProperty() {
       apartment: apartment || null,
       city: city || undefined,
       zip: zip || undefined,
+      latitude: latitude ? Number(latitude) : null,
+      longitude: longitude ? Number(longitude) : null,
 
       photos,
 
@@ -746,13 +1447,86 @@ export default function AddProperty() {
       totalBathrooms: numOrNull(totalBathrooms),
       maxGuests: numOrNull(maxGuests),
 
-      // Backend currently expects an array of strings for services
-      services: servicesToArray(services),
+      // Backend expects services as JSON: can be array of strings OR object with nearbyFacilities
+      // Send as object to preserve full nearbyFacilities data (name, distance, etc.) AND all service properties
+      services: (() => {
+        const servicesObj: any = {
+          // Include all service properties so they can be displayed in admin view
+          // Only include properties that have been explicitly set (not default/empty values)
+          ...(services.parking && services.parking !== 'no' ? { parking: services.parking } : {}),
+          ...(services.parking === 'paid' && services.parkingPrice ? { parkingPrice: services.parkingPrice } : {}),
+          ...(services.breakfastIncluded ? { breakfastIncluded: true } : {}),
+          ...(services.breakfastAvailable ? { breakfastAvailable: true } : {}),
+          ...(services.restaurant ? { restaurant: true } : {}),
+          ...(services.bar ? { bar: true } : {}),
+          ...(services.pool ? { pool: true } : {}),
+          ...(services.sauna ? { sauna: true } : {}),
+          ...(services.laundry ? { laundry: true } : {}),
+          ...(services.roomService ? { roomService: true } : {}),
+          ...(services.security24 ? { security24: true } : {}),
+          ...(services.firstAid ? { firstAid: true } : {}),
+          ...(services.fireExtinguisher ? { fireExtinguisher: true } : {}),
+          ...(services.onSiteShop ? { onSiteShop: true } : {}),
+          ...(services.nearbyMall ? { nearbyMall: true } : {}),
+          ...(services.socialHall ? { socialHall: true } : {}),
+          ...(services.sportsGames ? { sportsGames: true } : {}),
+          ...(services.gym ? { gym: true } : {}),
+          // Service tags array for filtering/searching
+          tags: Array.from(
+            new Set<string>([
+              ...servicesToArray(services),
+              ...nearbyFacilitiesToServiceTags(nearbyFacilities),
+              ...(freeCancellation ? ["Free cancellation"] : []),
+              ...(acceptGroupBooking ? ["Group stay"] : []),
+              ...paymentModes.map((m) => `Payment: ${m}`),
+            ])
+          ),
+        };
+        
+        // Full nearbyFacilities array with all details (name, distance, type, etc.)
+        if (nearbyFacilities.length > 0) {
+          servicesObj.nearbyFacilities = nearbyFacilities;
+        }
+        
+        return servicesObj;
+      })(),
 
       basePrice: inferBasePrice(definedRooms),
       currency: "TZS",
     };
+    
+    // Debug logging for basePrice
+    console.log('[payload] basePrice calculation:', {
+      definedRoomsCount: definedRooms.length,
+      definedRooms: definedRooms.map((r: any) => ({ 
+        roomType: r.roomType, 
+        pricePerNight: r.pricePerNight,
+        price: r.price 
+      })),
+      calculatedBasePrice: inferBasePrice(definedRooms),
+      finalPayloadBasePrice: inferBasePrice(definedRooms)
+    });
   };
+
+  function nearbyFacilitiesToServiceTags(list: NearbyFacility[]): string[] {
+    const map: Record<string, string> = {
+      Hospital: "Near hospital",
+      Pharmacy: "Near pharmacy",
+      Polyclinic: "Near polyclinic",
+      Clinic: "Near clinic",
+      "Police station": "Near police station",
+      Airport: "Near airport",
+      "Bus station": "Near bus station",
+      "Petrol station": "Near petrol station",
+      "Main road": "Near main road",
+    };
+    const tags = new Set<string>();
+    for (const f of list || []) {
+      const t = map[String((f as any)?.type || "")];
+      if (t) tags.add(t);
+    }
+    return Array.from(tags);
+  }
 
   function servicesToArray(s: ServicesState): string[] {
     const out: string[] = [];
@@ -774,11 +1548,10 @@ export default function AddProperty() {
     if (s.socialHall) out.push("Social hall");
     if (s.sportsGames) out.push("Sports & games");
     if (s.gym) out.push("Gym");
-    if (numOrEmpty(s.distanceHospital)) out.push(`Hospital distance ${numOrEmpty(s.distanceHospital)} km`);
-    // use nullish coalescing to avoid passing undefined into numOrEmpty
-    if (s.nearPetrolStation) out.push(`Near petrol station: ${s.petrolStationName || "Yes"} (${numOrEmpty(s.petrolStationDistance ?? "")} km)`);
-    if (s.nearBusStation) out.push(`Near bus station: ${s.busStationName || "Yes"} (${numOrEmpty(s.busStationDistance ?? "")} km)`);
-    // Nearby facilities are richer objects; keep them in UI for now
+    if (numOrEmpty(s.distanceHospital)) {
+      out.push("Near hospital");
+      out.push(`Hospital distance ${numOrEmpty(s.distanceHospital)} km`);
+    }
     return out.filter(Boolean);
   }
 
@@ -836,6 +1609,7 @@ export default function AddProperty() {
       const resp = await api.post(`/owner/properties/${id}/submit`);
       // Accept 200 OK with body or 204 No Content
       if (resp.status === 200 || resp.status === 204) {
+        clearDraft(); // Clear draft on successful submission
         alert("Submitted for review!");
         // Navigate to Pending list to reflect status change
         window.location.href = "/owner/properties/pending";
@@ -854,6 +1628,21 @@ export default function AddProperty() {
   }
 
   /* UI below */
+
+  if (loadingProperty) {
+    return (
+      <div className="min-h-[400px] flex flex-col items-center justify-center text-center">
+        <div className="dot-spinner mb-4">
+          <span className="dot dot-blue" />
+          <span className="dot dot-black" />
+          <span className="dot dot-yellow" />
+          <span className="dot dot-green" />
+        </div>
+        <h2 className="text-xl font-semibold text-gray-800">Loading property...</h2>
+        <p className="text-sm text-gray-600 mt-2">Please wait while we load your property details.</p>
+      </div>
+    );
+  }
 
   return (
     <div id="addPropertyView" className="w-full py-6 sm:py-8">
@@ -976,7 +1765,51 @@ export default function AddProperty() {
               <Plus className="h-4 w-4" />
               <span>New Listing</span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Add New Property</h1>
+            <div className="flex items-center justify-between w-full gap-4">
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex-1">Add New Property</h1>
+              {/* Auto-save status & Live Preview */}
+              <div className="flex items-center gap-3">
+                {/* Auto-save status indicator */}
+                {autoSaveStatus !== 'idle' && (
+                  <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${
+                    autoSaveStatus === 'saving' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+                    autoSaveStatus === 'saved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                    'bg-red-50 text-red-700 border border-red-200'
+                  }`}>
+                    {autoSaveStatus === 'saving' && (
+                      <>
+                        <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                        <span>Saving...</span>
+                      </>
+                    )}
+                    {autoSaveStatus === 'saved' && (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Saved</span>
+                      </>
+                    )}
+                    {autoSaveStatus === 'error' && (
+                      <>
+                        <AlertCircle className="w-3.5 h-3.5" />
+                        <span>Save failed</span>
+                      </>
+                    )}
+                  </div>
+                )}
+                {/* Live Preview Button */}
+                {title.trim().length >= 3 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowLivePreview(true)}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#02665e] text-white text-sm font-semibold hover:bg-[#014e47] transition-colors shadow-sm hover:shadow"
+                  >
+                    <Eye className="w-4 h-4" />
+                    <span className="hidden sm:inline">Live Preview</span>
+                    <span className="sm:hidden">Preview</span>
+                  </button>
+                )}
+              </div>
+            </div>
             <span className="inline-block w-24 h-1 rounded-full bg-gradient-to-r from-emerald-500 to-sky-500 shadow-sm" />
             <p className="text-sm sm:text-base text-gray-600 leading-relaxed max-w-2xl">
               Share clear, accurate details and include at least <span className="font-semibold text-emerald-600">5 high-quality photos</span> covering the exterior, living area, bedroom, bathroom, and kitchen. This helps us review and publish your property faster.
@@ -1395,154 +2228,125 @@ export default function AddProperty() {
                       </div>
                     </div>
                   </div>
-                </div>
-              {/* Nearby Amenities Section */}
-              <div className="mt-8 space-y-6">
-                <div className="space-y-1">
-                  <h2 className="text-xl font-semibold text-gray-900">Nearby Amenities</h2>
-                  <p className="text-sm text-gray-500">Tell us about nearby facilities that guests might find useful</p>
-              </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Petrol Station Proximity */}
-                  <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-200">
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-orange-50 rounded-lg">
-                          <Fuel className="w-5 h-5 text-orange-600" />
-                  </div>
-                        <h3 className="text-base font-semibold text-gray-900">Is your property near a Petrol Station?</h3>
-                      </div>
-                      
-                      <div className="flex items-stretch gap-3 w-full" role="group" aria-label="Petrol station proximity">
-                    <button
-                      type="button"
-                      onClick={() => setServices(s => ({ ...s, nearPetrolStation: true }))}
-                          className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 font-medium text-sm transition-all duration-200 min-w-0 ${
-                            services.nearPetrolStation 
-                              ? 'border-emerald-500 bg-emerald-50 text-emerald-700 shadow-sm' 
-                              : 'border-gray-200 text-gray-600 bg-white hover:border-gray-300 hover:bg-gray-50'
-                          }`}
-                      aria-pressed={services.nearPetrolStation}
-                    >
-                          <Fuel className={`w-4 h-4 flex-shrink-0 ${services.nearPetrolStation ? 'text-emerald-600' : 'text-gray-400'}`} />
-                          <span className="whitespace-nowrap">Yes</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setServices(s => ({ ...s, nearPetrolStation: false, petrolStationName: '', petrolStationDistance: '' }))}
-                          className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 font-medium text-sm transition-all duration-200 min-w-0 ${
-                            !services.nearPetrolStation 
-                              ? 'border-emerald-500 bg-emerald-50 text-emerald-700 shadow-sm' 
-                              : 'border-gray-200 text-gray-600 bg-white hover:border-gray-300 hover:bg-gray-50'
-                          }`}
-                      aria-pressed={!services.nearPetrolStation}
-                    >
-                          <Fuel className={`w-4 h-4 flex-shrink-0 ${!services.nearPetrolStation ? 'text-emerald-600' : 'text-gray-400'}`} />
-                          <span className="whitespace-nowrap">No</span>
-                    </button>
-                  </div>
-
-                      {services.nearPetrolStation && (
-                        <div className="pt-4 border-t border-gray-100 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <label className="block text-sm font-medium text-gray-700">Station Name</label>
-                              <input 
-                                value={services.petrolStationName || ''} 
-                                onChange={e => setServices(s => ({ ...s, petrolStationName: e.target.value }))} 
-                                className="w-full h-11 px-4 text-sm text-gray-900 placeholder-gray-400 bg-white border border-gray-300 rounded-lg shadow-sm transition-all duration-200 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" 
-                                placeholder="e.g. Oryx, Puma, Total" 
-                              />
-                      </div>
-                            <div className="space-y-2">
-                              <label className="block text-sm font-medium text-gray-700">Distance (km)</label>
-                              <input 
-                                value={services.petrolStationDistance as any} 
-                                onChange={e => setServices(s => ({ ...s, petrolStationDistance: numOrEmpty(e.target.value) }))} 
-                                type="number" 
-                                step="0.1" 
-                                min="0" 
-                                className="w-full h-11 px-4 text-sm text-gray-900 placeholder-gray-400 bg-white border border-gray-300 rounded-lg shadow-sm transition-all duration-200 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" 
-                                placeholder="e.g. 1.2" 
-                              />
-                      </div>
+                  {/* Latitude and Longitude */}
+                  <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="flex flex-col space-y-2">
+                      <label htmlFor="latitude" className="block text-sm font-medium text-gray-700">
+                        Latitude <span className="text-xs text-gray-400 font-normal">(optional)</span>
+                      </label>
+                      <input
+                        id="latitude"
+                        type="number"
+                        step="any"
+                        value={latitude}
+                        onChange={e => setLatitude(e.target.value ? parseFloat(e.target.value) : "")}
+                        className="w-full h-12 px-4 text-sm text-gray-900 placeholder-gray-400 bg-white border border-gray-300 rounded-lg shadow-sm transition-all duration-200 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                        placeholder="Auto-detected from location"
+                      />
                     </div>
-                        </div>
-                      )}
+                    <div className="flex flex-col space-y-2">
+                      <label htmlFor="longitude" className="block text-sm font-medium text-gray-700">
+                        Longitude <span className="text-xs text-gray-400 font-normal">(optional)</span>
+                      </label>
+                      <input
+                        id="longitude"
+                        type="number"
+                        step="any"
+                        value={longitude}
+                        onChange={e => setLongitude(e.target.value ? parseFloat(e.target.value) : "")}
+                        className="w-full h-12 px-4 text-sm text-gray-900 placeholder-gray-400 bg-white border border-gray-300 rounded-lg shadow-sm transition-all duration-200 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                        placeholder="Auto-detected from location"
+                      />
+                    </div>
                   </div>
-                </div>
 
-                {/* Bus Station Proximity */}
-                  <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-200">
-                    <div className="space-y-4">
+                  {/* Location Tracking Toggle Switch */}
+                  <div className="mt-4">
+                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors">
                       <div className="flex items-center gap-3">
-                        <div className="p-2 bg-blue-50 rounded-lg">
-                          <Bus className="w-5 h-5 text-blue-600" />
-                  </div>
-                        <h3 className="text-base font-semibold text-gray-900">Is your property near a Bus Station?</h3>
-                      </div>
-                      
-                      <div className="flex items-stretch gap-3 w-full" role="group" aria-label="Bus station proximity">
-                    <button
-                      type="button"
-                      onClick={() => setServices(s => ({ ...s, nearBusStation: true }))}
-                          className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 font-medium text-sm transition-all duration-200 min-w-0 ${
-                            services.nearBusStation 
-                              ? 'border-emerald-500 bg-emerald-50 text-emerald-700 shadow-sm' 
-                              : 'border-gray-200 text-gray-600 bg-white hover:border-gray-300 hover:bg-gray-50'
-                          }`}
-                      aria-pressed={services.nearBusStation}
-                    >
-                          <Bus className={`w-4 h-4 flex-shrink-0 ${services.nearBusStation ? 'text-emerald-600' : 'text-gray-400'}`} />
-                          <span className="whitespace-nowrap">Yes</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setServices(s => ({ ...s, nearBusStation: false, busStationName: '', busStationDistance: '' }))}
-                          className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 font-medium text-sm transition-all duration-200 min-w-0 ${
-                            !services.nearBusStation 
-                              ? 'border-emerald-500 bg-emerald-50 text-emerald-700 shadow-sm' 
-                              : 'border-gray-200 text-gray-600 bg-white hover:border-gray-300 hover:bg-gray-50'
-                          }`}
-                      aria-pressed={!services.nearBusStation}
-                    >
-                          <Bus className={`w-4 h-4 flex-shrink-0 ${!services.nearBusStation ? 'text-emerald-600' : 'text-gray-400'}`} />
-                          <span className="whitespace-nowrap">No</span>
-                    </button>
-                  </div>
-
-                      {services.nearBusStation && (
-                        <div className="pt-4 border-t border-gray-100 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <label className="block text-sm font-medium text-gray-700">Station Name</label>
-                              <input 
-                                value={services.busStationName || ''} 
-                                onChange={e => setServices(s => ({ ...s, busStationName: e.target.value }))} 
-                                className="w-full h-11 px-4 text-sm text-gray-900 placeholder-gray-400 bg-white border border-gray-300 rounded-lg shadow-sm transition-all duration-200 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" 
-                                placeholder="e.g. Gerezani, Ubungo Terminal" 
+                        <div className="relative">
+                          <div className={`absolute inset-0 rounded-full ${locationTrackingEnabled ? 'bg-[#02665e]/10 animate-ping' : ''}`} style={{ animationDuration: '3s', animationIterationCount: 'infinite' }} />
+                          <div className={`relative p-1.5 rounded-full transition-colors duration-200 ${locationTrackingEnabled ? 'bg-[#02665e]/5' : 'bg-gray-100'}`}>
+                            {locationLoading ? (
+                              <div className="w-4 h-4 border-2 border-[#02665e]/30 border-t-[#02665e] rounded-full animate-spin" />
+                            ) : (
+                              <MapPin
+                                className={`w-4 h-4 transition-colors duration-200 ${
+                                  locationTrackingEnabled
+                                    ? 'text-[#02665e]'
+                                    : 'text-gray-400'
+                                }`}
+                                strokeWidth={2}
                               />
-                      </div>
-                            <div className="space-y-2">
-                              <label className="block text-sm font-medium text-gray-700">Distance (km)</label>
-                              <input 
-                                value={services.busStationDistance as any} 
-                                onChange={e => setServices(s => ({ ...s, busStationDistance: numOrEmpty(e.target.value) }))} 
-                                type="number" 
-                                step="0.1" 
-                                min="0" 
-                                className="w-full h-11 px-4 text-sm text-gray-900 placeholder-gray-400 bg-white border border-gray-300 rounded-lg shadow-sm transition-all duration-200 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" 
-                                placeholder="e.g. 3.0" 
-                              />
-                      </div>
+                            )}
                           </div>
                         </div>
-                      )}
+                        <div>
+                          <label htmlFor="locationToggle" className="text-sm font-medium text-gray-900 cursor-pointer transition-colors hover:text-[#02665e]">
+                            Enable location tracking
+                          </label>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            Automatically detect your current location using GPS
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        id="locationToggle"
+                        role="switch"
+                        aria-checked={locationTrackingEnabled}
+                        onClick={() => handleLocationToggle(!locationTrackingEnabled)}
+                        disabled={locationLoading}
+                        className={`
+                          relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed
+                          ${locationTrackingEnabled ? 'bg-[#02665e]' : 'bg-gray-300 hover:bg-gray-400'}
+                        `}
+                      >
+                        <span
+                          className={`
+                            inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-200 ease-in-out
+                            ${locationTrackingEnabled ? 'translate-x-6' : 'translate-x-1'}
+                            ${locationLoading ? 'opacity-70' : ''}
+                          `}
+                        >
+                          {locationLoading && (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <div className="w-2.5 h-2.5 border-2 border-[#02665e]/30 border-t-[#02665e] rounded-full animate-spin" />
+                            </div>
+                          )}
+                        </span>
+                      </button>
                     </div>
+                    {locationTrackingEnabled && latitude && longitude && (
+                      <p className="mt-2 text-xs text-emerald-600 flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Location detected: {Number(latitude).toFixed(6)}, {Number(longitude).toFixed(6)}
+                      </p>
+                    )}
                   </div>
+                  
+                  {/* Map Display - Shows exact location using latitude, longitude, and postcode */}
+                  {latitude && longitude && (
+                    <div className="mt-6">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Property Location Map
+                        <span className="text-xs text-gray-500 font-normal ml-2">
+                          (Exact coordinates: {Number(latitude).toFixed(6)}, {Number(longitude).toFixed(6)})
+                        </span>
+                      </label>
+                      <PropertyLocationMap 
+                        latitude={Number(latitude) || 0} 
+                        longitude={Number(longitude) || 0}
+                        postcode={zip || selectedWardPostcode || null}
+                        onLocationDetected={(lat, lng) => {
+                          setLatitude(lat);
+                          setLongitude(lng);
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
-              </div>
             </div>
           )}
           
@@ -1819,7 +2623,7 @@ export default function AddProperty() {
           {showServices && (
             <div className="w-full">
               <div className="mb-8">
-                <h2 className="text-2xl font-bold text-gray-800 mb-2 bg-gradient-to-r from-blue-600 to-emerald-600 bg-clip-text text-transparent">Property Services & Amenities</h2>
+                <h2 className="text-2xl font-bold text-gray-800 mb-2 bg-gradient-to-r from-blue-600 to-emerald-600 bg-clip-text text-transparent">Services & Facilities Available</h2>
                 <p className="text-sm text-gray-600">Select the services and amenities available at your property</p>
               </div>
               
@@ -2065,6 +2869,7 @@ export default function AddProperty() {
                     <h3 className="text-lg font-bold text-gray-800">Nearby Services</h3>
                   </div>
 
+
                   {/* Inline add form */}
                   <AddFacilityInline onAdd={(f) => setNearbyFacilities(list => [...list, f])} />
 
@@ -2301,11 +3106,11 @@ export default function AddProperty() {
                 </div>
               </div>
 
-              {/* Services & Amenities */}
+              {/* Services & Facilities Available */}
               <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 transition-all hover:shadow-md hover:border-gray-300 animate-in fade-in slide-in-from-left-4 duration-500 delay-200">
                 <h4 className="font-semibold text-base text-gray-800 mb-3 flex items-center gap-2">
                   <CheckCircle2 className="w-5 h-5 text-green-600 transition-transform duration-300 hover:scale-110" />
-                  <span>Services & Amenities</span>
+                  <span>Services & Facilities Available</span>
                 </h4>
                 <div className="grid grid-cols-2 gap-2 text-base text-gray-700">
                   {services.parking !== 'no' && (
@@ -2391,7 +3196,7 @@ export default function AddProperty() {
                   <div className="mt-4 pt-3 border-t border-gray-200">
                     <div className="flex items-center gap-1.5 mb-1">
                       <MapPin className="w-4 h-4 text-pink-600" />
-                      <span className="font-semibold">{nearbyFacilities.length} Nearby Facilities</span>
+                      <span className="font-semibold">{nearbyFacilities.length} Nearby Services</span>
                     </div>
                     <div className="space-y-2">
                       {nearbyFacilities.map((f, i) => (
@@ -2443,44 +3248,6 @@ export default function AddProperty() {
                           )}
                         </div>
                       ))}
-                    </div>
-                  </div>
-                )}
-                {services.nearPetrolStation && (
-                  <div className="mt-3 flex items-center justify-between text-base text-gray-700">
-                    <div className="flex items-center gap-1.5">
-                      <Fuel className="w-4 h-4 text-[#02665e]" />
-                      <span className="font-medium">Petrol Station</span>
-                    </div>
-                    <div className="flex items-center text-gray-800">
-                      {services.petrolStationName ? (
-                        <span className="font-semibold">{services.petrolStationName}</span>
-                      ) : null}
-                      {services.petrolStationDistance !== '' && services.petrolStationDistance != null ? (
-                        <span className="ml-2 inline-flex items-center gap-1 text-gray-600">
-                          <MapPin className="w-3.5 h-3.5 text-pink-600" />
-                          {services.petrolStationDistance} km
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-                )}
-                {services.nearBusStation && (
-                  <div className="mt-2 flex items-center justify-between text-base text-gray-700">
-                    <div className="flex items-center gap-1.5">
-                      <Bus className="w-4 h-4 text-[#02665e]" />
-                      <span className="font-medium">Bus Station</span>
-                    </div>
-                    <div className="flex items-center text-gray-800">
-                      {services.busStationName ? (
-                        <span className="font-semibold">{services.busStationName}</span>
-                      ) : null}
-                      {services.busStationDistance !== '' && services.busStationDistance != null ? (
-                        <span className="ml-2 inline-flex items-center gap-1 text-gray-600">
-                          <MapPin className="w-3.5 h-3.5 text-pink-600" />
-                          {services.busStationDistance} km
-                        </span>
-                      ) : null}
                     </div>
                   </div>
                 )}
@@ -2612,6 +3379,240 @@ export default function AddProperty() {
           </main>
         </div>
       </div>
+      
+      {/* Live Preview Modal */}
+      {showLivePreview && (() => {
+        // Prepare services data for preview components
+        const previewServices = (() => {
+          const servicesObj: any = {
+            ...(services.parking && services.parking !== 'no' ? { parking: services.parking } : {}),
+            ...(services.parking === 'paid' && services.parkingPrice ? { parkingPrice: services.parkingPrice } : {}),
+            ...(services.breakfastIncluded ? { breakfastIncluded: true } : {}),
+            ...(services.breakfastAvailable ? { breakfastAvailable: true } : {}),
+            ...(services.restaurant ? { restaurant: true } : {}),
+            ...(services.bar ? { bar: true } : {}),
+            ...(services.pool ? { pool: true } : {}),
+            ...(services.sauna ? { sauna: true } : {}),
+            ...(services.laundry ? { laundry: true } : {}),
+            ...(services.roomService ? { roomService: true } : {}),
+            ...(services.security24 ? { security24: true } : {}),
+            ...(services.firstAid ? { firstAid: true } : {}),
+            ...(services.fireExtinguisher ? { fireExtinguisher: true } : {}),
+            ...(services.onSiteShop ? { onSiteShop: true } : {}),
+            ...(services.nearbyMall ? { nearbyMall: true } : {}),
+            ...(services.socialHall ? { socialHall: true } : {}),
+            ...(services.sportsGames ? { sportsGames: true } : {}),
+            ...(services.gym ? { gym: true } : {}),
+            tags: Array.from(
+              new Set<string>([
+                ...servicesToArray(services),
+                ...nearbyFacilitiesToServiceTags(nearbyFacilities),
+                ...(freeCancellation ? ["Free cancellation"] : []),
+                ...(acceptGroupBooking ? ["Group stay"] : []),
+                ...paymentModes.map((m) => `Payment: ${m}`),
+              ])
+            ),
+          };
+          if (nearbyFacilities.length > 0) {
+            servicesObj.nearbyFacilities = nearbyFacilities;
+          }
+          return servicesObj;
+        })();
+        
+        // Normalize services for preview
+        const normalizeBoolean = (value: any): boolean => {
+          if (value === undefined || value === null) return false;
+          if (typeof value === 'boolean') return value;
+          if (typeof value === 'string') return value.toLowerCase() === 'true';
+          return false;
+        };
+        
+        const normalizedServicesObj = {
+          parking: previewServices.parking || 'no',
+          parkingPrice: previewServices.parkingPrice || '',
+          breakfastIncluded: normalizeBoolean(previewServices.breakfastIncluded),
+          breakfastAvailable: normalizeBoolean(previewServices.breakfastAvailable),
+          restaurant: normalizeBoolean(previewServices.restaurant),
+          bar: normalizeBoolean(previewServices.bar),
+          pool: normalizeBoolean(previewServices.pool),
+          sauna: normalizeBoolean(previewServices.sauna),
+          laundry: normalizeBoolean(previewServices.laundry),
+          roomService: normalizeBoolean(previewServices.roomService),
+          security24: normalizeBoolean(previewServices.security24),
+          firstAid: normalizeBoolean(previewServices.firstAid),
+          fireExtinguisher: normalizeBoolean(previewServices.fireExtinguisher),
+          onSiteShop: normalizeBoolean(previewServices.onSiteShop),
+          nearbyMall: normalizeBoolean(previewServices.nearbyMall),
+          socialHall: normalizeBoolean(previewServices.socialHall),
+          sportsGames: normalizeBoolean(previewServices.sportsGames),
+          gym: normalizeBoolean(previewServices.gym),
+          nearbyFacilities: previewServices.nearbyFacilities || [],
+          tags: previewServices.tags || [],
+        };
+        
+        const effectiveServicesArray = Array.isArray(previewServices.tags) ? previewServices.tags : [];
+        const servicesArray = effectiveServicesArray;
+        
+        return (
+          <div
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setShowLivePreview(false);
+            }}
+          >
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between p-4 sm:p-6 border-b border-slate-200 bg-gradient-to-r from-[#02665e] to-[#014e47]">
+                <div className="flex items-center gap-3">
+                  <Eye className="w-5 h-5 text-white" />
+                  <h2 className="text-xl sm:text-2xl font-bold text-white">Live Preview</h2>
+                  <span className="hidden sm:inline text-sm text-white/80">See how your property will look</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowLivePreview(false)}
+                  className="h-10 w-10 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors"
+                  aria-label="Close preview"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              {/* Preview Content */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-gray-50">
+                <div className="max-w-4xl mx-auto space-y-6">
+                  {/* Property Header */}
+                  <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
+                    <h1 className="text-3xl font-bold text-gray-900 mb-2">{title || "Property Name"}</h1>
+                    <div className="flex items-center gap-2 text-gray-600">
+                      <MapPin className="w-4 h-4" />
+                      <span>
+                        {street && `${street}, `}
+                        {ward && `${ward}, `}
+                        {district && `${district}, `}
+                        {regionName || regionId || "Location"}
+                      </span>
+                    </div>
+                    {inferBasePrice(definedRooms) && (
+                      <div className="mt-4 text-2xl font-bold text-[#02665e]">
+                        TSh {inferBasePrice(definedRooms)?.toLocaleString()} / night
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Photos Preview */}
+                  {photos.length > 0 && (
+                    <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
+                      <h2 className="text-xl font-semibold text-gray-900 mb-4">Photos</h2>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        {photos.slice(0, 6).map((photo, idx) => (
+                          <div key={idx} className="relative aspect-square rounded-lg overflow-hidden border border-slate-200">
+                            <Image src={photo} alt={`Property photo ${idx + 1}`} fill className="object-cover" />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Services & Facilities Preview */}
+                  <ServicesAndFacilities
+                    normalizedServicesObj={normalizedServicesObj}
+                    effectiveServicesArray={effectiveServicesArray}
+                    servicesArray={servicesArray}
+                  />
+                  
+                  {/* Nearby Services Preview */}
+                  {nearbyFacilities.length > 0 && (
+                    <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
+                      <NearbyServices
+                        facilities={nearbyFacilities}
+                        defaultExpanded={false}
+                        showExpandButton={nearbyFacilities.length > 2}
+                        maxInitialDisplay={2}
+                      />
+                    </div>
+                  )}
+                  
+                  {/* Description */}
+                  {desc && (
+                    <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
+                      <h2 className="text-xl font-semibold text-gray-900 mb-3">About this place</h2>
+                      <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{desc}</p>
+                    </div>
+                  )}
+                  
+                  {/* Room Types */}
+                  {definedRooms.length > 0 && (
+                    <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
+                      <h2 className="text-xl font-semibold text-gray-900 mb-4">Room Types</h2>
+                      <div className="space-y-4">
+                        {definedRooms.map((room, idx) => (
+                          <div key={idx} className="border border-slate-200 rounded-lg p-4">
+                            <div className="flex items-center justify-between mb-2">
+                              <h3 className="font-semibold text-lg text-gray-900">{room.roomType}</h3>
+                              {room.pricePerNight > 0 && (
+                                <span className="text-lg font-bold text-[#02665e]">
+                                  TSh {room.pricePerNight.toLocaleString()} / night
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-sm text-gray-600 space-y-1">
+                              <div>{room.roomsCount} room(s) available</div>
+                              <div>Beds: {Object.entries(room.beds).filter(([_, count]) => count > 0).map(([type, count]) => `${type} (${count})`).join(', ') || 'None'}</div>
+                              {room.roomDescription && (
+                                <p className="mt-2 text-gray-700">{room.roomDescription}</p>
+                              )}
+                            </div>
+                            {room.roomImages.length > 0 && (
+                              <div className="mt-3 grid grid-cols-3 gap-2">
+                                {room.roomImages.slice(0, 3).map((img, i) => (
+                                  <div key={i} className="relative aspect-square rounded overflow-hidden border border-slate-200">
+                                    <Image src={img} alt={`${room.roomType} image ${i + 1}`} fill className="object-cover" />
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Property Details */}
+                  {(totalBedrooms || totalBathrooms || maxGuests) && (
+                    <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
+                      <h2 className="text-xl font-semibold text-gray-900 mb-4">Property Details</h2>
+                      <div className="grid grid-cols-3 gap-4">
+                        {totalBedrooms && (
+                          <div className="text-center">
+                            <BedDouble className="w-8 h-8 mx-auto mb-2 text-[#02665e]" />
+                            <div className="text-2xl font-bold text-gray-900">{totalBedrooms}</div>
+                            <div className="text-sm text-gray-600">Bedrooms</div>
+                          </div>
+                        )}
+                        {totalBathrooms && (
+                          <div className="text-center">
+                            <Bath className="w-8 h-8 mx-auto mb-2 text-[#02665e]" />
+                            <div className="text-2xl font-bold text-gray-900">{totalBathrooms}</div>
+                            <div className="text-sm text-gray-600">Bathrooms</div>
+                          </div>
+                        )}
+                        {maxGuests && (
+                          <div className="text-center">
+                            <Users className="w-8 h-8 mx-auto mb-2 text-[#02665e]" />
+                            <div className="text-2xl font-bold text-gray-900">{maxGuests}</div>
+                            <div className="text-sm text-gray-600">Max Guests</div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   </div>
   );
@@ -2656,41 +3657,58 @@ function AddFacilityInline({ onAdd }:{ onAdd:(f:NearbyFacility)=>void }) {
     setName(""); setOwnership(""); setDistanceKm(""); setReachableBy([]); setUrl("");
   };
 
+  // Get context-aware placeholder based on selected type
+  const namePlaceholder = FACILITY_PLACEHOLDERS[type] || "e.g. Facility name";
+
   return (
     <div className="bg-white rounded-xl p-6 border border-gray-200 hover:border-gray-300 hover:shadow-lg transition-all duration-300">
-      <div className="space-y-6">
-        {/* Type and Ownership row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-          {/* Type field */}
-          <div className="space-y-2.5">
-            <LabelSmall className="font-semibold text-gray-700 text-sm">Type</LabelSmall>
-            <div role="radiogroup" aria-label="Facility type" className="grid grid-cols-2 gap-2.5">
-              {FACILITY_TYPES.map(t => {
-                const sel = type === t;
-                return (
-                  <button
-                    key={t}
-                    type="button"
-                    role="radio"
-                    aria-checked={sel}
-                    onClick={() => setType(t)}
-                    className={`text-xs font-medium px-3 py-2.5 rounded-lg border transition-all duration-200 text-center ${
-                      sel 
-                        ? 'bg-gray-900 text-white border-gray-900 shadow-sm hover:bg-[#02665e]' 
-                        : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400 hover:bg-gray-50'
-                    }`}
-                  >
-                    {t}
-                  </button>
-                );
-              })}
+      <div className="space-y-5">
+        {/* Type section - Full width with distinct styling */}
+        <div className="bg-gradient-to-br from-slate-50 to-white rounded-xl p-4 sm:p-5 border-2 border-slate-200">
+          <div className="flex items-center gap-2.5 mb-3.5">
+            <div className="p-1.5 bg-[#02665e]/10 rounded-lg">
+              <Building2 className="w-4 h-4 text-[#02665e]" />
             </div>
+            <LabelSmall className="font-bold text-gray-800 text-sm">Facility Type</LabelSmall>
           </div>
-          
-          {/* Ownership field */}
-          <div className="space-y-2.5">
-            <LabelSmall className="font-semibold text-gray-700 text-sm">Ownership</LabelSmall>
-            <div role="radiogroup" aria-label="Ownership" className="grid grid-cols-2 gap-2.5">
+          <div role="radiogroup" aria-label="Facility type" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+            {FACILITY_TYPES.map(t => {
+              const sel = type === t;
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  role="radio"
+                  aria-checked={sel}
+                  onClick={() => {
+                    setType(t);
+                    // Reset fields when type changes to show new context
+                    setName("");
+                    setOwnership("");
+                  }}
+                  className={`text-xs font-medium px-3 py-2.5 rounded-lg border transition-all duration-300 ease-out text-center motion-safe:hover:scale-[1.02] motion-safe:active:scale-[0.98] ${
+                    sel
+                      ? 'bg-[#02665e] text-white border-[#02665e] shadow-md shadow-[#02665e]/20'
+                      : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400 hover:bg-gray-50'
+                  }`}
+                >
+                  {t}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        
+        {/* Ownership section - Distinct card styling - Only show for Hospital, Pharmacy, Polyclinic, and Clinic */}
+        {requiresOwnership(type) && (
+          <div className="bg-gradient-to-br from-blue-50/50 to-white rounded-xl p-4 sm:p-5 border-2 border-blue-100">
+            <div className="flex items-center gap-2.5 mb-3.5">
+              <div className="p-1.5 bg-blue-100 rounded-lg">
+                <Shield className="w-4 h-4 text-blue-700" />
+              </div>
+              <LabelSmall className="font-bold text-gray-800 text-sm">Ownership Type</LabelSmall>
+            </div>
+            <div role="radiogroup" aria-label="Ownership" className="grid grid-cols-2 gap-2.5 max-w-md">
               {["Public/Government", "Private"].map(o => {
                 const sel = ownership === o;
                 return (
@@ -2700,9 +3718,9 @@ function AddFacilityInline({ onAdd }:{ onAdd:(f:NearbyFacility)=>void }) {
                     role="radio"
                     aria-checked={sel}
                     onClick={() => setOwnership(o as any)}
-                    className={`text-xs font-medium px-3 py-2.5 rounded-lg border transition-all duration-200 text-center ${
-                      sel 
-                        ? 'bg-[#02665e] text-white border-[#02665e] shadow-sm hover:bg-[#02665e]' 
+                    className={`text-xs font-medium px-4 py-2.5 rounded-lg border transition-all duration-300 ease-out text-center motion-safe:hover:scale-[1.02] motion-safe:active:scale-[0.98] ${
+                      sel
+                        ? 'bg-[#02665e] text-white border-[#02665e] shadow-md shadow-[#02665e]/20'
                         : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400 hover:bg-gray-50'
                     }`}
                   >
@@ -2712,7 +3730,7 @@ function AddFacilityInline({ onAdd }:{ onAdd:(f:NearbyFacility)=>void }) {
               })}
             </div>
           </div>
-        </div>
+        )}
 
         {/* Name, Distance, and More info row */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -2723,7 +3741,7 @@ function AddFacilityInline({ onAdd }:{ onAdd:(f:NearbyFacility)=>void }) {
               value={name}
               onChange={e => setName(e.target.value)}
               className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs font-medium text-gray-900 placeholder-gray-400 bg-white hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-200 focus:border-gray-500 transition-all duration-200"
-              placeholder="e.g. Aga Khan Hospital"
+              placeholder={namePlaceholder}
             />
           </div>
           
@@ -2811,41 +3829,60 @@ function FacilityRow({
     onChange({ ...facility, reachableBy: next });
   };
 
+  // Get context-aware placeholder based on selected type
+  const namePlaceholder = FACILITY_PLACEHOLDERS[facility.type] || "e.g. Facility name";
+
   return (
     <div className="bg-white rounded-xl p-6 border border-gray-200 hover:border-gray-300 hover:shadow-lg transition-all duration-300">
-      <div className="space-y-6">
-        {/* Type and Ownership row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-          {/* Type field */}
-          <div className="space-y-2.5">
-            <LabelSmall className="font-semibold text-gray-700 text-sm">Type</LabelSmall>
-            <div role="radiogroup" aria-label={`Facility type for ${facility.name || 'facility'}`} className="grid grid-cols-2 gap-2.5">
-              {FACILITY_TYPES.map(t => {
-                const sel = facility.type === t;
-                return (
-                  <button
-                    key={t}
-                    type="button"
-                    role="radio"
-                    aria-checked={sel}
-                    onClick={() => onChange({ ...facility, type: t as FacilityType })}
-                    className={`text-xs font-medium px-3 py-2.5 rounded-lg border transition-all duration-200 text-center ${
-                      sel 
-                        ? 'bg-[#02665e] text-white border-[#02665e] shadow-sm hover:bg-[#02665e]' 
-                        : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400 hover:bg-gray-50'
-                    }`}
-                  >
-                    {t}
-                  </button>
-                );
-              })}
+      <div className="space-y-5">
+        {/* Type section - Full width with distinct styling */}
+        <div className="bg-gradient-to-br from-slate-50 to-white rounded-xl p-4 sm:p-5 border-2 border-slate-200">
+          <div className="flex items-center gap-2.5 mb-3.5">
+            <div className="p-1.5 bg-[#02665e]/10 rounded-lg">
+              <Building2 className="w-4 h-4 text-[#02665e]" />
             </div>
+            <LabelSmall className="font-bold text-gray-800 text-sm">Facility Type</LabelSmall>
           </div>
-          
-          {/* Ownership field */}
-          <div className="space-y-2.5">
-            <LabelSmall className="font-semibold text-gray-700 text-sm">Ownership</LabelSmall>
-            <div role="radiogroup" aria-label="Ownership" className="grid grid-cols-2 gap-2.5">
+          <div role="radiogroup" aria-label={`Facility type for ${facility.name || 'facility'}`} className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+            {FACILITY_TYPES.map(t => {
+              const sel = facility.type === t;
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  role="radio"
+                  aria-checked={sel}
+                  onClick={() => {
+                    const updatedFacility: NearbyFacility = { 
+                      ...facility, 
+                      type: t as FacilityType,
+                      ownership: requiresOwnership(t as FacilityType) ? facility.ownership : ""
+                    };
+                    onChange(updatedFacility);
+                  }}
+                  className={`text-xs font-medium px-3 py-2.5 rounded-lg border transition-all duration-300 ease-out text-center motion-safe:hover:scale-[1.02] motion-safe:active:scale-[0.98] ${
+                    sel
+                      ? 'bg-[#02665e] text-white border-[#02665e] shadow-md shadow-[#02665e]/20'
+                      : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400 hover:bg-gray-50'
+                  }`}
+                >
+                  {t}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        
+        {/* Ownership section - Distinct card styling - Only show for Hospital, Pharmacy, Polyclinic, and Clinic */}
+        {requiresOwnership(facility.type) && (
+          <div className="bg-gradient-to-br from-blue-50/50 to-white rounded-xl p-4 sm:p-5 border-2 border-blue-100">
+            <div className="flex items-center gap-2.5 mb-3.5">
+              <div className="p-1.5 bg-blue-100 rounded-lg">
+                <Shield className="w-4 h-4 text-blue-700" />
+              </div>
+              <LabelSmall className="font-bold text-gray-800 text-sm">Ownership Type</LabelSmall>
+            </div>
+            <div role="radiogroup" aria-label="Ownership" className="grid grid-cols-2 gap-2.5 max-w-md">
               {["Public/Government", "Private"].map(o => {
                 const sel = facility.ownership === o;
                 return (
@@ -2855,9 +3892,9 @@ function FacilityRow({
                     role="radio"
                     aria-checked={sel}
                     onClick={() => onChange({ ...facility, ownership: o as any })}
-                    className={`text-xs font-medium px-3 py-2.5 rounded-lg border transition-all duration-200 text-center ${
-                      sel 
-                        ? 'bg-[#02665e] text-white border-[#02665e] shadow-sm hover:bg-[#02665e]' 
+                    className={`text-xs font-medium px-4 py-2.5 rounded-lg border transition-all duration-300 ease-out text-center motion-safe:hover:scale-[1.02] motion-safe:active:scale-[0.98] ${
+                      sel
+                        ? 'bg-[#02665e] text-white border-[#02665e] shadow-md shadow-[#02665e]/20'
                         : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400 hover:bg-gray-50'
                     }`}
                   >
@@ -2867,7 +3904,7 @@ function FacilityRow({
               })}
             </div>
           </div>
-        </div>
+        )}
 
         {/* Name, Distance, and More info row */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -2876,7 +3913,7 @@ function FacilityRow({
             <LabelSmall className="font-semibold text-gray-700 text-xs">Name</LabelSmall>
             <input
               title="Facility name"
-              placeholder="e.g. Aga Khan Hospital"
+              placeholder={namePlaceholder}
               value={facility.name}
               onChange={e => onChange({ ...facility, name: e.target.value })}
               className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs font-medium text-gray-900 placeholder-gray-400 bg-white hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-200 focus:border-gray-500 transition-all duration-200"
@@ -2961,7 +3998,23 @@ function LabelSmall({children, className=""}:{children:ReactNode; className?:str
 function numOrEmpty(v: string|number){ if (v === "" || v == null) return ""; const n = Number(v); return Number.isFinite(n) ? n : ""; }
 function numOrNull(v: any){ return v==="" || v==null ? null : Number(v); }
 function splitComma(s:string){ return s.split(",").map(x=>x.trim()).filter(Boolean); }
-function inferBasePrice(rooms: any[]){ const prices = rooms.map(r=>Number(r.pricePerNight||0)).filter(n=>n>0); return prices.length? Math.min(...prices) : null; }
+function inferBasePrice(rooms: any[]){ 
+  const prices = rooms.map(r => {
+    // Try multiple possible field names for price
+    const price = r.pricePerNight || r.price || 0;
+    const numPrice = Number(price);
+    return numPrice > 0 ? numPrice : 0;
+  }).filter(n => n > 0); 
+  const result = prices.length ? Math.min(...prices) : null;
+  // Debug logging
+  console.log('[inferBasePrice]', { 
+    roomsCount: rooms.length, 
+    rooms: rooms.map(r => ({ pricePerNight: r.pricePerNight, price: r.price })), 
+    prices, 
+    result 
+  });
+  return result;
+}
 function toServerType(t: string){
   const map: Record<string,string> = { "Guest House":"GUEST_HOUSE", "Townhouse":"TOWNHOUSE", "Other":"OTHER" };
   const up = t.toUpperCase().replace(/\s+/g,"_");

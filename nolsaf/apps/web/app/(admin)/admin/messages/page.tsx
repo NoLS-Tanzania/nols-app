@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Bell, ChevronDown, ChevronUp } from "lucide-react";
+import { Bell, ChevronDown, ChevronUp, ExternalLink, User, Calendar, Building2 } from "lucide-react";
+import Link from "next/link";
 
 type Message = {
   id: string;
@@ -9,7 +10,9 @@ type Message = {
   body: string;
   time?: string;
   date?: string; // ISO date string used for sorting
+  createdAt?: string; // ISO date string
   unread: boolean;
+  meta?: any; // Additional metadata (propertyId, propertyTitle, ownerId, etc.)
 };
 
 export default function Page() {
@@ -17,6 +20,33 @@ export default function Page() {
   const [unread, setUnread] = useState<Message[]>([]);
   const [viewed, setViewed] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
+
+  const formatTime = (dateString?: string) => {
+    if (!dateString) return '';
+    try {
+      const date = new Date(dateString);
+      const now = new Date();
+      const diffMs = now.getTime() - date.getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
+      
+      if (diffMins < 1) return 'Just now';
+      if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
+      if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+      if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+      
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      return dateString;
+    }
+  };
 
   const fetchTab = async (tab: 'unread' | 'viewed') => {
     setLoading(true);
@@ -27,8 +57,13 @@ export default function Page() {
       const r = await fetch(url, { credentials: 'include' });
       if (!r.ok) throw new Error(`Fetch failed ${r.status}`);
       const data = await r.json();
-      if (tab === 'unread') setUnread(data.items ?? []);
-      else setViewed(data.items ?? []);
+      // Format time for each notification
+      const formatted = (data.items ?? []).map((item: any) => ({
+        ...item,
+        time: formatTime(item.createdAt || item.date),
+      }));
+      if (tab === 'unread') setUnread(formatted);
+      else setViewed(formatted);
     } catch (err) {
       console.error('Failed to load notifications', err);
     } finally {
@@ -84,7 +119,133 @@ export default function Page() {
               </div>
             </button>
             {openId === m.id && (
-              <div className="px-4 pb-4 text-sm text-gray-700">{m.body}</div>
+              <div className="px-4 pb-4 border-t border-gray-200 bg-gray-50">
+                <div className="pt-4 space-y-3">
+                  {/* Main body text */}
+                  <p className="text-sm text-gray-700 leading-relaxed">{m.body}</p>
+                  
+                  {/* Detailed information from meta */}
+                  {m.meta && (
+                    <div className="space-y-2 pt-2 border-t border-gray-200">
+                      {/* Property Information */}
+                      {m.meta.propertyId && (
+                        <div className="flex items-start gap-2">
+                          <Building2 className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-medium text-gray-500">Property</div>
+                            <div className="text-sm text-gray-900 mt-0.5">
+                              {m.meta.propertyTitle || `Property #${m.meta.propertyId}`}
+                            </div>
+                            <Link 
+                              href={`/admin/properties/${m.meta.propertyId}`}
+                              className="inline-flex items-center gap-1 text-xs text-[#02665e] hover:text-[#014e47] mt-1 font-medium"
+                            >
+                              View Property <ExternalLink className="w-3 h-3" />
+                            </Link>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Owner Information */}
+                      {(m.meta.ownerId || m.meta.ownerName) && (
+                        <div className="flex items-start gap-2">
+                          <User className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-medium text-gray-500">Property Owner</div>
+                            <div className="text-sm text-gray-900 mt-0.5">
+                              {m.meta.ownerName || `Owner #${m.meta.ownerId}`}
+                            </div>
+                            {m.meta.ownerId && (
+                              <Link 
+                                href={`/admin/owners/${m.meta.ownerId}`}
+                                className="inline-flex items-center gap-1 text-xs text-[#02665e] hover:text-[#014e47] mt-1 font-medium"
+                              >
+                                View Owner <ExternalLink className="w-3 h-3" />
+                              </Link>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Approved By Information */}
+                      {m.meta.approvedBy && (
+                        <div className="flex items-start gap-2">
+                          <User className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-medium text-gray-500">Approved By</div>
+                            <div className="text-sm text-gray-900 mt-0.5">
+                              {m.meta.approvedByName || `Admin #${m.meta.approvedBy}`}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Timestamp */}
+                      {m.createdAt && (
+                        <div className="flex items-start gap-2">
+                          <Calendar className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-medium text-gray-500">Date & Time</div>
+                            <div className="text-sm text-gray-900 mt-0.5">
+                              {new Date(m.createdAt).toLocaleString('en-US', {
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Additional notes/reasons */}
+                      {m.meta.note && (
+                        <div className="flex items-start gap-2">
+                          <div className="w-4 h-4 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-medium text-gray-500">Note</div>
+                            <div className="text-sm text-gray-900 mt-0.5">{m.meta.note}</div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {m.meta.reasons && (
+                        <div className="flex items-start gap-2">
+                          <div className="w-4 h-4 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-medium text-gray-500">Reasons</div>
+                            <div className="text-sm text-gray-900 mt-0.5">
+                              {Array.isArray(m.meta.reasons) 
+                                ? m.meta.reasons.join(', ')
+                                : m.meta.reasons}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Fallback: Show timestamp if no meta but createdAt exists */}
+                  {!m.meta && m.createdAt && (
+                    <div className="flex items-start gap-2 pt-2 border-t border-gray-200">
+                      <Calendar className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-medium text-gray-500">Date & Time</div>
+                        <div className="text-sm text-gray-900 mt-0.5">
+                          {new Date(m.createdAt).toLocaleString('en-US', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
           </div>
         ))}

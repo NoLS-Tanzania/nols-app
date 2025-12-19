@@ -279,25 +279,39 @@ export default function DriverLiveMapPage() {
       const dropoffLat = tripRequest.dropoffLat;
       const dropoffLng = tripRequest.dropoffLng;
       
-      // TODO: Replace with actual API call
-      // await axios.post(`/api/driver/trips/${tripId}/accept`, { ... });
-      
-      // TODO: Get trip details from API response
-      // For now: promote request into activeTrip so the communication card shows
+      // If this is a real trip (numeric id), call API; otherwise fallback to demo local flow
+      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      let apiTrip: any | null = null;
+      try {
+        // demo ids look like "demo-..."
+        if (!String(tripId).startsWith("demo-")) {
+          const resp = await axios.post(
+            `/api/driver/trips/${encodeURIComponent(tripId)}/accept`,
+            { pickupLat, pickupLng, dropoffLat, dropoffLng },
+            token ? { headers: { Authorization: `Bearer ${token}` } } : undefined
+          );
+          apiTrip = resp?.data?.trip ?? null;
+        }
+      } catch (e) {
+        // ignore and fall back to local demo
+      }
+
+      // Promote request into activeTrip so the communication card shows
       setActiveTrip({
-        id: tripId,
-        status: 'accepted',
-        passengerName: tripRequest.passengerName,
+        id: apiTrip?.id ?? tripId,
+        status: apiTrip?.status ?? 'accepted',
+        passengerUserId: apiTrip?.passengerUserId ?? null,
+        passengerName: apiTrip?.passengerName ?? tripRequest.passengerName,
         passengerRating: tripRequest.passengerRating,
         passengerPhoto: tripRequest.passengerPhoto,
-        pickupAddress: tripRequest.pickupAddress,
-        dropoffAddress: tripRequest.dropoffAddress,
-        fare: tripRequest.fare,
-        phoneNumber: tripRequest.phoneNumber,
-        pickupLat,
-        pickupLng,
-        dropoffLat,
-        dropoffLng,
+        pickupAddress: apiTrip?.pickupAddress ?? tripRequest.pickupAddress,
+        dropoffAddress: apiTrip?.dropoffAddress ?? tripRequest.dropoffAddress,
+        fare: apiTrip?.fare ?? tripRequest.fare,
+        phoneNumber: apiTrip?.phoneNumber ?? tripRequest.phoneNumber,
+        pickupLat: apiTrip?.pickupLat ?? pickupLat,
+        pickupLng: apiTrip?.pickupLng ?? pickupLng,
+        dropoffLat: apiTrip?.dropoffLat ?? dropoffLat,
+        dropoffLng: apiTrip?.dropoffLng ?? dropoffLng,
       });
       setTripRequest(null);
       setTripStage('accepted');
@@ -355,8 +369,18 @@ export default function DriverLiveMapPage() {
 
     setIsDeclining(true);
     try {
-      // TODO: Replace with actual API call
-      // await axios.post(`/api/driver/trips/${tripId}/decline`, { ... });
+      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      try {
+        if (!String(tripId).startsWith("demo-")) {
+          await axios.post(
+            `/api/driver/trips/${encodeURIComponent(tripId)}/decline`,
+            {},
+            token ? { headers: { Authorization: `Bearer ${token}` } } : undefined
+          );
+        }
+      } catch (e) {
+        // ignore (demo mode / backend not configured)
+      }
       
       setTripRequest(null);
       setTripStage('waiting');
@@ -381,8 +405,18 @@ export default function DriverLiveMapPage() {
 
     setIsCancelling(true);
     try {
-      // TODO: Replace with actual API call
-      // await axios.post(`/api/driver/trips/${tripId}/cancel`, { reason });
+      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      try {
+        if (!String(tripId).startsWith("demo-")) {
+          await axios.post(
+            `/api/driver/trips/${encodeURIComponent(tripId)}/cancel`,
+            { reason },
+            token ? { headers: { Authorization: `Bearer ${token}` } } : undefined
+          );
+        }
+      } catch (e) {
+        // ignore (demo mode / backend not configured)
+      }
       
       // Stop all monitoring
       if (pickupMonitorRef.current) {
@@ -877,7 +911,7 @@ export default function DriverLiveMapPage() {
       const token = localStorage.getItem("token");
       await axios.post(
         "/api/driver/messages/send",
-        { toUserId: toUserId || activeTrip?.id || "user-unknown", templateKey },
+        { toUserId: toUserId || activeTrip?.passengerUserId || "user-unknown", templateKey },
         token ? { headers: { Authorization: `Bearer ${token}` } } : undefined
       );
       // Optionally, add a confirmation notification locally

@@ -33,7 +33,6 @@ export default function AdminPropertyDetail({ params }: { params: { id: string }
   }, [id]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
       <PropertyPreview
         propertyId={id}
         mode="admin"
@@ -48,6 +47,5 @@ export default function AdminPropertyDetail({ params }: { params: { id: string }
           router.refresh();
         }}
       />
-    </div>
   );
 }

@@ -52,8 +52,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       <SiteHeader role="ADMIN" />
 
       {/* Centered container so LayoutFrame spans both sidebar and content (like Owner) */}
-      <div className="flex-1 w-full">
-        <div className="max-w-6xl mx-auto w-full px-4 relative">
+      <div className="flex-1 w-full overflow-hidden">
+        <div className="max-w-6xl mx-auto w-full px-4 relative h-full">
           {/* Content frame/markers */}
           <LayoutFrame heightVariant="sm" topVariant="sm" colorVariant="muted" variant="solid" box />
 
@@ -67,7 +67,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           {/* Main content: match Owner spacing and styling (no extra border/bg) */}
           <div
             ref={mainRef}
-            className={`pt-16 pb-6 ${sidebarOpen ? 'owner-content-gap' : ''}`}
+            className={`pt-16 pb-6 ${sidebarOpen ? 'owner-content-gap' : ''} h-[calc(100vh-4rem)] overflow-y-auto`}
           >
             <main>
               <div className="w-full">

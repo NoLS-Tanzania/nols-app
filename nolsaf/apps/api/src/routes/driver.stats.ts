@@ -406,6 +406,211 @@ const getTrips: RequestHandler = async (req, res) => {
 router.get('/trips', getTrips as unknown as RequestHandler);
 
 /**
+ * POST /driver/trips/:tripId/accept
+ * Assigns the authenticated driver to a TransportBooking and marks it CONFIRMED.
+ */
+const postAcceptTrip: RequestHandler = async (req, res) => {
+  const user = (req as AuthedRequest).user!;
+  const tripId = Number(req.params.tripId);
+  if (!Number.isFinite(tripId)) return res.status(400).json({ error: "invalid_trip_id" });
+
+  try {
+    const existing = await prisma.transportBooking.findUnique({
+      where: { id: tripId },
+      include: {
+        user: { select: { id: true, name: true, phone: true } },
+      },
+    });
+    if (!existing) return res.status(404).json({ error: "not_found" });
+    if (existing.status === "CANCELED" || existing.status === "COMPLETED") {
+      return res.status(409).json({ error: "trip_not_active" });
+    }
+    if (existing.driverId && Number(existing.driverId) !== Number(user.id)) {
+      return res.status(409).json({ error: "already_assigned" });
+    }
+
+    const updated = await prisma.transportBooking.update({
+      where: { id: tripId },
+      data: {
+        driverId: Number(user.id),
+        status: "CONFIRMED",
+        pickupTime: existing.pickupTime ?? new Date(),
+      },
+      include: {
+        user: { select: { id: true, name: true, phone: true } },
+      },
+    });
+
+    // Create inbox notifications (customer + driver)
+    try {
+      await prisma.notification.create({
+        data: {
+          userId: updated.userId,
+          title: "Driver accepted your ride",
+          body: "Your driver is on the way to your pickup location.",
+          unread: true,
+          type: "ride",
+          meta: { transportBookingId: updated.id, status: updated.status, driverId: updated.driverId },
+        },
+      });
+    } catch {
+      // ignore
+    }
+    try {
+      await prisma.notification.create({
+        data: {
+          userId: Number(user.id),
+          title: "Trip accepted",
+          body: "Navigate to pickup location.",
+          unread: true,
+          type: "ride",
+          meta: { transportBookingId: updated.id, status: updated.status },
+        },
+      });
+    } catch {
+      // ignore
+    }
+
+    // Realtime emit (rooms are best-effort; clients may or may not join)
+    try {
+      const io = (req.app && (req.app as any).get && (req.app as any).get("io")) || (global as any).io;
+      if (io && typeof io.to === "function") {
+        io.to(`driver:${user.id}`).emit("trip:update", { id: updated.id, status: updated.status });
+        io.to(`user:${updated.userId}`).emit("trip:update", { id: updated.id, status: updated.status });
+      }
+    } catch {
+      // ignore
+    }
+
+    const trip = {
+      id: String(updated.id),
+      status: updated.status,
+      passengerUserId: updated.userId,
+      passengerName: updated.user?.name ?? "Passenger",
+      phoneNumber: updated.user?.phone ?? null,
+      pickupAddress: updated.fromAddress ?? updated.fromRegion ?? "",
+      dropoffAddress: updated.toAddress ?? updated.toRegion ?? "",
+      pickupLat: updated.fromLatitude !== null && typeof updated.fromLatitude !== "undefined" ? Number(updated.fromLatitude) : null,
+      pickupLng: updated.fromLongitude !== null && typeof updated.fromLongitude !== "undefined" ? Number(updated.fromLongitude) : null,
+      dropoffLat: updated.toLatitude !== null && typeof updated.toLatitude !== "undefined" ? Number(updated.toLatitude) : null,
+      dropoffLng: updated.toLongitude !== null && typeof updated.toLongitude !== "undefined" ? Number(updated.toLongitude) : null,
+      fare: updated.amount !== null && typeof updated.amount !== "undefined" ? `${updated.currency ?? "TZS"} ${Number(updated.amount).toLocaleString()}` : null,
+    };
+
+    return res.json({ ok: true, trip });
+  } catch (err: any) {
+    console.error("driver.trip.accept failed", err);
+    return res.status(500).json({ error: "failed", details: err?.message || String(err) });
+  }
+};
+
+/**
+ * POST /driver/trips/:tripId/decline
+ * Unassigns the driver from a TransportBooking (if currently assigned to them) and sets status back to PENDING.
+ */
+const postDeclineTrip: RequestHandler = async (req, res) => {
+  const user = (req as AuthedRequest).user!;
+  const tripId = Number(req.params.tripId);
+  if (!Number.isFinite(tripId)) return res.status(400).json({ error: "invalid_trip_id" });
+
+  try {
+    const existing = await prisma.transportBooking.findUnique({ where: { id: tripId } });
+    if (!existing) return res.status(404).json({ error: "not_found" });
+
+    // If another driver already has it, don't allow decline here.
+    if (existing.driverId && Number(existing.driverId) !== Number(user.id)) {
+      return res.status(409).json({ error: "already_assigned" });
+    }
+
+    await prisma.transportBooking.update({
+      where: { id: tripId },
+      data: { driverId: null, status: "PENDING" },
+    });
+
+    try {
+      const io = (req.app && (req.app as any).get && (req.app as any).get("io")) || (global as any).io;
+      if (io && typeof io.to === "function") {
+        io.to(`driver:${user.id}`).emit("trip:update", { id: tripId, status: "PENDING" });
+        io.to(`user:${existing.userId}`).emit("trip:update", { id: tripId, status: "PENDING" });
+      }
+    } catch {
+      // ignore
+    }
+
+    return res.json({ ok: true });
+  } catch (err: any) {
+    console.error("driver.trip.decline failed", err);
+    return res.status(500).json({ error: "failed", details: err?.message || String(err) });
+  }
+};
+
+/**
+ * POST /driver/trips/:tripId/cancel
+ * Cancels an in-progress/accepted TransportBooking (driver must be the assigned driver).
+ * Body: { reason?: string }
+ */
+const postCancelTrip: RequestHandler = async (req, res) => {
+  const user = (req as AuthedRequest).user!;
+  const tripId = Number(req.params.tripId);
+  if (!Number.isFinite(tripId)) return res.status(400).json({ error: "invalid_trip_id" });
+
+  const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+
+  try {
+    const existing = await prisma.transportBooking.findUnique({ where: { id: tripId } });
+    if (!existing) return res.status(404).json({ error: "not_found" });
+    if (!existing.driverId || Number(existing.driverId) !== Number(user.id)) {
+      return res.status(403).json({ error: "not_assigned_to_you" });
+    }
+
+    const newNotes =
+      (existing.notes ? String(existing.notes) + "\n" : "") +
+      (reason ? `Driver cancelled: ${reason}` : "Driver cancelled");
+
+    const updated = await prisma.transportBooking.update({
+      where: { id: tripId },
+      data: { status: "CANCELED", notes: newNotes },
+    });
+
+    // Notify customer
+    try {
+      await prisma.notification.create({
+        data: {
+          userId: updated.userId,
+          title: "Ride cancelled",
+          body: reason ? `Your ride was cancelled by the driver. Reason: ${reason}` : "Your ride was cancelled by the driver.",
+          unread: true,
+          type: "ride",
+          meta: { transportBookingId: updated.id, status: updated.status, driverId: updated.driverId },
+        },
+      });
+    } catch {
+      // ignore
+    }
+
+    // Realtime emit
+    try {
+      const io = (req.app && (req.app as any).get && (req.app as any).get("io")) || (global as any).io;
+      if (io && typeof io.to === "function") {
+        io.to(`driver:${user.id}`).emit("trip:update", { id: tripId, status: updated.status });
+        io.to(`user:${updated.userId}`).emit("trip:update", { id: tripId, status: updated.status });
+      }
+    } catch {
+      // ignore
+    }
+
+    return res.json({ ok: true });
+  } catch (err: any) {
+    console.error("driver.trip.cancel failed", err);
+    return res.status(500).json({ error: "failed", details: err?.message || String(err) });
+  }
+};
+
+router.post("/trips/:tripId/accept", postAcceptTrip as unknown as RequestHandler);
+router.post("/trips/:tripId/decline", postDeclineTrip as unknown as RequestHandler);
+router.post("/trips/:tripId/cancel", postCancelTrip as unknown as RequestHandler);
+
+/**
  * GET /driver/safety?date=...&start=...&end=...
  * Returns safety events or monthly summaries for the authenticated driver.
  * Best-effort: try driverSafety or safetyEvent models, otherwise return empty list.

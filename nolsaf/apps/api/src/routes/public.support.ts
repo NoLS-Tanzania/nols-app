@@ -16,4 +16,18 @@ router.get("/", async (_req, res) => {
   }
 });
 
+// Public endpoint returning system settings (commission rate for price calculations)
+router.get("/system-settings", async (_req, res) => {
+  try {
+    const s = await prisma.systemSetting.findUnique({ where: { id: 1 } }) ?? {} as any;
+    // Only return commissionPercent for public use (price calculations)
+    res.json({ 
+      commissionPercent: s.commissionPercent ?? 0 
+    });
+  } catch (err) {
+    console.error('public system-settings error', err);
+    res.status(500).json({ error: 'Could not load system settings' });
+  }
+});
+
 export default router;

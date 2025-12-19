@@ -55,7 +55,22 @@ export default function LatestUpdate() {
   }
 
   if (updates.length === 0) {
-    return null; // Don't show section if no updates
+    return (
+      <aside className="mt-6">
+        <div className="public-container">
+          <div className="mb-4 flex items-center gap-2">
+            <Megaphone className="w-5 h-5 text-[#02665e]" />
+            <h2 className="text-xl font-bold text-slate-900">Latest Updates</h2>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-sm text-slate-700 font-medium">No updates yet.</p>
+            <p className="text-xs text-slate-500 mt-1">
+              Check back soon — we’ll post announcements here.
+            </p>
+          </div>
+        </div>
+      </aside>
+    );
   }
 
   // Display latest 3 updates

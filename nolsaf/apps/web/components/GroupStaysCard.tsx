@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { DayPicker, type DateRange } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
-import { REGIONS as TZ_REGIONS } from '@/lib/tzRegions';
+import { REGIONS as TZ_REGIONS, REGIONS_FULL_DATA, type Region as TZRegion, type District as TZDistrict, type Ward as TZWard } from '@/lib/tzRegions';
 import Link from 'next/link';
 import { Calendar, ChevronDown, ChevronLeft, ChevronRight, Check, Truck, Bus, Coffee, Users, Wrench, Download, ArrowLeft } from 'lucide-react';
 import Spinner from './Spinner';
@@ -26,6 +26,29 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
   const REGION_OPTIONS = TZ_REGIONS;
   const getDistrictsFor = (regionId: string) => TZ_REGIONS.find(r => r.id === regionId)?.districts ?? [];
   const getRegionName = (id?: string | null) => id ? (TZ_REGIONS.find(r => r.id === id)?.name ?? id) : '';
+  
+  // Helper functions for full data structure (wards and streets)
+  const getFullRegionData = (regionId: string) => {
+    const region = TZ_REGIONS.find(r => r.id === regionId);
+    if (!region) return null;
+    return REGIONS_FULL_DATA.find(r => r.name === region.name);
+  };
+  
+  const getWardsFor = (regionId: string, districtName: string) => {
+    const fullRegion = getFullRegionData(regionId);
+    if (!fullRegion) return [];
+    const district = fullRegion.districts?.find(d => d.name === districtName);
+    return district?.wards ?? [];
+  };
+  
+  const getStreetsFor = (regionId: string, districtName: string, wardName: string) => {
+    const fullRegion = getFullRegionData(regionId);
+    if (!fullRegion) return [];
+    const district = fullRegion.districts?.find(d => d.name === districtName);
+    if (!district) return [];
+    const ward = district.wards?.find(w => w.name === wardName);
+    return ward?.streets ?? [];
+  };
 
   const [fromRegion, setFromRegion] = useState<string>('');
   const [toRegion, setToRegion] = useState<string>('');
@@ -445,7 +468,7 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
                       <div>
                         <label htmlFor="from-district" className="block text-xs text-slate-600">District</label>
                         <div className="relative">
-                          <select id="from-district" value={fromDistrict} onChange={(e) => setFromDistrict(e.target.value)} className="groupstays-select mt-1 w-full rounded-md px-3 py-2 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 pr-9">
+                          <select id="from-district" value={fromDistrict} onChange={(e) => { setFromDistrict(e.target.value); setFromWard(''); setFromLocation(''); }} className="groupstays-select mt-1 w-full rounded-md px-3 py-2 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 pr-9">
                             <option value="">Select district</option>
                             {getDistrictsFor(fromRegion).map((d) => <option key={d} value={d}>{d}</option>)}
                           </select>
@@ -455,12 +478,28 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
 
                       <div>
                         <label htmlFor="from-ward" className="block text-xs text-slate-600">Ward</label>
-                        <input id="from-ward" value={fromWard} onChange={(e) => setFromWard(e.target.value)} placeholder="Ward" className="groupstays-select mt-1 w-full rounded-md px-3 py-2 pr-9 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200" />
+                        <div className="relative">
+                          <select id="from-ward" value={fromWard} onChange={(e) => { setFromWard(e.target.value); setFromLocation(''); }} disabled={!fromDistrict} className="groupstays-select mt-1 w-full rounded-md px-3 py-2 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 pr-9 disabled:bg-slate-50 disabled:text-slate-400">
+                            <option value="">Select ward</option>
+                            {getWardsFor(fromRegion, fromDistrict).map((ward) => (
+                              <option key={ward.name} value={ward.name}>{ward.name}</option>
+                            ))}
+                          </select>
+                          <ChevronDown className="groupstays-chevron pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden />
+                        </div>
                       </div>
 
                       <div>
-                        <label htmlFor="from-location" className="block text-xs text-slate-600">Exact location</label>
-                        <input id="from-location" value={fromLocation} onChange={(e) => setFromLocation(e.target.value)} placeholder="Street, landmark or GPS coordinates" className="groupstays-select mt-1 w-full rounded-md px-3 py-2 pr-9 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200" />
+                        <label htmlFor="from-location" className="block text-xs text-slate-600">Street</label>
+                        <div className="relative">
+                          <select id="from-location" value={fromLocation} onChange={(e) => setFromLocation(e.target.value)} disabled={!fromWard} className="groupstays-select mt-1 w-full rounded-md px-3 py-2 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 pr-9 disabled:bg-slate-50 disabled:text-slate-400">
+                            <option value="">Select street</option>
+                            {getStreetsFor(fromRegion, fromDistrict, fromWard).map((street) => (
+                              <option key={street} value={street}>{street}</option>
+                            ))}
+                          </select>
+                          <ChevronDown className="groupstays-chevron pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -475,7 +514,7 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
                       <div>
                         <label htmlFor="to-region" className="block text-xs text-slate-600">Region</label>
                         <div className="relative">
-                          <select id="to-region" value={toRegion} onChange={(e) => { setToRegion(e.target.value); setToDistrict(''); }} className="groupstays-select mt-1 w-full rounded-md px-3 py-2 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 pr-9">
+                          <select id="to-region" value={toRegion} onChange={(e) => { setToRegion(e.target.value); setToDistrict(''); setToWard(''); setToLocation(''); }} className="groupstays-select mt-1 w-full rounded-md px-3 py-2 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 pr-9">
                             <option value="">Select region</option>
                             {REGION_OPTIONS.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
                           </select>
@@ -496,12 +535,28 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
 
                       <div>
                         <label htmlFor="to-ward" className="block text-xs text-slate-600">Ward</label>
-                          <input id="to-ward" value={toWard} onChange={(e) => setToWard(e.target.value)} placeholder="Ward" className="groupstays-select mt-1 w-full rounded-md px-3 py-2 pr-9 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200" />
+                        <div className="relative">
+                          <select id="to-ward" value={toWard} onChange={(e) => { setToWard(e.target.value); setToLocation(''); }} disabled={!toDistrict} className="groupstays-select mt-1 w-full rounded-md px-3 py-2 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 pr-9 disabled:bg-slate-50 disabled:text-slate-400">
+                            <option value="">Select ward</option>
+                            {getWardsFor(toRegion, toDistrict).map((ward) => (
+                              <option key={ward.name} value={ward.name}>{ward.name}</option>
+                            ))}
+                          </select>
+                          <ChevronDown className="groupstays-chevron pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden />
+                        </div>
                       </div>
 
                       <div>
-                        <label htmlFor="to-location" className="block text-xs text-slate-600">Exact location</label>
-                          <input id="to-location" value={toLocation} onChange={(e) => setToLocation(e.target.value)} placeholder="Street, landmark or GPS coordinates" className="groupstays-select mt-1 w-full rounded-md px-3 py-2 pr-9 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200" />
+                        <label htmlFor="to-location" className="block text-xs text-slate-600">Street</label>
+                        <div className="relative">
+                          <select id="to-location" value={toLocation} onChange={(e) => setToLocation(e.target.value)} disabled={!toWard} className="groupstays-select mt-1 w-full rounded-md px-3 py-2 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 pr-9 disabled:bg-slate-50 disabled:text-slate-400">
+                            <option value="">Select street</option>
+                            {getStreetsFor(toRegion, toDistrict, toWard).map((street) => (
+                              <option key={street} value={street}>{street}</option>
+                            ))}
+                          </select>
+                          <ChevronDown className="groupstays-chevron pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden />
+                        </div>
                       </div>
                     </div>
                   </div>

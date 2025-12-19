@@ -161,6 +161,7 @@ model Property {
   regionId        String?   @db.VarChar(50)
   regionName      String?   @db.VarChar(120)
   district        String?   @db.VarChar(120)
+  ward            String?   @db.VarChar(120)
   street          String?   @db.VarChar(200)
   apartment       String?   @db.VarChar(120)
   city            String?   @db.VarChar(120)
@@ -204,7 +205,13 @@ model Property {
   @@index([regionId])
   @@index([regionName])
   @@index([district])
+  @@index([ward])
   @@index([status, createdAt, regionId])
+  // Location indexes for map functionality
+  @@index([latitude])
+  @@index([longitude])
+  @@index([latitude, longitude]) // Composite index for location-based queries
+  @@index([status, latitude, longitude]) // For filtering approved properties with locations
   @@map("Property")
 }
 
