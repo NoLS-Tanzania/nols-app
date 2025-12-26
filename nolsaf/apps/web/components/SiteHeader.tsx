@@ -272,7 +272,7 @@ export default function SiteHeader({
         filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.15))',
       }}
     >
-      <div className={`mx-auto max-w-6xl px-4 h-16 flex items-center justify-between ${isAdmin && adminSidebarVisible ? 'md:ml-64' : ''}`}>
+      <div className={`mx-auto max-w-6xl px-4 h-16 flex items-center justify-between ${isAdmin && adminSidebarVisible ? 'md:ml-64' : ''} relative`}>
         {/* Owner: small toggle to hide/show sidebar. Uses a global event so Layout can listen */}
         {isOwner && !driverMode ? (
           <button
@@ -284,9 +284,9 @@ export default function SiteHeader({
               }
             }}
             aria-label="Toggle sidebar"
-            className="hidden md:inline-flex items-center justify-center h-9 w-9 rounded-md bg-white/10 text-white/90 hover:bg-white/20 mr-3"
+            className="hidden md:inline-flex items-center justify-center h-9 w-9 rounded-md bg-white/10 hover:bg-white/20 mr-3"
           >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+            <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
               <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
@@ -301,10 +301,10 @@ export default function SiteHeader({
               }
             }}
             aria-label="Toggle sidebar"
-            className="hidden md:inline-flex items-center justify-center h-9 w-9 rounded-md bg白/10 text白/90 hover:bg白/20 mr-3"
+            className="hidden md:inline-flex items-center justify-center h-10 w-10 rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 hover:scale-105 active:scale-95 transition-all duration-300 ease-out hover:shadow-md mr-3"
           >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
-              <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            <svg className="w-5 h-5 text-white transition-transform duration-300" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+              <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
         ) : null}
@@ -318,24 +318,14 @@ export default function SiteHeader({
               }
             }}
             aria-label="Toggle sidebar"
-            className="hidden md:inline-flex items-center justify-center h-10 w-10 rounded-xl bg-transparent border-0 text-white/90 hover:bg-white/10 hover:backdrop-blur-sm hover:border hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-out hover:shadow-md mr-3"
+            className="hidden md:inline-flex items-center justify-center h-10 w-10 rounded-xl bg-transparent border-0 hover:bg-white/10 hover:backdrop-blur-sm hover:border hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-out hover:shadow-md mr-3"
           >
-            <svg className="w-5 h-5 transition-transform duration-300" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+            <svg className="w-5 h-5 text-white transition-transform duration-300" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
               <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
         ) : null}
-        {isAdmin ? (
-          <Link href="/" className="inline-flex items-center transition-opacity duration-300 hover:opacity-80" aria-label="NoLSAF Home">
-            <Image
-              src="/assets/nolsnewlog.png"
-              alt="NoLSAF"
-              width={120}
-              height={30}
-              className="h-8 w-auto"
-            />
-          </Link>
-        ) : isOwner ? (
+        {isAdmin ? null : isOwner ? (
           <Link href="/" className="inline-flex items-center transition-opacity duration-300 hover:opacity-80" aria-label="NoLSAF Home">
             <Image
               src="/assets/nolsnewlog.png"
@@ -360,75 +350,92 @@ export default function SiteHeader({
         {/* driverMode: no textual controls here; icons live in the right-side group below */}
 
         {/* Desktop nav */}
-        <nav className="hidden md:flex items-center gap-1">
+        <nav className="hidden md:flex items-center gap-2 md:absolute md:right-4 md:top-1/2 md:-translate-y-1/2">
           {isAdmin ? (
             <div className="flex items-center gap-1">
               <button
                 onClick={handleRefresh}
-                className="inline-flex items-center justify-center rounded-md p-1.5 hover:bg-white/10"
+                className="group relative inline-flex items-center justify-center h-10 w-10 rounded-lg bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/15 hover:border-white/25 hover:scale-105 active:scale-95 transition-all duration-300 ease-out hover:shadow-md"
                 aria-label="Refresh"
                 title="Refresh"
                 disabled={isRefreshing}
               >
-                <RefreshCw className={`h-5 w-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`h-5 w-5 text-white/90 group-hover:text-white transition-transform duration-300 ${isRefreshing ? 'animate-spin' : 'group-hover:rotate-180'}`} />
               </button>
 
               <button
                 onClick={handleExportInvoices}
-                className="inline-flex items-center justify-center rounded-md p-1.5 hover:bg-white/10"
+                className="group relative inline-flex items-center justify-center h-10 w-10 rounded-lg bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/15 hover:border-white/25 hover:scale-105 active:scale-95 transition-all duration-300 ease-out hover:shadow-md"
                 aria-label="Export Invoices CSV"
                 title="Export Invoices CSV"
               >
-                <Download className="h-5 w-5" />
+                <Download className="h-5 w-5 text-white/90 group-hover:text-white transition-transform duration-300 group-hover:translate-y-0.5" />
               </button>
 
               <button
                 onClick={handleWidgetPreferences}
-                className="inline-flex items-center justify-center rounded-md p-1.5 hover:bg-white/10"
+                className="group relative inline-flex items-center justify-center h-10 w-10 rounded-lg bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/15 hover:border-white/25 hover:scale-105 active:scale-95 transition-all duration-300 ease-out hover:shadow-md"
                 aria-label="Widget Preferences"
                 title="Widget Preferences"
               >
-                <Sliders className="h-5 w-5" />
+                <Sliders className="h-5 w-5 text-white/90 group-hover:text-white transition-transform duration-300 group-hover:rotate-90" />
               </button>
 
               <button
                 onClick={toggleTheme}
-                className="inline-flex items-center justify-center rounded-md p-1.5 hover:bg-white/10"
+                className="group relative inline-flex items-center justify-center h-10 w-10 rounded-lg bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/15 hover:border-white/25 hover:scale-105 active:scale-95 transition-all duration-300 ease-out hover:shadow-md"
                 aria-label="Toggle theme"
                 title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
               >
-                {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+                {theme === 'dark' ? (
+                  <Sun className="h-5 w-5 text-white/90 group-hover:text-white transition-transform duration-300 group-hover:rotate-180" />
+                ) : (
+                  <Moon className="h-5 w-5 text-white/90 group-hover:text-white transition-transform duration-300 group-hover:-rotate-12" />
+                )}
               </button>
 
               <Link
                 href="/admin/messages"
-                className="relative inline-flex items-center justify-center rounded-md p-1.5 hover:bg-transparent"
+                className="group relative inline-flex items-center justify-center rounded-md p-1.5 hover:bg-white/10 transition-all duration-200 ease-out"
                 aria-label="Notifications"
-                title={"Notifications"}
+                title="Notifications"
               >
-                <Bell className="h-5 w-5 text-white" />
-                <span
-                  className="absolute -top-0.5 -right-0.5 h-3 min-w-3 px-0.5 rounded-full bg-rose-500 text-[9px] leading-3 text-white font-semibold ring-1 ring-white/50 text-center"
-                  aria-label={`${unreadCount ?? unreadMessages} unread notifications`}
-                >
-                  {(unreadCount ?? unreadMessages) > 9 ? "9+" : (unreadCount ?? unreadMessages)}
-                </span>
+                <Bell className="h-5 w-5 text-white/90 group-hover:text-white transition-transform duration-300 group-hover:scale-110" />
+                {(unreadCount ?? unreadMessages) > 0 && (
+                  <span
+                    className="absolute -top-0.5 -right-0.5 h-3.5 min-w-3.5 px-1 rounded-full bg-rose-500 text-[9px] leading-3.5 text-white font-semibold ring-1 ring-white/50 text-center flex items-center justify-center"
+                    aria-label={`${unreadCount ?? unreadMessages} unread notifications`}
+                  >
+                    {(unreadCount ?? unreadMessages) > 9 ? "9+" : (unreadCount ?? unreadMessages)}
+                  </span>
+                )}
               </Link>
 
-              <Link href="/admin/support" className="inline-flex items-center justify-center rounded-md p-1.5 hover:bg-white/10" aria-label="Support" title={"Support"}>
-                <LifeBuoy className="h-5 w-5" />
+              <Link 
+                href="/admin/support" 
+                className="group relative inline-flex items-center justify-center rounded-md p-1.5 hover:bg-white/10 transition-all duration-200 ease-out" 
+                aria-label="Support" 
+                title="Support"
+              >
+                <LifeBuoy className="h-5 w-5 text-white/90 group-hover:text-white transition-transform duration-300 group-hover:rotate-12" />
               </Link>
 
-              <Link href="/admin/settings" className="inline-flex items-center justify-center rounded-md p-1.5 hover:bg-white/10" aria-label="Settings" title={"Settings"}>
-                <SettingsIcon className="h-5 w-5" />
+              <Link 
+                href="/admin/settings" 
+                className="group relative inline-flex items-center justify-center rounded-md p-1.5 hover:bg-white/10 transition-all duration-200 ease-out" 
+                aria-label="Settings" 
+                title="Settings"
+              >
+                <SettingsIcon className="h-5 w-5 text-white/90 group-hover:text-white transition-transform duration-300 group-hover:rotate-90" />
               </Link>
 
-              <div className="mx-2 h-5 w-px bg-white/20" />
+              <div className="mx-1 h-6 w-px bg-white/30" />
 
-              <Link href="/account" className="inline-flex items-center justify-center">
-                <div className="h-10 w-10 rounded-full border border-white/20 bg-white/10 text-white/90 flex items-center justify-center text-sm font-semibold">
-                  AD
-                </div>
+              <Link 
+                href="/account" 
+                className="group relative inline-flex items-center justify-center h-10 w-10 rounded-full border-2 border-white/30 bg-white/10 hover:bg-white/20 hover:border-white/50 hover:scale-105 active:scale-95 transition-all duration-300 ease-out hover:shadow-lg"
+              >
+                <User className="h-5 w-5 text-white/90 group-hover:text-white transition-colors duration-300" />
               </Link>
             </div>
           ) : null}
@@ -746,7 +753,7 @@ export default function SiteHeader({
           aria-expanded={open}
         >
           <svg 
-            className={`w-5 h-5 transition-all duration-300 ease-out ${open ? 'rotate-90' : ''}`} 
+            className={`w-5 h-5 text-white transition-all duration-300 ease-out ${open ? 'rotate-90' : ''}`} 
             viewBox="0 0 24 24" 
             fill="none" 
             xmlns="http://www.w3.org/2000/svg" 
@@ -869,82 +876,87 @@ export default function SiteHeader({
                 </>
               ) : isAdmin && (
               <>
-                <div className="my-2 h-px w-full bg-white/10" />
-                <div className="flex items-center gap-2">
+                <div className="my-3 h-px w-full bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+                <div className="flex items-center gap-2.5 flex-wrap">
                   <button
                     onClick={handleRefresh}
                     aria-label="Refresh"
                     title="Refresh"
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-md transition hover:bg-white/10 active:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+                    className="mobile-menu-item group inline-flex h-11 w-11 items-center justify-center rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out shadow-sm hover:shadow-md"
+                    style={{ '--delay': 0 } as React.CSSProperties}
                     disabled={isRefreshing}
                   >
-                    <RefreshCw className={`h-5 w-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+                    <RefreshCw className={`h-5 w-5 text-white/90 group-hover:text-white transition-transform duration-300 ${isRefreshing ? 'animate-spin' : 'group-hover:rotate-180'}`} />
                   </button>
                   <button
                     onClick={handleExportInvoices}
                     aria-label="Export Invoices CSV"
                     title="Export Invoices CSV"
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-md transition hover:bg-white/10 active:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+                    className="mobile-menu-item group inline-flex h-11 w-11 items-center justify-center rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out shadow-sm hover:shadow-md"
+                    style={{ '--delay': 1 } as React.CSSProperties}
                   >
-                    <Download className="h-5 w-5" />
-                  </button>
-                  <button
-                    onClick={handleWidgetPreferences}
-                    aria-label="Widget Preferences"
-                    title="Widget Preferences"
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-md transition hover:bg-white/10 active:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
-                  >
-                    <Sliders className="h-5 w-5" />
+                    <Download className="h-5 w-5 text-white/90 group-hover:text-white transition-transform duration-300 group-hover:translate-y-0.5" />
                   </button>
                   <button
                     onClick={toggleTheme}
                     aria-label="Toggle theme"
                     title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-md transition hover:bg-white/10 active:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+                    className="mobile-menu-item group inline-flex h-11 w-11 items-center justify-center rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out shadow-sm hover:shadow-md"
+                    style={{ '--delay': 3 } as React.CSSProperties}
                   >
-                    {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+                    {theme === 'dark' ? (
+                      <Sun className="h-5 w-5 text-white/90 group-hover:text-white transition-transform duration-300 group-hover:rotate-180" />
+                    ) : (
+                      <Moon className="h-5 w-5 text-white/90 group-hover:text-white transition-transform duration-300 group-hover:-rotate-12" />
+                    )}
                   </button>
                   <Link
                     href="/admin/messages"
                     aria-label="Notifications"
-                    title={"Notifications"}
-                    className="relative inline-flex h-9 w-9 items-center justify-center rounded-md transition hover:bg-transparent active:bg-transparent focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+                    title="Notifications"
+                    className="mobile-menu-item group relative inline-flex h-11 w-11 items-center justify-center rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out shadow-sm hover:shadow-md"
+                    style={{ '--delay': 4 } as React.CSSProperties}
                     onClick={() => setOpen(false)}
                   >
-                    <Bell className="h-5 w-5 text-white" />
-                    <span
-                      className="absolute -top-0.5 -right-0.5 h-3 min-w-3 px-0.5 rounded-full bg-rose-500 text-[9px] leading-3 text-white font-semibold ring-1 ring-white/50 text-center"
-                      aria-label={`${unreadCount ?? unreadMessages} unread notifications`}
-                    >
-                      {(unreadCount ?? unreadMessages) > 9 ? "9+" : (unreadCount ?? unreadMessages)}
-                    </span>
+                    <Bell className="h-5 w-5 text-white/90 group-hover:text-white transition-transform duration-300 group-hover:scale-110" />
+                    {(unreadCount ?? unreadMessages) > 0 && (
+                      <span
+                        className="absolute -top-1 -right-1 h-4 min-w-4 px-1 rounded-full bg-rose-500 text-[10px] leading-4 text-white font-bold ring-2 ring-[#02665e] text-center flex items-center justify-center"
+                        aria-label={`${unreadCount ?? unreadMessages} unread notifications`}
+                      >
+                        {(unreadCount ?? unreadMessages) > 9 ? "9+" : (unreadCount ?? unreadMessages)}
+                      </span>
+                    )}
                   </Link>
                   <Link
                     href="/admin/support"
                     aria-label="Support"
-                    title={"Support"}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-md transition hover:bg-white/10 active:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+                    title="Support"
+                    className="mobile-menu-item group inline-flex h-11 w-11 items-center justify-center rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out shadow-sm hover:shadow-md"
+                    style={{ '--delay': 5 } as React.CSSProperties}
                     onClick={() => setOpen(false)}
                   >
-                    <LifeBuoy className="h-5 w-5" />
+                    <LifeBuoy className="h-5 w-5 text-white/90 group-hover:text-white transition-transform duration-300 group-hover:rotate-12" />
                   </Link>
                   <Link
                     href="/admin/settings"
                     aria-label="Settings"
-                    title={"Settings"}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-md transition hover:bg-white/10 active:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+                    title="Settings"
+                    className="mobile-menu-item group inline-flex h-11 w-11 items-center justify-center rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out shadow-sm hover:shadow-md"
+                    style={{ '--delay': 6 } as React.CSSProperties}
                     onClick={() => setOpen(false)}
                   >
-                    <SettingsIcon className="h-5 w-5" />
+                    <SettingsIcon className="h-5 w-5 text-white/90 group-hover:text-white transition-transform duration-300 group-hover:rotate-90" />
                   </Link>
                   <Link
                     href="/account"
                     aria-label="Profile"
-                    title={"Profile"}
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-full transition hover:bg-white/10 active:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+                    title="Profile"
+                    className="mobile-menu-item group inline-flex h-11 w-11 items-center justify-center rounded-full border-2 border-white/30 bg-white/10 hover:bg-white/20 hover:border-white/50 active:scale-95 transition-all duration-300 ease-out shadow-sm hover:shadow-lg"
+                    style={{ '--delay': 7 } as React.CSSProperties}
                     onClick={() => setOpen(false)}
                   >
-                    <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-white/10 text-[11px]">AD</span>
+                    <User className="h-5 w-5 text-white/90 group-hover:text-white transition-colors duration-300" />
                   </Link>
                 </div>
               </>

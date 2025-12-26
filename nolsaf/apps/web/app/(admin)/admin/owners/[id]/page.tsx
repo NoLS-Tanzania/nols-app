@@ -1724,7 +1724,7 @@ function PropertyCard({ property }: { property: Property }) {
 
   return (
     <Link
-      href={`/admin/properties/${property.id}`}
+      href={`/admin/properties?previewId=${property.id}`}
       className="group no-underline text-slate-900"
       aria-label={`View ${property.title}`}
     >

@@ -3,7 +3,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { DayPicker, type DateRange } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
-import { REGIONS as TZ_REGIONS, REGIONS_FULL_DATA, type Region as TZRegion, type District as TZDistrict, type Ward as TZWard } from '@/lib/tzRegions';
+import { REGIONS as TZ_REGIONS, type Region as TZRegion, type District as TZDistrict, type Ward as TZWard } from '@/lib/tzRegions';
+import { REGIONS_FULL_DATA } from '@/lib/tzRegionsFull';
 import Link from 'next/link';
 import { Calendar, ChevronDown, ChevronLeft, ChevronRight, Check, Truck, Bus, Coffee, Users, Wrench, Download, ArrowLeft } from 'lucide-react';
 import Spinner from './Spinner';

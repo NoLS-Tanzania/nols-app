@@ -328,7 +328,7 @@ export default function AdminHome() {
                           <div className="text-sm font-medium">{p.title}</div>
                           <div className="text-[11px] text-gray-500">Owner: {p.owner?.name ?? `#${p.ownerId}`}</div>
                         </div>
-                        <Link href={`/admin/properties/${p.id}`} className="btn btn-ghost text-xs">Open</Link>
+                        <Link href={`/admin/properties?previewId=${p.id}`} className="btn btn-ghost text-xs">Open</Link>
                       </li>
                     ))}
                   </ul>

@@ -50,7 +50,6 @@ const adminDetails: Item[] = [
   { href: "/admin", label: "Dashboard", Icon: LayoutDashboard },
   { href: "/admin/owners", label: "Owners", Icon: Building2 },
   { href: "/admin/bookings", label: "Bookings", Icon: Calendar },
-  { href: "/admin/properties", label: "Properties", Icon: FileText },
   { href: "/admin/properties/previews", label: "Previews", Icon: Eye },
   { href: "/admin/payments", label: "Payments", Icon: Wallet },
 ];
@@ -103,7 +102,6 @@ const managementDetails: Item[] = [
   { href: "/admin/management/invoices", label: "Invoices", Icon: Receipt },
   { href: "/admin/management/ip-allowlist", label: "IP Allowlist", Icon: ListFilter },
   { href: "/admin/management/owners", label: "Owners", Icon: Building2 },
-  { href: "/admin/management/properties", label: "Properties", Icon: FileText },
   { href: "/admin/management/trust-partners", label: "Trust Partners", Icon: Award },
   { href: "/admin/management/settings", label: "Settings", Icon: Settings },
   { href: "/admin/management/updates", label: "Updates", Icon: Megaphone },

@@ -1,32 +1,70 @@
-export type Region = { id: string; name: string; districts: string[] };
+export type Region = { id: string; name: string; districts: string[]; code?: string };
+export type District = { name: string; code?: string; wards?: Ward[] };
+export type Ward = { name: string; code?: string; postcode?: string; streets?: string[] };
+
+// Type for full region data structure (with wards and streets)
+export type RegionFullData = {
+  name: string;
+  code?: string;
+  districts?: District[];
+};
 
 const RD: Record<string, string[]> = {
-  "Dar es Salaam": ["Ilala","Kinondoni","Ubungo","Temeke","Kigamboni"],
-  "Dodoma": ["Dodoma","Chamwino","Kongwa","Mpwapwa","Bahi","Chemba","Kondoa"],
-  "Arusha": ["Arusha Urban","Arusha DC","Karatu","Meru","Longido","Monduli","Ngorongoro"],
-  "Mwanza": ["Mwanza Urban","Ilemela","Nyamagana","Magu","Sengerema","Misungwi","Kwimba","Buchosa"],
-  "Kilimanjaro": ["Moshi Municipal","Moshi Rural","Hai","Siha","Mwanga","Same"],
-  "Tanga": ["Tanga Urban","Korogwe Urban","Korogwe DC","Handeni","Lushoto","Pangani","Mkinga"],
-  "Mara": ["Mara Urban","Musoma","Butiama","Bunda","Rorya","Serengeti","Tarime"],
-  "Mbeya": ["Mbeya Urban","Mbeya DC","Rungwe","Mbarali","Chunya","Kyela","Mbozi","Busokelo"],
-  "Morogoro": ["Morogoro Urban","Morogoro Rural","Kilosa","Kilombero","Ulanga","Gairo","Mvomero"],
-  "Mtwara": ["Mtwara Urban","Mtwara DC","Masasi","Nanyumbu","Newala","Tandahimba"],
-  "Lindi": ["Lindi Urban","Lindi DC","Kilwa","Nachingwea","Ruangwa","Liwale"],
-  "Ruvuma": ["Songea Urban","Songea DC","Tunduru","Namtumbo","Mbinga","Nyasa"],
-  "Rukwa": ["Sumbawanga Urban","Sumbawanga DC","Nkasi","Kalambo"],
-  "Rukwa (old)": ["Sumbawanga"],
-  "Katavi": ["Mpanda","Mlele","Nsimbo"],
-  "Geita": ["Geita","Mbogwe","Chato","Bukombe"],
-  "Kagera": ["Mwanza region border","Biharamulo","Kyerwa","Ngara","Muleba","Karagwe","Bukoba"],
-  "Singida": ["Singida Urban","Ikungi","Manyoni","Mkalama","Iramba"],
-  "Simiyu": ["Simiyu","Itilima","Maswa","Busega","Meatu"],
-  "Shinyanga": ["Shinyanga Urban","Kahama","Ushetu","Kishapu"],
-  "Tabora": ["Tabora Urban","Nzega","Uyui","Kaliua","Igunga"],
-  "Songwe": ["Songwe","Tunduma","Mbozi","Momba"],
-  "Pwani": ["Kibaha","Bagamoyo","Kisarawe","Rufiji","Mafia"],
-  "Njombe": ["Njombe","Wanging'ombe","Makambako","Ludewa"],
-  "Iringa": ["Iringa Urban","Iringa DC","Kilolo","Mafinga","Mufindi"],
-  "Other": ["Other"],
+  "ARUSHA": ["ARUSHA CBD","ARUSHA","ARUMERU","MONDULI","LONGIDO","KARATU","NGORONGORO"],
+  "DAR-ES-SALAAM": ["ILALA CBD","ILALA","KINONDONI","TEMEKE","UBUNGO","KIGAMBONI"],
+  "DODOMA": ["DODOMA","BAHI","CHAMWINO","KONGWA","MPWAPWA","KONDOA","CHEMBA"],
+  "GEITA": ["GEITA","NYANG'HWALE","CHATO","MBOGWE","BUKOMBE"],
+  "IRINGA": ["IRINGA CBD","IRINGA","KILOLO","MUFINDI"],
+  "KAGERA": ["BUKOBA CBD","BUKOBA","MISSENYI","KARAGWE","MULEBA","BIHARAMULO","NGARA","KYERWA"],
+  "KATAVI": ["MPANDA -CBD","TANGANYIKA","MLELE"],
+  "KIGOMA": ["KIGOMA","KASULU","KIBONDO","BUHIGWE","UVINZA","KAKONKO"],
+  "KILIMANJARO": ["MOSHI CBD","MOSHI","HAI","SIHA","MWANGA","SAME","ROMBO"],
+  "LINDI": ["LINDI  CBD","LINDI","NACHINGWEA","KILWA","LIWALE","RUANGWA"],
+  "MANYARA": ["BABATI CBD","BABATI","HANANG'","MBULU","KITETO","SIMANJIRO"],
+  "MARA": ["MUSOMA CBD","BUTIAMA","RORYA","TARIME","BUNDA","SERENGETI"],
+  "MBEYA": ["MBEYA CBD","MBEYA","RUNGWE","MBARALI","KYELA","CHUNYA"],
+  "MOROGORO": ["MOROGORO","MVOMERO","KILOSA","KILOMBERO","ULANGA","GAIRO","MALINYI"],
+  "MTWARA": ["MTWARA CBD","MTWARA","TANDAHIMBA","NEWALA","MASASI","NANYUMBU"],
+  "MWANZA": ["NYAMAGANA","ILEMELA","SENGEREMA","MAGU","MISUNGWI","UKEREWE","KWIMBA"],
+  "NJOMBE": ["NJOMBE CBD","NJOMBE","LUDEWA","MAKETE"],
+  "PWANI": ["KIBAHA CBD","KIBAHA","BAGAMOYO","KISARAWE","MKURANGA","RUFIJI","MAFIA","KIBITI"],
+  "RUKWA": ["SUMBAWANGA","NKASI","KALAMBO"],
+  "RUVUMA": ["SONGEA CBD","SONGEA","NAMTUMBO","MBINGA","NYASA","TUNDURU"],
+  "SHINYANGA": ["SHINYANGA","KAHAMA","KISHAPU"],
+  "SIMIYU": ["BARIADI","ITILIMA","MASWA","MEATU","BUSEGA"],
+  "SINGIDA": ["SINGIDA CBD","SINGIDA","IRAMBA","MANYONI","MKALAMA","IKUNGI"],
+  "SONGWE": ["SONGWE","MBOZI","ILEJE","MOMBA"],
+  "TABORA": ["TABORA CBD","UYUI","SIKONGE","NZEGA","URAMBO","IGUNGA","KALIUA"],
+  "TANGA": ["TANGA CBD","TANGA","PANGANI","MUHEZA","MKINGA","KOROGWE","LUSHOTO","HANDENI","KILINDI"]
+};
+
+const REGION_CODES: Record<string, string> = {
+  "ARUSHA": "23",
+  "DAR-ES-SALAAM": "11",
+  "DODOMA": "41",
+  "GEITA": "30",
+  "IRINGA": "51",
+  "KAGERA": "35",
+  "KATAVI": "50",
+  "KIGOMA": "47",
+  "KILIMANJARO": "25",
+  "LINDI": "65",
+  "MANYARA": "27",
+  "MARA": "31",
+  "MBEYA": "53",
+  "MOROGORO": "67",
+  "MTWARA": "63",
+  "MWANZA": "33",
+  "NJOMBE": "59",
+  "PWANI": "61",
+  "RUKWA": "55",
+  "RUVUMA": "57",
+  "SHINYANGA": "37",
+  "SIMIYU": "39",
+  "SINGIDA": "43",
+  "SONGWE": "54",
+  "TABORA": "45",
+  "TANGA": "21"
 };
 
 const slug = (s: string) =>
@@ -36,7 +74,15 @@ export const REGIONS = Object.entries(RD).map(([name, districts]) => ({
   id: slug(name),
   name,
   districts,
+  code: REGION_CODES[name] || undefined,
 })) as Region[];
 
 export const REGION_BY_ID: Record<string, Region> =
   Object.fromEntries(REGIONS.map(r => [r.id, r])) as Record<string, Region>;
+
+// Full data structure with wards and streets (for future use)
+// This contains complete hierarchical data: regions -> districts -> wards -> streets
+
+// Note: REGIONS_FULL_DATA (with wards and streets) is NOT exported from this file
+// To avoid conflicts, import REGIONS_FULL_DATA from the separate file:
+// import { REGIONS_FULL_DATA } from '@/lib/tzRegionsFull'

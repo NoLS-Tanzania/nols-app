@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from "react";
 import PropertyPreview from "@/components/PropertyPreview";
-import { Loader2, ScanEye, MapPin, Star } from "lucide-react";
+import { Loader2, ScanEye, MapPin, Star, Search, X, Filter, ChevronDown, ChevronUp } from "lucide-react";
 import axios from "axios";
 import Image from "next/image";
 import { 
   getPropertyCommission, 
   calculatePriceWithCommission 
 } from "@/lib/priceUtils";
+import { REGIONS } from "@/lib/tzRegions";
 
 // Use same-origin calls + secure httpOnly cookie session.
 const api = axios.create({ baseURL: "", withCredentials: true });
@@ -39,6 +40,24 @@ export default function PropertyPreviewsPage() {
   const [selectedPropertyId, setSelectedPropertyId] = useState<number | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("PENDING");
   const [systemCommission, setSystemCommission] = useState<number>(0);
+  const [counts, setCounts] = useState<Record<string, number>>({
+    DRAFT: 0,
+    PENDING: 0,
+    APPROVED: 0,
+    NEEDS_FIXES: 0,
+    REJECTED: 0,
+    SUSPENDED: 0,
+    ALL: 0,
+  });
+
+  // Advanced filters
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [regionFilter, setRegionFilter] = useState<string>("");
+  const [typeFilter, setTypeFilter] = useState<string>("");
+  const [ownerFilter, setOwnerFilter] = useState<string>("");
+  const [owners, setOwners] = useState<Array<{ id: number; name: string | null; email: string }>>([]);
+  const [loadingOwners, setLoadingOwners] = useState(false);
 
   // Load system commission settings
   useEffect(() => {
@@ -62,14 +81,74 @@ export default function PropertyPreviewsPage() {
 
   useEffect(() => {
     loadProperties();
-  }, [statusFilter]);
+  }, [statusFilter, searchQuery, regionFilter, typeFilter, ownerFilter]);
+
+  // Load owners for filter dropdown
+  useEffect(() => {
+    if (showAdvancedFilters && owners.length === 0) {
+      loadOwners();
+    }
+  }, [showAdvancedFilters]);
+
+  async function loadOwners() {
+    try {
+      setLoadingOwners(true);
+      const response = await api.get("/admin/owners", {
+        params: { page: 1, pageSize: 100, status: "ACTIVE" },
+      });
+      setOwners(response.data.items || []);
+    } catch (err) {
+      console.error("Failed to load owners:", err);
+      setOwners([]);
+    } finally {
+      setLoadingOwners(false);
+    }
+  }
+
+  // Fetch counts for each status
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await api.get<Record<string, number>>('/admin/properties/counts');
+        if (r?.data) {
+          setCounts((prev) => {
+            const newCounts = { ...prev, ...r.data };
+            // Calculate ALL count
+            newCounts.ALL = Object.values(newCounts).reduce((sum, count) => {
+              if (typeof count === 'number' && count > 0) {
+                return sum + count;
+              }
+              return sum;
+            }, 0);
+            return newCounts;
+          });
+        }
+      } catch (e) {
+        // ignore if backend doesn't expose counts
+      }
+    })();
+  }, []);
 
   async function loadProperties() {
     try {
       setLoading(true);
-      const response = await api.get("/admin/properties", {
-        params: { page: 1, pageSize: 50, status: statusFilter },
-      });
+      const params: any = { page: 1, pageSize: 50 };
+      if (statusFilter !== "ALL") {
+        params.status = statusFilter;
+      }
+      if (searchQuery.trim()) {
+        params.q = searchQuery.trim();
+      }
+      if (regionFilter) {
+        params.regionId = regionFilter;
+      }
+      if (typeFilter) {
+        params.type = typeFilter;
+      }
+      if (ownerFilter) {
+        params.ownerId = ownerFilter;
+      }
+      const response = await api.get("/admin/properties", { params });
       setProperties(response.data.items || []);
     } catch (err: any) {
       console.error("Failed to load properties:", err);
@@ -78,6 +157,33 @@ export default function PropertyPreviewsPage() {
       setLoading(false);
     }
   }
+
+  const clearFilters = () => {
+    setSearchQuery("");
+    setRegionFilter("");
+    setTypeFilter("");
+    setOwnerFilter("");
+  };
+
+  const hasActiveFilters = searchQuery.trim() || regionFilter || typeFilter || ownerFilter;
+
+  const badgeClasses = (v: string) => {
+    switch (v) {
+      case "APPROVED":
+        return "bg-emerald-100 text-emerald-700";
+      case "PENDING":
+        return "bg-amber-100 text-amber-700";
+      case "NEEDS_FIXES":
+        return "bg-orange-100 text-orange-700";
+      case "REJECTED":
+        return "bg-rose-100 text-rose-700";
+      case "SUSPENDED":
+        return "bg-violet-100 text-violet-700";
+      case "DRAFT":
+      default:
+        return "bg-slate-100 text-slate-700";
+    }
+  };
 
   if (selectedPropertyId) {
     return (
@@ -121,22 +227,151 @@ export default function PropertyPreviewsPage() {
           <p className="text-gray-600 mb-4">Review and manage property listings with full preview</p>
         </div>
 
-        {/* Status Filter */}
-        <div className="mb-6 flex items-center justify-center gap-2">
-          <label className="text-sm text-gray-700 font-medium">Filter by Status:</label>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-          >
-            <option value="PENDING">Pending</option>
-            <option value="APPROVED">Approved</option>
-            <option value="REJECTED">Rejected</option>
-            <option value="DRAFT">Draft</option>
-            <option value="NEEDS_FIXES">Needs Fixes</option>
-            <option value="SUSPENDED">Suspended</option>
-            <option value="ALL">All</option>
-          </select>
+        {/* Search and Filters Card */}
+        <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm mb-6">
+          {/* Search Bar with Advanced Filters Button */}
+          <div className="flex items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+              className="flex items-center justify-center p-2 border-2 border-gray-200 rounded-lg bg-white hover:bg-gray-50 hover:border-[#02665e] hover:text-[#02665e] transition-all duration-200 flex-shrink-0"
+              title="Advanced Filters"
+            >
+              <Filter className="h-5 w-5 text-gray-700" />
+            </button>
+            <div className="relative flex-1 max-w-[280px] sm:max-w-sm md:max-w-md lg:max-w-lg">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+              <input
+                type="text"
+                className="w-full pl-10 pr-10 py-2.5 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] outline-none text-sm bg-white text-gray-900 placeholder:text-gray-400"
+                placeholder="Search by title, region, or district..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
+                  aria-label="Clear search"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="px-3 py-2 text-sm text-[#02665e] hover:text-white hover:bg-[#02665e] font-medium border border-[#02665e] rounded-lg transition-all duration-200 flex-shrink-0"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+
+          {/* Advanced Filters Panel */}
+          {showAdvancedFilters && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-gray-200 mt-4">
+              {/* Region Filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Region
+                </label>
+                <select
+                  value={regionFilter}
+                  onChange={(e) => setRegionFilter(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] outline-none"
+                >
+                  <option value="">All Regions</option>
+                  {REGIONS.map((region) => (
+                    <option key={region.id} value={region.id}>
+                      {region.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Property Type Filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Property Type
+                </label>
+                <select
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] outline-none"
+                >
+                  <option value="">All Types</option>
+                  <option value="HOTEL">Hotel</option>
+                  <option value="APARTMENT">Apartment</option>
+                  <option value="HOUSE">House</option>
+                  <option value="VILLA">Villa</option>
+                  <option value="RESORT">Resort</option>
+                  <option value="LODGE">Lodge</option>
+                  <option value="GUESTHOUSE">Guesthouse</option>
+                  <option value="HOSTEL">Hostel</option>
+                  <option value="CABIN">Cabin</option>
+                  <option value="OTHER">Other</option>
+                </select>
+              </div>
+
+              {/* Owner Filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Owner
+                </label>
+                <select
+                  value={ownerFilter}
+                  onChange={(e) => setOwnerFilter(e.target.value)}
+                  disabled={loadingOwners}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
+                >
+                  <option value="">
+                    {loadingOwners ? "Loading..." : "All Owners"}
+                  </option>
+                  {owners.map((owner) => (
+                    <option key={owner.id} value={owner.id}>
+                      {owner.name || owner.email || `Owner #${owner.id}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Status Filter Buttons */}
+        <div className="mb-6 flex flex-wrap items-center justify-center gap-2">
+          {[
+            { label: "All", value: "ALL" },
+            { label: "Pending", value: "PENDING" },
+            { label: "Approved", value: "APPROVED" },
+            { label: "Draft", value: "DRAFT" },
+            { label: "Need Fixes", value: "NEEDS_FIXES" },
+            { label: "Rejected", value: "REJECTED" },
+            { label: "Suspended", value: "SUSPENDED" },
+          ].map((s) => (
+            <button
+              key={s.value}
+              type="button"
+              onClick={() => setStatusFilter(s.value)}
+              className={`group relative px-3.5 py-1.5 rounded-lg border text-xs font-medium flex items-center gap-2 transition-all duration-200 ease-in-out ${
+                statusFilter === s.value
+                  ? 'bg-[#02665e] text-white border-[#02665e] shadow-md font-semibold'
+                  : 'bg-white hover:bg-gray-50 hover:border-gray-400 border-gray-300 text-gray-600 hover:shadow-sm'
+              }`}
+            >
+              <span>{s.label}</span>
+              <span className={`text-[10px] px-2 py-0.5 rounded-md font-semibold transition-all duration-200 ${
+                statusFilter === s.value
+                  ? 'bg-white/20 text-white'
+                  : badgeClasses(s.value)
+              }`}>
+                {counts[s.value] ?? 0}
+              </span>
+            </button>
+          ))}
         </div>
 
         {loading ? (

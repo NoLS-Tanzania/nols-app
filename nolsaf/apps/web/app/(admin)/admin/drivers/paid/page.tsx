@@ -230,58 +230,46 @@ export default function AdminDriversPaidPage() {
       {/* Summary Cards */}
       {statsData && statsData.summary && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-300">
-            <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-full bg-blue-50 flex items-center justify-center">
+          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden">
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="h-12 w-12 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
                 <DollarSign className="h-6 w-6 text-blue-600" />
               </div>
-              <div className="flex-1">
-                <div className="text-sm font-medium text-gray-500 mb-1">Total Paid</div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {statsData.summary.totalPaid.toLocaleString()} TZS
-                </div>
+              <div className="flex-1 min-w-0 overflow-hidden">
+                <div className="text-sm font-medium text-gray-500 truncate">Total Paid</div>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-300">
-            <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-full bg-emerald-50 flex items-center justify-center">
+          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden">
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="h-12 w-12 rounded-full bg-emerald-50 flex items-center justify-center flex-shrink-0">
                 <CreditCard className="h-6 w-6 text-emerald-600" />
               </div>
-              <div className="flex-1">
-                <div className="text-sm font-medium text-gray-500 mb-1">Total Payments</div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {statsData.summary.totalCount.toLocaleString()}
-                </div>
+              <div className="flex-1 min-w-0 overflow-hidden">
+                <div className="text-sm font-medium text-gray-500 truncate">Total Payments</div>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-300">
-            <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-full bg-amber-50 flex items-center justify-center">
+          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden">
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="h-12 w-12 rounded-full bg-amber-50 flex items-center justify-center flex-shrink-0">
                 <TrendingUp className="h-6 w-6 text-amber-600" />
               </div>
-              <div className="flex-1">
-                <div className="text-sm font-medium text-gray-500 mb-1">Total Commission</div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {statsData.summary.totalCommission.toLocaleString()} TZS
-                </div>
+              <div className="flex-1 min-w-0 overflow-hidden">
+                <div className="text-sm font-medium text-gray-500 truncate">Total Commission</div>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-300">
-            <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-full bg-purple-50 flex items-center justify-center">
+          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden">
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="h-12 w-12 rounded-full bg-purple-50 flex items-center justify-center flex-shrink-0">
                 <Users className="h-6 w-6 text-purple-600" />
               </div>
-              <div className="flex-1">
-                <div className="text-sm font-medium text-gray-500 mb-1">Average Payment</div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {statsData.summary.averagePayment.toLocaleString()} TZS
-                </div>
+              <div className="flex-1 min-w-0 overflow-hidden">
+                <div className="text-sm font-medium text-gray-500 truncate">Average Payment</div>
               </div>
             </div>
           </div>

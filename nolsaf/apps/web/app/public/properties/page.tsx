@@ -49,7 +49,8 @@ import {
 } from "lucide-react";
 import SectionSeparator from "../../../components/SectionSeparator";
 import VerifiedIcon from "../../../components/VerifiedIcon";
-import { REGIONS, REGIONS_FULL_DATA } from "@/lib/tzRegions";
+import { REGIONS } from "@/lib/tzRegions";
+import { REGIONS_FULL_DATA } from "@/lib/tzRegionsFull";
 import { 
   getPropertyCommission, 
   calculatePriceWithCommission 

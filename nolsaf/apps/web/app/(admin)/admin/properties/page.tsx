@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState, useRef } from "react";
 import { FileText, ChevronLeft, ChevronRight, Search, X, Eye } from "lucide-react";
+import { useSearchParams, useRouter } from "next/navigation";
 import axios from "axios";
 import { io, Socket } from "socket.io-client";
 import PropertyPreview from "@/components/PropertyPreview";
@@ -21,6 +22,8 @@ type Row = {
 };
 
 export default function AdminPropertiesPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [status, setStatus] = useState<string>("PENDING");
   const [q, setQ] = useState("");
   const [items, setItems] = useState<Row[]>([]);
@@ -182,6 +185,17 @@ export default function AdminPropertiesPage() {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q]);
+
+  // Handle previewId query param to auto-open preview modal
+  useEffect(() => {
+    const previewId = searchParams?.get('previewId');
+    if (previewId) {
+      const id = Number(previewId);
+      if (!isNaN(id)) {
+        setSelectedPropertyId(id);
+      }
+    }
+  }, [searchParams]);
 
   // try to fetch counts for each status (non-blocking); keep zeros if endpoint missing
   useEffect(() => {
@@ -448,6 +462,10 @@ export default function AdminPropertiesPage() {
               <button
                 onClick={() => {
                   setSelectedPropertyId(null);
+                  // Remove previewId from URL if present
+                  if (searchParams?.get('previewId')) {
+                    router.push('/admin/properties');
+                  }
                   load(); // Refresh the list after actions
                 }}
                 className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors font-medium"
@@ -462,10 +480,16 @@ export default function AdminPropertiesPage() {
             mode="admin"
             onApproved={() => {
               setSelectedPropertyId(null);
+              if (searchParams?.get('previewId')) {
+                router.push('/admin/properties');
+              }
               load();
             }}
             onRejected={() => {
               setSelectedPropertyId(null);
+              if (searchParams?.get('previewId')) {
+                router.push('/admin/properties');
+              }
               load();
             }}
             onUpdated={() => {

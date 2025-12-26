@@ -137,7 +137,7 @@ export default function Page() {
                               {m.meta.propertyTitle || `Property #${m.meta.propertyId}`}
                             </div>
                             <Link 
-                              href={`/admin/properties/${m.meta.propertyId}`}
+                              href={`/admin/properties?previewId=${m.meta.propertyId}`}
                               className="inline-flex items-center gap-1 text-xs text-[#02665e] hover:text-[#014e47] mt-1 font-medium"
                             >
                               View Property <ExternalLink className="w-3 h-3" />

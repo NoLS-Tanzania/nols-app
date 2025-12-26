@@ -12,7 +12,6 @@ type Item = {
 const items: Item[] = [
   { href: "/admin", label: "Dashboard", Icon: LayoutDashboard },
   { href: "/admin/owners", label: "Owners", Icon: Users },
-  { href: "/admin/properties", label: "Properties", Icon: Building2 },
   { href: "/admin/bookings", label: "Bookings", Icon: Calendar },
   { href: "/admin/revenue", label: "Revenues", Icon: LineChart },
   { href: "/admin/payments", label: "Payments", Icon: Wallet },
