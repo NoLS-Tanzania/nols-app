@@ -19,10 +19,7 @@ export default function InvoiceSendPage() {
     ;(async () => {
       setLoading(true)
       try {
-        const token = typeof window !== "undefined" ? localStorage.getItem("token") : null
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/driver/invoices/${id}`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        })
+        const res = await fetch(`/api/driver/invoices/${id}`, { credentials: "include" })
         if (!res.ok) {
           setInvoice(null)
         } else {
@@ -51,12 +48,9 @@ export default function InvoiceSendPage() {
 
     setSending(true)
     try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/driver/invoices/${id}/send`, {
+      const res = await fetch(`/api/driver/invoices/${id}/send`, {
         method: "POST",
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        credentials: "include",
       })
 
       if (!res.ok) {

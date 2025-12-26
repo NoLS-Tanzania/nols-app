@@ -5,7 +5,8 @@ import { X, Save, Percent, DollarSign, Calendar, Settings, AlertCircle, Lock } f
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 
-const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL || "" });
+// Use same-origin calls (Next rewrites proxy to API in dev) + secure httpOnly cookie session.
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 interface PropertyEditModalProps {
   property: any;
@@ -40,9 +41,6 @@ export default function PropertyEditModal({ property, isOpen, onClose, onSave }:
 
   async function loadSystemSettings() {
     try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-      if (token) api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-      
       const response = await api.get("/admin/settings");
       if (response.data?.commissionPercent !== undefined) {
         const commission = Number(response.data.commissionPercent);
@@ -127,9 +125,6 @@ export default function PropertyEditModal({ property, isOpen, onClose, onSave }:
     try {
       setSaving(true);
       setError(null);
-
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-      if (token) api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
       const payload: any = {
         basePrice: basePrice,

@@ -93,7 +93,7 @@ export default function Support({
       )}
 
       {!loading && !error && (
-        <div className={`grid ${compact ? "grid-cols-1 gap-3" : "md:grid-cols-3 gap-6"}`}>
+        <div className={`grid ${compact ? "grid-cols-1 gap-3" : showHelpCenter ? "md:grid-cols-3 gap-6" : "md:grid-cols-2 gap-6"}`}>
           {showHelpCenter && (
             <div className="rounded-xl border border-gray-200 p-4 bg-white shadow-sm hover:shadow transition-shadow duration-200 border-l-4 border-brand-primary">
               <div className="flex items-center gap-2 mb-2">
@@ -112,57 +112,62 @@ export default function Support({
           )}
 
           {showFaqs && (
-            <div className="rounded-lg border border-gray-200 p-4 bg-white">
-              <div className="flex items-center gap-2 mb-2">
-                <MessageSquare className="h-4 w-4 text-indigo-600" />
-                <h3 className="font-medium">FAQs</h3>
+            <div className={`${!showHelpCenter && !showContact ? 'lg:col-span-3' : ''} rounded-lg border border-gray-200 p-4 sm:p-6 bg-white`}>
+              <div className="flex items-center gap-2 mb-4 sm:mb-6">
+                <MessageSquare className="h-5 w-5 text-[#02665e]" />
+                <h3 className="text-lg font-semibold text-gray-900">FAQs</h3>
               </div>
               {!hasFaqs ? (
                 <p className="text-sm text-gray-600">No FAQs yet.</p>
               ) : (
-                <ul className="space-y-3 list-none pl-0">
+                <ul className="space-y-4 list-none pl-0">
                   {support?.faqs?.slice(0, compact ? 4 : 8).map((f, i) => (
                     <li
                       key={i}
-                      className="text-sm rounded-xl border border-gray-200 bg-white p-4 shadow-sm hover:shadow transition-shadow duration-200 border-l-4 border-brand-primary"
+                      className="rounded-xl border border-gray-200 bg-white p-5 sm:p-6 shadow-sm hover:shadow-md transition-all duration-300 ease-out"
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1">
-                          {f.href ? (
-                            <a href={f.href} className="font-medium text-gray-900 hover:text-[#02665e] no-underline">
-                              {f.q}
-                            </a>
-                          ) : (
-                            <span className="font-medium text-gray-900">{f.q}</span>
-                          )}
-                          {f.steps && f.steps.length > 0 ? (
-                            <div className="mt-2">
-                              <button
-                                type="button"
-                                aria-expanded={!!expandedFaqs[i]}
-                                onClick={() => setExpandedFaqs((prev) => ({ ...prev, [i]: !prev[i] }))}
-                                className="inline-flex items-center gap-2 text-xs font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-md px-2 py-1 transition"
-                              >
-                                {expandedFaqs[i] ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                                {expandedFaqs[i] ? "Hide steps" : "Show steps"}
-                              </button>
-                              {expandedFaqs[i] && (
-                                <ol className="mt-2 space-y-2">
-                                  {f.steps.map((s, idx) => (
-                                    <li key={idx} className="flex items-start gap-2">
-                                      <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-700 text-xs font-semibold border border-indigo-200">
-                                        {idx + 1}
-                                      </span>
-                                      <span className="text-gray-700 leading-relaxed">{s}</span>
-                                    </li>
-                                  ))}
-                                </ol>
+                      <div className="flex flex-col gap-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex-1">
+                            {f.href ? (
+                              <a href={f.href} className="text-base sm:text-lg font-semibold text-gray-900 hover:text-[#02665e] no-underline transition-colors duration-200">
+                                {f.q}
+                              </a>
+                            ) : (
+                              <span className="text-base sm:text-lg font-semibold text-gray-900">{f.q}</span>
+                            )}
+                          </div>
+                          {f.steps && f.steps.length > 0 && (
+                            <button
+                              type="button"
+                              aria-expanded={!!expandedFaqs[i]}
+                              onClick={() => setExpandedFaqs((prev) => ({ ...prev, [i]: !prev[i] }))}
+                              className="flex-shrink-0 inline-flex items-center justify-center text-[#02665e] hover:text-[#024a44] bg-transparent hover:bg-emerald-50/50 border-0 hover:border hover:border-emerald-200/50 rounded-md p-1.5 transition-all duration-200 ease-out"
+                              aria-label={expandedFaqs[i] ? "Hide steps" : "Show steps"}
+                            >
+                              {expandedFaqs[i] ? (
+                                <ChevronUp className="h-4 w-4 transition-transform duration-200" />
+                              ) : (
+                                <ChevronDown className="h-4 w-4 transition-transform duration-200" />
                               )}
-                            </div>
-                          ) : (
-                            <p className="mt-1 text-gray-700 leading-relaxed">{f.a}</p>
+                            </button>
                           )}
                         </div>
+                        {f.steps && f.steps.length > 0 && expandedFaqs[i] && (
+                          <ol className="mt-2 space-y-3 animate-[fadeIn_0.3s_ease-out]">
+                            {f.steps.map((s, idx) => (
+                              <li key={idx} className="flex items-start gap-3">
+                                <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#02665e]/10 text-[#02665e] text-sm font-semibold border border-[#02665e]/20">
+                                  {idx + 1}
+                                </span>
+                                <span className="text-sm sm:text-base text-gray-700 leading-relaxed pt-0.5">{s}</span>
+                              </li>
+                            ))}
+                          </ol>
+                        )}
+                        {!f.steps && (
+                          <p className="mt-2 text-sm sm:text-base text-gray-700 leading-relaxed">{f.a}</p>
+                        )}
                       </div>
                     </li>
                   ))}

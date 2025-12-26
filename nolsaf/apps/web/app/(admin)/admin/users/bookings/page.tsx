@@ -8,11 +8,8 @@ import type { Socket } from "socket.io-client";
 import { io } from "socket.io-client";
 
 // Use same-origin for HTTP calls so Next.js rewrites proxy to the API
-const api = axios.create({ baseURL: "" });
-function authify() {
-  const t = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-  if (t) api.defaults.headers.common["Authorization"] = `Bearer ${t}`;
-}
+const api = axios.create({ baseURL: "", withCredentials: true });
+function authify() {}
 
 type Row = {
   id: number;
@@ -407,16 +404,11 @@ export default function UserBookingsPage() {
       ? (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000")
       : (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "");
 
-    // Attach token via auth for server-side verify (optional)
-    const token =
-      typeof window !== "undefined" ? localStorage.getItem("token") : null;
-
     const s = io(url, {
       transports: ["websocket"],
       autoConnect: true,
       reconnection: true,
       reconnectionAttempts: 10,
-      auth: token ? { token } : undefined,
     });
 
     socketRef.current = s;

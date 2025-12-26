@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React from "react";
-import { Home, LayoutDashboard, Users, UsersRound, UserSquare2, Truck, LineChart, Building2, Calendar, FileText, Wallet, Settings, ChevronDown, ChevronRight, ShieldCheck, Link2, Receipt, ListFilter, ClipboardList, CheckCircle, Award, Megaphone, UserPlus, Trophy, Star, Bell, BarChart3, Activity, Eye } from "lucide-react";
+import { Home, LayoutDashboard, Users, UsersRound, UserSquare2, Truck, LineChart, Building2, Calendar, FileText, Wallet, Settings, ChevronDown, ChevronRight, ShieldCheck, Link2, Receipt, ListFilter, ClipboardList, CheckCircle, Award, Megaphone, UserPlus, Trophy, Star, Bell, BarChart3, Activity, Eye, Briefcase, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 
 type Item = {
@@ -42,6 +42,7 @@ const items: Item[] = [
   { href: "/admin/users", label: "Users", Icon: UserSquare2 },
   { href: "/admin/group-stays", label: "Group Stay", Icon: UsersRound },
   { href: "/admin/plan-with-us", label: "Plan with US", Icon: ClipboardList },
+  { href: "/admin/cancellations", label: "Cancellations", Icon: XCircle },
   { href: "/admin/management", label: "Management", Icon: LayoutDashboard },
 ];
 
@@ -82,6 +83,10 @@ const planWithUsDetails: Item[] = [
   { href: "/admin/plan-with-us/recommended", label: "Recommended", Icon: CheckCircle },
 ];
 
+const cancellationsDetails: Item[] = [
+  { href: "/admin/cancellations", label: "Dashboard", Icon: LayoutDashboard },
+];
+
 const userDetails: Item[] = [
   { href: "/admin/users", label: "Dashboard", Icon: LayoutDashboard },
   { href: "/admin/users/list", label: "All Users", Icon: Users },
@@ -93,6 +98,7 @@ const managementDetails: Item[] = [
   { href: "/admin/management", label: "Dashboard", Icon: LayoutDashboard },
   { href: "/admin/management/audit-log", label: "Audit Log", Icon: ShieldCheck },
   { href: "/admin/management/bookings", label: "Bookings", Icon: Calendar },
+  { href: "/admin/management/careers", label: "Careers", Icon: Briefcase },
   { href: "/admin/management/integrations", label: "Integrations", Icon: Link2 },
   { href: "/admin/management/invoices", label: "Invoices", Icon: Receipt },
   { href: "/admin/management/ip-allowlist", label: "IP Allowlist", Icon: ListFilter },
@@ -114,6 +120,7 @@ export default function AdminNav({ variant = "light" }: { variant?: "light" | "d
   const [usersOpen, setUsersOpen] = useState(false);
   const [groupStayOpen, setGroupStayOpen] = useState(false);
   const [planWithUsOpen, setPlanWithUsOpen] = useState(false);
+  const [cancellationsOpen, setCancellationsOpen] = useState(false);
 
   useEffect(() => {
     // Auto-open Admin mini-sidebar when navigating to admin child routes
@@ -125,8 +132,9 @@ export default function AdminNav({ variant = "light" }: { variant?: "light" | "d
     const isUsers = path.startsWith("/admin/users");
     const isGroupStay = path.startsWith("/admin/group-stays");
     const isPlanWithUs = path.startsWith("/admin/plan-with-us");
+    const isCancellations = path.startsWith("/admin/cancellations");
     // Owner (admin) mini-sidebar: open when on admin child routes that aren't drivers/users/group-stays/plan-with-us
-    if (isAdminPath && !isDrivers && !isUsers && !isGroupStay && !isPlanWithUs) setAdminOpen(true);
+    if (isAdminPath && !isDrivers && !isUsers && !isGroupStay && !isPlanWithUs && !isCancellations) setAdminOpen(true);
     else setAdminOpen(false);
     // Driver mini-sidebar: open when on driver-related routes
     if (isDrivers) setDriverOpen(true);
@@ -140,6 +148,9 @@ export default function AdminNav({ variant = "light" }: { variant?: "light" | "d
     // Plan with US mini-sidebar: open when on plan-with-us routes
     if (isPlanWithUs) setPlanWithUsOpen(true);
     else setPlanWithUsOpen(false);
+    // Cancellations mini-sidebar
+    if (isCancellations) setCancellationsOpen(true);
+    else setCancellationsOpen(false);
     // Visual chevrons for Users
     setUsersOpen(isUsers);
   }, [path]);
@@ -259,6 +270,29 @@ export default function AdminNav({ variant = "light" }: { variant?: "light" | "d
           {planWithUsOpen && (
             <div className="mt-2 space-y-2">
               {planWithUsDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => (
+                <Item key={dHref} href={dHref} label={dLabel} Icon={DIcon} isSubItem />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Cancellations */}
+        <div>
+          <button
+            onClick={() => setCancellationsOpen((v) => !v)}
+            className="w-full flex items-center justify-between rounded-lg px-4 py-3 text-sm font-medium text-[#02665e] bg-white border border-gray-300 hover:bg-gray-50 transition-all duration-200"
+            style={{ backfaceVisibility: "hidden", transform: "translateZ(0)" }}
+          >
+            <span>Cancellations</span>
+            {cancellationsOpen ? (
+              <ChevronDown className="h-4 w-4 text-[#02665e] opacity-60" aria-hidden />
+            ) : (
+              <ChevronRight className="h-4 w-4 text-[#02665e] opacity-60" aria-hidden />
+            )}
+          </button>
+          {cancellationsOpen && (
+            <div className="mt-2 space-y-2">
+              {cancellationsDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => (
                 <Item key={dHref} href={dHref} label={dLabel} Icon={DIcon} isSubItem />
               ))}
             </div>

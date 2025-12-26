@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { User, Calendar, Car, Users, Settings, LogOut } from "lucide-react";
+import { User, Calendar, Car, Users, Settings, ChevronRight } from "lucide-react";
 
 export default function CustomerSidebar() {
   const pathname = usePathname();
@@ -43,7 +43,7 @@ export default function CustomerSidebar() {
   };
 
   return (
-    <nav className="space-y-1">
+    <nav className="space-y-1.5">
       {menuItems.map((item) => {
         const Icon = item.icon;
         const active = isActive(item.href, item.exact);
@@ -51,31 +51,26 @@ export default function CustomerSidebar() {
           <Link
             key={item.href}
             href={item.href}
-            className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+            className={`group relative flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-medium ${
               active
-                ? "bg-emerald-600 text-white font-medium"
-                : "text-slate-700 hover:bg-emerald-50 hover:text-emerald-700"
+                ? "bg-[#02665e] text-white shadow-sm shadow-[#02665e]/20"
+                : "text-slate-700 hover:bg-[#02665e]/8 hover:text-[#02665e]"
             }`}
           >
-            <Icon className="w-5 h-5" />
-            <span>{item.label}</span>
+            <Icon 
+              className={`w-5 h-5 transition-transform duration-200 ${active ? '' : 'group-hover:scale-110'}`}
+              strokeWidth={active ? 2.5 : 2}
+            />
+            <span className="flex-1">{item.label}</span>
+            {active && (
+              <div className="absolute right-3 w-1.5 h-1.5 rounded-full bg-white/80 animate-pulse" />
+            )}
+            {!active && (
+              <ChevronRight className="w-4 h-4 text-slate-400 opacity-0 group-hover:opacity-100 transition-all duration-200 transform translate-x-[-4px] group-hover:translate-x-0" />
+            )}
           </Link>
         );
       })}
-      <div className="pt-4 mt-4 border-t border-slate-200">
-        <Link
-          href="/login"
-          className="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-700 hover:bg-red-50 hover:text-red-700 transition-colors"
-          onClick={() => {
-            if (typeof window !== "undefined") {
-              localStorage.removeItem("token");
-            }
-          }}
-        >
-          <LogOut className="w-5 h-5" />
-          <span>Sign out</span>
-        </Link>
-      </div>
     </nav>
   );
 }

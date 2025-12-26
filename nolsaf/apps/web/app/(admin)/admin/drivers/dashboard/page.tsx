@@ -8,11 +8,7 @@ import Chart from "@/components/Chart";
 import type { ChartData } from "chart.js";
 
 // Use same-origin for HTTP calls so Next.js rewrites proxy to the API
-const api = axios.create({ baseURL: "" });
-function authify() {
-  const t = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-  if (t) api.defaults.headers.common["Authorization"] = `Bearer ${t}`;
-}
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 type SummaryData = {
   totalDrivers?: number;
@@ -33,7 +29,6 @@ export default function DriversDashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    authify();
     (async () => {
       try {
         const r = await api.get<SummaryData>("/api/admin/drivers/summary");

@@ -1,17 +1,14 @@
 "use client";
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
-import { Users, Search, X, Calendar, MapPin, Clock, User, BarChart3, Home, UsersRound, CheckCircle, AlertCircle, Loader2, XCircle, Circle } from "lucide-react";
+import { Users, Search, X, Calendar, MapPin, Clock, User, BarChart3, Home, UsersRound, CheckCircle, AlertCircle, Loader2, XCircle, Circle, Mail, Phone, FileText } from "lucide-react";
 import DatePicker from "@/components/ui/DatePicker";
 import axios from "axios";
 import Chart from "@/components/Chart";
 import type { ChartData } from "chart.js";
 
 // Use same-origin for HTTP calls so Next.js rewrites proxy to the API
-const api = axios.create({ baseURL: "" });
-function authify() {
-  const t = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-  if (t) api.defaults.headers.common["Authorization"] = `Bearer ${t}`;
-}
+const api = axios.create({ baseURL: "", withCredentials: true });
+function authify() {}
 
 type GroupBookingRow = {
   id: number;
@@ -27,11 +24,16 @@ type GroupBookingRow = {
   status: string;
   user: { id: number; name: string; email: string; phone: string | null } | null;
   createdAt: string;
+  updatedAt?: string | null;
   arrPickup: boolean;
   arrTransport: boolean;
   arrMeals: boolean;
   arrGuide: boolean;
   arrEquipment: boolean;
+  pickupLocation?: string | null;
+  pickupTime?: string | null;
+  arrangementNotes?: string | null;
+  notes?: string | null;
 };
 
 function badgeClasses(v: string) {
@@ -93,6 +95,12 @@ export default function AdminGroupStaysBookingsPage() {
   const [histogramData, setHistogramData] = useState<BookingStatsResponse | null>(null);
   const [histogramLoading, setHistogramLoading] = useState(false);
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
+
+  // Modal state for booking details
+  const [selectedBooking, setSelectedBooking] = useState<GroupBookingRow | null>(null);
+  const [bookingDetails, setBookingDetails] = useState<GroupBookingRow | null>(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -157,6 +165,32 @@ export default function AdminGroupStaysBookingsPage() {
       setHistogramLoading(false);
     }
   }, [histogramPeriod]);
+
+  // Load booking details
+  const loadBookingDetails = async (bookingId: number) => {
+    setDetailsLoading(true);
+    try {
+      const r = await api.get<GroupBookingRow>(`/admin/group-stays/bookings/${bookingId}`);
+      setBookingDetails(r.data);
+      setShowDetailsModal(true);
+    } catch (err) {
+      console.error("Failed to load booking details", err);
+      alert("Failed to load booking details");
+    } finally {
+      setDetailsLoading(false);
+    }
+  };
+
+  const handleViewBooking = (booking: GroupBookingRow) => {
+    setSelectedBooking(booking);
+    loadBookingDetails(booking.id);
+  };
+
+  const closeDetailsModal = () => {
+    setShowDetailsModal(false);
+    setSelectedBooking(null);
+    setBookingDetails(null);
+  };
 
   useEffect(() => {
     authify();
@@ -722,7 +756,12 @@ export default function AdminGroupStaysBookingsPage() {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button className="text-purple-600 hover:text-purple-900">View</button>
+                        <button 
+                          onClick={() => handleViewBooking(booking)}
+                          className="text-purple-600 hover:text-purple-900 transition-colors"
+                        >
+                          View
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -757,7 +796,12 @@ export default function AdminGroupStaysBookingsPage() {
                     <span>Check-In: {booking.checkIn ? new Date(booking.checkIn).toLocaleDateString() : "Flexible"}</span>
                   </div>
                   <div className="mt-3 text-right">
-                    <button className="text-purple-600 hover:text-purple-900 text-sm">View Details</button>
+                    <button 
+                      onClick={() => handleViewBooking(booking)}
+                      className="text-purple-600 hover:text-purple-900 text-sm transition-colors"
+                    >
+                      View Details
+                    </button>
                   </div>
                 </div>
               ))}
@@ -789,6 +833,238 @@ export default function AdminGroupStaysBookingsPage() {
             </button>
           </nav>
         </div>
+      )}
+
+      {/* Booking Details Modal */}
+      {showDetailsModal && (
+        <>
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 z-50 transition-opacity"
+            onClick={closeDetailsModal}
+          />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
+                <h2 className="text-xl font-bold text-gray-900">Booking Details</h2>
+                <button
+                  onClick={closeDetailsModal}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+
+              <div className="p-6">
+                {detailsLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
+                  </div>
+                ) : bookingDetails ? (
+                  <div className="space-y-6">
+                    {/* Status and ID */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900">Booking #{bookingDetails.id}</h3>
+                        <p className="text-sm text-gray-500">Created {new Date(bookingDetails.createdAt).toLocaleString()}</p>
+                      </div>
+                      <span className={`px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full ${badgeClasses(bookingDetails.status)}`}>
+                        {bookingDetails.status.replace(/_/g, " ")}
+                      </span>
+                    </div>
+
+                    {/* Customer Information */}
+                    {bookingDetails.user && (
+                      <div className="bg-gray-50 rounded-lg p-4">
+                        <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                          <User className="h-4 w-4" />
+                          Customer Information
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div>
+                            <p className="text-xs text-gray-500">Name</p>
+                            <p className="text-sm font-medium text-gray-900">{bookingDetails.user.name}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500">Email</p>
+                            <p className="text-sm font-medium text-gray-900 flex items-center gap-1">
+                              <Mail className="h-3 w-3" />
+                              {bookingDetails.user.email}
+                            </p>
+                          </div>
+                          {bookingDetails.user.phone && (
+                            <div>
+                              <p className="text-xs text-gray-500">Phone</p>
+                              <p className="text-sm font-medium text-gray-900 flex items-center gap-1">
+                                <Phone className="h-3 w-3" />
+                                {bookingDetails.user.phone}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Booking Details */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="bg-white border border-gray-200 rounded-lg p-4">
+                        <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                          <UsersRound className="h-4 w-4" />
+                          Group Details
+                        </h4>
+                        <div className="space-y-2">
+                          <div>
+                            <p className="text-xs text-gray-500">Group Type</p>
+                            <p className="text-sm font-medium text-gray-900 capitalize">{bookingDetails.groupType}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500">Accommodation Type</p>
+                            <p className="text-sm font-medium text-gray-900 capitalize">{bookingDetails.accommodationType}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500">Headcount</p>
+                            <p className="text-sm font-medium text-gray-900">{bookingDetails.headcount} people</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500">Rooms Needed</p>
+                            <p className="text-sm font-medium text-gray-900">{bookingDetails.roomsNeeded} rooms</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="bg-white border border-gray-200 rounded-lg p-4">
+                        <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                          <MapPin className="h-4 w-4" />
+                          Destination
+                        </h4>
+                        <div className="space-y-2">
+                          <div>
+                            <p className="text-xs text-gray-500">Region</p>
+                            <p className="text-sm font-medium text-gray-900">{bookingDetails.toRegion}</p>
+                          </div>
+                          {bookingDetails.toDistrict && (
+                            <div>
+                              <p className="text-xs text-gray-500">District</p>
+                              <p className="text-sm font-medium text-gray-900">{bookingDetails.toDistrict}</p>
+                            </div>
+                          )}
+                          {bookingDetails.toLocation && (
+                            <div>
+                              <p className="text-xs text-gray-500">Location</p>
+                              <p className="text-sm font-medium text-gray-900">{bookingDetails.toLocation}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Dates */}
+                    <div className="bg-white border border-gray-200 rounded-lg p-4">
+                      <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                        <Calendar className="h-4 w-4" />
+                        Dates
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-xs text-gray-500">Check-In</p>
+                          <p className="text-sm font-medium text-gray-900">
+                            {bookingDetails.checkIn 
+                              ? new Date(bookingDetails.checkIn).toLocaleDateString('en-US', { 
+                                  weekday: 'long', 
+                                  year: 'numeric', 
+                                  month: 'long', 
+                                  day: 'numeric' 
+                                })
+                              : 'Flexible'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500">Check-Out</p>
+                          <p className="text-sm font-medium text-gray-900">
+                            {bookingDetails.checkOut 
+                              ? new Date(bookingDetails.checkOut).toLocaleDateString('en-US', { 
+                                  weekday: 'long', 
+                                  year: 'numeric', 
+                                  month: 'long', 
+                                  day: 'numeric' 
+                                })
+                              : 'Flexible'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Arrangements */}
+                    {(bookingDetails.arrPickup || bookingDetails.arrTransport || bookingDetails.arrMeals || bookingDetails.arrGuide || bookingDetails.arrEquipment) && (
+                      <div className="bg-white border border-gray-200 rounded-lg p-4">
+                        <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                          <FileText className="h-4 w-4" />
+                          Additional Arrangements
+                        </h4>
+                        <div className="flex flex-wrap gap-2">
+                          {bookingDetails.arrPickup && (
+                            <span className="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded-full font-medium">Pickup</span>
+                          )}
+                          {bookingDetails.arrTransport && (
+                            <span className="px-3 py-1 text-xs bg-green-100 text-green-700 rounded-full font-medium">Transport</span>
+                          )}
+                          {bookingDetails.arrMeals && (
+                            <span className="px-3 py-1 text-xs bg-purple-100 text-purple-700 rounded-full font-medium">Meals</span>
+                          )}
+                          {bookingDetails.arrGuide && (
+                            <span className="px-3 py-1 text-xs bg-amber-100 text-amber-700 rounded-full font-medium">Guide</span>
+                          )}
+                          {bookingDetails.arrEquipment && (
+                            <span className="px-3 py-1 text-xs bg-red-100 text-red-700 rounded-full font-medium">Equipment</span>
+                          )}
+                        </div>
+                        {(bookingDetails as any).pickupLocation && (
+                          <div className="mt-3">
+                            <p className="text-xs text-gray-500">Pickup Location</p>
+                            <p className="text-sm font-medium text-gray-900">{(bookingDetails as any).pickupLocation}</p>
+                          </div>
+                        )}
+                        {(bookingDetails as any).pickupTime && (
+                          <div className="mt-2">
+                            <p className="text-xs text-gray-500">Pickup Time</p>
+                            <p className="text-sm font-medium text-gray-900">{(bookingDetails as any).pickupTime}</p>
+                          </div>
+                        )}
+                        {(bookingDetails as any).arrangementNotes && (
+                          <div className="mt-3 pt-3 border-t border-gray-200">
+                            <p className="text-xs text-gray-500 mb-1">Arrangement Notes</p>
+                            <p className="text-sm text-gray-900 whitespace-pre-wrap">{(bookingDetails as any).arrangementNotes}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Additional Notes */}
+                    {(bookingDetails as any).notes && (
+                      <div className="bg-white border border-gray-200 rounded-lg p-4">
+                        <h4 className="text-sm font-semibold text-gray-700 mb-2">Notes</h4>
+                        <p className="text-sm text-gray-900 whitespace-pre-wrap">{(bookingDetails as any).notes}</p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <AlertCircle className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                    <p className="text-sm text-gray-500">Failed to load booking details</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4 flex justify-end gap-3">
+                <button
+                  onClick={closeDetailsModal}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

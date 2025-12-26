@@ -2,7 +2,8 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 
-const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL });
+// Use same-origin calls + secure httpOnly cookie session.
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 export type ReportsFilters = {
   from: string;
@@ -25,8 +26,6 @@ export default function ReportsFilter({ onChange }: { onChange: (f: ReportsFilte
   });
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
     api.get<{ items: any[] }>("/owner/properties/mine", { params: { status: "APPROVED", pageSize: 100 } })
       .then(r => setProps(Array.isArray((r.data as any)?.items) ? (r.data as any).items : []))
       .catch(() => setProps([]));

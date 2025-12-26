@@ -19,7 +19,8 @@ function RevenueFilter({
   // Minimal/no-op UI placeholder (original UI can be restored from the real component).
   return null;
 }
-const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL });
+// Use same-origin calls + secure httpOnly cookie session.
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 export default function Paid() {
   const [items, setItems] = useState<any[]>([]);
@@ -28,16 +29,11 @@ export default function Paid() {
   const [filters, setFilters] = useState<RevenueFilters>({ status: "PAID" });
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-  }, []);
-
-  useEffect(() => {
   let mounted = true;
   const timer = setTimeout(() => setMinWaitElapsed(true), 3000);
     setLoading(true);
     api
-      .get<{ items: any[] }>("/owner/revenue/invoices", { params: filters })
+      .get<{ items: any[] }>("/api/owner/revenue/invoices", { params: filters })
       .then((r) => { if (!mounted) return; setItems(r.data.items || []); })
       .catch((err) => { if (!mounted) return; console.error("Failed to load invoices", err); setItems([]); })
       .finally(() => { if (!mounted) return; setLoading(false); });

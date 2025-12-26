@@ -129,20 +129,47 @@ router.get("/", async (req, res) => {
 router.get("/stats", async (req, res) => {
   try {
     // Get all passengers
-    const passengers = await (prisma as any).groupBookingPassenger.findMany({
-      select: {
-        gender: true,
-        nationality: true,
-        age: true,
-        groupBooking: {
-          select: {
-            groupType: true,
-            toRegion: true,
-            status: true,
+    let passengers: any[] = [];
+    try {
+      passengers = await (prisma as any).groupBookingPassenger.findMany({
+        select: {
+          gender: true,
+          nationality: true,
+          age: true,
+          groupBooking: {
+            select: {
+              groupType: true,
+              toRegion: true,
+              status: true,
+            },
           },
         },
-      },
-    });
+      });
+    } catch (prismaErr: any) {
+      if (prismaErr instanceof Prisma.PrismaClientKnownRequestError && (prismaErr.code === 'P2021' || prismaErr.code === 'P2022')) {
+        console.warn('Prisma schema mismatch when querying passenger statistics:', prismaErr.message);
+        // Return empty stats if table doesn't exist
+        return res.json({
+          totalPassengers: 0,
+          averageAge: 0,
+          genderStats: {},
+          nationalityStats: {},
+          ageGroups: {
+            "0-17": 0,
+            "18-25": 0,
+            "26-35": 0,
+            "36-50": 0,
+            "51-65": 0,
+            "65+": 0,
+            "Unknown": 0,
+          },
+          groupTypeStats: {},
+          regionStats: {},
+          topNationalities: [],
+        });
+      }
+      throw prismaErr;
+    }
 
     // Gender distribution
     const genderStats: Record<string, number> = {};
@@ -215,19 +242,28 @@ router.get("/stats", async (req, res) => {
       .slice(0, 10)
       .map(([nationality, count]) => ({ nationality, count }));
 
-    return res.json({
-      totalPassengers,
-      averageAge,
-      genderStats,
-      nationalityStats,
-      ageGroups,
-      groupTypeStats,
-      regionStats,
-      topNationalities,
-    });
-  } catch (err) {
+    // Ensure response is always JSON
+    if (!res.headersSent) {
+      return res.json({
+        totalPassengers,
+        averageAge,
+        genderStats,
+        nationalityStats,
+        ageGroups,
+        groupTypeStats,
+        regionStats,
+        topNationalities,
+      });
+    }
+  } catch (err: any) {
     console.error('Error in GET /admin/group-stays/passengers/stats:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    // Ensure we always return JSON, never HTML or other formats
+    if (!res.headersSent) {
+      return res.status(500).json({ 
+        error: 'Internal server error',
+        message: err?.message || 'Unknown error occurred'
+      });
+    }
   }
 });
 

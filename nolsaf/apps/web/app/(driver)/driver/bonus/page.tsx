@@ -14,7 +14,7 @@ import {
   CartesianGrid,
 } from "recharts";
 
-const api = axios.create({ baseURL: "" });
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 interface BonusHistory {
   id: string;
@@ -203,9 +203,6 @@ export default function DriverBonusPage() {
 
   // Fetch bonus data
   const fetchBonusData = async () => {
-    const token = localStorage.getItem("token");
-    if (token) api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-
     // Fetch bonus history
     setLoadingHistory(true);
     try {
@@ -266,13 +263,11 @@ export default function DriverBonusPage() {
     // Setup Socket.IO for real-time bonus notifications
     if (typeof window !== "undefined") {
       const url = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000";
-      const token = localStorage.getItem("token");
       
       const socket = io(url, {
         transports: ["websocket"],
         autoConnect: true,
         reconnection: true,
-        auth: token ? { token } : undefined,
       });
 
       socketRef.current = socket;

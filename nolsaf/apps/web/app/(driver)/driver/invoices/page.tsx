@@ -17,10 +17,9 @@ export default function DriverInvoicesPage() {
   const fetchInvoices = useCallback(async (pageToFetch = 1) => {
     setLoading(true)
     try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null
       const url = `/api/driver/invoices?page=${pageToFetch}&pageSize=${pageSize}`
       const res = await fetch(url, {
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        credentials: "include",
       })
 
       if (res.status === 204 || res.status === 404) {

@@ -1,7 +1,6 @@
 {
   "compilerOptions": {
     "baseUrl": ".",
-    "ignoreDeprecations": true,
     "paths": {
       "@/*": [
         "nolsaf/apps/web/*"

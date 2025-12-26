@@ -14,8 +14,7 @@ export default function AdminPropertyDetail({ params }: { params: { id: string }
     const url = typeof window !== 'undefined'
       ? (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000")
       : (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "");
-    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-    const s: Socket = io(url, { auth: token ? { token } : undefined });
+    const s: Socket = io(url, { transports: ["websocket"] });
     
     const refreshIfMatch = (evt: any) => {
       if (evt?.id === id) {

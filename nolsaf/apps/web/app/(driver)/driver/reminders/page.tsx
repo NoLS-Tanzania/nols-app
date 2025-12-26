@@ -5,12 +5,7 @@ import { useRouter } from "next/navigation";
 import axios from "axios";
 import { io, Socket } from "socket.io-client";
 
-const api = axios.create({ baseURL: "" });
-
-function authify() {
-  const t = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-  if (t) api.defaults.headers.common["Authorization"] = `Bearer ${t}`;
-}
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 type Reminder = {
   id: string;
@@ -70,21 +65,22 @@ export default function DriverRemindersPage() {
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   useEffect(() => {
-    authify();
     loadReminders();
 
     // Setup Socket.IO for real-time updates
-    const token = localStorage.getItem("token");
-    if (token) {
-      const socket = io(process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000", {
-        auth: { token },
-      });
+    const socket = io(process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000", {
+      transports: ["websocket"],
+    });
 
-      socket.on("connect", () => {
-        console.log("Socket connected for reminders");
-        const userId = JSON.parse(atob(token.split(".")[1])).id;
-        socket.emit("join-driver-room", { driverId: userId });
-      });
+    socket.on("connect", async () => {
+      console.log("Socket connected for reminders");
+      try {
+        const me = await fetch("/api/account/me", { credentials: "include" }).then((r) => (r.ok ? r.json() : null));
+        if (me?.id) socket.emit("join-driver-room", { driverId: me.id });
+      } catch {
+        // ignore
+      }
+    });
 
       // Listen for new reminders
       socket.on("new-reminder", (data: Reminder) => {
@@ -93,13 +89,12 @@ export default function DriverRemindersPage() {
         loadReminders(); // Refresh reminders list
       });
 
-      socketRef.current = socket;
+    socketRef.current = socket;
 
-      return () => {
-        socket.emit("leave-driver-room", { driverId: JSON.parse(atob(token.split(".")[1])).id });
-        socket.disconnect();
-      };
-    }
+    return () => {
+      try { socket.emit("leave-driver-room", { driverId: undefined }); } catch {}
+      socket.disconnect();
+    };
   }, []);
 
   async function loadReminders() {

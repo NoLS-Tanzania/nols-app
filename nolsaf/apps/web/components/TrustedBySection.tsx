@@ -10,7 +10,7 @@ type Props = {
 export default function TrustedBySection({ brands, className = "" }: Props) {
   return (
     <section className={`w-full ${className}`} aria-label="Trusted by section">
-      <div className="w-full mt-4 mb-2">
+      <div className="w-full mt-8 mb-3">
         <div className="max-w-6xl mx-auto px-4">
           <div className="flex items-center justify-center">
             <div className="flex-1 h-px bg-slate-300" />
@@ -24,28 +24,10 @@ export default function TrustedBySection({ brands, className = "" }: Props) {
         </div>
       </div>
 
-      <div className="w-full overflow-hidden">
-        <style>
-          {`
-            @keyframes nolsaf-marquee {
-              0% { transform: translateX(-50%); }
-              100% { transform: translateX(0%); }
-            }
-          `}
-        </style>
-        <div className="relative">
-          <div className="flex items-center gap-10 animate-[nolsaf-marquee_18s_linear_infinite] will-change-transform">
-            <div className="min-w-full flex justify-center">
-              <div className="max-w-6xl w-full px-4">
-                <TrustedBy brands={brands} hideTitle />
-              </div>
-            </div>
-            <div className="min-w-full flex justify-center">
-              <div className="max-w-6xl w-full px-4">
-                <TrustedBy brands={brands} hideTitle />
-              </div>
-            </div>
-          </div>
+      {/* Clean, spacious logo wall (no moving marquee) */}
+      <div className="max-w-6xl mx-auto px-4 pb-6">
+        <div className="rounded-2xl border border-slate-200 bg-white/80 backdrop-blur p-5 sm:p-6 shadow-sm">
+          <TrustedBy brands={brands} hideTitle layout="grid" />
         </div>
       </div>
     </section>

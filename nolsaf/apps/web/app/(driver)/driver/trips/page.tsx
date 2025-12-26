@@ -14,9 +14,8 @@ export default function DriverTripsPage() {
   const fetchTrips = useCallback(async () => {
     setLoading(true)
     try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null
       const res = await fetch(`/api/driver/trips`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        credentials: "include",
       })
 
       // Treat explicit 'no content' or not found as empty result rather than an error

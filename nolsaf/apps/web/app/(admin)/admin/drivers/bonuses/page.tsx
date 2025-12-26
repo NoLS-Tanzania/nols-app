@@ -3,11 +3,8 @@ import { useEffect, useState } from "react";
 import { Award, Truck, Search, DollarSign, Eye, X, Calendar, FileText, CheckCircle2, Clock, Plus, Loader2, Trophy, BarChart3, Gem, Edit, ChevronDown } from "lucide-react";
 import axios from "axios";
 
-const api = axios.create({ baseURL: "" });
-function authify() {
-  const t = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-  if (t) api.defaults.headers.common["Authorization"] = `Bearer ${t}`;
-}
+const api = axios.create({ baseURL: "", withCredentials: true });
+function authify() {}
 
 // Helper function to get icon component based on icon name
 function getBonusIcon(iconName: string, className: string = "h-4 w-4") {
@@ -48,11 +45,11 @@ export default function AdminDriversBonusesPage() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [selectedDriver, setSelectedDriver] = useState<number | null>(null);
   const [bonusData, setBonusData] = useState<BonusData | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Removed unused loading state
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"" | "paid" | "pending">("");
   const [driverFilter, setDriverFilter] = useState<"all" | "a-m" | "n-z">("all");
-  const [driverSort, setDriverSort] = useState<"name-asc" | "name-desc">("name-asc");
+  // Removed unused driverSort state
   const [selectedBonus, setSelectedBonus] = useState<BonusData["items"][0] | null>(null);
   const [showBonusModal, setShowBonusModal] = useState(false);
   const [showGrantModal, setShowGrantModal] = useState(false);
@@ -83,7 +80,7 @@ export default function AdminDriversBonusesPage() {
         }));
       }
     }
-  }, [bonusReasonTypes, grantForm.bonusReasonType]);
+  }, [bonusReasonTypes, grantForm.bonusReasonType, grantForm.amount]);
 
   async function loadBonusReasonTypes() {
     try {
@@ -164,7 +161,6 @@ export default function AdminDriversBonusesPage() {
   }
 
   async function loadDrivers() {
-    setLoading(true);
     try {
       const r = await api.get<{ items: Driver[]; total: number }>("/admin/drivers", { params: { page: 1, pageSize: 100 } });
       const items = r.data?.items ?? [];
@@ -172,8 +168,6 @@ export default function AdminDriversBonusesPage() {
     } catch (err) {
       console.error("Failed to load drivers", err);
       setDrivers([]);
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -229,10 +223,7 @@ export default function AdminDriversBonusesPage() {
     return matchesSearch && inFilter;
   });
 
-  const sortedDrivers = [...filteredDrivers].sort((a, b) => {
-    if (driverSort === "name-desc") return b.name.localeCompare(a.name);
-    return a.name.localeCompare(b.name);
-  });
+  const sortedDrivers = [...filteredDrivers].sort((a, b) => a.name.localeCompare(b.name));
 
   const filteredBonuses = bonusData
     ? bonusData.items.filter((b) => {
@@ -260,25 +251,19 @@ export default function AdminDriversBonusesPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 w-full">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 w-full min-w-0">
         <div className="lg:col-span-1 w-full min-w-0 max-w-full">
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden w-full">
-            <div className="p-3 border-b border-gray-200 w-full" style={{ boxSizing: 'border-box', maxWidth: '100%', overflow: 'hidden' }}>
-              <div className="relative w-full" style={{ maxWidth: '100%', boxSizing: 'border-box' }}>
-                <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none z-10" />
+          <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden w-full min-w-0 box-border">
+            <div className="p-3 border-b border-gray-200 w-full min-w-0 box-border bonuses-search-bar">
+              <div className="relative w-full min-w-0 box-border bonuses-search-input-container">
+                <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none z-10 flex-shrink-0" />
                 <input
                   type="text"
                   placeholder="Search drivers..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
-                  style={{ 
-                    boxSizing: 'border-box', 
-                    maxWidth: '100%',
-                    width: '100%',
-                    WebkitBoxSizing: 'border-box',
-                    MozBoxSizing: 'border-box'
-                  }}
+                  className="w-full min-w-0 pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none bonuses-search-input"
+                  style={{ boxSizing: 'border-box', maxWidth: '100%' }}
                 />
               </div>
               <div className="mt-3 flex items-center gap-2">

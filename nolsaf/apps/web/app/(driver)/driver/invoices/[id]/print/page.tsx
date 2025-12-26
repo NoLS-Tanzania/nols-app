@@ -18,10 +18,7 @@ export default function InvoicePrintPage() {
     ;(async () => {
       setLoading(true)
       try {
-        const token = typeof window !== "undefined" ? localStorage.getItem("token") : null
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/driver/invoices/${id}`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        })
+        const res = await fetch(`/api/driver/invoices/${id}`, { credentials: "include" })
         if (!res.ok) return
         const data = await res.json()
         if (!cancelled) setInvoice(data)

@@ -3,11 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 
-const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL });
-function authify() {
-  const t = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-  if (t) api.defaults.headers.common["Authorization"] = `Bearer ${t}`;
-}
+// Use same-origin calls + secure httpOnly cookie session.
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 type Me = { id: number; name?: string | null; email?: string | null; role?: string | null };
 
@@ -25,9 +22,8 @@ export default function AdminIntro({ imageSrc = "/admin/welcome.jpg", videoSrc =
   const [hasVideo, setHasVideo] = useState<boolean>(false);
 
   useEffect(() => {
-    authify();
     setHidden(sessionStorage.getItem("adminIntroHidden") === "1");
-    api.get<Me>("/auth/me").then(r => setMe(r.data)).catch(() => {});
+    api.get<Me>("/api/account/me").then(r => setMe(r.data)).catch(() => {});
   }, []);
 
   // Probe whether the media actually exists (so empty slots don’t render)

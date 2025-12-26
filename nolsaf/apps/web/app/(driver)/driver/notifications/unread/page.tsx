@@ -23,11 +23,7 @@ export default function DriverUnreadNotificationsPage() {
       setLoading(true);
       const startTime = Date.now();
       try {
-        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-        const base = process.env.NEXT_PUBLIC_API_URL || '';
-        const url = base ? `${base.replace(/\/$/, '')}/api/driver/notifications?tab=unread&page=1&pageSize=50` : '/api/driver/notifications?tab=unread&page=1&pageSize=50';
-        const headers: Record<string, string> | undefined = token ? { Authorization: `Bearer ${token}` } : undefined;
-        const r = await fetch(url, { headers, signal: controller.signal });
+        const r = await fetch('/api/driver/notifications?tab=unread&page=1&pageSize=50', { credentials: "include", signal: controller.signal });
         if (!mounted) return;
         if (!r.ok) throw new Error(`Fetch failed (${r.status})`);
         const j = await r.json();
@@ -55,11 +51,8 @@ export default function DriverUnreadNotificationsPage() {
     const before = items;
     setItems((prev) => prev.filter((n) => n.id !== id));
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-      const base = process.env.NEXT_PUBLIC_API_URL || '';
-      const endpoint = base ? `${base.replace(/\/$/, '')}/api/driver/notifications/${encodeURIComponent(id)}/mark-read` : `/api/driver/notifications/${encodeURIComponent(id)}/mark-read`;
-      const headers: Record<string, string> | undefined = token ? { Authorization: `Bearer ${token}` } : undefined;
-      const r = await fetch(endpoint, { method: 'POST', headers });
+      const endpoint = `/api/driver/notifications/${encodeURIComponent(id)}/mark-read`;
+      const r = await fetch(endpoint, { method: 'POST', credentials: "include" });
       if (!r.ok) throw new Error(`Server returned ${r.status}`);
     } catch (err) {
       console.error('markRead failed', err);

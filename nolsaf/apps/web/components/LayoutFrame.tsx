@@ -57,23 +57,23 @@ export default function LayoutFrame({
           </div>
         ) : (
           <>
-            {/* left marker */}
-            <div className={`absolute left-0 -translate-x-1/2 ${topClass} ${heightClass} border-l-2 ${dashClass} ${colorClass}`} />
+            {/* left marker - invisible but maintains layout structure */}
+            <div className={`absolute left-0 -translate-x-1/2 ${topClass} ${heightClass} border-l-2 ${dashClass} ${colorClass} opacity-0`} />
 
-            {/* right marker */}
-            <div className={`absolute right-0 translate-x-1/2 ${topClass} ${heightClass} border-l-2 ${dashClass} ${colorClass}`} />
+            {/* right marker - invisible but maintains layout structure */}
+            <div className={`absolute right-0 translate-x-1/2 ${topClass} ${heightClass} border-l-2 ${dashClass} ${colorClass} opacity-0`} />
           </>
         )}
 
-        {/* optional labels */}
+        {/* optional labels - hidden by default */}
         {labelLeft ? (
-          <div className={`${topClass} absolute left-0 -translate-x-1/2 mt-1`}> 
+          <div className={`${topClass} absolute left-0 -translate-x-1/2 mt-1 opacity-0 pointer-events-none`}> 
             <span className="text-xs text-gray-500 bg-white/80 px-1 rounded">{labelLeft}</span>
           </div>
         ) : null}
 
         {labelRight ? (
-          <div className={`${topClass} absolute right-0 translate-x-1/2 mt-1`}> 
+          <div className={`${topClass} absolute right-0 translate-x-1/2 mt-1 opacity-0 pointer-events-none`}> 
             <span className="text-xs text-gray-500 bg-white/80 px-1 rounded">{labelRight}</span>
           </div>
         ) : null}

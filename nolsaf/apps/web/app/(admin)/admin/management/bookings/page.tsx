@@ -1,7 +1,8 @@
 "use client";
 import React, { useEffect, useState } from 'react';
 import TableRow from "@/components/TableRow";
-import { Calendar, ChevronLeft, ChevronRight } from "lucide-react";
+import { Calendar, ChevronLeft, ChevronRight, Eye } from "lucide-react";
+import Link from "next/link";
 
 type BookingRow = {
   id: number;
@@ -15,9 +16,7 @@ type BookingRow = {
 };
 
 export default function BookingsManagementPage(){
-  const apiBase = typeof window === 'undefined'
-    ? (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000")
-    : '';
+  const apiBase = '';
   const [items, setItems] = useState<BookingRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
@@ -32,7 +31,7 @@ export default function BookingsManagementPage(){
       try {
         const url = `${apiBase.replace(/\/$/, '')}/api/admin/bookings?page=${page}&pageSize=25`;
         const r = await fetch(url, {
-          headers: { "x-role": "ADMIN" }
+          credentials: "include",
         });
         if (!r.ok) throw new Error('fetch failed');
         const contentType = r.headers.get("content-type");
@@ -55,64 +54,6 @@ export default function BookingsManagementPage(){
     return () => { mounted = false; };
   }, [page, apiBase]);
 
-  async function confirm(b: BookingRow) {
-    try {
-      const r = await fetch(`${apiBase.replace(/\/$/, '')}/api/admin/bookings/${b.id}/confirm`, { 
-        method: 'POST',
-        headers: { "x-role": "ADMIN" }
-      });
-      if (!r.ok) throw new Error('confirm failed');
-      const j = await r.json();
-      alert('Confirmed. Code: ' + (j.code ?? '—'));
-      // Refresh data
-      setPage(p => p);
-    } catch (e) { alert('Confirm failed'); }
-  }
-
-  async function markCheckin(b: BookingRow) {
-    try {
-      const r = await fetch(`${apiBase.replace(/\/$/, '')}/api/admin/bookings/${b.id}/checkin`, { 
-        method: 'POST',
-        headers: { "x-role": "ADMIN" }
-      });
-      if (!r.ok) throw new Error('checkin failed');
-      const j = await r.json();
-      setItems(cur => cur.map(x => x.id === b.id ? (j.booking as BookingRow) : x));
-      alert('Marked checked-in');
-    } catch (e) { alert('Check-in failed'); }
-  }
-
-  async function markCheckout(b: BookingRow) {
-    try {
-      const r = await fetch(`${apiBase.replace(/\/$/, '')}/api/admin/bookings/${b.id}/checkout`, { 
-        method: 'POST',
-        headers: { "x-role": "ADMIN" }
-      });
-      if (!r.ok) throw new Error('checkout failed');
-      const j = await r.json();
-      setItems(cur => cur.map(x => x.id === b.id ? (j.booking as BookingRow) : x));
-      alert('Marked checked-out');
-    } catch (e) { alert('Check-out failed'); }
-  }
-
-  async function cancel(b: BookingRow) {
-    const reason = prompt('Reason for cancel');
-    if (!reason) return;
-    try {
-      const r = await fetch(`${apiBase.replace(/\/$/, '')}/api/admin/bookings/${b.id}/cancel`, { 
-        method: 'POST', 
-        headers: { 
-          'Content-Type': 'application/json',
-          "x-role": "ADMIN"
-        }, 
-        body: JSON.stringify({ reason }) 
-      });
-      if (!r.ok) throw new Error('cancel failed');
-      const j = await r.json();
-      setItems(cur => cur.map(x => x.id === b.id ? (j.booking as BookingRow) : x));
-      alert('Canceled');
-    } catch (e) { alert('Cancel failed'); }
-  }
 
   function getStatusBadgeClass(status: string) {
     const statusLower = status.toLowerCase();
@@ -204,31 +145,14 @@ export default function BookingsManagementPage(){
                       </span>
                     </td>
                     <td className="px-4 py-3 text-sm">
-                      <div className="flex gap-2 justify-center flex-wrap">
-                        <button 
-                          className="px-3 py-1 text-xs font-medium text-[#02665e] border border-[#02665e] rounded hover:bg-[#02665e] hover:text-white transition-all duration-200 active:bg-[#02665e] active:text-white touch-manipulation"
-                          onClick={() => confirm(b)}
+                      <div className="flex justify-center">
+                        <Link
+                          href={`/admin/management/bookings/${b.id}`}
+                          className="p-2 rounded-lg text-[#02665e] hover:bg-[#02665e]/10 transition-all duration-200"
+                          title="View booking details"
                         >
-                          Confirm
-                        </button>
-                        <button 
-                          className="px-3 py-1 text-xs font-medium text-gray-700 border border-gray-300 rounded hover:border-blue-500 hover:text-blue-600 transition-all duration-200 active:border-blue-500 active:text-blue-600 touch-manipulation"
-                          onClick={() => markCheckin(b)}
-                        >
-                          Check-in
-                        </button>
-                        <button 
-                          className="px-3 py-1 text-xs font-medium text-gray-700 border border-gray-300 rounded hover:border-green-500 hover:text-green-600 transition-all duration-200 active:border-green-500 active:text-green-600 touch-manipulation"
-                          onClick={() => markCheckout(b)}
-                        >
-                          Check-out
-                        </button>
-                        <button 
-                          className="px-3 py-1 text-xs font-medium text-red-600 border border-red-300 rounded hover:border-red-500 hover:bg-red-50 transition-all duration-200 active:border-red-500 active:bg-red-50 touch-manipulation"
-                          onClick={() => cancel(b)}
-                        >
-                          Cancel
-                        </button>
+                          <Eye className="h-5 w-5" />
+                        </Link>
                       </div>
                     </td>
                   </TableRow>

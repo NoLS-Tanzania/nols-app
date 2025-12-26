@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import { Car, MapPin, Clock, Star, User } from "lucide-react";
 
-const api = axios.create();
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 type Ride = {
   id: number;
@@ -41,11 +41,6 @@ export default function MyRidesPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-    if (token) {
-      api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-    }
-
     loadRides();
   }, []);
 

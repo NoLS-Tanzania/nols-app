@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from 'react';
-// @ts-ignore - page-flip doesn't have TypeScript definitions
+
 import { PageFlip } from 'page-flip';
 
 interface AuthPageFlipProps {
@@ -116,7 +116,7 @@ export default function AuthPageFlip({
         pageFlipRef.current = null;
       }
     };
-  }, [mounted, dimensions.width, dimensions.height, onPageChange, useFlip]);
+  }, [mounted, dimensions.width, dimensions.height, onPageChange, useFlip, currentPage]);
 
   // Sync currentPage with PageFlip
   useEffect(() => {

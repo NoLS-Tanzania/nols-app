@@ -60,6 +60,11 @@ import adminAuditsRouter from "./routes/admin.audits";
 import adminSummaryRouter from './routes/admin.summary';
 import adminNotificationsRouter from "./routes/admin.notifications";
 import adminUpdatesRouter from "./routes/admin.updates";
+import adminCancellationsRouter from "./routes/admin.cancellations";
+import { router as adminCareersRouter } from "./routes/admin.careers";
+import adminCareersApplicationsRouter from "./routes/admin.careers.applications";
+import adminCareersStatsRouter from "./routes/admin.careers.stats";
+import publicCareersApplyRouter from "./routes/public.careers.apply";
 import ownerMessagesRouter from './routes/owner.messages';
 import ownerNotificationsRouter from './routes/owner.notifications';
 import { router as ownerBookingsRouter } from "./routes/owner.booking";
@@ -82,6 +87,7 @@ import propertyReviewsRouter from './routes/property.reviews';
 import customerBookingsRouter from './routes/customer.bookings';
 import customerRidesRouter from './routes/customer.rides';
 import customerGroupStaysRouter from './routes/customer.groupStays';
+import customerCancellationsRouter from "./routes/customer.cancellations";
 
 // moved the POST handler to after the app is created
 // Create app and server before using them
@@ -243,6 +249,8 @@ app.use("/uploads/s3", upS3);
 app.use("/owner/properties", ownerProperties);
 app.use("/owner/properties", ownerPropLayout);
 app.use("/account", account as express.RequestHandler);
+// Prefer API-prefixed account routes for the web app (works with Next rewrites + cookies)
+app.use("/api/account", account as express.RequestHandler);
 app.use("/api", publicEmailVerify);
 app.use('/api/auth', authRoutes);
 app.use('/api/owner/reports', requireRole('OWNER') as express.RequestHandler, ownerReports);
@@ -302,7 +310,17 @@ app.use('/admin/summary', requireRole('ADMIN') as express.RequestHandler, adminS
 app.use('/api/admin/summary', requireRole('ADMIN') as express.RequestHandler, adminSummaryRouter as express.RequestHandler);
 app.use('/api/admin/audits', requireRole('ADMIN') as express.RequestHandler, adminAuditsRouter as express.RequestHandler);
 app.use('/api/admin/notifications', requireRole('ADMIN') as express.RequestHandler, adminNotificationsRouter as express.RequestHandler);
+app.use('/api/admin/cancellations', requireRole('ADMIN') as express.RequestHandler, adminCancellationsRouter as express.RequestHandler);
 app.use('/api/admin/updates', adminUpdatesRouter as express.RequestHandler);
+// Register applications routes BEFORE careers routes to avoid route conflicts
+// More specific routes must come before parameterized routes
+app.use('/admin/careers/applications', adminCareersApplicationsRouter);
+app.use('/api/admin/careers/applications', adminCareersApplicationsRouter as express.RequestHandler);
+app.use('/admin/careers/stats', adminCareersStatsRouter);
+app.use('/api/admin/careers/stats', adminCareersStatsRouter as express.RequestHandler);
+app.use('/admin/careers', adminCareersRouter);
+app.use('/api/admin/careers', adminCareersRouter as express.RequestHandler);
+app.use('/api/careers/apply', publicCareersApplyRouter);
 app.use('/api/owner/revenue', requireRole('OWNER') as express.RequestHandler, ownerRevenue);
 // Owner-scoped messages & notifications (demo implementations)
 app.use('/api/owner/messages', requireRole('OWNER') as express.RequestHandler, ownerMessagesRouter as express.RequestHandler);
@@ -345,6 +363,7 @@ app.use('/api/public/booking', publicBookingRouter);
 app.use('/api/public/properties', publicPropertiesRouter);
 // Customer account endpoints (for travellers/customers)
 app.use('/api/customer/bookings', customerBookingsRouter as express.RequestHandler);
+app.use('/api/customer/cancellations', customerCancellationsRouter as express.RequestHandler);
 app.use('/api/customer/rides', customerRidesRouter as express.RequestHandler);
 app.use('/api/customer/group-stays', customerGroupStaysRouter as express.RequestHandler);
 // Group bookings (requires authentication)

@@ -1,0 +1,166 @@
+"use client";
+
+import Terms from "@/components/Terms";
+import { PROPERTY_OWNER_DISBURSEMENT_POLICY_LAST_UPDATED, PROPERTY_OWNER_DISBURSEMENT_POLICY_SECTIONS } from "@/components/propertyOwnerDisbursementPolicyContent";
+import PublicHeader from "@/components/PublicHeader";
+import PublicFooter from "@/components/PublicFooter";
+import SiteHeader from "@/components/SiteHeader";
+import SiteFooter from "@/components/SiteFooter";
+import LayoutFrame from "@/components/LayoutFrame";
+import { DollarSign } from "lucide-react";
+import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
+
+function getCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null;
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+  return null;
+}
+
+export default function PropertyOwnerDisbursementPolicyPage() {
+  const pathname = usePathname();
+  const [userRole, setUserRole] = useState<"ADMIN" | "OWNER" | "DRIVER" | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isPublicContext, setIsPublicContext] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    // PRIORITY 1: Check sessionStorage for navigation context (set by headers/footers)
+    let navigationContext: 'public' | 'owner' | 'driver' | 'admin' | null = null;
+    if (typeof window !== 'undefined') {
+      navigationContext = sessionStorage.getItem('navigationContext') as 'public' | 'owner' | 'driver' | 'admin' | null;
+    }
+
+    if (navigationContext) {
+      if (navigationContext === 'public') {
+        setIsPublicContext(true);
+        setUserRole(null);
+        setIsLoading(false);
+        return;
+      } else {
+        setIsPublicContext(false);
+        setUserRole(navigationContext.toUpperCase() as "ADMIN" | "OWNER" | "DRIVER");
+        setIsLoading(false);
+        return;
+      }
+    }
+
+    // PRIORITY 2: Check referrer
+    let isFromPublicRoute = false;
+    if (typeof document !== 'undefined') {
+      const referrer = document.referrer;
+      const origin = window.location.origin;
+      isFromPublicRoute = referrer && (
+        referrer.includes('/public') || 
+        referrer === origin || 
+        referrer === origin + '/' ||
+        (!referrer.includes('/owner') && !referrer.includes('/driver') && !referrer.includes('/admin') && referrer.startsWith(origin))
+      );
+    }
+
+    if (isFromPublicRoute) {
+      setIsPublicContext(true);
+      setUserRole(null);
+      setIsLoading(false);
+      return;
+    }
+
+    // PRIORITY 3: Check if user is authenticated via cookie
+    const role = getCookie('role') as "ADMIN" | "OWNER" | "DRIVER" | null;
+    if (role) {
+      setIsPublicContext(false);
+      setUserRole(role);
+      setIsLoading(false);
+      return;
+    }
+    
+    // PRIORITY 4: Check pathname as final fallback
+    if (pathname?.includes('/driver')) {
+      setIsPublicContext(false);
+      setUserRole('DRIVER');
+    } else if (pathname?.includes('/owner')) {
+      setIsPublicContext(false);
+      setUserRole('OWNER');
+    } else if (pathname?.includes('/admin')) {
+      setIsPublicContext(false);
+      setUserRole('ADMIN');
+    } else {
+      setIsPublicContext(true);
+      setUserRole(null);
+    }
+    
+    setIsLoading(false);
+  }, [pathname]);
+
+  const shouldUsePublicLayout = isPublicContext === true || (isPublicContext === null && userRole === null);
+  const isAuthenticated = !shouldUsePublicLayout && userRole !== null;
+  const isDriver = userRole === "DRIVER";
+  const isOwner = userRole === "OWNER";
+  const isAdmin = userRole === "ADMIN";
+
+  if (isLoading || isPublicContext === null) {
+    return (
+      <>
+        <PublicHeader />
+        <main className="min-h-screen bg-white text-slate-900">
+          <div className="public-container py-10">
+            <div className="text-center">Loading...</div>
+          </div>
+        </main>
+        <PublicFooter withRail={false} />
+      </>
+    );
+  }
+
+  return (
+    <>
+      {shouldUsePublicLayout ? (
+        <PublicHeader />
+      ) : isAuthenticated ? (
+        <SiteHeader 
+          role={isDriver ? "DRIVER" : isOwner ? "OWNER" : "ADMIN"} 
+          driverMode={isDriver}
+        />
+      ) : (
+        <PublicHeader />
+      )}
+      
+      <main className="min-h-screen bg-white text-slate-900">
+        <LayoutFrame heightVariant="sm" topVariant="sm" colorVariant="muted" variant="solid" />
+        
+        <section className="relative h-48 md:h-64 lg:h-80 overflow-hidden">
+          <div className="public-container h-full relative">
+            <div className="absolute inset-0 bg-[url('/assets/nolsaf%20picture%201.jpg')] bg-cover bg-center rounded-lg" />
+            <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-transparent rounded-lg" />
+            <div className="relative h-full flex flex-col items-center justify-center">
+              <DollarSign size={64} className="text-white mb-4 drop-shadow-lg" strokeWidth={1.5} />
+              <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white text-center px-4 drop-shadow-lg">
+                Property Owner Disbursement Policy
+              </h1>
+              <p className="text-white text-center px-4 mt-2 text-lg drop-shadow-lg">
+                For Property Owners
+              </p>
+            </div>
+          </div>
+        </section>
+        
+        <section className="relative bg-[#f7f9fb] pt-6 sm:pt-8 md:pt-10 pb-4 sm:pb-6 md:pb-10 overflow-x-hidden">
+          <div className="public-container">
+            <div className="w-full bg-white rounded-lg shadow-sm border border-gray-100 p-4 sm:p-6 md:p-10 lg:p-12 box-border overflow-x-hidden">
+              <Terms headline="" lastUpdated={PROPERTY_OWNER_DISBURSEMENT_POLICY_LAST_UPDATED} sections={PROPERTY_OWNER_DISBURSEMENT_POLICY_SECTIONS} />
+            </div>
+          </div>
+        </section>
+      </main>
+      
+      {shouldUsePublicLayout ? (
+        <PublicFooter withRail={false} />
+      ) : isAuthenticated ? (
+        <SiteFooter withRail={false} topSeparator={true} />
+      ) : (
+        <PublicFooter withRail={false} />
+      )}
+    </>
+  );
+}

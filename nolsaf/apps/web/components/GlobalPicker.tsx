@@ -20,13 +20,11 @@ const CURRENCIES = [
   { code: 'KES', label: 'KSh' },
 ];
 
-export default function GlobalPicker() {
+export default function GlobalPicker({ variant = "dark" }:{ variant?: "light" | "dark" }) {
   const [open, setOpen] = useState(false);
-  // Use safe defaults during SSR to avoid hydration mismatches.
   const [locale, setLocale] = useState<string>('en');
   const [currency, setCurrency] = useState<string>('TZS');
 
-  // On client mount, hydrate from localStorage if available.
   useEffect(() => {
     try { const stored = localStorage.getItem(KEY_LOCALE); if (stored) setLocale(stored); } catch (e) {}
     try { const storedC = localStorage.getItem(KEY_CURRENCY); if (storedC) setCurrency(storedC); } catch (e) {}
@@ -51,46 +49,74 @@ export default function GlobalPicker() {
     return () => document.removeEventListener('click', onDoc);
   }, []);
 
+  const currentLanguage = LANGUAGES.find(l => l.code === locale);
+  const currentCurrency = CURRENCIES.find(c => c.code === currency);
+
   return (
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(v => !v)}
-        className="inline-flex items-center justify-center h-9 px-2 rounded-full bg-white/10 hover:bg-white/20 text-white text-sm font-medium"
+        className={[
+          "inline-flex items-center justify-center h-9 w-9 rounded-full bg-transparent transition-all duration-300 hover:scale-110 active:scale-95 group relative border-0 outline-none focus:outline-none focus:ring-0",
+          variant === "light" ? "text-[#02665e] hover:bg-[#02665e]/10" : "text-white hover:bg-white/10",
+        ].join(" ")}
         aria-haspopup="true"
         aria-expanded={open}
-        title="Language & currency"
+        title={`${currentLanguage?.label || locale.toUpperCase()} • ${currentCurrency?.label || currency}`}
       >
-        <Globe className="h-4 w-4 mr-2 text-white/90" aria-hidden />
-        <span className="text-xs mr-2">{locale.toUpperCase()}</span>
-        <span className="text-xs mr-1">{CURRENCIES.find(c=>c.code===currency)?.label ?? currency}</span>
-        <ChevronDown className="h-4 w-4 text-white/80" aria-hidden />
+        <Globe className="h-5 w-5 transition-transform duration-300 group-hover:rotate-12" aria-hidden />
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-72 bg-white rounded-md shadow-lg ring-1 ring-black/10 overflow-hidden z-50">
-          <div className="p-2 grid grid-cols-2 gap-2">
-            <div>
-              <div className="px-2 py-1 text-xs font-semibold text-gray-500">Language</div>
-              <div className="py-1">
+        <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="p-3">
+            {/* Language Section */}
+            <div className="mb-3">
+              <div className="px-2 py-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Language</div>
+              <div className="grid grid-cols-2 gap-1">
                 {LANGUAGES.map(l => (
-                  <button key={l.code} onClick={() => { setLocale(l.code); setOpen(false); }} className={`w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 ${locale===l.code ? 'font-semibold' : ''}`}>
+                  <button 
+                    key={l.code} 
+                    onClick={() => { setLocale(l.code); setOpen(false); }} 
+                    className={`w-full text-left px-2.5 py-1.5 text-xs rounded-md transition-all duration-150 ${
+                      locale === l.code 
+                        ? 'bg-[#02665e] text-white font-medium' 
+                        : 'text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
                     <div className="flex items-center justify-between">
-                      <div>{l.label}</div>
-                      <div className="text-xs text-gray-400">{l.code.toUpperCase()}</div>
+                      <span className="truncate">{l.label}</span>
+                      <span className={`text-[10px] ml-1.5 flex-shrink-0 ${locale === l.code ? 'text-white/70' : 'text-gray-400'}`}>
+                        {l.code.toUpperCase()}
+                      </span>
                     </div>
                   </button>
                 ))}
               </div>
             </div>
 
+            {/* Divider */}
+            <div className="h-px bg-gray-100 my-2.5"></div>
+
+            {/* Currency Section */}
             <div>
-              <div className="px-2 py-1 text-xs font-semibold text-gray-500">Currency</div>
-              <div className="py-1">
+              <div className="px-2 py-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Currency</div>
+              <div className="grid grid-cols-2 gap-1">
                 {CURRENCIES.map(c => (
-                  <button key={c.code} onClick={() => { setCurrency(c.code); setOpen(false); }} className={`w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 ${currency===c.code ? 'font-semibold' : ''}`}>
+                  <button 
+                    key={c.code} 
+                    onClick={() => { setCurrency(c.code); setOpen(false); }} 
+                    className={`w-full text-left px-2.5 py-1.5 text-xs rounded-md transition-all duration-150 ${
+                      currency === c.code 
+                        ? 'bg-[#02665e] text-white font-medium' 
+                        : 'text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
                     <div className="flex items-center justify-between">
-                      <div>{c.label}</div>
-                      <div className="text-xs text-gray-400">{c.code}</div>
+                      <span className="font-medium truncate">{c.label}</span>
+                      <span className={`text-[10px] ml-1.5 flex-shrink-0 ${currency === c.code ? 'text-white/70' : 'text-gray-400'}`}>
+                        {c.code}
+                      </span>
                     </div>
                   </button>
                 ))}

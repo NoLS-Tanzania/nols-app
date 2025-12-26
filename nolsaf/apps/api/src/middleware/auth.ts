@@ -14,12 +14,41 @@ export interface AuthedRequest extends Request {
   user?: AuthedUser;
 }
 
+function parseCookies(cookieHeader: string | undefined): Record<string, string> {
+  if (!cookieHeader) return {};
+  const out: Record<string, string> = {};
+  const parts = cookieHeader.split(";");
+  for (const part of parts) {
+    const idx = part.indexOf("=");
+    if (idx === -1) continue;
+    const k = part.slice(0, idx).trim();
+    const v = part.slice(idx + 1).trim();
+    if (!k) continue;
+    try {
+      out[k] = decodeURIComponent(v);
+    } catch {
+      out[k] = v;
+    }
+  }
+  return out;
+}
+
+function getTokenFromRequest(req: Request): string | null {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith("Bearer ")) return authHeader.substring(7);
+  const cookies = parseCookies(req.headers.cookie);
+  return cookies["nolsaf_token"] || cookies["__Host-nolsaf_token"] || null;
+}
+
 // Verify JWT token and extract user info
 async function verifyToken(token: string): Promise<AuthedUser | null> {
   try {
-    const secret = process.env.JWT_SECRET;
+    const secret =
+      process.env.JWT_SECRET ||
+      (process.env.NODE_ENV !== "production" ? (process.env.DEV_JWT_SECRET || "dev_jwt_secret") : "");
     if (!secret) {
-      console.warn('JWT_SECRET not set, token verification disabled');
+      // Production must fail closed if misconfigured
+      console.error("JWT_SECRET not set in production; refusing auth");
       return null;
     }
 
@@ -52,27 +81,8 @@ async function verifyToken(token: string): Promise<AuthedUser | null> {
 // In production, verify JWT in Authorization: Bearer <token>
 // Basic auth that attaches a user from headers (dev-friendly)
 export async function requireAuth(req: AuthedRequest, res: Response, next: NextFunction) {
-  // Dev bypass: treat every request as ADMIN unless in production
-  if (process.env.NODE_ENV !== 'production') {
-    // Try to verify token if provided, otherwise use dev default
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
-      const user = await verifyToken(token);
-      if (user) {
-        req.user = user;
-        return next();
-      }
-    }
-    // Fallback to dev default
-    req.user = { id: 1, role: 'ADMIN' };
-    return next();
-  }
-
-  // Production: verify JWT token
-  const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.substring(7);
+  const token = getTokenFromRequest(req);
+  if (token) {
     const user = await verifyToken(token);
     if (user) {
       req.user = user;
@@ -80,29 +90,36 @@ export async function requireAuth(req: AuthedRequest, res: Response, next: NextF
     }
   }
 
-  // Fallback to header-based auth (for backward compatibility)
-  const roleHeader = (req.headers['x-role'] as string | undefined)?.toUpperCase() as Role | undefined;
-  const idHeader = req.headers['x-user-id'] as string | undefined;
-  const role: Role = roleHeader ?? 'OWNER';
-  const id = Number(idHeader ?? '1');
-  req.user = { id, role };
-  next();
+  // DEV behavior: keep current dev-bypass so the app keeps working locally.
+  // Production is strict: no token -> 401.
+  if (process.env.NODE_ENV !== "production") {
+    req.user = { id: 1, role: "ADMIN" };
+    return next();
+  }
+
+  return res.status(401).json({ error: "Unauthorized" });
 }
 
 // Role gate. If no role required, just ensure user exists.
 export function requireRole(required?: Role) {
-  return (req: AuthedRequest, res: Response, next: NextFunction) => {
-    // Dev bypass: ensure ADMIN user and allow
-    if (process.env.NODE_ENV !== 'production') {
-      if (!req.user) req.user = { id: 1, role: 'ADMIN' };
+  return async (req: AuthedRequest, res: Response, next: NextFunction) => {
+    // Ensure req.user exists (supports Bearer or httpOnly cookie).
+    if (!req.user) {
+      const token = getTokenFromRequest(req);
+      if (token) req.user = await verifyToken(token) ?? undefined;
+    }
+
+    // Dev bypass: keep local development productive.
+    if (process.env.NODE_ENV !== "production") {
+      if (!req.user) req.user = { id: 1, role: "ADMIN" };
       return next();
     }
-    if (!req.user) {
-      // attach a default user from headers if missing
-      requireAuth(req, res, () => {});
-    }
-    if (required && req.user && req.user.role !== required) {
-      return res.status(403).json({ error: 'Forbidden' });
+
+    // Production: strict — no user means no access.
+    if (!req.user) return res.status(401).json({ error: "Unauthorized" });
+
+    if (required && req.user.role !== required) {
+      return res.status(403).json({ error: "Forbidden" });
     }
     return next();
   };

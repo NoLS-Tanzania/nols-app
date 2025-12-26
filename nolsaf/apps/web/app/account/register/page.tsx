@@ -603,11 +603,7 @@ export default function RegisterPage() {
                           });
                           
                           if (response.status === 200) {
-                            // Store token and redirect
-                            const token = response.data?.token;
-                            if (token) {
-                              localStorage.setItem('token', token);
-                            }
+                            // Auth cookie is set httpOnly by the API; no localStorage token needed.
                             router.push('/');
                           }
                         } catch (err: any) {

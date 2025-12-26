@@ -3,11 +3,8 @@ import { useEffect, useState, useMemo } from "react";
 import { Bell, Truck, Search, AlertCircle, Info, AlertTriangle, Megaphone, Plus, X, Shield, FileWarning, Calendar, Car, Bike, CarTaxiFront, Target, CheckCircle, Clock, Filter, RefreshCw, BarChart3, TrendingUp, SlidersHorizontal, CalendarDays, Tag, XCircle, ChevronDown, ChevronUp } from "lucide-react";
 import axios from "axios";
 
-const api = axios.create({ baseURL: "" });
-function authify() {
-  const t = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-  if (t) api.defaults.headers.common["Authorization"] = `Bearer ${t}`;
-}
+const api = axios.create({ baseURL: "", withCredentials: true });
+function authify() {}
 
 type Driver = {
   id: number;
@@ -97,10 +94,15 @@ export default function AdminDriversRemindersPage() {
   async function loadExpiringDocuments() {
     setLoadingExpiring(true);
     try {
-      const r = await api.get<{ drivers: Array<{ driver: Driver; expiringDocuments: Array<{ type: string; expiryDate: string; daysLeft: number }> }> }>("/admin/drivers/expiring-documents");
+      const r = await api.get<{ drivers: Array<{ driver: Driver; expiringDocuments: Array<{ type: string; expiryDate: string; daysLeft: number }> }> }>("/api/admin/drivers/expiring-documents");
       setExpiringDocuments(r.data?.drivers ?? []);
-    } catch (err) {
-      console.error("Failed to load expiring documents", err);
+    } catch (err: any) {
+      // Only log non-4xx errors to avoid console spam for expected errors (e.g., missing tables, permissions)
+      if (!err?.response || err.response.status >= 500) {
+        console.error("Failed to load expiring documents", err);
+      } else {
+        console.debug("Could not load expiring documents (expected):", err.response?.status, err.response?.data);
+      }
       setExpiringDocuments([]);
     } finally {
       setLoadingExpiring(false);
@@ -110,7 +112,7 @@ export default function AdminDriversRemindersPage() {
   async function autoCreateReminders() {
     setAutoCreating(true);
     try {
-      const r = await api.post<{ created: number; reminders: any[]; stats: { license: number; insurance: number; rating: number; safety: number; security: number; goals: number; earnings: number } }>("/admin/drivers/auto-create-reminders");
+      const r = await api.post<{ created: number; reminders: any[]; stats: { license: number; insurance: number; rating: number; safety: number; security: number; goals: number; earnings: number } }>("/api/admin/drivers/auto-create-reminders");
       const stats = r.data.stats || {};
       const message = `Successfully created ${r.data.created} automatic reminders:\n` +
         `• License Expiry: ${stats.license}\n` +
@@ -136,7 +138,7 @@ export default function AdminDriversRemindersPage() {
   async function loadDrivers() {
     setLoading(true);
     try {
-      const r = await api.get<{ items: Driver[]; total: number }>("/admin/drivers", { params: { page: 1, pageSize: 100 } });
+      const r = await api.get<{ items: Driver[]; total: number }>("/api/admin/drivers", { params: { page: 1, pageSize: 100 } });
       setDrivers(r.data?.items ?? []);
     } catch (err) {
       console.error("Failed to load drivers", err);
@@ -148,7 +150,7 @@ export default function AdminDriversRemindersPage() {
 
   async function loadDriverReminders(driverId: number) {
     try {
-      const r = await api.get<ReminderData>(`/admin/drivers/${driverId}/reminders`, { params: { page: 1, pageSize: 50 } });
+      const r = await api.get<ReminderData>(`/api/admin/drivers/${driverId}/reminders`, { params: { page: 1, pageSize: 50 } });
       if (r.data) {
         setReminderData(r.data);
       } else {
@@ -214,9 +216,21 @@ export default function AdminDriversRemindersPage() {
       if (selectedDriver) {
         await loadDriverReminders(selectedDriver);
       }
-    } catch (err) {
-      console.error("Failed to create reminder", err);
-      alert("Failed to create reminder. Please try again.");
+    } catch (err: any) {
+      // Handle 501 (Not Implemented) - reminders feature not enabled
+      if (err?.response?.status === 501) {
+        console.debug("Reminders feature not enabled:", err.response?.data);
+        alert("Reminders feature is not enabled. The driver reminders table may not be set up in the database.");
+      } else if (err?.response?.status === 403) {
+        console.debug("Permission denied:", err.response?.data);
+        alert("You don't have permission to create reminders.");
+      } else if (err?.response?.status === 400) {
+        const errorMsg = err.response?.data?.error || "Invalid request data";
+        alert(`Failed to create reminder: ${errorMsg}`);
+      } else {
+        console.error("Failed to create reminder", err);
+        alert("Failed to create reminder. Please try again.");
+      }
     } finally {
       setCreating(false);
     }

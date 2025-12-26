@@ -2,7 +2,8 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import Image from "next/image";
-const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL });
+// Use same-origin requests (Next rewrites proxy to API in dev) + secure httpOnly cookie session.
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 export default function SecurityTab() {
   const [me, setMe] = useState<any>(null);
@@ -10,12 +11,14 @@ export default function SecurityTab() {
   const [twofa, setTwofa] = useState<any>(null); // setup payload
   const [code, setCode] = useState("");
 
-  useEffect(()=>{ const t=localStorage.getItem("token"); if(t) api.defaults.headers.common["Authorization"]=`Bearer ${t}`; api.get("/account/me").then(r=>setMe(r.data));},[]);
+  useEffect(() => {
+    api.get("/api/account/me").then((r) => setMe(r.data)).catch(() => setMe(null));
+  }, []);
 
   const changePassword = async () => {
     if (pwd.newPassword !== pwd.confirmPassword) { alert('Passwords do not match'); return; }
     try {
-      await api.post("/account/password/change", { currentPassword: pwd.currentPassword, newPassword: pwd.newPassword });
+      await api.post("/api/account/password/change", { currentPassword: pwd.currentPassword, newPassword: pwd.newPassword });
       alert("Password changed");
       setPwd({ currentPassword:"", newPassword:"", confirmPassword: "" });
     } catch (err: any) {
@@ -29,7 +32,7 @@ export default function SecurityTab() {
   };
   const start2FA = async () => {
     try {
-      const r = await api.post("/account/2fa/totp/setup");
+      const r = await api.post("/api/account/2fa/totp/setup");
       setTwofa(r.data);
     } catch (err: any) {
       const msg = err?.response?.data?.error || err?.message || 'Failed to start TOTP setup.'
@@ -38,12 +41,12 @@ export default function SecurityTab() {
   };
   const verify2FA = async () => {
     try {
-      const r = await api.post<{ backupCodes: string[] }>("/account/2fa/totp/verify", { code });
+      const r = await api.post<{ backupCodes: string[] }>("/api/account/2fa/totp/verify", { code });
       try { window.dispatchEvent(new CustomEvent('nols:toast', { detail: { type: 'success', title: '2FA enabled', message: 'Authenticator enabled. Save your backup codes.', duration: 8000 } })); } catch (e) {}
       // optionally expose backup codes in console for manual copy if UI not available
       // eslint-disable-next-line no-console
       console.info('Backup codes:', r.data.backupCodes);
-      setTwofa(null); setCode(""); const me2 = await api.get("/account/me"); setMe(me2.data);
+      setTwofa(null); setCode(""); const me2 = await api.get("/api/account/me"); setMe(me2.data);
     } catch (err: any) {
       const msg = err?.response?.data?.error || err?.message || 'Failed to enable authenticator.'
       try { window.dispatchEvent(new CustomEvent('nols:toast', { detail: { type: 'error', title: 'Failed to enable authenticator', message: msg, duration: 6000 } })); } catch (e) {}
@@ -53,9 +56,9 @@ export default function SecurityTab() {
     const c = prompt("Enter TOTP code or a backup code to disable:");
     if (!c) return;
     try {
-      await api.post("/account/2fa/disable", { code: c });
+      await api.post("/api/account/2fa/disable", { code: c });
       try { window.dispatchEvent(new CustomEvent('nols:toast', { detail: { type: 'success', title: '2FA disabled', message: 'Two-factor authentication disabled.', duration: 4500 } })); } catch (e) {}
-      const me2 = await api.get("/account/me"); setMe(me2.data);
+      const me2 = await api.get("/api/account/me"); setMe(me2.data);
     } catch (err: any) {
       const msg = err?.response?.data?.error || err?.message || 'Failed to disable 2FA.'
       try { window.dispatchEvent(new CustomEvent('nols:toast', { detail: { type: 'error', title: 'Failed to disable 2FA', message: msg, duration: 4500 } })); } catch (e) {}
@@ -147,9 +150,25 @@ function Input({label, value, onChange, type="text"}:{label:string;value:string;
 }
 function Sessions(){
   const [list,setList]=useState<any[]>([]);
-  useEffect(()=>{ (async()=>{ const t=localStorage.getItem("token"); if(t) axios.defaults.headers.common["Authorization"]=`Bearer ${t}`; const r=await axios.get<any[]>(`${process.env.NEXT_PUBLIC_API_URL}/account/sessions`); setList(r.data); })();},[]);
-  const revoke=async(id:string)=>{ const t=localStorage.getItem("token"); await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/account/sessions/revoke`,{sessionId:id},{headers:{Authorization:`Bearer ${t}`}}); setList(list.filter(s=>s.id!==id)); };
-  const revokeOthers=async()=>{ const t=localStorage.getItem("token"); await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/account/sessions/revoke-others`,{}, {headers:{Authorization:`Bearer ${t}`}}); const me = await axios.get<any[]>(`${process.env.NEXT_PUBLIC_API_URL}/account/sessions`,{headers:{Authorization:`Bearer ${t}`}}); setList(me.data); };
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await api.get<any[]>("/api/account/sessions");
+        setList(r.data);
+      } catch {
+        setList([]);
+      }
+    })();
+  }, []);
+  const revoke = async (id: string) => {
+    await api.post("/api/account/sessions/revoke", { sessionId: id });
+    setList(list.filter((s) => s.id !== id));
+  };
+  const revokeOthers = async () => {
+    await api.post("/api/account/sessions/revoke-others", {});
+    const me = await api.get<any[]>("/api/account/sessions");
+    setList(me.data);
+  };
   return (
     <div className="bg-white border rounded-2xl p-3">
       <div className="flex items-center justify-between">

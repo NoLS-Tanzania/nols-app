@@ -5,7 +5,7 @@ import { Trophy, TrendingUp, Star, Target, Award, CheckCircle, Clock, AlertCircl
 import axios from "axios";
 import { io, Socket } from "socket.io-client";
 
-const api = axios.create({ baseURL: "" });
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 interface LevelData {
   currentLevel: number;
@@ -138,18 +138,8 @@ export default function DriverLevel() {
     const fetchLevelData = async () => {
       try {
         setLoading(true);
-        const token = localStorage.getItem("token");
-        
-        if (!token) {
-          setError("Please log in to view your driver level");
-          setLoading(false);
-          return;
-        }
-
         // Fetch level data from API
-        const response = await api.get("/api/driver/level", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const response = await api.get("/api/driver/level");
 
         if (response.status === 200 && response.data) {
           setLevelData(response.data);
@@ -174,18 +164,17 @@ export default function DriverLevel() {
     fetchLevelData();
 
     // Setup Socket.IO for real-time responses
-    const token = localStorage.getItem("token");
-    if (token) {
-      const socket = io(process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000", {
-        auth: { token },
-      });
+    const socket = io(process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000", {
+      transports: ["websocket"],
+    });
 
-      socket.on("connect", () => {
-        console.log("Socket connected for level messages");
-        // Join driver room
-        const userId = JSON.parse(atob(token.split(".")[1])).id;
-        socket.emit("join-driver-room", { driverId: userId });
-      });
+    socket.on("connect", async () => {
+      console.log("Socket connected for level messages");
+      try {
+        const me = await fetch("/api/account/me", { credentials: "include" }).then((r) => (r.ok ? r.json() : null));
+        if (me?.id) socket.emit("join-driver-room", { driverId: me.id });
+      } catch {}
+    });
 
       // Listen for admin responses
       socket.on("admin-level-message-response", (data: { messageId: number; response: string; adminName: string; timestamp: string }) => {
@@ -203,28 +192,17 @@ export default function DriverLevel() {
         setTimeout(() => setNotification(null), 5000);
       });
 
-      socketRef.current = socket;
+    socketRef.current = socket;
 
-      return () => {
-        socket.disconnect();
-      };
-    }
+    return () => {
+      socket.disconnect();
+    };
   }, []);
 
   // Helper function to send message to admin
   const sendMessageToAdmin = async (message: string) => {
     try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        alert("Please log in to send messages");
-        return;
-      }
-
-      const response = await api.post(
-        "/api/driver/level/message",
-        { message },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const response = await api.post("/api/driver/level/message", { message });
 
       if (response.status === 200) {
         // Add message to local state

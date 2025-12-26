@@ -1,7 +1,14 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from 'react';
-import { Linkedin, Instagram, X, Facebook, MessageCircle, Download, Eye } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight, Facebook, Instagram, Linkedin, Quote, Eye, MessageCircle, Download, X } from 'lucide-react';
+
+function stripHtml(html: string) {
+  return String(html || '')
+    .replace(/<[^>]*>/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
 const TESTIMONIALS = [
   {
@@ -66,80 +73,242 @@ const SOCIAL_LINKS = {
 export default function Testimonials() {
   const total = TESTIMONIALS.length;
   const [active, setActive] = useState(0);
-  const timerRef = useRef<any>(undefined);
+  const timerRef = useRef<ReturnType<typeof window.setInterval> | null>(null);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const [viewportW, setViewportW] = useState(0);
+  const [disableTransition, setDisableTransition] = useState(false);
+  const resizeTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
+
+  const slides = useMemo(() => TESTIMONIALS.map((t) => ({ ...t, snippet: stripHtml(t.text) })), []);
 
   useEffect(() => {
+    if (!viewportRef.current) return;
+    const el = viewportRef.current;
+
+    const update = () => {
+      // During responsive resize/orientation changes, don't animate the transform jump.
+      setDisableTransition(true);
+      setViewportW(el.clientWidth || 0);
+      if (resizeTimerRef.current) window.clearTimeout(resizeTimerRef.current);
+      resizeTimerRef.current = window.setTimeout(() => setDisableTransition(false), 160);
+    };
+    update();
+
+    const ro = new ResizeObserver(() => update());
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      if (resizeTimerRef.current) window.clearTimeout(resizeTimerRef.current);
+    };
+  }, []);
+
+  const start = () => {
+    if (timerRef.current) window.clearInterval(timerRef.current);
+    timerRef.current = window.setInterval(() => {
+      setActive((a) => ((a + 1) % total));
+    }, 9000);
+  };
+
+  const stop = () => {
+    if (timerRef.current) {
+      window.clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    if (total <= 1) return;
     start();
     return () => stop();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [total]);
 
-  function start() {
+  const goTo = (idx: number) => {
+    const safe = ((idx % total) + total) % total;
+    setActive(safe);
+  };
+
+  const goPrev = () => {
     stop();
-    timerRef.current = window.setInterval(() => {
-      setActive((a) => ((a + 2) % total));
-    }, 10000);
-  }
+    goTo(active - 1);
+    start();
+  };
 
-  function stop() {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = undefined;
-    }
-  }
-
-  function isVisibleNew(i: number) {
-    return i === active || i === ((active + 1) % total);
-  }
+  const goNext = () => {
+    stop();
+    goTo(active + 1);
+    start();
+  };
 
   return (
-    <section className="mt-6">
+    <section className="mt-8" aria-labelledby="testimonials-heading">
       <div className="public-container">
-        <div className="rounded-lg border bg-white p-6 shadow-md">
-          <h3 className="text-lg font-semibold">What our customers say</h3>
-          <p className="mt-1 text-sm text-slate-600">Real stories from travellers, drivers and <strong className="text-[#039e92] font-semibold">hosts</strong> who use NoLSAF.</p>
+        <div className="rounded-xl border bg-gradient-to-b from-white via-slate-50 to-white p-5 sm:p-6 shadow-lg">
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+            <div>
+              <h3 id="testimonials-heading" className="text-xl sm:text-2xl font-semibold text-slate-900">
+                What our customers say
+              </h3>
+              <p className="mt-1 text-sm text-slate-600">
+                Real stories from travellers, drivers and{" "}
+                <strong className="text-[#039e92] font-semibold">hosts</strong> who use NoLSAF.
+              </p>
+            </div>
+            <div className="hidden sm:block" aria-hidden="true" />
+          </div>
 
           <div
-            className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4 justify-items-center"
-            onMouseEnter={() => stop()}
-            onMouseLeave={() => start()}
-            onFocus={() => stop()}
-            onBlur={() => start()}
-            style={{ minHeight: '200px' }}
+            className="mt-5"
+            onMouseEnter={stop}
+            onMouseLeave={start}
+            onFocus={stop}
+            onBlur={start}
           >
-            {TESTIMONIALS.map((t, i) =>
-              isVisibleNew(i) ? (
-                <figure key={i} aria-label="Testimonial" className="w-full lg:max-w-none p-3 border rounded-lg transition-all duration-250 ease-out hover:shadow-lg hover:-translate-y-0.5 focus:outline-none cursor-pointer flex flex-col justify-between" style={{ backfaceVisibility: 'hidden', transform: 'translateZ(0)', WebkitFontSmoothing: 'antialiased' }}>
-                  <h4 className="text-sm italic mb-2 text-[#02665e]">{t.title}</h4>
-                  <blockquote className="text-sm text-slate-700 whitespace-normal break-words"><span dangerouslySetInnerHTML={{ __html: t.text }} /></blockquote>
-                  <figcaption className="mt-3 flex items-center gap-3">
-                    <div>
-                      <div className="text-sm font-medium flex items-center gap-2">
-                        {t.name}
-                        <span className="sr-only">via {t.platform}</span>
-                        {/* platform icon */}
-                        {t.platform === 'linkedin' && <Linkedin className="w-4 h-4 text-[#0A66C2]" aria-hidden="true" />}
-                        {t.platform === 'x' && <X className="w-4 h-4 text-black dark:text-white" aria-hidden="true" />}
-                        {t.platform === 'facebook' && <Facebook className="w-4 h-4 text-[#1877F2]" aria-hidden="true" />}
-                        {t.platform === 'instagram' && <Instagram className="w-4 h-4 text-[#E1306C]" aria-hidden="true" />}
-                        {t.platform === 'ussd' && <MessageCircle className="w-4 h-4 text-[#16A34A]" aria-hidden="true" />}
-                        {t.platform === 'play' && <Download className="w-4 h-4 text-[#3DDC84]" aria-hidden="true" />}
+            <div className="relative">
+              <div ref={viewportRef} className="w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                <div
+                  className={[
+                    "flex will-change-transform",
+                    // Responsive + accessible motion: no animation while resizing or when user prefers reduced motion
+                    disableTransition ? "transition-none" : "transition-transform duration-500 ease-out",
+                    "motion-reduce:transition-none",
+                  ].join(" ")}
+                  style={{ transform: `translateX(-${active * viewportW}px)` }}
+                  aria-live="polite"
+                >
+                  {slides.map((t) => {
+                    const href = SOCIAL_LINKS[t.platform as keyof typeof SOCIAL_LINKS] || '#';
+                    const PlatformIcon =
+                      t.platform === 'linkedin' ? Linkedin :
+                      t.platform === 'x' ? X :
+                      t.platform === 'facebook' ? Facebook :
+                      t.platform === 'instagram' ? Instagram :
+                      t.platform === 'ussd' ? MessageCircle :
+                      Download;
 
-                        <a href={SOCIAL_LINKS[t.platform as keyof typeof SOCIAL_LINKS] || '#'} target="_blank" rel="noopener noreferrer" aria-label={`View on ${t.platform} (opens in new tab)`} className="ml-2 inline-flex items-center group relative">
-                          <Eye className="w-4 h-4 text-slate-400 group-hover:text-slate-600" aria-hidden="true" />
-                          <span className="sr-only">opens in new tab</span>
-                          {/* tooltip backgrounds per platform */}
-                          <span className={`absolute -mt-8 left-0 hidden group-hover:block group-focus:block text-white text-xs px-2 py-1 rounded ${
-                            t.platform === 'linkedin' ? 'bg-[#0A66C2]' : t.platform === 'facebook' ? 'bg-[#1877F2]' : t.platform === 'instagram' ? 'bg-[#E1306C]' : t.platform === 'play' ? 'bg-[#3DDC84]' : t.platform === 'ussd' ? 'bg-[#039e92]' : 'bg-black'
-                          }`}>View on {t.platform}</span>
-                        </a>
-                      </div>
-                      <div className="text-xs text-slate-500">{t.company ? t.company : (t.roleType ? (t.roleType.charAt(0).toUpperCase() + t.roleType.slice(1)) : '')}</div>
-                    </div>
-                  </figcaption>
-                </figure>
-              ) : null
-            )}
+                    const platformColor =
+                      t.platform === 'linkedin' ? 'text-[#0A66C2]' :
+                      t.platform === 'x' ? 'text-slate-800' :
+                      t.platform === 'facebook' ? 'text-[#1877F2]' :
+                      t.platform === 'instagram' ? 'text-[#E1306C]' :
+                      t.platform === 'play' ? 'text-[#3DDC84]' :
+                      'text-[#039e92]';
+
+                    const initials = (t.name || 'N')
+                      .split(' ')
+                      .map((p) => p.trim()[0])
+                      .filter(Boolean)
+                      .slice(0, 2)
+                      .join('')
+                      .toUpperCase();
+
+                    return (
+                      <figure
+                        key={t.name + t.title}
+                        aria-label="Testimonial"
+                        className="flex-shrink-0"
+                        // Fallback to 100% until we measure viewportW, so the first paint is still perfectly centered.
+                        style={{ width: viewportW ? `${viewportW}px` : '100%' }}
+                      >
+                        <div className="px-4 py-3 sm:px-6 sm:py-5">
+                          <div className="mx-auto max-w-4xl flex flex-col items-center text-center gap-3">
+                            <div className="flex items-center justify-center gap-2">
+                              <span className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-100">
+                                <Quote className="w-4.5 h-4.5 text-emerald-700" aria-hidden />
+                              </span>
+                              <div>
+                                <div className="text-sm font-semibold text-[#02665e] leading-tight whitespace-normal break-words">
+                                  {t.title}
+                                </div>
+                                <div className="text-xs text-slate-500 whitespace-normal break-words">
+                                  {t.company ? t.company : (t.roleType ? (t.roleType.charAt(0).toUpperCase() + t.roleType.slice(1)) : '')}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="w-full max-w-3xl text-sm text-slate-700 leading-relaxed whitespace-normal break-words">
+                              {t.snippet}
+                            </div>
+
+                            <figcaption className="flex flex-wrap items-center justify-center gap-2">
+                              <div className="flex items-center justify-center w-9 h-9 rounded-full bg-emerald-50 border border-emerald-100 text-emerald-700 font-semibold">
+                                {initials}
+                              </div>
+                              <div className="text-sm font-semibold text-slate-900 max-w-full">
+                                {t.name}
+                              </div>
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-50 border border-slate-200 text-xs text-slate-600 whitespace-nowrap">
+                                <PlatformIcon className={`w-3.5 h-3.5 ${platformColor}`} aria-hidden />
+                                <span className="capitalize">{t.platform}</span>
+                              </span>
+                              <a
+                                href={href}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                aria-label={`View on ${t.platform} (opens in new tab)`}
+                                className="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-colors"
+                              >
+                                <Eye className="w-4 h-4" aria-hidden />
+                              </a>
+                            </figcaption>
+                          </div>
+                        </div>
+                      </figure>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Overlay arrows so centering never shifts */}
+              <button
+                type="button"
+                onClick={goPrev}
+                aria-label="Previous testimonial"
+                className={[
+                  "hidden sm:inline-flex items-center justify-center",
+                  "absolute left-2 top-1/2 -translate-y-1/2",
+                  "w-10 h-10 rounded-xl border border-slate-200",
+                  "bg-white/90 backdrop-blur text-slate-700",
+                  "hover:bg-white hover:shadow-sm",
+                  "transition-all active:scale-[0.98]",
+                  "focus:outline-none focus:ring-2 focus:ring-emerald-200",
+                ].join(" ")}
+              >
+                <ChevronLeft className="w-5 h-5" aria-hidden />
+              </button>
+
+              <button
+                type="button"
+                onClick={goNext}
+                aria-label="Next testimonial"
+                className={[
+                  "hidden sm:inline-flex items-center justify-center",
+                  "absolute right-2 top-1/2 -translate-y-1/2",
+                  "w-10 h-10 rounded-xl border border-slate-200",
+                  "bg-white/90 backdrop-blur text-slate-700",
+                  "hover:bg-white hover:shadow-sm",
+                  "transition-all active:scale-[0.98]",
+                  "focus:outline-none focus:ring-2 focus:ring-emerald-200",
+                ].join(" ")}
+              >
+                <ChevronRight className="w-5 h-5" aria-hidden />
+              </button>
+            </div>
+
+            <div className="mt-3 flex items-center justify-center gap-1.5">
+              {Array.from({ length: total }).map((_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => { stop(); goTo(i); start(); }}
+                  aria-label={`Go to testimonial ${i + 1}`}
+                  className={[
+                    "w-2 h-2 rounded-full transition-all",
+                    i === active ? "bg-emerald-600 w-5" : "bg-slate-300 hover:bg-slate-400",
+                  ].join(" ")}
+                />
+              ))}
+            </div>
           </div>
         </div>
       </div>

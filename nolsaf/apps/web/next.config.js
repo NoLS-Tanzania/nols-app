@@ -28,9 +28,16 @@ const nextConfig = {
   async rewrites() {
     // Proxy common API/socket routes to the local API during development to avoid CORS issues.
     // This keeps the browser same-origin and is safe for local dev only.
+    // IMPORTANT: Next.js checks for page routes FIRST before applying rewrites.
+    // However, to be safe, we exclude known page routes from the rewrite.
     return [
       { source: '/api/:path*', destination: 'http://127.0.0.1:4000/api/:path*' },
-      { source: '/admin/:path*', destination: 'http://127.0.0.1:4000/admin/:path*' },
+      // Exclude page routes from /admin rewrite - these will be served by Next.js pages
+      // The pattern uses negative lookahead to exclude specific routes
+      { 
+        source: '/admin/:path((?!cancellations/\\d+$|bookings/\\d+$|owners/\\d+$|properties/\\d+$|revenue/\\d+$).*)', 
+        destination: 'http://127.0.0.1:4000/admin/:path*' 
+      },
       { source: '/owner/:path*', destination: 'http://127.0.0.1:4000/owner/:path*' },
       { source: '/uploads/:path*', destination: 'http://127.0.0.1:4000/uploads/:path*' },
       { source: '/webhooks/:path*', destination: 'http://127.0.0.1:4000/webhooks/:path*' },

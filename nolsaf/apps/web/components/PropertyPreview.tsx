@@ -83,7 +83,8 @@ import {
 } from "../lib/priceUtils";
 import { BATHROOM_ICONS, OTHER_AMENITIES_ICONS } from "../lib/amenityIcons";
 
-const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL });
+// Use same-origin calls + secure httpOnly cookie session.
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 // Helper functions for rooms
 function fmtMoney(amount: number | null | undefined, currency?: string | null) {
@@ -371,7 +372,6 @@ export default function PropertyPreview({
     let mounted = true;
     const load = async () => {
       try {
-        authify();
         const response = await api.get("/admin/settings");
         if (mounted && response.data?.commissionPercent !== undefined) {
           const commission = Number(response.data.commissionPercent);
@@ -426,15 +426,9 @@ export default function PropertyPreview({
     }
   }, [showShareMenu]);
 
-  function authify() {
-    const t = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-    if (t) api.defaults.headers.common["Authorization"] = `Bearer ${t}`;
-  }
-
   async function loadProperty() {
     try {
       setLoading(true);
-      authify();
       const endpoint = mode === "admin" 
         ? `/admin/properties/${propertyId}`
         : mode === "owner"
@@ -467,7 +461,6 @@ export default function PropertyPreview({
     if (!confirm("Are you sure you want to approve this property?")) return;
     try {
       setSaving(true);
-      authify();
       await api.post(`/admin/properties/${propertyId}/approve`, { note: "" });
       await loadProperty();
       onApproved?.();
@@ -486,7 +479,6 @@ export default function PropertyPreview({
     }
     try {
       setSaving(true);
-      authify();
       // Split by comma and validate each reason is at least 2 characters (matching backend validation)
       const reasons = rejectReasons.split(",").map((s) => s.trim()).filter(Boolean);
       
@@ -522,7 +514,6 @@ export default function PropertyPreview({
   async function handleSaveEdit() {
     try {
       setSaving(true);
-      authify();
       await api.patch(`/admin/properties/${propertyId}`, {
         title: editData?.title,
         description: editData?.description,
@@ -2168,7 +2159,6 @@ export default function PropertyPreview({
             
             // Also reload system commission in case it changed
             try {
-              authify();
               const response = await api.get("/admin/settings");
               if (response.data?.commissionPercent !== undefined) {
                 const commission = Number(response.data.commissionPercent);

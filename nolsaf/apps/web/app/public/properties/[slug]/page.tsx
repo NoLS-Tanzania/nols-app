@@ -552,18 +552,7 @@ export default function PublicPropertyDetailPage() {
     let mounted = true;
     const load = async () => {
       try {
-        const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-        if (!token) {
-          if (mounted) setCurrentUser(null);
-          return;
-        }
-        
-        const res = await fetch(`/api/account/me`, {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
-          credentials: "include",
-        });
+        const res = await fetch(`/api/account/me`, { credentials: "include" });
         
         if (res.ok) {
           const user = await res.json();

@@ -15,16 +15,11 @@ type UserRow = {
   isDisabled?: number | null;
 };
 
-// Use relative paths in browser to leverage Next.js rewrites (avoids CORS issues)
-const API = typeof window === 'undefined' 
-  ? (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000")
-  : '';
+const API = '';
 
 export default function Page() {
   const api = useMemo(() => {
-    const instance = axios.create({ baseURL: API });
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-    if (token) instance.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    const instance = axios.create({ baseURL: API, withCredentials: true });
     return instance;
   }, []);
   const [users, setUsers] = useState<UserRow[]>([]);

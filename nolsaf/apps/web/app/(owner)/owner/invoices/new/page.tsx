@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import { useRouter, useSearchParams } from "next/navigation";
 
-const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL });
+// Use same-origin calls + secure httpOnly cookie session.
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 export default function NewInvoice() {
   const sp = useSearchParams();
@@ -11,9 +12,6 @@ export default function NewInvoice() {
   const router = useRouter();
   const [preview, setPreview] = useState<any>(null);
   const [creating, setCreating] = useState(false);
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-  if (token) api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-
   useEffect(() => {
     if (!bookingId) return;
     api.get(`/owner/bookings/${bookingId}`).then(r => setPreview(r.data));

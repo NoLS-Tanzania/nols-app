@@ -1,0 +1,444 @@
+"use client";
+import React, { useEffect, useState } from "react";
+import axios from "axios";
+import Link from "next/link";
+import { ArrowLeft, Mail, Phone, MapPin, Calendar, User, Home, DollarSign, FileText, MessageCircle, Star, Clock, Globe, Users } from "lucide-react";
+
+const api = axios.create({ baseURL: "", withCredentials: true });
+
+type BookingDetail = {
+  id: number;
+  status: string;
+  checkIn: string;
+  checkOut: string;
+  totalAmount: number;
+  guestName?: string | null;
+  guestPhone?: string | null;
+  nationality?: string | null;
+  sex?: string | null;
+  ageGroup?: string | null;
+  roomCode?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  property?: {
+    id: number;
+    title?: string;
+    type?: string | null;
+    regionName?: string | null;
+    city?: string | null;
+    district?: string | null;
+    ward?: string | null;
+    country?: string | null;
+    owner?: {
+      id: number;
+      name?: string | null;
+      email?: string | null;
+      phone?: string | null;
+    };
+  };
+  code?: {
+    id: number;
+    codeVisible?: string | null;
+    status?: string;
+    generatedAt?: string | null;
+    usedAt?: string | null;
+    usedByOwner?: boolean | null;
+  } | null;
+  user?: {
+    id: number;
+    name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    createdAt?: string | null;
+  } | null;
+  invoices?: Array<{
+    id: number;
+    status: string;
+    total: number;
+    issuedAt: string;
+    approvedAt?: string | null;
+    paidAt?: string | null;
+    invoiceNumber?: string | null;
+    receiptNumber?: string | null;
+  }>;
+};
+
+function InfoRow({ label, value }: { label: string; value: string | number | null | undefined }) {
+  return (
+    <div>
+      <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">{label}</div>
+      <div className="font-semibold text-sm text-gray-900">{value || "—"}</div>
+    </div>
+  );
+}
+
+export default function ManagementBookingDetail({ params }: { params: { id: string } }) {
+  const id = Number(params.id);
+  const [booking, setBooking] = useState<BookingDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = React.useCallback(async () => {
+    try {
+      const r = await api.get<BookingDetail>(`/admin/bookings/${id}`);
+      setBooking(r.data);
+    } catch (err: any) {
+      console.error("Failed to load booking:", err);
+      if (err?.response?.status === 404) {
+        alert("Booking not found");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  if (loading) {
+    return (
+      <div className="p-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-gray-300 border-t-emerald-600"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!booking) {
+    return (
+      <div className="p-6">
+        <div className="text-center py-12">
+          <p className="text-gray-500 mb-4">Booking not found</p>
+          <Link
+            href="/admin/management/bookings"
+            className="text-emerald-600 hover:text-emerald-700 underline"
+          >
+            ← Back to bookings list
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  function getStatusBadgeClass(status: string) {
+    const statusLower = status.toLowerCase();
+    if (statusLower.includes('confirmed') || statusLower.includes('active')) {
+      return "inline-flex items-center px-3 py-1 rounded-full bg-green-100 text-green-800 text-sm font-medium";
+    }
+    if (statusLower.includes('pending') || statusLower.includes('new')) {
+      return "inline-flex items-center px-3 py-1 rounded-full bg-yellow-100 text-yellow-800 text-sm font-medium";
+    }
+    if (statusLower.includes('cancel')) {
+      return "inline-flex items-center px-3 py-1 rounded-full bg-red-100 text-red-800 text-sm font-medium";
+    }
+    if (statusLower.includes('check')) {
+      return "inline-flex items-center px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-sm font-medium";
+    }
+    return "inline-flex items-center px-3 py-1 rounded-full bg-gray-100 text-gray-800 text-sm font-medium";
+  }
+
+  const checkInDate = new Date(booking.checkIn);
+  const checkOutDate = new Date(booking.checkOut);
+  const nights = Math.max(0, Math.round((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24)));
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+      {/* Header */}
+      <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <Link
+              href="/admin/management/bookings"
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              title="Back to bookings list"
+            >
+              <ArrowLeft className="h-5 w-5 text-gray-600" />
+            </Link>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Booking #{booking.id}</h1>
+              <div className="flex flex-wrap items-center gap-3 mt-2">
+                <span className={getStatusBadgeClass(booking.status)}>
+                  {booking.status}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Main Content */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Property Details */}
+          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+            <div className="flex items-start gap-3 mb-4">
+              <div className="w-10 h-10 rounded-lg bg-[#02665e]/10 flex items-center justify-center flex-shrink-0">
+                <Home className="h-5 w-5 text-[#02665e]" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Property Details</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <InfoRow label="Property Name" value={booking.property?.title} />
+                  <InfoRow label="Property Type" value={booking.property?.type} />
+                  <InfoRow label="Country" value={booking.property?.country} />
+                  <InfoRow label="Region" value={booking.property?.regionName} />
+                  <InfoRow label="City" value={booking.property?.city} />
+                  <InfoRow label="District" value={booking.property?.district} />
+                  <InfoRow label="Ward" value={booking.property?.ward} />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Guest Information */}
+          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+            <div className="flex items-start gap-3 mb-4">
+              <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                <User className="h-5 w-5 text-blue-600" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Guest Information</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <InfoRow label="Full Name" value={booking.guestName || booking.user?.name} />
+                  <InfoRow label="Phone" value={booking.guestPhone || booking.user?.phone} />
+                  <InfoRow label="Email" value={booking.user?.email} />
+                  <InfoRow label="Nationality" value={booking.nationality} />
+                  <InfoRow label="Sex" value={booking.sex} />
+                  <InfoRow label="Age Group" value={booking.ageGroup} />
+                  {booking.user?.createdAt && (
+                    <div className="sm:col-span-2">
+                      <InfoRow 
+                        label="Account Created" 
+                        value={new Date(booking.user.createdAt).toLocaleString()} 
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Booking Dates and Details */}
+          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+            <div className="flex items-start gap-3 mb-4">
+              <div className="w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center flex-shrink-0">
+                <Calendar className="h-5 w-5 text-purple-600" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Booking Dates & Details</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Check-in</div>
+                    <div className="font-semibold text-sm text-gray-900">
+                      {checkInDate.toLocaleDateString()}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-0.5">
+                      {checkInDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Check-out</div>
+                    <div className="font-semibold text-sm text-gray-900">
+                      {checkOutDate.toLocaleDateString()}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-0.5">
+                      {checkOutDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                    </div>
+                  </div>
+                  <InfoRow label="Duration" value={`${nights} ${nights === 1 ? 'night' : 'nights'}`} />
+                  <InfoRow label="Room Code" value={booking.roomCode} />
+                  {booking.createdAt && (
+                    <div className="sm:col-span-2">
+                      <InfoRow 
+                        label="Booking Created" 
+                        value={new Date(booking.createdAt).toLocaleString()} 
+                      />
+                    </div>
+                  )}
+                  {booking.updatedAt && (
+                    <div className="sm:col-span-2">
+                      <InfoRow 
+                        label="Last Updated" 
+                        value={new Date(booking.updatedAt).toLocaleString()} 
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Check-in Code */}
+          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+            <div className="flex items-start gap-3 mb-4">
+              <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
+                <FileText className="h-5 w-5 text-emerald-600" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Check-in Code</h2>
+                {booking.code ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <InfoRow label="Code" value={booking.code.codeVisible} />
+                    <div>
+                      <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Status</div>
+                      <span className={getStatusBadgeClass(booking.code.status || "")}>
+                        {booking.code.status || "—"}
+                      </span>
+                    </div>
+                    {booking.code.generatedAt && (
+                      <InfoRow 
+                        label="Generated At" 
+                        value={new Date(booking.code.generatedAt).toLocaleString()} 
+                      />
+                    )}
+                    {booking.code.usedAt && (
+                      <InfoRow 
+                        label="Used At" 
+                        value={new Date(booking.code.usedAt).toLocaleString()} 
+                      />
+                    )}
+                    {booking.code.usedByOwner !== null && booking.code.usedByOwner !== undefined && (
+                      <InfoRow 
+                        label="Used By Owner" 
+                        value={booking.code.usedByOwner ? "Yes" : "No"} 
+                      />
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-sm text-gray-500">No check-in code generated yet</div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Sidebar */}
+        <div className="space-y-6">
+          {/* Amount */}
+          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+            <div className="flex items-start gap-3 mb-4">
+              <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
+                <DollarSign className="h-5 w-5 text-amber-600" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Amount</h2>
+                <div className="text-2xl font-bold text-gray-900">
+                  {new Intl.NumberFormat('en-US').format(Number(booking.totalAmount))} TZS
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Actions</h2>
+            <div className="space-y-3">
+              {(booking.user?.email || booking.guestPhone || booking.user?.phone) && (
+                <>
+                  {booking.user?.email && (
+                    <a
+                      href={`mailto:${booking.user.email}?subject=Regarding Your Booking #${booking.id}`}
+                      className="flex items-center gap-3 w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      <Mail className="h-5 w-5" />
+                      <span className="font-medium">Email Guest</span>
+                    </a>
+                  )}
+                  {(booking.guestPhone || booking.user?.phone) && (
+                    <a
+                      href={`tel:${booking.guestPhone || booking.user?.phone}`}
+                      className="flex items-center gap-3 w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      <Phone className="h-5 w-5" />
+                      <span className="font-medium">Call Guest</span>
+                    </a>
+                  )}
+                </>
+              )}
+              <Link
+                href={`/admin/management/bookings/${booking.id}/recommend`}
+                className="flex items-center gap-3 w-full px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+              >
+                <Star className="h-5 w-5" />
+                <span className="font-medium">Recommend Properties/Services</span>
+              </Link>
+            </div>
+          </div>
+
+          {/* Property Owner */}
+          {booking.property?.owner && (
+            <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Property Owner</h2>
+              <div className="space-y-2">
+                <InfoRow label="Name" value={booking.property.owner.name} />
+                {booking.property.owner.email && (
+                  <div>
+                    <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Email</div>
+                    <a
+                      href={`mailto:${booking.property.owner.email}`}
+                      className="font-semibold text-sm text-blue-600 hover:text-blue-700"
+                    >
+                      {booking.property.owner.email}
+                    </a>
+                  </div>
+                )}
+                {booking.property.owner.phone && (
+                  <div>
+                    <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Phone</div>
+                    <a
+                      href={`tel:${booking.property.owner.phone}`}
+                      className="font-semibold text-sm text-blue-600 hover:text-blue-700"
+                    >
+                      {booking.property.owner.phone}
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Invoices */}
+          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Invoices</h2>
+            {booking.invoices && booking.invoices.length > 0 ? (
+              <div className="space-y-2">
+                {booking.invoices.map((invoice) => (
+                  <div key={invoice.id} className="p-3 bg-gray-50 rounded-lg">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm font-medium text-gray-900">
+                          Invoice #{invoice.invoiceNumber || invoice.id}
+                        </div>
+                        <span className={getStatusBadgeClass(invoice.status)}>
+                          {invoice.status}
+                        </span>
+                      </div>
+                      <div className="text-xs text-gray-600 space-y-1">
+                        <div>Amount: {new Intl.NumberFormat('en-US').format(Number(invoice.total))} TZS</div>
+                        {invoice.issuedAt && (
+                          <div>Issued: {new Date(invoice.issuedAt).toLocaleString()}</div>
+                        )}
+                        {invoice.approvedAt && (
+                          <div>Approved: {new Date(invoice.approvedAt).toLocaleString()}</div>
+                        )}
+                        {invoice.paidAt && (
+                          <div>Paid: {new Date(invoice.paidAt).toLocaleString()}</div>
+                        )}
+                        {invoice.receiptNumber && (
+                          <div>Receipt: {invoice.receiptNumber}</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-sm text-gray-500">No invoices available</div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

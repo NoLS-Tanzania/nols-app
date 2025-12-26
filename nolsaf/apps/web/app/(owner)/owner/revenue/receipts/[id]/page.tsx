@@ -1,13 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
 import axios from "axios";
-const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL });
+// Use same-origin calls + secure httpOnly cookie session.
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 export default function Receipt({ params }:{ params:{ id:string }}) {
   const [data, setData] = useState<any>(null);
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
     api.get(`/owner/revenue/invoices/${params.id}/receipt`).then(r => setData(r.data));
   }, [params.id]);
 
@@ -52,7 +51,7 @@ export default function Receipt({ params }:{ params:{ id:string }}) {
         <div className="p-3">
           <div className="text-sm font-semibold mb-2">Receipt QR</div>
           <img
-            src={`${process.env.NEXT_PUBLIC_API_URL}/owner/revenue/invoices/${inv.id}/receipt/qr.png`}
+            src={`/owner/revenue/invoices/${inv.id}/receipt/qr.png`}
             alt="Receipt QR"
     className="w-40 h-40 border rounded-xl"
   />

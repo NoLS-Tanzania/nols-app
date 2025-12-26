@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 
 // Use same-origin for HTTP calls so Next.js rewrites proxy to the API in dev
-const api = axios.create({ baseURL: "" });
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 type LngLat = { lng: number; lat: number };
 
@@ -174,7 +174,6 @@ export default function DriverLiveMapCanvas({
   >([]);
   const [smoothedDriverPos, setSmoothedDriverPos] = useState<LngLat | null>(null);
   const [snappedDriverPos, setSnappedDriverPos] = useState<LngLat | null>(null);
-  const [navInfo, setNavInfo] = useState<{ instruction: string; distanceMeters?: number; durationSec?: number; type: "pickup" | "destination" } | null>(null);
   const [routeRetryNonce, setRouteRetryNonce] = useState(0);
   const [styleRevision, setStyleRevision] = useState(0);
 
@@ -371,7 +370,6 @@ export default function DriverLiveMapCanvas({
 
     const nav = meta.nav?.instruction ? { ...meta.nav, type } : null;
     if (nav) {
-      setNavInfo(nav);
       try {
         window.dispatchEvent(new CustomEvent("nols:route:nav", { detail: nav }));
       } catch {
@@ -389,8 +387,6 @@ export default function DriverLiveMapCanvas({
 
   // initial map payload
   useEffect(() => {
-    const t = localStorage.getItem("token");
-    if (t) api.defaults.headers.common["Authorization"] = `Bearer ${t}`;
     let mounted = true;
     (async () => {
       try {
@@ -854,7 +850,6 @@ export default function DriverLiveMapCanvas({
             if (Array.isArray(parsed?.metas)) setRouteMetas(parsed.metas);
             if (typeof parsed?.activeIndex === "number") setActiveRouteIndex(clamp(parsed.activeIndex, 0, 10));
             if (parsed?.nav) {
-              setNavInfo(parsed.nav);
               try {
                 window.dispatchEvent(new CustomEvent("nols:route:nav", { detail: parsed.nav }));
               } catch {
@@ -968,7 +963,7 @@ export default function DriverLiveMapCanvas({
         }
       }
     })();
-  }, [mapboxToken, driverPos, smoothedDriverPos, pickupPos, dropoffPos, tripStage, routeRetryNonce]);
+  }, [mapboxToken, driverPos, smoothedDriverPos, pickupPos, dropoffPos, tripStage, routeRetryNonce, activeRouteIndex]);
 
   // Route snapping for the displayed driver dot
   useEffect(() => {
@@ -1098,10 +1093,8 @@ export default function DriverLiveMapCanvas({
     (async () => {
       try {
         const { io } = await import("socket.io-client");
-        const token = localStorage.getItem("token");
         const base = (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000").replace(/\/$/, "");
         socket = io(base, {
-          transportOptions: { polling: { extraHeaders: { Authorization: token ? `Bearer ${token}` : undefined } } },
           transports: ["websocket"],
         });
 
@@ -1172,5 +1165,11 @@ export default function DriverLiveMapCanvas({
     );
   }
 
-  return <div ref={containerRef} className={className} />;
+  return (
+    <div 
+      ref={containerRef} 
+      className={className}
+      suppressHydrationWarning
+    />
+  );
 }

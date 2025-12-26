@@ -13,16 +13,14 @@ export default function Page() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const API = typeof window === 'undefined' 
-      ? (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000")
-      : '';
+    const API = '';
 
     async function fetchData() {
       try {
         // Fetch bookings count
         try {
           const bookingsRes = await fetch(`${API}/admin/bookings?page=1&pageSize=1`, {
-            headers: { "x-role": "ADMIN" }
+            credentials: "include",
           });
           if (bookingsRes.ok) {
             const contentType = bookingsRes.headers.get("content-type");
@@ -38,7 +36,7 @@ export default function Page() {
         // Fetch properties count
         try {
           const propsRes = await fetch(`${API}/admin/properties?page=1&pageSize=1`, {
-            headers: { "x-role": "ADMIN" }
+            credentials: "include",
           });
           if (propsRes.ok) {
             const contentType = propsRes.headers.get("content-type");
@@ -54,7 +52,7 @@ export default function Page() {
         // Fetch online users by role
         try {
           const summaryRes = await fetch(`${API}/admin/summary`, {
-            headers: { "x-role": "ADMIN" }
+            credentials: "include",
           });
           if (summaryRes.ok) {
             const contentType = summaryRes.headers.get("content-type");

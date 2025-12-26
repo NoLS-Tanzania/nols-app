@@ -7,8 +7,7 @@ import Link from "next/link";
 import Chart from "@/components/Chart";
 import type { ChartData } from "chart.js";
 
-const api = axios.create({ baseURL: "" });
-function authify(){ const t = typeof window!=="undefined" ? localStorage.getItem("token"):null; if(t) api.defaults.headers.common["Authorization"]=`Bearer ${t}`;}
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 type CustomerRow = {
   id: number;
@@ -50,7 +49,6 @@ export default function AdminUsersListPage(){
   const load = useCallback(async ()=>{
     setLoading(true);
     try {
-      authify();
       const r = await api.get<{ data: CustomerRow[]; meta: { total: number } }>('/admin/users', { params: { q, status, page, perPage: pageSize, role } });
       setItems(r.data.data || []); 
       setTotal(r.data.meta?.total || 0);
@@ -78,7 +76,7 @@ export default function AdminUsersListPage(){
     }
   }, [q, status, page, role]);
 
-  useEffect(()=>{ authify(); load(); }, [load]);
+  useEffect(()=>{ load(); }, [load]);
 
   useEffect(()=>{
     const term = q; 
@@ -89,7 +87,6 @@ export default function AdminUsersListPage(){
     const t = setTimeout(()=>{ 
       (async ()=>{
         try{ 
-          authify(); 
           const r = await api.get<{ data: CustomerRow[] }>("/admin/users", { params: { status, q: term, page:1, perPage:5, role } }); 
           setSuggestions(r.data.data ?? []); 
         } catch(e){ 
@@ -101,12 +98,10 @@ export default function AdminUsersListPage(){
   }, [q, status, role]);
 
   useEffect(()=>{ 
-    authify(); 
     const url = typeof window !== 'undefined'
       ? (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000")
       : (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "");
-    const token = typeof window!=="undefined" ? localStorage.getItem("token"):null; 
-    const s: Socket = io(url, { transports:['websocket'], auth: token? { token } : undefined }); 
+    const s: Socket = io(url, { transports:['websocket'] }); 
     s.on("admin:user:updated", load); 
     return ()=>{ s.off("admin:user:updated", load); s.disconnect(); }; 
   }, [load]);
@@ -140,7 +135,6 @@ export default function AdminUsersListPage(){
     if (!confirm("Are you sure you want to reset 2FA for this customer?")) return;
     setActionLoading(customerId);
     try {
-      authify();
       await api.patch(`/admin/users/${customerId}`, { reset2FA: true });
       await load();
       setShowActionsMenu(null);
@@ -156,7 +150,6 @@ export default function AdminUsersListPage(){
     if (!confirm("Are you sure you want to suspend this customer?")) return;
     setActionLoading(customerId);
     try {
-      authify();
       // Using disable endpoint if suspend endpoint doesn't exist
       await api.patch(`/admin/users/${customerId}`, { disable: true });
       await load();

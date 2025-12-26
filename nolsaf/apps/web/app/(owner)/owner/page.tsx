@@ -47,10 +47,6 @@ export default function OwnerPage() {
   useEffect(() => {
     const n = readOwnerName();
     if (n) setOwnerName(n);
-    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-    const api = axios.create({ baseURL: "" });
-    if (token) api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-
     // Intentionally keep charts empty until real data is provided by API.
   }, []);
 

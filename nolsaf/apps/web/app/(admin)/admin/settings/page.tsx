@@ -5,13 +5,13 @@ import { useCallback, useEffect, useState } from "react";
 import axios from "axios";
 
 // Use same-origin relative paths so Next.js rewrites proxy to the API in dev
-const api = axios.create({ baseURL: "" });
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 export default function AdminSettings() {
   const [s,setS]=useState<any>(null);
   const [tab,setTab]=useState<"financial"|"numbering"|"branding"|"notifications"|"security"|"users">("financial");
 
-  useEffect(()=>{ const t=localStorage.getItem("token"); if(t) api.defaults.headers.common["Authorization"]=`Bearer ${t}`; api.get("/admin/settings").then(r=>setS(r.data)); },[]);
+  useEffect(()=>{ api.get("/admin/settings").then(r=>setS(r.data)); },[]);
   const save = async () => { await api.put("/admin/settings", s); alert("Saved"); };
 
   if (!s) return <div>Loading...</div>;

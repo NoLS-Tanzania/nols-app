@@ -7,7 +7,7 @@ import { useSocket } from "@/hooks/useSocket";
 import ToastContainer from "@/components/ToastContainer";
 import { io, Socket } from "socket.io-client";
 
-const api = axios.create({ baseURL: "" });
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 interface ReferralData {
   referralCode: string;
@@ -149,35 +149,31 @@ export default function DriverReferral() {
     };
   }, []);
 
-  // Fetch user ID from token
+  // Fetch user id from secure cookie session
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) {
+    let mounted = true;
+    (async () => {
       try {
-        const decoded = JSON.parse(atob(token.split('.')[1]));
-        setUserId(decoded.id || decoded.userId);
-      } catch (e) {
-        console.warn("Failed to decode token", e);
+        const r = await fetch("/api/account/me", { credentials: "include" });
+        if (!mounted) return;
+        if (!r.ok) return;
+        const me = await r.json();
+        if (me?.id) setUserId(me.id);
+      } catch {
+        // ignore
       }
-    }
+    })();
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   // Fetch referral data
   const fetchReferralData = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem("token");
-      
-      if (!token) {
-        setError("Please log in to view your referral information");
-        setLoading(false);
-        return;
-      }
-
       // Fetch referral data from API
-      const response = await api.get("/api/driver/referral", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await api.get("/api/driver/referral");
 
       if (response.status === 200 && response.data) {
         setReferralData(response.data);
@@ -191,11 +187,10 @@ export default function DriverReferral() {
         setError("Please log in to view your referral information");
       } else if (err.response?.status === 404) {
         // If no referral data exists, create default structure
-        const token = localStorage.getItem("token");
-        const userId = token ? JSON.parse(atob(token.split('.')[1])).id : null;
+        const id = userId ?? null;
         setReferralData({
-          referralCode: userId ? `DRIVER-${userId.toString().slice(-6).toUpperCase()}` : 'DRIVER-XXXXXX',
-          referralLink: typeof window !== 'undefined' ? `${window.location.origin}/register?ref=${userId ? `DRIVER-${userId.toString().slice(-6).toUpperCase()}` : 'XXXXXX'}` : '',
+          referralCode: id ? `DRIVER-${id.toString().slice(-6).toUpperCase()}` : 'DRIVER-XXXXXX',
+          referralLink: typeof window !== 'undefined' ? `${window.location.origin}/register?ref=${id ? `DRIVER-${id.toString().slice(-6).toUpperCase()}` : 'XXXXXX'}` : '',
           totalReferrals: 0,
           activeReferrals: 0,
           totalCredits: 0,
@@ -221,12 +216,7 @@ export default function DriverReferral() {
   const fetchEarnings = async () => {
     try {
       setLoadingEarnings(true);
-      const token = localStorage.getItem("token");
-      if (!token) return;
-
-      const response = await api.get("/api/driver/referral-earnings", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await api.get("/api/driver/referral-earnings");
 
       if (response.data) {
         setEarnings(response.data.earnings || []);
@@ -249,12 +239,7 @@ export default function DriverReferral() {
   const fetchWithdrawals = async () => {
     try {
       setLoadingWithdrawals(true);
-      const token = localStorage.getItem("token");
-      if (!token) return;
-
-      const response = await api.get("/api/driver/referral-earnings/withdrawals", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await api.get("/api/driver/referral-earnings/withdrawals");
 
       if (response.data) {
         setWithdrawals(response.data.withdrawals || []);
@@ -270,16 +255,9 @@ export default function DriverReferral() {
   const applyWithdrawal = async () => {
     try {
       setWithdrawLoading(true);
-      const token = localStorage.getItem("token");
-      if (!token) return;
-
       const amount = withdrawAmount ? Number(withdrawAmount) : undefined;
 
-      const response = await api.post(
-        "/api/driver/referral-earnings/apply-withdrawal",
-        { amount },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const response = await api.post("/api/driver/referral-earnings/apply-withdrawal", { amount });
 
       if (response.data.success) {
         setShowWithdrawModal(false);
@@ -315,13 +293,11 @@ export default function DriverReferral() {
     if (typeof window === "undefined") return;
 
     const url = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000";
-    const token = localStorage.getItem("token");
     
     const socket = io(url, {
       transports: ["websocket"],
       autoConnect: true,
       reconnection: true,
-      auth: token ? { token } : undefined,
     });
 
     socketRef.current = socket;
@@ -332,8 +308,12 @@ export default function DriverReferral() {
         const perfRes = await api.get("/api/driver/referral/performance").catch(() => null);
         if (perfRes?.data?.driver?.id) {
           socket.emit("join-driver-room", { driverId: perfRes.data.driver.id });
-        } else if (userId) {
-          socket.emit("join-driver-room", { driverId: userId });
+        } else {
+          try {
+            const meRes = await fetch("/api/account/me", { credentials: "include" });
+            const me = meRes.ok ? await meRes.json() : null;
+            if (me?.id) socket.emit("join-driver-room", { driverId: me.id });
+          } catch {}
         }
       } catch (e) {
         console.warn("Failed to join driver room", e);

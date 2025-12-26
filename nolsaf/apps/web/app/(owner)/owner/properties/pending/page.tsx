@@ -3,20 +3,14 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import { Hourglass, Edit, AlertCircle, FileText } from "lucide-react";
 import { useRouter } from "next/navigation";
-// Ensure API requests hit the correct JSON endpoint
-const baseURL =
-  typeof window !== "undefined" && (process.env.NEXT_PUBLIC_API_URL || window.location.origin)
-    ? (process.env.NEXT_PUBLIC_API_URL as string) || window.location.origin
-    : process.env.NEXT_PUBLIC_API_URL || "";
-const api = axios.create({ baseURL, responseType: "json" });
+// Use same-origin requests + secure httpOnly cookie session
+const api = axios.create({ baseURL: "", withCredentials: true, responseType: "json" });
 
 export default function PendingProps() {
   const router = useRouter();
   const [list, setList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [minWaitElapsed, setMinWaitElapsed] = useState(false);
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-  if (token) api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
   useEffect(() => {
     let mounted = true;
@@ -24,8 +18,8 @@ export default function PendingProps() {
 
     // Fetch both PENDING and DRAFT so users can find saved drafts here too
     Promise.all([
-      api.get<{ items: any[] }>("/owner/properties/mine", { params: { status: "PENDING", pageSize: 50 } }),
-      api.get<{ items: any[] }>("/owner/properties/mine", { params: { status: "DRAFT", pageSize: 50 } }),
+      api.get<{ items: any[] }>("/api/owner/properties/mine", { params: { status: "PENDING", pageSize: 50 } }),
+      api.get<{ items: any[] }>("/api/owner/properties/mine", { params: { status: "DRAFT", pageSize: 50 } }),
     ])
       .then(([pending, draft]) => {
         if (!mounted) return;

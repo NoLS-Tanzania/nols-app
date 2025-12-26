@@ -3,6 +3,52 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ---------- Public: Supported payments strip ---------- */
+@keyframes nols-pay-strip-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes nols-pay-sheen {
+  0% { transform: translateX(-140%) skewX(-16deg); opacity: 0; }
+  15% { opacity: 0.9; }
+  100% { transform: translateX(140%) skewX(-16deg); opacity: 0; }
+}
+
+.nols-pay-strip {
+  background: linear-gradient(135deg, rgba(2,102,94,0.08), rgba(59,130,246,0.06), rgba(2,102,94,0.08));
+  background-size: 220% 220%;
+  animation: nols-pay-strip-shift 8s ease-in-out infinite;
+}
+
+.nols-pay-tile {
+  position: relative;
+  overflow: hidden;
+  transform: translateZ(0);
+}
+
+.nols-pay-tile::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.65) 50%, transparent 100%);
+  transform: translateX(-140%) skewX(-16deg);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.nols-pay-tile:hover::before,
+.nols-pay-tile:focus-visible::before {
+  animation: nols-pay-sheen 700ms cubic-bezier(.2,.8,.2,1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nols-pay-strip { animation: none !important; }
+  .nols-pay-tile:hover::before,
+  .nols-pay-tile:focus-visible::before { animation: none !important; }
+}
+
 /* Hide scrollbar but keep functionality */
 .scrollbar-hide {
   -ms-overflow-style: none;  /* IE and Edge */
@@ -96,6 +142,14 @@
    Apply the filter ONCE (canvas only) to avoid double-dimming. */
 #driver-live-map[data-map-theme="dark"][data-map-layer="satellite"] canvas.mapboxgl-canvas {
   filter: brightness(0.90) contrast(1.12) saturate(1.02);
+}
+
+/* Hide Mapbox attribution by default - will be shown via toggle button */
+#driver-live-map .mapboxgl-ctrl-attrib {
+  display: none !important;
+}
+#driver-live-map .mapboxgl-ctrl-logo {
+  display: none !important;
 }
 
 /* ---------- Globals ---------- */

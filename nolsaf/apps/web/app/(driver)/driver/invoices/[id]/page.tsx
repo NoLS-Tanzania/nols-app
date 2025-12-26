@@ -19,10 +19,7 @@ export default function InvoiceDetailPage() {
     ;(async () => {
       setLoading(true)
       try {
-        const token = typeof window !== "undefined" ? localStorage.getItem("token") : null
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/driver/invoices/${id}`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        })
+        const res = await fetch(`/api/driver/invoices/${id}`, { credentials: "include" })
         if (!res.ok) {
           // invoice not found on server
           setInvoice(null)
@@ -46,9 +43,9 @@ export default function InvoiceDetailPage() {
   const handleDownload = async () => {
     if (!invoice) return
     try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null
-      const downloadUrl = invoice.download_url || `${process.env.NEXT_PUBLIC_API_URL}/driver/invoices/${id}/download`
-      const res = await fetch(downloadUrl, { headers: token ? { Authorization: `Bearer ${token}` } : undefined })
+      const downloadUrl = invoice.download_url || invoice.pdf_url || invoice.preview_url || invoice.file_url
+      if (!downloadUrl) throw new Error("No download url")
+      const res = await fetch(downloadUrl, { credentials: "include" })
       if (!res.ok) throw new Error("Download failed")
       const blob = await res.blob()
       const filename = invoice.filename || `invoice-${invoice.invoice_number || id}.pdf`
@@ -109,16 +106,13 @@ export default function InvoiceDetailPage() {
 
   
 
-  // Attempt to fetch the preview as an authenticated blob (if token is present).
+  // Attempt to fetch the preview as an authenticated blob (cookie session).
   useEffect(() => {
     let cancelled = false
     const loadPreview = async () => {
       if (!previewUrl) return
       try {
-        const token = typeof window !== "undefined" ? localStorage.getItem("token") : null
-        const headers: any = {}
-        if (token) headers["Authorization"] = `Bearer ${token}`
-        const res = await fetch(previewUrl, { headers })
+        const res = await fetch(previewUrl, { credentials: "include" })
         if (!res.ok) throw new Error("preview fetch failed")
         const blob = await res.blob()
         const url = URL.createObjectURL(blob)
@@ -176,7 +170,7 @@ export default function InvoiceDetailPage() {
         </div>
       </div>
 
-  <section className="mx-auto max-w-3xl bg-white rounded-lg p-6 border print-invoice">
+      <section className="mx-auto max-w-3xl bg-white rounded-lg p-6 border print-invoice">
         {sentNotice && (
           <div className="mb-4 rounded-md bg-amber-50 border border-amber-100 p-3 text-amber-800">
             {sentNotice}

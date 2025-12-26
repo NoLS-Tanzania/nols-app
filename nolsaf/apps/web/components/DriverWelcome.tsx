@@ -6,23 +6,18 @@ import RefreshButton from "@/components/RefreshButton";
 import { Calendar, DollarSign, Star } from 'lucide-react';
 import DriverAvailabilitySwitch from "@/components/DriverAvailabilitySwitch";
 
-const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL });
+// Use same-origin calls + secure httpOnly cookie session.
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 export default function DriverWelcome({ className }: { className?: string }) {
   // me === undefined -> loading; null -> not authenticated / fallback; object -> user
   const [me, setMe] = useState<any | null | undefined>(undefined);
 
   useEffect(() => {
-    try {
-      const t = localStorage.getItem("token");
-      if (t) api.defaults.headers.common["Authorization"] = `Bearer ${t}`;
-      api
-        .get("/account/me")
-        .then((r) => setMe(r.data))
-        .catch(() => setMe(null));
-    } catch (err) {
-      setMe(null);
-    }
+    api
+      .get("/api/account/me")
+      .then((r) => setMe(r.data))
+      .catch(() => setMe(null));
   }, []);
 
   const name = me && (me.fullName || me.email) ? (me.fullName || me.email) : "Driver";
@@ -84,13 +79,11 @@ export default function DriverWelcome({ className }: { className?: string }) {
     let cancelled = false;
     (async () => {
       try {
-        const t = localStorage.getItem("token");
-        if (t) api.defaults.headers.common["Authorization"] = `Bearer ${t}`;
         // Request stats for today (some APIs accept a date param). Use ISO date (YYYY-MM-DD).
         const today = new Date();
         const isoDate = today.toISOString().slice(0, 10);
         // best-effort endpoint; if it doesn't exist the request will fail and we'll keep defaults
-        const res = await api.get(`/driver/stats?date=${isoDate}`);
+        const res = await api.get(`/api/driver/stats?date=${isoDate}`);
         if (cancelled) return;
         const data = res.data || {};
         setStats({

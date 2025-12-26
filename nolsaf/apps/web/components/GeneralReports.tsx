@@ -193,10 +193,8 @@ export default function GeneralReports() {
   // Fetch from API when region/timeframe/group change
   useEffect(() => {
     const { from, to } = timeframeToRange(timeframe as string);
-    // Use relative paths in browser to leverage Next.js rewrites (avoids CORS issues)
-    const base = typeof window === 'undefined' 
-      ? (process.env.NEXT_PUBLIC_API_URL || '')
-      : '';
+    // Always use same-origin paths (Next rewrites proxy to API in dev).
+    const base = '';
 
     async function load() {
       try {
@@ -216,24 +214,24 @@ export default function GeneralReports() {
           return response.json();
         };
 
-        const r1 = await fetch(`${base}/admin/stats/revenue-series${qs}`, { headers: { 'x-role': 'ADMIN' } });
+        const r1 = await fetch(`${base}/admin/stats/revenue-series${qs}`, { credentials: "include" });
         const rev = await safeJsonParse(r1);
         setRevenueSeries(rev || { labels: [], data: [] });
 
-        const r2 = await fetch(`${base}/admin/stats/active-properties-series${qs}`, { headers: { 'x-role': 'ADMIN' } });
+        const r2 = await fetch(`${base}/admin/stats/active-properties-series${qs}`, { credentials: "include" });
         const ap = await safeJsonParse(r2);
         setActivePropsSeries(ap || { labels: [], data: [] });
 
-        const r3 = await fetch(`${base}/admin/stats/revenue-by-type${qs}`, { headers: { 'x-role': 'ADMIN' } });
+        const r3 = await fetch(`${base}/admin/stats/revenue-by-type${qs}`, { credentials: "include" });
         const rbt = await safeJsonParse(r3);
         setRevenueByType(rbt || { labels: [], data: [] });
 
         const q2 = `?groupBy=${encodeURIComponent(groupBy)}&region=${encodeURIComponent(region)}`;
-        const r4 = await fetch(`${base}/admin/stats/active-properties-breakdown${q2}`, { headers: { 'x-role': 'ADMIN' } });
+        const r4 = await fetch(`${base}/admin/stats/active-properties-breakdown${q2}`, { credentials: "include" });
         const apb = await safeJsonParse(r4);
         setActivePropsBreakdown(apb || { labels: [], data: [] });
 
-        const r5 = await fetch(`${base}/admin/stats/invoice-status?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, { headers: { 'x-role': 'ADMIN' } });
+        const r5 = await fetch(`${base}/admin/stats/invoice-status?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, { credentials: "include" });
         const invs = await safeJsonParse(r5);
         setInvoiceStatusCounts(invs || {});
       } catch (err: any) {

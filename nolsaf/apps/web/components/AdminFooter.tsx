@@ -14,7 +14,11 @@ export default function AdminFooter() {
           <ul className="flex flex-wrap items-center justify-center gap-6 text-sm">
             <li><a role="button" onClick={() => window.dispatchEvent(new CustomEvent('open-legal', { detail: { type: 'terms' } }))} className="text-[#02665e] font-semibold no-underline hover:no-underline">Terms of Service</a></li>
             <li><a role="button" onClick={() => window.dispatchEvent(new CustomEvent('open-legal', { detail: { type: 'privacy' } }))} className="text-[#02665e] font-semibold no-underline hover:no-underline">Privacy Policy</a></li>
-            <li><a role="button" onClick={() => window.dispatchEvent(new CustomEvent('open-legal', { detail: { type: 'security' } }))} className="text-[#02665e] font-semibold no-underline hover:no-underline">Security Policy</a></li>
+            <li><a className="text-[#02665e] font-semibold no-underline hover:no-underline" href="/cookies-policy">Cookies Policy</a></li>
+            <li><a className="text-[#02665e] font-semibold no-underline hover:no-underline" href="/verification-policy">Verification Policy</a></li>
+            <li><a className="text-[#02665e] font-semibold no-underline hover:no-underline" href="/cancellation-policy">Cancellation Policy</a></li>
+            <li><a className="text-[#02665e] font-semibold no-underline hover:no-underline" href="/driver-disbursement-policy">Driver Disbursement Policy</a></li>
+            <li><a className="text-[#02665e] font-semibold no-underline hover:no-underline" href="/property-owner-disbursement-policy">Property Owner Disbursement Policy</a></li>
             <li><a className="text-[#02665e] font-semibold no-underline hover:no-underline" href="/docs">Docs</a></li>
             <li><a className="text-[#02665e] font-semibold no-underline hover:no-underline" href="/version">v0.1.0</a></li>
           </ul>

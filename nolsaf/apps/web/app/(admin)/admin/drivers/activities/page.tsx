@@ -4,11 +4,8 @@ import { Activity, Truck, UserPlus, Award, Trophy, Calendar, FileText,  ArrowRig
 import Link from "next/link";
 import axios from "axios";
 
-const api = axios.create({ baseURL: "" });
-function authify() {
-  const t = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-  if (t) api.defaults.headers.common["Authorization"] = `Bearer ${t}`;
-}
+const api = axios.create({ baseURL: "", withCredentials: true });
+function authify() {}
 
 type Driver = {
   id: number;

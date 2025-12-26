@@ -43,10 +43,7 @@ export default function UpdatesPage() {
   const loadUpdates = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem("token");
-      const res = await api.get("/api/admin/updates", {
-        headers: { Authorization: `Bearer ${token}`, "x-role": "ADMIN" },
-      });
+      const res = await api.get("/api/admin/updates", { withCredentials: true });
       setUpdates(res.data?.items || []);
     } catch (err: any) {
       console.error("Failed to load updates:", err);
@@ -160,7 +157,6 @@ export default function UpdatesPage() {
     setSuccess(null);
 
     try {
-      const token = localStorage.getItem("token");
       const fd = new FormData();
       fd.append("title", formData.title);
       fd.append("content", formData.content);
@@ -174,19 +170,17 @@ export default function UpdatesPage() {
       if (editingId) {
         await api.put(`/api/admin/updates/${editingId}`, fd, {
           headers: {
-            Authorization: `Bearer ${token}`,
-            "x-role": "ADMIN",
             "Content-Type": "multipart/form-data",
           },
+          withCredentials: true,
         });
         setSuccess("Update updated successfully!");
       } else {
         await api.post("/api/admin/updates", fd, {
           headers: {
-            Authorization: `Bearer ${token}`,
-            "x-role": "ADMIN",
             "Content-Type": "multipart/form-data",
           },
+          withCredentials: true,
         });
         setSuccess("Update created successfully!");
       }
@@ -204,10 +198,7 @@ export default function UpdatesPage() {
     if (!confirm("Are you sure you want to delete this update?")) return;
 
     try {
-      const token = localStorage.getItem("token");
-      await api.delete(`/api/admin/updates/${id}`, {
-        headers: { Authorization: `Bearer ${token}`, "x-role": "ADMIN" },
-      });
+      await api.delete(`/api/admin/updates/${id}`, { withCredentials: true });
       setSuccess("Update deleted successfully!");
       loadUpdates();
     } catch (err: any) {

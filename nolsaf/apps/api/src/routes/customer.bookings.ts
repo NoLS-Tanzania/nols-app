@@ -12,7 +12,7 @@ router.use(requireAuth as RequestHandler);
  * Get all bookings for the authenticated customer
  * Query params: status, page, pageSize
  */
-router.get("/", async (req: AuthedRequest, res) => {
+router.get("/", (async (req: AuthedRequest, res) => {
   try {
     const userId = req.user!.id;
     const { status, page = "1", pageSize = "20" } = req.query as any;
@@ -51,7 +51,7 @@ router.get("/", async (req: AuthedRequest, res) => {
               issuedAt: true,
             },
           },
-          invoice: {
+          invoices: {
             select: {
               id: true,
               invoiceNumber: true,
@@ -61,6 +61,8 @@ router.get("/", async (req: AuthedRequest, res) => {
               netPayable: true,
               paidAt: true,
             },
+            take: 1,
+            orderBy: { createdAt: "desc" },
           },
         },
         orderBy: { createdAt: "desc" },
@@ -75,7 +77,8 @@ router.get("/", async (req: AuthedRequest, res) => {
     const bookingsWithValidity = bookings.map((booking) => {
       const checkOut = new Date(booking.checkOut);
       const isValid = checkOut >= now && booking.status !== "CANCELED";
-      const isPaid = booking.invoice?.status === "PAID";
+      const invoice = booking.invoices?.[0] || null;
+      const isPaid = invoice?.status === "PAID";
       
       return {
         id: booking.id,
@@ -91,7 +94,7 @@ router.get("/", async (req: AuthedRequest, res) => {
         isPaid,
         bookingCode: booking.code?.code || null,
         codeStatus: booking.code?.status || null,
-        invoice: booking.invoice,
+        invoice: invoice,
         createdAt: booking.createdAt,
         updatedAt: booking.updatedAt,
       };
@@ -107,13 +110,13 @@ router.get("/", async (req: AuthedRequest, res) => {
     console.error("GET /customer/bookings error:", error);
     return res.status(500).json({ error: "Failed to fetch bookings" });
   }
-});
+}) as RequestHandler);
 
 /**
  * GET /api/customer/bookings/:id
  * Get detailed booking information including full details
  */
-router.get("/:id", async (req: AuthedRequest, res) => {
+router.get("/:id", (async (req: AuthedRequest, res) => {
   try {
     const userId = req.user!.id;
     const bookingId = Number(req.params.id);
@@ -137,7 +140,10 @@ router.get("/:id", async (req: AuthedRequest, res) => {
           },
         },
         code: true,
-        invoice: true,
+        invoices: {
+          take: 1,
+          orderBy: { createdAt: "desc" },
+        },
         user: {
           select: {
             id: true,
@@ -157,7 +163,8 @@ router.get("/:id", async (req: AuthedRequest, res) => {
     const now = new Date();
     const checkOut = new Date(booking.checkOut);
     const isValid = checkOut >= now && booking.status !== "CANCELED";
-    const isPaid = booking.invoice?.status === "PAID";
+    const invoice = (booking as any).invoices?.[0] || null;
+    const isPaid = invoice?.status === "PAID";
 
     return res.json({
       ...booking,
@@ -168,13 +175,13 @@ router.get("/:id", async (req: AuthedRequest, res) => {
     console.error("GET /customer/bookings/:id error:", error);
     return res.status(500).json({ error: "Failed to fetch booking" });
   }
-});
+}) as RequestHandler);
 
 /**
  * GET /api/customer/bookings/:id/pdf
  * Generate and download PDF reservation form for a booking
  */
-router.get("/:id/pdf", async (req: AuthedRequest, res) => {
+router.get("/:id/pdf", (async (req: AuthedRequest, res) => {
   try {
     const userId = req.user!.id;
     const bookingId = Number(req.params.id);
@@ -187,7 +194,10 @@ router.get("/:id/pdf", async (req: AuthedRequest, res) => {
       include: {
         property: true,
         code: true,
-        invoice: true,
+        invoices: {
+          take: 1,
+          orderBy: { createdAt: "desc" },
+        },
         user: {
           select: {
             name: true,
@@ -201,14 +211,43 @@ router.get("/:id/pdf", async (req: AuthedRequest, res) => {
       return res.status(404).json({ error: "Booking not found" });
     }
 
-    if (!booking.code || booking.code.status !== "ACTIVE") {
-      return res.status(400).json({ error: "Booking code not available or already used" });
+    // Allow generating PDF for both valid and expired bookings as long as a booking code exists.
+    // (Expired means after checkout; code may have been USED.)
+    if (!booking.code?.code) {
+      return res.status(400).json({ error: "Booking code not available" });
     }
 
     // Prepare booking details for PDF
-    const bookingDetails = {
+    const invoice = booking.invoices?.[0] || null;
+    const bookingDetails: {
+      bookingId: number;
+      bookingCode: string;
+      guestName: string;
+      guestPhone?: string;
+      nationality?: string;
+      property: {
+        title: string;
+        type: string;
+        regionName?: string;
+        district?: string;
+        city?: string;
+        country: string;
+      };
+      checkIn: Date;
+      checkOut: Date;
+      roomType?: string;
+      rooms?: number;
+      totalAmount: number;
+      services?: any;
+      invoice?: {
+        invoiceNumber?: string;
+        receiptNumber?: string;
+        paidAt?: Date;
+      };
+      nights: number;
+    } = {
       bookingId: booking.id,
-      bookingCode: booking.code.code,
+      bookingCode: booking.code!.code,
       guestName: booking.guestName || booking.user?.name || "Guest",
       guestPhone: booking.guestPhone || booking.user?.phone || undefined,
       nationality: booking.nationality || undefined,
@@ -226,11 +265,12 @@ router.get("/:id/pdf", async (req: AuthedRequest, res) => {
       rooms: (booking as any).rooms || undefined,
       totalAmount: Number(booking.totalAmount || 0),
       services: (booking as any).services || undefined,
-      invoice: booking.invoice ? {
-        invoiceNumber: booking.invoice.invoiceNumber || undefined,
-        receiptNumber: booking.invoice.receiptNumber || undefined,
-        paidAt: booking.invoice.paidAt || undefined,
+      invoice: invoice ? {
+        invoiceNumber: invoice.invoiceNumber || undefined,
+        receiptNumber: invoice.receiptNumber || undefined,
+        paidAt: invoice.paidAt || undefined,
       } : undefined,
+      nights: 0, // Will be calculated below
     };
 
     // Calculate nights
@@ -252,6 +292,6 @@ router.get("/:id/pdf", async (req: AuthedRequest, res) => {
     console.error("GET /customer/bookings/:id/pdf error:", error);
     return res.status(500).json({ error: "Failed to generate PDF" });
   }
-});
+}) as RequestHandler);
 
 export default router;

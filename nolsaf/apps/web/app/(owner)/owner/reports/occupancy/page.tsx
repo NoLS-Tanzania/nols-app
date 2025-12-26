@@ -3,12 +3,12 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import ReportsFilter, { ReportsFilters } from "../../../../../components/ReportsFilter";
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, BarChart, Bar } from "recharts";
-const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL });
+// Use same-origin calls + secure httpOnly cookie session.
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 export default function Occupancy() {
   const [filters, setFilters] = useState<ReportsFilters | null>(null);
   const [data, setData] = useState<any>(null);
-  useEffect(()=>{ const t=localStorage.getItem("token"); if(t) api.defaults.headers.common["Authorization"]=`Bearer ${t}`;},[]);
   useEffect(()=>{ if(!filters) return; api.get("/owner/reports/occupancy",{params:filters}).then(r=>setData(r.data));},[filters]);
 
   return (

@@ -4,11 +4,8 @@ import { Award, Plus, Edit, Trash2, Image as ImageIcon, ExternalLink, X, Loader2
 import axios from "axios";
 
 // Use same-origin for HTTP calls so Next.js rewrites proxy to the API
-const api = axios.create({ baseURL: "" });
-function authify() {
-  const t = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-  if (t) api.defaults.headers.common["Authorization"] = `Bearer ${t}`;
-}
+const api = axios.create({ baseURL: "", withCredentials: true });
+function authify() {}
 
 // Helper to get API path with /api prefix
 function getApiPath(path: string): string {
@@ -154,10 +151,7 @@ export default function AdminTrustPartnersPage() {
       authify();
       
       // Get Cloudinary signature
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-      const sig = await axios.get(`/uploads/cloudinary/sign?folder=trust-partners`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      });
+      const sig = await api.get(`/uploads/cloudinary/sign?folder=trust-partners`);
       
       const sigData = sig.data;
 

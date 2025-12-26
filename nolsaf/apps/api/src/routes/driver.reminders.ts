@@ -88,10 +88,12 @@ router.post("/:id/read", requireAuth as any, async (req, res) => {
   const id = req.params.id;
   try {
     if (!(prisma as any).driverReminder) return res.status(501).json({ error: 'Reminders not enabled' });
-    const rec = await (prisma as any).driverReminder.findUnique({ where: { id: String(id) } });
+    const reminderId = Number(id);
+    if (isNaN(reminderId)) return res.status(400).json({ error: 'Invalid reminder ID' });
+    const rec = await (prisma as any).driverReminder.findUnique({ where: { id: reminderId } });
     if (!rec) return res.status(404).json({ error: 'Not found' });
     if (rec.driverId !== Number(user.id) && (user.role || '').toUpperCase() !== 'ADMIN') return res.status(403).json({ error: 'Forbidden' });
-    const updated = await (prisma as any).driverReminder.update({ where: { id: String(id) }, data: { read: true } });
+    const updated = await (prisma as any).driverReminder.update({ where: { id: reminderId }, data: { read: true } });
     return res.json(updated);
   } catch (e) {
     console.warn('driver.reminders: failed to mark read', e);

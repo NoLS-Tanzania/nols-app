@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import React from "react";
 import { User, ChevronRight, ChevronLeft, X, Globe, Truck, Home, Wrench, DollarSign } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, FormEvent, useMemo } from "react";
 import { createPortal } from 'react-dom';
@@ -113,7 +114,7 @@ export default function Page() {
       src: '/assets/nolsaf%20picture%203.jpg',
       alt: 'City stay with skyline views',
       title: 'City Stays, Local Comfort',
-      subtitle: 'Comfortable apartments and boutique hotels across cities — book accommodation and secure rides to your doorstep.',
+      subtitle: 'Book accommodation and secure rides to your doorstep.',
       ctaLabel: 'Browse city stays',
       ctaHref: '/public/properties?type=city',
     },
@@ -422,21 +423,86 @@ export default function Page() {
     const styleId = 'nolsaf-hero-animations';
     if (!document.getElementById(styleId)) {
         const css = `
-        .hero-title { display: inline-block; }
-        .hero-title span { background-color: rgba(0,0,0,0); animation: boxFill 420ms ease forwards; }
-        .hero-title .reveal { display: inline-block; transform-origin: left; transform: scaleX(0); opacity: 0; animation: write 520ms ease forwards; }
-        @keyframes write { to { transform: scaleX(1); opacity: 1; } }
-        @keyframes boxFill { to { background-color: rgba(0,0,0,0.5); } }
+        .hero-title { 
+          display: block; 
+          text-shadow: 0 2px 20px rgba(0, 0, 0, 0.7), 0 4px 30px rgba(0, 0, 0, 0.5);
+        }
+        .hero-title span { 
+          display: inline-block;
+          opacity: 0;
+          transform: translateY(20px);
+          animation: titleFadeIn 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+        .hero-title .reveal { 
+          display: inline-block;
+          color: #ffffff;
+          opacity: 0;
+          transform: translateY(10px);
+          animation: textReveal 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+        @keyframes titleFadeIn {
+          0% {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        @keyframes textReveal {
+          0% {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
 
         /* High blink animation for urgent banner titles */
         @keyframes highBlink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
         .high-blink { animation: highBlink 600ms linear infinite; }
 
-        .sub-title { position: relative; display: inline-block; }
-        .sub-title .sub-word { background-color: rgba(0,0,0,0); animation: boxFillSub 150ms ease forwards; }
-        .sub-title .sub-reveal { display: inline-block; transform-origin: left; transform: scaleX(0); opacity: 0; animation: writeSub 300ms ease forwards; }
-        @keyframes writeSub { to { transform: scaleX(1); opacity: 1; } }
-        @keyframes boxFillSub { to { background-color: rgba(0,0,0,0.4); } }
+        .sub-title { 
+          position: relative; 
+          display: block;
+          text-shadow: 0 2px 15px rgba(0, 0, 0, 0.6), 0 1px 5px rgba(0, 0, 0, 0.7);
+        }
+        .sub-title .sub-word { 
+          display: inline-block;
+          opacity: 0;
+          transform: translateY(15px);
+          animation: subtitleFadeIn 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+        .sub-title .sub-reveal { 
+          display: inline-block;
+          color: rgba(255, 255, 255, 0.98);
+          opacity: 0;
+          transform: translateY(8px);
+          animation: subtitleTextReveal 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+        @keyframes subtitleFadeIn {
+          0% {
+            opacity: 0;
+            transform: translateY(15px);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        @keyframes subtitleTextReveal {
+          0% {
+            opacity: 0;
+            transform: translateY(8px);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
 
         /* Blink animation replacing the pen: when the subtitle is active it blinks to draw attention */
         @keyframes subBlink { 0% { opacity: 1; } 50% { opacity: 0.15; } 100% { opacity: 1; } }
@@ -448,22 +514,29 @@ export default function Page() {
       document.head.appendChild(el);
     }
 
-    // Set per-word animation delays for subtitle so the whole subtitle finishes in 6s
-    const totalMs = 6000;
-    const container = document.querySelector('.sub-title');
-    if (container) {
-      const words = Array.from(container.querySelectorAll('.sub-word'));
-      const count = words.length || 1;
-      words.forEach((el, i) => {
-        const pct = i / Math.max(1, count - 1);
-        const revealDelay = Math.round(pct * totalMs);
-        const boxDelay = Math.max(0, revealDelay - 200);
-        (el as HTMLElement).style.animationDelay = `${boxDelay}ms`;
-        const inner = el.querySelector('.sub-reveal') as HTMLElement | null;
-        if (inner) inner.style.animationDelay = `${revealDelay}ms`;
+    // Set smooth staggered animations for title
+    const titleContainer = document.querySelector('.hero-title');
+    if (titleContainer) {
+      const titleWords = Array.from(titleContainer.querySelectorAll('span')) as HTMLElement[];
+      titleWords.forEach((el, i) => {
+        el.style.animationDelay = `${i * 80}ms`; // 80ms between words
+        const inner = el.querySelector('.reveal') as HTMLElement | null;
+        if (inner) inner.style.animationDelay = `${i * 80 + 100}ms`; // Text appears 100ms after container
       });
+    }
 
-      // no pen animation: subtitle will use a blink animation when active
+    // Set smooth staggered animations for subtitle
+    const subtitleContainer = document.querySelector('.sub-title');
+    if (subtitleContainer) {
+      const subtitleWords = Array.from(subtitleContainer.querySelectorAll('.sub-word')) as HTMLElement[];
+      const count = subtitleWords.length || 1;
+      subtitleWords.forEach((el, i) => {
+        // Stagger over 2.5 seconds for comfortable reading on mobile
+        const delay = (i / Math.max(1, count - 1)) * 2500;
+        el.style.animationDelay = `${delay}ms`;
+        const inner = el.querySelector('.sub-reveal') as HTMLElement | null;
+        if (inner) inner.style.animationDelay = `${delay + 80}ms`; // Text appears 80ms after container
+      });
     }
 
     return () => {
@@ -571,12 +644,23 @@ export default function Page() {
   // Card hover/touch state: which main card is currently hovered/touched (0,1,2) or null
   const [hoveredCard, setHoveredCard] = useState<number | null>(null);
   useEffect(() => {
-    // Inject small card blink animation for CTA when hovered/touched
+    // Inject card animations and fade-in effects
     const styleId = 'nolsaf-card-animations';
     if (!document.getElementById(styleId)) {
       const css = `
         .nls-blink { animation: nls-blink 800ms linear infinite; }
         @keyframes nls-blink { 0%,100% { opacity: 1; } 50% { opacity: 0.18; } }
+        
+        @keyframes fadeInUp {
+          from {
+            opacity: 0;
+            transform: translateY(30px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
       `;
       const el = document.createElement('style');
       el.id = styleId;
@@ -760,56 +844,70 @@ export default function Page() {
   return (
     <main className="min-h-screen bg-white text-slate-900">
       {/* Layout edge markers (left/right) to indicate content boundaries */}
-      <LayoutFrame heightVariant="sm" topVariant="sm" colorVariant="muted" variant="solid" labelLeft="content edge" />
-      <section className="relative bg-gray-50 border-b">
-        <div className="public-container py-6 lg:py-12">
-          {/* Hero: make image expand responsively and place welcome text inside it */}
-          <div className="grid grid-cols-1 gap-6">
+      <LayoutFrame heightVariant="sm" topVariant="sm" colorVariant="muted" variant="solid" />
+      <section id="public-hero" className="relative bg-gray-50 border-b">
+        {/* Full-bleed hero background (treated like header background).
+            Keep content aligned via public-container inside the overlay. */}
+        <div
+          className="relative w-screen left-1/2 -translate-x-1/2 overflow-hidden w-full h-64 md:h-[420px] lg:h-[560px] rounded-b-2xl sm:rounded-b-3xl shadow-[0_18px_50px_rgba(2,6,23,0.10)] ring-1 ring-black/5"
+          onMouseEnter={() => setPaused(true)}
+          onMouseLeave={() => setPaused(false)}
+        >
+          {slides.map((s, i) => (
             <div
-              className="relative rounded-lg overflow-hidden shadow-lg w-full h-64 md:h-[420px] lg:h-[560px] mt-3 md:mt-4"
-              onMouseEnter={() => setPaused(true)}
-              onMouseLeave={() => setPaused(false)}
+              key={s.src}
+              className={`absolute inset-0 transition-opacity duration-700 overflow-hidden ${i === idx ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
+              aria-hidden={i !== idx}
             >
-              {slides.map((s, i) => (
-                <div
-                  key={s.src}
-                  className={`absolute inset-0 transition-opacity duration-700 ${i === idx ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
-                  aria-hidden={i !== idx}
-                >
-                  <Image src={s.src} alt={s.alt} fill style={{ objectFit: 'cover' }} sizes="(min-width: 1024px) 1200px, 100vw" priority={i === 0} />
-                </div>
-              ))}
+              <Image src={s.src} alt={s.alt} fill style={{ objectFit: 'cover' }} sizes="100vw" priority={i === 0} />
+            </div>
+          ))}
 
-              {/* Overlay for welcome words (editable) - positioned at the bottom center of the image */}
-              <div className="absolute inset-0 flex items-end justify-center p-4 md:p-6 z-20 pointer-events-none">
-                <div className="max-w-3xl rounded-md p-4 md:p-6 text-center text-white pointer-events-auto mb-6 md:mb-10">
-                  <h1 className={`text-3xl md:text-4xl font-extrabold hero-title ${active.title === 'No Internet? No Problem' ? 'high-blink' : ''}`}>
-                    {active.title.split(' ').map((w, i) => (
-                      <span key={i} className="inline-block bg-black/50 text-white px-1 py-0.5 rounded-sm mr-1 leading-none"><span className="reveal">{w}</span></span>
-                    ))}
+          {/* Contrast overlay to keep header + text readable */}
+          <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-black/10 to-black/55 z-10 pointer-events-none" />
+
+          {/* Overlay for welcome words - Mobile-first, clean design */}
+          <div className="absolute inset-0 flex items-end justify-center p-3 sm:p-4 md:p-6 z-20 pointer-events-none">
+            <div className="public-container w-full text-center text-white pointer-events-auto mb-4 sm:mb-6 md:mb-10">
+                  {/* Title - Clean, responsive, no individual boxes */}
+                  <h1 className={`text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold hero-title leading-tight px-2 ${active.title === 'No Internet? No Problem' ? 'high-blink' : ''}`}>
+                    <span className="inline-block">
+                      {active.title.split(' ').map((w, i, arr) => (
+                        <React.Fragment key={i}>
+                          <span className="inline-block">
+                            <span className="reveal">{w}</span>
+                          </span>
+                          {i < arr.length - 1 && <span className="inline-block mx-1 sm:mx-1.5" />}
+                        </React.Fragment>
+                      ))}
+                    </span>
                   </h1>
 
-                  {/* Subtitle with long handwriting reveal (6 minutes total) - active only on slide 0 */}
-                  <p className={`mt-2 text-lg md:text-xl font-semibold sub-title ${idx === 0 ? 'writing-active' : ''}`}>
-                    {active.subtitle.split(' ').map((w, i) => (
-                      <span key={i} className="inline-block sub-word text-white/95 px-1 py-0.5 rounded-sm mr-0.5 leading-tight">
-                        <span className="sub-reveal">{w}</span>
-                      </span>
-                    ))}
-
-                    {/* pen removed: replaced by a blink animation on the subtitle when active */}
+                  {/* Subtitle - Clean, readable, wraps naturally */}
+                  <p className={`mt-3 sm:mt-4 text-sm sm:text-base md:text-lg lg:text-xl font-medium sub-title leading-relaxed px-2 max-w-3xl mx-auto ${idx === 0 ? 'writing-active' : ''}`}>
+                    <span className="inline-block">
+                      {active.subtitle.split(' ').map((w, i, arr) => (
+                        <React.Fragment key={i}>
+                          <span className="inline-block sub-word">
+                            <span className="sub-reveal">{w}</span>
+                          </span>
+                          {i < arr.length - 1 && <span className="inline-block mx-0.5 sm:mx-1" />}
+                        </React.Fragment>
+                      ))}
+                    </span>
                   </p>
 
-                  <form onSubmit={submitSearch} onFocus={() => setPaused(true)} onBlur={() => setPaused(false)} className="mt-4 flex flex-wrap gap-2 justify-center items-center pointer-events-auto">
-                    <div className="inline-flex items-center gap-2 bg-black/50 backdrop-blur-sm rounded-full md:rounded-2xl p-2.5 shadow-lg">
+                  {/* Search Form - Horizontal layout on all screens, size-responsive */}
+                  <form onSubmit={submitSearch} onFocus={() => setPaused(true)} onBlur={() => setPaused(false)} className="mt-4 sm:mt-6 w-full max-w-2xl mx-auto pointer-events-auto">
+                    <div className="flex flex-row items-center gap-1 sm:gap-1.5 bg-black/60 backdrop-blur-md rounded-full p-1.5 sm:p-2 shadow-xl border border-white/10 w-fit mx-auto">
                       <input
                         aria-label="Search query"
                         value={q}
                         onChange={(e) => setQ(e.target.value)}
                         placeholder={searchPlaceholder}
-                        className="px-4 py-2 rounded-l-full border border-white/30 bg-white/10 text-white placeholder-white/70"
+                        className="flex-none w-auto min-w-[120px] sm:min-w-[150px] px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-base rounded-l-full rounded-r-none border border-white/30 bg-white/10 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-emerald-400/50 focus:border-emerald-400/50"
                       />
-                      <div ref={guestRef} className="inline-flex items-center gap-2 border border-white/20 rounded-full overflow-visible px-2 relative">
+                      <div ref={guestRef} className="inline-flex items-center justify-center gap-1 sm:gap-1.5 border border-white/20 rounded-full overflow-visible px-1.5 sm:px-2 py-1 sm:py-1.5 relative bg-white/5">
                         <div className="relative inline-block">
                           <button
                             type="button"
@@ -818,10 +916,10 @@ export default function Page() {
                             ref={triggerRef}
                             onClick={() => { setGuestOpen(true); setPaused(true); }}
                             onTouchStart={() => { setGuestOpen(true); setPaused(true); }}
-                            className="inline-flex items-center gap-2 px-2 py-1 bg-transparent text-white"
+                            className="inline-flex items-center gap-1 sm:gap-1.5 px-0.5 sm:px-1.5 py-0.5 sm:py-1 bg-transparent text-white text-xs sm:text-sm"
                           >
-                            <User className="w-4 h-4 text-white/90" aria-hidden />
-                            <span className="text-white text-sm">{adults}{children ? ` + ${children}` : ''}</span>
+                            <User className="w-3 h-3 sm:w-4 sm:h-4 text-white/90 flex-shrink-0" aria-hidden />
+                            <span className="text-white whitespace-nowrap text-xs sm:text-sm">{adults}{children ? ` + ${children}` : ''}</span>
                           </button>
                         </div>
 
@@ -962,12 +1060,12 @@ export default function Page() {
                           )
                         ) : null}
                       </div>
-                      <div ref={dateRef} className="inline-flex items-center gap-2 relative">
+                      <div ref={dateRef} className="inline-flex items-center justify-center gap-1 sm:gap-1.5 relative border border-white/20 rounded-full px-1.5 sm:px-2.5 py-1 sm:py-1.5 bg-white/5">
                         <button
                           type="button"
                           aria-label="Select dates"
                           onClick={() => { setDateOpen((v) => !v); setPaused(true); }}
-                          className="px-3 py-2 bg-white/10 text-white border border-white/20 rounded"
+                          className="flex-none text-center px-0 py-0 bg-transparent text-white border-0 text-xs sm:text-sm whitespace-nowrap"
                         >
                           {checkin ? (checkout ? formatRangeShort(checkin, checkout) : formatSingleShort(checkin)) : 'Add dates'}
                         </button>
@@ -1042,7 +1140,12 @@ export default function Page() {
                           )
                         ) : null}
                       </div>
-                      <button type="submit" className="px-4 py-2 bg-emerald-500 text-white rounded-md">Search</button>
+                      <button 
+                        type="submit" 
+                        className="flex-shrink-0 px-2 sm:px-3 py-1.5 sm:py-2 bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white rounded-r-full rounded-l-none font-semibold text-xs sm:text-sm transition-all duration-200 shadow-lg hover:shadow-xl active:scale-95 whitespace-nowrap"
+                      >
+                        Search
+                      </button>
                     </div>
                   </form>
 
@@ -1074,12 +1177,12 @@ export default function Page() {
                   />
                 ))}
               </div>
-            </div>
-          </div>
         </div>
 
-        {/* Decorative separator marking end of hero */}
-        <SectionSeparator label="End of hero" className="mt-6" />
+        <div className="public-container pt-0 pb-6 lg:pb-12">
+          {/* Decorative separator marking end of hero */}
+          <SectionSeparator label="End of hero" className="mt-6" />
+        </div>
 
       </section>
 
@@ -1092,14 +1195,14 @@ export default function Page() {
               role="link"
               tabIndex={0}
               aria-label="Travelers - Browse stays"
-              className="relative border-2 rounded-lg p-6 pl-8 hover:shadow-md flex flex-col h-56 border-blue-100 cursor-pointer"
+              className="group relative border-2 rounded-xl p-5 pl-8 bg-white flex flex-col h-auto border-blue-100 cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-[1.01] hover:border-blue-300 overflow-visible"
+              style={{ animation: 'fadeInUp 0.6s ease-out 0.1s both' }}
             >
-              <span aria-hidden className="absolute left-0 top-0 h-full w-1 rounded-r-md bg-blue-600" />
-              <span aria-hidden className="absolute left-0 bottom-0 h-px w-full bg-blue-600" />
+              <span aria-hidden className="absolute left-0 top-0 bottom-0 w-1.5 rounded-r-md bg-blue-600 transition-all duration-300 group-hover:w-2 group-hover:bg-blue-700 z-0" />
               {/* Header: icon + title positioned at the top-left */}
-              <div className="absolute top-3 left-8 z-10 flex items-center gap-3">
-                <Globe className="w-6 h-6 text-blue-600" aria-hidden />
-                <h3 className="font-semibold text-lg text-blue-700">Travelers</h3>
+              <div className="relative z-10 flex items-center gap-2.5 mb-3">
+                <Globe className="w-6 h-6 text-blue-600 transition-all duration-300 group-hover:scale-110 group-hover:rotate-12" aria-hidden />
+                <h3 className="font-semibold text-lg text-blue-700 transition-colors duration-300 group-hover:text-blue-800">Travelers</h3>
               </div>
               {/* No background image — restored to plain card */}
               <div
@@ -1111,24 +1214,24 @@ export default function Page() {
                 onTouchEnd={() => setHoveredCard(null)}
                 className="relative z-10"
               >
-                <p className="mt-8 text-sm text-slate-600">Trusted stays and safe transport in one place. Compare options and prices, pay locally or internationally, and book securely with 24/7 support.</p>
+                <p className="text-sm text-slate-600 leading-relaxed mb-4">Trusted stays and safe transport in one place. Compare options and prices, pay locally or internationally, and book securely with 24/7 support.</p>
               </div>
-              <div className="mt-auto">
+              <div>
                 <AttentionBlink active={hoveredCard === 0}>
-                  <span className={`inline-flex items-center px-3 py-2 bg-blue-600 text-white rounded-md`}>Browse stays</span>
+                  <span className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg font-medium transition-all duration-300 group-hover:bg-blue-700 group-hover:shadow-md group-hover:scale-105">Browse stays</span>
                 </AttentionBlink>
-                <div className="mt-2 flex items-center gap-3">
-                  <Link href="/help/payments" className="no-underline" onClick={(e) => e.stopPropagation()}>
-                    <span className="inline-flex items-center text-xs bg-blue-50 border border-blue-100 text-blue-700 px-2 py-1 rounded">
-                      <Image src="/assets/M-pesa.png" alt="M-PESA" width={16} height={16} className="mr-2 object-contain w-4 h-4" />
-                      Local payments
+                <div className="mt-3 flex items-center gap-2 flex-wrap relative z-20">
+                  <Link href="/help/payments" className="no-underline transition-transform duration-200 hover:scale-105" onClick={(e) => e.stopPropagation()}>
+                    <span className="inline-flex items-center text-xs bg-blue-50 border border-blue-100 text-blue-700 px-2.5 py-1.5 rounded-md transition-all duration-200 hover:bg-blue-100 hover:border-blue-200 font-medium">
+                      <Image src="/assets/M-pesa.png" alt="M-PESA" width={18} height={18} className="mr-1.5 object-contain w-4.5 h-4.5 flex-shrink-0" />
+                      <span className="whitespace-nowrap">Local payments</span>
                     </span>
                   </Link>
 
-                  <Link href="/help/payments" className="no-underline" onClick={(e) => e.stopPropagation()}>
-                    <span className="inline-flex items-center text-xs bg-slate-50 border border-slate-100 text-slate-700 px-2 py-1 rounded">
-                      <Image src="/assets/visa_card.png" alt="VISA" width={16} height={16} className="mr-2 object-contain w-4 h-4" />
-                      International payments
+                  <Link href="/help/payments" className="no-underline transition-transform duration-200 hover:scale-105" onClick={(e) => e.stopPropagation()}>
+                    <span className="inline-flex items-center text-xs bg-slate-50 border border-slate-100 text-slate-700 px-2.5 py-1.5 rounded-md transition-all duration-200 hover:bg-slate-100 hover:border-slate-200 font-medium">
+                      <Image src="/assets/visa_card.png" alt="VISA" width={18} height={18} className="mr-1.5 object-contain w-4.5 h-4.5 flex-shrink-0" />
+                      <span className="whitespace-nowrap">International payments</span>
                     </span>
                   </Link>
                 </div>
@@ -1141,13 +1244,13 @@ export default function Page() {
               role="link"
               tabIndex={0}
               aria-label="Drivers - Register as a driver"
-              className="relative border-2 rounded-lg p-6 pl-8 hover:shadow-md flex flex-col h-56 border-amber-100 cursor-pointer"
+              className="group relative border-2 rounded-xl p-5 pl-8 bg-white flex flex-col h-auto border-amber-100 cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-[1.01] hover:border-amber-300 overflow-visible"
+              style={{ animation: 'fadeInUp 0.6s ease-out 0.2s both' }}
             >
-              <span aria-hidden className="absolute left-0 top-0 h-full w-1 rounded-r-md bg-amber-500" />
-              <span aria-hidden className="absolute left-0 bottom-0 h-px w-full bg-amber-500" />
-              <div className="absolute top-3 left-8 z-10 flex items-center gap-3">
-                <Truck className="w-6 h-6 text-amber-500" aria-hidden />
-                <h3 className="font-semibold text-lg text-amber-700">Drivers</h3>
+              <span aria-hidden className="absolute left-0 top-0 bottom-0 w-1.5 rounded-r-md bg-amber-500 transition-all duration-300 group-hover:w-2 group-hover:bg-amber-600 z-0" />
+              <div className="relative z-10 flex items-center gap-2.5 mb-3">
+                <Truck className="w-6 h-6 text-amber-500 transition-all duration-300 group-hover:scale-110 group-hover:-rotate-12" aria-hidden />
+                <h3 className="font-semibold text-lg text-amber-700 transition-colors duration-300 group-hover:text-amber-800">Drivers</h3>
               </div>
               <div
                 onPointerEnter={() => setHoveredCard(1)}
@@ -1157,17 +1260,17 @@ export default function Page() {
                 onTouchStart={() => setHoveredCard(1)}
                 onTouchEnd={() => setHoveredCard(null)}
               >
-                <p className="mt-8 text-sm text-slate-600">Join NoLSAF to access more rides, receive local seamless payments, and grow your earnings with reliable booking flows and driver tools.</p>
+                <p className="text-sm text-slate-600 leading-relaxed mb-4">Join NoLSAF to access more rides, receive local seamless payments, and grow your earnings with reliable booking flows and driver tools.</p>
               </div>
-              <div className="mt-auto">
+              <div>
                 <AttentionBlink active={hoveredCard === 1}>
-                  <span className={`inline-flex items-center px-3 py-2 bg-amber-500 text-white rounded-md`}>Register as a driver</span>
+                  <span className="inline-flex items-center px-4 py-2 bg-amber-500 text-white rounded-lg font-medium transition-all duration-300 group-hover:bg-amber-600 group-hover:shadow-md group-hover:scale-105">Register as a driver</span>
                 </AttentionBlink>
-                <div className="mt-2">
-                  <Link href="/help/driver-tools" className="no-underline" onClick={(e) => e.stopPropagation()}>
-                    <span className="inline-flex items-center text-xs bg-amber-50 border border-amber-100 text-amber-700 px-2 py-1 rounded">
-                      <Wrench className="w-3 h-3 mr-2 text-amber-700" aria-hidden />
-                      Driver tools
+                <div className="mt-3 relative z-20">
+                  <Link href="/help/driver-tools" className="no-underline transition-transform duration-200 hover:scale-105" onClick={(e) => e.stopPropagation()}>
+                    <span className="inline-flex items-center text-xs bg-amber-50 border border-amber-100 text-amber-700 px-2.5 py-1.5 rounded-md transition-all duration-200 hover:bg-amber-100 hover:border-amber-200 font-medium">
+                      <Wrench className="w-3.5 h-3.5 mr-1.5 text-amber-700 transition-transform duration-200 group-hover:rotate-90 flex-shrink-0" aria-hidden />
+                      <span className="whitespace-nowrap">Driver tools</span>
                     </span>
                   </Link>
                 </div>
@@ -1180,13 +1283,13 @@ export default function Page() {
               role="link"
               tabIndex={0}
               aria-label="Property Owners - List your property"
-              className="relative border-2 rounded-lg p-6 pl-8 hover:shadow-md flex flex-col h-56 border-violet-100 cursor-pointer"
+              className="group relative border-2 rounded-xl p-5 pl-8 bg-white flex flex-col h-auto border-violet-100 cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-[1.01] hover:border-violet-300 overflow-visible"
+              style={{ animation: 'fadeInUp 0.6s ease-out 0.3s both' }}
             >
-              <span aria-hidden className="absolute left-0 top-0 h-full w-1 rounded-r-md bg-violet-600" />
-              <span aria-hidden className="absolute left-0 bottom-0 h-px w-full bg-violet-600" />
-              <div className="absolute top-3 left-8 z-10 flex items-center gap-3">
-                <Home className="w-6 h-6 text-violet-600" aria-hidden />
-                <h3 className="font-semibold text-lg text-violet-700">Property Owners</h3>
+              <span aria-hidden className="absolute left-0 top-0 bottom-0 w-1.5 rounded-r-md bg-violet-600 transition-all duration-300 group-hover:w-2 group-hover:bg-violet-700 z-0" />
+              <div className="relative z-10 flex items-center gap-2.5 mb-3">
+                <Home className="w-6 h-6 text-violet-600 transition-all duration-300 group-hover:scale-110 group-hover:rotate-12" aria-hidden />
+                <h3 className="font-semibold text-lg text-violet-700 transition-colors duration-300 group-hover:text-violet-800">Property Owners</h3>
               </div>
               <div
                 onPointerEnter={() => setHoveredCard(2)}
@@ -1196,17 +1299,17 @@ export default function Page() {
                 onTouchStart={() => setHoveredCard(2)}
                 onTouchEnd={() => setHoveredCard(null)}
               >
-                <p className="mt-8 text-sm text-slate-600">List your property to reach travelers across East Africa — manage bookings, set availability, and get paid fast through local payment integrations.</p>
+                <p className="text-sm text-slate-600 leading-relaxed mb-4">List your property to reach travelers across East Africa — manage bookings, set availability, and get paid fast through local payment integrations.</p>
               </div>
-              <div className="mt-auto">
+              <div>
                 <AttentionBlink active={hoveredCard === 2}>
-                  <span className={`inline-flex items-center px-3 py-2 bg-violet-600 text-white rounded-md`}>List your property</span>
+                  <span className="inline-flex items-center px-4 py-2 bg-violet-600 text-white rounded-lg font-medium transition-all duration-300 group-hover:bg-violet-700 group-hover:shadow-md group-hover:scale-105">List your property</span>
                 </AttentionBlink>
-                <div className="mt-2">
-                  <Link href="/help/payouts" className="no-underline" onClick={(e) => e.stopPropagation()}>
-                    <span className="inline-flex items-center text-xs bg-violet-50 border border-violet-100 text-violet-700 px-2 py-1 rounded">
-                      <DollarSign className="w-3 h-3 mr-2 text-violet-700" aria-hidden />
-                      Fast payouts
+                <div className="mt-3 relative z-20">
+                  <Link href="/help/payouts" className="no-underline transition-transform duration-200 hover:scale-105" onClick={(e) => e.stopPropagation()}>
+                    <span className="inline-flex items-center text-xs bg-violet-50 border border-violet-100 text-violet-700 px-2.5 py-1.5 rounded-md transition-all duration-200 hover:bg-violet-100 hover:border-violet-200 font-medium">
+                      <DollarSign className="w-3.5 h-3.5 mr-1.5 text-violet-700 transition-transform duration-200 group-hover:scale-110 flex-shrink-0" aria-hidden />
+                      <span className="whitespace-nowrap">Fast payouts</span>
                     </span>
                   </Link>
                 </div>
@@ -1216,7 +1319,7 @@ export default function Page() {
 
           <SectionSeparator variant="dots" pillLabel="Explore" className="mt-6" />
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mt-6">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-6 mt-6">
             {PROPERTY_TYPE_CARDS.map((c) => {
               const count = typeCounts[c.key];
               const sample = typeSamples[c.key];

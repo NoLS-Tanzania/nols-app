@@ -10,7 +10,6 @@ import TripReviewModal from "@/components/TripReviewModal";
 import { NotificationItem } from "@/components/Notifications";
 import { useSearchParams, useRouter } from 'next/navigation';
 import axios from "axios";
-import { findBestDriver } from "@/lib/driverMatching";
 import { notifyDriver, LocationMonitor } from "@/lib/driverNotifications";
 import TripSteps, { TripStep } from "@/components/TripSteps";
 import { useToast } from "@/hooks/useToast";
@@ -18,7 +17,8 @@ import { ToastContainer } from "@/components/Toast";
 import { useConnectionStatus } from "@/hooks/useConnectionStatus";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ConnectionStatusIndicator from "@/components/ConnectionStatusIndicator";
-import { Check, Globe, Layers as LayersIcon, Map as MapIcon, Route as RouteIcon, X } from "lucide-react";
+import { Check, Globe, Map as MapIcon, Route as RouteIcon, X, Info } from "lucide-react";
+import { openInMaps } from "@/lib/navigation";
 
 // Trip stages
 export type TripStage = 
@@ -82,6 +82,7 @@ export default function DriverLiveMapPage() {
   const [routesOpen, setRoutesOpen] = useState(false);
   const [routeOptions, setRouteOptions] = useState<{ key: string; type: "pickup" | "destination"; routes: Array<{ index: number; durationSec: number | null; distanceMeters: number | null }> } | null>(null);
   const [selectedRouteIndex, setSelectedRouteIndex] = useState<number>(0);
+  const [showAttribution, setShowAttribution] = useState(false);
   const lastRouteSelectSentRef = useRef<string | null>(null);
   const lastDirectionsEtaAtRef = useRef<number | null>(null);
   const [destinationCountdownSec, setDestinationCountdownSec] = useState<number | null>(null);
@@ -153,16 +154,38 @@ export default function DriverLiveMapPage() {
     }
   }, [completedSteps]);
 
-  useEffect(() => {
-    if (!liveOnly) return;
+  const [isAvailable, setIsAvailable] = useState<boolean>(() => {
     try {
       const raw = localStorage.getItem('driver_available');
-      const available = raw === '1' || raw === 'true';
-      if (!available) setShowLiveOverlay(true);
+      return raw === '1' || raw === 'true';
     } catch (e) {
-      // ignore
+      return false;
     }
-  }, []);
+  });
+
+  useEffect(() => {
+    const checkAvailability = () => {
+      try {
+        const raw = localStorage.getItem('driver_available');
+        const available = raw === '1' || raw === 'true';
+        setIsAvailable(available);
+        if (!available && liveOnly) {
+          setShowLiveOverlay(true);
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
+    checkAvailability();
+    // Listen for availability changes
+    const handleAvailabilityChange = (e: any) => {
+      setIsAvailable(e.detail?.available ?? false);
+    };
+    window.addEventListener('nols:availability:changed', handleAvailabilityChange as EventListener);
+    return () => {
+      window.removeEventListener('nols:availability:changed', handleAvailabilityChange as EventListener);
+    };
+  }, [liveOnly]);
 
   // Map theme (light/dark) preference for driver map
   useEffect(() => {
@@ -209,39 +232,48 @@ export default function DriverLiveMapPage() {
     }
   }, [mapLayer]);
 
+  // Listen for real trip requests via Socket.IO events
   useEffect(() => {
     if (liveOnly && tripStage === 'waiting') {
-      // Demo request (so UI flow is visible). Replace with real Socket.IO event later.
       if (tripRequest || activeTrip) return;
-      const t = window.setTimeout(() => {
-        // Create a realistic request matching DriverLiveMapBottomSheet expectations
-        const demoId = `demo-${Date.now()}`;
-        const demo = {
-          id: demoId,
-          passengerName: "Asha M.",
-          passengerRating: 4.7,
-          passengerPhoto: undefined,
-          tripType: "Standard",
-          pickupAddress: "Masaki, Dar es Salaam",
-          pickupDistance: "2.1 km",
-          pickupETA: "6 min",
-          dropoffAddress: "Julius Nyerere Intl Airport (DAR)",
-          dropoffDistance: "12.4 km",
-          fare: "TZS 12,500",
-          // extra fields used by this page's logic
-          phoneNumber: "+255 7xx xxx xxx",
-          pickupLat: -6.7715,
-          pickupLng: 39.2464,
-          dropoffLat: -6.8781,
-          dropoffLng: 39.2026,
-        };
-        setTripRequest(demo);
-        setTripStage('request_received');
-        setBottomSheetCollapsed(false); // show request card
-      }, 900);
-      return () => window.clearTimeout(t);
+      
+      // Listen for real trip requests from Socket.IO
+      const handleTripRequest = (event: Event) => {
+        try {
+          const detail = (event as CustomEvent).detail || {};
+          if (detail.id && detail.pickupAddress) {
+            setTripRequest({
+              id: detail.id,
+              passengerName: detail.passengerName || "Passenger",
+              passengerRating: detail.passengerRating || 5.0,
+              passengerPhoto: detail.passengerPhoto,
+              tripType: detail.tripType || "Standard",
+              pickupAddress: detail.pickupAddress,
+              pickupDistance: detail.pickupDistance || "0 km",
+              pickupETA: detail.pickupETA || "0 min",
+              dropoffAddress: detail.dropoffAddress,
+              dropoffDistance: detail.dropoffDistance || "0 km",
+              fare: detail.fare || "TZS 0",
+              phoneNumber: detail.phoneNumber,
+              pickupLat: detail.pickupLat,
+              pickupLng: detail.pickupLng,
+              dropoffLat: detail.dropoffLat,
+              dropoffLng: detail.dropoffLng,
+            });
+            setTripStage('request_received');
+            setBottomSheetCollapsed(false);
+          }
+        } catch (e) {
+          console.error("Error handling trip request:", e);
+        }
+      };
+
+      window.addEventListener('nols:driver:trip:request', handleTripRequest as EventListener);
+      return () => {
+        window.removeEventListener('nols:driver:trip:request', handleTripRequest as EventListener);
+      };
     }
-  }, [liveOnly, tripStage]);
+  }, [liveOnly, tripStage, tripRequest, activeTrip]);
 
   // One-time attention bell for incoming request
   useEffect(() => {
@@ -249,16 +281,17 @@ export default function DriverLiveMapPage() {
     if (!tripRequest?.id) return;
     if (requestAlertedRef.current === tripRequest.id) return;
     requestAlertedRef.current = tripRequest.id;
+    const pickupAddress = tripRequest.pickupAddress || "Unknown";
     try {
       notifyDriver(
         "New trip request",
-        `Pickup: ${tripRequest.pickupAddress || "Unknown"}`,
+        `Pickup: ${pickupAddress}`,
         { vibrate: true, sound: true, vibrationPattern: [200, 120, 200, 120, 200] }
       );
     } catch {
       // ignore
     }
-  }, [liveOnly, tripRequest?.id]);
+  }, [liveOnly, tripRequest?.id, tripRequest?.pickupAddress]);
 
   const handleAcceptTrip = async (tripId: string) => {
     if (!isOnline) {
@@ -279,21 +312,20 @@ export default function DriverLiveMapPage() {
       const dropoffLat = tripRequest.dropoffLat;
       const dropoffLng = tripRequest.dropoffLng;
       
-      // If this is a real trip (numeric id), call API; otherwise fallback to demo local flow
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      // Call API to accept the trip
       let apiTrip: any | null = null;
       try {
-        // demo ids look like "demo-..."
-        if (!String(tripId).startsWith("demo-")) {
-          const resp = await axios.post(
-            `/api/driver/trips/${encodeURIComponent(tripId)}/accept`,
-            { pickupLat, pickupLng, dropoffLat, dropoffLng },
-            token ? { headers: { Authorization: `Bearer ${token}` } } : undefined
-          );
-          apiTrip = resp?.data?.trip ?? null;
-        }
+        const resp = await axios.post(
+          `/api/driver/trips/${encodeURIComponent(tripId)}/accept`,
+          { pickupLat, pickupLng, dropoffLat, dropoffLng },
+          { withCredentials: true }
+        );
+        apiTrip = resp?.data?.trip ?? null;
       } catch (e) {
-        // ignore and fall back to local demo
+        console.error("Failed to accept trip:", e);
+        error("Failed to Accept Trip", "Please try again or check your connection.");
+        setIsAccepting(false);
+        return;
       }
 
       // Promote request into activeTrip so the communication card shows
@@ -369,13 +401,12 @@ export default function DriverLiveMapPage() {
 
     setIsDeclining(true);
     try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
       try {
         if (!String(tripId).startsWith("demo-")) {
           await axios.post(
             `/api/driver/trips/${encodeURIComponent(tripId)}/decline`,
             {},
-            token ? { headers: { Authorization: `Bearer ${token}` } } : undefined
+            { withCredentials: true }
           );
         }
       } catch (e) {
@@ -405,17 +436,17 @@ export default function DriverLiveMapPage() {
 
     setIsCancelling(true);
     try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
       try {
-        if (!String(tripId).startsWith("demo-")) {
-          await axios.post(
-            `/api/driver/trips/${encodeURIComponent(tripId)}/cancel`,
-            { reason },
-            token ? { headers: { Authorization: `Bearer ${token}` } } : undefined
-          );
-        }
+        await axios.post(
+          `/api/driver/trips/${encodeURIComponent(tripId)}/cancel`,
+          { reason },
+          { withCredentials: true }
+        );
       } catch (e) {
-        // ignore (demo mode / backend not configured)
+        console.error("Failed to cancel trip:", e);
+        error("Failed to Cancel Trip", "Please try again or check your connection.");
+        setIsCancelling(false);
+        return;
       }
       
       // Stop all monitoring
@@ -908,11 +939,10 @@ export default function DriverLiveMapPage() {
 
   const handleSendQuickMessage = async (templateKey: string, toUserId?: string) => {
     try {
-      const token = localStorage.getItem("token");
       await axios.post(
         "/api/driver/messages/send",
         { toUserId: toUserId || activeTrip?.passengerUserId || "user-unknown", templateKey },
-        token ? { headers: { Authorization: `Bearer ${token}` } } : undefined
+        { withCredentials: true }
       );
       // Optionally, add a confirmation notification locally
       setNotifications((prev) => [
@@ -989,6 +1019,72 @@ export default function DriverLiveMapPage() {
               mapTheme={mapTheme}
               mapLayer={mapLayer}
             />
+
+            {/* Map Attribution Toggle Button - Bottom Left */}
+            <div className="absolute bottom-2 left-2 z-30 pointer-events-auto">
+              <button
+                onClick={() => setShowAttribution(!showAttribution)}
+                className={[
+                  "h-8 w-8 rounded-full flex items-center justify-center shadow-md hover:shadow-lg transition-all duration-200 hover:scale-105 active:scale-95 border text-xs",
+                  mapTheme === "dark"
+                    ? "bg-slate-950/55 text-slate-100 border-white/15 backdrop-blur-md"
+                    : "bg-white text-slate-600 border-slate-200",
+                ].join(" ")}
+                aria-label="Show map attribution"
+                title="Map attribution"
+              >
+                <Info className="h-3.5 w-3.5" />
+              </button>
+              
+              {/* Attribution Popup */}
+              {showAttribution && (
+                <>
+                  <div
+                    className="fixed inset-0 z-[100]"
+                    onClick={() => setShowAttribution(false)}
+                    aria-hidden="true"
+                  />
+                  <div
+                    className={[
+                      "absolute bottom-10 left-0 z-[110] min-w-[200px] rounded-lg shadow-xl border overflow-hidden animate-fade-in-up p-3 text-xs",
+                      mapTheme === "dark"
+                        ? "bg-slate-950/90 border-white/15 backdrop-blur-md text-slate-100"
+                        : "bg-white border-slate-200 text-slate-700",
+                    ].join(" ")}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <span className="font-semibold">Map Data</span>
+                      <button
+                        onClick={() => setShowAttribution(false)}
+                        className={[
+                          "p-0.5 rounded transition-colors",
+                          mapTheme === "dark" ? "hover:bg-white/10" : "hover:bg-slate-100",
+                        ].join(" ")}
+                        aria-label="Close"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                    <div className="space-y-1 text-[10px] leading-relaxed">
+                      <p>© Mapbox</p>
+                      <p>© OpenStreetMap</p>
+                      <a
+                        href="https://www.mapbox.com/about/maps/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={[
+                          "underline hover:no-underline transition-colors",
+                          mapTheme === "dark" ? "text-emerald-300 hover:text-emerald-200" : "text-emerald-600 hover:text-emerald-700",
+                        ].join(" ")}
+                      >
+                        Improve this map
+                      </a>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
 
           {/* Trip Completed Success Message */}
           {tripStage === 'completed' && (
@@ -1318,6 +1414,61 @@ export default function DriverLiveMapPage() {
                       }
                     : undefined
                 }
+                tripActions={
+                  activeTrip && tripStage !== 'completed' && tripStage !== 'waiting'
+                    ? {
+                        phoneNumber: activeTrip.phoneNumber || tripRequest?.phoneNumber || undefined,
+                        onCall: () => {
+                          const phone = activeTrip.phoneNumber || tripRequest?.phoneNumber;
+                          if (phone) {
+                            window.location.href = `tel:${phone}`;
+                          }
+                        },
+                        onMessage: () => {
+                          const phone = activeTrip.phoneNumber || tripRequest?.phoneNumber;
+                          if (phone) {
+                            // Open SMS app or quick message modal
+                            const smsLink = `sms:${phone}`;
+                            // Try to open SMS app, fallback to quick message modal
+                            try {
+                              window.location.href = smsLink;
+                              // If SMS app doesn't open, show modal after a short delay
+                              setTimeout(() => setShowQuickModal(true), 500);
+                            } catch (e) {
+                              setShowQuickModal(true);
+                            }
+                          } else {
+                            // If no phone number, just show the quick message modal
+                            setShowQuickModal(true);
+                          }
+                        },
+                        onConfirmPickup: handleArriveAtPickup,
+                        canConfirmPickup: isAtPickup || (tripStage === 'accepted' && hasClearLocationInfo),
+                      }
+                    : undefined
+                }
+                onNavigationClick={() => {
+                  // Start navigation to pickup or destination based on trip stage
+                  if (activeTrip) {
+                    const stage = tripStage;
+                    const isTransit = stage === "picked_up" || stage === "in_transit" || stage === "arrived" || stage === "dropoff";
+                    if (isTransit && activeTrip.dropoffLat && activeTrip.dropoffLng) {
+                      // Navigate to destination using navigation utility (opens native app on mobile, web on desktop)
+                      openInMaps(
+                        activeTrip.dropoffLat,
+                        activeTrip.dropoffLng,
+                        activeTrip.dropoffAddress || activeTrip.destinationAddress
+                      );
+                    } else if (activeTrip.pickupLat && activeTrip.pickupLng) {
+                      // Navigate to pickup using navigation utility
+                      openInMaps(
+                        activeTrip.pickupLat,
+                        activeTrip.pickupLng,
+                        activeTrip.pickupAddress
+                      );
+                    }
+                  }
+                }}
               />
             </div>
           </div>
@@ -1361,7 +1512,7 @@ export default function DriverLiveMapPage() {
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => console.log('Call:', activeTrip.phoneNumber)}
+                  
                       className={[
                         "flex-1 inline-flex items-center justify-center gap-2 rounded-xl border active:scale-[0.98] transition-all duration-200 py-2 text-sm font-medium",
                         mapTheme === "dark"

@@ -18,6 +18,14 @@ export async function notifyAdmins(template: string, data: any) {
         title: "Property Review Update",
         body: `Property "${data.propertyTitle || 'Property'}" has been rejected. ${data.reasons ? `Reasons: ${Array.isArray(data.reasons) ? data.reasons.join(', ') : data.reasons}.` : ''}`
       },
+      cancellation_submitted: {
+        title: "New Cancellation Claim Submitted",
+        body: `A customer submitted a cancellation claim${data.bookingCode ? ` (code: ${data.bookingCode})` : ""}.`
+      },
+      cancellation_message: {
+        title: "New Cancellation Message",
+        body: `There is a new message on cancellation claim${data.requestId ? ` #${data.requestId}` : ""}${data.bookingCode ? ` (code: ${data.bookingCode})` : ""}.`
+      },
     };
 
     const templateData = notificationTemplates[template] || {
@@ -35,7 +43,7 @@ export async function notifyAdmins(template: string, data: any) {
           body: templateData.body,
           unread: true,
           meta: data,
-          type: 'property'
+          type: template.startsWith("cancellation") ? "cancellation" : "property"
         }
       });
     } catch (err: any) {
@@ -69,7 +77,15 @@ export async function notifyOwner(ownerId: number, template: string, data: any) 
       property_unsuspended: {
         title: "Property Reinstated",
         body: `Your property "${data.propertyTitle || 'Property'}" has been reinstated and is now live again.`
-      }
+      },
+      cancellation_status_update: {
+        title: "Cancellation Claim Update",
+        body: `Your cancellation claim${data.requestId ? ` #${data.requestId}` : ""}${data.bookingCode ? ` (code: ${data.bookingCode})` : ""} is now "${data.status || "UPDATED"}". ${data.decisionNote ? `Note: ${data.decisionNote}` : ""}`
+      },
+      cancellation_message: {
+        title: "New Message on Cancellation Claim",
+        body: `You have a new message on your cancellation claim${data.requestId ? ` #${data.requestId}` : ""}${data.bookingCode ? ` (code: ${data.bookingCode})` : ""}.`
+      },
     };
 
     const templateData = notificationTemplates[template] || {
@@ -87,7 +103,7 @@ export async function notifyOwner(ownerId: number, template: string, data: any) 
           body: templateData.body,
           unread: true,
           meta: data,
-          type: 'property' // Default type for property-related notifications
+          type: template.startsWith("cancellation") ? "cancellation" : "property"
         }
       });
 
@@ -107,5 +123,52 @@ export async function notifyOwner(ownerId: number, template: string, data: any) 
     }
   } catch (err: any) {
     console.error("[notify] owner failed", err?.message || err);
+  }
+}
+
+/**
+ * Notify a user (customer) by userId
+ */
+export async function notifyUser(userId: number, template: string, data: any) {
+  try {
+    const notificationTemplates: Record<string, { title: string; body: string }> = {
+      cancellation_status_update: {
+        title: "Cancellation Claim Update",
+        body: `Your cancellation claim${data.requestId ? ` #${data.requestId}` : ""}${data.bookingCode ? ` (code: ${data.bookingCode})` : ""} is now "${data.status || "UPDATED"}". ${data.decisionNote ? `Note: ${data.decisionNote}` : ""}`
+      },
+      cancellation_message: {
+        title: "New Message on Cancellation Claim",
+        body: `You have a new message on your cancellation claim${data.requestId ? ` #${data.requestId}` : ""}${data.bookingCode ? ` (code: ${data.bookingCode})` : ""}.`
+      },
+    };
+
+    const templateData = notificationTemplates[template] || {
+      title: "Notification",
+      body: "You have an update."
+    };
+
+    const created = await prisma.notification.create({
+      data: {
+        userId: Number(userId),
+        ownerId: null,
+        title: templateData.title,
+        body: templateData.body,
+        unread: true,
+        meta: data,
+        type: template.startsWith("cancellation") ? "cancellation" : "system"
+      }
+    });
+
+    // Best-effort realtime emit
+    try {
+      const io = (global as any).io;
+      if (io && typeof io.to === "function") {
+        io.to(`user:${userId}`).emit("notification:new", { id: created.id, userId, title: created.title, body: created.body, createdAt: created.createdAt });
+      }
+    } catch {
+      // ignore
+    }
+  } catch (err: any) {
+    console.error("[notify] user failed", err?.message || err);
   }
 }

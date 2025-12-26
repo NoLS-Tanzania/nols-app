@@ -10,12 +10,8 @@ import {
   calculatePriceWithCommission 
 } from "@/lib/priceUtils";
 
-const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL || "" });
-
-function authify() {
-  const t = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-  if (t) api.defaults.headers.common["Authorization"] = `Bearer ${t}`;
-}
+// Use same-origin calls + secure httpOnly cookie session.
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 type Property = {
   id: number;
@@ -49,7 +45,6 @@ export default function PropertyPreviewsPage() {
     let mounted = true;
     const load = async () => {
       try {
-        authify();
         const response = await api.get("/admin/settings");
         if (mounted && response.data?.commissionPercent !== undefined) {
           const commission = Number(response.data.commissionPercent);
@@ -72,7 +67,6 @@ export default function PropertyPreviewsPage() {
   async function loadProperties() {
     try {
       setLoading(true);
-      authify();
       const response = await api.get("/admin/properties", {
         params: { page: 1, pageSize: 50, status: statusFilter },
       });
@@ -103,7 +97,6 @@ export default function PropertyPreviewsPage() {
           await loadProperties();
           // Also reload system commission in case it changed
           try {
-            authify();
             const response = await api.get("/admin/settings");
             if (response.data?.commissionPercent !== undefined) {
               const commission = Number(response.data.commissionPercent);

@@ -1,40 +1,174 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+
+import Terms from "@/components/Terms";
+import { PRIVACY_LAST_UPDATED, PRIVACY_SECTIONS } from "@/components/privacyContent";
+import PublicHeader from "@/components/PublicHeader";
+import PublicFooter from "@/components/PublicFooter";
+import SiteHeader from "@/components/SiteHeader";
+import SiteFooter from "@/components/SiteFooter";
+import LayoutFrame from "@/components/LayoutFrame";
+import { Shield } from "lucide-react";
+import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
+
+function getCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null;
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+  return null;
+}
 
 export default function PrivacyPage() {
-  const [accepted, setAccepted] = useState(false);
+  const pathname = usePathname();
+  const [userRole, setUserRole] = useState<"ADMIN" | "OWNER" | "DRIVER" | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isPublicContext, setIsPublicContext] = useState<boolean | null>(null);
 
   useEffect(() => {
-    const v = localStorage.getItem('privacyAccepted');
-    setAccepted(v === 'true');
-  }, []);
+    // PRIORITY 1: Check sessionStorage for navigation context (set by headers/footers)
+    // This is the most reliable indicator of where the user came from
+    let navigationContext: 'public' | 'owner' | 'driver' | 'admin' | null = null;
+    if (typeof window !== 'undefined') {
+      navigationContext = sessionStorage.getItem('navigationContext') as 'public' | 'owner' | 'driver' | 'admin' | null;
+    }
 
-  const handleAccept = () => {
-    localStorage.setItem('privacyAccepted', 'true');
-    setAccepted(true);
-  };
+    // If we have navigation context from sessionStorage, use it (this takes priority)
+    if (navigationContext) {
+      if (navigationContext === 'public') {
+        setIsPublicContext(true);
+        setUserRole(null);
+        setIsLoading(false);
+        return;
+      } else {
+        setIsPublicContext(false);
+        setUserRole(navigationContext.toUpperCase() as "ADMIN" | "OWNER" | "DRIVER");
+        setIsLoading(false);
+        return;
+      }
+    }
+
+    // PRIORITY 2: Check referrer to determine context
+    // If coming from a public route, use public layout regardless of cookie
+    let isFromPublicRoute = false;
+    if (typeof document !== 'undefined') {
+      const referrer = document.referrer;
+      const origin = window.location.origin;
+      isFromPublicRoute = referrer && (
+        referrer.includes('/public') || 
+        referrer === origin || 
+        referrer === origin + '/' ||
+        (!referrer.includes('/owner') && !referrer.includes('/driver') && !referrer.includes('/admin') && referrer.startsWith(origin))
+      );
+    }
+
+    // If coming from a public route, treat as public (even if they have a role cookie)
+    if (isFromPublicRoute) {
+      setIsPublicContext(true);
+      setUserRole(null);
+      setIsLoading(false);
+      return;
+    }
+
+    // PRIORITY 3: Check if user is authenticated via cookie
+    // Only use this if we don't have public context from above
+    const role = getCookie('role') as "ADMIN" | "OWNER" | "DRIVER" | null;
+    if (role) {
+      setIsPublicContext(false);
+      setUserRole(role);
+      setIsLoading(false);
+      return;
+    }
+    
+    // PRIORITY 4: Check pathname as final fallback to determine context
+    if (pathname?.includes('/driver')) {
+      setIsPublicContext(false);
+      setUserRole('DRIVER');
+    } else if (pathname?.includes('/owner')) {
+      setIsPublicContext(false);
+      setUserRole('OWNER');
+    } else if (pathname?.includes('/admin')) {
+      setIsPublicContext(false);
+      setUserRole('ADMIN');
+    } else {
+      // Default to public context if no indicators
+      setIsPublicContext(true);
+      setUserRole(null);
+    }
+    
+    setIsLoading(false);
+  }, [pathname]);
+
+  // Determine which header and footer to use
+  // Prioritize public context if detected, otherwise use authentication status
+  const shouldUsePublicLayout = isPublicContext === true || (isPublicContext === null && userRole === null);
+  const isAuthenticated = !shouldUsePublicLayout && userRole !== null;
+  const isDriver = userRole === "DRIVER";
+  const isOwner = userRole === "OWNER";
+  const isAdmin = userRole === "ADMIN";
+
+  // Show loading state briefly to avoid flash
+  if (isLoading || isPublicContext === null) {
+    return (
+      <>
+        <PublicHeader />
+        <main className="min-h-screen bg-white text-slate-900">
+          <div className="public-container py-10">
+            <div className="text-center">Loading...</div>
+          </div>
+        </main>
+        <PublicFooter withRail={false} />
+      </>
+    );
+  }
 
   return (
-    <div className="max-w-3xl mx-auto py-8 px-4">
-      <div className="bg-white rounded-2xl shadow p-0 overflow-hidden">
-        <div className="p-6">
-          <h1 className="text-2xl font-semibold mb-2">Privacy Policy</h1>
-          <p className="text-sm text-gray-600 mb-4">Please read the privacy policy below and accept to continue.</p>
-          <div className="prose max-h-64 overflow-auto mb-4">
-            <p>We respect your privacy and collect data only to provide and improve our service.</p>
-            <h2>Data We Collect</h2>
-            <p>We collect contact details, usage data, and any information you provide.</p>
+    <>
+      {shouldUsePublicLayout ? (
+        <PublicHeader />
+      ) : isAuthenticated ? (
+        <SiteHeader 
+          role={isDriver ? "DRIVER" : isOwner ? "OWNER" : "ADMIN"} 
+          driverMode={isDriver}
+        />
+      ) : (
+        <PublicHeader />
+      )}
+      
+      <main className="min-h-screen bg-white text-slate-900">
+        {/* Layout edge markers (left/right) to indicate content boundaries */}
+        <LayoutFrame heightVariant="sm" topVariant="sm" colorVariant="muted" variant="solid" />
+        
+        {/* Hero Image Section */}
+        <section className="relative h-48 md:h-64 lg:h-80 overflow-hidden">
+          <div className="public-container h-full relative">
+            <div className="absolute inset-0 bg-[url('/assets/nolsaf%20picture%201.jpg')] bg-cover bg-center rounded-lg" />
+            <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-transparent rounded-lg" />
+            <div className="relative h-full flex flex-col items-center justify-center">
+              <Shield size={64} className="text-white mb-4 drop-shadow-lg" strokeWidth={1.5} />
+              <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white text-center px-4 drop-shadow-lg">
+                Privacy Policy
+              </h1>
           </div>
         </div>
-
-        <div className="border-t px-6 py-3 flex items-center justify-between">
-          <div className="text-sm text-gray-700">{accepted ? 'You have accepted this policy.' : 'You have not accepted this policy.'}</div>
-          <div className="flex items-center gap-3">
-            <button className="btn btn-ghost" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>Top</button>
-            <button className="btn btn-brand" onClick={handleAccept} disabled={accepted}>{accepted ? 'Accepted' : 'Accept Privacy Policy'}</button>
+        </section>
+        
+        <section className="relative bg-[#f7f9fb] pt-6 sm:pt-8 md:pt-10 pb-4 sm:pb-6 md:pb-10 overflow-x-hidden">
+          <div className="public-container">
+            <div className="w-full bg-white rounded-lg shadow-sm border border-gray-100 p-4 sm:p-6 md:p-10 lg:p-12 box-border overflow-x-hidden">
+              <Terms headline="" lastUpdated={PRIVACY_LAST_UPDATED} sections={PRIVACY_SECTIONS} />
           </div>
         </div>
-      </div>
-    </div>
+        </section>
+      </main>
+      
+      {shouldUsePublicLayout ? (
+        <PublicFooter withRail={false} />
+      ) : isAuthenticated ? (
+        <SiteFooter withRail={false} topSeparator={true} />
+      ) : (
+        <PublicFooter withRail={false} />
+      )}
+    </>
   );
 }

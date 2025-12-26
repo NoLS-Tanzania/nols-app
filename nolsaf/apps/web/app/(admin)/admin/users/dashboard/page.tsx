@@ -7,11 +7,8 @@ import axios from "axios";
 import Chart from "@/components/Chart";
 import type { ChartData } from "chart.js";
 
-const api = axios.create({ baseURL: "" });
-function authify() {
-  const t = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-  if (t) api.defaults.headers.common["Authorization"] = `Bearer ${t}`;
-}
+const api = axios.create({ baseURL: "", withCredentials: true });
+function authify() {}
 
 type SummaryData = {
   totalCustomers?: number;
@@ -130,7 +127,7 @@ export default function UsersDashboardPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-300 hover:border-blue-300 group">
           <div className="flex items-center gap-4">
             <Users className="h-6 w-6 text-blue-600" />
@@ -181,7 +178,7 @@ export default function UsersDashboardPage() {
       </div>
 
       {/* Booking & Activity Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-300 hover:border-blue-300 group">
           <div className="flex items-center gap-4">
             <CheckCircle className="h-6 w-6 text-blue-600" />
@@ -325,12 +322,15 @@ export default function UsersDashboardPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(customer.createdAt).toLocaleDateString()}
+                      <div>{new Date(customer.createdAt).toLocaleDateString()}</div>
+                      <div className="text-xs text-gray-400">
+                        {new Date(customer.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <Link
                         href={`/admin/users/${customer.id}`}
-                        className="text-emerald-600 hover:text-emerald-900"
+                        className="text-emerald-600 hover:text-emerald-900 transition-colors underline"
                       >
                         View
                       </Link>

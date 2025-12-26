@@ -4,6 +4,7 @@ import { prisma } from "@nolsaf/prisma";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import jwt from "jsonwebtoken";
 import { Prisma } from "@prisma/client";
+import { toCsv } from "../lib/csv.js";
 
 export const router = Router();
 router.use(requireAuth as unknown as RequestHandler, requireRole("ADMIN") as unknown as RequestHandler);
@@ -82,7 +83,7 @@ router.get("/counts", async (req, res) => {
 router.get("/", async (req, res) => {
   // Wrap everything in try-catch at the very top level
   try {
-    const { q = "", status = "", page = "1", pageSize, limit } = req.query as any;
+    const { q = "", status = "", page = "1", pageSize, limit, from, to, propertiesMin, propertiesMax } = req.query as any;
     const pageSizeValue = pageSize || limit || "50";
     const pageNum = Number(page) || 1;
     const skip = (pageNum - 1) * Number(pageSizeValue);
@@ -109,6 +110,13 @@ router.get("/", async (req, res) => {
       } else if (["PENDING_KYC", "APPROVED_KYC", "REJECTED_KYC"].includes(statusStr)) {
         where.kycStatus = statusStr;
       }
+    }
+    
+    // Date range filter (joined date)
+    if (from || to) {
+      where.createdAt = {};
+      if (from) where.createdAt.gte = new Date(String(from));
+      if (to) where.createdAt.lte = new Date(String(to));
     }
 
     // Simplified query - no relations first, just basic data
@@ -201,10 +209,15 @@ router.get("/", async (req, res) => {
       name: item.name ?? null,
       email: item.email ?? null,
       phone: item.phone ?? null,
-      propertiesCount: item._propertyCount ?? 0,
+      createdAt: item.createdAt ? new Date(item.createdAt).toISOString() : new Date().toISOString(),
+      suspendedAt: item.suspendedAt ? new Date(item.suspendedAt).toISOString() : null,
+      kycStatus: item.kycStatus ?? null,
+      _count: {
+        properties: item._propertyCount ?? 0,
+      },
+      // Additional fields for detail view
       region: item._firstProperty?.regionName ?? item._firstProperty?.regionId ?? null,
       district: item._firstProperty?.district ?? null,
-      status: item.suspendedAt ? 'suspended' : (item.kycStatus ?? 'active'),
     }));
 
     return res.json({
@@ -232,6 +245,102 @@ router.get("/", async (req, res) => {
       pageSize: pageSizeNum,
       items: [],
     });
+  }
+});
+
+/** GET /admin/owners/export.csv?status=...&from=...&to=...&q=...&propertiesMin=...&propertiesMax=...
+ * Exports owners to CSV.
+ */
+router.get("/export.csv", async (req, res) => {
+  try {
+    const { status, from, to, q, propertiesMin, propertiesMax } = req.query as any;
+
+    const where: any = { role: "OWNER" };
+    
+    if (q && String(q).trim()) {
+      const searchTerm = String(q).trim();
+      where.OR = [
+        { name: { contains: searchTerm, mode: "insensitive" } },
+        { email: { contains: searchTerm, mode: "insensitive" } },
+        { phone: { contains: searchTerm, mode: "insensitive" } },
+      ];
+    }
+    
+    if (status) {
+      const statusStr = String(status);
+      if (statusStr === "SUSPENDED") {
+        where.suspendedAt = { not: null };
+      } else if (statusStr === "ACTIVE") {
+        where.suspendedAt = null;
+      } else if (["PENDING_KYC", "APPROVED_KYC", "REJECTED_KYC"].includes(statusStr)) {
+        where.kycStatus = statusStr;
+      }
+    }
+    
+    if (from || to) {
+      where.createdAt = {};
+      if (from) where.createdAt.gte = new Date(String(from));
+      if (to) where.createdAt.lte = new Date(String(to));
+    }
+
+    const owners = await prisma.user.findMany({
+      where,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        createdAt: true,
+        suspendedAt: true,
+        kycStatus: true,
+      },
+      orderBy: { id: "desc" },
+      take: 10000,
+    });
+
+    // Get property counts
+    const userIds = owners.map(u => u.id);
+    const propertyCounts = await prisma.property.groupBy({
+      by: ['ownerId'],
+      where: { ownerId: { in: userIds } },
+      _count: { _all: true },
+    });
+    const countMap = new Map(propertyCounts.map(p => [p.ownerId, p._count._all]));
+
+    // Transform and filter by property count
+    let rows = owners.map((owner: any) => {
+      const propCount = countMap.get(owner.id) || 0;
+      return {
+        id: owner.id,
+        name: owner.name ?? "",
+        email: owner.email ?? "",
+        phone: owner.phone ?? "",
+        propertiesCount: propCount,
+        kycStatus: owner.kycStatus ?? "",
+        accountStatus: owner.suspendedAt ? "Suspended" : "Active",
+        joinedAt: owner.createdAt.toISOString(),
+        suspendedAt: owner.suspendedAt ? owner.suspendedAt.toISOString() : "",
+      };
+    });
+
+    // Filter by property count range
+    if (propertiesMin || propertiesMax) {
+      const min = propertiesMin ? Number(propertiesMin) : 0;
+      const max = propertiesMax ? Number(propertiesMax) : Infinity;
+      rows = rows.filter(r => r.propertiesCount >= min && r.propertiesCount <= max);
+    }
+
+    const csv = toCsv(rows, [
+      "id", "name", "email", "phone", "propertiesCount", "kycStatus", "accountStatus", "joinedAt", "suspendedAt"
+    ]);
+
+    const filename = `owners_export_${new Date().toISOString().split('T')[0]}.csv`;
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send(csv);
+  } catch (err: any) {
+    console.error("Error in GET /admin/owners/export.csv:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -264,10 +373,22 @@ router.get("/:id", async (req, res) => {
       prisma.invoice.count({ where: { ownerId: id } }),
     ]);
 
+    // Convert dates to ISO strings
+    const ownerWithDates = {
+      ...owner,
+      createdAt: owner.createdAt ? new Date(owner.createdAt).toISOString() : new Date().toISOString(),
+      suspendedAt: owner.suspendedAt ? new Date(owner.suspendedAt).toISOString() : null,
+    };
+
+    const propertiesWithDates = props.map(p => ({
+      ...p,
+      createdAt: p.createdAt ? new Date(p.createdAt).toISOString() : new Date().toISOString(),
+    }));
+
     return res.json({
-      owner,
+      owner: ownerWithDates,
       snapshot: {
-        propertiesRecent: props,
+        propertiesRecent: propertiesWithDates,
         invoicesCount: invoices,
         revenue: {
           netSum: Number(money._sum.netPayable ?? 0),
@@ -371,10 +492,25 @@ router.get("/:id/documents", async (req, res) => {
 router.post("/:id/documents/:docId/approve", async (req, res) => {
   const id = Number(req.params.id);
   const docId = Number(req.params.docId);
+  const me = (req.user as any).id;
+  
+  const doc = await prisma.userDocument.findUnique({ where: { id: docId } });
+  if (!doc) return res.status(404).json({ error: "Document not found" });
+  
   await prisma.userDocument.update({
     where: { id: docId },
     data: { status: "APPROVED" },
   });
+  
+  await prisma.adminAudit.create({
+    data: {
+      adminId: me,
+      targetUserId: id,
+      action: "DOCUMENT_APPROVE",
+      details: JSON.stringify({ documentId: docId, documentType: doc.type || "Unknown" }),
+    },
+  });
+  
   req.app.get("io")?.emit?.("admin:kyc:updated", { ownerId: id });
   res.json({ ok: true });
 });
@@ -384,19 +520,42 @@ router.post("/:id/documents/:docId/reject", async (req, res) => {
   const id = Number(req.params.id);
   const docId = Number(req.params.docId);
   const reason = String(req.body?.reason ?? "");
+  const me = (req.user as any).id;
+  
+  const doc = await prisma.userDocument.findUnique({ where: { id: docId } });
+  if (!doc) return res.status(404).json({ error: "Document not found" });
+  
   await prisma.userDocument.update({
     where: { id: docId },
     data: { status: "REJECTED", reason },
   });
+  
+  await prisma.adminAudit.create({
+    data: {
+      adminId: me,
+      targetUserId: id,
+      action: "DOCUMENT_REJECT",
+      details: JSON.stringify({ documentId: docId, documentType: doc.type || "Unknown", reason }),
+    },
+  });
+  
   req.app.get("io")?.emit?.("admin:kyc:updated", { ownerId: id });
   res.json({ ok: true });
 });
 
-/** POST /admin/owners/:id/impersonate -> short-lived owner JWT */
+/** POST /admin/owners/:id/impersonate {reason} -> short-lived owner JWT */
 router.post("/:id/impersonate", async (req, res) => {
   const id = Number(req.params.id);
+  const reason = String(req.body?.reason ?? "");
+  
+  if (!reason || !reason.trim()) {
+    return res.status(400).json({ error: "Reason is required for impersonation" });
+  }
+
   const owner = await prisma.user.findUnique({ where: { id } });
-  if (!owner || owner.role !== "OWNER") return res.status(404).json({ error: "Owner not found" });
+  if (!owner || owner.role !== "OWNER") {
+    return res.status(404).json({ error: "Owner not found" });
+  }
 
   const ttlSec = 10 * 60; // 10 minutes
   const token = jwt.sign(
@@ -404,9 +563,16 @@ router.post("/:id/impersonate", async (req, res) => {
     process.env.JWT_SECRET!,
     { expiresIn: ttlSec }
   );
+  
   await prisma.adminAudit.create({
-    data: { adminId: (req.user as any).id, targetUserId: id, action: "IMPERSONATE_ISSUE" },
+    data: { 
+      adminId: (req.user as any).id, 
+      targetUserId: id, 
+      action: "IMPERSONATE_ISSUE",
+      details: reason.trim()
+    },
   });
+  
   res.json({ token, expiresIn: ttlSec });
 });
 
@@ -414,11 +580,70 @@ router.post("/:id/impersonate", async (req, res) => {
 router.post("/:id/notes", async (req, res) => {
   const id = Number(req.params.id);
   const text = String(req.body?.text ?? "");
+  const me = (req.user as any).id;
+  
   if (!text.trim()) return res.status(400).json({ error: "Note required" });
+  
   const note = await prisma.adminNote.create({
-    data: { ownerId: id, adminId: (req.user as any).id, text },
+    data: { ownerId: id, adminId: me, text },
   });
+  
+  await prisma.adminAudit.create({
+    data: {
+      adminId: me,
+      targetUserId: id,
+      action: "ADD_NOTE",
+      details: `Note added: ${text.substring(0, 100)}${text.length > 100 ? '...' : ''}`,
+    },
+  });
+  
   res.json({ ok: true, note });
+});
+
+/** POST /admin/owners/:id/notify {subject, message} - Send notification to owner */
+router.post("/:id/notify", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { subject, message } = req.body as { subject?: string; message?: string };
+    
+    if (!subject || !subject.trim()) {
+      return res.status(400).json({ error: "Subject is required" });
+    }
+    if (!message || !message.trim()) {
+      return res.status(400).json({ error: "Message is required" });
+    }
+
+    const owner = await prisma.user.findUnique({ where: { id } });
+    if (!owner || owner.role !== "OWNER") {
+      return res.status(404).json({ error: "Owner not found" });
+    }
+
+    // Create admin audit log
+    await prisma.adminAudit.create({
+      data: {
+        adminId: (req.user as any).id,
+        targetUserId: id,
+        action: "NOTIFY_OWNER",
+        details: `Subject: ${subject.trim()}\nMessage: ${message.trim()}`,
+      },
+    });
+
+    // Emit socket event for real-time notification (if owner is online)
+    req.app.get("io")?.emit?.("admin:owner:notification", {
+      ownerId: id,
+      subject: subject.trim(),
+      message: message.trim(),
+      adminId: (req.user as any).id,
+    });
+
+    // TODO: In the future, you can add email/SMS sending here
+    // For now, we just log it and emit a socket event
+
+    res.json({ ok: true, message: "Notification sent successfully" });
+  } catch (err: any) {
+    console.error("Error sending notification:", err);
+    res.status(500).json({ error: "Failed to send notification" });
+  }
 });
 
 /** POST /admin/owners/:id/payouts/preview - Preview payout calculation */

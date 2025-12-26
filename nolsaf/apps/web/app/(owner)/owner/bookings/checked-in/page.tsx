@@ -3,19 +3,14 @@ import { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import { Calendar, Eye, Send, LogOut } from "lucide-react";
 
-const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL });
+// Use same-origin calls + secure httpOnly cookie session.
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 export default function CheckedIn() {
   const [list, setList] = useState<any[]>([]);
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
   const [confirmingCheckout, setConfirmingCheckout] = useState<any | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
-
-  // Set auth header once on mount
-  useEffect(() => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-    if (token) api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-  }, []);
 
   // Load checked-in bookings
   useEffect(() => {

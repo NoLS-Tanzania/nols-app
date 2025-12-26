@@ -4,8 +4,8 @@ import { Settings } from "lucide-react";
 import axios from "axios";
 import { useCallback, useEffect, useState } from "react";
 
-// Use relative base URL so Next.js dev rewrites proxy to API (avoids CORS)
-const api = axios.create({ baseURL: "" });
+// Use same-origin calls + secure httpOnly cookie session.
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 export default function SystemSettingsPage(){
   interface SystemSettings {
@@ -58,8 +58,6 @@ export default function SystemSettingsPage(){
   const [toast, setToast] = useState<string | null>(null);
 
   const load = useCallback(async ()=>{
-    const t = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-    if (t) api.defaults.headers.common['Authorization'] = `Bearer ${t}`;
     try {
       setLoading(true);
       const r = await api.get('/admin/settings');

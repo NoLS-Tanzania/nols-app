@@ -5,7 +5,7 @@ import Support from "@/components/Support";
 import axios from "axios";
 import { useRouter } from "next/navigation";
 
-const api = axios.create();
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 type Preview = {
   bookingId: number;
@@ -32,10 +32,6 @@ export default function CheckinValidation() {
 
   const [lastValidated, setLastValidated] = useState<string | null>(null);
   const debounceRef = useRef<number | null>(null);
-
-  // attach auth
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-  if (token) api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
   const validate = useCallback(async (incomingCode?: string) => {
     const codeToUse = (incomingCode ?? code)?.trim();
@@ -71,7 +67,7 @@ export default function CheckinValidation() {
     }, 20000);
 
     try {
-      const r = await api.post<{ details: Preview }>("/owner/bookings/validate", { code: codeToUse });
+      const r = await api.post<{ details: Preview }>("/api/owner/bookings/validate", { code: codeToUse });
       setPreview(r.data?.details ?? null);
       setLastValidated(codeToUse);
       if (!r.data?.details) setResultMsg("No details returned");
@@ -131,7 +127,7 @@ export default function CheckinValidation() {
         }
       };
 
-      await api.post('/owner/bookings/confirm-checkin', payload);
+      await api.post('/api/owner/bookings/confirm-checkin', payload);
       setConfirmOpen(false);
       // redirect to checked-in list
       router.push('/owner/bookings/checked-in');

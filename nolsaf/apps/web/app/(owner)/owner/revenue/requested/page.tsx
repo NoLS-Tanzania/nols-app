@@ -7,18 +7,14 @@ type RevenueFilters = { status?: string; [key: string]: any };
 
 // RevenueFilter removed — unused when Requested page shows only submitted items by default
 
-const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL });
+// Use same-origin calls + secure httpOnly cookie session.
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 export default function Requested() {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [minWaitElapsed, setMinWaitElapsed] = useState(false);
   const [filters] = useState<RevenueFilters>({ status: "SUBMITTED" });
-
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-  }, []);
 
   useEffect(() => {
   let mounted = true;

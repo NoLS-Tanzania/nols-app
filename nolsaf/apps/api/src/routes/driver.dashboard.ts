@@ -170,12 +170,9 @@ router.get("/", async (req, res) => {
       trips,
     }));
 
-    // Demand zones (mock data - replace with actual logic)
-    const demandZones = [
-      { name: "Masaki", level: "high" as const },
-      { name: "Mikocheni", level: "medium" as const },
-      { name: "Sinza", level: "low" as const },
-    ];
+    // Demand zones - fetch real data from trips/analytics
+    // For now, return empty array until real demand zone logic is implemented
+    const demandZones: Array<{ name: string; level: "high" | "medium" | "low" }> = [];
 
     // Recent trips (last 5)
     const recentTripsData = await db.trip.findMany({

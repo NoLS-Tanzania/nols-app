@@ -60,7 +60,8 @@ import {
   Bar,
 } from "recharts";
 
-const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL });
+// Use same-origin calls + secure httpOnly cookie session.
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 type DashboardStats = {
   todayGoal: number;
@@ -152,21 +153,21 @@ export default function DriverDashboard({ className }: { className?: string }) {
 
   // Setup Socket.IO for real-time reminder updates
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      const socket = io(process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000", {
-        auth: { token },
-      });
+    const socket = io(process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000", {
+      transports: ["websocket"],
+    });
 
-      socket.on("connect", () => {
-        console.log("Socket connected for reminders");
-        try {
-          const userId = JSON.parse(atob(token.split(".")[1])).id;
-          socket.emit("join-driver-room", { driverId: userId });
-        } catch (e) {
-          console.warn("Failed to parse token for driver room", e);
-        }
-      });
+    socket.on("connect", async () => {
+      console.log("Socket connected for reminders");
+      try {
+        const r = await fetch("/api/account/me", { credentials: "include" });
+        if (!r.ok) return;
+        const me = await r.json();
+        if (me?.id) socket.emit("join-driver-room", { driverId: me.id });
+      } catch {
+        // ignore
+      }
+    });
 
       // Listen for new reminders
       socket.on("new-reminder", (data: any) => {
@@ -180,18 +181,14 @@ export default function DriverDashboard({ className }: { className?: string }) {
         });
       });
 
-      socketRef.current = socket;
+    socketRef.current = socket;
 
-      return () => {
-        try {
-          const userId = JSON.parse(atob(token.split(".")[1])).id;
-          socket.emit("leave-driver-room", { driverId: userId });
-        } catch (e) {
-          // ignore
-        }
-        socket.disconnect();
-      };
-    }
+    return () => {
+      try {
+        socket.emit("leave-driver-room", { driverId: undefined });
+      } catch {}
+      socket.disconnect();
+    };
   }, []);
 
   const saveGoals = (g: { trips?: number; money?: number; moneyUrgent?: boolean } | null) => {
@@ -228,10 +225,8 @@ export default function DriverDashboard({ className }: { className?: string }) {
   // Fetch user profile
   useEffect(() => {
     try {
-      const t = localStorage.getItem("token");
-      if (t) api.defaults.headers.common["Authorization"] = `Bearer ${t}`;
       api
-        .get("/account/me")
+        .get("/api/account/me")
         .then((r) => setMe(r.data))
         .catch(() => setMe(null));
     } catch (err) {
@@ -245,9 +240,6 @@ export default function DriverDashboard({ className }: { className?: string }) {
       const startTime = Date.now();
       setLoading(true);
       try {
-        const t = localStorage.getItem("token");
-        if (t) api.defaults.headers.common["Authorization"] = `Bearer ${t}`;
-        
         const res = await api.get("/api/driver/dashboard");
         setStats(res.data);
         // attempt to load persisted reminders separately (prefer dedicated endpoint)
@@ -495,8 +487,6 @@ export default function DriverDashboard({ className }: { className?: string }) {
   // Mark reminder as read (optimistic)
   const markAsRead = async (id: string) => {
     try {
-      const t = localStorage.getItem('token');
-      if (t) api.defaults.headers.common['Authorization'] = `Bearer ${t}`;
       await api.post(`/api/driver/reminders/${encodeURIComponent(id)}/read`);
     } catch (e) {
       // ignore errors, continue to remove locally
@@ -816,26 +806,32 @@ export default function DriverDashboard({ className }: { className?: string }) {
           </Link>
         </div>
         <div className="space-y-3">
-          {stats.recentTrips.map((trip) => (
-            <div 
-              key={trip.id}
-              className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-            >
-              <div className="flex items-center gap-3 flex-1">
-                <div className="text-sm text-gray-600 w-16">{trip.time}</div>
-                <ArrowRight className="h-4 w-4 text-gray-400" />
-                <div className="flex-1">
-                  <div className="text-sm font-medium text-gray-900">
-                    {trip.from} → {trip.to}
+          {stats.recentTrips && stats.recentTrips.length > 0 ? (
+            stats.recentTrips.map((trip) => (
+              <div 
+                key={trip.id}
+                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                <div className="flex items-center gap-3 flex-1">
+                  <div className="text-sm text-gray-600 w-16">{trip.time}</div>
+                  <ArrowRight className="h-4 w-4 text-gray-400" />
+                  <div className="flex-1">
+                    <div className="text-sm font-medium text-gray-900">
+                      {trip.from} → {trip.to}
+                    </div>
+                    <div className="text-xs text-gray-500">{trip.distance}</div>
                   </div>
-                  <div className="text-xs text-gray-500">{trip.distance}</div>
+                </div>
+                <div className="text-sm font-semibold text-gray-900">
+                  {fmtMoney(trip.amount)} TZS
                 </div>
               </div>
-              <div className="text-sm font-semibold text-gray-900">
-                {fmtMoney(trip.amount)} TZS
-              </div>
+            ))
+          ) : (
+            <div className="text-sm text-gray-600 py-4 text-center">
+              No recent trips yet. Your completed trips will appear here.
             </div>
-          ))}
+          )}
         </div>
       </div>
 

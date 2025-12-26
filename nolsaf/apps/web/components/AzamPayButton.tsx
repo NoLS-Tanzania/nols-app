@@ -42,8 +42,8 @@ export default function AzamPayButton({
 }: AzamPayButtonProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState<"idle" | "initiating" | "pending" | "success" | "failed">("idle");
-  const [idempotencyKey, setIdempotencyKey] = useState<string | null>(null);
-  const [paymentRef, setPaymentRef] = useState<string | null>(null);
+  // Removed unused idempotencyKey state
+  // Removed unused paymentRef state
   const [showModal, setShowModal] = useState(false);
   const [selectedPhone, setSelectedPhone] = useState<string | undefined>(initialPhoneNumber);
   const [selectedProvider, setSelectedProvider] = useState<string | undefined>(initialProvider);
@@ -177,7 +177,7 @@ export default function AzamPayButton({
       
       // Generate idempotency key
       const key = `azampay-${invoiceId}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      setIdempotencyKey(key);
+      // Removed setIdempotencyKey(key) as idempotencyKey state is not used
 
       const response = await fetch(`${API_URL}/api/payments/azampay/initiate`, {
         method: "POST",
@@ -200,7 +200,6 @@ export default function AzamPayButton({
       }
 
       if (data.ok) {
-        setPaymentRef(data.paymentRef || data.transactionId);
         setPaymentStatus("pending");
 
         // If there's a checkout URL, redirect to it

@@ -3,7 +3,8 @@ import { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import Image from "next/image";
 import { User, Upload, CreditCard, Wallet, X, CheckCircle, Save, Lock, LogOut, Trash2, Calendar, MapPin, Globe, Phone, Mail, FileText, Truck, Car, Pencil, AlertCircle, UserCircle, Shield } from 'lucide-react';
-const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL });
+// Use same-origin calls + secure httpOnly cookie session.
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 export default function DriverProfile() {
   const [form, setForm] = useState<any>({});
@@ -27,17 +28,11 @@ export default function DriverProfile() {
 
   useEffect(() => {
     let mounted = true;
-    const t = localStorage.getItem("token");
-    if (!t) {
-      if (typeof window !== 'undefined') window.location.href = '/login';
-      return;
-    }
-    api.defaults.headers.common["Authorization"] = `Bearer ${t}`;
     (async () => {
       setLoading(true);
       setError(null);
       try {
-        const r = await api.get("/account/me");
+        const r = await api.get("/api/account/me");
         if (!mounted) return;
         setForm(r.data);
         setMe(r.data);
@@ -45,7 +40,7 @@ export default function DriverProfile() {
         // fetch payment methods (best-effort)
         try {
           setLoadingPaymentMethods(true);
-          const pm = await api.get('/account/payment-methods');
+          const pm = await api.get('/api/account/payment-methods');
           if (!mounted) return;
           setPaymentMethods(pm.data?.methods ?? null);
           // attach payout data to form if present (for editing payouts inline)
@@ -58,6 +53,7 @@ export default function DriverProfile() {
       } catch (err: any) {
         console.error('Failed to load profile', err);
         if (mounted) setError(String(err?.message ?? err));
+        if (typeof window !== 'undefined') window.location.href = '/login';
       } finally {
         if (mounted) setLoading(false);
       }
@@ -675,7 +671,12 @@ export default function DriverProfile() {
           
           <button 
             className="inline-flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-all duration-200 border-2 border-slate-200 hover:border-slate-300 shadow-sm hover:shadow-md hover:scale-105" 
-            onClick={() => { localStorage.removeItem('token'); window.location.href = '/login'; }}
+            onClick={async () => {
+              try {
+                await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+              } catch {}
+              window.location.href = "/login";
+            }}
           >
             <LogOut className="h-4 w-4" />
             <span>Logout</span>
@@ -687,12 +688,9 @@ export default function DriverProfile() {
               const ok = confirm('Are you sure you want to delete your account? This is irreversible.');
               if (!ok) return;
               try {
-                const t = localStorage.getItem('token');
-                if (!t) { window.location.href = '/login'; return; }
-                api.defaults.headers.common['Authorization'] = `Bearer ${t}`;
-                await api.delete('/account');
-                // clear local session and redirect to goodbye/login
-                localStorage.removeItem('token');
+                await api.delete('/api/account');
+                // clear session and redirect
+                try { await fetch("/api/auth/logout", { method: "POST", credentials: "include" }); } catch {}
                 alert('Account deleted');
                 window.location.href = '/';
               } catch (err: any) {

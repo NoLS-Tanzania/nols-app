@@ -15,17 +15,18 @@ type Props = {
 export default function Terms({ headline = "Terms of Service", lastUpdated, sections }: Props) {
   return (
     <article className="w-full max-w-full sm:max-w-5xl mx-auto space-y-6 sm:space-y-8 md:space-y-10 text-left">
-      <header className="space-y-2 sm:space-y-3">
-        <p className="text-xs sm:text-sm font-semibold uppercase tracking-[0.08em] text-gray-500 break-words">
-          Terms & Conditions
-        </p>
+      {(headline || lastUpdated) && (
+        <header className="space-y-2 sm:space-y-3 text-center">
+          {headline && (
         <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-gray-900 leading-tight break-words">
           {headline}
         </h1>
+          )}
         {lastUpdated && (
           <p className="text-xs sm:text-sm text-gray-600 break-words">Last updated: {lastUpdated}</p>
         )}
       </header>
+      )}
 
       <div className="divide-y divide-gray-200 border-y border-gray-200">
         {sections.map((s, i) => (

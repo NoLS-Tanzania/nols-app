@@ -2,13 +2,12 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 
-const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL });
+// Use same-origin calls + secure httpOnly cookie session.
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 export default function InvoiceView({ params }: { params: { id: string } }) {
   const [inv, setInv] = useState<any>(null);
   const [submitting, setSubmitting] = useState(false);
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-  if (token) api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
   useEffect(() => {
     api.get(`/owner/invoices/${params.id}`).then(r => setInv(r.data));

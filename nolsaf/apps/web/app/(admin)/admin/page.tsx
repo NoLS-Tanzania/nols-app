@@ -18,9 +18,7 @@ import GeneralReports from '@/components/GeneralReports';
   })();
 // Use relative paths in browser to leverage Next.js rewrites (avoids CORS issues)
 // Only use absolute URL for server-side or when explicitly needed
-const API = typeof window === 'undefined' 
-  ? (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000")
-  : '';
+const API = '';
 
 // Send a lightweight analytics event to the API (non-blocking)
 async function sendAnalytics(eventName: string, payload: any = {}) {
@@ -28,7 +26,8 @@ async function sendAnalytics(eventName: string, payload: any = {}) {
     // fire-and-forget; don't await in callers unless necessary
     void fetch(`${API}/admin/analytics/event`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-role": "ADMIN" },
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ event: eventName, payload }),
     });
   } catch {
@@ -115,7 +114,7 @@ export default function AdminHome() {
     const t = setTimeout(async () => {
       setLoadingValidation(true);
       try {
-        const res = await fetch(`${API}/admin/revenue/invoices?code=${encodeURIComponent(validationCode)}&page=1&pageSize=1`, { headers: { 'x-role': 'ADMIN' } });
+        const res = await fetch(`${API}/admin/revenue/invoices?code=${encodeURIComponent(validationCode)}&page=1&pageSize=1`, { credentials: "include" });
         const json = await res.json();
         setValidationResult((json?.items && json.items.length) ? json.items[0] : null);
       } catch {
@@ -153,7 +152,7 @@ export default function AdminHome() {
     try {
       const res = await fetch(
         `${API}/admin/properties?status=PENDING&page=1&pageSize=${Number(limits.approvals) || 6}`,
-        { headers: { "x-role": "ADMIN" } }
+        { credentials: "include" }
       );
       const json = await res.json();
       setApprovals(json ?? { items: [] });
@@ -169,11 +168,11 @@ export default function AdminHome() {
     try {
       // Fetch REQUESTED and VERIFIED and merge as 'New'
       const [rRequested, rVerified, rApproved, rPaid, rRejected] = await Promise.all([
-        fetch(`${API}/admin/revenue/invoices?status=REQUESTED&page=1&pageSize=${Number(limits.invoices) || 5}`, { headers: { "x-role": "ADMIN" } }),
-        fetch(`${API}/admin/revenue/invoices?status=VERIFIED&page=1&pageSize=${Number(limits.invoices) || 5}`, { headers: { "x-role": "ADMIN" } }),
-        fetch(`${API}/admin/revenue/invoices?status=APPROVED&page=1&pageSize=${Number(limits.invoices) || 5}`, { headers: { "x-role": "ADMIN" } }),
-        fetch(`${API}/admin/revenue/invoices?status=PAID&page=1&pageSize=${Number(limits.invoices) || 5}`, { headers: { "x-role": "ADMIN" } }),
-        fetch(`${API}/admin/revenue/invoices?status=REJECTED&page=1&pageSize=${Number(limits.invoices) || 5}`, { headers: { "x-role": "ADMIN" } }),
+        fetch(`${API}/admin/revenue/invoices?status=REQUESTED&page=1&pageSize=${Number(limits.invoices) || 5}`, { credentials: "include" }),
+        fetch(`${API}/admin/revenue/invoices?status=VERIFIED&page=1&pageSize=${Number(limits.invoices) || 5}`, { credentials: "include" }),
+        fetch(`${API}/admin/revenue/invoices?status=APPROVED&page=1&pageSize=${Number(limits.invoices) || 5}`, { credentials: "include" }),
+        fetch(`${API}/admin/revenue/invoices?status=PAID&page=1&pageSize=${Number(limits.invoices) || 5}`, { credentials: "include" }),
+        fetch(`${API}/admin/revenue/invoices?status=REJECTED&page=1&pageSize=${Number(limits.invoices) || 5}`, { credentials: "include" }),
       ]);
       const jRequested = await rRequested.json();
       const jVerified = await rVerified.json();
@@ -201,7 +200,7 @@ export default function AdminHome() {
     try {
       const res = await fetch(
         `${API}/admin/stats/overview?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
-        { headers: { "x-role": "ADMIN" } }
+        { credentials: "include" }
       );
       const json = await res.json();
       setOverview(json);
@@ -262,9 +261,9 @@ export default function AdminHome() {
     setConfirmOpen(false);
     try {
       if (action === 'verify') {
-        await fetch(`${API}/admin/revenue/invoices/${invId}/verify`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-role': 'ADMIN' }, body: JSON.stringify({ notes: 'Verified from dashboard' }) });
+        await fetch(`${API}/admin/revenue/invoices/${invId}/verify`, { method: 'POST', credentials: "include", headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notes: 'Verified from dashboard' }) });
       } else if (action === 'validate') {
-        await fetch(`${API}/admin/revenue/invoices/${invId}/verify`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-role': 'ADMIN' }, body: JSON.stringify({ notes: 'Validated from dashboard' }) });
+        await fetch(`${API}/admin/revenue/invoices/${invId}/verify`, { method: 'POST', credentials: "include", headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notes: 'Validated from dashboard' }) });
       }
     } catch {
       // ignore

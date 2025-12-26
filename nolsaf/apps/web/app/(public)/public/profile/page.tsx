@@ -2,7 +2,8 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import Image from "next/image";
-const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL });
+// Use same-origin calls + secure httpOnly cookie session.
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 export default function PublicProfile() {
   const [me, setMe] = useState<any>(null);
@@ -15,23 +16,18 @@ export default function PublicProfile() {
 
   useEffect(() => {
     let mounted = true;
-    const t = localStorage.getItem("token");
-    if (!t) {
-      if (typeof window !== 'undefined') window.location.href = '/login';
-      return;
-    }
-    api.defaults.headers.common["Authorization"] = `Bearer ${t}`;
     (async () => {
       setLoading(true);
       setError(null);
       try {
-        const r = await api.get('/account/me');
+        const r = await api.get('/api/account/me');
         if (!mounted) return;
         setMe(r.data);
         setForm(r.data);
       } catch (err: any) {
         console.error('Failed to load profile', err);
         if (mounted) setError(String(err?.message ?? err));
+        if (typeof window !== 'undefined') window.location.href = '/login';
       } finally {
         if (mounted) setLoading(false);
       }
@@ -45,7 +41,7 @@ export default function PublicProfile() {
     let mounted = true;
     (async () => {
       try {
-        const r = await api.get('/account/referral');
+        const r = await api.get('/api/account/referral');
         if (!mounted) return;
         if (r?.data?.link) { setReferralLink(String(r.data.link)); return; }
         if (r?.data?.code) { setReferralLink(`${window.location.origin}/r/${encodeURIComponent(String(r.data.code))}`); return; }
@@ -132,7 +128,17 @@ export default function PublicProfile() {
 
         <div className="flex items-center gap-3">
           <button className={`px-3 py-2 rounded-xl border ${saving ? 'opacity-80 cursor-wait' : ''}`} onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
-          <button className="px-3 py-2 rounded-xl border" onClick={()=>{ localStorage.removeItem('token'); window.location.href = '/login'; }}>Logout</button>
+          <button
+            className="px-3 py-2 rounded-xl border"
+            onClick={async () => {
+              try {
+                await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+              } catch {}
+              window.location.href = "/login";
+            }}
+          >
+            Logout
+          </button>
         </div>
       </div>
     </div>

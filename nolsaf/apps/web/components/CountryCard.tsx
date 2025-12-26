@@ -3,6 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { ArrowRight } from 'lucide-react';
 
 // Map common payment method names (lowercased) to local asset paths
 const paymentIconMap: Record<string, string> = {
@@ -25,13 +26,6 @@ const paymentIconMap: Record<string, string> = {
   'mtn': '/assets/MTN%20LOGO.png',
   'mtn mobile money': '/assets/MTN%20LOGO.png',
   'mtn_mobile_money': '/assets/MTN%20LOGO.png',
-};
-
-// Map country id or name (lowercased) to a CSS class name defined in global CSS
-const countryNameClassMap: Record<string, string> = {
-  'tanzania': 'flag-text-tanzania',
-  'kenya': 'flag-text-kenya',
-  'uganda': 'flag-text-uganda',
 };
 
 // Map country id/name to bottom-rail class (used with article to show colored stripe)
@@ -66,10 +60,10 @@ export default function CountryCard({ id, name, flag = '', imageSrc, subtitle, b
       onFocus={() => onHover?.(id)}
       onBlur={() => onHover?.(null)}
       aria-label={`${name} — ${subtitle ?? ''}`}
-      className={`relative rounded-lg overflow-hidden bg-white border card-raise ${highlighted ? 'ring-2 ring-emerald-300 shadow-lg' : 'shadow-sm'} ${accentClass} ${countryRailClassMap[(id || name || '').toLowerCase()] ?? ''}`}
-      style={{ contain: 'layout style paint', transform: 'translateZ(0)' }}
+      // overflow-visible so hover tooltips (payments) aren't clipped
+      className={`relative rounded-lg overflow-visible bg-white border card-raise ${highlighted ? 'ring-2 ring-emerald-300 shadow-lg' : 'shadow-sm'} ${accentClass} ${countryRailClassMap[(id || name || '').toLowerCase()] ?? ''} country-card-article`}
     >
-      <div className="p-4 md:p-5">
+      <div className="p-4 md:p-5 flex flex-col h-full">
         <div className="flex items-start gap-3">
           <div className="flex-shrink-0">
             <div className="w-10 h-10 rounded-md bg-slate-100 flex items-center justify-center text-xl" aria-hidden>
@@ -85,61 +79,77 @@ export default function CountryCard({ id, name, flag = '', imageSrc, subtitle, b
         {blurb ? <p className="mt-3 text-sm text-slate-600">{blurb}</p> : null}
 
         {stats ? (
-          <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-slate-700">
-            {typeof stats.cities === 'number' ? (
-              <Link href={`/public/properties?country=${encodeURIComponent(id)}&view=cities`} className="inline-flex items-baseline gap-2 no-underline" title={`View cities in ${name}`}>
-                <span className="text-slate-500 text-xs">Cities</span>
-                <span className="font-medium text-slate-900">{stats.cities}</span>
-              </Link>
-            ) : null}
+          <div className="mt-4 space-y-3">
+            {/* Stats row: stable alignment across cards */}
+            <div className="grid grid-cols-3 gap-3 text-sm text-slate-700">
+              {typeof stats.cities === 'number' ? (
+                <Link
+                  href={`/public/properties?country=${encodeURIComponent(id)}&view=cities`}
+                  className="inline-flex items-baseline justify-between gap-2 no-underline rounded-md px-2 py-1 bg-slate-50 border border-slate-100 hover:bg-slate-100 transition"
+                  title={`View cities in ${name}`}
+                >
+                  <span className="text-slate-500 text-xs">Cities</span>
+                  <span className="font-semibold text-slate-900 tabular-nums">{stats.cities}</span>
+                </Link>
+              ) : <span />}
 
-            {typeof stats.regions === 'number' ? (
-              <Link href={`/public/properties?country=${encodeURIComponent(id)}&view=regions`} className="inline-flex items-baseline gap-2 no-underline" title={`View regions in ${name}`}>
-                <span className="text-slate-500 text-xs">Regions</span>
-                <span className="font-medium text-slate-900">{stats.regions}</span>
-              </Link>
-            ) : null}
+              {typeof stats.regions === 'number' ? (
+                <Link
+                  href={`/public/properties?country=${encodeURIComponent(id)}&view=regions`}
+                  className="inline-flex items-baseline justify-between gap-2 no-underline rounded-md px-2 py-1 bg-slate-50 border border-slate-100 hover:bg-slate-100 transition"
+                  title={`View regions in ${name}`}
+                >
+                  <span className="text-slate-500 text-xs">Regions</span>
+                  <span className="font-semibold text-slate-900 tabular-nums">{stats.regions}</span>
+                </Link>
+              ) : <span />}
 
-            {typeof stats.listings === 'number' ? (
-              <Link href={`/public/properties?country=${encodeURIComponent(id)}`} className="inline-flex items-baseline gap-2 no-underline" title={`View listings in ${name}`}>
-                <span className="text-slate-500 text-xs">Listings</span>
-                <span className="font-medium text-slate-900">{stats.listings.toLocaleString()}</span>
-              </Link>
-            ) : null}
+              {typeof stats.listings === 'number' ? (
+                <Link
+                  href={`/public/properties?country=${encodeURIComponent(id)}`}
+                  className="inline-flex items-baseline justify-between gap-2 no-underline rounded-md px-2 py-1 bg-slate-50 border border-slate-100 hover:bg-slate-100 transition"
+                  title={`View listings in ${name}`}
+                >
+                  <span className="text-slate-500 text-xs">Listings</span>
+                  <span className="font-semibold text-slate-900 tabular-nums">{stats.listings.toLocaleString()}</span>
+                </Link>
+              ) : <span />}
+            </div>
 
+            {/* Payments row: wraps cleanly and tooltips are visible */}
             {stats.payments ? (
-              <div className="inline-flex items-center gap-3">
-                <span className="text-slate-500 text-xs">Payments</span>
-                <div className="flex items-center gap-2">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-slate-500 text-xs flex-shrink-0">Payments</span>
+                <div className="flex flex-wrap items-center justify-end gap-2">
                   {stats.payments.map((p, i) => {
                     const key = p.toLowerCase();
                     const icon = paymentIconMap[key];
-                    const href = `/help/payments?method=${encodeURIComponent(p)}`;
-                    // clickable tile with hover tooltip
+                    const payHref = `/help/payments?method=${encodeURIComponent(p)}`;
                     if (icon) {
                       return (
                         <Link
                           key={i}
-                          href={href}
+                          href={payHref}
                           title={p}
                           aria-label={p}
-                          className="group relative inline-block"
+                          className="group relative inline-flex items-center focus:outline-none"
                         >
-                          <div className="w-8 h-6 flex items-center justify-center bg-white rounded-sm border border-slate-100 p-0.5 flex-shrink-0">
-                            <Image src={icon} alt={p} width={28} height={16} className="object-contain" style={{ width: 'auto', height: 'auto', maxWidth: '100%', maxHeight: '100%' }} />
-                          </div>
-                          <span className="pointer-events-none absolute -top-7 left-1/2 transform -translate-x-1/2 whitespace-nowrap rounded bg-slate-800 text-white text-xs px-2 py-1 opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-opacity text-center">
+                          <span className="w-10 h-7 inline-flex items-center justify-center bg-white/90 rounded-md border border-slate-200 p-1 shadow-sm transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:shadow-md group-active:translate-y-0">
+                            <Image src={icon} alt={p} width={34} height={18} className="object-contain" style={{ width: 'auto', height: 'auto', maxWidth: '100%', maxHeight: '100%' }} />
+                          </span>
+                          <span className="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-slate-900 text-white text-[11px] px-2 py-1 opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-opacity text-center shadow-lg">
                             {p}
                           </span>
                         </Link>
                       );
                     }
 
-                    // fallback: small text badge clickable
                     return (
-                      <Link key={i} href={href} title={p} aria-label={p} className="group relative inline-block">
-                        <span className="px-2 py-0.5 bg-slate-100 text-slate-700 text-xs rounded">{p}</span>
-                        <span className="pointer-events-none absolute -top-7 left-1/2 transform -translate-x-1/2 whitespace-nowrap rounded bg-slate-800 text-white text-xs px-2 py-1 opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-opacity text-center">
+                      <Link key={i} href={payHref} title={p} aria-label={p} className="group relative inline-flex items-center">
+                        <span className="px-2 py-1 bg-slate-50 border border-slate-200 text-slate-800 text-[11px] rounded-md font-medium">
+                          {p}
+                        </span>
+                        <span className="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-slate-900 text-white text-[11px] px-2 py-1 opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-opacity text-center shadow-lg">
                           {p}
                         </span>
                       </Link>
@@ -152,22 +162,30 @@ export default function CountryCard({ id, name, flag = '', imageSrc, subtitle, b
         ) : null}
 
         {imageSrc ? (
-          <div className="mt-3 md:mt-4 relative w-full" style={{ aspectRatio: '2/1', minHeight: '140px' }}>
+          <div className="mt-3 md:mt-4 relative w-full country-card-image">
             <Image src={imageSrc} alt={`${name} preview`} fill className="rounded-md object-cover" sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw" />
           </div>
         ) : null}
 
-        <div className="mt-4">
-          <Link href={href} onClick={() => onClick?.(id)} className="inline-flex items-center px-5 py-2 bg-emerald-600 text-white rounded-full no-underline btn-explore" aria-label={`Explore ${name}`} style={{ backfaceVisibility: 'hidden', WebkitFontSmoothing: 'antialiased' }}>
-            <span className="mr-1" style={{ display: 'inline-block' }}>Explore</span>
-            {(() => {
-              const key = (id || name || '').toLowerCase();
-              const cls = countryNameClassMap[key];
-              if (cls) {
-                return <span className={`font-semibold ${cls}`} style={{ display: 'inline-block' }}>{name}</span>;
-              }
-              return <span className="font-semibold" style={{ display: 'inline-block' }}>{name}</span>;
-            })()}
+        {/* CTA pinned to bottom so all cards feel uniform */}
+        <div className="pt-1 mt-auto">
+          <Link
+            href={href}
+            onClick={() => onClick?.(id)}
+            className={[
+              "inline-flex items-center justify-center w-full sm:w-auto",
+              "px-6 py-2.5 rounded-full no-underline font-semibold btn-explore",
+              // Softer, simpler button: slightly transparent green with a subtle border
+              "bg-emerald-600/85 text-white shadow-sm border border-emerald-700/20",
+              "hover:bg-emerald-600 hover:shadow-md hover:border-emerald-700/25",
+              "focus:outline-none focus:ring-4 focus:ring-emerald-200/60",
+              "transition-all duration-300",
+            ].join(" ")}
+            aria-label={`Explore ${name}`}
+            style={{ backfaceVisibility: 'hidden', WebkitFontSmoothing: 'antialiased' }}
+          >
+            <span>Explore</span>
+            <ArrowRight className="w-4 h-4 ml-2 opacity-90" aria-hidden />
           </Link>
         </div>
       </div>

@@ -2,10 +2,9 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { Power } from "lucide-react";
-import DriverSwitchOnline from "./DriverSwitchOnline";
-import DriverSwitchOffline from "./DriverSwitchOffline";
 
-const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL });
+// Use same-origin calls + secure httpOnly cookie session.
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 export default function DriverAvailabilitySwitch({ className = "" }: { className?: string }) {
   // Start with false to match server-side render (prevents hydration mismatch)
@@ -58,9 +57,7 @@ export default function DriverAvailabilitySwitch({ className = "" }: { className
     const start = Date.now();
     const desiredDelay = 3000; // fixed 3000ms as requested
     try {
-      const t = localStorage.getItem("token");
-      if (t) api.defaults.headers.common["Authorization"] = `Bearer ${t}`;
-      await api.post("/driver/availability", { available: next });
+      await api.post("/api/driver/availability", { available: next });
       // success: ensure pending lasts at least desiredDelay
       const elapsed = Date.now() - start;
       const remaining = Math.max(0, desiredDelay - elapsed);
@@ -130,11 +127,7 @@ export default function DriverAvailabilitySwitch({ className = "" }: { className
               </span>
               <span className={isClient && available ? 'text-green-600' : 'text-red-600'}>{isClient && available ? 'Going live...' : 'Going offline...'}</span>
             </div>
-          ) : status === 'success' ? (
-            isClient && available ? <DriverSwitchOnline /> : <DriverSwitchOffline />
-          ) : (
-            null
-          )}
+          ) : null}
         </div>
       </div>
     </div>

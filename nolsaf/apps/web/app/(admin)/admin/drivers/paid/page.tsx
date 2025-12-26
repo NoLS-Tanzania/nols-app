@@ -7,11 +7,7 @@ import Chart from "@/components/Chart";
 import type { ChartData } from "chart.js";
 
 // Use same-origin for HTTP calls so Next.js rewrites proxy to the API
-const api = axios.create({ baseURL: "" });
-function authify() {
-  const t = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-  if (t) api.defaults.headers.common["Authorization"] = `Bearer ${t}`;
-}
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 type PaidRow = {
   id: number;
@@ -116,12 +112,10 @@ export default function AdminDriversPaidPage() {
   }, [statsPeriod]);
 
   useEffect(() => {
-    authify();
     load();
   }, [page, date, q]);
 
   useEffect(() => {
-    authify();
     loadStats();
   }, [loadStats]);
 

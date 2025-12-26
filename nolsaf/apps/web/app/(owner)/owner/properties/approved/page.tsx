@@ -22,12 +22,8 @@ import {
 } from "@/lib/priceUtils";
 import VerifiedIcon from "@/components/VerifiedIcon";
 
-const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL });
-
-function authify() {
-  const t = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-  if (t) api.defaults.headers.common["Authorization"] = `Bearer ${t}`;
-}
+// Use same-origin calls + secure httpOnly cookie session.
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 type Property = {
   id: number;
@@ -91,7 +87,6 @@ export default function ApprovedProps() {
     let mounted = true;
     const load = async () => {
       try {
-        authify();
         const response = await api.get("/admin/settings");
         if (mounted && response.data?.commissionPercent !== undefined) {
           const commission = Number(response.data.commissionPercent);
@@ -109,7 +104,6 @@ export default function ApprovedProps() {
 
   useEffect(() => {
     let mounted = true;
-    authify();
 
     const timer = setTimeout(() => {
       if (!mounted) return;
@@ -153,7 +147,6 @@ export default function ApprovedProps() {
     
     setLoadingReviews(prev => ({ ...prev, [propertyId]: true }));
     try {
-      authify();
       const response = await api.get(`/property-reviews/${propertyId}`);
       const data = response.data;
       
@@ -188,7 +181,6 @@ export default function ApprovedProps() {
         mode="owner"
         onUpdated={() => {
           // Reload properties after update
-          authify();
           api.get<any>("/owner/properties/mine", { params: { status: "APPROVED" } })
             .then(r => {
               const data = r.data;

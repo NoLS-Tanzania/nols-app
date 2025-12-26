@@ -3,11 +3,7 @@ import { useEffect, useState } from "react";
 import { BarChart3, Truck, Search, Calendar, DollarSign, Star } from "lucide-react";
 import axios from "axios";
 
-const api = axios.create({ baseURL: "" });
-function authify() {
-  const t = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-  if (t) api.defaults.headers.common["Authorization"] = `Bearer ${t}`;
-}
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 type Driver = {
   id: number;
@@ -32,7 +28,6 @@ export default function AdminDriversStatsPage() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
 
   useEffect(() => {
-    authify();
     loadDrivers();
   }, []);
 

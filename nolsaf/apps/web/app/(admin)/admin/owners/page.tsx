@@ -1,17 +1,19 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
-import { Building2, ChevronLeft, ChevronRight, Search, X, Eye, Download } from "lucide-react";
+import { Building2, Search, X, Eye, Download, ArrowUpDown, ArrowUp, ArrowDown, User, Mail, Phone, Calendar, FileText, Filter } from "lucide-react";
+import DatePicker from "@/components/ui/DatePicker";
 import axios from "axios";
 import { io, Socket } from "socket.io-client";
 import TableRow from "@/components/TableRow";
+import Link from "next/link";
 
 // Use relative paths in browser to leverage Next.js rewrites (avoids CORS issues)
 const API = typeof window === 'undefined' 
   ? (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000")
   : '';
 
-const api = axios.create({ baseURL: API });
-function authify(){ const t = typeof window!=="undefined" ? localStorage.getItem("token"):null; if(t) api.defaults.headers.common["Authorization"]=`Bearer ${t}`;}
+// Use same-origin calls (Next rewrites proxy to API in dev). Use secure cookie session.
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 type Row = {
   id:number; name:string|null; email:string; phone:string|null;
@@ -25,7 +27,8 @@ export default function AdminOwnersPage() {
   const [page, setPage] = useState(1);
   const [items, setItems] = useState<Row[]>([]);
   const [total, setTotal] = useState(0);
-  const pageSize = 50;
+  const pageSize = 25;
+  const [loading, setLoading] = useState(true);
   const [counts, setCounts] = useState<Record<string, number>>({
     "": 0,
     ACTIVE: 0,
@@ -35,10 +38,45 @@ export default function AdminOwnersPage() {
     REJECTED_KYC: 0,
   });
 
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-  const [showScrollControls, setShowScrollControls] = useState(false);
+  // Sorting
+  const [sortBy, setSortBy] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  
+  // Advanced filters
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
+  const [dateFromPicker, setDateFromPicker] = useState<string | string[]>("");
+  const [dateToPicker, setDateToPicker] = useState<string | string[]>("");
+  const [pickerFromOpen, setPickerFromOpen] = useState(false);
+  const [pickerToOpen, setPickerToOpen] = useState(false);
+  const [pickerFromAnim, setPickerFromAnim] = useState(false);
+  const [pickerToAnim, setPickerToAnim] = useState(false);
+  const [propertiesMin, setPropertiesMin] = useState<string>("");
+  const [propertiesMax, setPropertiesMax] = useState<string>("");
+  
+  // Sync date picker selections with dateFrom/dateTo
+  useEffect(() => {
+    if (!dateFromPicker) {
+      setDateFrom("");
+    } else if (Array.isArray(dateFromPicker)) {
+      setDateFrom(dateFromPicker[0] || "");
+    } else {
+      setDateFrom(dateFromPicker as string);
+    }
+  }, [dateFromPicker]);
+  
+  useEffect(() => {
+    if (!dateToPicker) {
+      setDateTo("");
+    } else if (Array.isArray(dateToPicker)) {
+      setDateTo(dateToPicker[0] || "");
+    } else {
+      setDateTo(dateToPicker as string);
+    }
+  }, [dateToPicker]);
+
   const [suggestions, setSuggestions] = useState<Row[]>([]);
-  const countsKey = useMemo(() => JSON.stringify(counts), [counts]);
   const itemsCount = items?.length ?? 0;
 
   type OwnersResponse = {
@@ -49,52 +87,85 @@ export default function AdminOwnersPage() {
   };
 
   const load = useCallback(async () => {
+    setLoading(true);
     try {
-      const r = await api.get<OwnersResponse>("/admin/owners", {
-        params: { q, status, page, pageSize }
-      });
-      setItems(r.data.items ?? []);
+      const params: any = { q, status, page, pageSize };
+      if (sortBy) {
+        params.sortBy = sortBy;
+        params.sortDir = sortDir;
+      }
+      if (dateFrom) params.from = dateFrom;
+      if (dateTo) params.to = dateTo;
+      if (dateFrom) params.from = dateFrom;
+      if (dateTo) params.to = dateTo;
+      if (propertiesMin) params.propertiesMin = propertiesMin;
+      if (propertiesMax) params.propertiesMax = propertiesMax;
+      const r = await api.get<OwnersResponse>("/api/admin/owners", { params });
+      let sortedItems = r.data.items ?? [];
+      
+      // Client-side sorting if API doesn't support it
+      if (sortBy && sortedItems.length > 0) {
+        sortedItems = [...sortedItems].sort((a, b) => {
+          let aVal: any, bVal: any;
+          switch (sortBy) {
+            case "name":
+              aVal = (a.name || a.email || "").toLowerCase();
+              bVal = (b.name || b.email || "").toLowerCase();
+              break;
+            case "createdAt":
+              aVal = new Date(a.createdAt).getTime();
+              bVal = new Date(b.createdAt).getTime();
+              break;
+            case "properties":
+              aVal = a._count.properties;
+              bVal = b._count.properties;
+              break;
+            default:
+              return 0;
+          }
+          if (aVal < bVal) return sortDir === "asc" ? -1 : 1;
+          if (aVal > bVal) return sortDir === "asc" ? 1 : -1;
+          return 0;
+        });
+      }
+      
+      setItems(sortedItems);
       setTotal(r.data.total ?? 0);
-    } catch (err) {
+    } catch (err: any) {
       // network or server errors shouldn't break the page — log and show empty list
       // eslint-disable-next-line no-console
       console.error('Failed to load owners list', err);
+      console.error('Error details:', {
+        message: err?.message,
+        response: err?.response?.data,
+        status: err?.response?.status,
+        url: err?.config?.url,
+      });
       setItems([]);
       setTotal(0);
+    } finally {
+      setLoading(false);
     }
-  }, [q, status, page]);
+  }, [q, status, page, sortBy, sortDir, dateFrom, dateTo, propertiesMin, propertiesMax]);
+  
+  // Sort handler
+  const handleSort = (column: string) => {
+    if (sortBy === column) {
+      setSortDir(prev => prev === "asc" ? "desc" : "asc");
+    } else {
+      setSortBy(column);
+      setSortDir("asc");
+    }
+    setPage(1);
+  };
 
-  useEffect(() => { authify(); void load(); }, [load]);
-  useEffect(() => { void load(); }, [status, page, load]);
-
-  // detect horizontal overflow for status buttons (show arrows on small screens)
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    let timeout: any;
-    const check = () => {
-      const has = el.scrollWidth > el.clientWidth + 4;
-      setShowScrollControls(has);
-    };
-    check();
-    const onResize = () => { clearTimeout(timeout); timeout = setTimeout(check, 120); };
-    el.addEventListener("scroll", check);
-    window.addEventListener("resize", onResize);
-    const mo = new MutationObserver(() => { clearTimeout(timeout); timeout = setTimeout(check, 80); });
-    mo.observe(el, { childList: true, subtree: true });
-    return () => { clearTimeout(timeout); el.removeEventListener("scroll", check); window.removeEventListener("resize", onResize); mo.disconnect(); };
-  }, [itemsCount, status, q, countsKey]);
+  useEffect(() => { void load(); }, [load]);
 
   // optional counts fetch; keep zeros if endpoint missing
   useEffect(() => {
-    authify(); // Ensure auth header is set
     (async () => {
       try {
-        const r = await api.get<Record<string, number>>('/admin/owners/counts', {
-          headers: {
-            'x-role': 'ADMIN',
-            'Content-Type': 'application/json'
-          },
+        const r = await api.get<Record<string, number>>('/api/admin/owners/counts', {
           validateStatus: (status) => status < 500 // Don't throw on 4xx errors
         });
         
@@ -136,7 +207,7 @@ export default function AdminOwnersPage() {
     const t = setTimeout(() => {
       (async () => {
         try {
-          const r = await api.get<{ items: Row[] }>("/admin/owners", {
+          const r = await api.get<{ items: Row[] }>("/api/admin/owners", {
             params: { status, q: term, page: 1, pageSize: 5 },
           });
           setSuggestions(r.data.items ?? []);
@@ -152,13 +223,12 @@ export default function AdminOwnersPage() {
 
   // live refresh when KYC/suspend changes
   useEffect(()=>{
-    authify();
     // Use direct API URL for Socket.IO in browser to ensure WebSocket works in dev
     const url = typeof window !== 'undefined'
       ? (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000")
       : (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "");
-    const token = typeof window!=="undefined" ? localStorage.getItem("token"):null;
-  const s: Socket = io(url, { transports: ['websocket'], auth: token? { token } : undefined });
+    // Socket auth is optional; API auth is cookie-based for HTTP calls.
+    const s: Socket = io(url, { transports: ['websocket'] });
     s.on("admin:owner:updated", load);
     s.on("admin:kyc:updated", load);
     return ()=>{ s.off("admin:owner:updated", load); s.off("admin:kyc:updated", load); s.disconnect(); };
@@ -167,39 +237,67 @@ export default function AdminOwnersPage() {
   const pages = useMemo(()=> Math.max(1, Math.ceil(total / pageSize)),[total]);
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 xl:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6 min-w-0">
       {/* Header */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-        <div className="flex flex-col items-center text-center mb-4">
-          <Building2 className="h-8 w-8 text-gray-400 mb-3" />
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900">
-            Owners
-          </h1>
-          <p className="mt-1 text-sm text-gray-600">
-            Manage platform owners and KYC status
-          </p>
+      <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6 shadow-sm">
+        <div className="flex flex-col items-center text-center">
+          <div className="rounded-full bg-[#02665e]/10 p-3 inline-flex items-center justify-center mb-3">
+            <Building2 className="h-6 w-6 text-[#02665e]" aria-hidden />
         </div>
-        <div className="flex justify-center mt-4">
+          <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Owners</h1>
+          <p className="mt-2 text-xs sm:text-sm text-gray-500">Manage platform owners and KYC status</p>
+          <div className="mt-4">
           <button 
-            className="inline-flex items-center gap-2 px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:border-[#02665e] hover:text-[#02665e] transition-all duration-200 font-medium text-sm"
-            onClick={() => alert('Export owners - implement server side export')}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#02665e] text-white rounded-lg hover:bg-[#02665e]/90 transition-all duration-200 shadow-sm hover:shadow-md font-medium text-sm sm:text-base"
+              onClick={async () => {
+                try {
+                  const params = new URLSearchParams();
+                  if (status) params.set("status", status);
+                  if (q) params.set("q", q);
+                  if (dateFrom) params.set("from", dateFrom);
+                  if (dateTo) params.set("to", dateTo);
+                  if (propertiesMin) params.set("propertiesMin", propertiesMin);
+                  if (propertiesMax) params.set("propertiesMax", propertiesMax);
+
+                  const response = await fetch(`/api/admin/owners/export.csv?${params.toString()}`, {
+                    credentials: "include",
+                  });
+
+                  if (!response.ok) {
+                    throw new Error("Export failed");
+                  }
+
+                  const blob = await response.blob();
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `owners_export_${new Date().toISOString().split('T')[0]}.csv`;
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                } catch (err) {
+                  console.error("Failed to export owners:", err);
+                  alert("Failed to export owners. Please try again.");
+                }
+              }}
           >
-            <Download className="h-4 w-4" />
-            Export owners
+              <Download className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+              <span>Export owners</span>
           </button>
+          </div>
         </div>
       </div>
 
       {/* Search and Filters */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm overflow-hidden">
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 max-w-4xl mx-auto">
+      <div className="bg-white rounded-xl border border-gray-200 p-3 sm:p-4 lg:p-6 shadow-sm overflow-hidden">
+        <div className="flex flex-col gap-3 sm:gap-4">
           {/* Search Box */}
-          <div className="relative w-full sm:flex-1 min-w-0 sm:max-w-md">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <div className="w-full min-w-0 max-w-full">
+            <div className="relative w-full min-w-0 max-w-full">
               <input
                 type="text"
-                className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] outline-none text-sm box-border"
+                className="w-full min-w-0 max-w-full pl-9 sm:pl-10 pr-10 py-2 sm:py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] outline-none text-xs sm:text-sm transition-all box-border"
                 placeholder="Search name, email, or phone"
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
@@ -207,7 +305,9 @@ export default function AdminOwnersPage() {
                   if (e.key === 'Enter') { e.preventDefault(); setPage(1); load(); }
                 }}
                 aria-label="Search owners"
+                style={{ boxSizing: 'border-box', maxWidth: '100%' }}
               />
+              <Search className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 text-gray-400 flex-shrink-0 pointer-events-none" />
               {q && (
                 <button
                   type="button"
@@ -216,7 +316,7 @@ export default function AdminOwnersPage() {
                     setPage(1);
                     load();
                   }}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                  className="absolute right-2.5 sm:right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors p-1 hover:bg-gray-100 rounded"
                   aria-label="Clear search"
                   title="Clear search"
                 >
@@ -249,17 +349,8 @@ export default function AdminOwnersPage() {
             )}
           </div>
 
-          {/* Status Filter */}
-          <div className="relative w-full sm:w-auto sm:flex-shrink-0">
-            <div 
-              ref={scrollRef} 
-              className="status-filter-scroll flex gap-2 justify-start sm:justify-center overflow-x-auto px-2 -mx-2 sm:flex-wrap snap-x snap-mandatory"
-              style={{ 
-                WebkitOverflowScrolling: 'touch',
-                scrollbarWidth: 'none',
-                msOverflowStyle: 'none'
-              } as React.CSSProperties}
-            >
+          {/* Status Filters */}
+          <div className="flex items-center justify-center gap-1.5 sm:gap-2 flex-wrap min-w-0">
               {[
                 { label: "All", value: "" },
                 { label: "Active", value: "ACTIVE" },
@@ -267,102 +358,352 @@ export default function AdminOwnersPage() {
                 { label: "Approved KYC", value: "APPROVED_KYC" },
                 { label: "Rejected KYC", value: "REJECTED_KYC" },
                 { label: "Suspended", value: "SUSPENDED" },
-              ].map((s) => (
+            ].map((s) => {
+              const isActive = status === s.value || (s.value === "" && status === "");
+              const colorMap: Record<string, { active: string; inactive: string; badge: string }> = {
+                '': { active: 'bg-gray-100 border-gray-300 text-gray-800', inactive: 'bg-white hover:bg-gray-50', badge: 'bg-gray-100 text-gray-800' },
+                ACTIVE: { active: 'bg-emerald-50 border-emerald-300 text-emerald-700', inactive: 'bg-white hover:bg-emerald-50', badge: 'bg-emerald-100 text-emerald-800' },
+                PENDING_KYC: { active: 'bg-amber-50 border-amber-300 text-amber-700', inactive: 'bg-white hover:bg-amber-50', badge: 'bg-amber-100 text-amber-800' },
+                APPROVED_KYC: { active: 'bg-emerald-50 border-emerald-300 text-emerald-700', inactive: 'bg-white hover:bg-emerald-50', badge: 'bg-emerald-100 text-emerald-800' },
+                REJECTED_KYC: { active: 'bg-red-50 border-red-300 text-red-700', inactive: 'bg-white hover:bg-red-50', badge: 'bg-red-100 text-red-800' },
+                SUSPENDED: { active: 'bg-indigo-50 border-indigo-300 text-indigo-700', inactive: 'bg-white hover:bg-indigo-50', badge: 'bg-indigo-100 text-indigo-800' },
+              } as const;
+
+              const colors = colorMap[s.value as keyof typeof colorMap] ?? colorMap[''];
+              const btnClass = `px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-full border text-xs flex items-center gap-1 sm:gap-1.5 transition-all duration-200 flex-shrink-0 whitespace-nowrap ${isActive ? colors.active : colors.inactive}`;
+              const badgeClass = `text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded-full ${colors.badge} flex-shrink-0`;
+
+              return (
                 <button
-                  key={s.value}
+                  key={s.value || "all"}
                   type="button"
                   onClick={() => { setStatus(s.value); setPage(1); }}
-                  className={`px-3 py-1.5 rounded-full border text-sm flex items-center gap-2 flex-shrink-0 transition-all duration-200 snap-start ${
-                    status === s.value 
-                      ? 'bg-[#02665e] text-white border-[#02665e] shadow-sm' 
-                      : 'bg-white hover:bg-gray-50 border-gray-300 text-gray-700'
-                  }`}
+                  className={btnClass}
                 >
                   <span className="whitespace-nowrap">{s.label}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full whitespace-nowrap ${
-                    status === s.value 
-                      ? 'bg-white/20 text-white' 
-                      : badgeClasses(s.value)
-                  }`}>
-                    {counts[s.value ?? ''] ?? 0}
-                  </span>
+                  <span className={badgeClass}>{counts[s.value ?? ''] ?? 0}</span>
                 </button>
-              ))}
+              );
+            })}
+
+            {/* Advanced Filters Toggle */}
+            <button
+              type="button"
+              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+              className={`px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-full border text-xs flex items-center gap-1.5 justify-center text-gray-700 bg-white transition-all flex-shrink-0 whitespace-nowrap ${
+                showAdvancedFilters ? 'bg-[#02665e]/10 border-[#02665e] text-[#02665e]' : 'hover:bg-gray-50'
+              }`}
+            >
+              <Filter className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Advanced Filters</span>
+            </button>
             </div>
 
-            {showScrollControls && (
-              <>
-                <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-12 sm:hidden bg-gradient-to-r from-white via-white to-transparent z-10" />
-                <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-12 sm:hidden bg-gradient-to-l from-white via-white to-transparent z-10" />
+          {/* Advanced Filters Panel */}
+          {showAdvancedFilters && (
+            <div className="border-t border-gray-200 pt-3 sm:pt-4 space-y-3 sm:space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-gray-900">Advanced Filters</h3>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDateFrom("");
+                    setDateTo("");
+                    setDateFromPicker("");
+                    setDateToPicker("");
+                    setPropertiesMin("");
+                    setPropertiesMax("");
+                    setShowAdvancedFilters(false);
+                  }}
+                  className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1 px-2 py-1 rounded-md hover:bg-gray-100 transition-colors duration-200"
+                >
+                  <X className="h-3 w-3" />
+                  Clear
+                </button>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                {/* Date From */}
+                <div className="min-w-0">
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Joined From</label>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPickerFromAnim(true);
+                        window.setTimeout(() => setPickerFromAnim(false), 350);
+                        setPickerFromOpen((v) => !v);
+                      }}
+                      className={`w-full px-3 py-2 border-2 border-gray-300 rounded-lg text-left text-xs sm:text-sm transition-all flex items-center justify-between bg-white ${
+                        pickerFromAnim ? 'ring-2 ring-blue-100' : 'hover:bg-gray-50 focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e]'
+                      }`}
+                    >
+                      <span className={dateFrom ? "text-gray-900" : "text-gray-400"}>
+                        {dateFrom ? new Date(dateFrom).toLocaleDateString() : "Select date"}
+                      </span>
+                      <Calendar className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                    </button>
+                    {pickerFromOpen && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setPickerFromOpen(false)} />
+                        <div className="fixed z-50 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                          <DatePicker
+                            selected={dateFromPicker || undefined}
+                            onSelect={(s) => {
+                              setDateFromPicker(s as string | string[]);
+                            }}
+                            onClose={() => setPickerFromOpen(false)}
+                          />
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
 
+                {/* Date To */}
+                <div className="min-w-0">
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Joined To</label>
+                  <div className="relative">
                 <button
                   type="button"
-                  onClick={() => scrollRef.current?.scrollBy({ left: -150, behavior: "smooth" })}
-                  className="sm:hidden absolute left-2 top-1/2 -translate-y-1/2 bg-white border-2 border-gray-300 rounded-full p-2 shadow-lg opacity-90 hover:opacity-100 focus:opacity-100 active:scale-95 transition-all z-20 touch-manipulation"
-                  aria-label="Scroll left"
-                  title="Scroll left"
-                >
-                  <ChevronLeft className="h-4 w-4 text-gray-700" />
+                      onClick={() => {
+                        setPickerToAnim(true);
+                        window.setTimeout(() => setPickerToAnim(false), 350);
+                        setPickerToOpen((v) => !v);
+                      }}
+                      className={`w-full px-3 py-2 border-2 border-gray-300 rounded-lg text-left text-xs sm:text-sm transition-all flex items-center justify-between bg-white ${
+                        pickerToAnim ? 'ring-2 ring-blue-100' : 'hover:bg-gray-50 focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e]'
+                      }`}
+                    >
+                      <span className={dateTo ? "text-gray-900" : "text-gray-400"}>
+                        {dateTo ? new Date(dateTo).toLocaleDateString() : "Select date"}
+                      </span>
+                      <Calendar className="h-4 w-4 text-gray-400 flex-shrink-0" />
                 </button>
-                <button
-                  type="button"
-                  onClick={() => scrollRef.current?.scrollBy({ left: 150, behavior: "smooth" })}
-                  className="sm:hidden absolute right-2 top-1/2 -translate-y-1/2 bg-white border-2 border-gray-300 rounded-full p-2 shadow-lg opacity-90 hover:opacity-100 focus:opacity-100 active:scale-95 transition-all z-20 touch-manipulation"
-                  aria-label="Scroll right"
-                  title="Scroll right"
-                >
-                  <ChevronRight className="h-4 w-4 text-gray-700" />
-                </button>
+                    {pickerToOpen && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setPickerToOpen(false)} />
+                        <div className="fixed z-50 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                          <DatePicker
+                            selected={dateToPicker || undefined}
+                            onSelect={(s) => {
+                              setDateToPicker(s as string | string[]);
+                            }}
+                            onClose={() => setPickerToOpen(false)}
+                          />
+                        </div>
               </>
             )}
           </div>
+                </div>
+
+                {/* Properties Min */}
+                <div className="min-w-0">
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Min Properties</label>
+                  <input
+                    type="number"
+                    value={propertiesMin}
+                    onChange={(e) => setPropertiesMin(e.target.value)}
+                    placeholder="0"
+                    min="0"
+                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] outline-none text-xs sm:text-sm transition-all box-border"
+                  />
+                </div>
+
+                {/* Properties Max */}
+                <div className="min-w-0">
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Max Properties</label>
+                  <input
+                    type="number"
+                    value={propertiesMax}
+                    onChange={(e) => setPropertiesMax(e.target.value)}
+                    placeholder="No limit"
+                    min="0"
+                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] outline-none text-xs sm:text-sm transition-all box-border"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+      {/* Mobile Card Layout */}
+      {loading ? (
+        <div className="bg-white rounded-xl border border-gray-200 p-12 shadow-sm">
+          <div className="flex items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-2 border-gray-300 border-t-emerald-600"></div>
+          </div>
+        </div>
+      ) : itemsCount === 0 ? (
+        <div className="bg-white rounded-xl border border-gray-200 p-12 shadow-sm text-center">
+          <FileText className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+          <p className="text-sm text-gray-500">No owners found.</p>
+          <p className="text-xs text-gray-400 mt-1">Try adjusting your filters or search query.</p>
+        </div>
+      ) : (
+        <>
+          {/* Mobile Cards - Hidden on md and up */}
+          <div className="md:hidden space-y-3">
+            {items.map((o) => (
+              <div
+                key={o.id}
+                className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:shadow-md transition-shadow"
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <User className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                      <div className="text-sm font-semibold text-gray-900 truncate">
+                        {o.name ?? o.email}
+                      </div>
+                    </div>
+                    <div className="text-xs text-gray-500 ml-6">{o.email}</div>
+                  </div>
+                  <Link
+                    href={`/admin/owners/${o.id}`}
+                    className="p-2 rounded-lg text-[#02665e] hover:bg-[#02665e]/10 transition-all flex-shrink-0"
+                    title="View owner details"
+                  >
+                    <Eye className="h-5 w-5" />
+                  </Link>
+                </div>
+
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                    <span className="text-gray-900 truncate">{o.email}</span>
+                  </div>
+                  {o.phone && (
+                    <div className="flex items-center gap-2">
+                      <Phone className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                      <span className="text-gray-700">{o.phone}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <Building2 className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                    <span className="text-gray-900">{o._count.properties} propert{o._count.properties !== 1 ? 'ies' : 'y'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                    <span className="text-gray-700">
+                      {new Date(o.createdAt).toLocaleDateString()} at {new Date(o.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 pt-2 border-t border-gray-100">
+                    <div>
+                      <div className="text-xs text-gray-500">KYC Status</div>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium mt-1 ${badge(o.kycStatus)}`}>
+                        {kycLabel(o.kycStatus)}
+                      </span>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-500">Account Status</div>
+                      {o.suspendedAt ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700 border border-red-200 mt-1">
+                          Suspended
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 mt-1">
+                          Active
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop Table - Hidden on mobile */}
+          <div className="hidden md:block bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Owner</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Contact</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Properties</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">KYC</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Joined</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    <th 
+                      className="px-3 sm:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                      onClick={() => handleSort("name")}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span>Owner</span>
+                        {sortBy === "name" ? (
+                          sortDir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                        ) : (
+                          <ArrowUpDown className="h-3 w-3 text-gray-400" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-3 sm:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                      Contact
+                    </th>
+                    <th 
+                      className="px-3 sm:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                      onClick={() => handleSort("properties")}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span>Properties</span>
+                        {sortBy === "properties" ? (
+                          sortDir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                        ) : (
+                          <ArrowUpDown className="h-3 w-3 text-gray-400" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-3 sm:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                      KYC
+                    </th>
+                    <th className="px-3 sm:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th 
+                      className="px-3 sm:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                      onClick={() => handleSort("createdAt")}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span>Joined</span>
+                        {sortBy === "createdAt" ? (
+                          sortDir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                        ) : (
+                          <ArrowUpDown className="h-3 w-3 text-gray-400" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-3 sm:px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                      Actions
+                    </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {itemsCount === 0 ? (
-                <TableRow hover={false}>
-                  <td colSpan={7} className="px-6 py-8 text-center text-sm text-gray-500">
-                    No owners found.
-                  </td>
-                </TableRow>
-              ) : (
-                (items || []).map(o => (
+                  {items.map((o) => (
                   <TableRow key={o.id}>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="font-medium text-gray-900 truncate">{o.name ?? "-"}</div>
-                      <div className="text-xs text-gray-500 md:hidden mt-1">
-                        {o.email} {o.phone ? `• ${o.phone}` : ''}
+                      <td className="px-3 sm:px-4 py-3 whitespace-nowrap">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <User className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold text-gray-900 truncate">{o.name ?? o.email}</div>
+                            {o.name && (
+                              <div className="text-xs text-gray-500 truncate">{o.email}</div>
+                            )}
+                          </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap hidden md:table-cell">
+                      <td className="px-3 sm:px-4 py-3 whitespace-nowrap">
                       <div className="text-sm text-gray-900">{o.email}</div>
                       <div className="text-sm text-gray-500">{o.phone ?? "-"}</div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap hidden md:table-cell">
-                      <div className="text-sm text-gray-900 font-medium">{o._count.properties}</div>
+                      <td className="px-3 sm:px-4 py-3 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <Building2 className="h-4 w-4 text-gray-400" />
+                          <span className="text-sm font-medium text-gray-900">{o._count.properties}</span>
+                        </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-3 sm:px-4 py-3 whitespace-nowrap">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${badge(o.kycStatus)}`} aria-label={`KYC: ${kycLabel(o.kycStatus)}`}>
                         {kycLabel(o.kycStatus)}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-3 sm:px-4 py-3 whitespace-nowrap">
                       {o.suspendedAt ? (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700 border border-red-200">
                           Suspended
@@ -373,7 +714,7 @@ export default function AdminOwnersPage() {
                         </span>
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap hidden md:table-cell">
+                      <td className="px-3 sm:px-4 py-3 whitespace-nowrap">
                       <div className="text-sm text-gray-900">
                         {new Date(o.createdAt).toLocaleDateString('en-US', { 
                           year: 'numeric', 
@@ -381,51 +722,85 @@ export default function AdminOwnersPage() {
                           day: 'numeric' 
                         })}
                       </div>
+                        <div className="text-xs text-gray-500">
+                          {new Date(o.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                        </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <a 
+                    <td className="px-3 sm:px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
+                      <Link 
                         href={`/admin/owners/${o.id}`}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-[#02665e] border border-[#02665e] rounded-lg hover:bg-[#02665e] hover:text-white transition-all duration-200"
+                        className="inline-flex items-center justify-center w-9 h-9 text-[#02665e] border border-[#02665e] rounded-lg hover:bg-[#02665e] hover:text-white transition-all duration-200"
+                        title="View owner details"
                       >
                         <Eye className="h-4 w-4" />
-                        View
-                      </a>
+                      </Link>
                     </td>
                   </TableRow>
-                ))
-              )}
+                  ))}
             </tbody>
           </table>
         </div>
       </div>
+        </>
+      )}
 
       {/* Pagination */}
-      <div className="flex items-center justify-between bg-white rounded-lg border border-gray-200 px-6 py-4 shadow-sm">
-        <div className="text-sm text-gray-700">
-          Total: <span className="font-medium">{total}</span>
+      {total > pageSize && (
+        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="text-sm text-gray-600">
+              Showing <span className="font-semibold text-gray-900">{(page - 1) * pageSize + 1}</span> to{" "}
+              <span className="font-semibold text-gray-900">{Math.min(page * pageSize, total)}</span> of{" "}
+              <span className="font-semibold text-gray-900">{total}</span> owners
         </div>
         <div className="flex items-center gap-2">
           <button 
-            disabled={page <= 1} 
-            onClick={() => setPage(p => p - 1)} 
-            className="inline-flex items-center justify-center p-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:border-[#02665e] hover:text-[#02665e] transition-all duration-200"
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1 || loading}
+                className="p-2 border border-gray-300 rounded-lg hover:border-[#02665e] hover:text-[#02665e] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
             aria-label="Previous page"
           >
-            <ChevronLeft className="h-4 w-4" />
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.ceil(total / pageSize) }, (_, i) => i + 1).map((pageNum) => {
+                  const totalPages = Math.ceil(total / pageSize);
+                  const showEllipsisBefore = page > 3 && pageNum === 2;
+                  const showEllipsisAfter = page < totalPages - 2 && pageNum === totalPages - 1;
+
+                  if (totalPages <= 5 || pageNum === 1 || pageNum === totalPages || (pageNum >= page - 1 && pageNum <= page + 1)) {
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setPage(pageNum)}
+                        disabled={loading}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                          page === pageNum
+                            ? "bg-[#02665e] text-white"
+                            : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-300"
+                        } disabled:opacity-50 disabled:cursor-not-allowed`}
+                      >
+                        {pageNum}
           </button>
-          <div className="text-sm text-gray-700 px-3">
-            Page <span className="font-medium">{page}</span> / <span className="font-medium">{pages}</span>
+                    );
+                  } else if (showEllipsisBefore || showEllipsisAfter) {
+                    return <span key={pageNum} className="px-2 text-gray-400">...</span>;
+                  }
+                  return null;
+                })}
           </div>
           <button 
-            disabled={page >= pages} 
-            onClick={() => setPage(p => p + 1)} 
-            className="inline-flex items-center justify-center p-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:border-[#02665e] hover:text-[#02665e] transition-all duration-200"
+                onClick={() => setPage(p => Math.min(Math.ceil(total / pageSize), p + 1))}
+                disabled={page >= Math.ceil(total / pageSize) || loading}
+                className="p-2 border border-gray-300 rounded-lg hover:border-[#02665e] hover:text-[#02665e] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
             aria-label="Next page"
           >
-            <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="h-5 w-5" />
           </button>
         </div>
       </div>
+        </div>
+      )}
     </div>
   );
 }

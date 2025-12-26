@@ -12,22 +12,15 @@ export default function DriverNotificationsPage() {
     const controller = new AbortController();
     (async () => {
       try {
-        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-        const base = process.env.NEXT_PUBLIC_API_URL || '';
-        const baseUrl = base ? base.replace(/\/$/, '') : '';
-        const headers: HeadersInit | undefined = token ? { Authorization: `Bearer ${token}` } : undefined;
-
         // fetch unread totals
-        const unreadUrl = baseUrl ? `${baseUrl}/api/driver/notifications?tab=unread&page=1&pageSize=1` : '/api/driver/notifications?tab=unread&page=1&pageSize=1';
-        const ru = await fetch(unreadUrl, { headers, signal: controller.signal });
+        const ru = await fetch('/api/driver/notifications?tab=unread&page=1&pageSize=1', { credentials: "include", signal: controller.signal });
         if (ru.ok) {
           const ju = await ru.json();
           if (mounted) setUnreadCount(Number(ju.totalUnread ?? ju.total ?? 0));
         }
 
         // fetch read totals
-        const readUrl = baseUrl ? `${baseUrl}/api/driver/notifications?tab=viewed&page=1&pageSize=1` : '/api/driver/notifications?tab=viewed&page=1&pageSize=1';
-        const rr = await fetch(readUrl, { headers, signal: controller.signal });
+        const rr = await fetch('/api/driver/notifications?tab=viewed&page=1&pageSize=1', { credentials: "include", signal: controller.signal });
         if (rr.ok) {
           const jr = await rr.json();
           if (mounted) setReadCount(Number(jr.total ?? 0));

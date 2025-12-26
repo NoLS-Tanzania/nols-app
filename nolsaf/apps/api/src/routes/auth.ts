@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { prisma } from '@nolsaf/prisma';
-import { hashPassword } from '../lib/crypto.js';
+import { hashPassword, verifyPassword } from '../lib/crypto.js';
 import crypto from 'crypto';
 import { sendMail } from '../lib/mailer.js';
 import { sendSms } from '../lib/sms.js';
 import { validatePasswordStrength, addPasswordToHistory } from '../lib/security.js';
+import jwt from "jsonwebtoken";
 
 const router = Router();
 
@@ -21,6 +22,51 @@ const resetTokenStore: Record<string, { userId: string; expiresAt: number }> = {
 
 function generateOtp() {
   return Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit
+}
+
+function signUserJwt(user: { id: number; role?: string | null; email?: string | null }) {
+  const secret =
+    process.env.JWT_SECRET ||
+    (process.env.NODE_ENV !== "production" ? (process.env.DEV_JWT_SECRET || "dev_jwt_secret") : "");
+  if (!secret) throw new Error("JWT_SECRET not set");
+  // Keep payload minimal; server always re-checks role from DB in middleware.
+  return jwt.sign(
+    { sub: String(user.id) },
+    secret,
+    { expiresIn: process.env.JWT_EXPIRES_IN || "7d" }
+  );
+}
+
+function setAuthCookie(res: any, token: string, role?: string | null) {
+  const isProd = process.env.NODE_ENV === "production";
+  const cookieOptions = {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: "lax" as const,
+    path: "/",
+    maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+  };
+  
+  // Set the JWT token cookie
+  res.cookie("nolsaf_token", token, cookieOptions);
+  res.cookie("token", token, cookieOptions); // Also set as "token" for middleware compatibility
+  
+  // Set role cookie for easier middleware access (non-httpOnly so client can read it)
+  if (role) {
+    res.cookie("role", String(role).toUpperCase(), {
+      httpOnly: false, // Allow client-side access for middleware
+      secure: isProd,
+      sameSite: "lax" as const,
+    path: "/",
+    maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+  });
+  }
+}
+
+function clearAuthCookie(res: any) {
+  res.clearCookie("nolsaf_token", { path: "/" });
+  res.clearCookie("token", { path: "/" });
+  res.clearCookie("role", { path: "/" });
 }
 
 // POST /api/auth/send-otp
@@ -81,8 +127,25 @@ router.post('/verify-otp', async (req, res) => {
       }
     }
 
-    const token = `dev.${Buffer.from(String(phone)).toString('base64')}.token`;
-    return res.json({ ok: true, message: 'verified (master otp)', token, user: { id: `u_${Date.now()}`, phone, role: entry.role || role || 'USER' } });
+    // In dev, still issue a real JWT if possible (so production behavior can be tested locally).
+    try {
+      const desiredRole = String(entry.role || role || "USER").toUpperCase();
+      const allowed = ["USER", "OWNER", "DRIVER", "CUSTOMER", "ADMIN"];
+      const safeRole = allowed.includes(desiredRole) ? desiredRole : "USER";
+      const user = await prisma.user.upsert({
+        where: { phone: String(phone) },
+        update: { phoneVerifiedAt: new Date(), role: safeRole },
+        create: { phone: String(phone), role: safeRole, phoneVerifiedAt: new Date() } as any,
+        select: { id: true, role: true, email: true, phone: true },
+      });
+      const token = signUserJwt({ id: user.id, role: user.role, email: user.email });
+      setAuthCookie(res, token, user.role);
+      return res.json({ ok: true, message: "verified (master otp)", user: { id: user.id, phone: user.phone, role: user.role } });
+    } catch (e: any) {
+      // fallback: old stub token in dev
+      const token = `dev.${Buffer.from(String(phone)).toString('base64')}.token`;
+      return res.json({ ok: true, message: 'verified (master otp)', token, user: { id: `u_${Date.now()}`, phone, role: entry.role || role || 'USER' } });
+    }
   }
 
   const entry = otpStore[phone];
@@ -124,15 +187,57 @@ router.post('/verify-otp', async (req, res) => {
     }
   }
 
-  // normal auth flow: return a stub user/token for dev
-  const token = `dev.${Buffer.from(String(phone)).toString('base64')}.token`;
-  return res.json({ ok: true, message: 'verified', token, user: { id: `u_${Date.now()}`, phone, role: entry.role || role || 'USER' } });
+  // Normal auth flow: verify OTP and issue JWT + httpOnly cookie.
+  try {
+    const desiredRole = String(entry.role || role || "USER").toUpperCase();
+    const allowed = ["USER", "OWNER", "DRIVER", "CUSTOMER"];
+    const safeRole = allowed.includes(desiredRole) ? desiredRole : "USER";
+    const user = await prisma.user.upsert({
+      where: { phone: String(phone) },
+      update: { phoneVerifiedAt: new Date() },
+      create: { phone: String(phone), role: safeRole, phoneVerifiedAt: new Date() } as any,
+      select: { id: true, role: true, email: true, phone: true },
+    });
+    const token = signUserJwt({ id: user.id, role: user.role, email: user.email });
+    setAuthCookie(res, token, user.role);
+    return res.json({ ok: true, message: "verified", user: { id: user.id, phone: user.phone, role: user.role } });
+  } catch (e) {
+    console.error("verify-otp failed to issue JWT", e);
+    return res.status(500).json({ message: "failed" });
+  }
 });
 
 router.post('/login', (req, res) => {
-  const { email } = req.body;
-  // Dummy token
-  return res.json({ token: `fake.${Buffer.from(email ?? 'user').toString('base64')}.token`, role: 'USER' });
+  return res.status(400).json({ error: "Use POST /api/auth/login-password for email/password login." });
+});
+
+// POST /api/auth/login-password
+// Body: { email, password }
+router.post("/login-password", async (req, res) => {
+  try {
+    const { email, password } = req.body || {};
+    if (!email || !password) return res.status(400).json({ error: "email and password required" });
+    const user = await prisma.user.findFirst({
+      where: { email: String(email) },
+      select: { id: true, role: true, email: true, passwordHash: true },
+    });
+    if (!user || !user.passwordHash) return res.status(401).json({ error: "invalid_credentials" });
+    const ok = await verifyPassword(String(user.passwordHash), String(password));
+    if (!ok) return res.status(401).json({ error: "invalid_credentials" });
+
+    const token = signUserJwt({ id: user.id, role: user.role, email: user.email });
+    setAuthCookie(res, token, user.role);
+    return res.json({ ok: true, user: { id: user.id, role: user.role, email: user.email } });
+  } catch (e) {
+    console.error("login-password failed", e);
+    return res.status(500).json({ error: "failed" });
+  }
+});
+
+// POST /api/auth/logout
+router.post("/logout", async (_req, res) => {
+  clearAuthCookie(res);
+  return res.json({ ok: true });
 });
 
 /**
@@ -235,8 +340,15 @@ router.post('/profile', upload.any(), async (req, res) => {
     const body = req.body;
     const { role, name, email, referralCode } = body;
     
-    // Get user from token (from previous OTP verification)
-    const token = req.headers.authorization?.replace('Bearer ', '');
+    // Get user from token (Authorization: Bearer OR httpOnly cookie)
+    const token =
+      req.headers.authorization?.replace('Bearer ', '') ||
+      (() => {
+        const raw = req.headers.cookie || "";
+        const part = raw.split(";").map((s) => s.trim()).find((s) => s.startsWith("nolsaf_token="));
+        if (!part) return "";
+        return decodeURIComponent(part.slice("nolsaf_token=".length));
+      })();
     if (!token) {
       return res.status(401).json({ error: 'Unauthorized' });
     }

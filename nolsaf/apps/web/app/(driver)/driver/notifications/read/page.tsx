@@ -21,11 +21,7 @@ export default function DriverReadNotificationsPage() {
       setLoading(true);
       const startTime = Date.now();
       try {
-        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-        const base = process.env.NEXT_PUBLIC_API_URL || '';
-        const url = base ? `${base.replace(/\/$/, '')}/api/driver/notifications?tab=viewed&page=1&pageSize=50` : '/api/driver/notifications?tab=viewed&page=1&pageSize=50';
-        const headers: Record<string, string> | undefined = token ? { Authorization: `Bearer ${token}` } : undefined;
-        const r = await fetch(url, { headers, signal: controller.signal });
+        const r = await fetch('/api/driver/notifications?tab=viewed&page=1&pageSize=50', { credentials: "include", signal: controller.signal });
         if (!mounted) return;
         if (!r.ok) throw new Error(`Fetch failed (${r.status})`);
         const j = await r.json();

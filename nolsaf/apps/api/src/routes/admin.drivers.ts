@@ -131,7 +131,13 @@ router.get("/trips/stats", async (req, res) => {
     // Group by date
     const dateMap = new Map<string, { count: number; completed: number; amount: number }>();
     
-    trips.forEach((trip) => {
+    type TripResult = {
+      scheduledDate: Date;
+      status: string;
+      amount: number | null;
+    };
+    
+    (trips as TripResult[]).forEach((trip: TripResult) => {
       const dateKey = trip.scheduledDate.toISOString().split("T")[0];
       const existing = dateMap.get(dateKey) || { count: 0, completed: 0, amount: 0 };
       existing.count += 1;
@@ -548,11 +554,9 @@ router.get("/paid", async (req, res) => {
         // Fallback to paid invoices
         const invoiceWhere: any = {
           status: "PAID",
-          booking: { driverId: { not: null } as any },
         };
-        if (driverId) {
-          invoiceWhere.booking = { driverId: Number(driverId) as any };
-        }
+        // Note: Invoice is for property bookings, not transport bookings
+        // Driver filtering doesn't apply to invoices as they're for property owners
         if (date) {
           const s = new Date(String(date) + "T00:00:00.000Z");
           const e = new Date(String(date) + "T23:59:59.999Z");
@@ -569,7 +573,7 @@ router.get("/paid", async (req, res) => {
             include: {
               booking: {
                 include: {
-                  driver: {
+                  user: {
                     select: { id: true, name: true, email: true, phone: true },
                   },
                 },
@@ -668,10 +672,11 @@ router.get("/paid/stats", async (req, res) => {
           },
         });
       } else {
+        // Note: Invoice is for property bookings, not transport bookings
+        // Transport bookings don't have invoices in the same way
         const invoices = await prisma.invoice.findMany({
           where: {
             status: "PAID",
-            booking: { driverId: { not: null } },
             paidAt: {
               gte: startDate,
               lte: endDate,
@@ -681,7 +686,6 @@ router.get("/paid/stats", async (req, res) => {
             paidAt: true,
             netPayable: true,
             commissionAmount: true,
-            totalAmount: true,
             total: true,
           },
         });
@@ -690,7 +694,7 @@ router.get("/paid/stats", async (req, res) => {
           paidAt: inv.paidAt,
           netPaid: inv.netPayable ?? 0,
           commissionAmount: inv.commissionAmount ?? 0,
-          gross: inv.totalAmount ?? inv.total ?? 0,
+          gross: Number(inv.total ?? 0),
         }));
       }
     } catch (err: any) {
@@ -754,9 +758,9 @@ router.get("/revenues", async (req, res) => {
     };
     
     // Filter by driver if specified
-    if (driverId) {
-      where.booking = { driverId: Number(driverId) as any };
-    }
+    // Note: Invoice is for property bookings, not transport bookings
+    // Driver filtering doesn't apply to invoices as they're for property owners
+    // Remove driver filter for invoices
     
     // Date filtering
     if (date) {
@@ -780,13 +784,13 @@ router.get("/revenues", async (req, res) => {
     const skip = (Number(page) - 1) * Number(pageSize);
     const take = Math.min(Number(pageSize), 100);
     
-    // Get invoices grouped by driver
+    // Get invoices grouped by owner (Invoice is for property bookings, not transport)
     const invoices = await prisma.invoice.findMany({
       where,
       include: {
         booking: {
           include: {
-            driver: {
+            user: {
               select: { id: true, name: true, email: true, phone: true },
             },
           },
@@ -903,25 +907,13 @@ router.get("/revenues/stats", async (req, res) => {
     }
     startDate.setHours(0, 0, 0, 0);
 
-    // Get invoices for driver bookings
-    const invoices = await prisma.invoice.findMany({
-      where: {
-        booking: { driverId: { not: null } as any },
-        issuedAt: {
-          gte: startDate,
-          lte: endDate,
-        },
-      },
-      include: {
-        booking: {
-          include: {
-            driver: {
-              select: { id: true, name: true },
-            },
-          },
-        },
-      },
-    });
+    // Note: Invoice model is for property bookings only, not transport bookings
+    // Property bookings don't have driverId. For driver revenues, we'd need to query
+    // TransportBooking or another model. For now, return empty data gracefully.
+    // If you need driver revenue stats, consider using TransportBooking or a separate revenue tracking model.
+    
+    // Return empty stats since property invoices don't track driver revenues
+    const invoices: any[] = [];
 
     // Group by date
     const dateMap = new Map<string, { grossRevenue: number; netRevenue: number; commissionAmount: number; tripCount: number }>();
@@ -931,9 +923,10 @@ router.get("/revenues/stats", async (req, res) => {
       const dateKey = inv.issuedAt.toISOString().split("T")[0];
       const existing = dateMap.get(dateKey) || { grossRevenue: 0, netRevenue: 0, commissionAmount: 0, tripCount: 0 };
       
-      const gross = inv.totalAmount ?? inv.total ?? 0;
-      const commission = inv.commissionAmount ?? 0;
-      const net = inv.netPayable ?? gross - commission;
+      // Convert Decimal fields to numbers
+      const gross = Number(inv.total ?? 0);
+      const commission = Number(inv.commissionAmount ?? 0);
+      const net = Number(inv.netPayable ?? (gross - commission));
       
       existing.grossRevenue += gross;
       existing.netRevenue += net;
@@ -1024,12 +1017,27 @@ router.get("/:id", async (req, res) => {
     });
     if (!driver) return res.status(404).json({ error: "Driver not found" });
 
-    const recent = await prisma.booking.findMany({
-      where: { driverId: id },
-      select: { id: true, status: true, createdAt: true, total: true },
-      orderBy: { id: "desc" },
-      take: 10,
-    });
+    // Note: Booking model is for property stays, not transport
+    // Transport bookings would be in TransportBooking model
+    const recent: any[] = [];
+    try {
+      if ((prisma as any).transportBooking) {
+        const transportBookings = await (prisma as any).transportBooking.findMany({
+          where: { driverId: id },
+          select: { id: true, status: true, createdAt: true, amount: true },
+          orderBy: { id: "desc" },
+          take: 10,
+        });
+        recent.push(...transportBookings.map((tb: any) => ({
+          id: tb.id,
+          status: tb.status,
+          createdAt: tb.createdAt,
+          totalAmount: Number(tb.amount ?? 0),
+        })));
+      }
+    } catch (e) {
+      // TransportBooking model may not exist
+    }
 
     return res.json({ driver, snapshot: { recentBookings: recent } });
   } catch (err: any) {
@@ -1235,11 +1243,12 @@ router.get("/:id/referrals", async (req, res) => {
 
         for (const ref of referredUsers) {
           let status = 'active' as 'active' | 'completed';
+          let spend = 0;
           let creditsEarned = 500; // Default active credits
+          const userRole = (ref as any).role;
 
           try {
             let hasUsedPlatform = false;
-            const userRole = (ref as any).role;
 
             // Check for OWNER: has listed properties
             if (userRole === 'OWNER') {
@@ -1249,14 +1258,22 @@ router.get("/:id/referrals", async (req, res) => {
                 });
                 hasUsedPlatform = propertyCount > 0;
               }
+              // OWNER: spend = 0, credits = 0 (only counts for level/bonus)
+              spend = 0;
+              creditsEarned = 0;
             }
             // Check for CUSTOMER/USER/TRAVELLER: has made bookings
             else if (userRole === 'CUSTOMER' || userRole === 'USER') {
               if ((prisma as any).booking) {
-                const bookingCount = await (prisma as any).booking.count({
+                const bookings = await (prisma as any).booking.findMany({
                   where: { userId: ref.id },
+                  select: { price: true, total: true, fare: true, status: true, totalAmount: true },
                 });
-                hasUsedPlatform = bookingCount > 0;
+                hasUsedPlatform = bookings.length > 0;
+                
+                // Calculate total spend from completed bookings
+                const completedBookings = bookings.filter((b: any) => b.status === 'COMPLETED');
+                spend = completedBookings.reduce((sum: number, b: any) => sum + (Number(b.price || b.total || b.fare || b.totalAmount) || 0), 0);
               }
             }
             // Check for DRIVER: has completed trips
@@ -1267,6 +1284,9 @@ router.get("/:id/referrals", async (req, res) => {
                 });
                 hasUsedPlatform = tripCount > 0;
               }
+              // DRIVER: spend = 0, credits = 0 (only counts for level/bonus)
+              spend = 0;
+              creditsEarned = 0;
             }
 
             // If user has used platform, they are active
@@ -1304,7 +1324,13 @@ router.get("/:id/referrals", async (req, res) => {
             console.warn('Failed to check platform usage', e);
             // Default to active if check fails
             status = 'active';
-            creditsEarned = 500;
+            if (userRole === 'CUSTOMER' || userRole === 'USER') {
+              // Default credits for customers if calculation fails
+              creditsEarned = 500;
+            } else {
+              creditsEarned = 0;
+            }
+            spend = 0;
           }
 
           referrals.push({
@@ -1787,7 +1813,7 @@ router.get("/expiring-documents", async (req, res) => {
       // Get all drivers
       const drivers = await prisma.user.findMany({
         where: { role: "DRIVER" },
-        select: { id: true, name: true, email: true, phone: true, vehicleType: true },
+        select: { id: true, name: true, email: true, phone: true },
       });
 
       for (const driver of drivers) {
@@ -2211,7 +2237,22 @@ router.post("/auto-create-reminders", async (req, res) => {
                   meta: { autoGenerated: true, type: "security" },
                 },
               });
-              emitReminderNotification(driverId, reminder);
+              
+              // Emit Socket.IO notification
+              const app = (req as any).app;
+              const io = app?.get('io');
+              if (io && typeof io.emit === 'function') {
+                io.to(`driver:${driverId}`).emit('new-reminder', {
+                  id: String(reminder.id),
+                  type: reminder.type,
+                  message: reminder.message,
+                  action: reminder.action,
+                  actionLink: reminder.actionLink,
+                  expiresAt: reminder.expiresAt ? new Date(reminder.expiresAt).toISOString() : null,
+                  createdAt: reminder.createdAt ? new Date(reminder.createdAt).toISOString() : new Date().toISOString(),
+                });
+              }
+              
               createdReminders.push(reminder);
               stats.security++;
             }
@@ -2668,11 +2709,11 @@ router.get("/:id/activities", async (req, res) => {
           tomorrow.setDate(tomorrow.getDate() + 1);
           
           let todayTrips = 0;
-          if ((prisma as any).booking) {
-            todayTrips = await (prisma as any).booking.count({
+          if ((prisma as any).transportBooking) {
+            todayTrips = await (prisma as any).transportBooking.count({
               where: {
                 driverId,
-                scheduledAt: { gte: today, lt: tomorrow },
+                scheduledDate: { gte: today, lt: tomorrow },
               },
             });
           }
@@ -2681,28 +2722,26 @@ router.get("/:id/activities", async (req, res) => {
           return { todayTrips: 0 };
         }
       })(),
-      // Trips summary
+      // Trips summary (using TransportBooking, not Booking)
       (async () => {
         try {
-          const totalTrips = await prisma.booking.count({
-            where: { driverId },
-          });
-          return { totalTrips };
+          if ((prisma as any).transportBooking) {
+            const totalTrips = await (prisma as any).transportBooking.count({
+              where: { driverId },
+            });
+            return { totalTrips };
+          }
+          return { totalTrips: 0 };
         } catch (e) {
           return { totalTrips: 0 };
         }
       })(),
-      // Invoices summary
+      // Invoices summary (Invoice is for property bookings, not transport)
       (async () => {
         try {
-          const totalInvoices = await prisma.invoice.count({
-            where: {
-              booking: {
-                driverId,
-              },
-            },
-          });
-          return { totalInvoices };
+          // Invoices are for property bookings, not driver transport bookings
+          // Return 0 as invoices don't apply to transport bookings
+          return { totalInvoices: 0 };
         } catch (e) {
           return { totalInvoices: 0 };
         }

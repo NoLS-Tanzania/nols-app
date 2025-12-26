@@ -251,22 +251,12 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
     };
     
     try {
-      // Get API URL from environment or use default
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-      
-      // Get authentication token from localStorage
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-      
-      if (!token) {
-        throw new Error('Authentication required. Please log in to create a booking.');
-      }
-      
       // Make API request to create group booking
-      const response = await fetch(`${API_URL}/api/group-bookings`, {
+      const response = await fetch(`/api/group-bookings`, {
         method: 'POST',
+        credentials: "include",
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
       });

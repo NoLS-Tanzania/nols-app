@@ -1,12 +1,12 @@
 "use client";
 import React, { useEffect, useState, useRef } from 'react';
 
-type LegalType = 'terms' | 'privacy' | 'security';
+type LegalType = 'terms' | 'privacy' | 'cookies';
 
 const TITLES: Record<LegalType, string> = {
   terms: 'Admin Terms of Service',
   privacy: 'Privacy Policy',
-  security: 'Security Policy',
+  cookies: 'Cookies Policy',
 };
 
 export default function LegalModal() {
@@ -74,7 +74,7 @@ export default function LegalModal() {
 
         <div className="p-6 max-h-[60vh] overflow-auto" ref={contentRef}>
           <p className="mb-2">This is the {TITLES[type].toLowerCase()}. Please read carefully. The content below is a short example — replace with your real policy text or load from CMS.</p>
-          <h3>Summary of these {type === 'terms' ? 'Terms' : type === 'privacy' ? 'Privacy' : 'Security'}</h3>
+          <h3>Summary of these {type === 'terms' ? 'Terms' : type === 'privacy' ? 'Privacy' : 'Cookies'}</h3>
           <ul className="list-disc ml-6 mb-4">
             <li>Scope and purpose.</li>
             <li>User obligations.</li>

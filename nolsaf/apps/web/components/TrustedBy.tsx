@@ -1,6 +1,5 @@
 "use client";
 import React from "react";
-import Image from "next/image";
 
 export type Brand = {
   name: string;
@@ -13,9 +12,72 @@ type Props = {
   brands: Brand[];
   className?: string;
   hideTitle?: boolean;
+  layout?: "marquee" | "wrap" | "grid";
 };
 
-export default function TrustedBy({ title = "Trusted by", brands, className = "", hideTitle = false }: Props) {
+function BrandTile({ b }: { b: Brand }) {
+  const content = b.logoUrl ? (
+    <div
+      className={[
+        "w-full",
+        // Fixed height prevents tall logos getting clipped by layout quirks
+        "h-16 sm:h-20",
+        "bg-white border border-slate-200 rounded-2xl",
+        "px-4 py-3",
+        "flex items-center justify-center",
+        "shadow-sm",
+      ].join(" ")}
+    >
+      {/* Use plain img to support admin-uploaded remote URLs without next/image domain config */}
+      <img
+        src={b.logoUrl}
+        alt={`${b.name} logo`}
+        className="block object-contain"
+        // Inline styles win over broad global rules (e.g. `.public-container * { max-width: 100% }`)
+        style={{
+          maxHeight: 56,
+          maxWidth: 180,
+          width: "auto",
+          height: "auto",
+        }}
+        loading="lazy"
+        decoding="async"
+      />
+    </div>
+  ) : (
+    <span className="text-sm font-semibold text-slate-700">{b.name}</span>
+  );
+
+  const baseClass =
+    "inline-flex items-center justify-center opacity-95 hover:opacity-100 transition-all duration-200 " +
+    "hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 active:scale-[0.99] " +
+    "focus:outline-none focus:ring-2 focus:ring-emerald-200 rounded-2xl";
+
+  return b.href ? (
+    <a
+      href={b.href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={baseClass}
+      title={b.name}
+      aria-label={`${b.name} (opens in new tab)`}
+    >
+      <span className="group">{content}</span>
+    </a>
+  ) : (
+    <span className="inline-flex items-center justify-center opacity-90" title={b.name}>
+      {content}
+    </span>
+  );
+}
+
+export default function TrustedBy({
+  title = "Trusted by",
+  brands,
+  className = "",
+  hideTitle = false,
+  layout = "wrap",
+}: Props) {
   return (
     <section className={`w-full ${className}`} aria-label={hideTitle ? "Trusted brands" : "Trusted by"}>
       {hideTitle ? null : (
@@ -25,54 +87,29 @@ export default function TrustedBy({ title = "Trusted by", brands, className = ""
           <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" aria-hidden />
         </div>
       )}
-      <div className="overflow-hidden">
-        <div className="flex items-center gap-2 sm:gap-3 md:gap-4 lg:gap-3 xl:gap-2 whitespace-nowrap py-2">
-          {brands.map((b, i) => (
-            b.href ? (
-              <a 
-                key={i} 
-                href={b.href} 
-                className="inline-flex items-center justify-center opacity-80 hover:opacity-100 transition group"
-                title={b.name}
-              >
-                {b.logoUrl ? (
-                  <div className="h-6 w-16 sm:h-7 sm:w-20 md:h-8 md:w-24 lg:h-7 lg:w-20 xl:h-6 xl:w-[4.5rem] bg-white border border-gray-200 rounded-lg p-0.5 sm:p-1 flex items-center justify-center hover:border-emerald-500 transition-colors">
-                    <Image 
-                      src={b.logoUrl} 
-                      alt={`${b.name} logo`} 
-                      width={80} 
-                      height={32} 
-                      className="h-full w-full object-contain" 
-                    />
-                  </div>
-                ) : (
-                  <span className="text-sm sm:text-base font-semibold text-gray-700">{b.name}</span>
-                )}
-              </a>
-            ) : (
-              <span 
-                key={i} 
-                className="inline-flex items-center justify-center opacity-80 group"
-                title={b.name}
-              >
-                {b.logoUrl ? (
-                  <div className="h-6 w-16 sm:h-7 sm:w-20 md:h-8 md:w-24 lg:h-7 lg:w-20 xl:h-6 xl:w-[4.5rem] bg-white border border-gray-200 rounded-lg p-0.5 sm:p-1 flex items-center justify-center">
-                    <Image 
-                      src={b.logoUrl} 
-                      alt={`${b.name} logo`} 
-                      width={80} 
-                      height={32} 
-                      className="h-full w-full object-contain" 
-                    />
-                  </div>
-                ) : (
-                  <span className="text-sm sm:text-base font-semibold text-gray-700">{b.name}</span>
-                )}
-              </span>
-            )
+      {layout === "grid" ? (
+        <div
+          className="grid gap-4 py-2"
+          style={{ gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}
+        >
+          {brands.map((b) => (
+            <BrandTile key={`${b.name}-${b.href ?? "na"}`} b={b} />
           ))}
         </div>
-      </div>
+      ) : (
+        <div
+          className={[
+            "flex items-stretch gap-4 py-2",
+            layout === "wrap" ? "flex-wrap justify-center" : "whitespace-nowrap",
+          ].join(" ")}
+        >
+          {brands.map((b) => (
+            <div key={`${b.name}-${b.href ?? "na"}`} className="w-[11rem] sm:w-[12rem]">
+              <BrandTile b={b} />
+            </div>
+          ))}
+        </div>
+      )}
     </section>
   );
 }

@@ -9,6 +9,7 @@
   "devDependencies": {
     "cliui": "^9.0.1",
     "concurrently": "^9.0.1",
+    "dotenv": "^17.2.3",
     "snyk": "^1.1300.0"
   },
   "scripts": {
@@ -17,7 +18,13 @@
     "lint": "npm run --workspaces --if-present lint",
     "typecheck": "npm run --workspaces --if-present typecheck",
     "prisma:generate": "npm run --workspace=@nolsaf/prisma generate",
-    "prisma:migrate": "npm run --workspace=@nolsaf/prisma db:migrate --"
+    "prisma:migrate": "npm run --workspace=@nolsaf/prisma db:migrate --",
+    "seed:test-accounts": "npm run --workspace=@nolsaf/api seed",
+    "test:booking-codes": "node scripts/get-test-booking-code.js",
+    "assign:bookings": "node scripts/assign-bookings-to-test-user.js",
+    "create:test-booking": "node scripts/create-test-booking.js",
+    "create:test-user-data": "node scripts/create-comprehensive-test-user-data.js",
+    "create:test-owners": "node scripts/create-test-owners.js"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

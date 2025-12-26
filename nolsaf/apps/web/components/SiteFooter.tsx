@@ -2,10 +2,46 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
+
+function getCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null;
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+  return null;
+}
 
 export default function SiteFooter({ withRail = true, topSeparator = true }: { withRail?: boolean; topSeparator?: boolean }) {
   const year = new Date().getFullYear();
   const innerRailClass = withRail ? 'md:ml-56' : '';
+  const pathname = usePathname();
+  const [userRole, setUserRole] = useState<string | null>(null);
+
+  // Set navigation context for policy pages and determine user role
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const role = getCookie('role');
+      if (role) {
+        setUserRole(role);
+        sessionStorage.setItem('navigationContext', role.toLowerCase());
+      } else {
+        // Fallback to pathname
+        if (pathname?.includes('/owner')) {
+          setUserRole('OWNER');
+          sessionStorage.setItem('navigationContext', 'owner');
+        } else if (pathname?.includes('/driver')) {
+          setUserRole('DRIVER');
+          sessionStorage.setItem('navigationContext', 'driver');
+        } else if (pathname?.includes('/admin')) {
+          setUserRole('ADMIN');
+          sessionStorage.setItem('navigationContext', 'admin');
+        }
+      }
+    }
+  }, [pathname]);
+
   return (
     <footer className={`w-full mt-12 page-bottom-buffer bg-slate-50`}> 
       {/* full-width separator line (brand color) - optional */}
@@ -23,7 +59,19 @@ export default function SiteFooter({ withRail = true, topSeparator = true }: { w
           <ul className="flex flex-wrap items-center justify-center gap-6 text-sm">
             <li><a role="button" onClick={() => window.dispatchEvent(new CustomEvent('open-legal', { detail: { type: 'terms' } }))} className="text-[#02665e] font-semibold no-underline hover:no-underline">Terms of Service</a></li>
             <li><a role="button" onClick={() => window.dispatchEvent(new CustomEvent('open-legal', { detail: { type: 'privacy' } }))} className="text-[#02665e] font-semibold no-underline hover:no-underline">Privacy Policy</a></li>
-            <li><a role="button" onClick={() => window.dispatchEvent(new CustomEvent('open-legal', { detail: { type: 'security' } }))} className="text-[#02665e] font-semibold no-underline hover:no-underline">Security Policy</a></li>
+            <li><Link href="/cookies-policy" className="text-[#02665e] font-semibold no-underline hover:no-underline">Cookies Policy</Link></li>
+            <li><Link href="/verification-policy" className="text-[#02665e] font-semibold no-underline hover:no-underline">Verification Policy</Link></li>
+            <li><Link href="/cancellation-policy" className="text-[#02665e] font-semibold no-underline hover:no-underline">Cancellation Policy</Link></li>
+            {userRole === 'DRIVER' ? (
+              <li><Link href="/driver-disbursement-policy" className="text-[#02665e] font-semibold no-underline hover:no-underline">Disbursement Policy</Link></li>
+            ) : userRole === 'OWNER' ? (
+              <li><Link href="/property-owner-disbursement-policy" className="text-[#02665e] font-semibold no-underline hover:no-underline">Disbursement Policy</Link></li>
+            ) : (
+              <>
+                <li><Link href="/driver-disbursement-policy" className="text-[#02665e] font-semibold no-underline hover:no-underline">Driver Disbursement Policy</Link></li>
+                <li><Link href="/property-owner-disbursement-policy" className="text-[#02665e] font-semibold no-underline hover:no-underline">Property Owner Disbursement Policy</Link></li>
+              </>
+            )}
             <li><Link href="/docs" className="text-[#02665e] font-semibold no-underline hover:no-underline">Docs</Link></li>
             <li><Link href="/version" className="text-[#02665e] font-semibold no-underline hover:no-underline">v0.1.0</Link></li>
           </ul>

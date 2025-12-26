@@ -6,11 +6,7 @@ import { io, Socket } from "socket.io-client";
 import PropertyPreview from "@/components/PropertyPreview";
 
 // Use same-origin base so Next.js rewrites proxy to API and avoids CORS
-const api = axios.create({ baseURL: "" });
-function authify() {
-  const t = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-  if (t) api.defaults.headers.common["Authorization"] = `Bearer ${t}`;
-}
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 type Row = {
   id: number;
@@ -107,7 +103,6 @@ export default function AdminPropertiesPage() {
 
   // initial mount: auth and fetch the default list (use explicit fetch to avoid hook-dep lint)
   useEffect(() => {
-    authify();
     (async () => {
       setLoading(true);
       try {
@@ -133,8 +128,7 @@ export default function AdminPropertiesPage() {
     const url = typeof window !== 'undefined'
       ? (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000")
       : (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "");
-    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-    const s: Socket = io(url, { auth: token ? { token } : undefined });
+    const s: Socket = io(url, { transports: ["websocket"] });
     const refresh = () => load();
     s.on("admin:property:status", refresh);
     return () => {

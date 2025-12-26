@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import { Users, Calendar, MapPin, CheckCircle, XCircle } from "lucide-react";
 
-const api = axios.create();
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 type GroupStay = {
   id: number;
@@ -40,11 +40,6 @@ export default function MyGroupStaysPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-    if (token) {
-      api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-    }
-
     loadGroupStays();
   }, []);
 

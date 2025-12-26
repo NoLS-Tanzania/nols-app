@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, useMemo, useRef } from "react";
-import { Trophy, Truck, Search, Star, TrendingUp, MapPin, Users, Target, Award, CheckCircle, Eye, X, BarChart3, PieChart as PieChartIcon, Car, Bike, CarTaxiFront, MessageSquare, Send, Clock, ChevronDown, Bell } from "lucide-react";
+import { Trophy, Truck, Search, Star, TrendingUp, Users, Target, Award, CheckCircle, Eye, X, BarChart3, PieChart as PieChartIcon, Car, Bike, CarTaxiFront, MessageSquare, Send, Clock, Bell } from "lucide-react";
 import axios from "axios";
 import { io, Socket } from "socket.io-client";
 import {
@@ -17,11 +17,8 @@ import {
   CartesianGrid,
 } from "recharts";
 
-const api = axios.create({ baseURL: "" });
-function authify() {
-  const t = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-  if (t) api.defaults.headers.common["Authorization"] = `Bearer ${t}`;
-}
+const api = axios.create({ baseURL: "", withCredentials: true });
+function authify() {}
 
 type DriverWithLevel = {
   id: number;
@@ -119,16 +116,24 @@ export default function AdminDriversLevelsPage() {
     }
 
     // Setup Socket.IO for real-time driver messages
-    const token = localStorage.getItem("token");
-    if (token) {
-      const socket = io(process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000", {
-        auth: { token },
+    try {
+      const socketUrl = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? window.location.origin : "http://localhost:4000");
+      const socket = io(socketUrl, {
+        transports: ["websocket", "polling"],
+        reconnection: true,
+        reconnectionAttempts: 3,
+        reconnectionDelay: 1000,
       });
 
       socket.on("connect", () => {
         console.log("Socket connected for admin level messages");
         // Join admin room
         socket.emit("join-admin-room");
+      });
+
+      socket.on("connect_error", (err) => {
+        // Silently handle connection errors - Socket.IO will attempt reconnection
+        console.debug("Socket connection error (will retry):", err.message);
       });
 
       // Listen for new driver messages
@@ -147,11 +152,18 @@ export default function AdminDriversLevelsPage() {
       });
 
       socketRef.current = socket;
-
-      return () => {
-        socket.disconnect();
-      };
+    } catch (err) {
+      // If Socket.IO fails to initialize, just continue without real-time updates
+      console.debug("Socket.IO initialization failed, continuing without real-time updates:", err);
+      socketRef.current = null;
     }
+
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+    };
   }, [levelFilter, activeTab]);
 
   async function loadMessages() {
@@ -159,8 +171,13 @@ export default function AdminDriversLevelsPage() {
     try {
       const r = await api.get<{ messages: typeof messages }>("/api/admin/drivers/level-messages");
       setMessages(r.data?.messages ?? []);
-    } catch (err) {
-      console.error("Failed to load messages", err);
+    } catch (err: any) {
+      // Only log non-4xx errors to avoid console spam for expected errors (e.g., missing tables, permissions)
+      if (!err?.response || err.response.status >= 500) {
+        console.error("Failed to load messages", err);
+      } else {
+        console.debug("Could not load messages (expected):", err.response?.status, err.response?.data);
+      }
       setMessages([]);
     } finally {
       setMessagesLoading(false);
@@ -334,11 +351,6 @@ export default function AdminDriversLevelsPage() {
 
   const metricsComparisonData = averageMetricsByLevel();
 
-  const COLORS = {
-    silver: "#64748b",
-    gold: "#f59e0b",
-    diamond: "#9333ea",
-  };
 
   return (
     <div className="driver-levels-container w-full space-y-6 overflow-x-hidden" style={{ boxSizing: 'border-box', maxWidth: '100%' }}>

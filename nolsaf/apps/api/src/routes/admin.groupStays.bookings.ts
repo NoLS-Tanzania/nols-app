@@ -14,59 +14,73 @@ router.get("/", async (req, res) => {
 
     const where: any = {};
 
-    // Filter by status
-    if (status) {
-      where.status = status;
+    // Filter by status - only if status is a non-empty string
+    if (status && String(status).trim() !== '') {
+      where.status = String(status).trim();
     }
 
-    // Filter by group type
-    if (groupType) {
-      where.groupType = groupType;
+    // Filter by group type - only if groupType is a non-empty string
+    if (groupType && String(groupType).trim() !== '') {
+      where.groupType = String(groupType).trim();
     }
 
-    // Filter by region
-    if (region) {
-      where.toRegion = region;
+    // Filter by region - only if region is a non-empty string
+    if (region && String(region).trim() !== '') {
+      where.toRegion = String(region).trim();
     }
 
-    // Date filtering
-    if (date) {
-      const s = new Date(String(date) + "T00:00:00.000Z");
-      const e = new Date(String(date) + "T23:59:59.999Z");
-      where.checkIn = { gte: s, lte: e };
-    } else if (start || end) {
-      const s = start ? new Date(String(start) + "T00:00:00.000Z") : new Date(0);
-      const e = end ? new Date(String(end) + "T23:59:59.999Z") : new Date();
-      where.checkIn = { gte: s, lte: e };
+    // Date filtering - only apply if dates are actually provided (not empty strings)
+    if (date && String(date).trim() !== '') {
+      const s = new Date(String(date).trim() + "T00:00:00.000Z");
+      const e = new Date(String(date).trim() + "T23:59:59.999Z");
+      if (!isNaN(s.getTime()) && !isNaN(e.getTime())) {
+        where.checkIn = { gte: s, lte: e };
+      }
+    } else if (start && end && String(start).trim() !== '' && String(end).trim() !== '') {
+      // Only apply date range filter if both start and end are provided
+      const s = new Date(String(start).trim() + "T00:00:00.000Z");
+      const e = new Date(String(end).trim() + "T23:59:59.999Z");
+      if (!isNaN(s.getTime()) && !isNaN(e.getTime())) {
+        where.checkIn = { gte: s, lte: e };
+      }
     }
 
-    // Search query
-    if (q) {
+    // Search query - only if q is a non-empty string
+    if (q && String(q).trim() !== '') {
       where.OR = [
-        { user: { name: { contains: q, mode: "insensitive" } } },
-        { user: { email: { contains: q, mode: "insensitive" } } },
-        { toRegion: { contains: q, mode: "insensitive" } },
-        { toDistrict: { contains: q, mode: "insensitive" } },
-        { toLocation: { contains: q, mode: "insensitive" } },
+        { user: { name: { contains: String(q).trim(), mode: "insensitive" } } },
+        { user: { email: { contains: String(q).trim(), mode: "insensitive" } } },
+        { toRegion: { contains: String(q).trim(), mode: "insensitive" } },
+        { toDistrict: { contains: String(q).trim(), mode: "insensitive" } },
+        { toLocation: { contains: String(q).trim(), mode: "insensitive" } },
       ];
     }
 
     const skip = (Number(page) - 1) * Number(pageSize);
     const take = Math.min(Number(pageSize), 100);
 
-    const [items, total] = await Promise.all([
-      (prisma as any).groupBooking.findMany({
-        where,
-        include: {
-          user: {
-            select: { id: true, name: true, email: true, phone: true },
-          },
+    // Build query - use include for user (same as summary endpoint)
+    const queryOptions: any = {
+      include: {
+        user: {
+          select: { id: true, name: true, email: true, phone: true },
         },
-        orderBy: { createdAt: "desc" },
-        skip,
-        take,
-      }),
-      (prisma as any).groupBooking.count({ where }),
+      },
+      orderBy: { createdAt: "desc" },
+      skip,
+      take,
+    };
+
+    // Only add where if it has conditions - if empty object, Prisma returns all
+    if (Object.keys(where).length > 0) {
+      queryOptions.where = where;
+    }
+
+    const countOptions: any = Object.keys(where).length > 0 ? { where } : {};
+
+    const [items, total] = await Promise.all([
+      (prisma as any).groupBooking.findMany(queryOptions),
+      (prisma as any).groupBooking.count(countOptions),
     ]);
 
     const mapped = items.map((b: any) => ({
@@ -194,6 +208,71 @@ router.get("/stats", async (req, res) => {
     });
   } catch (err) {
     console.error('Error in GET /admin/group-stays/bookings/stats:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/** GET /admin/group-stays/bookings/:id - Get single booking details */
+router.get("/:id", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!id || isNaN(id)) {
+      return res.status(400).json({ error: "Invalid booking ID" });
+    }
+
+    const booking = await (prisma as any).groupBooking.findUnique({
+      where: { id },
+      include: {
+        user: {
+          select: { id: true, name: true, email: true, phone: true },
+        },
+      },
+    });
+
+    if (!booking) {
+      return res.status(404).json({ error: "Booking not found" });
+    }
+
+    const mapped = {
+      id: booking.id,
+      groupType: booking.groupType || "other",
+      accommodationType: booking.accommodationType || "other",
+      headcount: booking.headcount || 0,
+      roomsNeeded: booking.roomsNeeded || 0,
+      toRegion: booking.toRegion || "N/A",
+      toDistrict: booking.toDistrict || null,
+      toLocation: booking.toLocation || null,
+      checkIn: booking.checkIn || null,
+      checkOut: booking.checkOut || null,
+      status: booking.status || "PENDING",
+      user: booking.user ? {
+        id: booking.user.id,
+        name: booking.user.name || "Unknown User",
+        email: booking.user.email,
+        phone: booking.user.phone,
+      } : null,
+      createdAt: booking.createdAt,
+      updatedAt: booking.updatedAt || null,
+      // Arrangements
+      arrPickup: booking.arrPickup || false,
+      arrTransport: booking.arrTransport || false,
+      arrMeals: booking.arrMeals || false,
+      arrGuide: booking.arrGuide || false,
+      arrEquipment: booking.arrEquipment || false,
+      // Additional fields that might exist
+      pickupLocation: booking.pickupLocation || null,
+      pickupTime: booking.pickupTime || null,
+      arrangementNotes: booking.arrangementNotes || null,
+      notes: booking.notes || null,
+    };
+
+    return res.json(mapped);
+  } catch (err: any) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && (err.code === 'P2021' || err.code === 'P2022')) {
+      console.warn('Prisma schema mismatch when querying group booking:', err.message);
+      return res.status(404).json({ error: "Booking not found" });
+    }
+    console.error('Error in GET /admin/group-stays/bookings/:id:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });

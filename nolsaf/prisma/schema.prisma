@@ -25,118 +25,137 @@ model User {
   passwordHash    String?
   emailVerifiedAt DateTime?
   phoneVerifiedAt DateTime?
-  
+
   // Two-Factor Authentication
   twoFactorEnabled Boolean  @default(false)
-  twoFactorSecret String?
-  twoFactorMethod String?   // TOTP, SMS, etc.
-  totpSecretEnc  String?   // Encrypted TOTP secret
-  backupCodesHash Json?     // Array of hashed backup codes
-  sms2faEnabled  Boolean?  @default(false)
-  
+  twoFactorSecret  String?
+  twoFactorMethod  String? // TOTP, SMS, etc.
+  totpSecretEnc    String? // Encrypted TOTP secret
+  backupCodesHash  Json? // Array of hashed backup codes
+  sms2faEnabled    Boolean? @default(false)
+
   // Password Management
-  previousPasswordHashes Json?     // Array of previous password hashes
-  previousPasswords      Json?     // Alternative field name
+  previousPasswordHashes Json? // Array of previous password hashes
+  previousPasswords      Json? // Alternative field name
   resetPasswordToken     String?
   resetPasswordExpires   DateTime?
-  
+
   // Account Status
-  suspendedAt    DateTime?
-  isDisabled    Boolean?  @default(false)
-  kycStatus     String?   // PENDING_KYC, APPROVED_KYC, REJECTED_KYC
-  
+  suspendedAt DateTime?
+  isDisabled  Boolean?  @default(false)
+  kycStatus   String? // PENDING_KYC, APPROVED_KYC, REJECTED_KYC
+
   // Driver-specific fields
-  rating         Decimal?  @db.Decimal(3, 2) // Driver rating (e.g., 4.5)
-  available      Boolean?  @default(true)     // Driver availability
-  isAvailable    Boolean?  @default(true)     // Alternative field name
-  
+  rating      Decimal? @db.Decimal(3, 2) // Driver rating (e.g., 4.5)
+  available   Boolean? @default(true) // Driver availability
+  isAvailable Boolean? @default(true) // Alternative field name
+
   // Payout/Banking details for owners (JSON lets us store momo/bank variants)
-  payout          Json?
-  
+  payout Json?
+
   // Referral system
-  referredBy      Int?      // Driver who referred this user
-  referralCode    String?   // Referral code used
-  
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  referredBy   Int? // Driver who referred this user
+  referralCode String? // Referral code used
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relations
   // Properties owned by this user (if owner)
-  properties      Property[]
-  
+  properties Property[]
+
   // Bookings made by this user (if customer)
-  bookings        Booking[]
-  
+  bookings Booking[]
+
   // Invoices for this user (if owner)
-  invoices        Invoice[]
+  invoices         Invoice[]
   invoicesVerified Invoice[] @relation("InvoiceVerifiedBy")
   invoicesApproved Invoice[] @relation("InvoiceApprovedBy")
-  invoicesPaid    Invoice[] @relation("InvoicePaidBy")
-  
+  invoicesPaid     Invoice[] @relation("InvoicePaidBy")
+
   // Group bookings
-  groupBookings   GroupBooking[]
-  
+  groupBookings GroupBooking[]
+
   // Transport bookings as customer
   transportBookingsAsCustomer TransportBooking[] @relation("UserTransportBookings")
-  
+
   // Transport bookings as driver
   transportBookingsAsDriver TransportBooking[] @relation("DriverTransportBookings")
-  
+
   // Property reviews written by this user
   propertyReviews PropertyReview[]
-  
+
   // Check-in codes used by this owner
   checkinCodesUsed CheckinCode[]
-  
+
   // User documents (KYC)
-  documents       UserDocument[]
-  
+  documents UserDocument[]
+
   // Passkeys for passwordless authentication
-  passkeys        Passkey[]
-  
+  passkeys Passkey[]
+
   // Audit logs where this user is the actor
-  auditLogs       AuditLog[]
-  
+  auditLogs AuditLog[]
+
   // Referral earnings (as driver)
   referralEarningsAsDriver ReferralEarning[] @relation("DriverReferrals")
-  
+
   // Referral earnings (as referred user)
   referralEarningsAsReferred ReferralEarning[] @relation("ReferredUsers")
-  
+
   // Referral withdrawals (as driver)
   referralWithdrawals ReferralWithdrawal[] @relation("DriverWithdrawals")
-  
+
+  // Driver reminders (for drivers)
+  driverReminders DriverReminder[]
+
   // Referral withdrawals processed by this admin
   referralWithdrawalsProcessed ReferralWithdrawal[] @relation("ProcessedWithdrawals")
-  
+
   // Notifications for this user
-  notifications   Notification[]
-  
+  notifications Notification[]
+
   // Owner-specific notifications (legacy)
   ownerNotifications Notification[] @relation("OwnerNotifications")
-  
+
   // Admin audits performed by this user (if admin)
-  adminAudits        AdminAudit[]   @relation("AdminAudits")
-  
+  adminAudits AdminAudit[] @relation("AdminAudits")
+
   // User sessions
-  sessions           Session[]     @relation("UserSessions")
+  sessions Session[] @relation("UserSessions")
 
   // Live driver map (for DRIVER role)
-  driverLiveLocation DriverLiveLocation?
+  driverLiveLocation  DriverLiveLocation?
   driverLocationPings DriverLocationPing[]
 
   // Admin 2FA OTPs (for finance actions)
-  adminOtps          AdminOtp[]    @relation("AdminOtps")
+  adminOtps AdminOtp[] @relation("AdminOtps")
 
   // Email verification/change tokens
   emailVerificationTokens EmailVerificationToken[]
 
   // Phone verification OTPs
-  phoneOtps          PhoneOtp[]
+  phoneOtps PhoneOtp[]
 
   // Admin notes written about owners
-  adminNotesWritten  AdminNote[]   @relation("AdminNotesAdmin")
-  adminNotesReceived AdminNote[]   @relation("AdminNotesOwner")
+  adminNotesWritten  AdminNote[] @relation("AdminNotesAdmin")
+  adminNotesReceived AdminNote[] @relation("AdminNotesOwner")
+
+  // Jobs created by this admin
+  jobsCreated Job[] @relation("JobsCreated")
+  jobsUpdated Job[] @relation("JobsUpdated")
+
+  // Job applications reviewed by this admin
+  jobApplicationsReviewed JobApplication[] @relation("JobApplicationsReviewed")
+
+  // Cancellation requests initiated by this user (customer)
+  cancellationRequests CancellationRequest[]
+
+  // Cancellation requests reviewed by this user (admin)
+  cancellationsReviewed CancellationRequest[] @relation("CancellationReviewedBy")
+
+  // Cancellation request messages sent by this user (customer/admin)
+  cancellationMessagesSent CancellationMessage[]
 
   @@index([role])
   @@index([email])
@@ -151,54 +170,54 @@ model User {
 //  PROPERTY MODEL
 // =========================================================
 model Property {
-  id              Int       @id @default(autoincrement())
-  ownerId         Int
-  status          String    @default("DRAFT") // DRAFT, PENDING, APPROVED, REJECTED, SUSPENDED
-  title           String    @db.VarChar(200)
-  type            String    // VILLA, APARTMENT, HOTEL, LODGE, CONDO, GUEST_HOUSE, BUNGALOW, CABIN, HOMESTAY, TOWNHOUSE, HOUSE, OTHER
-  
+  id      Int    @id @default(autoincrement())
+  ownerId Int
+  status  String @default("DRAFT") // DRAFT, PENDING, APPROVED, REJECTED, SUSPENDED
+  title   String @db.VarChar(200)
+  type    String // VILLA, APARTMENT, HOTEL, LODGE, CONDO, GUEST_HOUSE, BUNGALOW, CABIN, HOMESTAY, TOWNHOUSE, HOUSE, OTHER
+
   // Location
-  regionId        String?   @db.VarChar(50)
-  regionName      String?   @db.VarChar(120)
-  district        String?   @db.VarChar(120)
-  ward            String?   @db.VarChar(120)
-  street          String?   @db.VarChar(200)
-  apartment       String?   @db.VarChar(120)
-  city            String?   @db.VarChar(120)
-  zip             String?   @db.VarChar(30)
-  country         String?   @db.VarChar(120) @default("Tanzania")
-  latitude        Decimal?  @db.Decimal(10, 6)
-  longitude       Decimal?  @db.Decimal(10, 6)
-  
+  regionId   String?  @db.VarChar(50)
+  regionName String?  @db.VarChar(120)
+  district   String?  @db.VarChar(120)
+  ward       String?  @db.VarChar(120)
+  street     String?  @db.VarChar(200)
+  apartment  String?  @db.VarChar(120)
+  city       String?  @db.VarChar(120)
+  zip        String?  @db.VarChar(30)
+  country    String?  @default("Tanzania") @db.VarChar(120)
+  latitude   Decimal? @db.Decimal(10, 6)
+  longitude  Decimal? @db.Decimal(10, 6)
+
   // Media & details
-  description     String?   @db.Text
-  photos          Json?     // Array of URLs (legacy, use PropertyImage now)
-  hotelStar       String?   // basic, simple, moderate, high, luxury
-  roomsSpec       Json?     // Room types, beds, price/night, images...
-  services        Json?     // Parking/breakfast/etc + nearbyFacilities[]
-  layout          Json?     // Auto-generated SVG/plan metadata
-  
+  description String? @db.Text
+  photos      Json? // Array of URLs (legacy, use PropertyImage now)
+  hotelStar   String? // basic, simple, moderate, high, luxury
+  roomsSpec   Json? // Room types, beds, price/night, images...
+  services    Json? // Parking/breakfast/etc + nearbyFacilities[]
+  layout      Json? // Auto-generated SVG/plan metadata
+
   // Aggregates / pricing
-  basePrice       Decimal?  @db.Decimal(12, 2)
-  currency        String?   @db.VarChar(3) @default("TZS")
-  totalBedrooms   Int?
-  totalBathrooms  Int?
-  maxGuests       Int?
-  
+  basePrice      Decimal? @db.Decimal(12, 2)
+  currency       String?  @default("TZS") @db.VarChar(3)
+  totalBedrooms  Int?
+  totalBathrooms Int?
+  maxGuests      Int?
+
   // Moderation history
-  lastSubmittedAt DateTime?
-  rejectionReasons Json?    // Array of strings
-  
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  
+  lastSubmittedAt  DateTime?
+  rejectionReasons Json? // Array of strings
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Relations
-  owner           User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  bookings        Booking[]
+  owner             User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  bookings          Booking[]
   transportBookings TransportBooking[]
-  images          PropertyImage[]
-  reviews         PropertyReview[]
-  
+  images            PropertyImage[]
+  reviews           PropertyReview[]
+
   @@index([ownerId])
   @@index([status])
   @@index([type])
@@ -219,34 +238,35 @@ model Property {
 //  BOOKING MODEL
 // =========================================================
 model Booking {
-  id            Int       @id @default(autoincrement())
-  propertyId    Int
-  userId        Int?      // Customer account (optional if walk-in)
-  status        String    @default("NEW") // NEW, CONFIRMED, CHECKED_IN, CHECKED_OUT, CANCELED
-  
-  checkIn       DateTime
-  checkOut      DateTime
-  totalAmount   Decimal   @db.Decimal(12, 2) @default(0.00)
-  roomCode      String?   @db.VarChar(60) // Optional internal code/unit
-  
+  id         Int    @id @default(autoincrement())
+  propertyId Int
+  userId     Int? // Customer account (optional if walk-in)
+  status     String @default("NEW") // NEW, CONFIRMED, CHECKED_IN, CHECKED_OUT, CANCELED
+
+  checkIn     DateTime
+  checkOut    DateTime
+  totalAmount Decimal  @default(0.00) @db.Decimal(12, 2)
+  roomCode    String?  @db.VarChar(60) // Optional internal code/unit
+
   // Guest snapshot (for owners scanning codes)
-  guestName     String?   @db.VarChar(160)
-  guestPhone    String?   @db.VarChar(40)
-  nationality   String?   @db.VarChar(80)
-  sex           String?   @db.VarChar(20)
-  ageGroup      String?   @db.VarChar(20)
-  
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  
+  guestName   String? @db.VarChar(160)
+  guestPhone  String? @db.VarChar(40)
+  nationality String? @db.VarChar(80)
+  sex         String? @db.VarChar(20)
+  ageGroup    String? @db.VarChar(20)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Relations
-  property      Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  user          User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
-  code          CheckinCode?
-  invoices      Invoice[]
-  reviews       PropertyReview[]
-  referralEarnings ReferralEarning[]
-  
+  property             Property              @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  user                 User?                 @relation(fields: [userId], references: [id], onDelete: SetNull)
+  code                 CheckinCode?
+  invoices             Invoice[]
+  reviews              PropertyReview[]
+  referralEarnings     ReferralEarning[]
+  cancellationRequests CancellationRequest[]
+
   @@index([propertyId])
   @@index([userId])
   @@index([status])
@@ -260,23 +280,23 @@ model Booking {
 //  CHECK-IN CODE MODEL - Single-use codes (one per booking)
 // =========================================================
 model CheckinCode {
-  id            Int       @id @default(autoincrement())
-  bookingId     Int       @unique // 1:1 booking→code
-  code          String    @db.VarChar(32) // Human-readable code (e.g., ABCD9F3A)
-  codeHash      String    @db.VarChar(128) // SHA-256 hash for verification
-  codeVisible   String?   @db.VarChar(32) // Alias for code (backward compatibility)
-  status        String    @default("ACTIVE") // ACTIVE, USED, VOID
-  generatedAt   DateTime  @default(now())
-  issuedAt      DateTime? // When code was sent to customer
-  usedAt        DateTime?
-  usedByOwner   Int?      // Owner userId who validated
-  voidReason    String?   @db.VarChar(255) // Reason for voiding
-  voidedAt      DateTime? // When code was voided
-  
+  id          Int       @id @default(autoincrement())
+  bookingId   Int       @unique // 1:1 booking→code
+  code        String    @db.VarChar(32) // Human-readable code (e.g., ABCD9F3A)
+  codeHash    String    @db.VarChar(128) // SHA-256 hash for verification
+  codeVisible String?   @db.VarChar(32) // Alias for code (backward compatibility)
+  status      String    @default("ACTIVE") // ACTIVE, USED, VOID
+  generatedAt DateTime  @default(now())
+  issuedAt    DateTime? // When code was sent to customer
+  usedAt      DateTime?
+  usedByOwner Int? // Owner userId who validated
+  voidReason  String?   @db.VarChar(255) // Reason for voiding
+  voidedAt    DateTime? // When code was voided
+
   // Relations
-  booking       Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  usedBy        User?     @relation(fields: [usedByOwner], references: [id], onDelete: SetNull)
-  
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  usedBy  User?   @relation(fields: [usedByOwner], references: [id], onDelete: SetNull)
+
   @@unique([codeHash])
   @@unique([code])
   @@index([status])
@@ -289,48 +309,48 @@ model CheckinCode {
 //  INVOICE MODEL - Invoices / Payouts
 // =========================================================
 model Invoice {
-  id                 Int       @id @default(autoincrement())
-  ownerId            Int       // Owner to be paid
-  bookingId          Int       // Source booking
-  status             String    @default("REQUESTED") // REQUESTED, VERIFIED, APPROVED, PAID, REJECTED, PROCESSING
-  
-  total              Decimal   @db.Decimal(12, 2) @default(0.00)
-  commissionPercent  Decimal?  @db.Decimal(5, 2)
-  commissionAmount   Decimal?  @db.Decimal(12, 2)
-  taxPercent         Decimal?  @db.Decimal(5, 2)
-  netPayable         Decimal?  @db.Decimal(12, 2)
-  
-  invoiceNumber      String?   @db.VarChar(50) @unique
-  receiptNumber      String?   @db.VarChar(50) @unique
-  
-  issuedAt           DateTime  @default(now())
-  verifiedAt         DateTime?
-  approvedAt         DateTime?
-  paidAt             DateTime?
-  
-  verifiedBy         Int?
-  approvedBy         Int?
-  paidBy             Int?
-  
-  paymentMethod      String?   @db.VarChar(40) // BANK, MPESA, TIGOPESA...
-  paymentRef         String?   @db.VarChar(80) @unique // Gateway ref / merchant ref (set at APPROVED)
-  notes              String?   @db.Text
-  
-  receiptQrPayload   String?   @db.Text
-  receiptQrPng       Bytes?    // PNG bytes (LONGBLOB)
-  
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-  
+  id        Int    @id @default(autoincrement())
+  ownerId   Int // Owner to be paid
+  bookingId Int // Source booking
+  status    String @default("REQUESTED") // REQUESTED, VERIFIED, APPROVED, PAID, REJECTED, PROCESSING
+
+  total             Decimal  @default(0.00) @db.Decimal(12, 2)
+  commissionPercent Decimal? @db.Decimal(5, 2)
+  commissionAmount  Decimal? @db.Decimal(12, 2)
+  taxPercent        Decimal? @db.Decimal(5, 2)
+  netPayable        Decimal? @db.Decimal(12, 2)
+
+  invoiceNumber String? @unique @db.VarChar(50)
+  receiptNumber String? @unique @db.VarChar(50)
+
+  issuedAt   DateTime  @default(now())
+  verifiedAt DateTime?
+  approvedAt DateTime?
+  paidAt     DateTime?
+
+  verifiedBy Int?
+  approvedBy Int?
+  paidBy     Int?
+
+  paymentMethod String? @db.VarChar(40) // BANK, MPESA, TIGOPESA...
+  paymentRef    String? @unique @db.VarChar(80) // Gateway ref / merchant ref (set at APPROVED)
+  notes         String? @db.Text
+
+  receiptQrPayload String? @db.Text
+  receiptQrPng     Bytes? // PNG bytes (LONGBLOB)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Relations
-  owner              User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  booking            Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  verifiedByUser     User?     @relation("InvoiceVerifiedBy", fields: [verifiedBy], references: [id], onDelete: SetNull)
-  approvedByUser     User?     @relation("InvoiceApprovedBy", fields: [approvedBy], references: [id], onDelete: SetNull)
-  paidByUser         User?     @relation("InvoicePaidBy", fields: [paidBy], references: [id], onDelete: SetNull)
-  paymentEvents      PaymentEvent[]
-  referralEarnings   ReferralEarning[]
-  
+  owner            User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  booking          Booking           @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  verifiedByUser   User?             @relation("InvoiceVerifiedBy", fields: [verifiedBy], references: [id], onDelete: SetNull)
+  approvedByUser   User?             @relation("InvoiceApprovedBy", fields: [approvedBy], references: [id], onDelete: SetNull)
+  paidByUser       User?             @relation("InvoicePaidBy", fields: [paidBy], references: [id], onDelete: SetNull)
+  paymentEvents    PaymentEvent[]
+  referralEarnings ReferralEarning[]
+
   @@index([status])
   @@index([ownerId])
   @@index([bookingId])
@@ -344,11 +364,11 @@ model Invoice {
 //  ADMIN IP ALLOWLIST MODEL
 // =========================================================
 model AdminIpAllow {
-  id        Int       @id @default(autoincrement())
-  cidr      String    @db.VarChar(64) // e.g., '197.250.10.20/32' or '10.10.0.0/16'
-  note      String?   @db.VarChar(200)
-  createdAt DateTime  @default(now())
-  
+  id        Int      @id @default(autoincrement())
+  cidr      String   @db.VarChar(64) // e.g., '197.250.10.20/32' or '10.10.0.0/16'
+  note      String?  @db.VarChar(200)
+  createdAt DateTime @default(now())
+
   @@map("AdminIpAllow")
 }
 
@@ -356,21 +376,21 @@ model AdminIpAllow {
 //  AUDIT LOG MODEL
 // =========================================================
 model AuditLog {
-  id         BigInt    @id @default(autoincrement())
+  id         BigInt   @id @default(autoincrement())
   actorId    Int?
-  actorRole  String?   // ADMIN, OWNER, CUSTOMER, DRIVER
-  action     String    @db.VarChar(80) // e.g., PROPERTY_APPROVE
-  entity     String    @db.VarChar(80) // e.g., PROPERTY, BOOKING, INVOICE
+  actorRole  String? // ADMIN, OWNER, CUSTOMER, DRIVER
+  action     String   @db.VarChar(80) // e.g., PROPERTY_APPROVE
+  entity     String   @db.VarChar(80) // e.g., PROPERTY, BOOKING, INVOICE
   entityId   Int?
   beforeJson Json?
   afterJson  Json?
-  ip         String?   @db.VarChar(64)
-  ua         String?   @db.VarChar(255)
-  createdAt  DateTime  @default(now())
-  
+  ip         String?  @db.VarChar(64)
+  ua         String?  @db.VarChar(255)
+  createdAt  DateTime @default(now())
+
   // Relations
-  actor      User?     @relation(fields: [actorId], references: [id], onDelete: SetNull)
-  
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
   @@index([actorId])
   @@index([entity, entityId])
   @@index([createdAt])
@@ -381,17 +401,17 @@ model AuditLog {
 //  ADMIN AUDIT MODEL - For admin action tracking
 // =========================================================
 model AdminAudit {
-  id          Int       @id @default(autoincrement())
-  adminId     Int       // Admin who performed the action
-  targetUserId Int?     // User being acted upon (optional)
-  performedBy Int?      // Alternative field name (alias for adminId in some cases)
-  action      String    @db.VarChar(80) // e.g., SUSPEND_DRIVER, GRANT_BONUS, KYC_APPROVE
-  details     Json?     // JSON object or string details
-  createdAt   DateTime  @default(now())
-  
+  id           Int      @id @default(autoincrement())
+  adminId      Int // Admin who performed the action
+  targetUserId Int? // User being acted upon (optional)
+  performedBy  Int? // Alternative field name (alias for adminId in some cases)
+  action       String   @db.VarChar(80) // e.g., SUSPEND_DRIVER, GRANT_BONUS, KYC_APPROVE
+  details      Json? // JSON object or string details
+  createdAt    DateTime @default(now())
+
   // Relations
-  admin       User      @relation("AdminAudits", fields: [adminId], references: [id], onDelete: Cascade)
-  
+  admin User @relation("AdminAudits", fields: [adminId], references: [id], onDelete: Cascade)
+
   @@index([adminId])
   @@index([targetUserId])
   @@index([action])
@@ -403,16 +423,16 @@ model AdminAudit {
 //  SESSION MODEL - For user session tracking
 // =========================================================
 model Session {
-  id          String    @id @default(uuid())
-  userId      Int
-  revokedAt   DateTime?
-  lastSeenAt  DateTime  @default(now())
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  
+  id         String    @id @default(uuid())
+  userId     Int
+  revokedAt  DateTime?
+  lastSeenAt DateTime  @default(now())
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
   // Relations
-  user        User      @relation("UserSessions", fields: [userId], references: [id], onDelete: Cascade)
-  
+  user User @relation("UserSessions", fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
   @@index([revokedAt])
   @@index([lastSeenAt])
@@ -423,16 +443,16 @@ model Session {
 //  ADMIN OTP MODEL - short-lived OTPs for admin actions
 // =========================================================
 model AdminOtp {
-  id        Int      @id @default(autoincrement())
+  id        Int       @id @default(autoincrement())
   adminId   Int
-  purpose   String   @db.VarChar(60)
-  codeHash  String   @db.VarChar(128)
+  purpose   String    @db.VarChar(60)
+  codeHash  String    @db.VarChar(128)
   expiresAt DateTime
   usedAt    DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   // Relations
-  admin     User     @relation("AdminOtps", fields: [adminId], references: [id], onDelete: Cascade)
+  admin User @relation("AdminOtps", fields: [adminId], references: [id], onDelete: Cascade)
 
   @@index([adminId, purpose])
   @@index([expiresAt])
@@ -452,7 +472,7 @@ model EmailVerificationToken {
   createdAt DateTime @default(now())
 
   // Relations
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([expiresAt])
@@ -463,16 +483,16 @@ model EmailVerificationToken {
 //  PHONE OTP MODEL - phone verification flow
 // =========================================================
 model PhoneOtp {
-  id        Int      @id @default(autoincrement())
+  id        Int       @id @default(autoincrement())
   userId    Int
-  phone     String   @db.VarChar(40)
-  codeHash  String   @db.VarChar(255)
+  phone     String    @db.VarChar(40)
+  codeHash  String    @db.VarChar(255)
   expiresAt DateTime
   usedAt    DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   // Relations
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([phone])
@@ -492,8 +512,8 @@ model AdminNote {
   createdAt DateTime @default(now())
 
   // Relations
-  owner     User     @relation("AdminNotesOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  admin     User     @relation("AdminNotesAdmin", fields: [adminId], references: [id], onDelete: Cascade)
+  owner User @relation("AdminNotesOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  admin User @relation("AdminNotesAdmin", fields: [adminId], references: [id], onDelete: Cascade)
 
   @@index([ownerId])
   @@index([adminId])
@@ -504,19 +524,19 @@ model AdminNote {
 //  USER DOCUMENT MODEL - For KYC/document management
 // =========================================================
 model UserDocument {
-  id        Int       @id @default(autoincrement())
+  id        Int      @id @default(autoincrement())
   userId    Int
-  type      String?   // ID, PASSPORT, BUSINESS_LICENSE, etc.
-  status    String    @default("PENDING") // PENDING, APPROVED, REJECTED
-  reason    String?   @db.Text // Rejection reason
-  url       String?   @db.Text // Document URL/storage key
-  metadata  Json?     // Additional document metadata
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  
+  type      String? // ID, PASSPORT, BUSINESS_LICENSE, etc.
+  status    String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  reason    String?  @db.Text // Rejection reason
+  url       String?  @db.Text // Document URL/storage key
+  metadata  Json? // Additional document metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Relations
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
   @@index([status])
   @@map("UserDocument")
@@ -526,18 +546,18 @@ model UserDocument {
 //  PASSKEY MODEL - For passwordless authentication
 // =========================================================
 model Passkey {
-  id            Int       @id @default(autoincrement())
-  userId        Int
-  credentialId  String    @unique // Unique credential identifier
-  publicKey     String    @db.Text // Public key for verification
-  transports    Json?     // Array of transport methods
-  signCount     Int       @default(0) // Signature count for replay protection
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  
+  id           Int      @id @default(autoincrement())
+  userId       Int
+  credentialId String   @unique // Unique credential identifier
+  publicKey    String   @db.Text // Public key for verification
+  transports   Json? // Array of transport methods
+  signCount    Int      @default(0) // Signature count for replay protection
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
   // Relations
-  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
   @@index([credentialId])
   @@map("Passkey")
@@ -547,34 +567,34 @@ model Passkey {
 //  GROUP BOOKING MODEL - For managing group accommodation reservations
 // =========================================================
 model GroupBooking {
-  id                Int       @id @default(autoincrement())
-  
+  id Int @id @default(autoincrement())
+
   /// Foreign key to User who created this booking
-  userId            Int
-  
+  userId Int
+
   /// Type of group: family, workers, event, students, team, other
-  groupType         String
-  
+  groupType String
+
   // ==================== Origin Information ====================
   /// Origin region (optional - where the group is coming from)
-  fromRegion        String?
+  fromRegion   String?
   /// Origin district within the region
-  fromDistrict      String?
+  fromDistrict String?
   /// Origin ward/mtaa
-  fromWard          String?
+  fromWard     String?
   /// Exact origin location (street address, landmark, GPS coordinates)
-  fromLocation      String?
-  
+  fromLocation String?
+
   // ==================== Destination Information ====================
   /// Destination region (required - where accommodation is needed)
-  toRegion          String
+  toRegion   String
   /// Destination district within the region
-  toDistrict        String?
+  toDistrict String?
   /// Destination ward/mtaa
-  toWard            String?
+  toWard     String?
   /// Exact destination location (street address, landmark, GPS coordinates)
-  toLocation        String?
-  
+  toLocation String?
+
   // ==================== Accommodation Details ====================
   /// Type of accommodation: villa, apartment, hotel, hostel, lodge, etc.
   accommodationType String
@@ -585,72 +605,72 @@ model GroupBooking {
   /// Calculated number of rooms needed based on headcount and room size
   roomsNeeded       Int
   /// Whether private rooms are requested
-  needsPrivateRoom  Boolean   @default(false)
+  needsPrivateRoom  Boolean @default(false)
   /// Number of private rooms requested (if applicable)
-  privateRoomCount  Int       @default(0)
-  
+  privateRoomCount  Int     @default(0)
+
   // ==================== Date Information ====================
   /// Check-in date and time
-  checkIn           DateTime?
+  checkIn  DateTime?
   /// Check-out date and time
-  checkOut          DateTime?
+  checkOut DateTime?
   /// Whether specific dates are being used (false = flexible dates)
-  useDates          Boolean   @default(true)
-  
+  useDates Boolean   @default(true)
+
   // ==================== Arrangements ====================
   /// Airport/station pickup service requested
-  arrPickup         Boolean   @default(false)
+  arrPickup    Boolean @default(false)
   /// Transport between sites requested
-  arrTransport      Boolean   @default(false)
+  arrTransport Boolean @default(false)
   /// Meals included requested
-  arrMeals          Boolean   @default(false)
+  arrMeals     Boolean @default(false)
   /// On-site guide/staff requested
-  arrGuide          Boolean   @default(false)
+  arrGuide     Boolean @default(false)
   /// Special equipment requested
-  arrEquipment      Boolean   @default(false)
-  
+  arrEquipment Boolean @default(false)
+
   /// Pickup location details (airport terminal, hotel, etc.)
-  pickupLocation    String?   @db.Text
+  pickupLocation   String? @db.Text
   /// Pickup time in 12-hour format (e.g., "02:30 PM")
-  pickupTime        String?
+  pickupTime       String?
   /// Additional notes about arrangements
-  arrangementNotes  String?   @db.Text
-  
+  arrangementNotes String? @db.Text
+
   // ==================== Passenger Roster ====================
   /// JSON array of passenger details (firstname, lastname, phone, age, gender, nationality)
   /// Stored as JSON for flexibility; separate table available for structured queries
-  roster            Json?
-  
+  roster Json?
+
   // ==================== Status & Financial ====================
   /// Booking status: PENDING, CONFIRMED, PROCESSING, CANCELED, COMPLETED
-  status            String    @default("PENDING")
+  status      String   @default("PENDING")
   /// Total estimated or confirmed amount for the booking
-  totalAmount       Decimal?  @db.Decimal(12, 2)
+  totalAmount Decimal? @db.Decimal(12, 2)
   /// Currency code (default: TZS)
-  currency          String    @default("TZS")
-  
+  currency    String   @default("TZS")
+
   // ==================== Administrative Notes ====================
   /// Internal admin notes about this booking
-  adminNotes        String?   @db.Text
+  adminNotes   String?   @db.Text
   /// Reason for cancellation (if status = CANCELED)
-  cancelReason      String?   @db.Text
+  cancelReason String?   @db.Text
   /// Timestamp when booking was canceled
-  canceledAt        DateTime?
+  canceledAt   DateTime?
   /// Timestamp when booking was confirmed
-  confirmedAt       DateTime?
-  
+  confirmedAt  DateTime?
+
   // ==================== Metadata ====================
   /// Record creation timestamp
-  createdAt         DateTime  @default(now())
+  createdAt DateTime @default(now())
   /// Record last update timestamp
-  updatedAt         DateTime  @updatedAt
-  
+  updatedAt DateTime @updatedAt
+
   // ==================== Relations ====================
   /// User who created this booking
-  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
   /// Individual passenger records (alternative to JSON roster)
-  passengers        GroupBookingPassenger[]
-  
+  passengers GroupBookingPassenger[]
+
   // ==================== Indexes ====================
   @@index([userId])
   @@index([status])
@@ -658,45 +678,43 @@ model GroupBooking {
   @@index([toRegion])
   @@index([checkIn, checkOut])
   @@index([createdAt])
-  
   @@map("group_bookings")
 }
 
 /// Individual passenger record for group bookings
 /// Alternative to storing all passengers in JSON; enables structured queries
 model GroupBookingPassenger {
-  id              Int           @id @default(autoincrement())
-  
+  id Int @id @default(autoincrement())
+
   /// Foreign key to parent group booking
-  groupBookingId  Int
-  
+  groupBookingId Int
+
   /// Passenger first name
-  firstName       String
+  firstName   String
   /// Passenger last name
-  lastName        String
+  lastName    String
   /// Contact phone number
-  phone           String?
+  phone       String?
   /// Age in years
-  age             Int?
+  age         Int?
   /// Gender: Male, Female, Other, or custom value
-  gender          String?
+  gender      String?
   /// Nationality or country of origin
-  nationality     String?
-  
+  nationality String?
+
   /// Order/sequence number in the passenger list
-  sequenceNumber  Int?
-  
+  sequenceNumber Int?
+
   /// Record creation timestamp
-  createdAt       DateTime      @default(now())
+  createdAt DateTime @default(now())
   /// Record last update timestamp
-  updatedAt       DateTime      @updatedAt
-  
+  updatedAt DateTime @updatedAt
+
   /// Parent group booking
-  groupBooking    GroupBooking  @relation(fields: [groupBookingId], references: [id], onDelete: Cascade)
-  
+  groupBooking GroupBooking @relation(fields: [groupBookingId], references: [id], onDelete: Cascade)
+
   @@index([groupBookingId])
   @@index([lastName, firstName])
-  
   @@map("group_booking_passengers")
 }
 
@@ -704,94 +722,94 @@ model GroupBookingPassenger {
 //  TRANSPORT BOOKING MODEL - Transportation/Ride Bookings
 // =========================================================
 model TransportBooking {
-  id              Int       @id @default(autoincrement())
-  
+  id Int @id @default(autoincrement())
+
   /// Customer who booked the ride
-  userId          Int
-  
+  userId Int
+
   /// Driver assigned to the ride (optional - can be assigned later)
-  driverId        Int?
-  
+  driverId Int?
+
   /// Property destination (optional - for rides to properties)
-  propertyId      Int?
-  
+  propertyId Int?
+
   /// Booking status: PENDING, CONFIRMED, IN_PROGRESS, COMPLETED, CANCELED
-  status          String    @default("PENDING") @db.VarChar(40)
-  
+  status String @default("PENDING") @db.VarChar(40)
+
   /// Scheduled date for the ride
-  scheduledDate   DateTime
-  
+  scheduledDate DateTime
+
   /// Pickup time
-  pickupTime      DateTime?
-  
+  pickupTime DateTime?
+
   /// Dropoff time
-  dropoffTime     DateTime?
-  
+  dropoffTime DateTime?
+
   // ==================== Origin Information ====================
   /// Origin region
-  fromRegion      String?   @db.VarChar(120)
+  fromRegion    String?  @db.VarChar(120)
   /// Origin district
-  fromDistrict    String?   @db.VarChar(120)
+  fromDistrict  String?  @db.VarChar(120)
   /// Origin ward/mtaa
-  fromWard        String?   @db.VarChar(120)
+  fromWard      String?  @db.VarChar(120)
   /// Exact origin address
-  fromAddress     String?   @db.VarChar(255)
+  fromAddress   String?  @db.VarChar(255)
   /// Origin latitude
-  fromLatitude    Decimal?  @db.Decimal(10, 6)
+  fromLatitude  Decimal? @db.Decimal(10, 6)
   /// Origin longitude
-  fromLongitude   Decimal?  @db.Decimal(10, 6)
-  
+  fromLongitude Decimal? @db.Decimal(10, 6)
+
   // ==================== Destination Information ====================
   /// Destination region
-  toRegion        String?   @db.VarChar(120)
+  toRegion    String?  @db.VarChar(120)
   /// Destination district
-  toDistrict      String?   @db.VarChar(120)
+  toDistrict  String?  @db.VarChar(120)
   /// Destination ward/mtaa
-  toWard          String?   @db.VarChar(120)
+  toWard      String?  @db.VarChar(120)
   /// Exact destination address
-  toAddress       String?   @db.VarChar(255)
+  toAddress   String?  @db.VarChar(255)
   /// Destination latitude
-  toLatitude      Decimal?  @db.Decimal(10, 6)
+  toLatitude  Decimal? @db.Decimal(10, 6)
   /// Destination longitude
-  toLongitude     Decimal?  @db.Decimal(10, 6)
-  
+  toLongitude Decimal? @db.Decimal(10, 6)
+
   // ==================== Ride Details ====================
   /// Total amount for the ride
-  amount          Decimal?  @db.Decimal(12, 2)
+  amount   Decimal? @db.Decimal(12, 2)
   /// Currency (default: TZS)
-  currency        String?   @default("TZS") @db.VarChar(3)
-  
+  currency String?  @default("TZS") @db.VarChar(3)
+
   /// Number of passengers
-  numberOfPassengers Int?   @default(1)
-  
+  numberOfPassengers Int? @default(1)
+
   /// Special instructions or notes
-  notes           String?   @db.Text
-  
+  notes String? @db.Text
+
   /// Customer rating for the ride (1-5)
-  rating          Decimal?  @db.Decimal(3, 2)
+  rating        Decimal? @db.Decimal(3, 2)
   /// Rating comment/review
-  ratingComment   String?   @db.Text
-  
+  ratingComment String?  @db.Text
+
   /// Payment status: PENDING, PAID, REFUNDED
-  paymentStatus   String?   @default("PENDING") @db.VarChar(40)
+  paymentStatus String? @default("PENDING") @db.VarChar(40)
   /// Payment method used
-  paymentMethod   String?   @db.VarChar(40)
+  paymentMethod String? @db.VarChar(40)
   /// Payment reference
-  paymentRef      String?   @db.VarChar(80)
-  
+  paymentRef    String? @db.VarChar(80)
+
   /// Record creation timestamp
-  createdAt       DateTime  @default(now())
+  createdAt DateTime @default(now())
   /// Record last update timestamp
-  updatedAt       DateTime  @updatedAt
-  
+  updatedAt DateTime @updatedAt
+
   // Relations
-  user            User      @relation("UserTransportBookings", fields: [userId], references: [id], onDelete: Cascade)
-  driver          User?     @relation("DriverTransportBookings", fields: [driverId], references: [id], onDelete: SetNull)
-  property        Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  user     User      @relation("UserTransportBookings", fields: [userId], references: [id], onDelete: Cascade)
+  driver   User?     @relation("DriverTransportBookings", fields: [driverId], references: [id], onDelete: SetNull)
+  property Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
 
   // Optional: GPS pings linked to this booking (for replay/analytics)
   driverLocationPings DriverLocationPing[]
-  
+
   @@index([userId])
   @@index([driverId])
   @@index([propertyId])
@@ -805,17 +823,17 @@ model TransportBooking {
 //  DRIVER LIVE LOCATION - one row per driver (fast map reads)
 // =========================================================
 model DriverLiveLocation {
-  driverId    Int      @id
-  lat         Decimal  @db.Decimal(10, 6)
-  lng         Decimal  @db.Decimal(10, 6)
-  headingDeg  Int?
-  speedMps    Decimal? @db.Decimal(7, 2)
-  accuracyM   Decimal? @db.Decimal(7, 2)
+  driverId   Int      @id
+  lat        Decimal  @db.Decimal(10, 6)
+  lng        Decimal  @db.Decimal(10, 6)
+  headingDeg Int?
+  speedMps   Decimal? @db.Decimal(7, 2)
+  accuracyM  Decimal? @db.Decimal(7, 2)
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  driver      User     @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  driver User @relation(fields: [driverId], references: [id], onDelete: Cascade)
 
   @@index([updatedAt])
   @@index([lat, lng])
@@ -826,19 +844,19 @@ model DriverLiveLocation {
 //  DRIVER LOCATION PING - optional history for replay/analytics
 // =========================================================
 model DriverLocationPing {
-  id                BigInt   @id @default(autoincrement())
-  driverId          Int
+  id                 BigInt   @id @default(autoincrement())
+  driverId           Int
   transportBookingId Int?
-  lat               Decimal  @db.Decimal(10, 6)
-  lng               Decimal  @db.Decimal(10, 6)
-  headingDeg        Int?
-  speedMps          Decimal? @db.Decimal(7, 2)
-  accuracyM         Decimal? @db.Decimal(7, 2)
+  lat                Decimal  @db.Decimal(10, 6)
+  lng                Decimal  @db.Decimal(10, 6)
+  headingDeg         Int?
+  speedMps           Decimal? @db.Decimal(7, 2)
+  accuracyM          Decimal? @db.Decimal(7, 2)
 
-  createdAt         DateTime @default(now())
+  createdAt DateTime @default(now())
 
-  driver            User     @relation(fields: [driverId], references: [id], onDelete: Cascade)
-  transportBooking  TransportBooking? @relation(fields: [transportBookingId], references: [id], onDelete: SetNull)
+  driver           User              @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  transportBooking TransportBooking? @relation(fields: [transportBookingId], references: [id], onDelete: SetNull)
 
   @@index([driverId, createdAt])
   @@index([transportBookingId, createdAt])
@@ -849,31 +867,30 @@ model DriverLocationPing {
 //  TRUST PARTNER MODEL - For "Trusted by" partners displayed on public site
 // =========================================================
 model TrustPartner {
-  id              Int       @id @default(autoincrement())
-  
+  id Int @id @default(autoincrement())
+
   /// Partner name (e.g., "M-Pesa", "Airtel Money")
-  name            String
-  
+  name String
+
   /// URL to partner logo image
-  logoUrl         String?
-  
+  logoUrl String?
+
   /// Optional link to partner website
-  href            String?
-  
+  href String?
+
   /// Display order (lower numbers appear first)
-  displayOrder    Int       @default(0)
-  
+  displayOrder Int @default(0)
+
   /// Whether this partner is active/visible
-  isActive        Boolean   @default(true)
-  
+  isActive Boolean @default(true)
+
   /// Record creation timestamp
-  createdAt       DateTime  @default(now())
+  createdAt DateTime @default(now())
   /// Record last update timestamp
-  updatedAt       DateTime  @updatedAt
-  
+  updatedAt DateTime @updatedAt
+
   @@index([isActive])
   @@index([displayOrder])
-  
   @@map("trust_partners")
 }
 
@@ -881,59 +898,59 @@ model TrustPartner {
 //  REFERRAL EARNINGS MODEL - For tracking driver referral earnings
 // =========================================================
 model ReferralEarning {
-  id                Int       @id @default(autoincrement())
-  
+  id Int @id @default(autoincrement())
+
   /// Driver who earned this referral (the referrer)
-  driverId          Int
-  
+  driverId Int
+
   /// User who was referred (the new user)
-  referredUserId    Int
-  
+  referredUserId Int
+
   /// Booking that generated this earning (if applicable)
-  bookingId         Int?
-  
+  bookingId Int?
+
   /// Invoice that generated this earning (if applicable)
-  invoiceId         Int?
-  
+  invoiceId Int?
+
   /// Amount earned from this referral
-  amount            Decimal   @db.Decimal(12, 2)
-  
+  amount Decimal @db.Decimal(12, 2)
+
   /// Currency code (default: TZS)
-  currency          String    @default("TZS")
-  
+  currency String @default("TZS")
+
   /// Status: PENDING, PAID_AS_BONUS, AVAILABLE_FOR_WITHDRAWAL, WITHDRAWN
-  status            String    @default("PENDING")
-  
+  status String @default("PENDING")
+
   /// Reference to bonus payment if paid as bonus (invoice ID or bonus record ID)
-  bonusPaymentRef   String?
-  
+  bonusPaymentRef String?
+
   /// Reference to withdrawal application if applied for withdrawal
-  withdrawalId      Int?
-  
+  withdrawalId Int?
+
   /// Admin notes about this earning
-  adminNotes        String?   @db.Text
-  
+  adminNotes String? @db.Text
+
   /// Timestamp when marked as paid as bonus
-  paidAsBonusAt     DateTime?
-  
+  paidAsBonusAt DateTime?
+
   /// Timestamp when made available for withdrawal
-  availableAt       DateTime?
-  
+  availableAt DateTime?
+
   /// Timestamp when withdrawn
-  withdrawnAt       DateTime?
-  
+  withdrawnAt DateTime?
+
   /// Record creation timestamp
-  createdAt         DateTime  @default(now())
+  createdAt DateTime @default(now())
   /// Record last update timestamp
-  updatedAt         DateTime  @updatedAt
-  
+  updatedAt DateTime @updatedAt
+
   // Relations
-  driver            User      @relation("DriverReferrals", fields: [driverId], references: [id], onDelete: Cascade)
-  referredUser      User      @relation("ReferredUsers", fields: [referredUserId], references: [id], onDelete: Cascade)
-  booking           Booking?  @relation(fields: [bookingId], references: [id], onDelete: SetNull)
-  invoice           Invoice?  @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
-  withdrawal        ReferralWithdrawal? @relation(fields: [withdrawalId], references: [id], onDelete: SetNull)
-  
+  driver       User                @relation("DriverReferrals", fields: [driverId], references: [id], onDelete: Cascade)
+  referredUser User                @relation("ReferredUsers", fields: [referredUserId], references: [id], onDelete: Cascade)
+  booking      Booking?            @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  invoice      Invoice?            @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  withdrawal   ReferralWithdrawal? @relation(fields: [withdrawalId], references: [id], onDelete: SetNull)
+
   @@index([driverId])
   @@index([referredUserId])
   @@index([bookingId])
@@ -941,7 +958,6 @@ model ReferralEarning {
   @@index([status])
   @@index([withdrawalId])
   @@index([createdAt])
-  
   @@map("referral_earnings")
 }
 
@@ -949,58 +965,57 @@ model ReferralEarning {
 //  REFERRAL WITHDRAWAL MODEL - For driver withdrawal applications
 // =========================================================
 model ReferralWithdrawal {
-  id                Int       @id @default(autoincrement())
-  
+  id Int @id @default(autoincrement())
+
   /// Driver applying for withdrawal
-  driverId          Int
-  
+  driverId Int
+
   /// Total amount requested for withdrawal
-  totalAmount       Decimal   @db.Decimal(12, 2)
-  
+  totalAmount Decimal @db.Decimal(12, 2)
+
   /// Currency code
-  currency          String    @default("TZS")
-  
+  currency String @default("TZS")
+
   /// Status: PENDING, APPROVED, REJECTED, PAID
-  status            String    @default("PENDING")
-  
+  status String @default("PENDING")
+
   /// Payment method preference (BANK, MPESA, TIGOPESA, etc.)
-  paymentMethod     String?
-  
+  paymentMethod String?
+
   /// Payment reference/account details
-  paymentRef        String?
-  
+  paymentRef String?
+
   /// Admin who approved/rejected this withdrawal
-  processedBy       Int?
-  
+  processedBy Int?
+
   /// Reason for rejection (if rejected)
-  rejectionReason   String?   @db.Text
-  
+  rejectionReason String? @db.Text
+
   /// Admin notes
-  adminNotes        String?   @db.Text
-  
+  adminNotes String? @db.Text
+
   /// Timestamp when approved
-  approvedAt        DateTime?
-  
+  approvedAt DateTime?
+
   /// Timestamp when rejected
-  rejectedAt        DateTime?
-  
+  rejectedAt DateTime?
+
   /// Timestamp when paid
-  paidAt            DateTime?
-  
+  paidAt DateTime?
+
   /// Record creation timestamp
-  createdAt         DateTime  @default(now())
+  createdAt DateTime @default(now())
   /// Record last update timestamp
-  updatedAt         DateTime  @updatedAt
-  
+  updatedAt DateTime @updatedAt
+
   // Relations
-  driver            User      @relation("DriverWithdrawals", fields: [driverId], references: [id], onDelete: Cascade)
-  processedByUser   User?     @relation("ProcessedWithdrawals", fields: [processedBy], references: [id], onDelete: SetNull)
-  earnings          ReferralEarning[]
-  
+  driver          User              @relation("DriverWithdrawals", fields: [driverId], references: [id], onDelete: Cascade)
+  processedByUser User?             @relation("ProcessedWithdrawals", fields: [processedBy], references: [id], onDelete: SetNull)
+  earnings        ReferralEarning[]
+
   @@index([driverId])
   @@index([status])
   @@index([createdAt])
-  
   @@map("referral_withdrawals")
 }
 
@@ -1008,51 +1023,51 @@ model ReferralWithdrawal {
 //  SYSTEM SETTING MODEL - Singleton configuration table (id = 1)
 // =========================================================
 model SystemSetting {
-  id                Int       @id @default(1)
-  
+  id Int @id @default(1)
+
   /// Commission percentage (e.g., 10.00 for 10%)
-  commissionPercent Decimal?  @db.Decimal(5, 2) @default(10.00)
-  
+  commissionPercent Decimal? @default(10.00) @db.Decimal(5, 2)
+
   /// Tax percentage (e.g., 0.00 for 0%)
-  taxPercent        Decimal?  @db.Decimal(5, 2) @default(0.00)
-  
+  taxPercent Decimal? @default(0.00) @db.Decimal(5, 2)
+
   /// Invoice number prefix (e.g., "INV")
-  invoicePrefix     String?   @default("INV")
-  
+  invoicePrefix String? @default("INV")
+
   /// Receipt number prefix (e.g., "RCPT")
-  receiptPrefix     String?   @default("RCPT")
-  
+  receiptPrefix String? @default("RCPT")
+
   /// Branding configuration (JSON: logoUrl, primaryColor, etc.)
-  branding          Json?
-  
+  branding Json?
+
   /// Whether email notifications are enabled
-  emailEnabled      Boolean?  @default(true)
-  
+  emailEnabled Boolean? @default(true)
+
   /// Whether SMS notifications are enabled
-  smsEnabled        Boolean?  @default(true)
-  
+  smsEnabled Boolean? @default(true)
+
   // ==================== Business Configuration Fields ====================
   /// Referral credit percentage as decimal (e.g., 0.0035 for 0.35%)
-  referralCreditPercent      Decimal?  @db.Decimal(10, 6) @default(0.0035)
-  
+  referralCreditPercent Decimal? @default(0.0035) @db.Decimal(10, 6)
+
   /// Driver level threshold for Gold (in TZS)
-  driverLevelGoldThreshold    Int?     @default(500000)
-  
+  driverLevelGoldThreshold Int? @default(500000)
+
   /// Driver level threshold for Diamond (in TZS)
-  driverLevelDiamondThreshold Int?      @default(2000000)
-  
+  driverLevelDiamondThreshold Int? @default(2000000)
+
   /// Goal calculation multiplier (e.g., 1.1 for 10% above average)
-  goalMultiplier              Decimal?  @db.Decimal(5, 2) @default(1.1)
-  
+  goalMultiplier Decimal? @default(1.1) @db.Decimal(5, 2)
+
   /// Minimum monthly earnings goal (in TZS)
-  goalMinimumMonthly          Int?     @default(3000000)
-  
+  goalMinimumMonthly Int? @default(3000000)
+
   /// Record creation timestamp
-  createdAt         DateTime  @default(now())
-  
+  createdAt DateTime @default(now())
+
   /// Record last update timestamp
-  updatedAt         DateTime  @updatedAt
-  
+  updatedAt DateTime @updatedAt
+
   @@map("SystemSetting")
 }
 
@@ -1060,59 +1075,58 @@ model SystemSetting {
 //  PROPERTY REVIEW MODEL - For guest reviews and ratings
 // =========================================================
 model PropertyReview {
-  id              Int       @id @default(autoincrement())
-  
+  id Int @id @default(autoincrement())
+
   /// Property being reviewed
-  propertyId      Int
-  
+  propertyId Int
+
   /// User who wrote the review (guest/customer)
-  userId          Int
-  
+  userId Int
+
   /// Overall rating (1-5 stars)
-  rating          Int       // 1-5
-  
+  rating Int // 1-5
+
   /// Review title/subject
-  title           String?   @db.VarChar(200)
-  
+  title String? @db.VarChar(200)
+
   /// Review text content
-  comment         String?   @db.Text
-  
+  comment String? @db.Text
+
   /// Category ratings (JSON: cleanliness, location, value, service, etc.)
-  categoryRatings Json?     // e.g., { cleanliness: 5, location: 4, value: 5, service: 4 }
-  
+  categoryRatings Json? // e.g., { cleanliness: 5, location: 4, value: 5, service: 4 }
+
   /// Whether this review is verified (guest actually stayed)
-  isVerified      Boolean   @default(false)
-  
+  isVerified Boolean @default(false)
+
   /// Whether this review is published/visible
-  isPublished     Boolean   @default(true)
-  
+  isPublished Boolean @default(true)
+
   /// Admin can hide inappropriate reviews
-  isHidden        Boolean   @default(false)
-  
+  isHidden Boolean @default(false)
+
   /// Booking ID that this review is associated with (if applicable)
-  bookingId       Int?
-  
+  bookingId Int?
+
   /// Response from property owner/host
   ownerResponse   String?   @db.Text
   ownerResponseAt DateTime?
-  
+
   /// Record creation timestamp
-  createdAt       DateTime  @default(now())
+  createdAt DateTime @default(now())
   /// Record last update timestamp
-  updatedAt       DateTime  @updatedAt
-  
+  updatedAt DateTime @updatedAt
+
   // Relations
-  property        Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  booking         Booking?  @relation(fields: [bookingId], references: [id], onDelete: SetNull)
-  
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  booking  Booking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+
   @@index([propertyId])
   @@index([userId])
   @@index([bookingId])
   @@index([rating])
   @@index([isPublished, isHidden])
   @@index([createdAt])
-  
   @@map("property_reviews")
 }
 
@@ -1120,52 +1134,51 @@ model PropertyReview {
 //  PROPERTY IMAGE MODEL - For managing property photos with moderation
 // =========================================================
 model PropertyImage {
-  id              Int       @id @default(autoincrement())
-  
+  id Int @id @default(autoincrement())
+
   /// Property this image belongs to
-  propertyId      Int
-  
+  propertyId Int
+
   /// Storage key (S3 key or file identifier)
-  storageKey      String?   @unique
-  
+  storageKey String? @unique
+
   /// Original image URL
-  url             String?   @db.Text
-  
+  url String? @db.Text
+
   /// Thumbnail storage key
-  thumbnailKey    String?
-  
+  thumbnailKey String?
+
   /// Thumbnail URL
-  thumbnailUrl    String?   @db.Text
-  
+  thumbnailUrl String? @db.Text
+
   /// Image width in pixels
-  width           Int?
-  
+  width Int?
+
   /// Image height in pixels
-  height          Int?
-  
+  height Int?
+
   /// Processing status: PENDING, PROCESSING, READY, REJECTED
-  status          String    @default("PENDING")
-  
+  status String @default("PENDING")
+
   /// Moderation note (if rejected or needs review)
-  moderationNote  String?   @db.Text
-  
+  moderationNote String? @db.Text
+
   /// Timestamp when image was moderated
-  moderatedAt     DateTime?
-  
+  moderatedAt DateTime?
+
   /// Record creation timestamp
-  createdAt       DateTime  @default(now())
-  
+  createdAt DateTime @default(now())
+
   /// Record last update timestamp
-  updatedAt       DateTime  @updatedAt
-  
+  updatedAt DateTime @updatedAt
+
   // Relations
-  property        Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
   @@index([propertyId])
   @@index([status])
   @@index([storageKey])
   @@index([createdAt])
-  
   @@map("property_images")
 }
 
@@ -1173,44 +1186,43 @@ model PropertyImage {
 //  PAYMENT EVENT MODEL - For tracking payment gateway events
 // =========================================================
 model PaymentEvent {
-  id              Int       @id @default(autoincrement())
-  
+  id Int @id @default(autoincrement())
+
   /// Payment provider (AZAMPAY, MPESA, TIGOPESA, etc.)
-  provider        String
-  
+  provider String
+
   /// Unique event ID from the payment provider
-  eventId         String    @unique
-  
+  eventId String @unique
+
   /// Invoice this payment event is associated with
-  invoiceId       Int?
-  
+  invoiceId Int?
+
   /// Payment amount
-  amount          Decimal   @db.Decimal(12, 2)
-  
+  amount Decimal @db.Decimal(12, 2)
+
   /// Currency code (default: TZS)
-  currency        String    @default("TZS")
-  
+  currency String @default("TZS")
+
   /// Payment status: SUCCESS, FAILED, PENDING
-  status          String    @default("PENDING")
-  
+  status String @default("PENDING")
+
   /// Raw payload from payment provider (JSON)
-  payload         Json?
-  
+  payload Json?
+
   /// Record creation timestamp
-  createdAt       DateTime  @default(now())
-  
+  createdAt DateTime @default(now())
+
   /// Record last update timestamp
-  updatedAt       DateTime  @updatedAt
-  
+  updatedAt DateTime @updatedAt
+
   // Relations
-  invoice         Invoice?  @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
-  
+  invoice Invoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
   @@index([provider])
   @@index([eventId])
   @@index([invoiceId])
   @@index([status])
   @@index([createdAt])
-  
   @@map("payment_events")
 }
 
@@ -1218,42 +1230,42 @@ model PaymentEvent {
 //  NOTIFICATION MODEL - For user notifications (owners, drivers, admins, customers)
 // =========================================================
 model Notification {
-  id              Int       @id @default(autoincrement())
-  
+  id Int @id @default(autoincrement())
+
   /// User who receives this notification (can be owner, driver, admin, or customer)
-  userId          Int?
-  
+  userId Int?
+
   /// Owner-specific notifications (legacy field for backward compatibility)
-  ownerId         Int?
-  
+  ownerId Int?
+
   /// Notification title
-  title           String    @db.VarChar(200)
-  
+  title String @db.VarChar(200)
+
   /// Notification body/content
-  body            String    @db.Text
-  
+  body String @db.Text
+
   /// Whether this notification has been read
-  unread          Boolean   @default(true)
-  
+  unread Boolean @default(true)
+
   /// Additional metadata (JSON: can store template, action links, etc.)
-  meta            Json?
-  
+  meta Json?
+
   /// Notification type/category (e.g., 'property', 'booking', 'invoice', 'system')
-  type            String?   @db.VarChar(50)
-  
+  type String? @db.VarChar(50)
+
   /// Timestamp when notification was read
-  readAt          DateTime?
-  
+  readAt DateTime?
+
   /// Record creation timestamp
-  createdAt       DateTime  @default(now())
-  
+  createdAt DateTime @default(now())
+
   /// Record last update timestamp
-  updatedAt       DateTime  @updatedAt
-  
+  updatedAt DateTime @updatedAt
+
   // Relations
-  user            User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  owner           User?     @relation("OwnerNotifications", fields: [ownerId], references: [id], onDelete: Cascade)
-  
+  user  User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+  owner User? @relation("OwnerNotifications", fields: [ownerId], references: [id], onDelete: Cascade)
+
   @@index([userId])
   @@index([ownerId])
   @@index([unread])
@@ -1261,7 +1273,6 @@ model Notification {
   @@index([createdAt])
   @@index([userId, unread])
   @@index([ownerId, unread])
-  
   @@map("Notification")
 }
 
@@ -1269,55 +1280,55 @@ model Notification {
 //  PLAN REQUEST MODEL - For "Plan With Us" custom trip planning requests
 // =========================================================
 model PlanRequest {
-  id                    Int       @id @default(autoincrement())
-  
+  id Int @id @default(autoincrement())
+
   /// Role of the requester: Event planner, School / Teacher, University, Community group, Other
-  role                  String    @db.VarChar(100)
-  
+  role String @db.VarChar(100)
+
   /// Type of trip: Local tourism, Safari, Cultural, Adventure / Hiking, Other
-  tripType              String    @db.VarChar(100)
-  
+  tripType String @db.VarChar(100)
+
   /// Request status: NEW, PENDING, IN_PROGRESS, COMPLETED
-  status                String    @default("NEW") @db.VarChar(50)
-  
+  status String @default("NEW") @db.VarChar(50)
+
   /// Customer contact information
-  fullName              String    @db.VarChar(200)
-  email                 String    @db.VarChar(255)
-  phone                 String?   @db.VarChar(40)
-  
+  fullName String  @db.VarChar(200)
+  email    String  @db.VarChar(255)
+  phone    String? @db.VarChar(40)
+
   /// Trip details
-  destinations          String?   @db.VarChar(500)
-  dateFrom              DateTime?
-  dateTo                DateTime?
-  groupSize             Int?
-  budget                Decimal?  @db.Decimal(12, 2)
-  notes                 String?   @db.Text
-  
+  destinations String?   @db.VarChar(500)
+  dateFrom     DateTime?
+  dateTo       DateTime?
+  groupSize    Int?
+  budget       Decimal?  @db.Decimal(12, 2)
+  notes        String?   @db.Text
+
   /// Transport requirements
-  transportRequired     Boolean?  @default(false)
-  vehicleType           String?   @db.VarChar(100)
-  pickupLocation        String?   @db.VarChar(500)
-  dropoffLocation       String?   @db.VarChar(500)
-  vehiclesNeeded        Int?
-  passengerCount        Int?
-  vehicleRequirements   String?   @db.Text
-  
+  transportRequired   Boolean? @default(false)
+  vehicleType         String?  @db.VarChar(100)
+  pickupLocation      String?  @db.VarChar(500)
+  dropoffLocation     String?  @db.VarChar(500)
+  vehiclesNeeded      Int?
+  passengerCount      Int?
+  vehicleRequirements String?  @db.Text
+
   /// Role-specific data stored as JSON (for event planner, school, university, community fields)
-  roleSpecificData      Json?
-  
+  roleSpecificData Json?
+
   /// Admin response fields
-  adminResponse         String?   @db.Text
-  suggestedItineraries  String?   @db.Text
-  requiredPermits       String?   @db.Text
-  estimatedTimeline     String?   @db.Text
-  assignedAgent         String?   @db.VarChar(200)
-  respondedAt           DateTime?
-  
+  adminResponse        String?   @db.Text
+  suggestedItineraries String?   @db.Text
+  requiredPermits      String?   @db.Text
+  estimatedTimeline    String?   @db.Text
+  assignedAgent        String?   @db.VarChar(200)
+  respondedAt          DateTime?
+
   /// Record creation timestamp
-  createdAt             DateTime  @default(now())
+  createdAt DateTime @default(now())
   /// Record last update timestamp
-  updatedAt             DateTime  @updatedAt
-  
+  updatedAt DateTime @updatedAt
+
   @@index([role])
   @@index([tripType])
   @@index([status])
@@ -1325,6 +1336,238 @@ model PlanRequest {
   @@index([phone])
   @@index([createdAt])
   @@index([status, createdAt])
-  
   @@map("plan_requests")
+}
+
+// =========================================================
+//  JOB MODEL - For career/job postings
+// =========================================================
+model Job {
+  id Int @id @default(autoincrement())
+
+  /// Job title
+  title String @db.VarChar(200)
+
+  /// Department/Category: ENGINEERING, DESIGN, MARKETING, SALES, OPERATIONS, SUPPORT, MANAGEMENT, OTHER
+  category String @db.VarChar(50)
+
+  /// Job type: FULL_TIME, PART_TIME, CONTRACT, INTERNSHIP, FREELANCE
+  type String @db.VarChar(50)
+
+  /// Location type: REMOTE, ONSITE, HYBRID
+  location String @db.VarChar(50)
+
+  /// Specific location detail (e.g., "Dar es Salaam, Tanzania")
+  locationDetail String? @db.VarChar(200)
+
+  /// Department name (e.g., "Engineering", "Design")
+  department String @db.VarChar(100)
+
+  /// Job description
+  description String @db.Text
+
+  /// Key responsibilities (stored as JSON array)
+  responsibilities Json // Array of strings
+
+  /// Requirements (stored as JSON array)
+  requirements Json // Array of strings
+
+  /// Benefits (stored as JSON array)
+  benefits Json // Array of strings
+
+  /// Experience level: ENTRY, MID, SENIOR, LEAD
+  experienceLevel String @db.VarChar(20)
+
+  /// Salary information (stored as JSON: { min, max, currency, period })
+  salary Json? // { min?: number, max?: number, currency?: string, period?: "MONTHLY" | "YEARLY" }
+
+  /// Date when job was posted
+  postedDate DateTime @default(now())
+
+  /// Application deadline
+  applicationDeadline DateTime?
+
+  /// Whether this job is featured
+  featured Boolean @default(false)
+
+  /// Job status: ACTIVE, CLOSED, DRAFT
+  status String @default("ACTIVE") @db.VarChar(20)
+
+  /// Created by admin user ID
+  createdBy Int?
+
+  /// Last updated by admin user ID
+  updatedBy Int?
+
+  /// Record creation timestamp
+  createdAt DateTime @default(now())
+
+  /// Record last update timestamp
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  createdByUser User? @relation("JobsCreated", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedByUser User? @relation("JobsUpdated", fields: [updatedBy], references: [id], onDelete: SetNull)
+
+  // Job applications submitted for this job
+  applications JobApplication[]
+
+  @@index([category])
+  @@index([type])
+  @@index([location])
+  @@index([status])
+  @@index([featured])
+  @@index([postedDate])
+  @@index([applicationDeadline])
+  @@index([status, applicationDeadline])
+  @@index([createdBy])
+  @@map("Job")
+}
+
+// =========================================================
+//  JOB APPLICATION MODEL - For career/job applications
+// =========================================================
+model JobApplication {
+  id Int @id @default(autoincrement())
+
+  /// Job this application is for
+  jobId Int
+
+  /// Applicant information
+  fullName String @db.VarChar(200)
+  email    String @db.VarChar(255)
+  phone    String @db.VarChar(40)
+
+  /// Application content
+  coverLetter String @db.Text
+
+  /// Optional fields
+  portfolio  String? @db.VarChar(500)
+  linkedIn   String? @db.VarChar(500)
+  referredBy String? @db.VarChar(200)
+
+  /// Resume file information
+  resumeFileName   String? @db.VarChar(255)
+  resumeStorageKey String? @db.VarChar(500) // S3 key or storage path
+  resumeUrl        String? @db.Text // Full URL to resume
+  resumeSize       Int? // File size in bytes
+  resumeType       String? @db.VarChar(100) // MIME type
+
+  /// Application status: PENDING, REVIEWING, SHORTLISTED, REJECTED, HIRED
+  status String @default("PENDING") @db.VarChar(20)
+
+  /// Track which statuses have been used (prevents duplicate status changes)
+  usedStatuses Json? // Array of status strings that have been set
+
+  /// Admin notes
+  adminNotes String? @db.Text
+
+  /// Review timestamps
+  reviewedAt DateTime?
+  reviewedBy Int? // Admin user ID
+
+  /// Record creation timestamp
+  submittedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  job            Job   @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  reviewedByUser User? @relation("JobApplicationsReviewed", fields: [reviewedBy], references: [id], onDelete: SetNull)
+
+  @@index([jobId])
+  @@index([email])
+  @@index([status])
+  @@index([submittedAt])
+  @@index([status, submittedAt])
+  @@index([reviewedBy])
+  @@map("JobApplication")
+}
+
+// =========================================================
+//  CANCELLATION REQUEST MODEL - Customer-initiated cancellations (subject to policy)
+// =========================================================
+model CancellationRequest {
+  id          Int    @id @default(autoincrement())
+  bookingId   Int
+  userId      Int
+  bookingCode String @db.VarChar(32)
+
+  /// Workflow status: SUBMITTED, REVIEWING, NEED_INFO, PROCESSING, REFUNDED, REJECTED
+  status String  @default("SUBMITTED") @db.VarChar(40)
+  reason String? @db.Text
+
+  /// Snapshot of policy evaluation at submission time
+  policyEligible      Boolean @default(false)
+  policyRefundPercent Int? // 0, 50, 100
+  policyRule          String? @db.VarChar(40)
+
+  /// Admin review fields (optional)
+  reviewedAt   DateTime?
+  reviewedBy   Int?
+  decisionNote String?   @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  booking        Booking               @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  user           User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reviewedByUser User?                 @relation("CancellationReviewedBy", fields: [reviewedBy], references: [id], onDelete: SetNull)
+  messages       CancellationMessage[]
+
+  @@index([bookingId])
+  @@index([userId])
+  @@index([bookingCode])
+  @@index([status])
+  @@map("cancellation_requests")
+}
+
+// =========================================================
+//  CANCELLATION MESSAGE MODEL - Admin <-> Customer communication for claims
+// =========================================================
+model CancellationMessage {
+  id                    Int      @id @default(autoincrement())
+  cancellationRequestId Int
+  senderId              Int
+  senderRole            String   @db.VarChar(20) // ADMIN | USER
+  body                  String   @db.Text
+  createdAt             DateTime @default(now())
+
+  // Relations
+  request CancellationRequest @relation(fields: [cancellationRequestId], references: [id], onDelete: Cascade)
+  sender  User                @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([cancellationRequestId])
+  @@index([senderId])
+  @@index([createdAt])
+  @@map("cancellation_messages")
+}
+
+// =========================================================
+//  DRIVER REMINDER MODEL - Reminders for drivers (license expiry, insurance, etc.)
+// =========================================================
+model DriverReminder {
+  id         Int       @id @default(autoincrement())
+  driverId   Int
+  type       String    @db.VarChar(30) // INFO, WARNING, ALERT, PROMOTION, POLICY_VIOLATION, SAFETY, LICENSE_EXPIRY, INSURANCE_EXPIRY
+  message    String    @db.Text
+  action     String?   @db.VarChar(100) // Optional action button text
+  actionLink String?   @db.VarChar(255) // Optional action link
+  expiresAt  DateTime? // Optional expiration date for the reminder
+  meta       Json? // Additional metadata (documentId, autoGenerated, etc.)
+  read       Boolean   @default(false) // Whether the driver has read this reminder
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  driver User @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@index([driverId])
+  @@index([type])
+  @@index([read])
+  @@index([expiresAt])
+  @@index([createdAt])
+  @@map("driver_reminders")
 }

@@ -34,7 +34,7 @@ function nextReceiptNumber(prefix = "RCPT", seq: number) {
 /** GET /admin/invoices */
 router.get("/invoices", async (req, res) => {
   try {
-    const { status, ownerId, propertyId, from, to, q, page = "1", pageSize = "50" } = req.query as any;
+    const { status, ownerId, propertyId, from, to, q, page = "1", pageSize = "50", sortBy, sortDir, amountMin, amountMax } = req.query as any;
 
     const where: any = {};
     if (status) where.status = status;
@@ -47,6 +47,11 @@ router.get("/invoices", async (req, res) => {
     if (propertyId) {
       where.booking = { propertyId: Number(propertyId) };
     }
+    if (amountMin || amountMax) {
+      where.netPayable = {};
+      if (amountMin) where.netPayable.gte = Number(amountMin);
+      if (amountMax) where.netPayable.lte = Number(amountMax);
+    }
     if (q) {
       where.OR = [
         { invoiceNumber: { contains: q, mode: "insensitive" } },
@@ -58,11 +63,33 @@ router.get("/invoices", async (req, res) => {
     const skip = (Number(page) - 1) * Number(pageSize);
     const take = Math.min(Number(pageSize), 100);
 
+    // Build orderBy
+    let orderBy: any = { id: "desc" };
+    if (sortBy) {
+      const dir = sortDir === "asc" ? "asc" : "desc";
+      switch (sortBy) {
+        case "invoiceNumber":
+          orderBy = { invoiceNumber: dir };
+          break;
+        case "issuedAt":
+          orderBy = { issuedAt: dir };
+          break;
+        case "total":
+          orderBy = { total: dir };
+          break;
+        case "netPayable":
+          orderBy = { netPayable: dir };
+          break;
+        default:
+          orderBy = { id: "desc" };
+      }
+    }
+
     const [items, total] = await Promise.all([
       prisma.invoice.findMany({
         where,
         include: { booking: { include: { property: true } } },
-        orderBy: { id: "desc" },
+        orderBy,
         skip, take,
       }),
       prisma.invoice.count({ where }),
@@ -88,10 +115,52 @@ router.get("/invoices/:id", async (req, res) => {
       where: { id },
       include: {
         booking: { include: { property: { include: { owner: true } } } },
+        verifiedByUser: { select: { id: true, name: true } },
+        approvedByUser: { select: { id: true, name: true } },
+        paidByUser: { select: { id: true, name: true } },
+        paymentEvents: {
+          where: { status: "SUCCESS" },
+          orderBy: { id: "desc" },
+          take: 1,
+          select: {
+            id: true,
+            provider: true,
+            eventId: true,
+            payload: true,
+          },
+        },
       },
     });
     if (!inv) return res.status(404).json({ error: "Invoice not found" });
-    res.json(inv);
+    
+    // Extract account number from payment event payload
+    const paymentEvent = (inv as any).paymentEvents?.[0] || null;
+    let accountNumber: string | null = null;
+    
+    if (paymentEvent?.payload) {
+      const payload = paymentEvent.payload as any;
+      const accountFields = ['phoneNumber', 'phone', 'accountNumber', 'account', 'msisdn', 'sourcePhone', 'destinationPhone'];
+      for (const field of accountFields) {
+        if (payload[field]) {
+          accountNumber = String(payload[field]);
+          break;
+        }
+      }
+    }
+    
+    // Fallback to paymentRef if it looks like a phone number
+    if (!accountNumber && (inv as any).paymentRef) {
+      const ref = String((inv as any).paymentRef);
+      if (/^(0|255|\+255|254|\+254)\d{6,}/.test(ref)) {
+        accountNumber = ref;
+      }
+    }
+    
+    // Add accountNumber to response
+    const response: any = { ...inv };
+    response.accountNumber = accountNumber;
+    
+    res.json(response);
   } catch (err: any) {
     console.error("Error in GET /admin/invoices/:id", err);
     res.status(500).json({ error: "Internal server error" });
@@ -339,7 +408,10 @@ router.get("/invoices/:id/receipt.png", async (req, res) => {
   }
 });
 
-/** GET /admin/invoices/export.csv?status=...&from=...&to=...&q=... */
+/** GET /admin/invoices/export.csv?status=...&from=...&to=...&q=...
+ * Exports invoices to CSV for payout processing.
+ * For APPROVED invoices, includes owner details for third-party payout gateway.
+ */
 router.get("/invoices/export.csv", async (req, res) => {
   try {
     const { status, from, to, ownerId, q } = req.query as any;
@@ -363,7 +435,10 @@ router.get("/invoices/export.csv", async (req, res) => {
 
     const rows = await prisma.invoice.findMany({
       where,
-      include: { booking: { include: { property: true } } },
+      include: {
+        booking: { include: { property: true } },
+        owner: { select: { id: true, name: true, email: true, phone: true } },
+      },
       orderBy: { id: "desc" },
       take: 5000,
     });
@@ -375,25 +450,37 @@ router.get("/invoices/export.csv", async (req, res) => {
         receiptNumber: r.receiptNumber ?? "",
         status: r.status,
         issuedAt: r.issuedAt.toISOString(),
+        approvedAt: r.approvedAt ? r.approvedAt.toISOString() : "",
         property: r.booking.property?.title ?? `#${r.booking.propertyId}`,
+        propertyId: r.booking.propertyId,
+        ownerId: r.ownerId,
+        ownerName: r.owner?.name ?? "",
+        ownerEmail: r.owner?.email ?? "",
+        ownerPhone: r.owner?.phone ?? "",
         total: r.total,
         commissionPercent: r.commissionPercent,
         commissionAmount: r.commissionAmount,
-        taxPercent: r.taxPercent,
+        taxPercent: r.taxPercent ?? 0,
+        taxAmount: r.taxPercent ? Number(r.total) * (Number(r.taxPercent) / 100) : 0,
         netPayable: r.netPayable,
         paidAt: r.paidAt ? r.paidAt.toISOString() : "",
         paymentMethod: r.paymentMethod ?? "",
         paymentRef: r.paymentRef ?? "",
       })),
       [
-        "id","invoiceNumber","receiptNumber","status","issuedAt","property",
-        "total","commissionPercent","commissionAmount","taxPercent","netPayable",
+        "id","invoiceNumber","receiptNumber","status","issuedAt","approvedAt",
+        "property","propertyId","ownerId","ownerName","ownerEmail","ownerPhone",
+        "total","commissionPercent","commissionAmount","taxPercent","taxAmount","netPayable",
         "paidAt","paymentMethod","paymentRef"
       ]
     );
 
+    const filename = status === "APPROVED" 
+      ? `approved_invoices_payout_${new Date().toISOString().split('T')[0]}.csv`
+      : `invoices_export_${new Date().toISOString().split('T')[0]}.csv`;
+
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
-    res.setHeader("Content-Disposition", `attachment; filename="invoices_export.csv"`);
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     res.send(csv);
   } catch (err: any) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2022") {

@@ -3,8 +3,9 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 export function middleware(req: NextRequest) {
-  const token = req.cookies.get("token")?.value || ""; // or read from headers/localStorage via RSC auth
-  // Prefer an explicit role cookie in dev; fallback to token decode stub
+  // Check for both cookie names for compatibility
+  const token = req.cookies.get("token")?.value || req.cookies.get("nolsaf_token")?.value || "";
+  // Prefer an explicit role cookie; fallback to token decode stub
   const cookieRole = req.cookies.get("role")?.value || "";
   const role = cookieRole || decodeRoleFromToken(token); // dev: we primarily rely on cookie
 

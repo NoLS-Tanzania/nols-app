@@ -4,7 +4,7 @@ import "@/styles/globals.css";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import SiteHeader from "@/components/SiteHeader";
-import PublicFooter from "@/components/PublicFooter";
+import DriverFooter from "@/components/DriverFooter";
 import DriverSidebar from "@/components/DriverSidebar";
 import LayoutFrame from "@/components/LayoutFrame";
 
@@ -60,7 +60,7 @@ export default function DriverLayout({ children }: { children: ReactNode }) {
       </div>
 
       <div className="relative z-20">
-        <PublicFooter withRail />
+        <DriverFooter />
       </div>
     </div>
   );

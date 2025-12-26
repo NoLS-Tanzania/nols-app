@@ -124,24 +124,9 @@ export default function DriverLiveMapBottomSheet({
     return null;
   }
 
-  // Collapsed state - shows earnings summary (hidden on the right, with a button to open)
+  // Collapsed state - no earnings button shown
   if (isCollapsed && !tripRequest && !activeTrip) {
-    return (
-      <>
-        {/* Earnings button - always visible on the right side when collapsed */}
-        <button
-          onClick={onToggle}
-          className={[
-            "absolute bottom-4 right-4 z-30 rounded-full p-2.5 shadow-md hover:shadow-lg transition-all duration-300 hover:scale-110 active:scale-95 pointer-events-auto border backdrop-blur-md",
-            themed("bg-white border-slate-200", "bg-slate-950/55 border-white/15"),
-          ].join(" ")}
-          aria-label="Show earnings"
-          title={`Today's Earnings: ${formatMoney(todayEarnings)}`}
-        >
-          <DollarSign className={["h-4 w-4", themed("text-emerald-600", "text-emerald-300")].join(" ")} />
-        </button>
-      </>
-    );
+    return null;
   }
 
   // Expanded earnings card - slides in from right when button is clicked

@@ -8,12 +8,12 @@ function ReportsFilter({ onChange }: { onChange: (f: ReportsFilters | null) => v
   return null;
 }
 import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, CartesianGrid, ResponsiveContainer, BarChart, Bar } from "recharts";
-const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL });
+// Use same-origin calls + secure httpOnly cookie session.
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 export default function Bookings() {
   const [filters, setFilters] = useState<ReportsFilters | null>(null);
   const [data, setData] = useState<any>(null);
-  useEffect(()=>{ const t=localStorage.getItem("token"); if(t) api.defaults.headers.common["Authorization"]=`Bearer ${t}`;},[]);
   useEffect(()=>{ if(!filters) return; api.get("/owner/reports/bookings",{params:filters}).then(r=>setData(r.data));},[filters]);
 
   return (

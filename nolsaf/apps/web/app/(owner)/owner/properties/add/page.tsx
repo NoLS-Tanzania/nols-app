@@ -10,8 +10,8 @@ import { BATHROOM_ICONS, OTHER_AMENITIES_ICONS } from "@/lib/amenityIcons";
 import ServicesAndFacilities from "@/components/ServicesAndFacilities";
 import NearbyServices from "@/components/NearbyServices";
 
-const api = axios.create();
-function authify(){ const t = typeof window!=="undefined" ? localStorage.getItem("token") : null; if(t) api.defaults.headers.common["Authorization"]=`Bearer ${t}`; }
+const api = axios.create({ baseURL: "", withCredentials: true });
+function authify() {}
 
 // Safe icon renderer: renders the icon component if available, otherwise renders a small placeholder span
 function IconOr({ Icon, className }: { Icon: any; className?: string }) {
@@ -505,7 +505,7 @@ function PropertyLocationMap({
             const center = map.getCenter();
             const centerLat = center.lat;
             const centerLng = center.lng;
-            
+
             // Update parent component with center coordinates
             if (onLocationDetected) {
               onLocationDetected(centerLat, centerLng);
@@ -604,11 +604,11 @@ function PropertyLocationMap({
   return (
     <div className="w-full">
       <div className="relative">
-        <div 
-          ref={containerRef} 
-          className="w-full h-64 sm:h-80 rounded-lg overflow-hidden border-2 border-gray-200 shadow-sm bg-gray-50"
-          style={{ minHeight: '256px' }}
-        />
+      <div 
+        ref={containerRef} 
+        className="w-full h-64 sm:h-80 rounded-lg overflow-hidden border-2 border-gray-200 shadow-sm bg-gray-50"
+        style={{ minHeight: '256px' }}
+      />
         {/* Loading overlay when detecting location */}
         {isDetectingLocation && (
           <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
@@ -623,13 +623,13 @@ function PropertyLocationMap({
       {/* Location info and error messages */}
       <div className="mt-2 space-y-1">
         <div className="text-xs text-gray-600 flex items-center gap-2">
-          <MapPin className="w-3.5 h-3.5 text-[#02665e]" />
+        <MapPin className="w-3.5 h-3.5 text-[#02665e]" />
           <span>
             {Number.isFinite(latitude) && Number.isFinite(longitude) 
               ? `Location: ${Number(latitude).toFixed(6)}, ${Number(longitude).toFixed(6)}`
               : 'No location set. Click "Locate Me" button on map to detect your location.'}
           </span>
-          {postcode && <span className="text-[#02665e] font-medium">• Postcode: {postcode}</span>}
+        {postcode && <span className="text-[#02665e] font-medium">• Postcode: {postcode}</span>}
         </div>
         
         {locationError && (
@@ -1301,10 +1301,7 @@ export default function AddProperty() {
 
   async function uploadToCloudinary(file: File, folder: string) {
     // Use relative path in browser to leverage Next.js rewrites and avoid CORS
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-    const sig = await axios.get(`/uploads/cloudinary/sign?folder=${encodeURIComponent(folder)}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined
-    });
+    const sig = await api.get(`/uploads/cloudinary/sign?folder=${encodeURIComponent(folder)}`);
     const fd = new FormData();
     fd.append("file", file);
     const sigData = sig.data as CloudinarySig;
@@ -1471,16 +1468,16 @@ export default function AddProperty() {
           ...(services.socialHall ? { socialHall: true } : {}),
           ...(services.sportsGames ? { sportsGames: true } : {}),
           ...(services.gym ? { gym: true } : {}),
-          // Service tags array for filtering/searching
-          tags: Array.from(
-            new Set<string>([
-              ...servicesToArray(services),
-              ...nearbyFacilitiesToServiceTags(nearbyFacilities),
-              ...(freeCancellation ? ["Free cancellation"] : []),
-              ...(acceptGroupBooking ? ["Group stay"] : []),
-              ...paymentModes.map((m) => `Payment: ${m}`),
-            ])
-          ),
+        // Service tags array for filtering/searching
+        tags: Array.from(
+          new Set<string>([
+            ...servicesToArray(services),
+            ...nearbyFacilitiesToServiceTags(nearbyFacilities),
+            ...(freeCancellation ? ["Free cancellation"] : []),
+            ...(acceptGroupBooking ? ["Group stay"] : []),
+            ...paymentModes.map((m) => `Payment: ${m}`),
+          ])
+        ),
         };
         
         // Full nearbyFacilities array with all details (name, distance, type, etc.)

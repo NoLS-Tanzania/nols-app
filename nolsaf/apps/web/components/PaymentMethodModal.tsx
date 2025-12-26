@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { X, CreditCard, Smartphone, Wallet, Check } from "lucide-react";
 import axios from "axios";
 
-const api = axios.create();
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 interface PaymentMethodModalProps {
   isOpen: boolean;
@@ -88,11 +88,7 @@ export default function PaymentMethodModal({
 
   const loadSavedPhones = async () => {
     try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-      if (!token) return;
-
-      api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-      const response = await api.get("/account/payment-methods");
+      const response = await api.get("/api/account/payment-methods");
       
       // Extract unique phone numbers from payment history
       const phones = new Set<string>();

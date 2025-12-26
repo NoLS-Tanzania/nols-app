@@ -6,8 +6,8 @@ import Link from "next/link";
 import { Calendar, Eye, Check, ExternalLink } from "lucide-react";
 import TableRow from "@/components/TableRow";
 
-// Use same-origin requests so Next.js rewrites proxy to API and avoid CORS
-const api = axios.create();
+// Use same-origin requests + secure httpOnly cookie session
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 export default function RecentBookings() {
   const [list, setList] = useState<any[] | null>(null);
@@ -19,8 +19,6 @@ export default function RecentBookings() {
 
   useEffect(() => {
     let mounted = true;
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-    if (token) api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 
     const controller = new AbortController();
 
@@ -34,7 +32,7 @@ export default function RecentBookings() {
     const fetchData = async () => {
       if (!mounted) return;
       try {
-        const r = await api.get('/owner/bookings/recent', { signal: controller.signal });
+        const r = await api.get('/api/owner/bookings/recent', { signal: controller.signal });
         if (!mounted) return;
         setList(r.data ?? []);
         retryDelayRef.current = 2000; // reset backoff on success

@@ -8,17 +8,7 @@ export default function ProfileTabRedirect() {
     let mounted = true;
     (async () => {
       try {
-        const t = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-        if (!t) {
-          if (typeof window !== 'undefined') window.location.href = '/login';
-          return;
-        }
-
-        // Prefer using the public API URL if provided, otherwise use relative path
-        const base = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/+$/, '');
-        const url = base ? `${base}/account/me` : '/account/me';
-
-        const res = await fetch(url, { headers: { Authorization: `Bearer ${t}` } });
+        const res = await fetch("/api/account/me", { credentials: "include" });
         if (!mounted) return;
         if (!res.ok) {
           // If unauthorized, send to login

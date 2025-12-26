@@ -17,21 +17,15 @@ export default function AuditLogPage() {
   const [data, setData] = useState<Audit[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // API base (use NEXT_PUBLIC_API_URL in dev or fallback to localhost:4000)
-  const apiBase = typeof window === 'undefined'
-    ? (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000")
-    : '';
+  const apiBase = '';
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const base = typeof window === 'undefined'
-          ? (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000")
-          : '';
-        const url = `${base.replace(/\/$/, '')}/api/admin/audits`;
+        const url = `${apiBase.replace(/\/$/, '')}/api/admin/audits`;
         const res = await fetch(url, {
-          headers: { "x-role": "ADMIN" }
+          credentials: "include",
         });
         if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
         const contentType = res.headers.get("content-type");

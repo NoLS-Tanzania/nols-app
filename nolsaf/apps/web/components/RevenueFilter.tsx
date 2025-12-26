@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 
-const api = axios.create();
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 export type RevenueFilters = {
   status?: string;
@@ -29,9 +29,7 @@ export default function RevenueFilter({
   });
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-    api.get<any[]>("/owner/properties/mine").then(r => setProperties(r.data));
+    api.get<any[]>("/api/owner/properties/mine").then(r => setProperties(r.data)).catch(() => setProperties([]));
   }, []);
 
   useEffect(() => {
@@ -39,16 +37,15 @@ export default function RevenueFilter({
   }, [filters, onChange]);
 
   const csvDownload = async () => {
-    const token = localStorage.getItem("token");
     const params = new URLSearchParams();
     if (filters.status) params.set("status", filters.status);
     if (filters.propertyId) params.set("propertyId", String(filters.propertyId));
     if (filters.date_from) params.set("date_from", filters.date_from);
     if (filters.date_to) params.set("date_to", filters.date_to);
 
-    // Use fetch to attach Authorization header and trigger download
+    // Use cookie session and trigger download
     const resp = await fetch(`/api/owner/revenue/invoices.csv?${params.toString()}`, {
-      headers: { Authorization: token ? `Bearer ${token}` : "" }
+      credentials: "include",
     });
     const blob = await resp.blob();
     const url = URL.createObjectURL(blob);

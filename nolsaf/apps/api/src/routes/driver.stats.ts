@@ -122,21 +122,78 @@ const getDashboard: RequestHandler = async (req, res) => {
       console.warn("Trip model not available, returning empty data");
     }
 
-    const todaysRides = todaysTrips.length || 8;
+    const todaysRides = todaysTrips.length;
     const todayEarnings = todaysTrips.reduce((sum: number, trip: any) => {
       return sum + Number(trip.booking?.invoice?.totalAmount || 0);
-    }, 0) || 65000;
+    }, 0);
 
-    const acceptanceRate = 95;
-    const baseFare = 55000;
-    const tips = 8000;
-    const bonuses = 2000;
+    // Calculate acceptance rate from real trips
+    let acceptanceRate = 0;
+    try {
+      const totalOffered = await (prisma as any).trip?.count({
+        where: { driverId: Number(driverId) },
+      }) || 0;
+      const totalAccepted = await (prisma as any).trip?.count({
+        where: { 
+          driverId: Number(driverId),
+          status: { in: ["ACCEPTED", "IN_PROGRESS", "COMPLETED"] }
+        },
+      }) || 0;
+      acceptanceRate = totalOffered > 0 ? Math.round((totalAccepted / totalOffered) * 100) : 0;
+    } catch (e) {
+      // ignore
+    }
 
-    // Get driver rating - using mock data for now
-    let rating = 4.8;
-    let totalReviews = 127;
+    // Calculate earnings breakdown from real trips
+    const baseFare = todaysTrips.reduce((sum: number, trip: any) => {
+      return sum + Number(trip.booking?.invoice?.baseAmount || trip.booking?.invoice?.totalAmount || 0);
+    }, 0);
+    const tips = todaysTrips.reduce((sum: number, trip: any) => {
+      return sum + Number(trip.booking?.invoice?.tipAmount || 0);
+    }, 0);
+    const bonuses = todaysTrips.reduce((sum: number, trip: any) => {
+      return sum + Number(trip.booking?.invoice?.bonusAmount || 0);
+    }, 0);
 
-    const onlineHours = 3.5;
+    // Get driver rating from database
+    let rating = 0;
+    let totalReviews = 0;
+    try {
+      const driver = await prisma.user.findUnique({
+        where: { id: Number(driverId) },
+        select: { rating: true } as any,
+      });
+      if (driver && typeof (driver as any).rating === "number") {
+        rating = (driver as any).rating;
+      }
+      // Count reviews if review model exists
+      if ((prisma as any).review) {
+        totalReviews = await (prisma as any).review.count({
+          where: { driverId: Number(driverId) },
+        }) || 0;
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    // Calculate online hours from driver session or live location records
+    let onlineHours = 0;
+    try {
+      if ((prisma as any).driverSession) {
+        const session = await (prisma as any).driverSession.findFirst({
+          where: { 
+            driverId: Number(driverId),
+            date: today.toISOString().split('T')[0]
+          },
+          orderBy: { createdAt: 'desc' }
+        });
+        if (session && session.hoursOnline) {
+          onlineHours = Number(session.hoursOnline);
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
 
     // Check peak hours
     const currentHour = new Date().getHours();
@@ -149,39 +206,98 @@ const getDashboard: RequestHandler = async (req, res) => {
       timeLeft: `${19 - currentHour} hrs`,
     } : null;
 
-    // Earnings chart - last 7 days
-    const earningsChart = [
-      { day: "Mon", amount: 45000 },
-      { day: "Tue", amount: 52000 },
-      { day: "Wed", amount: 48000 },
-      { day: "Thu", amount: 58000 },
-      { day: "Fri", amount: 62000 },
-      { day: "Sat", amount: 71000 },
-      { day: "Sun", amount: 65000 }
+    // Earnings chart - last 7 days from real data
+    const earningsChart: Array<{ day: string; amount: number }> = [];
+    const sevenDaysAgo = new Date(today);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    
+    try {
+      for (let i = 0; i < 7; i++) {
+        const dayStart = new Date(sevenDaysAgo);
+        dayStart.setDate(dayStart.getDate() + i);
+        const dayEnd = new Date(dayStart);
+        dayEnd.setDate(dayEnd.getDate() + 1);
+
+        const dayTrips = await (prisma as any).trip?.findMany({
+          where: {
+            driverId: Number(driverId),
+            createdAt: { gte: dayStart, lt: dayEnd },
+          },
+          include: {
+            booking: { include: { invoice: true } },
+          },
+        }) || [];
+
+        const dayEarnings = dayTrips.reduce((sum: number, trip: any) => {
+          return sum + Number(trip.booking?.invoice?.totalAmount || 0);
+        }, 0);
+
+        const dayName = dayStart.toLocaleDateString("en-US", { weekday: "short" });
+        earningsChart.push({ day: dayName, amount: dayEarnings });
+      }
+    } catch (e) {
+      // If error, return empty chart
+      console.warn("Failed to load earnings chart:", e);
+    }
+
+    // Trips by hour - calculate from today's trips
+    const tripsChart: Array<{ hour: string; trips: number }> = [
+      { hour: "6AM", trips: 0 },
+      { hour: "9AM", trips: 0 },
+      { hour: "12PM", trips: 0 },
+      { hour: "3PM", trips: 0 },
+      { hour: "6PM", trips: 0 },
+      { hour: "9PM", trips: 0 },
     ];
 
-    // Trips by hour
-    const tripsChart = [
-      { hour: "6AM", trips: 2 },
-      { hour: "9AM", trips: 5 },
-      { hour: "12PM", trips: 4 },
-      { hour: "3PM", trips: 3 },
-      { hour: "6PM", trips: 8 },
-      { hour: "9PM", trips: 6 }
-    ];
+    todaysTrips.forEach((trip: any) => {
+      const hour = new Date(trip.createdAt).getHours();
+      if (hour >= 6 && hour < 9) tripsChart[0].trips++;
+      else if (hour >= 9 && hour < 12) tripsChart[1].trips++;
+      else if (hour >= 12 && hour < 15) tripsChart[2].trips++;
+      else if (hour >= 15 && hour < 18) tripsChart[3].trips++;
+      else if (hour >= 18 && hour < 21) tripsChart[4].trips++;
+      else if (hour >= 21 || hour < 6) tripsChart[5].trips++;
+    });
 
-    // Demand zones
-    const demandZones = [
-      { name: "Masaki", level: "high" },
-      { name: "Mikocheni", level: "medium" },
-      { name: "Sinza", level: "low" }
-    ];
+    // Demand zones - return empty array until real demand zone logic is implemented
+    const demandZones: Array<{ name: string; level: "high" | "medium" | "low" }> = [];
 
-    // Recent trips
-    const recentTrips = [
-      { id: "1", time: "2:30 PM", from: "Masaki", to: "Airport", distance: "8.5km", amount: 12500 },
-      { id: "2", time: "1:15 PM", from: "Sinza", to: "Mlimani", distance: "3.2km", amount: 5000 }
-    ];
+    // Recent trips - fetch last 5 trips from database
+    let recentTrips: Array<{ id: string; time: string; from: string; to: string; distance: string; amount: number }> = [];
+    try {
+      const recentTripsData = await (prisma as any).trip?.findMany({
+        where: {
+          driverId: Number(driverId),
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 5,
+        include: {
+          booking: {
+            include: {
+              invoice: true,
+            },
+          },
+        },
+      }) || [];
+
+      recentTrips = recentTripsData.map((trip: any) => ({
+        id: String(trip.id),
+        time: new Date(trip.createdAt).toLocaleTimeString("en-US", {
+          hour: "numeric",
+          minute: "2-digit",
+        }),
+        from: trip.pickupLocation || "Unknown",
+        to: trip.dropoffLocation || "Unknown",
+        distance: trip.distance ? `${Number(trip.distance).toFixed(1)}km` : "N/A",
+        amount: Number(trip.booking?.invoice?.totalAmount || 0),
+      }));
+    } catch (e) {
+      // If error, return empty array
+      console.warn("Failed to load recent trips:", e);
+    }
 
     // Reminders
     const reminders: any[] = [];

@@ -5,16 +5,11 @@ import ReportsFilter, { ReportsFilters } from "@/components/ReportsFilter";
 import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, CartesianGrid, ResponsiveContainer, BarChart, Bar } from "recharts";
 
 // Use same-origin requests to leverage Next.js rewrites and avoid CORS
-const api = axios.create();
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 export default function Overview() {
   const [filters, setFilters] = useState<ReportsFilters | null>(null);
   const [data, setData] = useState<any>(null);
-
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-  }, []);
 
   useEffect(() => {
     if (!filters) return;

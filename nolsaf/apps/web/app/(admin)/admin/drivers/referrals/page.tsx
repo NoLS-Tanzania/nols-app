@@ -5,11 +5,8 @@ import Link from "next/link";
 import axios from "axios";
 import TableRow from "@/components/TableRow";
 
-const api = axios.create({ baseURL: "" });
-function authify() {
-  const t = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-  if (t) api.defaults.headers.common["Authorization"] = `Bearer ${t}`;
-}
+const api = axios.create({ baseURL: "", withCredentials: true });
+function authify() {}
 
 type Driver = {
   id: number;

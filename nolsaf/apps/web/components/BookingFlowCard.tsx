@@ -3,14 +3,14 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { User } from 'lucide-react';
+import { ArrowRight, BadgeCheck, CheckCircle2, Home, KeyRound, MapPinned, PlayCircle, ShieldCheck, User } from 'lucide-react';
 import VoiceRecorder from './VoiceRecorder';
 
 export default function BookingFlowCard() {
   const [busy, setBusy] = useState(false);
-  const [bookingCode, setBookingCode] = useState<string | null>(null);
   const [activeStep, setActiveStep] = useState<number>(1);
   const [imgError, setImgError] = useState(false);
+  const [selectedPayment, setSelectedPayment] = useState<string | null>(null);
   // voice recorder handled by reusable component
   const containerRef = useRef<HTMLElement | null>(null);
   const timerRef = useRef<number | undefined>(undefined);
@@ -18,7 +18,6 @@ export default function BookingFlowCard() {
   const [isInteracting, setIsInteracting] = useState(false);
   // Animation state for transitions
   const [isTransitioning, setIsTransitioning] = useState(false);
-  const [prevStep, setPrevStep] = useState<number>(1);
   const highlightRef = useRef<HTMLSpanElement>(null);
 
   const ROTATE_MS = 5000; // auto-rotate interval when idle
@@ -34,7 +33,6 @@ export default function BookingFlowCard() {
     if (newStep === activeStep || isTransitioning) return;
     
     setIsTransitioning(true);
-    setPrevStep(activeStep);
     
     // Update highlight bar position using CSS variables for animation
     if (highlightRef.current) {
@@ -132,19 +130,6 @@ export default function BookingFlowCard() {
   
 
 
-  const makeBooking = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    setBookingCode(null);
-
-    // simulate issuing booking code
-    await new Promise((r) => setTimeout(r, 700));
-    const code = `BK-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
-    setBookingCode(code);
-
-    setBusy(false);
-  };
-
   // handle voice submission client-side: accept recorded Blob and optional transcript
   const extractFiltersFromText = (text: string) => {
     const t = (text || '').toLowerCase();
@@ -176,10 +161,10 @@ export default function BookingFlowCard() {
       const filters = extractFiltersFromText(text);
       const query = toQueryString(filters);
       if (query) {
-        window.location.href = `/properties?${query}`;
+        window.location.href = `/public/properties?${query}`;
       } else {
         // Fallback: if no filters detected, open properties page so user can refine
-        window.location.href = '/properties';
+        window.location.href = '/public/properties';
       }
     } catch (err) {
       console.error(err);
@@ -202,290 +187,386 @@ export default function BookingFlowCard() {
   const stepHighlightWidth = 100 / steps.length;
   const highlightOffset = ((activeStep ?? 1) - 1) * stepHighlightWidth;
 
+  const stepMeta = [
+    {
+      title: 'Book',
+      kicker: 'Search smarter with filters or voice.',
+      image: '/assets/book_step_1.jpg',
+    },
+    {
+      title: 'Pay',
+      kicker: 'Easy payments with local providers.',
+      // Use exact filename case (important for Linux deployments)
+      image: '/assets/Pay_step_2.jpg',
+    },
+    {
+      title: 'Receive code',
+      kicker: 'Get a unique code after payment.',
+      image: '/assets/Booking_code_step_3.jpg',
+    },
+    {
+      title: 'Driver confirm',
+      kicker: 'Quick safety checks before you go.',
+      image: '/assets/nolsaf_driver.jpg',
+    },
+    {
+      title: 'Arrive',
+      kicker: 'You’re all set for check‑in.',
+      image: '/assets/Arrive_step_5.jpg',
+    },
+  ] as const;
+
+  const activeMeta = stepMeta[(activeStep ?? 1) - 1] ?? stepMeta[0];
+
+  // Preload step images so you don't see "faint/blank" while switching steps.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const imgs = stepMeta.map((s) => {
+      const img = new window.Image();
+      img.src = s.image;
+      return img;
+    });
+    return () => {
+      // allow GC
+      imgs.length = 0;
+    };
+  }, []);
+
   return (
     <>
-      <section className="mt-2">
-      <div className="public-container">
-        {/* heading moved to a centered overlay inside the display */}
-        <article ref={containerRef} className="rounded-lg border bg-white p-6 shadow-md">
-          {/* Title moved to the section separator above; keep the card compact */}
+      <section className="mt-6" aria-labelledby="booking-flow-heading">
+        <div className="public-container">
+          <article
+            ref={containerRef}
+            className="rounded-xl border bg-gradient-to-b from-white via-slate-50 to-white p-4 sm:p-6 shadow-lg"
+          >
+            <div className="text-center">
+              <h3 id="booking-flow-heading" className="text-xl sm:text-2xl font-semibold text-slate-900">
+                How booking works
+              </h3>
+              <p className="mt-1 text-sm text-slate-600">
+                Book accommodation and a safe ride in one smooth flow.
+              </p>
+            </div>
 
-          {/* Compact horizontal stepper: Book → Pay → Receive code → Driver confirm → Arrive */}
-          <nav aria-label="Booking steps" className="mt-4">
-            <ol
-              role="list"
-              className="relative flex items-center justify-between gap-3 text-xs rounded-full px-4 py-2 shadow-sm transition-all overflow-hidden border border-slate-200 bg-gradient-to-r from-amber-50 via-emerald-50 to-blue-50"
-            >
-              <span
-                ref={highlightRef}
-                aria-hidden
-                className="absolute inset-y-1 rounded-full bg-white/80 shadow-sm"
-                style={{
-                  width: `${stepHighlightWidth}%`,
-                  transform: `translateX(${highlightOffset}%)`,
-                }}
-              />
-              {steps.map((s, i) => {
-                const stepNum = i + 1;
-                const iconClass = s.color;
+            {/* Stepper */}
+            <nav aria-label="Booking steps" className="mt-5">
+              <div
+                className="relative flex items-center gap-2 sm:gap-3 text-xs rounded-full px-3 py-2 shadow-sm transition-all overflow-x-auto scrollbar-hide border border-slate-200 bg-gradient-to-r from-amber-50 via-emerald-50 to-blue-50"
+              >
+                <span
+                  ref={highlightRef}
+                  aria-hidden
+                  className="absolute inset-y-1 rounded-full bg-white/80 shadow-sm"
+                  style={{
+                    width: `${stepHighlightWidth}%`,
+                    transform: `translateX(${highlightOffset}%)`,
+                  }}
+                />
+                <ol
+                  role="list"
+                  className="flex items-center gap-2 sm:gap-3 w-full"
+                >
+                  {steps.map((s, i) => {
+                    const stepNum = i + 1;
+                    const iconClass = s.color;
 
-                return (
-                  <li key={s.label} className="flex-1 flex items-center gap-2 relative z-10">
-                    <button
-                      type="button"
-                      onClick={() => handleStepChange(stepNum)}
-                      aria-pressed={activeStep === stepNum}
-                      aria-label={s.label}
-                      disabled={isTransitioning}
-                      className={`flex items-center gap-2 p-0 bg-transparent border-0 rounded focus:outline-none focus:ring-2 focus:ring-blue-200 transform transition-all duration-300 ease-out ${
-                        activeStep === stepNum ? 'scale-105' : 'hover:scale-105'
-                      } ${isTransitioning ? 'opacity-50 cursor-wait' : ''}`}
-                    >
-                      <svg className={`w-6 h-6 ${iconClass} transition-colors`} viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
-                        {i === 0 && (
-                          <>
-                            <rect x="3" y="4" width="18" height="6" rx="1" />
-                            <path d="M7 10v8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                          </>
-                        )}
-                        {i === 1 && (
-                          <>
-                            <rect x="2" y="7" width="20" height="10" rx="2" />
-                            <path d="M6 11h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                          </>
-                        )}
-                        {i === 2 && (
-                          <>
-                            <rect x="3" y="4" width="18" height="14" rx="2" />
-                            <path d="M7 8h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                          </>
-                        )}
-                        {i === 3 && (
-                          <>
-                            <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="1.5" />
-                            <path d="M12 8v4l2 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                          </>
-                        )}
-                        {i === 4 && (
-                          <>
-                            <path d="M12 2c3.866 0 7 3.134 7 7 0 5-7 13-7 13s-7-8-7-13c0-3.866 3.134-7 7-7z" stroke="currentColor" strokeWidth="1.2" />
-                            <circle cx="12" cy="9" r="2" fill="currentColor" />
-                          </>
-                        )}
-                      </svg>
-                      <span className="text-sm text-slate-600">{s.label}</span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ol>
-          </nav>
-          <div className="mt-6">
-            {activeStep ? (
-              <div className="w-full flex justify-center">
-                <div className="max-w-3xl w-full">
-                  <article
-                    key={`step-${activeStep}`}
-                    className={`relative rounded-lg border bg-gradient-to-b from-white via-slate-50 to-slate-100 p-6 w-full min-h-[460px] shadow-md step-enter`}
-                  >
-                    {/* (Removed centered title/subtitle overlay per request) */}
-                    {/* decorative image for the active step (optional) */}
-                    {(() => {
-                      const stepIndex = (activeStep ?? 1) - 1;
-                      const stepData = [
-                        '/assets/book_step_1.jpg',
-                        // use project-provided pay image (you added Pay_step_2)
-                        '/assets/pay_step_2.jpg',
-                        '/assets/Booking_code_step_3.jpg',
-                        '/assets/Driver_step_4.jpg',
-                        '/assets/Arrive_step_5.jpg',
-                      ][stepIndex];
-                      // debug: verify which image is selected for the active step
-                      // (remove this log after verification)
-                      // eslint-disable-next-line no-console
-                      console.debug('BookingFlowCard image debug', { activeStep, stepIndex, stepData, imgError });
-                      if (!stepData || imgError) return null;
-                      return (
-                        <div className="mb-1 w-full rounded-xl flex justify-center">
-                          <div
-                            className="relative w-full max-w-full sm:max-w-xs md:max-w-sm lg:max-w-md xl:max-w-md overflow-hidden rounded-xl aspect-[4/3] sm:aspect-square md:aspect-square lg:aspect-square xl:aspect-square will-change-transform mx-auto"
-                            key={`img-${activeStep}-${stepData}`}
-                          >
-                            <Image
-                              src={stepData}
-                              alt={`Step ${activeStep} illustration`}
-                              fill
-                              className={`object-cover rounded-xl step-enter ${isInteracting ? 'scale-95 opacity-80' : 'scale-100 opacity-100'}`}
-                              onError={() => setImgError(true)}
-                            />
-
-                            {/* Centered overlays placed inside the picture */}
-                            {activeStep === 1 && (
-                              <div className="absolute left-1/2 top-3 -translate-x-1/2 z-50 pointer-events-none">
-                                <div className="bg-white/90 backdrop-blur-sm px-2 py-1 rounded-md text-center shadow-sm border border-white/60">
-                                  <span className="text-xs sm:text-sm font-semibold text-slate-900 drop-shadow">Search Smarter with Filters</span>
-                                </div>
-                              </div>
-                            )}
-
-                            {activeStep === 1 && (
-                              <div className="absolute left-1/2 top-[72%] -translate-x-1/2 -translate-y-1/2 z-40 pointer-events-auto w-[min(92%,720px)]">
-                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 justify-center items-center px-2 py-2 rounded-md">
-                                  <Link href="/properties?filter=region" className="inline-flex items-center justify-center px-3 py-1 rounded-full text-white text-xs sm:text-sm no-underline bg-black/40 backdrop-blur-sm hover:bg-green-600/90 hover:text-white transition-colors">Region</Link>
-                                  <Link href="/properties?filter=district" className="inline-flex items-center justify-center px-3 py-1 rounded-full text-white text-xs sm:text-sm no-underline bg-black/40 backdrop-blur-sm hover:bg-green-600/90 hover:text-white transition-colors">District</Link>
-                                  <Link href="/properties?filter=ward" className="inline-flex items-center justify-center px-3 py-1 rounded-full text-white text-xs sm:text-sm no-underline bg-black/40 backdrop-blur-sm hover:bg-green-600/90 hover:text-white transition-colors">Ward</Link>
-                                  <Link href="/properties?filter=price" className="inline-flex items-center justify-center px-3 py-1 rounded-full text-white text-xs sm:text-sm no-underline bg-black/40 backdrop-blur-sm hover:bg-green-600/90 hover:text-white transition-colors">Price</Link>
-                                  <Link href="/properties?filter=property_type" className="inline-flex items-center justify-center px-3 py-1 rounded-full text-white text-xs sm:text-sm no-underline bg-black/40 backdrop-blur-sm hover:bg-green-600/90 hover:text-white transition-colors">Property</Link>
-                                  <Link href="/properties?filter=nearby" className="inline-flex items-center justify-center px-3 py-1 rounded-full text-white text-xs sm:text-sm no-underline bg-black/40 backdrop-blur-sm hover:bg-green-600/90 hover:text-white transition-colors">Nearby</Link>
-                                  <Link href="/properties?filter=amenities" className="inline-flex items-center justify-center px-3 py-1 rounded-full text-white text-xs sm:text-sm no-underline bg-black/40 backdrop-blur-sm hover:bg-green-600/90 hover:text-white transition-colors">Amenities</Link>
-                                  <Link href="/properties?filter=safe_quiet" className="inline-flex items-center justify-center px-3 py-1 rounded-full text-white text-xs sm:text-sm no-underline bg-black/40 backdrop-blur-sm hover:bg-green-600/90 hover:text-white transition-colors">Quiet</Link>
-                                </div>
-                              </div>
-                            )}
-
-                            {activeStep === 2 && (
+                    return (
+                      <li key={s.label} className="relative z-10 flex-1 min-w-[8.5rem] sm:min-w-0">
+                        <button
+                          type="button"
+                          onClick={() => handleStepChange(stepNum)}
+                          aria-pressed={activeStep === stepNum}
+                          aria-label={s.label}
+                          disabled={isTransitioning}
+                          className={[
+                            "w-full flex items-center justify-center gap-2 bg-transparent border-0 rounded-full px-2 py-1.5",
+                            "focus:outline-none focus:ring-2 focus:ring-blue-200 transform transition-all duration-300 ease-out",
+                            activeStep === stepNum ? "scale-[1.02]" : "hover:scale-[1.02]",
+                            isTransitioning ? "opacity-60 cursor-wait" : "",
+                          ].join(" ")}
+                        >
+                          <svg className={`w-5 h-5 sm:w-6 sm:h-6 ${iconClass} transition-colors`} viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
+                            {i === 0 && (
                               <>
-                                <div className="absolute left-1/2 top-3 -translate-x-1/2 z-50 pointer-events-none">
-                                  <div className="bg-white/90 backdrop-blur-sm px-3 py-1 rounded-md text-center shadow-sm border border-white/60">
-                                    <span className="text-sm font-semibold text-slate-900 drop-shadow">Integrated with easy payments</span>
-                                  </div>
-                                </div>
-
-                                <div className="absolute left-1/2 top-[72%] -translate-x-1/2 -translate-y-1/2 z-20 pointer-events-none">
-                                  <div className="flex items-center gap-2 sm:gap-2.5 md:gap-3 lg:gap-2.5 xl:gap-2 rounded-md p-1.5 sm:p-2 pointer-events-auto">
-                                    <span className="w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 lg:w-9 lg:h-9 xl:w-8 xl:h-8 flex items-center justify-center bg-white rounded p-0.5 sm:p-1 shadow-sm transform transition duration-200 ease-in-out hover:scale-110 hover:shadow-md aspect-square" aria-label="Airtel">
-                                      <Image src="/assets/airtel_money.png" alt="Airtel" width={24} height={24} className="w-full h-full object-contain" />
-                                    </span>
-                                    <span className="w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 lg:w-9 lg:h-9 xl:w-8 xl:h-8 flex items-center justify-center bg-white rounded p-0.5 sm:p-1 shadow-sm transform transition duration-200 ease-in-out hover:scale-110 hover:shadow-md aspect-square" aria-label="Halopesa">
-                                      <Image src="/assets/halopesa.png" alt="Halopesa" width={24} height={24} className="w-full h-full object-contain" />
-                                    </span>
-                                    <span className="w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 lg:w-9 lg:h-9 xl:w-8 xl:h-8 flex items-center justify-center bg-white rounded p-0.5 sm:p-1 shadow-sm transform transition duration-200 ease-in-out hover:scale-110 hover:shadow-md aspect-square" aria-label="Mixx by Yas">
-                                      <Image src="/assets/mix%20by%20yas.png" alt="Mixx by Yas" width={24} height={24} className="w-full h-full object-contain" />
-                                    </span>
-                                    <span className="w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 lg:w-9 lg:h-9 xl:w-8 xl:h-8 flex items-center justify-center bg-white rounded p-0.5 sm:p-1 shadow-sm transform transition duration-200 ease-in-out hover:scale-110 hover:shadow-md aspect-square" aria-label="T-Kash">
-                                      <Image src="/assets/T_kash_logo.png" alt="T-Kash" width={24} height={24} className="w-full h-full object-contain" />
-                                    </span>
-                                    <span className="w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 lg:w-9 lg:h-9 xl:w-8 xl:h-8 flex items-center justify-center bg-white rounded p-0.5 sm:p-1 shadow-sm transform transition duration-200 ease-in-out hover:scale-110 hover:shadow-md aspect-square" aria-label="MTN">
-                                      <Image src="/assets/MTN%20LOGO.png" alt="MTN" width={24} height={24} className="w-full h-full object-contain" />
-                                    </span>
-                                    <span className="w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 lg:w-9 lg:h-9 xl:w-8 xl:h-8 flex items-center justify-center bg-white rounded p-0.5 sm:p-1 shadow-sm transform transition duration-200 ease-in-out hover:scale-110 hover:shadow-md aspect-square" aria-label="M-Pesa">
-                                      <Image src="/assets/M-pesa.png" alt="M-Pesa" width={24} height={24} className="w-full h-full object-contain" />
-                                    </span>
-                                    <span className="w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 lg:w-9 lg:h-9 xl:w-8 xl:h-8 flex items-center justify-center bg-white rounded p-0.5 sm:p-1 shadow-sm transform transition duration-200 ease-in-out hover:scale-110 hover:shadow-md aspect-square" aria-label="Visa">
-                                      <Image src="/assets/visa_card.png" alt="Visa" width={24} height={24} className="w-full h-full object-contain" />
-                                    </span>
-                                  </div>
-                                </div>
+                                <rect x="3" y="4" width="18" height="6" rx="1" />
+                                <path d="M7 10v8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                               </>
                             )}
-                            {activeStep === 3 && (
-                              <div className="absolute left-1/2 top-3 -translate-x-1/2 z-50 pointer-events-none">
-                                <div className="bg-white/90 backdrop-blur-sm px-3 py-1 rounded-md text-center shadow-sm border border-white/60">
-                                  <span className="text-sm font-semibold text-slate-900 drop-shadow">Receive Your Booking Code</span>
-                                </div>
-                              </div>
+                            {i === 1 && (
+                              <>
+                                <rect x="2" y="7" width="20" height="10" rx="2" />
+                                <path d="M6 11h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                              </>
                             )}
-                            {activeStep === 4 && (
-                              <div className="absolute left-1/2 top-3 -translate-x-1/2 z-50 pointer-events-none">
-                                <div className="px-2 py-0 text-center">
-                                  <span className="text-sm font-bold text-white drop-shadow">Driver Confirms Pickup</span>
-                                </div>
-                              </div>
+                            {i === 2 && (
+                              <>
+                                <rect x="3" y="4" width="18" height="14" rx="2" />
+                                <path d="M7 8h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                              </>
                             )}
-                            {activeStep === 5 && (
-                              <div className="absolute left-1/2 top-3 -translate-x-1/2 z-50 pointer-events-none">
-                                <div className="bg-black/40 backdrop-blur-sm px-3 py-1 rounded-md text-center shadow-sm border border-white/30">
-                                  <span className="text-sm sm:text-base font-semibold text-white drop-shadow">Complete Your Trip</span>
-                                </div>
-                              </div>
+                            {i === 3 && (
+                              <>
+                                <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="1.5" />
+                                <path d="M12 8v4l2 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                              </>
                             )}
-                            {activeStep === 5 && (
-                              <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-40 pointer-events-none flex flex-col items-center">
-                                <div className="w-20 h-20 rounded-full bg-white/90 flex items-center justify-center shadow-md animate-pulse ring-2 ring-emerald-400/30">
-                                  {/* Location / pin icon (inline) - replace with `/assets/location.png` if available */}
-                                  <svg width="36" height="36" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
-                                    <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" stroke="#0f172a" strokeWidth="1.2" fill="none" />
-                                    <circle cx="12" cy="9" r="2.5" fill="#059669" />
-                                  </svg>
-                                </div>
+                            {i === 4 && (
+                              <>
+                                <path d="M12 2c3.866 0 7 3.134 7 7 0 5-7 13-7 13s-7-8-7-13c0-3.866 3.134-7 7-7z" stroke="currentColor" strokeWidth="1.2" />
+                                <circle cx="12" cy="9" r="2" fill="currentColor" />
+                              </>
+                            )}
+                          </svg>
+                          <span className="text-sm text-slate-700 whitespace-nowrap">{s.label}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ol>
+              </div>
+            </nav>
 
-                                <span className="mt-3 inline-block bg-black/40 backdrop-blur-sm px-3 py-1 rounded-md text-white text-sm font-medium">Get ready for check-in</span>
-                              </div>
-                            )}
-                            {activeStep === 3 && (
-                              <div className="absolute left-1/2 top-[72%] -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none">
-                                <div className="px-3 py-2 rounded-md text-center max-w-[90%]">
-                                  <p className="text-sm sm:text-base text-white drop-shadow">After payment you will get a unique booking code to share with the driver.</p>
-                                </div>
-                              </div>
-                            )}
-                            {activeStep === 4 && (
-                              <div className="absolute left-1/2 top-[72%] -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none">
-                                <div className="px-3 py-2 rounded-md text-center max-w-[90%]">
-                                  <div className="flex flex-row flex-wrap justify-center gap-2">
-                                    {[
-                                      'Quick safety checks',
-                                      'Driver ID & vehicle match',
-                                      'Route looks correct',
-                                      'If yes, start your trip.'
-                                    ].map((phrase, i) => (
-                                      <span key={i} className="inline-block bg-black/40 backdrop-blur-sm px-2 py-0.5 rounded-md text-white text-xs sm:text-sm font-normal drop-shadow">{phrase}</span>
-                                    ))}
-                                  </div>
-                                </div>
-                              </div>
-                            )}
+            {/* Content */}
+            <div className="mt-6 grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+              {/* Image */}
+              <div className="md:col-span-6 order-1 md:order-2">
+                <div
+                  key={`img-${activeStep}-${activeMeta.image}`}
+                  className={[
+                    "relative overflow-hidden rounded-2xl border border-slate-200 bg-slate-100",
+                    // Slightly smaller/tighter image height across breakpoints
+                    "aspect-[16/10]",
+                    "shadow-sm step-enter",
+                  ].join(" ")}
+                >
+                  {!imgError ? (
+                    <Image
+                      src={activeMeta.image}
+                      alt={`Step ${activeStep}: ${activeMeta.title}`}
+                      fill
+                      className={[
+                        "object-cover",
+                        "transition-transform duration-300",
+                        // Step 4 image is naturally dark; boost slightly so it doesn't look "faint"
+                        activeStep === 4 ? "brightness-110 contrast-105 saturate-105" : "",
+                        isInteracting ? "scale-[0.99]" : "scale-100",
+                      ].join(" ")}
+                      onError={() => setImgError(true)}
+                      priority={false}
+                      sizes="(min-width: 768px) 60vw, 100vw"
+                    />
+                  ) : null}
+
+                  {/* Overlay for readability */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-black/5 to-transparent" />
+
+                  <div className="absolute left-4 right-4 bottom-4 text-white">
+                    <div className="text-sm font-semibold tracking-wide opacity-90">Step {activeStep} of {STEPS_COUNT}</div>
+                    <div className="mt-1 text-xl sm:text-2xl font-bold leading-tight">{activeMeta.title}</div>
+                    <div className="mt-1 text-sm text-white/90">{activeMeta.kicker}</div>
+                  </div>
+
+                  {/* Small decorative for the final step */}
+                  {activeStep === 5 ? (
+                    <div className="absolute right-4 top-4">
+                      <div className="w-12 h-12 rounded-full bg-white/85 backdrop-blur flex items-center justify-center shadow-md ring-2 ring-emerald-400/30">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                          <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" stroke="#0f172a" strokeWidth="1.4" />
+                          <circle cx="12" cy="9" r="2.5" fill="#059669" />
+                        </svg>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+
+              {/* Text / actions */}
+              <div className="md:col-span-6 order-2 md:order-1">
+                <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
+                  <div className="text-sm font-semibold text-slate-900">{activeMeta.title}</div>
+                  <div className="mt-1 text-sm text-slate-600">{activeMeta.kicker}</div>
+
+                  {activeStep === 1 ? (
+                    <>
+                      <div className="mt-4">
+                        <div className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Quick filters</div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {[
+                            { label: 'Region', href: '/public/properties?filter=region' },
+                            { label: 'District', href: '/public/properties?filter=district' },
+                            { label: 'Ward', href: '/public/properties?filter=ward' },
+                            { label: 'Price', href: '/public/properties?filter=price' },
+                            { label: 'Property', href: '/public/properties?filter=property_type' },
+                            { label: 'Nearby', href: '/public/properties?filter=nearby' },
+                            { label: 'Amenities', href: '/public/properties?filter=amenities' },
+                            { label: 'Quiet', href: '/public/properties?filter=safe_quiet' },
+                          ].map((p) => (
+                            <Link
+                              key={p.label}
+                              href={p.href}
+                              className="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-medium no-underline bg-slate-100 text-slate-700 hover:bg-[#02665e] hover:text-white transition-colors"
+                            >
+                              {p.label}
+                            </Link>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="mt-4">
+                        <div className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Or speak it</div>
+                        <div className="mt-2">
+                          <VoiceRecorder onSubmit={handleVoiceSubmit} />
+                        </div>
+                      </div>
+                    </>
+                  ) : null}
+
+                  {activeStep === 2 ? (
+                    <div className="mt-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Supported payments</div>
+                        <div className="text-[11px] text-slate-500">Tap a logo</div>
+                      </div>
+
+                      <div className="mt-2 rounded-2xl border border-slate-200/70 p-3 nols-pay-strip shadow-sm">
+                        <div className="flex flex-wrap items-center gap-2">
+                        {[
+                          { key: 'airtel', alt: 'Airtel Money', src: '/assets/airtel_money.png' },
+                          { key: 'halopesa', alt: 'Halopesa', src: '/assets/halopesa.png' },
+                          { key: 'mixx', alt: 'Mixx by Yas', src: '/assets/mix%20by%20yas.png' },
+                          { key: 'tkash', alt: 'T-Kash', src: '/assets/T_kash_logo.png' },
+                          { key: 'mtn', alt: 'MTN', src: '/assets/MTN%20LOGO.png' },
+                          { key: 'mpesa', alt: 'M-Pesa', src: '/assets/M-pesa.png' },
+                          { key: 'visa', alt: 'Visa', src: '/assets/visa_card.png' },
+                        ].map((p) => {
+                          const selected = selectedPayment === p.key;
+                          return (
+                            <button
+                              key={p.key}
+                              type="button"
+                              onClick={() => setSelectedPayment(p.key)}
+                              aria-label={`Select ${p.alt}`}
+                              aria-pressed={selected}
+                              className={[
+                                "nols-pay-tile group w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center",
+                                "bg-white/90 backdrop-blur rounded-xl border shadow-sm",
+                                "transition-all duration-300 ease-out",
+                                "hover:bg-white hover:shadow-md hover:-translate-y-0.5",
+                                // touch / click feedback
+                                "active:translate-y-0 active:scale-[0.97]",
+                                "focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white/60",
+                                selected
+                                  ? "border-emerald-500 ring-2 ring-emerald-200/70 shadow-[0_10px_25px_rgba(2,102,94,0.18)]"
+                                  : "border-slate-200/80",
+                              ].join(" ")}
+                            >
+                              <Image
+                                src={p.src}
+                                alt={p.alt}
+                                width={30}
+                                height={30}
+                                className="w-7 h-7 object-contain transition-transform duration-300 ease-out group-hover:scale-110"
+                              />
+                            </button>
+                          );
+                        })}
+                        </div>
+                      </div>
+                      <div className="mt-3 text-sm text-slate-600">
+                        Pay securely, then receive your booking code instantly.
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {activeStep === 3 ? (
+                    <div className="mt-4 text-sm text-slate-600">
+                      After payment you’ll receive a unique booking code. Share it at pickup/check‑in to confirm your reservation.
+                      <div className="mt-3 rounded-lg bg-slate-50 border border-slate-200 p-3">
+                        <div className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Example</div>
+                        <div className="mt-1 font-mono text-slate-800">Thank You for Booking with NoLSAF! Your booking code is: BK-7Q2KX9 Please present this code at check-in. Thank you!</div>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {activeStep === 4 ? (
+                    <div className="mt-4">
+                      <div className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Before you start</div>
+                      <ul className="mt-2 space-y-2 text-sm text-slate-600">
+                        {[
+                          { text: 'Quick safety checks', Icon: ShieldCheck },
+                          { text: 'Driver ID & vehicle match', Icon: BadgeCheck },
+                          { text: 'Route looks correct', Icon: MapPinned },
+                          { text: 'If yes, start your trip.', Icon: PlayCircle },
+                        ].map(({ text, Icon }) => (
+                          <li key={text} className="flex items-start gap-2.5">
+                            <span className="mt-0.5 flex-shrink-0 w-6 h-6 rounded-md bg-emerald-50 border border-emerald-100 flex items-center justify-center">
+                              <Icon className="w-4 h-4 text-emerald-600" aria-hidden />
+                            </span>
+                            <span className="leading-6">{text}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+
+                  {activeStep === 5 ? (
+                    <div className="mt-4">
+                      <div className="flex items-start gap-3">
+                        <span className="mt-0.5 flex-shrink-0 w-9 h-9 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center">
+                          <CheckCircle2 className="w-5 h-5 text-emerald-600" aria-hidden />
+                        </span>
+                        <div>
+                          <div className="text-sm font-semibold text-slate-900">Arrive & check‑in</div>
+                          <div className="mt-0.5 text-sm text-slate-600">
+                            You’re all set for check‑in. Here’s what to do when you arrive.
                           </div>
                         </div>
-                      );
-                    })()}
-                            {activeStep === 1 && (
-                              <div>
-                                <div className="mt-3">
-                                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm text-slate-700">
-                                    {/* voice recorder remains in panel body; filter pills moved into image overlay */}
-                                    <VoiceRecorder onSubmit={handleVoiceSubmit} />
-                                  </div>
-                                </div>
-                              </div>
-                            )}
+                      </div>
 
-                    {activeStep === 2 && null}
+                      <ul className="mt-4 space-y-2 text-sm text-slate-600">
+                        {[
+                          { text: 'Keep your booking code ready.', Icon: KeyRound },
+                          { text: 'Follow the property check‑in instructions.', Icon: Home },
+                          { text: 'Once confirmed, you’re good to go.', Icon: CheckCircle2 },
+                        ].map(({ text, Icon }) => (
+                          <li key={text} className="flex items-start gap-2.5">
+                            <span className="mt-0.5 flex-shrink-0 w-6 h-6 rounded-md bg-slate-50 border border-slate-200 flex items-center justify-center">
+                              <Icon className="w-4 h-4 text-slate-700" aria-hidden />
+                            </span>
+                            <span className="leading-6">{text}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
 
-                    {activeStep === 3 && null}
-
-                    {activeStep === 4 && null}
-
-                    {activeStep === 5 && null}
-                  </article>
+                  <div className="mt-5">
+                    <Link
+                      href="/public/properties"
+                      aria-disabled={busy ? "true" : "false"}
+                      className={[
+                        "group inline-flex items-center justify-center w-full gap-2",
+                        "px-5 py-3 rounded-xl no-underline font-semibold",
+                        "text-white shadow-sm",
+                        "bg-gradient-to-r from-[#02665e] via-[#02665e] to-emerald-600",
+                        "hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99]",
+                        "transition-all duration-200",
+                        "focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:ring-offset-2 focus:ring-offset-white",
+                        busy ? "opacity-70 pointer-events-none" : "",
+                      ].join(" ")}
+                    >
+                      <span>Browse stays</span>
+                      <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden />
+                    </Link>
+                    <div className="mt-2 text-xs text-slate-500 text-center">
+                      Tip: Tap the steps above to preview the full flow.
+                    </div>
+                  </div>
                 </div>
               </div>
-            ) : null}
-          </div>
-
-          <form onSubmit={makeBooking} className="mt-4">
-            <div className="flex items-center gap-3">
-              <button type="submit" disabled={busy} className="px-4 py-2 bg-emerald-600 text-white rounded disabled:opacity-60">
-                {busy ? 'Processing…' : 'Book now'}
-              </button>
             </div>
-          </form>
-
-          {/* show booking code when available so the state is actually used */}
-          {bookingCode && (
-            <div className="mt-4">
-              <div className="rounded-md bg-emerald-50 border border-emerald-100 p-3 text-sm text-emerald-900">
-                <div className="font-medium">Booking confirmed</div>
-                <div className="mt-1">
-                  Your booking code: <span className="font-mono bg-white/60 px-2 py-0.5 rounded">{bookingCode}</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* status/info removed per request */}
-        </article>
-      </div>
+          </article>
+        </div>
       </section>
 
       <div className="w-full my-8">

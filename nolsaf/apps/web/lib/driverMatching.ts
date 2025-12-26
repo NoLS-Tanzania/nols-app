@@ -47,7 +47,6 @@ export async function findBestDriver(
   tripType: string = "Standard"
 ): Promise<MatchingResult> {
   try {
-    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
     const response = await axios.post<MatchingResult>(
       "/api/driver/matching/find",
       {
@@ -55,7 +54,7 @@ export async function findBestDriver(
         pickupLng,
         tripType,
       },
-      token ? { headers: { Authorization: `Bearer ${token}` } } : undefined
+      { withCredentials: true }
     );
 
     return response.data;

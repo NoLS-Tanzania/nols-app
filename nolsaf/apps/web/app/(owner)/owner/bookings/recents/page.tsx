@@ -1,12 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
 import axios from "axios";
-const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL });
+// Use same-origin calls + secure httpOnly cookie session.
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 export default function RecentBookings() {
   const [list, setList] = useState<any[]>([]);
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-  if (token) api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
   useEffect(() => {
     api.get<any[]>("/owner/bookings/recent").then(r => setList(r.data));

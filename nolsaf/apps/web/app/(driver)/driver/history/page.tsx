@@ -27,7 +27,6 @@ export default function DriverHistoryPage() {
     tripsAbortRef.current = controller;
     setLoadingTrips(true);
     try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
       const params = new URLSearchParams();
       if (selected) {
         if (Array.isArray(selected)) {
@@ -38,7 +37,7 @@ export default function DriverHistoryPage() {
         }
       }
       const url = `/api/driver/trips${params.toString() ? "?" + params.toString() : ""}`;
-      const res = await fetch(url, { signal: controller.signal, headers: token ? { Authorization: `Bearer ${token}` } : undefined });
+      const res = await fetch(url, { signal: controller.signal, credentials: "include" });
       if (!res.ok) {
         setTrips([]);
         tripsAbortRef.current = null;
@@ -65,7 +64,6 @@ export default function DriverHistoryPage() {
     safetyAbortRef.current = controller;
     setLoadingSafety(true);
     try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
       const params = new URLSearchParams();
       if (selected) {
         if (Array.isArray(selected)) {
@@ -76,7 +74,7 @@ export default function DriverHistoryPage() {
         }
       }
       const url = `/api/driver/safety${params.toString() ? "?" + params.toString() : ""}`;
-      const res = await fetch(url, { signal: controller.signal, headers: token ? { Authorization: `Bearer ${token}` } : undefined });
+      const res = await fetch(url, { signal: controller.signal, credentials: "include" });
       if (!res.ok) {
         setSafetyReports([]);
         safetyAbortRef.current = null;
@@ -124,7 +122,6 @@ export default function DriverHistoryPage() {
     invoicesAbortRef.current = controller;
     setLoadingInvoices(true);
     try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
       const params = new URLSearchParams();
       if (selected) {
         if (Array.isArray(selected)) {
@@ -135,7 +132,7 @@ export default function DriverHistoryPage() {
         }
       }
       const url = `/api/driver/payouts${params.toString() ? "?" + params.toString() : ""}`;
-      const res = await fetch(url, { signal: controller.signal, headers: token ? { Authorization: `Bearer ${token}` } : undefined });
+      const res = await fetch(url, { signal: controller.signal, credentials: "include" });
       if (!res.ok) {
         setInvoices([]);
         invoicesAbortRef.current = null;

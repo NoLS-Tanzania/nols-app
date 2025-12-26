@@ -5,11 +5,8 @@ import { Truck, Search, X, User, MapPin, Calendar, Clock, AlertTriangle, CheckCi
 import axios from "axios";
 import Link from "next/link";
 
-const api = axios.create({ baseURL: "" });
-function authify() {
-  const t = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-  if (t) api.defaults.headers.common["Authorization"] = `Bearer ${t}`;
-}
+const api = axios.create({ baseURL: "", withCredentials: true });
+function authify() {}
 
 type TransportBooking = {
   id: number;

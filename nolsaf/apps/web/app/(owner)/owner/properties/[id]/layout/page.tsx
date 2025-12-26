@@ -2,11 +2,8 @@
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 
-const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL });
-function authify(){
-  const t = typeof window!=="undefined" ? localStorage.getItem("token") : null;
-  if (t) api.defaults.headers.common["Authorization"] = `Bearer ${t}`;
-}
+// Use same-origin calls + secure httpOnly cookie session.
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 type Door = { x:number; y:number; dir:"N"|"S"|"E"|"W" };
 type Rect = { w:number; h:number };
@@ -44,7 +41,6 @@ export default function OwnerPropertyLayoutPage({ params }:{ params:{ id:string 
   // availability map
   const [availability, setAvailability] = useState<Record<string, AvItem>>({});
 
-  useEffect(()=>{ authify(); },[]);
   useEffect(()=>{
     (async()=>{
       try {

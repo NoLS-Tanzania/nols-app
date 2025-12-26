@@ -2,12 +2,11 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 
-const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL });
+// Use same-origin calls + secure httpOnly cookie session.
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 export default function CheckedInDetail({ params }: { params: { id: string } }) {
   const [b, setB] = useState<any>(null);
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-  if (token) api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
   useEffect(() => {
     api.get(`/owner/bookings/${params.id}`).then(r => setB(r.data));

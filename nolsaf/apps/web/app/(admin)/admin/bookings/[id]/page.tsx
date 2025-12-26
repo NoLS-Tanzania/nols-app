@@ -1,9 +1,9 @@
 "use client";
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import axios from "axios";
 
-const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL });
-function authify(){ const t = localStorage.getItem("token"); if (t) api.defaults.headers.common["Authorization"] = `Bearer ${t}`; }
+// Use same-origin calls + secure httpOnly cookie session.
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 export default function AdminBookingDetail({ params }:{ params:{ id:string }}) {
   const id = Number(params.id);
@@ -11,8 +11,13 @@ export default function AdminBookingDetail({ params }:{ params:{ id:string }}) {
   const [busy, setBusy] = useState(false);
   const [roomCode, setRoomCode] = useState("");
 
-  async function load(){ const r = await api.get<any>(`/admin/bookings/${id}`); setB(r.data); setRoomCode(r.data.roomCode ?? ""); }
-  useEffect(()=>{ authify(); load(); },[id]);
+  const load = React.useCallback(async () => {
+    const r = await api.get<any>(`/admin/bookings/${id}`);
+    setB(r.data);
+    setRoomCode(r.data.roomCode ?? "");
+  }, [id]);
+
+  useEffect(() => { load(); }, [load]);
 
   async function confirmBooking(){
     setBusy(true);

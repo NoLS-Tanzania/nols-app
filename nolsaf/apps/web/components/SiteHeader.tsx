@@ -21,8 +21,81 @@ if (typeof document !== 'undefined') {
         transform: translateY(0);
       }
     }
+    @keyframes slide-in-right {
+      from {
+        opacity: 0;
+        transform: translateX(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+    @keyframes scale-in {
+      from {
+        opacity: 0;
+        transform: scale(0.95);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+    @keyframes slide-down {
+      from {
+        opacity: 0;
+        transform: translateY(-20px);
+        max-height: 0;
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+        max-height: 1000px;
+      }
+    }
+    @keyframes slide-up {
+      from {
+        opacity: 1;
+        transform: translateY(0);
+        max-height: 1000px;
+      }
+      to {
+        opacity: 0;
+        transform: translateY(-20px);
+        max-height: 0;
+      }
+    }
+    @keyframes fade-in-stagger {
+      from {
+        opacity: 0;
+        transform: translateX(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
     .animate-fade-in-up {
-      animation: fade-in-up 0.2s ease-out forwards;
+      animation: fade-in-up 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    .animate-slide-in-right {
+      animation: slide-in-right 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    .animate-scale-in {
+      animation: scale-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    .animate-slide-down {
+      animation: slide-down 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    .animate-fade-in-stagger {
+      animation: fade-in-stagger 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    .glass-effect {
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+    .mobile-menu-item {
+      animation-delay: calc(var(--delay) * 50ms);
     }
   `;
   style.setAttribute('data-dropdown-animations', 'true');
@@ -58,6 +131,12 @@ export default function SiteHeader({
   };
 
   useEffect(() => {
+    // Set navigation context for policy pages based on role
+    if (typeof window !== 'undefined') {
+      const context = role.toLowerCase() as 'owner' | 'driver' | 'admin';
+      sessionStorage.setItem('navigationContext', context);
+    }
+
     // fetch unread count when running in browser for admin
     (async () => {
       if (!isAdmin) return;
@@ -76,11 +155,9 @@ export default function SiteHeader({
     // fetch user profile to get avatar
     (async () => {
       try {
-        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-        if (!token) return;
-        // Use relative paths in browser to leverage Next.js rewrites (avoids CORS issues)
-        const url = '/account/me';
-        const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+        // Use cookie session (httpOnly) via API-prefixed account routes.
+        const url = '/api/account/me';
+        const r = await fetch(url, { credentials: 'include' });
         if (!r.ok) return;
         const data = await r.json();
         if (data.avatarUrl) setAvatarUrl(data.avatarUrl);
@@ -151,8 +228,6 @@ export default function SiteHeader({
   const handleExportInvoices = () => {
     (async () => {
       try {
-        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-
         // Use relative paths in browser to leverage Next.js rewrites (avoids CORS issues)
         const defaultUrl = '/admin/invoices.csv';
         const endpoint = process.env.NEXT_PUBLIC_EXPORT_INVOICES_ENDPOINT || defaultUrl;
@@ -161,9 +236,8 @@ export default function SiteHeader({
         const date = new Date().toISOString().split('T')[0];
         const filename = filenameTemplate.replace('{date}', date);
 
-        const resp = await fetch(endpoint, {
-          headers: token ? { Authorization: `Bearer ${token}`, 'x-role': 'ADMIN', 'x-user-id': '1' } : { 'x-role': 'ADMIN', 'x-user-id': '1' },
-        });
+        // Uses secure httpOnly cookie session; no x-role or localStorage token.
+        const resp = await fetch(endpoint, { credentials: "include" });
         if (!resp.ok) throw new Error(`Export failed (${resp.status})`);
         const blob = await resp.blob();
         const a = document.createElement('a');
@@ -187,7 +261,16 @@ export default function SiteHeader({
 
   return (
     <header
-      className={`fixed top-0 left-0 right-0 z-50 text-white/95 ${(isAdmin || isOwner) ? "bg-[#02665e]" : "bg-brand-primary"} shadow-none`}
+      className={`fixed top-0 left-0 right-0 z-50 text-white ${(isAdmin || isOwner || driverMode) ? "bg-[#02665e]" : "bg-brand-primary"} shadow-md backdrop-blur-sm transition-all duration-300`}
+      style={{
+        background: driverMode 
+          ? 'linear-gradient(135deg, #02665e 0%, #014d47 100%)' 
+          : (isAdmin || isOwner) 
+          ? 'linear-gradient(135deg, #02665e 0%, #014d47 100%)' 
+          : undefined,
+        textShadow: '0 2px 4px rgba(0, 0, 0, 0.2), 0 0 8px rgba(0, 0, 0, 0.15)',
+        filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.15))',
+      }}
     >
       <div className={`mx-auto max-w-6xl px-4 h-16 flex items-center justify-between ${isAdmin && adminSidebarVisible ? 'md:ml-64' : ''}`}>
         {/* Owner: small toggle to hide/show sidebar. Uses a global event so Layout can listen */}
@@ -235,15 +318,15 @@ export default function SiteHeader({
               }
             }}
             aria-label="Toggle sidebar"
-            className="hidden md:inline-flex items-center justify-center h-9 w-9 rounded-md bg-white/10 text-white/90 hover:bg-white/20 mr-3"
+            className="hidden md:inline-flex items-center justify-center h-10 w-10 rounded-xl bg-transparent border-0 text-white/90 hover:bg-white/10 hover:backdrop-blur-sm hover:border hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-out hover:shadow-md mr-3"
           >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
-              <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            <svg className="w-5 h-5 transition-transform duration-300" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+              <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
         ) : null}
         {isAdmin ? (
-          <Link href="/" className="inline-flex items-center" aria-label="NoLSAF Home">
+          <Link href="/" className="inline-flex items-center transition-opacity duration-300 hover:opacity-80" aria-label="NoLSAF Home">
             <Image
               src="/assets/nolsnewlog.png"
               alt="NoLSAF"
@@ -253,7 +336,17 @@ export default function SiteHeader({
             />
           </Link>
         ) : isOwner ? (
-          <Link href="/" className="inline-flex items-center" aria-label="NoLSAF Home">
+          <Link href="/" className="inline-flex items-center transition-opacity duration-300 hover:opacity-80" aria-label="NoLSAF Home">
+            <Image
+              src="/assets/nolsnewlog.png"
+              alt="NoLSAF"
+              width={120}
+              height={30}
+              className="h-8 w-auto"
+            />
+          </Link>
+        ) : driverMode ? (
+          <Link href="/driver" className="inline-flex items-center transition-opacity duration-300 hover:opacity-80" aria-label="NoLSAF Home">
             <Image
               src="/assets/nolsnewlog.png"
               alt="NoLSAF"
@@ -346,38 +439,41 @@ export default function SiteHeader({
         {/* Owner right-side icon group (md+). Rendered after the nav so it aligns to the far right.
             If driverMode is enabled (driver dashboard) render a reduced set of icons only. */}
         {driverMode ? (
-          <div className="hidden md:inline-flex items-center gap-1">
+          <div className="hidden md:inline-flex items-center gap-2">
             <button
               onClick={handleRefresh}
-              className="inline-flex items-center justify-center p-1.5 bg-transparent border-0 transition-all duration-300 ease-out active:scale-75 hover:scale-110 active:opacity-70"
+              className="group relative inline-flex items-center justify-center h-10 w-10 rounded-xl text-white/90 hover:bg-white/10 hover:backdrop-blur-sm hover:border hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-out hover:shadow-md"
               aria-label="Refresh"
               title="Refresh"
               onTouchStart={() => handleTouch('refresh')}
               onTouchEnd={() => setTouchedIcon(null)}
             >
-              <RefreshCw className={`h-5 w-5 text-white transition-all duration-300 ease-out ${isRefreshing ? 'animate-spin' : 'hover:rotate-180 active:rotate-360'}`} />
+              <RefreshCw className={`h-5 w-5 transition-all duration-300 ease-out ${isRefreshing ? 'animate-spin' : 'group-hover:rotate-180'}`} />
             </button>
 
             <Link 
               href="/driver/notifications" 
-              className="relative inline-flex items-center justify-center p-1.5 bg-transparent transition-all duration-300 ease-out active:scale-75 hover:scale-110 active:opacity-70"
+              className="group relative inline-flex items-center justify-center h-10 w-10 rounded-xl text-white/90 hover:bg-white/10 hover:backdrop-blur-sm hover:border hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-out hover:shadow-md"
               aria-label="Notifications" 
               title="Notifications"
               onTouchStart={() => handleTouch('notifications')}
               onTouchEnd={() => setTouchedIcon(null)}
             >
-              <Bell className="h-5 w-5 text-white transition-all duration-300 ease-out hover:animate-pulse active:scale-125" />
+              <Bell className="h-5 w-5 transition-all duration-300 ease-out group-hover:animate-pulse" />
+              <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 rounded-full bg-rose-500 text-[10px] leading-4 text-white font-semibold ring-2 ring-[#02665e] text-center animate-scale-in">
+                0
+              </span>
             </Link>
 
             <Link 
               href="/driver/support" 
-              className="inline-flex items-center justify-center p-1.5 bg-transparent transition-all duration-300 ease-out active:scale-75 hover:scale-110 active:opacity-70"
+              className="group relative inline-flex items-center justify-center h-10 w-10 rounded-xl text-white/90 hover:bg-white/10 hover:backdrop-blur-sm hover:border hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-out hover:shadow-md"
               aria-label="Request assistance" 
               title="Request assistance"
               onTouchStart={() => handleTouch('support')}
               onTouchEnd={() => setTouchedIcon(null)}
             >
-              <LifeBuoy className="h-5 w-5 text-white transition-all duration-300 ease-out hover:rotate-12 active:rotate-24" />
+              <LifeBuoy className="h-5 w-5 transition-all duration-300 ease-out group-hover:rotate-12" />
             </Link>
 
             <div className="relative" data-settings-dropdown>
@@ -386,109 +482,109 @@ export default function SiteHeader({
                   e.stopPropagation();
                   setSettingsOpen(!settingsOpen);
                 }}
-                className="inline-flex items-center justify-center p-1.5 bg-transparent border-0 transition-all duration-300 ease-out active:scale-75 hover:scale-110 active:opacity-70"
+                className="group relative inline-flex items-center justify-center h-10 w-10 rounded-xl bg-transparent border-0 text-white/90 hover:bg-white/10 hover:backdrop-blur-sm hover:border hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-out hover:shadow-md"
                 aria-label="Settings"
                 title="Settings"
                 onTouchStart={() => handleTouch('settings')}
                 onTouchEnd={() => setTouchedIcon(null)}
               >
-                <SettingsIcon className={`h-5 w-5 text-white transition-all duration-300 ease-out ${settingsOpen ? 'rotate-90' : 'hover:rotate-45 active:rotate-90'}`} />
+                <SettingsIcon className={`h-5 w-5 transition-all duration-300 ease-out ${settingsOpen ? 'rotate-90' : 'group-hover:rotate-45'}`} />
               </button>
 
               {settingsOpen && (
-                <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
-                  <div className="px-4 py-2 border-b border-gray-100">
-                    <h3 className="font-semibold text-gray-900">Management</h3>
+                <div className="absolute right-0 top-full mt-3 w-72 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-200/50 py-2 z-50 animate-fade-in-up overflow-hidden">
+                  <div className="px-4 py-3 border-b border-gray-100/50 bg-gradient-to-r from-emerald-50/30 to-slate-50/30">
+                    <h3 className="font-semibold text-gray-900 text-sm">Management</h3>
                   </div>
 
-                  <div className="py-1">
+                  <div className="py-1.5">
                     <Link
                       href="/driver/management?tab=documents"
                       onClick={() => setSettingsOpen(false)}
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors no-underline"
+                      className="group block px-4 py-2.5 text-sm text-gray-700 hover:bg-emerald-50/50 hover:text-emerald-700 transition-all duration-200 no-underline rounded-lg mx-1"
                     >
-                      <div className="font-medium flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-blue-600" />
+                      <div className="font-medium flex items-center gap-2.5">
+                        <FileText className="h-4 w-4 text-emerald-600 transition-transform duration-200 group-hover:scale-110" />
                         <span>Documents</span>
                       </div>
-                      <div className="text-xs text-gray-500 ml-6">License, insurance, contracts</div>
+                      <div className="text-xs text-gray-500 ml-6.5 mt-0.5">License, insurance, contracts</div>
                     </Link>
 
                     <Link
                       href="/driver/management?tab=safety"
                       onClick={() => setSettingsOpen(false)}
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors no-underline"
+                      className="group block px-4 py-2.5 text-sm text-gray-700 hover:bg-emerald-50/50 hover:text-emerald-700 transition-all duration-200 no-underline rounded-lg mx-1"
                     >
-                      <div className="font-medium flex items-center gap-2">
-                        <Shield className="h-4 w-4 text-blue-600" />
+                      <div className="font-medium flex items-center gap-2.5">
+                        <Shield className="h-4 w-4 text-emerald-600 transition-transform duration-200 group-hover:scale-110" />
                         <span>Safety Measures</span>
                       </div>
-                      <div className="text-xs text-gray-500 ml-6">Incidents and safety summary</div>
+                      <div className="text-xs text-gray-500 ml-6.5 mt-0.5">Incidents and safety summary</div>
                     </Link>
 
                     <Link
                       href="/driver/security"
                       onClick={() => setSettingsOpen(false)}
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors no-underline"
+                      className="group block px-4 py-2.5 text-sm text-gray-700 hover:bg-emerald-50/50 hover:text-emerald-700 transition-all duration-200 no-underline rounded-lg mx-1"
                     >
-                      <div className="font-medium flex items-center gap-2">
-                        <Lock className="h-4 w-4 text-blue-600" />
+                      <div className="font-medium flex items-center gap-2.5">
+                        <Lock className="h-4 w-4 text-emerald-600 transition-transform duration-200 group-hover:scale-110" />
                         <span>Security</span>
                       </div>
-                      <div className="text-xs text-gray-500 ml-6">Password and contact details</div>
+                      <div className="text-xs text-gray-500 ml-6.5 mt-0.5">Password and contact details</div>
                     </Link>
 
                     <Link
                       href="/driver/management?tab=settings"
                       onClick={() => setSettingsOpen(false)}
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors no-underline"
+                      className="group block px-4 py-2.5 text-sm text-gray-700 hover:bg-emerald-50/50 hover:text-emerald-700 transition-all duration-200 no-underline rounded-lg mx-1"
                     >
-                      <div className="font-medium flex items-center gap-2">
-                        <Truck className="h-4 w-4 text-blue-600" />
+                      <div className="font-medium flex items-center gap-2.5">
+                        <Truck className="h-4 w-4 text-emerald-600 transition-transform duration-200 group-hover:scale-110" />
                         <span>Vehicle Settings</span>
                       </div>
-                      <div className="text-xs text-gray-500 ml-6">Vehicle details and registration</div>
+                      <div className="text-xs text-gray-500 ml-6.5 mt-0.5">Vehicle details and registration</div>
                     </Link>
                   </div>
                 </div>
               )}
             </div>
 
-            <div className="mx-2 h-5 w-px bg-white/20" />
+            <div className="mx-1 h-6 w-px bg-white/20" />
 
             <div ref={profileDropdownRef} className="relative">
               <button
                 onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-                className="inline-flex items-center justify-center gap-2 p-1 bg-transparent border-0 transition-all duration-300 ease-out active:scale-90 hover:scale-105 active:opacity-70"
+                className="group inline-flex items-center justify-center gap-2 h-10 px-2 rounded-xl bg-transparent border-0 hover:bg-white/10 hover:backdrop-blur-sm hover:border hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-out hover:shadow-md"
                 aria-label="Profile menu"
                 aria-expanded={profileDropdownOpen}
                 onTouchStart={() => handleTouch('profile')}
                 onTouchEnd={() => setTouchedIcon(null)}
               >
                 {avatarUrl ? (
-                  <div className="h-10 w-10 rounded-full border border-white/20 overflow-hidden transition-all duration-300 ease-out hover:border-white/40 hover:scale-110 active:scale-95 active:border-white/60">
-                    <Image src={avatarUrl} alt="Profile" width={40} height={40} className="object-cover w-full h-full transition-transform duration-300 ease-out hover:scale-110 active:scale-95" />
+                  <div className="h-9 w-9 rounded-full overflow-hidden transition-all duration-300 ease-out group-hover:ring-2 group-hover:ring-white/10">
+                    <Image src={avatarUrl} alt="Profile" width={36} height={36} className="object-cover w-full h-full transition-transform duration-300 ease-out group-hover:scale-110" />
                   </div>
                 ) : (
-                  <div className="h-10 w-10 rounded-full border border-white/20 flex items-center justify-center transition-all duration-300 ease-out hover:border-white/40 hover:scale-110 active:scale-95 active:border-white/60">
-                    <User className="h-5 w-5 text-white/90 transition-all duration-300 ease-out active:scale-110" />
+                  <div className="h-9 w-9 rounded-full flex items-center justify-center transition-all duration-300 ease-out group-hover:ring-2 group-hover:ring-white/10">
+                    <User className="h-5 w-5 text-white/90" />
                   </div>
                 )}
-                <ChevronDown className={`h-4 w-4 text-white/90 transition-all duration-300 ease-out ${profileDropdownOpen ? 'rotate-180' : 'hover:translate-y-0.5 active:translate-y-1'}`} />
+                <ChevronDown className={`h-4 w-4 text-white/90 transition-all duration-300 ease-out ${profileDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
 
               {profileDropdownOpen && (
-                <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-50 animate-fade-in-up">
+                <div className="absolute right-0 top-full mt-3 w-64 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-200/50 overflow-hidden z-50 animate-fade-in-up">
                   {/* Profile Info Section */}
-                  <div className="px-3 py-2.5 border-b border-gray-100 bg-gradient-to-r from-emerald-50/50 to-slate-50/50">
-                    <div className="flex items-center gap-2.5">
+                  <div className="px-4 py-3 border-b border-gray-100/50 bg-gradient-to-r from-emerald-50/40 to-slate-50/40">
+                    <div className="flex items-center gap-3">
                       {avatarUrl ? (
-                        <div className="h-8 w-8 rounded-full border border-emerald-200 overflow-hidden flex-shrink-0 transition-transform duration-300 hover:scale-110">
-                          <Image src={avatarUrl} alt="Profile" width={32} height={32} className="object-cover w-full h-full" />
+                        <div className="h-10 w-10 rounded-full border-2 border-emerald-200 overflow-hidden flex-shrink-0 transition-transform duration-300 hover:scale-110 ring-2 ring-emerald-100">
+                          <Image src={avatarUrl} alt="Profile" width={40} height={40} className="object-cover w-full h-full" />
                         </div>
                       ) : (
-                        <div className="h-8 w-8 rounded-full border border-emerald-200 bg-emerald-100 flex items-center justify-center flex-shrink-0 transition-transform duration-300 hover:scale-110">
-                          <User className="h-4 w-4 text-emerald-600" />
+                        <div className="h-10 w-10 rounded-full border-2 border-emerald-200 bg-gradient-to-br from-emerald-100 to-emerald-50 flex items-center justify-center flex-shrink-0 transition-transform duration-300 hover:scale-110 ring-2 ring-emerald-100">
+                          <User className="h-5 w-5 text-emerald-600" />
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
@@ -503,11 +599,11 @@ export default function SiteHeader({
                   </div>
 
                   {/* Menu Items */}
-                  <div className="py-1">
+                  <div className="py-1.5">
                     <Link
                       href="/driver/profile"
                       onClick={() => setProfileDropdownOpen(false)}
-                      className="flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 transition-all duration-200 no-underline group"
+                      className="group flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-emerald-50/50 hover:text-emerald-700 transition-all duration-200 no-underline"
                     >
                       <User className="h-4 w-4 text-gray-500 group-hover:text-emerald-600 transition-all duration-200 group-hover:scale-110" />
                       <span className="font-medium">My Profile</span>
@@ -516,7 +612,7 @@ export default function SiteHeader({
                     <Link
                       href="/driver/bonus"
                       onClick={() => setProfileDropdownOpen(false)}
-                      className="flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 transition-all duration-200 no-underline group"
+                      className="group flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-emerald-50/50 hover:text-emerald-700 transition-all duration-200 no-underline"
                     >
                       <Gift className="h-4 w-4 text-gray-500 group-hover:text-emerald-600 transition-all duration-200 group-hover:scale-110" />
                       <span className="font-medium">My Bonus</span>
@@ -525,7 +621,7 @@ export default function SiteHeader({
                     <Link
                       href="/driver/level"
                       onClick={() => setProfileDropdownOpen(false)}
-                      className="flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 transition-all duration-200 no-underline group"
+                      className="group flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-emerald-50/50 hover:text-emerald-700 transition-all duration-200 no-underline"
                     >
                       <Trophy className="h-4 w-4 text-gray-500 group-hover:text-emerald-600 transition-all duration-200 group-hover:scale-110" />
                       <span className="font-medium">Level</span>
@@ -534,7 +630,7 @@ export default function SiteHeader({
                     <Link
                       href="/driver/referral"
                       onClick={() => setProfileDropdownOpen(false)}
-                      className="flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 transition-all duration-200 no-underline group"
+                      className="group flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-emerald-50/50 hover:text-emerald-700 transition-all duration-200 no-underline"
                     >
                       <Share2 className="h-4 w-4 text-gray-500 group-hover:text-emerald-600 transition-all duration-200 group-hover:scale-110" />
                       <span className="font-medium">Referral</span>
@@ -543,7 +639,7 @@ export default function SiteHeader({
                     <Link
                       href="/driver/history"
                       onClick={() => setProfileDropdownOpen(false)}
-                      className="flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 transition-all duration-200 no-underline group"
+                      className="group flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-emerald-50/50 hover:text-emerald-700 transition-all duration-200 no-underline"
                     >
                       <Calendar className="h-4 w-4 text-gray-500 group-hover:text-emerald-600 transition-all duration-200 group-hover:scale-110" />
                       <span className="font-medium">History</span>
@@ -552,18 +648,22 @@ export default function SiteHeader({
                     <Link
                       href="/driver/management"
                       onClick={() => setProfileDropdownOpen(false)}
-                      className="flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 transition-all duration-200 no-underline group"
+                      className="group flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-emerald-50/50 hover:text-emerald-700 transition-all duration-200 no-underline"
                     >
                       <SettingsIcon className="h-4 w-4 text-gray-500 group-hover:text-emerald-600 transition-all duration-200 group-hover:scale-110" />
                       <span className="font-medium">Setting</span>
                     </Link>
 
+                    <div className="my-1 mx-2 h-px bg-gray-200" />
+
                     <button
-                      onClick={() => {
-                        localStorage.removeItem('token');
-                        window.location.href = '/login';
+                      onClick={async () => {
+                        try {
+                          await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+                        } catch {}
+                        window.location.href = "/login";
                       }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-all duration-200 no-underline group"
+                      className="group w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50/50 transition-all duration-200 no-underline"
                     >
                       <LogOut className="h-4 w-4 group-hover:scale-110 transition-all duration-200" />
                       <span className="font-medium">Logout</span>
@@ -640,21 +740,134 @@ export default function SiteHeader({
 
         {/* Mobile burger */}
         <button
-          className="md:hidden inline-flex items-center justify-center rounded-xl px-3 py-2 hover:bg-white/10"
+          className={`md:hidden inline-flex items-center justify-center h-10 w-10 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/15 hover:border-white/20 active:scale-95 transition-all duration-300 ease-out shadow-sm ${open ? 'bg-white/15 border-white/25' : ''}`}
           onClick={() => setOpen((v) => !v)}
           aria-label="Toggle menu"
+          aria-expanded={open}
         >
-          ☰
+          <svg 
+            className={`w-5 h-5 transition-all duration-300 ease-out ${open ? 'rotate-90' : ''}`} 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            xmlns="http://www.w3.org/2000/svg" 
+            aria-hidden
+          >
+            {open ? (
+              <path d="M6 18L18 6M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            ) : (
+              <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            )}
+          </svg>
         </button>
       </div>
 
       {/* Mobile drawer */}
       {open && (
-        <div
-          className={`md:hidden border-t border-white/10 ${isAdmin ? "bg-[#02665e]" : "bg-brand-primary/95"}`}
-        >
-          <nav className="mx-auto max-w-6xl px-4 py-2 flex flex-col gap-1">
-            {isAdmin && (
+        <>
+          {/* Backdrop overlay */}
+          <div 
+            className="md:hidden fixed inset-0 bg-black/20 backdrop-blur-sm z-40 transition-opacity duration-300"
+            onClick={() => setOpen(false)}
+            aria-hidden="true"
+          />
+          {/* Mobile menu drawer */}
+          <div
+            className={`md:hidden relative z-50 border-t border-white/10 backdrop-blur-xl animate-slide-down overflow-hidden ${driverMode ? "bg-[#02665e]/98" : isAdmin ? "bg-[#02665e]/98" : "bg-brand-primary/98"}`}
+            style={{ willChange: 'transform, opacity' }}
+          >
+            <nav className="mx-auto max-w-6xl px-4 py-4 flex flex-col gap-2.5">
+              {driverMode ? (
+                <>
+                  {/* Icon buttons row with staggered animation */}
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <button
+                      onClick={() => {
+                        handleRefresh();
+                        setOpen(false);
+                      }}
+                      aria-label="Refresh"
+                      title="Refresh"
+                      className="mobile-menu-item inline-flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out shadow-sm hover:shadow-md"
+                      style={{ '--delay': 0 } as React.CSSProperties}
+                      disabled={isRefreshing}
+                    >
+                      <RefreshCw className={`h-5 w-5 transition-transform duration-300 ${isRefreshing ? 'animate-spin' : ''}`} />
+                    </button>
+                    <Link
+                      href="/driver/notifications"
+                      onClick={() => setOpen(false)}
+                      className="mobile-menu-item relative inline-flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out shadow-sm hover:shadow-md animate-fade-in-stagger"
+                      style={{ '--delay': 1 } as React.CSSProperties}
+                      aria-label="Notifications"
+                    >
+                      <Bell className="h-5 w-5 transition-transform duration-300 hover:scale-110" />
+                    </Link>
+                    <Link
+                      href="/driver/support"
+                      onClick={() => setOpen(false)}
+                      className="mobile-menu-item inline-flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out shadow-sm hover:shadow-md animate-fade-in-stagger"
+                      style={{ '--delay': 2 } as React.CSSProperties}
+                      aria-label="Support"
+                    >
+                      <LifeBuoy className="h-5 w-5 transition-transform duration-300 hover:rotate-12" />
+                    </Link>
+                    <Link
+                      href="/driver/profile"
+                      onClick={() => setOpen(false)}
+                      className="mobile-menu-item inline-flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out shadow-sm hover:shadow-md animate-fade-in-stagger"
+                      style={{ '--delay': 3 } as React.CSSProperties}
+                      aria-label="Profile"
+                    >
+                      <User className="h-5 w-5 transition-transform duration-300 hover:scale-110" />
+                    </Link>
+                  </div>
+                  
+                  {/* Separator with animation */}
+                  <div className="my-2 h-px w-full bg-gradient-to-r from-transparent via-white/20 to-transparent animate-fade-in-stagger" style={{ '--delay': 4 } as React.CSSProperties} />
+                  
+                  {/* Navigation links with staggered animation */}
+                  <Link 
+                    href="/driver/profile" 
+                    className="mobile-menu-item group relative px-4 py-3 rounded-xl text-sm font-medium text-white/90 no-underline hover:text-white active:scale-[0.98] transition-all duration-300 ease-out animate-fade-in-stagger overflow-hidden" 
+                    style={{ '--delay': 5 } as React.CSSProperties}
+                    onClick={() => setOpen(false)}
+                  >
+                    <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/10 to-white/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 ease-out" />
+                    <span className="absolute left-0 top-0 bottom-0 w-1 bg-white/40 scale-y-0 group-hover:scale-y-100 transition-transform duration-300 ease-out origin-center" />
+                    <span className="relative z-10">My Profile</span>
+                  </Link>
+                  <Link 
+                    href="/driver/bonus" 
+                    className="mobile-menu-item group relative px-4 py-3 rounded-xl text-sm font-medium text-white/90 no-underline hover:text-white active:scale-[0.98] transition-all duration-300 ease-out animate-fade-in-stagger overflow-hidden" 
+                    style={{ '--delay': 6 } as React.CSSProperties}
+                    onClick={() => setOpen(false)}
+                  >
+                    <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/10 to-white/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 ease-out" />
+                    <span className="absolute left-0 top-0 bottom-0 w-1 bg-white/40 scale-y-0 group-hover:scale-y-100 transition-transform duration-300 ease-out origin-center" />
+                    <span className="relative z-10">My Bonus</span>
+                  </Link>
+                  <Link 
+                    href="/driver/management" 
+                    className="mobile-menu-item group relative px-4 py-3 rounded-xl text-sm font-medium text-white/90 no-underline hover:text-white active:scale-[0.98] transition-all duration-300 ease-out animate-fade-in-stagger overflow-hidden" 
+                    style={{ '--delay': 7 } as React.CSSProperties}
+                    onClick={() => setOpen(false)}
+                  >
+                    <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/10 to-white/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 ease-out" />
+                    <span className="absolute left-0 top-0 bottom-0 w-1 bg-white/40 scale-y-0 group-hover:scale-y-100 transition-transform duration-300 ease-out origin-center" />
+                    <span className="relative z-10">Management</span>
+                  </Link>
+                  <Link 
+                    href="/account" 
+                    className="mobile-menu-item group relative px-4 py-3 rounded-xl text-sm font-medium text-white/90 no-underline hover:text-white active:scale-[0.98] transition-all duration-300 ease-out animate-fade-in-stagger overflow-hidden" 
+                    style={{ '--delay': 8 } as React.CSSProperties}
+                    onClick={() => setOpen(false)}
+                  >
+                    <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/10 to-white/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 ease-out" />
+                    <span className="absolute left-0 top-0 bottom-0 w-1 bg-white/40 scale-y-0 group-hover:scale-y-100 transition-transform duration-300 ease-out origin-center" />
+                    <span className="relative z-10">Account Settings</span>
+                  </Link>
+                </>
+              ) : isAdmin && (
               <>
                 <div className="my-2 h-px w-full bg-white/10" />
                 <div className="flex items-center gap-2">
@@ -741,6 +954,7 @@ export default function SiteHeader({
             </Link>
           </nav>
         </div>
+        </>
       )}
       <ClientErrorBoundary>
         <LegalModal />

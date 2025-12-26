@@ -85,9 +85,35 @@ router.get("/", async (req, res) => {
     prisma.booking.findMany({
       where,
       include: {
-        property: { select: { id: true, title: true, ownerId: true } },
-        code: { select: { id: true, codeVisible: true, status: true } },
-        user: { select: { id: true, name: true, email: true } },
+        property: { 
+          select: { 
+            id: true, 
+            title: true, 
+            ownerId: true,
+            owner: { select: { id: true, name: true, email: true } }
+          } 
+        },
+        code: { 
+          select: { 
+            id: true, 
+            codeVisible: true, 
+            status: true,
+            generatedAt: true,
+            usedAt: true,
+            usedByOwner: true
+          } 
+        },
+        user: { select: { id: true, name: true, email: true, phone: true } },
+        cancellationRequests: {
+          select: {
+            id: true,
+            reason: true,
+            createdAt: true,
+            status: true,
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 1, // Get the most recent cancellation request
+        },
       },
       orderBy: { id: "desc" },
       skip,
@@ -100,17 +126,33 @@ router.get("/", async (req, res) => {
     total,
     page: Number(page),
     pageSize: take,
-    items: items.map((b: { id: any; status: any; checkIn: any; checkOut: any; totalAmount: any; property: any; code: { id: any; codeVisible: any; status: any; }; }) => ({
+    items: items.map((b: any) => {
+      const latestCancellation = b.cancellationRequests && b.cancellationRequests.length > 0 
+        ? b.cancellationRequests[0] 
+        : null;
+      
+      return {
       id: b.id,
       status: b.status,
       checkIn: b.checkIn,
       checkOut: b.checkOut,
-      guestName: (b as any).guestName ?? null,
-      roomCode: (b as any).roomCode ?? null,
+        guestName: b.guestName ?? null,
+        roomCode: b.roomCode ?? null,
       totalAmount: b.totalAmount,
+        cancelReason: latestCancellation?.reason ?? null,
+        canceledAt: latestCancellation?.createdAt ?? null,
       property: b.property,
-      code: b.code ? { id: b.code.id, code: b.code.codeVisible, status: b.code.status } : null,
-    })),
+        code: b.code ? { 
+          id: b.code.id, 
+          code: b.code.codeVisible, 
+          status: b.code.status,
+          generatedAt: b.code.generatedAt,
+          usedAt: b.code.usedAt,
+          usedByOwner: b.code.usedByOwner
+        } : null,
+        user: b.user,
+      };
+    }),
   });
 });
 
@@ -219,17 +261,96 @@ router.get("/counts", async (req, res) => {
 
 /** GET /admin/bookings/:id — full detail */
 router.get("/:id", async (req, res) => {
+  try {
   const id = Number(req.params.id);
   const b = await prisma.booking.findUnique({
     where: { id },
     include: {
-      property: { include: { owner: { select: { id: true, name: true, email: true } } } },
-      code: true,
-      invoices: true,
-    } as any,
+        property: { 
+          select: {
+            id: true,
+            title: true,
+            type: true,
+            regionName: true,
+            city: true,
+            district: true,
+            ward: true,
+            country: true,
+            owner: { select: { id: true, name: true, email: true, phone: true } }
+          },
+        },
+        code: {
+          select: {
+            id: true,
+            codeVisible: true,
+            status: true,
+            generatedAt: true,
+            usedAt: true,
+            usedByOwner: true,
+          },
+        },
+        invoices: {
+          select: {
+            id: true,
+            status: true,
+            total: true,
+            issuedAt: true,
+            approvedAt: true,
+            paidAt: true,
+            invoiceNumber: true,
+            receiptNumber: true,
+          },
+          orderBy: { issuedAt: 'desc' },
+        },
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            createdAt: true,
+          },
+        },
+        cancellationRequests: {
+          select: {
+            id: true,
+            reason: true,
+            createdAt: true,
+            status: true,
+            policyRefundPercent: true,
+            policyEligible: true,
+            policyRule: true,
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
   });
   if (!b) return res.status(404).json({ error: "Booking not found" });
-  res.json(b);
+    
+    // Transform the response to include cancellation info
+    const latestCancellation = b.cancellationRequests && b.cancellationRequests.length > 0 
+      ? b.cancellationRequests[0] 
+      : null;
+    
+    const response: any = {
+      ...b,
+      cancelReason: latestCancellation?.reason ?? null,
+      canceledAt: latestCancellation?.createdAt ?? null,
+      cancelRefundPercent: latestCancellation?.policyRefundPercent ?? null,
+      cancelPolicyEligible: latestCancellation?.policyEligible ?? false,
+      cancelPolicyRule: latestCancellation?.policyRule ?? null,
+      cancelStatus: latestCancellation?.status ?? null,
+    };
+    
+    // Remove cancellationRequests from response to keep it clean
+    delete response.cancellationRequests;
+    
+    res.json(response);
+  } catch (err: any) {
+    console.error('Error in GET /admin/bookings/:id:', err);
+    res.status(500).json({ error: 'Internal server error', message: err?.message || 'Unknown error' });
+  }
 });
 
 /* -------------------------- Confirm & Codes --------------------------- */
@@ -461,6 +582,175 @@ router.get("/codes", async (req, res) => {
   });
 
   return res.json({ items: codes });
+});
+
+/* ---------------------- Archive & Export ------------------------ */
+
+/**
+ * POST /admin/bookings/:id/archive
+ * - Archives a booking (soft delete - marks as archived)
+ * - Requires reason in body
+ */
+router.post("/:id/archive", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const reason = String(req.body?.reason ?? "").trim();
+    if (reason.length < 10) {
+      return res.status(400).json({ error: "Archive reason is required (minimum 10 characters)" });
+    }
+
+    const booking = await prisma.booking.findUnique({ where: { id } });
+    if (!booking) return res.status(404).json({ error: "Booking not found" });
+
+    // Update booking with archive flag and reason
+    // Note: This assumes you have an `archived` field and `archiveReason` field in your Booking model
+    // If not, you may need to add these fields to the schema
+    const updated = await prisma.booking.update({
+      where: { id },
+      data: {
+        // If you have an archived field:
+        // archived: true,
+        // archivedAt: new Date(),
+        // archiveReason: reason,
+        // For now, we'll use a status or add a note
+        cancelReason: `ARCHIVED: ${reason}`,
+      } as any,
+    });
+
+    try {
+      await audit(req, "BOOKING_ARCHIVED", "BOOKING", booking, { reason, archivedAt: new Date() });
+    } catch {}
+
+    const io = req.app.get("io");
+    if (io) {
+      io.emit("admin:booking:archived", { bookingId: id, reason });
+    }
+
+    res.json({ ok: true, booking: updated });
+  } catch (err: any) {
+    console.error('Error in POST /admin/bookings/:id/archive:', err);
+    res.status(500).json({ error: 'Internal server error', message: err?.message || 'Unknown error' });
+  }
+});
+
+/**
+ * GET /admin/bookings/export.csv
+ * - Exports bookings to CSV format
+ * - Query params: selectedIds (comma-separated), status, date, etc.
+ */
+router.get("/export.csv", async (req, res) => {
+  try {
+    const { selectedIds, status, date, propertyId, ownerId } = req.query as any;
+
+    const where: any = {};
+    
+    // If specific IDs are selected, filter by those
+    if (selectedIds) {
+      const ids = String(selectedIds).split(',').map(Number).filter(Boolean);
+      if (ids.length > 0) {
+        where.id = { in: ids };
+      }
+    } else {
+      // Otherwise apply filters
+      if (status) where.status = status;
+      if (propertyId) where.propertyId = Number(propertyId);
+      if (ownerId) where.property = { ownerId: Number(ownerId) };
+      if (date) {
+        const d = new Date(String(date));
+        const next = new Date(d); next.setDate(d.getDate() + 1);
+        where.AND = [
+          { checkIn: { lt: next } },
+          { checkOut: { gt: d } },
+        ];
+      }
+    }
+
+    const bookings = await prisma.booking.findMany({
+      where,
+      include: {
+        property: {
+          select: {
+            id: true,
+            title: true,
+            owner: { select: { id: true, name: true, email: true, phone: true } }
+          }
+        },
+        user: { select: { id: true, name: true, email: true, phone: true } },
+        code: { select: { codeVisible: true, status: true, usedAt: true, usedByOwner: true } },
+        cancellationRequests: {
+          select: { reason: true, createdAt: true, status: true },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
+      orderBy: { id: 'desc' },
+    });
+
+    // Generate CSV
+    const headers = [
+      'Booking ID',
+      'Status',
+      'Check-in',
+      'Check-out',
+      'Nights',
+      'Guest Name',
+      'Guest Email',
+      'Guest Phone',
+      'Property',
+      'Property Owner',
+      'Owner Email',
+      'Owner Phone',
+      'Total Amount',
+      'Booking Code',
+      'Code Status',
+      'Code Used At',
+      'Validation Method',
+      'Cancel Reason',
+      'Canceled At',
+      'Created At',
+    ];
+
+    const rows = bookings.map(b => {
+      const nights = Math.ceil((new Date(b.checkOut).getTime() - new Date(b.checkIn).getTime()) / (1000 * 60 * 60 * 24));
+      const latestCancel = b.cancellationRequests && b.cancellationRequests.length > 0 ? b.cancellationRequests[0] : null;
+      const validationMethod = b.code?.usedByOwner ? 'Booking Code' : (b.code?.usedAt ? 'QR Code' : 'N/A');
+
+      return [
+        b.id,
+        b.status,
+        new Date(b.checkIn).toLocaleDateString(),
+        new Date(b.checkOut).toLocaleDateString(),
+        nights,
+        b.guestName || b.user?.name || '',
+        b.user?.email || '',
+        b.user?.phone || '',
+        b.property?.title || '',
+        b.property?.owner?.name || '',
+        b.property?.owner?.email || '',
+        b.property?.owner?.phone || '',
+        Number(b.totalAmount).toFixed(2),
+        b.code?.codeVisible || '',
+        b.code?.status || '',
+        b.code?.usedAt ? new Date(b.code.usedAt).toLocaleString() : '',
+        validationMethod,
+        latestCancel?.reason || '',
+        latestCancel?.createdAt ? new Date(latestCancel.createdAt).toLocaleString() : '',
+        new Date(b.createdAt).toLocaleString(),
+      ];
+    });
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    ].join('\n');
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="bookings-export-${new Date().toISOString().split('T')[0]}.csv"`);
+    res.send(csvContent);
+  } catch (err: any) {
+    console.error('Error in GET /admin/bookings/export.csv:', err);
+    res.status(500).json({ error: 'Internal server error', message: err?.message || 'Unknown error' });
+  }
 });
 
 export default router;
