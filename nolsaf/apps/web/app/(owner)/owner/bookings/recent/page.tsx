@@ -64,8 +64,16 @@ export default function RecentBookings() {
     const onOnline = () => fetchData();
     window.addEventListener('online', onOnline);
 
-    // socket updates from server — refetch when owner bookings update (same-origin path)
-    const socket = io('/', { path: '/socket.io', transports: ['websocket'] });
+    // socket updates from server — connect directly to API server
+    // WebSocket upgrades don't work through Next.js rewrites
+    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 
+                      process.env.NEXT_PUBLIC_API_URL || 
+                      "http://localhost:4000";
+    const socket = io(socketUrl, { 
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: 5,
+    });
     socket.on('owner:bookings:updated', () => fetchData());
 
     return () => {

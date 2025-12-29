@@ -197,12 +197,24 @@ router.post("/invoices/:id/verify", async (req, res) => {
 router.post("/invoices/:id/approve", async (req, res) => {
   try {
     const id = Number(req.params.id);
-  const adminId = (req.user as any)!.id;
+    if (!id || isNaN(id)) {
+      return res.status(400).json({ error: "Invalid invoice ID" });
+    }
+    
+    const adminId = (req.user as any)?.id;
+    if (!adminId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    
     const { commissionPercent, taxPercent } = req.body || {};
 
     const inv = await prisma.invoice.findUnique({ where: { id }, include: { booking: true } });
-    if (!inv) return res.status(404).json({ error: "Invoice not found" });
-    if (inv.status === "PAID") return res.status(400).json({ error: "Already PAID" });
+    if (!inv) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+    if (inv.status === "PAID") {
+      return res.status(400).json({ error: "Already PAID" });
+    }
 
     const calc = compute(inv, { commissionPercent, taxPercent });
 
@@ -275,14 +287,14 @@ router.post("/invoices/:id/approve", async (req, res) => {
       console.warn('Failed to emit referral credit update', e);
     }
     
-    res.json({
+    return res.json({
       ok: true,
       invoice: updated,
       paymentRef: updated.paymentRef, // UI can use this to initiate pay-link / STK push
     });
   } catch (err: any) {
     console.error("Error in POST /admin/invoices/:id/approve", err);
-    res.status(500).json({ error: "Internal server error" });
+    return res.status(500).json({ error: "Internal server error", detail: err.message });
   }
 });
 
@@ -433,47 +445,132 @@ router.get("/invoices/export.csv", async (req, res) => {
       ];
     }
 
-    const rows = await prisma.invoice.findMany({
-      where,
-      include: {
-        booking: { include: { property: true } },
-        owner: { select: { id: true, name: true, email: true, phone: true } },
-      },
-      orderBy: { id: "desc" },
-      take: 5000,
-    });
+    let rows: any[];
+    try {
+      rows = await prisma.invoice.findMany({
+        where,
+        include: {
+          booking: { include: { property: true } },
+          owner: { select: { id: true, name: true, email: true, phone: true } },
+        },
+        orderBy: { id: "desc" },
+        take: 5000,
+      });
+    } catch (dbErr: any) {
+      console.error("Database error in CSV export:", dbErr);
+      throw new Error(`Database query failed: ${dbErr.message}`);
+    }
 
-    const csv = toCsv(
-      rows.map((r: any) => ({
-        id: r.id,
-        invoiceNumber: r.invoiceNumber,
-        receiptNumber: r.receiptNumber ?? "",
-        status: r.status,
-        issuedAt: r.issuedAt.toISOString(),
-        approvedAt: r.approvedAt ? r.approvedAt.toISOString() : "",
-        property: r.booking.property?.title ?? `#${r.booking.propertyId}`,
-        propertyId: r.booking.propertyId,
-        ownerId: r.ownerId,
-        ownerName: r.owner?.name ?? "",
-        ownerEmail: r.owner?.email ?? "",
-        ownerPhone: r.owner?.phone ?? "",
-        total: r.total,
-        commissionPercent: r.commissionPercent,
-        commissionAmount: r.commissionAmount,
-        taxPercent: r.taxPercent ?? 0,
-        taxAmount: r.taxPercent ? Number(r.total) * (Number(r.taxPercent) / 100) : 0,
-        netPayable: r.netPayable,
-        paidAt: r.paidAt ? r.paidAt.toISOString() : "",
-        paymentMethod: r.paymentMethod ?? "",
-        paymentRef: r.paymentRef ?? "",
-      })),
-      [
+    if (!rows || rows.length === 0) {
+      // Return empty CSV with headers
+      const headers = [
         "id","invoiceNumber","receiptNumber","status","issuedAt","approvedAt",
         "property","propertyId","ownerId","ownerName","ownerEmail","ownerPhone",
         "total","commissionPercent","commissionAmount","taxPercent","taxAmount","netPayable",
         "paidAt","paymentMethod","paymentRef"
-      ]
-    );
+      ];
+      const csv = headers.join(",") + "\n";
+      const filename = status === "APPROVED" 
+        ? `approved_invoices_payout_${new Date().toISOString().split('T')[0]}.csv`
+        : `invoices_export_${new Date().toISOString().split('T')[0]}.csv`;
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      return res.send(csv);
+    }
+
+    // Safely map rows with null checks
+    const csvData = rows.map((r: any) => {
+      try {
+        // Safe date conversion helper
+        const safeDate = (date: any): string => {
+          if (!date) return "";
+          try {
+            const d = new Date(date);
+            return isNaN(d.getTime()) ? "" : d.toISOString();
+          } catch {
+            return "";
+          }
+        };
+
+        // Safe number conversion
+        const safeNumber = (val: any): number => {
+          const num = Number(val);
+          return isNaN(num) ? 0 : num;
+        };
+
+        // Safe property access
+        const booking = r.booking || null;
+        const property = booking?.property || null;
+        const propertyId = booking?.propertyId || null;
+
+        return {
+          id: String(r.id || ""),
+          invoiceNumber: String(r.invoiceNumber || ""),
+          receiptNumber: String(r.receiptNumber || ""),
+          status: String(r.status || ""),
+          issuedAt: safeDate(r.issuedAt),
+          approvedAt: safeDate(r.approvedAt),
+          property: property?.title || (propertyId ? `#${propertyId}` : ""),
+          propertyId: propertyId ? String(propertyId) : "",
+          ownerId: r.ownerId ? String(r.ownerId) : "",
+          ownerName: String(r.owner?.name || ""),
+          ownerEmail: String(r.owner?.email || ""),
+          ownerPhone: String(r.owner?.phone || ""),
+          total: safeNumber(r.total),
+          commissionPercent: safeNumber(r.commissionPercent),
+          commissionAmount: safeNumber(r.commissionAmount),
+          taxPercent: safeNumber(r.taxPercent),
+          taxAmount: r.taxPercent ? safeNumber(r.total) * (safeNumber(r.taxPercent) / 100) : 0,
+          netPayable: safeNumber(r.netPayable),
+          paidAt: safeDate(r.paidAt),
+          paymentMethod: String(r.paymentMethod || ""),
+          paymentRef: String(r.paymentRef || ""),
+        };
+      } catch (rowErr: any) {
+        console.error(`Error mapping invoice row ${r.id}:`, rowErr);
+        // Return a safe default row
+        return {
+          id: String(r.id || ""),
+          invoiceNumber: "",
+          receiptNumber: "",
+          status: "",
+          issuedAt: "",
+          approvedAt: "",
+          property: "",
+          propertyId: "",
+          ownerId: "",
+          ownerName: "",
+          ownerEmail: "",
+          ownerPhone: "",
+          total: 0,
+          commissionPercent: 0,
+          commissionAmount: 0,
+          taxPercent: 0,
+          taxAmount: 0,
+          netPayable: 0,
+          paidAt: "",
+          paymentMethod: "",
+          paymentRef: "",
+        };
+      }
+    });
+
+    // Generate CSV
+    let csv: string;
+    try {
+      csv = toCsv(
+        csvData,
+        [
+          "id","invoiceNumber","receiptNumber","status","issuedAt","approvedAt",
+          "property","propertyId","ownerId","ownerName","ownerEmail","ownerPhone",
+          "total","commissionPercent","commissionAmount","taxPercent","taxAmount","netPayable",
+          "paidAt","paymentMethod","paymentRef"
+        ]
+      );
+    } catch (csvErr: any) {
+      console.error("Error generating CSV:", csvErr);
+      throw new Error(`Failed to generate CSV: ${csvErr.message}`);
+    }
 
     const filename = status === "APPROVED" 
       ? `approved_invoices_payout_${new Date().toISOString().split('T')[0]}.csv`
@@ -481,14 +578,21 @@ router.get("/invoices/export.csv", async (req, res) => {
 
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-    res.send(csv);
+    return res.send(csv);
   } catch (err: any) {
+    console.error("Error in GET /admin/invoices/export.csv:", err);
+    console.error("Error stack:", err.stack);
+    
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2022") {
       console.error("Prisma schema mismatch error in /admin/invoices/export.csv:", err.message);
       return res.status(500).json({ error: "Database schema mismatch: missing column(s). Please run migrations.", detail: err.message });
     }
-    console.error("Error in GET /admin/invoices/export.csv", err);
-    res.status(500).json({ error: "Internal server error" });
+    
+    return res.status(500).json({ 
+      error: "Internal server error", 
+      detail: err.message || "Unknown error",
+      stack: process.env.NODE_ENV === "development" ? err.stack : undefined
+    });
   }
 });
 

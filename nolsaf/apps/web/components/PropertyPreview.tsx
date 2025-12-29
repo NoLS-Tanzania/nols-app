@@ -357,6 +357,11 @@ export default function PropertyPreview({
   const [showLightbox, setShowLightbox] = useState(false);
   const [rejectReasons, setRejectReasons] = useState("");
   const [showRejectDialog, setShowRejectDialog] = useState(false);
+  const [suspendReason, setSuspendReason] = useState("");
+  const [showSuspendDialog, setShowSuspendDialog] = useState(false);
+  const [notifyOwnerOnSuspend, setNotifyOwnerOnSuspend] = useState(true);
+  const [unsuspendReason, setUnsuspendReason] = useState("");
+  const [showUnsuspendDialog, setShowUnsuspendDialog] = useState(false);
   const [displayPhotos, setDisplayPhotos] = useState<string[]>([]);
   const [isFavorite, setIsFavorite] = useState<boolean>(false);
   const [showShareMenu, setShowShareMenu] = useState<boolean>(false);
@@ -366,6 +371,11 @@ export default function PropertyPreview({
   const [showEditModal, setShowEditModal] = useState(false);
   const [systemCommission, setSystemCommission] = useState<number>(0);
   const [nearbyFacilitiesExpanded, setNearbyFacilitiesExpanded] = useState(false);
+  const [auditHistory, setAuditHistory] = useState<any[]>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+
+  // Professional auto-fill template for suspension reason
+  const SUSPENSION_REASON_TEMPLATE = `This property has been temporarily suspended due to a violation of our platform policies and terms of service. The suspension is effective immediately and the property has been removed from public search and booking availability. The property owner will be notified and provided with guidance on the steps required for reinstatement. The property will remain visible to administrators only until the issues have been resolved and the suspension is lifted.`;
 
   // Load system commission settings
   useEffect(() => {
@@ -397,18 +407,34 @@ export default function PropertyPreview({
     if (property && (mode === "public" || mode === "owner")) {
       loadReviews();
     }
+    if (property && mode === "admin") {
+      loadAuditHistory();
+    }
   }, [property, mode]);
 
   async function loadReviews() {
     try {
       setReviewsLoading(true);
-      const response = await api.get(`/property-reviews/${propertyId}`);
+      const response = await api.get(`/api/property-reviews/${propertyId}`);
       setReviews(response.data);
     } catch (err: any) {
       console.error("Load reviews error:", err);
       // Don't show error - reviews are optional
     } finally {
       setReviewsLoading(false);
+    }
+  }
+
+  async function loadAuditHistory() {
+    try {
+      setAuditLoading(true);
+      const response = await api.get(`/api/admin/properties/${propertyId}/audit-history`);
+      setAuditHistory(response.data || []);
+    } catch (err: any) {
+      console.error("Load audit history error:", err);
+      setAuditHistory([]);
+    } finally {
+      setAuditLoading(false);
     }
   }
 
@@ -430,7 +456,7 @@ export default function PropertyPreview({
     try {
       setLoading(true);
       const endpoint = mode === "admin" 
-        ? `/admin/properties/${propertyId}`
+        ? `/api/admin/properties/${propertyId}`
         : mode === "owner"
         ? `/owner/properties/${propertyId}`
         : `/public/properties/${propertyId}`;
@@ -461,8 +487,9 @@ export default function PropertyPreview({
     if (!confirm("Are you sure you want to approve this property?")) return;
     try {
       setSaving(true);
-      await api.post(`/admin/properties/${propertyId}/approve`, { note: "" });
+      await api.post(`/api/admin/properties/${propertyId}/approve`, { note: "" });
       await loadProperty();
+      await loadAuditHistory();
       onApproved?.();
       alert("Property approved successfully!");
     } catch (err: any) {
@@ -496,8 +523,9 @@ export default function PropertyPreview({
         return;
       }
       
-      await api.post(`/admin/properties/${propertyId}/reject`, { reasons, note: "" });
+      await api.post(`/api/admin/properties/${propertyId}/reject`, { reasons, note: "" });
       await loadProperty();
+      await loadAuditHistory();
       setShowRejectDialog(false);
       setRejectReasons("");
       onRejected?.();
@@ -514,18 +542,67 @@ export default function PropertyPreview({
   async function handleSaveEdit() {
     try {
       setSaving(true);
-      await api.patch(`/admin/properties/${propertyId}`, {
+      await api.patch(`/api/admin/properties/${propertyId}`, {
         title: editData?.title,
         description: editData?.description,
         basePrice: editData?.basePrice,
         currency: editData?.currency,
       });
       await loadProperty();
+      await loadAuditHistory();
       setIsEditing(false);
       onUpdated?.();
       alert("Property updated successfully!");
     } catch (err: any) {
       alert(err?.response?.data?.error || "Failed to update property");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSuspend() {
+    if (!suspendReason.trim()) {
+      alert("Please provide a reason for suspending this property");
+      return;
+    }
+    try {
+      setSaving(true);
+      await api.post(`/api/admin/properties/${propertyId}/suspend`, { 
+        reason: suspendReason.trim(),
+        notifyOwner: notifyOwnerOnSuspend
+      });
+      await loadProperty();
+      await loadAuditHistory();
+      setShowSuspendDialog(false);
+      setSuspendReason("");
+      setNotifyOwnerOnSuspend(true);
+      onUpdated?.();
+      alert("Property suspended successfully! The property has been removed from public view.");
+    } catch (err: any) {
+      alert(err?.response?.data?.error || "Failed to suspend property");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleUnsuspend() {
+    if (!unsuspendReason.trim()) {
+      alert("Please provide a reason for unsuspending this property");
+      return;
+    }
+    try {
+      setSaving(true);
+      await api.post(`/api/admin/properties/${propertyId}/unsuspend`, { 
+        reason: unsuspendReason.trim()
+      });
+      await loadProperty();
+      await loadAuditHistory();
+      setShowUnsuspendDialog(false);
+      setUnsuspendReason("");
+      onUpdated?.();
+      alert("Property unsuspended successfully! The property is now visible to the public again.");
+    } catch (err: any) {
+      alert(err?.response?.data?.error || "Failed to unsuspend property");
     } finally {
       setSaving(false);
     }
@@ -846,6 +923,7 @@ export default function PropertyPreview({
                   status === "PENDING" ? "bg-amber-100 text-amber-800" :
                   status === "APPROVED" ? "bg-emerald-100 text-emerald-800" :
                   status === "REJECTED" ? "bg-red-100 text-red-800" :
+                  status === "SUSPENDED" ? "bg-orange-100 text-orange-800" :
                   "bg-gray-100 text-gray-800"
                 }`}>
                   {status}
@@ -866,6 +944,26 @@ export default function PropertyPreview({
                       <Edit className="h-4 w-4" />
                       Edit
                     </button>
+                    {status === "APPROVED" && (
+                      <button
+                        onClick={() => setShowSuspendDialog(true)}
+                        disabled={saving}
+                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-orange-600 rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50"
+                      >
+                        <Ban className="h-4 w-4" />
+                        Suspend
+                      </button>
+                    )}
+                    {status === "SUSPENDED" && (
+                      <button
+                        onClick={() => setShowUnsuspendDialog(true)}
+                        disabled={saving}
+                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                      >
+                        <CheckCircle2 className="h-4 w-4" />
+                        Unsuspend
+                      </button>
+                    )}
                     {status === "PENDING" && (
                       <>
                         <button
@@ -2010,6 +2108,97 @@ export default function PropertyPreview({
                       </div>
                     </div>
             </section>
+
+            {/* Audit History Section - Admin Only */}
+            {mode === "admin" && (
+              <section className="border-b border-gray-200 pb-6">
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
+                  <div className="flex items-center gap-2 mb-6">
+                    <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#02665e]/10 text-[#02665e]">
+                      <FileText className="w-5 h-5" aria-hidden />
+                    </span>
+                    <h2 className="text-lg sm:text-xl font-semibold text-slate-900">Audit History</h2>
+                  </div>
+                  
+                  {auditLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-[#02665e]" />
+                      <span className="ml-2 text-sm text-gray-600">Loading audit history...</span>
+                    </div>
+                  ) : auditHistory.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                      <p className="text-sm">No audit history available</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {auditHistory.map((audit, index) => {
+                        const actionLabels: Record<string, string> = {
+                          PROPERTY_APPROVE: "Approved",
+                          PROPERTY_REJECT: "Rejected",
+                          PROPERTY_SUSPEND: "Suspended",
+                          PROPERTY_UNSUSPEND: "Unsuspended",
+                          PROPERTY_UPDATE: "Updated",
+                          PROPERTY_IMAGE_MODERATE: "Image Moderated",
+                        };
+                        
+                        const actionColors: Record<string, string> = {
+                          PROPERTY_APPROVE: "bg-emerald-50 text-emerald-700 border-emerald-200",
+                          PROPERTY_REJECT: "bg-red-50 text-red-700 border-red-200",
+                          PROPERTY_SUSPEND: "bg-orange-50 text-orange-700 border-orange-200",
+                          PROPERTY_UNSUSPEND: "bg-blue-50 text-blue-700 border-blue-200",
+                          PROPERTY_UPDATE: "bg-gray-50 text-gray-700 border-gray-200",
+                          PROPERTY_IMAGE_MODERATE: "bg-purple-50 text-purple-700 border-purple-200",
+                        };
+                        
+                        const actionLabel = actionLabels[audit.action] || audit.action.replace(/_/g, " ");
+                        const actionColor = actionColors[audit.action] || "bg-gray-50 text-gray-700 border-gray-200";
+                        const actorName = audit.actor?.name || audit.actor?.email || `Admin #${audit.actorId}`;
+                        const auditDate = new Date(audit.createdAt).toLocaleString();
+                        
+                        return (
+                          <div
+                            key={audit.id?.toString() || index}
+                            className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                          >
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <span className={`px-2.5 py-1 rounded-md text-xs font-semibold border ${actionColor}`}>
+                                    {actionLabel}
+                                  </span>
+                                  <span className="text-xs text-gray-500">{auditDate}</span>
+                                </div>
+                                <div className="text-sm text-gray-700">
+                                  <span className="font-medium">{actorName}</span>
+                                  {audit.actorRole && (
+                                    <span className="text-gray-500 ml-1">({audit.actorRole})</span>
+                                  )}
+                                </div>
+                                {audit.beforeJson && audit.afterJson && (
+                                  <div className="mt-2 space-y-1">
+                                    {audit.beforeJson.status && audit.afterJson.status && (
+                                      <div className="text-xs text-gray-600">
+                                        Status changed from <strong>{audit.beforeJson.status}</strong> to <strong>{audit.afterJson.status}</strong>
+                                      </div>
+                                    )}
+                                    {audit.afterJson.reason && (
+                                      <div className="text-xs text-gray-700 bg-gray-50 rounded px-2 py-1.5 border border-gray-200">
+                                        <span className="font-medium">Reason:</span> {audit.afterJson.reason}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </section>
+            )}
                           </div>
                         </div>
                       </div>
@@ -2137,6 +2326,155 @@ export default function PropertyPreview({
                 className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {saving ? "Rejecting..." : "Reject Property"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Suspend Dialog */}
+      {showSuspendDialog && (
+        <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl p-4 sm:p-5 max-w-md w-full shadow-2xl my-auto max-h-[90vh] flex flex-col box-border overflow-hidden relative">
+            {/* Header */}
+            <div className="flex items-center gap-2.5 mb-3 flex-shrink-0">
+              <div className="inline-flex items-center justify-center h-9 w-9 sm:h-10 sm:w-10 rounded-full bg-orange-100 flex-shrink-0">
+                <Ban className="h-4 w-4 sm:h-5 sm:w-5 text-orange-600" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-base sm:text-lg font-semibold text-gray-900 truncate">Suspend Property</h3>
+                <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5">Temporary removal from public view</p>
+              </div>
+            </div>
+            
+            {/* Warning Box */}
+            <div className="bg-amber-50/80 border border-amber-200/60 rounded-lg p-2.5 sm:p-3 mb-3 flex-shrink-0">
+              <p className="text-[11px] sm:text-xs text-amber-800 leading-relaxed">
+                <strong className="font-semibold">Important:</strong> Suspending this property will remove it from public search and booking. 
+                This is a temporary action to resolve disputes. The property will remain visible to admins only.
+              </p>
+            </div>
+
+            {/* Content Area - Scrollable */}
+            <div className="flex-1 min-h-0 overflow-y-auto mb-3 space-y-3">
+              {/* Reason Textarea */}
+              <div className="flex-shrink-0 min-w-0">
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5">
+                  Suspension Reason <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={suspendReason}
+                  onChange={(e) => setSuspendReason(e.target.value)}
+                  onFocus={(e) => {
+                    // Auto-fill with professional template if empty
+                    if (!suspendReason.trim()) {
+                      setSuspendReason(SUSPENSION_REASON_TEMPLATE);
+                      // Set cursor at the end after auto-fill
+                      setTimeout(() => {
+                        e.target.setSelectionRange(e.target.value.length, e.target.value.length);
+                      }, 0);
+                    }
+                  }}
+                  className="w-full max-w-full min-w-0 px-3 py-2 border border-gray-300 rounded-lg min-h-[100px] max-h-[150px] resize-y overflow-y-auto text-xs sm:text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all box-border"
+                  placeholder="Provide a detailed reason for suspending this property..."
+                />
+                <p className="text-[10px] sm:text-xs text-gray-500 mt-1.5">This reason will be stored in audit history and sent to the owner.</p>
+              </div>
+
+              {/* Checkbox */}
+              <div className="flex-shrink-0">
+                <label className="flex items-center gap-2 cursor-pointer min-w-0">
+                  <input
+                    type="checkbox"
+                    checked={notifyOwnerOnSuspend}
+                    onChange={(e) => setNotifyOwnerOnSuspend(e.target.checked)}
+                    className="rounded border-gray-300 text-orange-600 focus:ring-orange-500 flex-shrink-0 w-4 h-4"
+                  />
+                  <span className="text-xs sm:text-sm text-gray-700">Notify owner about this suspension</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Action Buttons - Fixed at Bottom */}
+            <div className="flex flex-col sm:flex-row gap-2 justify-end flex-shrink-0 pt-3 border-t border-gray-200 mt-auto">
+              <button
+                onClick={() => {
+                  setShowSuspendDialog(false);
+                  setSuspendReason("");
+                  setNotifyOwnerOnSuspend(true);
+                }}
+                className="order-2 sm:order-1 px-3.5 sm:px-4 py-2 text-xs sm:text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors w-full sm:w-auto box-border"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSuspend}
+                disabled={saving || !suspendReason.trim()}
+                className="order-1 sm:order-2 px-3.5 sm:px-4 py-2 text-xs sm:text-sm font-medium text-white bg-orange-600 rounded-lg hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors w-full sm:w-auto box-border"
+              >
+                {saving ? "Suspending..." : "Confirm Suspension"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Unsuspend Dialog */}
+      {showUnsuspendDialog && (
+        <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl p-4 sm:p-5 max-w-md w-full shadow-2xl my-auto max-h-[90vh] flex flex-col box-border overflow-hidden relative">
+            {/* Header */}
+            <div className="flex items-center gap-2.5 mb-3 flex-shrink-0">
+              <div className="inline-flex items-center justify-center h-9 w-9 sm:h-10 sm:w-10 rounded-full bg-blue-100 flex-shrink-0">
+                <CheckCircle2 className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-base sm:text-lg font-semibold text-gray-900 truncate">Unsuspend Property</h3>
+                <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5">Restore property to public view</p>
+              </div>
+            </div>
+            
+            {/* Warning Box */}
+            <div className="bg-blue-50/80 border border-blue-200/60 rounded-lg p-2.5 sm:p-3 mb-3 flex-shrink-0">
+              <p className="text-[11px] sm:text-xs text-blue-800 leading-relaxed">
+                <strong className="font-semibold">Note:</strong> Unsuspending this property will restore it to public search and booking. 
+                The property will be visible to all users and ready for bookings.
+              </p>
+            </div>
+
+            {/* Content Area - Scrollable */}
+            <div className="flex-1 min-h-0 overflow-y-auto mb-3">
+              <div className="flex-shrink-0 min-w-0">
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5">
+                  Unsuspension Reason <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={unsuspendReason}
+                  onChange={(e) => setUnsuspendReason(e.target.value)}
+                  className="w-full max-w-full min-w-0 px-3 py-2 border border-gray-300 rounded-lg min-h-[100px] max-h-[150px] resize-y overflow-y-auto text-xs sm:text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all box-border"
+                  placeholder="Provide a detailed reason for unsuspending this property..."
+                />
+                <p className="text-[10px] sm:text-xs text-gray-500 mt-1.5">This reason will be stored in audit history.</p>
+              </div>
+            </div>
+
+            {/* Action Buttons - Fixed at Bottom */}
+            <div className="flex flex-col sm:flex-row gap-2 justify-end flex-shrink-0 pt-3 border-t border-gray-200 mt-auto">
+              <button
+                onClick={() => {
+                  setShowUnsuspendDialog(false);
+                  setUnsuspendReason("");
+                }}
+                className="order-2 sm:order-1 px-3.5 sm:px-4 py-2 text-xs sm:text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors w-full sm:w-auto box-border"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUnsuspend}
+                disabled={saving || !unsuspendReason.trim()}
+                className="order-1 sm:order-2 px-3.5 sm:px-4 py-2 text-xs sm:text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors w-full sm:w-auto box-border"
+              >
+                {saving ? "Unsuspending..." : "Confirm Unsuspension"}
               </button>
             </div>
           </div>

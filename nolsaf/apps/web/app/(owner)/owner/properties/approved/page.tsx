@@ -147,7 +147,7 @@ export default function ApprovedProps() {
     
     setLoadingReviews(prev => ({ ...prev, [propertyId]: true }));
     try {
-      const response = await api.get(`/property-reviews/${propertyId}`);
+      const response = await api.get(`/api/property-reviews/${propertyId}`);
       const data = response.data;
       
       setReviewsMap(prev => ({
@@ -200,9 +200,11 @@ export default function ApprovedProps() {
   if (loading) {
     return (
       <div className="min-h-[260px] flex flex-col items-center justify-center text-center">
-        <Loader2 className="h-8 w-8 animate-spin text-[#02665e] mb-3" />
-        <h1 className="text-2xl font-semibold text-slate-900">Approved Properties</h1>
-        <div className="text-sm text-slate-600 mt-2">Loading your approved properties…</div>
+        <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-emerald-100 mb-4">
+          <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+        </div>
+        <h1 className="text-3xl font-bold text-slate-900">Approved Properties</h1>
+        <p className="text-sm text-slate-600 mt-2 max-w-2xl">Loading your approved properties…</p>
       </div>
     );
   }
@@ -210,23 +212,26 @@ export default function ApprovedProps() {
   if (list.length === 0) {
     return (
       <div className="min-h-[260px] flex flex-col items-center justify-center text-center">
-        <CheckCircle className="h-12 w-12 text-emerald-500 mb-3" />
-        <h1 className="text-2xl font-semibold text-slate-900">Approved Properties</h1>
-        <div className="text-sm text-slate-600 mt-2">No approved properties yet.</div>
-        <div className="text-xs text-slate-500 mt-1">Once your properties are approved, they will appear here.</div>
+        <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-emerald-100 mb-4">
+          <CheckCircle className="h-8 w-8 text-emerald-600" />
+        </div>
+        <h1 className="text-3xl font-bold text-slate-900">Approved Properties</h1>
+        <p className="text-sm text-slate-600 mt-2 max-w-2xl">No approved properties yet.</p>
+        <p className="text-xs text-slate-500 mt-1 max-w-2xl">Once your properties are approved, they will appear here.</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900">Approved Properties</h1>
-          <p className="text-sm text-slate-600 mt-1">
-            View and manage your approved properties. See reviews and interactions from guests.
-          </p>
+      <div className="flex flex-col items-center justify-center text-center">
+        <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-emerald-100 mb-4">
+          <CheckCircle className="h-8 w-8 text-emerald-600" />
         </div>
+        <h1 className="text-3xl font-bold text-slate-900">Approved Properties</h1>
+        <p className="text-sm text-slate-600 mt-2 max-w-2xl">
+          View and manage your approved properties. See reviews and interactions from guests.
+        </p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">

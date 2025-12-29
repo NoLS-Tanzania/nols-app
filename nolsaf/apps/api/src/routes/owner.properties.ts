@@ -157,11 +157,48 @@ router.get("/mine", (async (req: AuthedRequest, res) => {
     prisma.property.count({ where }),
   ]);
 
+  // For suspended properties, fetch the suspension reason from audit logs
+  const itemsWithSuspensionReason = await Promise.all(
+    items.map(async (item) => {
+      if (item.status === "SUSPENDED" || item.status === "PENDING") {
+        // Check if this PENDING status came from a suspension
+        const lastSuspendAudit = await prisma.auditLog.findFirst({
+          where: {
+            entity: "PROPERTY",
+            entityId: item.id,
+            action: "PROPERTY_SUSPEND",
+          },
+          orderBy: { createdAt: "desc" },
+        });
+
+        if (lastSuspendAudit) {
+          // Parse the afterJson to get the reason
+          let suspensionReason = null;
+          try {
+            const afterJson = typeof lastSuspendAudit.afterJson === 'string' 
+              ? JSON.parse(lastSuspendAudit.afterJson) 
+              : lastSuspendAudit.afterJson;
+            suspensionReason = afterJson?.reason || null;
+          } catch {
+            // If parsing fails, try to get reason from afterJson directly
+            suspensionReason = (lastSuspendAudit.afterJson as any)?.reason || null;
+          }
+
+          return {
+            ...item,
+            suspensionReason,
+          };
+        }
+      }
+      return item;
+    })
+  );
+
   res.json({
     page: Number(page),
     pageSize: Number(pageSize),
     total,
-    items,
+    items: itemsWithSuspensionReason,
   });
 }) as RequestHandler);
 

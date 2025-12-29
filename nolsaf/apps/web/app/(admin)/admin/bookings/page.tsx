@@ -243,25 +243,29 @@ export default function AdminBookingsPage() {
     // Only connect in browser
     if (typeof window === 'undefined') return;
 
-    // Use environment variable or default to empty string (which will use same origin)
-    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "";
-    
-    // Only connect if we have a URL, otherwise skip Socket.IO
+    // For WebSocket connections, we need to connect directly to the API server
+    // because Next.js rewrites don't support WebSocket upgrades
+    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 
+                      process.env.NEXT_PUBLIC_API_URL || 
+                      (typeof window !== 'undefined' ? "http://localhost:4000" : "");
+
+    // Skip if no URL configured
     if (!socketUrl) {
-      // Socket.IO is optional - continue without it
+      console.warn("Socket.IO: No API URL configured, skipping connection");
       return;
     }
 
     let s: Socket;
     try {
+      // Connect directly to API server (WebSocket upgrades don't work through Next.js rewrites)
       s = io(socketUrl, { 
         transports: ['websocket', 'polling'],
-      reconnection: true,
-        reconnectionAttempts: 3,
+        reconnection: true,
+        reconnectionAttempts: 5,
         reconnectionDelay: 2000,
         timeout: 10000,
-      autoConnect: true,
-    });
+        autoConnect: true,
+      });
     socketRef.current = s;
 
       const refresh = async () => {

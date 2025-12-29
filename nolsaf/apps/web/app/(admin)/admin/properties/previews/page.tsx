@@ -109,7 +109,8 @@ export default function PropertyPreviewsPage() {
   useEffect(() => {
     (async () => {
       try {
-        const r = await api.get<Record<string, number>>('/admin/properties/counts');
+        const r = await api.get<Record<string, number>>('/api/admin/properties/counts');
+        console.log('[PropertyPreviews] Counts response:', r.data);
         if (r?.data) {
           setCounts((prev) => {
             const newCounts = { ...prev, ...r.data };
@@ -123,7 +124,9 @@ export default function PropertyPreviewsPage() {
             return newCounts;
           });
         }
-      } catch (e) {
+      } catch (e: any) {
+        console.error('[PropertyPreviews] Failed to load counts:', e);
+        console.error('[PropertyPreviews] Error response:', e.response?.data);
         // ignore if backend doesn't expose counts
       }
     })();
@@ -139,16 +142,27 @@ export default function PropertyPreviewsPage() {
       if (searchQuery.trim()) {
         params.q = searchQuery.trim();
       }
-      if (regionFilter) {
-        params.regionId = regionFilter;
+      if (regionFilter && regionFilter !== "") {
+        // Find the region by ID (slug) and send the name for filtering
+        const selectedRegion = REGIONS.find(r => r.id === regionFilter);
+        if (selectedRegion) {
+          params.regionName = selectedRegion.name;
+        }
       }
-      if (typeFilter) {
+      if (typeFilter && typeFilter !== "") {
         params.type = typeFilter;
       }
-      if (ownerFilter) {
-        params.ownerId = ownerFilter;
+      if (ownerFilter && ownerFilter !== "") {
+        params.ownerId = Number(ownerFilter);
       }
-      const response = await api.get("/admin/properties", { params });
+      const response = await api.get("/api/admin/properties", { params });
+      console.log('[PropertyPreviews] API Response:', {
+        statusFilter,
+        params,
+        itemsCount: response.data?.items?.length || 0,
+        total: response.data?.total || 0,
+        firstItem: response.data?.items?.[0] || null,
+      });
       setProperties(response.data.items || []);
     } catch (err: any) {
       console.error("Failed to load properties:", err);
@@ -384,7 +398,7 @@ export default function PropertyPreviewsPage() {
             <p className="text-gray-500">No properties available for preview</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-5">
             {properties.map((property) => {
               const locationParts = [
                 property.location?.city,
@@ -491,11 +505,11 @@ export default function PropertyPreviewsPage() {
                         );
                       })()}
 
-                      {/* View Full Preview */}
+                      {/* Full Preview */}
                       <div className="mt-2">
                         <div className="inline-flex items-center gap-2 w-full justify-center rounded-xl bg-[#02665e] text-white py-2.5 text-sm font-semibold transition-colors group-hover:bg-[#014e47]">
                     <ScanEye className="h-4 w-4" />
-                    <span>View Full Preview</span>
+                    <span>Full Preview</span>
                         </div>
                       </div>
                   </div>

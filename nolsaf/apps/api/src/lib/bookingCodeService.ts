@@ -294,10 +294,12 @@ export async function sendBookingCodeNotification(
           if (smsResult.success) {
             smsSent = true;
             // Mark code as issued
-            await prisma.checkinCode.update({
-              where: { id: booking.code.id },
-              data: { issuedAt: new Date() },
-            });
+            if (booking.code) {
+              await prisma.checkinCode.update({
+                where: { id: booking.code.id },
+                data: { issuedAt: new Date() },
+              });
+            }
           } else {
             errors.push(`SMS failed: ${smsResult.error || "Unknown error"}`);
           }
@@ -317,7 +319,7 @@ export async function sendBookingCodeNotification(
           await sendMail(email, notification.email.subject, notification.email.html);
           emailSent = true;
           // Mark code as issued if not already
-          if (!booking.code.issuedAt) {
+          if (booking.code && !booking.code.issuedAt) {
             await prisma.checkinCode.update({
               where: { id: booking.code.id },
               data: { issuedAt: new Date() },
@@ -340,23 +342,43 @@ export async function sendBookingCodeNotification(
 
 /**
  * Validate a booking code and return booking details
+ * @param code - The booking code to validate
+ * @param ownerId - Optional owner ID to verify ownership
+ * @param allowUsed - If true, allows validation of USED codes (for cancellation checks). Default: false
  */
 export async function validateBookingCode(
   code: string,
-  ownerId?: number
+  ownerId?: number,
+  allowUsed: boolean = false
 ): Promise<{
   valid: boolean;
   booking?: any;
   error?: string;
 }> {
   try {
-    const codeHash = hashCode(code.toUpperCase().trim());
+    if (!code || typeof code !== 'string') {
+      return { valid: false, error: "Code is required" };
+    }
+
+    const normalizedCode = code.toUpperCase().trim();
+    if (!normalizedCode) {
+      return { valid: false, error: "Code cannot be empty" };
+    }
+
+    const codeHash = hashCode(normalizedCode);
     
+    console.log(`[validateBookingCode] Looking up code: "${normalizedCode}", hash: ${codeHash.substring(0, 16)}..., allowUsed: ${allowUsed}`);
+    
+    // Try to find the code by multiple methods:
+    // 1. Direct code match (case-sensitive)
+    // 2. Code hash match (most reliable)
+    // 3. codeVisible match (backward compatibility)
     const checkinCode = await prisma.checkinCode.findFirst({
       where: {
         OR: [
-          { code: code.toUpperCase().trim() },
+          { code: normalizedCode },
           { codeHash },
+          { codeVisible: normalizedCode },
         ],
       },
       include: {
@@ -374,19 +396,57 @@ export async function validateBookingCode(
     });
 
     if (!checkinCode) {
+      console.error(`[validateBookingCode] Code not found: ${normalizedCode} (hash: ${codeHash})`);
       return { valid: false, error: "Invalid booking code" };
     }
 
-    if (checkinCode.status !== "ACTIVE") {
+    // Check if booking exists
+    if (!checkinCode.booking) {
+      console.error(`[validateBookingCode] Code found but booking missing: ${checkinCode.id}`);
+      return { valid: false, error: "Booking not found for this code" };
+    }
+
+    // Check if property exists
+    if (!checkinCode.booking.property) {
+      console.error(`[validateBookingCode] Booking found but property missing: ${checkinCode.booking.id}`);
+      return { valid: false, error: "Property not found for this booking" };
+    }
+
+    // Check code status - reject USED codes unless explicitly allowed (for cancellation checks)
+    if (checkinCode.status === "USED" && !allowUsed) {
+      console.log(`[validateBookingCode] Code already used: ${normalizedCode}`);
       return {
         valid: false,
-        error: checkinCode.status === "USED" ? "This code has already been used" : "This code has been voided",
+        error: "This code has already been validated and cannot be used again",
+      };
+    }
+
+    if (checkinCode.status === "VOID") {
+      return {
+        valid: false,
+        error: "This code has been voided",
+      };
+    }
+
+    if (checkinCode.status !== "ACTIVE" && checkinCode.status !== "USED") {
+      return {
+        valid: false,
+        error: `Invalid code status: ${checkinCode.status}`,
       };
     }
 
     // If ownerId is provided, verify the booking belongs to this owner
-    if (ownerId && checkinCode.booking.property.ownerId !== ownerId) {
-      return { valid: false, error: "This booking does not belong to your property" };
+    if (ownerId !== undefined && ownerId !== null) {
+      const propertyOwnerId = checkinCode.booking.property?.ownerId;
+      if (!propertyOwnerId) {
+        console.error(`[validateBookingCode] Property ownerId missing: ${checkinCode.booking.property?.id}`);
+        return { valid: false, error: "Property owner information is missing" };
+      }
+      
+      if (Number(propertyOwnerId) !== Number(ownerId)) {
+        console.error(`[validateBookingCode] Owner mismatch: expected ${ownerId}, got ${propertyOwnerId} for code ${normalizedCode}`);
+        return { valid: false, error: "This booking does not belong to your property" };
+      }
     }
 
     return {
@@ -394,6 +454,7 @@ export async function validateBookingCode(
       booking: checkinCode.booking,
     };
   } catch (error: any) {
+    console.error(`[validateBookingCode] Error validating code:`, error);
     return { valid: false, error: error.message || "Validation failed" };
   }
 }

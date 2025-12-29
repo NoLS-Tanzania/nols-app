@@ -255,24 +255,49 @@ export default function AdminRevenue() {
 
   // 🔌 Socket.io: refresh when an invoice is marked PAID by webhook/admin action
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
     // Use direct API URL for Socket.IO in browser to ensure WebSocket works in dev
-    const url = typeof window !== 'undefined'
-      ? (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000")
-      : (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "");
-    const s: Socket = io(url, { transports: ['websocket'] });
+    const url = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+    
+    let s: Socket | null = null;
+    try {
+      s = io(url, { 
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+        reconnectionAttempts: 3,
+        reconnectionDelay: 2000,
+        timeout: 10000,
+        autoConnect: true,
+      });
 
-    const refresh = () => {
-      load();
-      fetchCounts();
-    };
+      const refresh = () => {
+        load();
+        fetchCounts();
+      };
 
-    s.on("admin:invoice:paid", refresh);
-    s.on("admin:invoice:status", refresh);
+      s.on("admin:invoice:paid", refresh);
+      s.on("admin:invoice:status", refresh);
+      s.on("connect_error", (err) => {
+        console.warn("Socket.IO connection error:", err.message);
+      });
+      s.on("disconnect", (reason) => {
+        console.log("Socket.IO disconnected:", reason);
+      });
+    } catch (err) {
+      console.error("Failed to initialize Socket.IO:", err);
+    }
 
     return () => {
-      s.off("admin:invoice:paid", refresh);
-      s.off("admin:invoice:status", refresh);
-      s.disconnect();
+      if (s) {
+        try {
+          s.off("admin:invoice:paid");
+          s.off("admin:invoice:status");
+          s.disconnect();
+        } catch (err) {
+          console.warn("Error cleaning up Socket.IO:", err);
+        }
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -722,10 +747,20 @@ export default function AdminRevenue() {
                   });
 
                   if (!response.ok) {
-                    throw new Error("Export failed");
+                    const errorText = await response.text().catch(() => "Unknown error");
+                    console.error("CSV export failed:", response.status, errorText);
+                    throw new Error(`Export failed: ${response.status} ${errorText}`);
                   }
 
                   const blob = await response.blob();
+                  
+                  // Check if blob is actually CSV (not an error response)
+                  if (blob.type && !blob.type.includes('csv') && !blob.type.includes('text')) {
+                    const text = await blob.text();
+                    console.error("CSV export returned non-CSV:", text);
+                    throw new Error("Server returned an error instead of CSV");
+                  }
+                  
                   const url = URL.createObjectURL(blob);
                   const a = document.createElement("a");
                   a.href = url;
@@ -734,9 +769,9 @@ export default function AdminRevenue() {
                   a.click();
                   document.body.removeChild(a);
                   URL.revokeObjectURL(url);
-                } catch (err) {
+                } catch (err: any) {
                   console.error("Failed to export CSV:", err);
-                  alert("Failed to export CSV. Please try again.");
+                  alert(`Failed to export CSV: ${err.message || "Please try again."}`);
                 }
               }}
               className="flex items-center gap-2 px-4 py-2.5 bg-[#02665e] text-white rounded-lg hover:bg-[#02665e]/90 transition-all duration-200 shadow-sm hover:shadow-md font-medium text-sm sm:text-base whitespace-nowrap"

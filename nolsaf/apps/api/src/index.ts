@@ -248,13 +248,17 @@ app.use("/uploads/cloudinary", upCld);
 app.use("/uploads/s3", upS3);
 app.use("/owner/properties", ownerProperties);
 app.use("/owner/properties", ownerPropLayout);
+// also expose API-prefixed route so frontend using `/api/owner/properties` works
+app.use("/api/owner/properties", ownerProperties);
+app.use("/api/owner/properties", ownerPropLayout);
 app.use("/account", account as express.RequestHandler);
 // Prefer API-prefixed account routes for the web app (works with Next rewrites + cookies)
 app.use("/api/account", account as express.RequestHandler);
 app.use("/api", publicEmailVerify);
 app.use('/api/auth', authRoutes);
 app.use('/api/owner/reports', requireRole('OWNER') as express.RequestHandler, ownerReports);
-app.use('/api/admin/properties', requireRole('ADMIN') as express.RequestHandler, adminPropsRoutes);
+// Removed duplicate registration - using adminPropertiesRouter below instead
+// app.use('/api/admin/properties', requireRole('ADMIN') as express.RequestHandler, adminPropsRoutes);
 app.use('/api/conversations', requireRole() as express.RequestHandler, conversationsRoutes);
 app.use('/api/bookings', requireRole() as express.RequestHandler, bookingsRoutes);
 app.use("/admin/bookings", adminBookingsRouter);
@@ -302,6 +306,8 @@ app.use("/api/payments/azampay", azampayPaymentsRouter);
 app.use("/admin/owners", adminOwnersRouter);
 // also expose API-prefixed route so frontend using `/api/admin/owners` works
 app.use('/api/admin/owners', adminOwnersRouter as express.RequestHandler);
+// Register admin properties routes
+// The router already includes requireAuth and requireAdmin middleware
 app.use("/admin/properties", adminPropertiesRouter);
 // also expose API-prefixed route so frontend using `/api/admin/properties` works
 app.use('/api/admin/properties', adminPropertiesRouter as express.RequestHandler);

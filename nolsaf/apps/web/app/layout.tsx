@@ -10,7 +10,7 @@ import ToastContainer from "../components/ToastContainer";
  */
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body>
         <div className="min-h-screen bg-neutral-50">
           {children}

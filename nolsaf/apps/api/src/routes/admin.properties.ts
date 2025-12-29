@@ -8,6 +8,7 @@ import {
   ApprovePropertyInput,
   RejectPropertyInput,
   SuspendPropertyInput,
+  UnsuspendPropertyInput,
 } from "../schemas/adminPropertySchemas.js";
 import { toAdminPropertyDTO } from "../lib/adminPropertyDto.js";
 import { emitEvent } from "../lib/events.js";
@@ -27,27 +28,78 @@ function broadcastStatus(req: any, payload: any) {
   if (io) io.emit("admin:property:status", payload);
 }
 
-/** GET /admin/properties?status=&q=&regionId=&type=&ownerId=&page=&pageSize= */
+/** GET /admin/properties?status=&q=&regionId=&regionName=&type=&ownerId=&page=&pageSize= */
 router.get("/", (async (req: AuthedRequest, res) => {
   try {
-    const { status, q, regionId, type, ownerId, page = "1", pageSize = "20" } =
+    const { status, q, regionId, regionName, type, ownerId, page = "1", pageSize = "20" } =
       req.query as any;
 
     const where: any = {};
-    if (status) where.status = status;
-    if (regionId) where.regionId = regionId;
-    if (type) where.type = type;
-    if (ownerId) where.ownerId = Number(ownerId);
+    
+    // Build base filters
+    if (status && status !== "ALL") {
+      where.status = status;
+    }
+    if (regionId) {
+      const regionIdNum = Number(regionId);
+      if (!isNaN(regionIdNum)) {
+        where.regionId = regionIdNum;
+      }
+    }
+    if (regionName) {
+      where.regionName = { contains: String(regionName), mode: "insensitive" };
+    }
+    if (type) {
+      where.type = type;
+    }
+    if (ownerId) {
+      const ownerIdNum = Number(ownerId);
+      if (!isNaN(ownerIdNum)) {
+        where.ownerId = ownerIdNum;
+      }
+    }
+    
+    // If search query is provided, combine with existing filters using AND
     if (q) {
-      // MySQL doesn't support mode: "insensitive", so we use contains which is case-sensitive
       const searchTerm = String(q).trim();
       if (searchTerm) {
-        where.OR = [
-          { title: { contains: searchTerm } },
-          { regionName: { contains: searchTerm } },
-          { district: { contains: searchTerm } },
-        ];
+        // Save regionName filter separately if it exists
+        const savedRegionName = where.regionName;
+        delete where.regionName;
+        
+        // If we have other filters, combine them with search using AND
+        const hasOtherFilters = Object.keys(where).length > 0;
+        
+        // Clear where to rebuild
+        const otherFilters = hasOtherFilters ? { ...where } : null;
+        Object.keys(where).forEach(key => delete where[key]);
+        
+        // Build the search conditions
+        const searchConditions = {
+          OR: [
+            { title: { contains: searchTerm, mode: "insensitive" } },
+            { regionName: { contains: searchTerm, mode: "insensitive" } },
+            { district: { contains: searchTerm, mode: "insensitive" } },
+          ],
+        };
+        
+        if (hasOtherFilters || savedRegionName) {
+          // Combine filters with search using AND
+          const baseFilters: any = otherFilters || {};
+          if (savedRegionName) {
+            // If we have a regionName filter, it should match exactly (not via search)
+            baseFilters.regionName = savedRegionName;
+          }
+          where.AND = [
+            baseFilters,
+            searchConditions,
+          ];
+        } else {
+          // No existing filters, just use OR for search
+          where.OR = searchConditions.OR;
+        }
       }
+      // If searchTerm is empty after trim, where already has the base filters, so we're good
     }
 
     const skip = (Number(page) - 1) * Number(pageSize);
@@ -57,6 +109,9 @@ router.get("/", (async (req: AuthedRequest, res) => {
     let total = 0;
 
     try {
+      console.log('[GET /admin/properties] Executing Prisma query with where:', JSON.stringify(where, null, 2));
+      console.log('[GET /admin/properties] Skip:', skip, 'Take:', take);
+      
       [items, total] = await Promise.all([
         prisma.property.findMany({
           where,
@@ -67,12 +122,15 @@ router.get("/", (async (req: AuthedRequest, res) => {
         }),
         prisma.property.count({ where }),
       ]);
+      
+      console.log('[GET /admin/properties] Query succeeded - items:', items.length, 'total:', total);
     } catch (dbError: any) {
       console.error('Database query failed in GET /admin/properties:', dbError);
       console.error('Error details:', {
         code: dbError?.code,
         message: dbError?.message,
         meta: dbError?.meta,
+        stack: dbError?.stack,
       });
       
       // Check for Prisma errors
@@ -134,6 +192,35 @@ router.get("/", (async (req: AuthedRequest, res) => {
       items: AdminPropertyListItem[];
     }
 
+    // Debug logging
+    console.log('[GET /admin/properties] Query params:', { status, q, regionId, type, ownerId, page, pageSize });
+    console.log('[GET /admin/properties] Where clause:', JSON.stringify(where, null, 2));
+    console.log('[GET /admin/properties] Found items:', items.length, 'Total:', total);
+    
+    // Also check what the database actually has
+    if (status) {
+      const directCount = await prisma.property.count({ where: { status: status as any } }).catch(() => 0);
+      console.log(`[GET /admin/properties] Direct count for status="${status}":`, directCount);
+    }
+    
+    if (items.length > 0) {
+      console.log('[GET /admin/properties] First item sample:', {
+        id: items[0]?.id,
+        title: items[0]?.title,
+        status: items[0]?.status,
+        regionName: items[0]?.regionName,
+        district: items[0]?.district,
+      });
+    } else if (total === 0 && status) {
+      // If no items found but we're filtering by status, let's see what statuses actually exist
+      const allStatuses = await prisma.property.findMany({
+        select: { status: true },
+        distinct: ['status'],
+        take: 10,
+      }).catch(() => []);
+      console.log('[GET /admin/properties] Available statuses in DB:', allStatuses.map((p: any) => p.status));
+    }
+
     const response: AdminPropertyListResponse = {
       page: Number(page),
       pageSize: take,
@@ -154,6 +241,7 @@ router.get("/", (async (req: AuthedRequest, res) => {
       })),
     };
 
+    console.log('[GET /admin/properties] Response items count:', response.items.length);
     res.json(response);
   } catch (err: any) {
     // Ultimate fallback - catch ANY error
@@ -184,19 +272,91 @@ router.get("/", (async (req: AuthedRequest, res) => {
 }) as RequestHandler);
 
 /** GET /admin/properties/counts - return counts by status for quick badges */
-router.get("/counts", (async (_req: AuthedRequest, res) => {
+router.get("/counts", (async (req: AuthedRequest, res) => {
   try {
+    console.log('[GET /admin/properties/counts] Request received');
     const statuses = ["DRAFT","PENDING","APPROVED","NEEDS_FIXES","REJECTED","SUSPENDED"] as const;
     const results: Record<string, number> = {};
+    
     await Promise.all(statuses.map(async (s) => {
-      const c = await prisma.property.count({ where: { status: s as any } });
-      results[s] = c;
+      try {
+        const c = await prisma.property.count({ where: { status: s as any } });
+        results[s] = c;
+      } catch (countErr: any) {
+        console.error(`[GET /admin/properties/counts] Failed to count status ${s}:`, countErr);
+        results[s] = 0;
+      }
     }));
+    
+    console.log('[GET /admin/properties/counts] Results:', results);
+    res.setHeader('Content-Type', 'application/json');
     res.json(results);
   } catch (err: any) {
     console.error("/admin/properties/counts failed:", err?.message || err);
-    // Fail-open with zeros to avoid breaking UI
-    res.json({ DRAFT:0, PENDING:0, APPROVED:0, NEEDS_FIXES:0, REJECTED:0, SUSPENDED:0 });
+    console.error("/admin/properties/counts error stack:", err?.stack);
+    // Fail-open with zeros to avoid breaking UI - always return JSON
+    res.setHeader('Content-Type', 'application/json');
+    res.status(200).json({ DRAFT:0, PENDING:0, APPROVED:0, NEEDS_FIXES:0, REJECTED:0, SUSPENDED:0 });
+  }
+}) as RequestHandler);
+
+/** GET /admin/properties/:id/audit-history - Get audit history for a property */
+router.get("/:id/audit-history", (async (req: AuthedRequest, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid property ID" });
+
+    console.log(`[audit-history] Fetching audit history for property ID: ${id}`);
+    
+    const audits = await prisma.auditLog.findMany({
+      where: {
+        entity: "PROPERTY",
+        entityId: id,
+      },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+      include: {
+        actor: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    console.log(`[audit-history] Found ${audits.length} audit logs for property ${id}`);
+
+    // Transform to ensure consistent response format
+    const formattedAudits = audits.map((audit) => ({
+      id: audit.id.toString(),
+      actorId: audit.actorId,
+      actorRole: audit.actorRole,
+      action: audit.action,
+      entity: audit.entity,
+      entityId: audit.entityId,
+      beforeJson: audit.beforeJson,
+      afterJson: audit.afterJson,
+      ip: audit.ip,
+      ua: audit.ua,
+      createdAt: audit.createdAt.toISOString(),
+      actor: audit.actor ? {
+        id: audit.actor.id,
+        name: audit.actor.name,
+        email: audit.actor.email,
+      } : null,
+    }));
+
+    console.log(`[audit-history] Returning ${formattedAudits.length} formatted audit logs`);
+    res.json(formattedAudits);
+  } catch (err: any) {
+    console.error("Failed to fetch audit history:", {
+      error: err?.message || String(err),
+      stack: err?.stack,
+      propertyId: req.params.id,
+    });
+    res.status(500).json({ error: "Failed to fetch audit history" });
   }
 }) as RequestHandler);
 
@@ -273,42 +433,26 @@ router.patch("/:id", (async (req: AuthedRequest, res) => {
     });
 
     // Update room prices if provided
+    // Rooms are stored in the roomsSpec JSON field, not a separate Room table
     if (roomPrices && typeof roomPrices === 'object') {
-      const roomUpdatePromises = Object.entries(roomPrices).map(async ([roomId, price]) => {
-        const roomIdNum = Number(roomId);
-        if (!Number.isFinite(roomIdNum) || !Number.isFinite(Number(price))) return;
-        
-        try {
-          await prisma.room.updateMany({
-            where: { id: roomIdNum, propertyId: id },
-            data: { pricePerNight: Number(price) },
-          });
-        } catch (e) {
-          console.warn(`Failed to update room ${roomIdNum}:`, e);
-        }
-      });
-      
-      await Promise.all(roomUpdatePromises);
-      
-      // Also update roomsSpec JSON field to reflect new prices
-      // Fetch updated rooms from database to get accurate prices
-      const updatedRooms = await prisma.room.findMany({
-        where: { propertyId: id },
-        select: { id: true, pricePerNight: true },
-      });
-      
-      if (property.roomsSpec && Array.isArray(property.roomsSpec) && updatedRooms.length > 0) {
-        const updatedRoomsSpec = property.roomsSpec.map((room: any, index: number) => {
-          // Try to match by room ID first, then by index
-          const matchingRoom = updatedRooms.find((r: any) => 
-            room.id && Number(r.id) === Number(room.id)
-          ) || updatedRooms[index];
+      if (property.roomsSpec && Array.isArray(property.roomsSpec)) {
+        const roomsArray = property.roomsSpec as any[];
+        const updatedRoomsSpec = roomsArray.map((room: any, index: number) => {
+          // Try to match by room ID or index
+          const roomId = room.id ? String(room.id) : null;
           
-          if (matchingRoom && matchingRoom.pricePerNight !== null) {
+          // Check if this room's price should be updated
+          const priceUpdate = roomId && roomPrices[roomId] !== undefined
+            ? roomPrices[roomId]
+            : roomPrices[index] !== undefined
+            ? roomPrices[index]
+            : null;
+          
+          if (priceUpdate !== null && Number.isFinite(Number(priceUpdate))) {
             return {
               ...room,
-              pricePerNight: Number(matchingRoom.pricePerNight),
-              price: Number(matchingRoom.pricePerNight),
+              pricePerNight: Number(priceUpdate),
+              price: Number(priceUpdate),
             };
           }
           return room;
@@ -411,8 +555,14 @@ router.post("/:id/approve", (async (req: AuthedRequest, res) => {
     select: { status: true, ownerId: true, title: true },
   });
   if (!before) { res.status(404).json({ error: "Not found" }); return; }
-  if (!["PENDING", "SUSPENDED", "REJECTED"].includes(before.status)) {
-    res.status(400).json({ error: `Cannot approve from status ${before.status}` }); return;
+  // Approve can only be used for initial approval (PENDING) or re-approval after rejection (REJECTED)
+  // Once approved, properties can only be suspended/unsuspended, not re-approved
+  // To restore a suspended property, use unsuspend instead
+  if (!["PENDING", "REJECTED"].includes(before.status)) {
+    res.status(400).json({ 
+      error: `Cannot approve from status ${before.status}. Approval is only available for PENDING or REJECTED properties. To restore a SUSPENDED property, use unsuspend instead.` 
+    }); 
+    return;
   }
 
   const updated = await prisma.property.update({
@@ -485,8 +635,12 @@ router.post("/:id/reject", (async (req: AuthedRequest, res) => {
     select: { status: true, ownerId: true, title: true },
   });
   if (!before) return res.status(404).json({ error: "Not found" });
-  if (!["PENDING", "APPROVED"].includes(before.status)) {
-    return res.status(400).json({ error: `Cannot reject from status ${before.status}` });
+  // Reject can only be used for properties awaiting initial approval (PENDING)
+  // Once approved, properties can only be suspended/unsuspended, not rejected
+  if (before.status !== "PENDING") {
+    return res.status(400).json({ 
+      error: `Cannot reject from status ${before.status}. Rejection is only available for PENDING properties awaiting initial approval.` 
+    });
   }
 
   const updated = await prisma.property.update({
@@ -545,18 +699,106 @@ router.post("/:id/suspend", (async (req: AuthedRequest, res) => {
     select: { status: true, ownerId: true, title: true },
   });
   if (!before) return res.status(404).json({ error: "Not found" });
+  
+  // If already suspended, return error
   if (before.status === "SUSPENDED")
-    return res.status(400).json({ error: "Already suspended" });
-
+    return res.status(400).json({ error: "Property is already suspended" });
+  
+  // Only APPROVED properties can be suspended
+  // Once approved, properties can only be suspended/unsuspended, not rejected
+  if (before.status !== "APPROVED") {
+    return res.status(400).json({ 
+      error: `Cannot suspend property with status ${before.status}. Only APPROVED properties can be suspended.` 
+    });
+  }
+  
+  // Change status from APPROVED to SUSPENDED
+  const newStatus = "SUSPENDED";
+  
   const updated = await prisma.property.update({
     where: { id },
-    data: { status: "SUSPENDED" },
+    data: { status: newStatus },
   });
 
   const payload = {
     id,
     from: before.status,
-    to: "SUSPENDED",
+    to: newStatus,
+    by: req.user!.id,
+    reason: parse.data.reason,
+  };
+
+  const promises: Promise<any>[] = [
+    emitEvent("property.status.changed", payload),
+    invalidateAdminPropertyQueues(),
+    invalidateOwnerPropertyLists(before.ownerId),
+    // Always notify owner immediately when property is suspended
+    notifyOwner(before.ownerId, "property_suspended", {
+      propertyId: id,
+      propertyTitle: before.title,
+      reason: parse.data.reason,
+    }),
+    (async () => {
+      const auditResult = await auditLog({
+        actorId: req.user!.id,
+        actorRole: req.user!.role,
+        action: "PROPERTY_SUSPEND",
+        entity: "PROPERTY",
+        entityId: id,
+        before,
+        after: { status: newStatus, reason: parse.data.reason },
+        ip: (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket?.remoteAddress || req.ip || null,
+        ua: (req.headers["user-agent"] as string) || null,
+      });
+      if (!auditResult) {
+        console.error(`[suspend] Failed to create audit log for property ${id}`);
+      } else {
+        console.log(`[suspend] Successfully created audit log for property ${id}, audit ID: ${auditResult.id}`);
+      }
+      return auditResult;
+    })(),
+  ];
+
+  await Promise.all(promises);
+
+  broadcastStatus(req, payload);
+  res.json({ ok: true, id: updated.id, status: updated.status });
+}) as RequestHandler);
+
+/** POST /admin/properties/:id/unsuspend { reason } */
+router.post("/:id/unsuspend", (async (req: AuthedRequest, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid property ID" });
+  
+  const parse = UnsuspendPropertyInput.safeParse(req.body);
+  if (!parse.success) {
+    const errors = parse.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
+    return res.status(400).json({ error: `Validation failed: ${errors}` });
+  }
+
+  const before = await prisma.property.findFirst({
+    where: { id },
+    select: { status: true, ownerId: true, title: true },
+  });
+  if (!before) return res.status(404).json({ error: "Not found" });
+  
+  // Can only unsuspend from SUSPENDED status
+  // Once approved, properties can only be suspended/unsuspended, not rejected
+  if (before.status !== "SUSPENDED") {
+    return res.status(400).json({ 
+      error: `Cannot unsuspend from ${before.status}. Property must be SUSPENDED to be unsuspended.` 
+    });
+  }
+
+  const updated = await prisma.property.update({
+    where: { id },
+    data: { status: "APPROVED" },
+  });
+
+  const payload = { 
+    id, 
+    from: before.status, 
+    to: "APPROVED", 
     by: req.user!.id,
     reason: parse.data.reason,
   };
@@ -565,54 +807,11 @@ router.post("/:id/suspend", (async (req: AuthedRequest, res) => {
     emitEvent("property.status.changed", payload),
     invalidateAdminPropertyQueues(),
     invalidateOwnerPropertyLists(before.ownerId),
-    notifyOwner(before.ownerId, "property_suspended", {
-      propertyId: id,
+    notifyOwner(before.ownerId, "property_unsuspended", { 
+      propertyId: id, 
       propertyTitle: before.title,
       reason: parse.data.reason,
     }),
-    auditLog({
-      actorId: req.user!.id,
-      actorRole: req.user!.role,
-      action: "PROPERTY_SUSPEND",
-      entity: "PROPERTY",
-      entityId: id,
-      before,
-      after: { status: "SUSPENDED" },
-      ip: req.ip,
-      ua: req.headers["user-agent"] as string,
-    }),
-  ]);
-
-  broadcastStatus(req, payload);
-  res.json({ ok: true, id: updated.id, status: updated.status });
-}) as RequestHandler);
-
-/** POST /admin/properties/:id/unsuspend */
-router.post("/:id/unsuspend", (async (req: AuthedRequest, res) => {
-  const id = Number(req.params.id);
-  if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid property ID" });
-  const before = await prisma.property.findFirst({
-    where: { id },
-    select: { status: true, ownerId: true, title: true },
-  });
-  if (!before) return res.status(404).json({ error: "Not found" });
-  if (before.status !== "SUSPENDED")
-    return res
-      .status(400)
-      .json({ error: `Cannot unsuspend from ${before.status}` });
-
-  const updated = await prisma.property.update({
-    where: { id },
-    data: { status: "APPROVED" },
-  });
-
-  const payload = { id, from: "SUSPENDED", to: "APPROVED", by: req.user!.id };
-
-  await Promise.all([
-    emitEvent("property.status.changed", payload),
-    invalidateAdminPropertyQueues(),
-    invalidateOwnerPropertyLists(before.ownerId),
-    notifyOwner(before.ownerId, "property_unsuspended", { propertyId: id, propertyTitle: before.title }),
     auditLog({
       actorId: req.user!.id,
       actorRole: req.user!.role,
@@ -620,7 +819,7 @@ router.post("/:id/unsuspend", (async (req: AuthedRequest, res) => {
       entity: "PROPERTY",
       entityId: id,
       before,
-      after: { status: "APPROVED" },
+      after: { status: "APPROVED", reason: parse.data.reason },
       ip: req.ip,
       ua: req.headers["user-agent"] as string,
     }),

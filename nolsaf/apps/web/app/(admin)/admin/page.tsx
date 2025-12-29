@@ -220,10 +220,17 @@ export default function AdminHome() {
 
   // Refresh KPIs and invoices when payments land
   useEffect(() => {
-    // Use direct API URL for Socket.IO in browser to ensure WebSocket works in dev
-    const url = typeof window !== 'undefined'
-      ? (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000")
-      : (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "");
+    // For WebSocket connections, we need to connect directly to the API server
+    // because Next.js rewrites don't support WebSocket upgrades
+    const url = process.env.NEXT_PUBLIC_SOCKET_URL || 
+                process.env.NEXT_PUBLIC_API_URL || 
+                (typeof window !== 'undefined' ? "http://localhost:4000" : "");
+    
+    if (!url) {
+      console.warn("Socket.IO: No API URL configured, skipping connection");
+      return;
+    }
+    
     const s: Socket = io(url);
     const onPaid = () => { loadKpis(); loadInvoices(); };
     s.on("admin:invoice:paid", onPaid);
@@ -466,45 +473,89 @@ export default function AdminHome() {
                 </div>
               </div>
 
-              {/* Validation column: move validation UI into a distinct third column for clarity */}
+              {/* Validation column: modernized with success message */}
               {/* Third column */}
               <div className="md:pl-4 md:border-l-2 md:border-gray-200">
-                <div className="flex items-center mb-2">
-                  <div className="flex items-center gap-2 font-medium text-gray-800">
-                    <FileCheck2 className="h-4 w-4" /> Validation
+                <div className="flex items-center mb-3">
+                  <div className="flex items-center gap-2 font-semibold text-gray-800">
+                    <FileCheck2 className="h-5 w-5 text-blue-600" /> Validation
                   </div>
                 </div>
-                <div ref={validationRef} className="min-w-0">
-                  <div className="flex items-center gap-2 min-w-0">
+                <div ref={validationRef} className="min-w-0 space-y-3 overflow-hidden">
+                  {/* Input field - centered */}
+                  <div className="flex justify-center w-full">
                     <input
                       value={validationCode}
                       onChange={(e)=>setValidationCode(e.target.value)}
                       placeholder="Paste validation code"
-                      className="flex-1 min-w-0 px-2 py-1 border rounded text-sm"
+                      className="w-full max-w-xs px-4 py-2.5 text-sm font-mono tracking-wider border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all duration-200 placeholder:text-gray-400 bg-white text-center"
                       aria-label="Validation code"
                     />
-                    {/* no clear button by design; keep input value while validating */}
                   </div>
-                  {loadingValidation ? <div className="text-sm text-gray-500 mt-2">Validating…</div> : null}
-                  {validationResult ? (
-                    <div className="mt-3 rounded border p-2 flex items-center justify-between">
-                      <div>
-                        <div className="text-sm font-medium">{validationResult.invoiceNumber ?? `#${validationResult.id}`}</div>
-                        <div className="text-xs text-gray-500">Amount: {validationResult.amount}</div>
+
+                  {/* Loading state */}
+                  {loadingValidation && (
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <div className="flex gap-1">
+                        <div className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-bounce [animation-delay:-0.3s]" />
+                        <div className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-bounce [animation-delay:-0.15s]" />
+                        <div className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-bounce" />
                       </div>
-                      <div className="flex items-center gap-2">
+                      <span>Validating code…</span>
+                    </div>
+                  )}
+
+                  {/* Success message when code is found */}
+                  {validationResult && !loadingValidation && (
+                    <div className="w-full rounded-lg bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 p-3 animate-in fade-in slide-in-from-top-2 duration-300 overflow-hidden">
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="h-5 w-5 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
+                          <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </div>
+                        <p className="text-sm font-semibold text-green-800">Code validated successfully!</p>
+                      </div>
+                      <div className="w-full rounded-lg bg-white border border-green-200 p-3 mb-3">
+                        <div className="text-sm font-medium text-gray-800 mb-1 truncate">
+                          {validationResult.invoiceNumber ?? `#${validationResult.id}`}
+                        </div>
+                        <div className="text-xs text-gray-600">
+                          Amount: <span className="font-semibold">{validationResult.amount}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 w-full">
                         <button
-                          className="btn btn-outline text-xs"
-                          onClick={()=>{ sendAnalytics('invoice.validate_click', { id: validationResult.id }); setConfirmPayload({ action: 'validate', invId: validationResult.id }); setConfirmOpen(true); }}
+                          className="flex-1 px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-xs font-semibold shadow-sm hover:shadow transition-all duration-200 active:scale-95 whitespace-nowrap"
+                          onClick={()=>{ 
+                            sendAnalytics('invoice.validate_click', { id: validationResult.id }); 
+                            setConfirmPayload({ action: 'validate', invId: validationResult.id }); 
+                            setConfirmOpen(true); 
+                          }}
                         >
                           Mark Validated
                         </button>
-                        <Link href={`/admin/revenue`} className="btn btn-ghost text-xs">Open</Link>
+                        <Link 
+                          href={`/admin/revenue`} 
+                          className="px-4 py-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 text-xs font-medium transition-colors whitespace-nowrap"
+                        >
+                          Open
+                        </Link>
                       </div>
                     </div>
-                  ) : validationCode && !loadingValidation ? (
-                    <div className="text-sm text-gray-500 mt-2">No invoice found for that code.</div>
-                  ) : null}
+                  )}
+
+                  {/* Error message when code not found */}
+                  {validationCode && !loadingValidation && !validationResult && (
+                    <div className="w-full rounded-lg bg-red-50 border border-red-200 p-3 animate-in fade-in duration-200">
+                      <div className="flex items-center gap-2">
+                        <svg className="w-4 h-4 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                        <p className="text-sm text-red-700">No invoice found for that code.</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

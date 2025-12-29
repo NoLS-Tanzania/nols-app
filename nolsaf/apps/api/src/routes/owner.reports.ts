@@ -1,6 +1,7 @@
 // apps/api/src/routes/owner.reports.ts
 import { Router } from "express";
 import { prisma } from "@nolsaf/prisma";
+import { Prisma } from "@prisma/client";
 import { AuthedRequest, requireAuth, requireRole } from "../middleware/auth.js";
 import { eachDay, fmtKey, GroupBy, startOfDayTZ } from "../lib/reporting";
 import { withCache, makeKey } from "../lib/cache";
@@ -181,57 +182,83 @@ router.get("/revenue", revenueHandler);
  *  /owner/reports/bookings
  *  ------------------------- */
 const bookingsHandler: RequestHandler = async (req, res) => {
-  const r = req as AuthedRequest;
-  const ownerId = r.user!.id;
-  const { from, to, groupBy, propertyId } = parseQuery(req.query);
+  try {
+    const r = req as AuthedRequest;
+    const ownerId = r.user!.id;
+    const { from, to, groupBy, propertyId } = parseQuery(req.query);
 
-  const key = makeKey(ownerId, "bookings", {
-    from: from.toISOString(),
-    to: to.toISOString(),
-    groupBy,
-    propertyId,
-  });
-
-  const data = await withCache(key, async () => {
-    const bs: Booking[] = await prisma.booking.findMany({
-      where: {
-        property: { ownerId },
-        checkIn: { gte: from, lte: to },
-        ...(propertyId ? { propertyId } : {}),
-      },
-      include: { property: true },
+    const key = makeKey(ownerId, "bookings", {
+      from: from.toISOString(),
+      to: to.toISOString(),
+      groupBy,
+      propertyId,
     });
 
-    const series: Record<string, { count: number }> = {};
-    const stack: Record<string, Record<string, number>> = {};
-    for (const d of eachDay(from, to)) {
-      const k = fmtKey(d, groupBy);
-      series[k] = { count: 0 };
-      stack[k] = {};
-    }
-    for (const b of bs) {
-      const k = fmtKey(startOfDayTZ(b.checkIn), groupBy);
-      series[k].count += 1;
-      stack[k][b.status] = (stack[k][b.status] ?? 0) + 1;
-    }
-    const stacked = Object.entries(stack).map(([key, obj]) => ({ key, ...obj }));
+    const data = await withCache(key, async () => {
+      const bs: Booking[] = await prisma.booking.findMany({
+        where: {
+          property: { ownerId },
+          checkIn: { gte: from, lte: to },
+          ...(propertyId ? { propertyId } : {}),
+        },
+        include: { property: true },
+      });
 
-    return {
-      series: Object.entries(series).map(([key, v]) => ({ key, ...v })),
-      stacked,
-      table: bs.map((b: any) => ({
-        id: b.id,
-        property: b.property?.title ?? `#${b.propertyId}`,
-        checkIn: b.checkIn,
-        checkOut: b.checkOut,
-        status: b.status,
-        totalAmount: b.totalAmount,
-        guestName: (b as any).guestName ?? null,
-      })),
-    };
-  });
+      const series: Record<string, { count: number }> = {};
+      const stack: Record<string, Record<string, number>> = {};
+      for (const d of eachDay(from, to)) {
+        const k = fmtKey(d, groupBy);
+        series[k] = { count: 0 };
+        stack[k] = {};
+      }
+      for (const b of bs) {
+        const k = fmtKey(startOfDayTZ(b.checkIn), groupBy);
+        series[k].count += 1;
+        stack[k][b.status] = (stack[k][b.status] ?? 0) + 1;
+      }
+      const stacked = Object.entries(stack).map(([key, obj]) => ({ key, ...obj }));
 
-  res.json(data);
+      return {
+        series: Object.entries(series).map(([key, v]) => ({ key, ...v })),
+        stacked,
+        table: bs.map((b: any) => ({
+          id: b.id,
+          property: b.property?.title ?? `#${b.propertyId}`,
+          checkIn: b.checkIn,
+          checkOut: b.checkOut,
+          status: b.status,
+          totalAmount: b.totalAmount,
+          guestName: (b as any).guestName ?? null,
+        })),
+      };
+    });
+
+    res.setHeader('Content-Type', 'application/json');
+    res.json(data);
+  } catch (err: any) {
+    console.error('Error in GET /owner/reports/bookings:', err);
+    
+    // Handle Prisma schema mismatch errors (table/column not found)
+    if (err instanceof Prisma.PrismaClientKnownRequestError && (err.code === 'P2021' || err.code === 'P2022')) {
+      console.warn('Prisma schema mismatch in owner.reports.bookings:', err.message);
+      res.setHeader('Content-Type', 'application/json');
+      return res.json({
+        series: [],
+        stacked: [],
+        table: [],
+      });
+    }
+    
+    // Handle other errors
+    res.setHeader('Content-Type', 'application/json');
+    return res.status(500).json({
+      error: 'Internal server error',
+      message: err?.message || 'Unknown error',
+      series: [],
+      stacked: [],
+      table: [],
+    });
+  }
 };
 router.get("/bookings", bookingsHandler);
 

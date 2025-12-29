@@ -5,6 +5,7 @@ import { prisma } from "@nolsaf/prisma";
 import { AuthedRequest, requireAuth } from "../middleware/auth.js";
 import { notifyAdmins } from "../lib/notifications.js";
 import { limitCancellationLookup, limitCancellationSubmit, limitCancellationMessages } from "../middleware/rateLimit.js";
+import { validateBookingCode } from "../lib/bookingCodeService.js";
 
 export const router = Router();
 router.use(requireAuth as RequestHandler);
@@ -84,6 +85,7 @@ function computeEligibility(args: {
 /**
  * GET /api/customer/cancellations/lookup?code=XXXX
  * Validate booking code (must belong to authenticated user) and return booking info for cancellation flow.
+ * This endpoint allows checking USED codes for cancellation purposes (allowUsed=true).
  */
 router.get("/lookup", limitCancellationLookup, (async (req: AuthedRequest, res) => {
   try {
@@ -91,53 +93,30 @@ router.get("/lookup", limitCancellationLookup, (async (req: AuthedRequest, res) 
     const code = normalizeCode((req.query as any).code);
     if (!code) return res.status(400).json({ error: "Booking code is required" });
 
-    const codeHash = hashCode(code);
-    const checkinCode = await prisma.checkinCode.findFirst({
-      where: {
-        OR: [{ code }, { codeHash }],
-      },
-      include: {
-        booking: {
-          select: {
-            id: true,
-            userId: true,
-            status: true,
-            createdAt: true,
-            checkIn: true,
-            checkOut: true,
-            totalAmount: true,
-            property: {
-              select: {
-                id: true,
-                title: true,
-                type: true,
-                regionName: true,
-                district: true,
-                city: true,
-                country: true,
-              },
-            },
-          },
-        },
-      },
-    });
+    // Use validateBookingCode with allowUsed=true to allow checking USED codes for cancellation
+    const validation = await validateBookingCode(code, undefined, true); // allowUsed=true for cancellation checks
 
-    if (!checkinCode?.booking) {
-      return res.status(404).json({ error: "Booking not found for this code" });
+    if (!validation.valid || !validation.booking) {
+      return res.status(404).json({ 
+        error: validation.error || "Booking not found for this code" 
+      });
     }
 
+    const booking = validation.booking;
+    const checkinCode = booking.code;
+
     // Security: code must belong to the signed-in user.
-    if (checkinCode.booking.userId !== userId) {
+    if (booking.userId !== userId) {
       return res.status(404).json({ error: "Booking not found for this code" });
     }
 
     const now = new Date();
     const eligibility = computeEligibility({
-      bookingStatus: checkinCode.booking.status,
-      codeStatus: checkinCode.status,
-      createdAt: new Date(checkinCode.booking.createdAt),
-      checkIn: new Date(checkinCode.booking.checkIn),
-      checkOut: new Date(checkinCode.booking.checkOut),
+      bookingStatus: booking.status,
+      codeStatus: checkinCode?.status || "ACTIVE",
+      createdAt: new Date(booking.createdAt),
+      checkIn: new Date(booking.checkIn),
+      checkOut: new Date(booking.checkOut),
       now,
     });
 
@@ -147,7 +126,7 @@ router.get("/lookup", limitCancellationLookup, (async (req: AuthedRequest, res) 
     try {
       existingRequest = await prisma.cancellationRequest.findFirst({
         where: {
-          bookingId: checkinCode.booking.id,
+          bookingId: booking.id,
           userId,
         },
         select: { id: true, status: true, createdAt: true },
@@ -161,15 +140,15 @@ router.get("/lookup", limitCancellationLookup, (async (req: AuthedRequest, res) 
 
     return res.json({
       booking: {
-        id: checkinCode.booking.id,
-        status: checkinCode.booking.status,
-        createdAt: checkinCode.booking.createdAt,
-        checkIn: checkinCode.booking.checkIn,
-        checkOut: checkinCode.booking.checkOut,
-        totalAmount: checkinCode.booking.totalAmount,
-        bookingCode: checkinCode.code,
-        codeStatus: checkinCode.status,
-        property: checkinCode.booking.property,
+        id: booking.id,
+        status: booking.status,
+        createdAt: booking.createdAt,
+        checkIn: booking.checkIn,
+        checkOut: booking.checkOut,
+        totalAmount: booking.totalAmount,
+        bookingCode: checkinCode?.code || code,
+        codeStatus: checkinCode?.status || "ACTIVE",
+        property: booking.property,
       },
       eligibility,
       existingRequest: existingRequest || null,

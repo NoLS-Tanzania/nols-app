@@ -28,20 +28,36 @@ export async function auditLog(params: {
 }) {
   try {
     // write to the general AuditLog model for structured change history
-    await prisma.auditLog.create({
+    const created = await prisma.auditLog.create({
       data: {
         actorId: params.actorId,
         actorRole: params.actorRole,
         action: params.action,
-        resource: params.entity,
+        entity: params.entity,
+        entityId: params.entityId,
         beforeJson: params.before ?? null,
         afterJson: params.after ?? null,
         ip: params.ip ?? null,
-        userAgent: params.ua ?? null,
-      } as any,
+        ua: params.ua ?? null,
+      },
     });
-  } catch (e) {
-    console.log("[audit fail]", e);
+    console.log(`[audit] Created audit log: ${params.action} for ${params.entity} #${params.entityId} by ${params.actorRole} #${params.actorId}`);
+    return created;
+  } catch (e: any) {
+    console.error("[audit fail] Failed to create audit log:", {
+      error: e?.message || String(e),
+      stack: e?.stack,
+      code: e?.code,
+      params: {
+        action: params.action,
+        entity: params.entity,
+        entityId: params.entityId,
+        actorId: params.actorId,
+        actorRole: params.actorRole,
+      }
+    });
+    // Don't throw - audit logging should not break the main operation
+    return null;
   }
 }
 // swallow errors

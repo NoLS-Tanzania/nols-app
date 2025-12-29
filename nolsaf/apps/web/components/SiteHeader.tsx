@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
-import { Bell, LifeBuoy, Settings as SettingsIcon, RefreshCw, Download, Sliders, Sun, Moon, Plus, FileText, Shield, Lock, Truck, User, Gift, Calendar, LogOut, ChevronDown, Trophy, Share2 } from "lucide-react";
+import { Bell, LifeBuoy, Settings as SettingsIcon, RefreshCw, Download, Sliders, Sun, Moon, Plus, FileText, Shield, Lock, Truck, User, Gift, Calendar, LogOut, ChevronDown, Trophy, Share2, Building2, CheckCircle, Home, DollarSign } from "lucide-react";
 import dynamic from 'next/dynamic';
 const LegalModal = dynamic(() => import('@/components/LegalModal'), { ssr: false });
 import ClientErrorBoundary from '@/components/ClientErrorBoundary';
@@ -168,6 +168,7 @@ export default function SiteHeader({
       }
     })();
 
+
     if (typeof window === 'undefined') return;
     try {
       const saved = localStorage.getItem('theme');
@@ -193,7 +194,7 @@ export default function SiteHeader({
     };
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
-  }, [isAdmin]);
+  }, [role]);
 
   // Sync header left margin with admin sidebar visibility to avoid leftover gap
   useEffect(() => {
@@ -325,17 +326,7 @@ export default function SiteHeader({
             </svg>
           </button>
         ) : null}
-        {isAdmin ? null : isOwner ? (
-          <Link href="/" className="inline-flex items-center transition-opacity duration-300 hover:opacity-80" aria-label="NoLSAF Home">
-            <Image
-              src="/assets/nolsnewlog.png"
-              alt="NoLSAF"
-              width={120}
-              height={30}
-              className="h-8 w-auto"
-            />
-          </Link>
-        ) : driverMode ? (
+        {isAdmin ? null : isOwner ? null : driverMode ? (
           <Link href="/driver" className="inline-flex items-center transition-opacity duration-300 hover:opacity-80" aria-label="NoLSAF Home">
             <Image
               src="/assets/nolsnewlog.png"
@@ -402,12 +393,12 @@ export default function SiteHeader({
               >
                 <Bell className="h-5 w-5 text-white/90 group-hover:text-white transition-transform duration-300 group-hover:scale-110" />
                 {(unreadCount ?? unreadMessages) > 0 && (
-                  <span
+                <span
                     className="absolute -top-0.5 -right-0.5 h-3.5 min-w-3.5 px-1 rounded-full bg-rose-500 text-[9px] leading-3.5 text-white font-semibold ring-1 ring-white/50 text-center flex items-center justify-center"
-                    aria-label={`${unreadCount ?? unreadMessages} unread notifications`}
-                  >
-                    {(unreadCount ?? unreadMessages) > 9 ? "9+" : (unreadCount ?? unreadMessages)}
-                  </span>
+                  aria-label={`${unreadCount ?? unreadMessages} unread notifications`}
+                >
+                  {(unreadCount ?? unreadMessages) > 9 ? "9+" : (unreadCount ?? unreadMessages)}
+                </span>
                 )}
               </Link>
 
@@ -731,17 +722,131 @@ export default function SiteHeader({
 
             <div className="mx-2 h-5 w-px bg-white/20" />
 
-            <Link href="/account" className="inline-flex items-center justify-center">
+            <div ref={profileDropdownRef} className="relative">
+              <button
+                onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
+                className="group inline-flex items-center justify-center gap-2 h-10 px-2 rounded-xl bg-transparent border-0 hover:bg-white/10 hover:backdrop-blur-sm hover:border hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-out hover:shadow-md"
+                aria-label="Profile menu"
+                aria-expanded={profileDropdownOpen}
+                onTouchStart={() => handleTouch('profile')}
+                onTouchEnd={() => setTouchedIcon(null)}
+              >
               {avatarUrl ? (
-                <div className="h-10 w-10 rounded-full border border-white/20 overflow-hidden">
-                  <Image src={avatarUrl} alt="Profile" width={40} height={40} className="object-cover w-full h-full" />
+                  <div className="h-9 w-9 rounded-full overflow-hidden transition-all duration-300 ease-out group-hover:ring-2 group-hover:ring-white/10">
+                    <Image src={avatarUrl} alt="Profile" width={36} height={36} className="object-cover w-full h-full transition-transform duration-300 ease-out group-hover:scale-110" />
                 </div>
               ) : (
-                <div className="h-10 w-10 rounded-full border border-white/20 bg-white/10 text-white/90 flex items-center justify-center text-sm font-semibold">
-                  ME
+                  <div className="h-9 w-9 rounded-full flex items-center justify-center transition-all duration-300 ease-out group-hover:ring-2 group-hover:ring-white/10">
+                    <User className="h-5 w-5 text-white/90" />
                 </div>
               )}
+                <ChevronDown className={`h-4 w-4 text-white/90 transition-all duration-300 ease-out ${profileDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {profileDropdownOpen && (
+                <div className="absolute right-0 top-full mt-3 w-72 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-200/50 overflow-hidden z-50 animate-fade-in-up">
+                  {/* Profile Info Section */}
+                  <div className="px-4 py-4 border-b border-gray-100/50 bg-gradient-to-br from-emerald-50 via-emerald-50/50 to-slate-50/30">
+                    <div className="flex items-center gap-3 mb-3">
+                      {avatarUrl ? (
+                        <div className="h-12 w-12 rounded-full border-2 border-emerald-300 overflow-hidden flex-shrink-0 transition-transform duration-300 hover:scale-110 ring-2 ring-emerald-100 shadow-sm">
+                          <Image src={avatarUrl} alt="Profile" width={48} height={48} className="object-cover w-full h-full" />
+                        </div>
+                      ) : (
+                        <div className="h-12 w-12 rounded-full border-2 border-emerald-300 bg-gradient-to-br from-emerald-100 to-emerald-50 flex items-center justify-center flex-shrink-0 transition-transform duration-300 hover:scale-110 ring-2 ring-emerald-100 shadow-sm">
+                          <User className="h-6 w-6 text-emerald-600" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <div className="font-bold text-base text-gray-900 truncate">
+                            {userName || 'Owner'}
+                          </div>
+                          <div className="flex-shrink-0" title="Verified Account">
+                            <CheckCircle className="h-4 w-4 text-emerald-600" />
+                          </div>
+                        </div>
+                        <div className="text-xs text-gray-600 truncate mt-0.5">
+                          {userEmail || 'No email'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Menu Items */}
+                  <div className="py-2">
+                    <Link
+                      href="/owner"
+                      onClick={() => setProfileDropdownOpen(false)}
+                      className="group flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 transition-all duration-200 no-underline"
+                    >
+                      <Home className="h-4 w-4 text-gray-500 group-hover:text-emerald-600 transition-all duration-200 group-hover:scale-110" />
+                      <span className="font-medium">Dashboard</span>
             </Link>
+
+                    <Link
+                      href="/owner/profile"
+                      onClick={() => setProfileDropdownOpen(false)}
+                      className="group flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 transition-all duration-200 no-underline"
+                    >
+                      <User className="h-4 w-4 text-gray-500 group-hover:text-emerald-600 transition-all duration-200 group-hover:scale-110" />
+                      <span className="font-medium">My Profile</span>
+                    </Link>
+
+                    <Link
+                      href="/owner/properties/approved"
+                      onClick={() => setProfileDropdownOpen(false)}
+                      className="group flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 transition-all duration-200 no-underline"
+                    >
+                      <Building2 className="h-4 w-4 text-gray-500 group-hover:text-emerald-600 transition-all duration-200 group-hover:scale-110" />
+                      <span className="font-medium">My Properties</span>
+                    </Link>
+
+                    <Link
+                      href="/owner/bookings"
+                      onClick={() => setProfileDropdownOpen(false)}
+                      className="group flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 transition-all duration-200 no-underline"
+                    >
+                      <Calendar className="h-4 w-4 text-gray-500 group-hover:text-emerald-600 transition-all duration-200 group-hover:scale-110" />
+                      <span className="font-medium">My Bookings</span>
+                    </Link>
+
+                    <Link
+                      href="/owner/revenue"
+                      onClick={() => setProfileDropdownOpen(false)}
+                      className="group flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 transition-all duration-200 no-underline"
+                    >
+                      <DollarSign className="h-4 w-4 text-gray-500 group-hover:text-emerald-600 transition-all duration-200 group-hover:scale-110" />
+                      <span className="font-medium">My Revenues</span>
+                    </Link>
+
+                    <Link
+                      href="/owner/settings"
+                      onClick={() => setProfileDropdownOpen(false)}
+                      className="group flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 transition-all duration-200 no-underline"
+                    >
+                      <SettingsIcon className="h-4 w-4 text-gray-500 group-hover:text-emerald-600 transition-all duration-200 group-hover:scale-110" />
+                      <span className="font-medium">Settings</span>
+                    </Link>
+
+                    <div className="my-2 mx-3 h-px bg-gray-200" />
+
+                    <button
+                      onClick={async () => {
+                        try {
+                          await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+                        } catch {}
+                        window.location.href = "/login";
+                      }}
+                      className="group w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-all duration-200 no-underline rounded-lg mx-1"
+                    >
+                      <LogOut className="h-4 w-4 group-hover:scale-110 transition-all duration-200" />
+                      <span className="font-semibold">Logout</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         ) : null}
 
@@ -920,12 +1025,12 @@ export default function SiteHeader({
                   >
                     <Bell className="h-5 w-5 text-white/90 group-hover:text-white transition-transform duration-300 group-hover:scale-110" />
                     {(unreadCount ?? unreadMessages) > 0 && (
-                      <span
+                    <span
                         className="absolute -top-1 -right-1 h-4 min-w-4 px-1 rounded-full bg-rose-500 text-[10px] leading-4 text-white font-bold ring-2 ring-[#02665e] text-center flex items-center justify-center"
-                        aria-label={`${unreadCount ?? unreadMessages} unread notifications`}
-                      >
-                        {(unreadCount ?? unreadMessages) > 9 ? "9+" : (unreadCount ?? unreadMessages)}
-                      </span>
+                      aria-label={`${unreadCount ?? unreadMessages} unread notifications`}
+                    >
+                      {(unreadCount ?? unreadMessages) > 9 ? "9+" : (unreadCount ?? unreadMessages)}
+                    </span>
                     )}
                   </Link>
                   <Link

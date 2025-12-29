@@ -27,8 +27,18 @@ const validateBooking: RequestHandler = async (req, res) => {
   const { code } = req.body as { code: string };
   if (!code) return (res as Response).status(400).json({ error: "Code is required" });
 
+  // Normalize the code (trim and uppercase) before validation
+  const normalizedCode = String(code).trim().toUpperCase();
+  console.log(`[validateBooking] Validating code: "${normalizedCode}" for owner: ${r.user!.id}`);
+
   // Use the booking code service to validate
-  const validation = await validateBookingCode(code.trim(), r.user!.id);
+  const validation = await validateBookingCode(normalizedCode, r.user!.id);
+  
+  console.log(`[validateBooking] Validation result:`, { 
+    valid: validation.valid, 
+    error: validation.error,
+    bookingId: validation.booking?.id 
+  });
 
   if (!validation.valid || !validation.booking) {
     return (res as Response).status(400).json({ 

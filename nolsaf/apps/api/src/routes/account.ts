@@ -23,6 +23,49 @@ const getMe: RequestHandler = async (req, res) => {
 };
 router.get("/me", getMe as unknown as RequestHandler);
 
+/** PUT /account/profile - update authenticated user's profile (for owners and general users, drivers use /api/driver/profile) */
+const updateProfile: RequestHandler = async (req, res) => {
+  const userId = (req as AuthedRequest).user!.id;
+  const { fullName, name, phone, email, avatarUrl, tin, address } = req.body ?? {};
+  
+  // Get user to check role
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+  
+  // Drivers should use /api/driver/profile
+  if ((user as any).role === 'DRIVER') {
+    res.status(400).json({ error: "Drivers should use /api/driver/profile" });
+    return;
+  }
+
+  const meta = (prisma as any).user?._meta ?? {};
+  const beforeSelect: any = { fullName: true, name: true, phone: true, email: true, avatarUrl: true };
+  if (Object.prototype.hasOwnProperty.call(meta, 'tin')) beforeSelect.tin = true;
+  if (Object.prototype.hasOwnProperty.call(meta, 'address')) beforeSelect.address = true;
+
+  let before: any = null;
+  try { before = await prisma.user.findUnique({ where: { id: userId }, select: beforeSelect }); } catch (e) { /* ignore */ }
+
+  const data: any = {};
+  if (fullName !== undefined) data.fullName = fullName;
+  if (name !== undefined) data.name = name;
+  if (phone !== undefined) data.phone = phone;
+  if (email !== undefined) data.email = email;
+  if (avatarUrl !== undefined) data.avatarUrl = avatarUrl;
+  if (Object.prototype.hasOwnProperty.call(meta, 'tin') && typeof tin !== 'undefined') data.tin = tin;
+  if (Object.prototype.hasOwnProperty.call(meta, 'address') && typeof address !== 'undefined') data.address = address;
+
+  try {
+    const u = await prisma.user.update({ where: { id: userId }, data } as any);
+    try { await audit(req as AuthedRequest, 'USER_PROFILE_UPDATE', `user:${u.id}`, before, data); } catch (e) { /* ignore audit errors */ }
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('account.profile.update failed', e);
+    res.status(500).json({ error: 'Failed to update profile' });
+  }
+};
+router.put("/profile", updateProfile as unknown as RequestHandler);
+
 // Note: profile updates for drivers are handled under the driver router (/api/driver/profile)
 
 /** PUT /account/payouts (Owner only fields) */

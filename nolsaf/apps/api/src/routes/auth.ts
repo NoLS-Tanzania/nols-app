@@ -216,21 +216,38 @@ router.post('/login', (req, res) => {
 router.post("/login-password", async (req, res) => {
   try {
     const { email, password } = req.body || {};
-    if (!email || !password) return res.status(400).json({ error: "email and password required" });
+    if (!email || !password) {
+      res.setHeader('Content-Type', 'application/json');
+      return res.status(400).json({ error: "email and password required" });
+    }
+    
     const user = await prisma.user.findFirst({
       where: { email: String(email) },
       select: { id: true, role: true, email: true, passwordHash: true },
     });
-    if (!user || !user.passwordHash) return res.status(401).json({ error: "invalid_credentials" });
+    
+    if (!user || !user.passwordHash) {
+      res.setHeader('Content-Type', 'application/json');
+      return res.status(401).json({ error: "invalid_credentials" });
+    }
+    
     const ok = await verifyPassword(String(user.passwordHash), String(password));
-    if (!ok) return res.status(401).json({ error: "invalid_credentials" });
+    if (!ok) {
+      res.setHeader('Content-Type', 'application/json');
+      return res.status(401).json({ error: "invalid_credentials" });
+    }
 
     const token = signUserJwt({ id: user.id, role: user.role, email: user.email });
     setAuthCookie(res, token, user.role);
+    res.setHeader('Content-Type', 'application/json');
     return res.json({ ok: true, user: { id: user.id, role: user.role, email: user.email } });
-  } catch (e) {
+  } catch (e: any) {
     console.error("login-password failed", e);
-    return res.status(500).json({ error: "failed" });
+    res.setHeader('Content-Type', 'application/json');
+    const errorMessage = process.env.NODE_ENV === 'production' 
+      ? "failed" 
+      : (e?.message || String(e) || "failed");
+    return res.status(500).json({ error: errorMessage });
   }
 });
 
