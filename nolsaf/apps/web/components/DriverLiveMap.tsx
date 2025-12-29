@@ -1,279 +1,121 @@
 "use client";
-
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Check, X, Flag, CheckCircle } from "lucide-react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
+import { Check, X, Flag, CheckCircle } from 'lucide-react';
 import axios from "axios";
 
 // Use same-origin for HTTP calls so Next.js rewrites proxy to the API in dev
-const api = axios.create({ baseURL: "", withCredentials: true });
-
-type LngLat = { lng: number; lat: number };
-
-type Assignment = {
-  id: any;
-  pickup?: LngLat | null;
-  dropoff?: LngLat | null;
-  passengerName?: string | null;
-};
-
-type NearbyDriver = { id?: any; name?: string | null; lng?: number | null; lat?: number | null; available?: boolean | null };
-
-type MapPayload = {
-  driverLocation?: { id?: any; lng?: number; lat?: number } | null;
-  assignments?: Assignment[];
-  nearbyDrivers?: NearbyDriver[];
-  demandZones?: Array<{ name: string; level: "high" | "medium" | "low" | string }>;
-};
-
-function toLngLatMaybe(v: any): LngLat | null {
-  const lat = Number(v?.lat);
-  const lng = Number(v?.lng);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-  return { lat, lng };
-}
-
-function toLonLatArray(p: LngLat): [number, number] {
-  return [p.lng, p.lat];
-}
-
-function makeDotEl(fill: string, sizePx: number): HTMLElement {
-  const el = document.createElement("div");
-  el.style.width = `${sizePx}px`;
-  el.style.height = `${sizePx}px`;
-  el.style.borderRadius = "9999px";
-  el.style.background = fill;
-  el.style.border = "2px solid #ffffff";
-  el.style.boxShadow = "0 8px 22px rgba(2,6,23,0.10)";
-  el.style.boxSizing = "border-box";
-  return el;
-}
+const api = axios.create({ baseURL: "" });
 
 export default function DriverLiveMap({ liveOnly }: { liveOnly?: boolean } = {}) {
-  const [data, setData] = useState<MapPayload | null>(null);
+  const [data, setData] = useState<any | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any | null>(null);
-  const mapboxRef = useRef<any | null>(null);
-  const markersRef = useRef<any[]>([]);
+  const markersRef = useRef<Record<string, { marker: any; el: HTMLElement }>>({});
+  const mapboxglRef = useRef<any | null>(null);
 
-  const mapboxToken =
-    (process.env.NEXT_PUBLIC_MAPBOX_TOKEN as string) ||
-    (process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN as string) ||
-    (typeof window !== "undefined" ? (window as any).__MAPBOX_TOKEN : "") ||
-    "";
+  // ensure pulse CSS for available markers is injected once
+  const ensurePulseStyle = () => {
+    try {
+      if (typeof document === 'undefined') return;
+      if (document.getElementById('nols-marker-pulse')) return;
+      const s = document.createElement('style');
+      s.id = 'nols-marker-pulse';
+      s.innerHTML = `@keyframes nols-pulse { 0% { box-shadow: 0 0 0 0 rgba(16,185,129,0.45);} 70% { box-shadow: 0 0 0 10px rgba(16,185,129,0);} 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0);} } .nols-pulse { animation: nols-pulse 2s infinite; }`;
+      document.head.appendChild(s);
+    } catch (e) {
+      // ignore
+    }
+  };
 
-  const driverPos = useMemo((): LngLat => {
-    const p = toLngLatMaybe((data as any)?.driverLocation);
-    return p ?? { lat: -6.7924, lng: 39.2083 };
-  }, [data]);
-
-  const assignmentLines = useMemo(() => {
-    const assignments = Array.isArray((data as any)?.assignments) ? (data as any).assignments : [];
-    return assignments
-      .map((a: any) => {
-        const pickup = toLngLatMaybe(a?.pickup);
-        const dropoff = toLngLatMaybe(a?.dropoff);
-        if (!pickup || !dropoff) return null;
-        return {
-          type: "Feature",
-          geometry: {
-            type: "LineString",
-            coordinates: [toLonLatArray(pickup), toLonLatArray(dropoff)],
-          },
-          properties: { id: a?.id ?? "" },
-        };
-      })
-      .filter(Boolean);
-  }, [data]);
+  const createMarkerEl = useCallback((available: boolean | undefined) => {
+    const el = document.createElement('div');
+    el.className = 'nols-marker rounded-full';
+    // size and color
+    const size = available ? 18 : 12;
+    el.style.width = `${size}px`;
+    el.style.height = `${size}px`;
+    el.style.boxSizing = 'border-box';
+    el.style.border = '2px solid white';
+    el.style.backgroundColor = available ? '#10b981' : '#6b7280';
+    if (available) {
+      ensurePulseStyle();
+      el.classList.add('nols-pulse');
+    }
+    return el;
+  }, []);
 
   useEffect(() => {
+    const t = localStorage.getItem("token");
+    if (t) api.defaults.headers.common["Authorization"] = `Bearer ${t}`;
     let mounted = true;
     (async () => {
       try {
-        const r = await api.get("/api/driver/map");
+        const r = await api.get("/driver/map");
         if (!mounted) return;
         setData(r.data);
       } catch (e: any) {
         setError(e?.message || String(e));
       }
     })();
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, []);
 
-  // Init Mapbox map once when data is ready
+  // mapbox init — attempt client-only dynamic import when we have data
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (!containerRef.current) return;
     if (!data) return;
-    if (!mapboxToken) return;
-    if (mapRef.current) return;
-
     let map: any = null;
     (async () => {
       try {
-        const mod = await import("mapbox-gl");
-        const mapboxgl = (mod as any).default ?? mod;
-        mapboxRef.current = mapboxgl;
-        mapboxgl.accessToken = mapboxToken;
-
-        map = new mapboxgl.Map({
-          container: containerRef.current as HTMLElement,
-          style: "mapbox://styles/mapbox/streets-v12",
-          center: [driverPos.lng, driverPos.lat],
-          zoom: 13,
-        });
-
-        mapRef.current = map;
+        const mapboxglModule = await import("mapbox-gl");
+        const mapboxgl = (mapboxglModule as any).default ?? mapboxglModule;
+        const token = (process.env.NEXT_PUBLIC_MAPBOX_TOKEN as string) || (window as any).__MAPBOX_TOKEN;
+        if (!token) return;
+        mapboxgl.accessToken = token;
+        const el = document.getElementById("driver-live-map");
+        if (!el) return;
+        map = new mapboxgl.Map({ container: el as HTMLElement, style: "mapbox://styles/mapbox/streets-v11", center: [data.driverLocation.lng, data.driverLocation.lat], zoom: 13 });
+  mapRef.current = map;
+  mapboxglRef.current = mapboxgl;
         map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
-
-        map.on("load", () => {
-          try {
-            if (!map.getSource("assignments")) {
-              map.addSource("assignments", {
-                type: "geojson",
-                data: {
-                  type: "FeatureCollection",
-                  features: assignmentLines,
-                },
-              });
-              map.addLayer({
-                id: "assignments-line",
-                type: "line",
-                source: "assignments",
-                paint: {
-                  "line-color": "#2563eb",
-                  "line-width": 4,
-                  "line-opacity": 0.85,
-                },
-              });
+        // driver marker
+        if (data.driverLocation) {
+          const elDriver = createMarkerEl(undefined);
+          // make driver's own marker blue
+          elDriver.style.backgroundColor = '#2563eb';
+          elDriver.style.width = '18px';
+          elDriver.style.height = '18px';
+          new mapboxgl.Marker(elDriver).setLngLat([data.driverLocation.lng, data.driverLocation.lat]).addTo(map);
+        }
+        // assignments markers
+        if (Array.isArray(data.assignments)) {
+          data.assignments.forEach((a: any) => {
+            if (a.pickup) new mapboxgl.Marker({ color: "#16a34a" }).setLngLat([a.pickup.lng, a.pickup.lat]).addTo(map);
+            if (a.dropoff) new mapboxgl.Marker({ color: "#f59e0b" }).setLngLat([a.dropoff.lng, a.dropoff.lat]).addTo(map);
+          });
+        }
+        // nearby drivers
+        if (Array.isArray(data.nearbyDrivers)) {
+          // create markers and keep refs so we can update color/position later
+          data.nearbyDrivers.forEach((d: any) => {
+            try {
+              const elD = createMarkerEl(d.available);
+              if (d.id) elD.setAttribute('data-driver-id', String(d.id));
+              const m = new mapboxgl.Marker(elD).setLngLat([d.lng, d.lat]).addTo(map);
+              if (d.id) markersRef.current[d.id] = { marker: m, el: elD };
+            } catch (e) {
+              // ignore marker creation errors
             }
-          } catch {
-            // ignore
-          }
-        });
-      } catch (e) {
+          });
+        }
+      } catch (err) {
+        // ignore map errors — keep data visible below
         // eslint-disable-next-line no-console
-        console.warn("Mapbox init failed", e);
+        console.warn("Driver live map init failed", err);
       }
     })();
-
-    return () => {
-      try {
-        markersRef.current.forEach((m) => {
-          try {
-            m.remove();
-          } catch {
-            // ignore
-          }
-        });
-        markersRef.current = [];
-      } catch {
-        // ignore
-      }
-      try {
-        if (map) map.remove();
-      } catch {
-        // ignore
-      }
-      mapRef.current = null;
-      mapboxRef.current = null;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, mapboxToken]);
-
-  // Keep map centered on driver when liveOnly
-  useEffect(() => {
-    if (!liveOnly) return;
-    const map = mapRef.current;
-    if (!map) return;
-    try {
-      map.easeTo({ center: [driverPos.lng, driverPos.lat], duration: 400 });
-    } catch {
-      // ignore
-    }
-  }, [driverPos, liveOnly]);
-
-  // Update markers + assignment lines when data changes
-  useEffect(() => {
-    const map = mapRef.current;
-    const mapboxgl = mapboxRef.current;
-    if (!map || !mapboxgl || !data) return;
-
-    // Update assignment lines
-    try {
-      const src = map.getSource("assignments");
-      if (src && typeof src.setData === "function") {
-        src.setData({ type: "FeatureCollection", features: assignmentLines });
-      }
-    } catch {
-      // ignore
-    }
-
-    // Clear markers
-    try {
-      markersRef.current.forEach((m) => {
-        try {
-          m.remove();
-        } catch {
-          // ignore
-        }
-      });
-      markersRef.current = [];
-    } catch {
-      // ignore
-    }
-
-    // Driver marker
-    try {
-      if (data.driverLocation) {
-        const el = makeDotEl("#2563eb", 18);
-        const m = new mapboxgl.Marker(el).setLngLat([driverPos.lng, driverPos.lat]).addTo(map);
-        markersRef.current.push(m);
-      }
-    } catch {
-      // ignore
-    }
-
-    // Assignment markers
-    const assignments = Array.isArray((data as any)?.assignments) ? (data as any).assignments : [];
-    assignments.forEach((a: any) => {
-      const pickup = toLngLatMaybe(a?.pickup);
-      const dropoff = toLngLatMaybe(a?.dropoff);
-      try {
-        if (pickup) {
-          const el = makeDotEl("#16a34a", 16);
-          const m = new mapboxgl.Marker(el).setLngLat([pickup.lng, pickup.lat]).addTo(map);
-          markersRef.current.push(m);
-        }
-        if (dropoff) {
-          const el = makeDotEl("#f59e0b", 16);
-          const m = new mapboxgl.Marker(el).setLngLat([dropoff.lng, dropoff.lat]).addTo(map);
-          markersRef.current.push(m);
-        }
-      } catch {
-        // ignore
-      }
-    });
-
-    // Nearby driver markers
-    const nearby = Array.isArray((data as any)?.nearbyDrivers) ? (data as any).nearbyDrivers : [];
-    nearby.forEach((d: any) => {
-      const pos = toLngLatMaybe(d);
-      if (!pos) return;
-      const fill = d?.available === true ? "#10b981" : d?.available === false ? "#ef4444" : "#6b7280";
-      const size = d?.available === true ? 16 : 14;
-      try {
-        const el = makeDotEl(fill, size);
-        const m = new mapboxgl.Marker(el).setLngLat([pos.lng, pos.lat]).addTo(map);
-        markersRef.current.push(m);
-      } catch {
-        // ignore
-      }
-    });
-  }, [data, driverPos, assignmentLines]);
+    return () => { try { if (map) map.remove(); } catch (e) {} finally { mapRef.current = null; markersRef.current = {}; } };
+  }, [data, createMarkerEl]);
 
   // Socket.IO client: listen for driver:location:update events and update map data live
   useEffect(() => {
@@ -283,10 +125,14 @@ export default function DriverLiveMap({ liveOnly }: { liveOnly?: boolean } = {})
     (async () => {
       try {
         const { io } = await import("socket.io-client");
+        const token = localStorage.getItem("token");
         // Prefer explicit API host for sockets in dev to avoid Next rewrite issues with WS
         const base = (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000").replace(/\/$/, "");
-        socket = io(base, {
-          transports: ["websocket"],
+        socket = io(base, { transportOptions: { polling: { extraHeaders: { Authorization: token ? `Bearer ${token}` : undefined } } }, transports: ["websocket"] });
+
+        socket.on("connect", () => {
+          // eslint-disable-next-line no-console
+          console.debug("socket connected", socket.id);
         });
 
         socket.on("driver:location:update", (payload: any) => {
@@ -294,45 +140,81 @@ export default function DriverLiveMap({ liveOnly }: { liveOnly?: boolean } = {})
           setData((prev: any) => {
             if (!prev) return prev;
             if (prev.driverLocation && prev.driverLocation.id && prev.driverLocation.id === payload.driverId) {
-              return {
-                ...prev,
-                driverLocation: { ...prev.driverLocation, lat: payload.lat, lng: payload.lng, updatedAt: new Date() },
-              };
+              // update own driver location display
+              return { ...prev, driverLocation: { ...prev.driverLocation, lat: payload.lat, lng: payload.lng, updatedAt: new Date() } };
             }
             const nearby = Array.isArray(prev.nearbyDrivers) ? [...prev.nearbyDrivers] : [];
             const idx = nearby.findIndex((d: any) => d.id === payload.driverId);
-            if (idx >= 0) nearby[idx] = { ...nearby[idx], lat: payload.lat, lng: payload.lng };
-            else nearby.push({ id: payload.driverId, lat: payload.lat, lng: payload.lng, available: payload.available });
+            if (idx >= 0) {
+              nearby[idx] = { ...nearby[idx], lat: payload.lat, lng: payload.lng };
+            } else {
+              nearby.push({ id: payload.driverId, lat: payload.lat, lng: payload.lng, available: payload.available });
+            }
             return { ...prev, nearbyDrivers: nearby };
           });
-        });
 
+          // also update marker position if we have a marker
+          try {
+            const mRef = markersRef.current[payload.driverId];
+            if (mRef && mRef.marker && typeof mRef.marker.setLngLat === 'function') {
+              mRef.marker.setLngLat([payload.lng, payload.lat]);
+            } else if (mapRef.current) {
+              // create a new marker for previously unknown driver
+              const elD = createMarkerEl(payload.available);
+              if (payload.driverId) elD.setAttribute('data-driver-id', String(payload.driverId));
+              const mapboxgl = mapboxglRef.current;
+              if (mapboxgl) {
+                const m = new mapboxgl.Marker(elD).setLngLat([payload.lng, payload.lat]).addTo(mapRef.current);
+                if (payload.driverId) markersRef.current[payload.driverId] = { marker: m, el: elD };
+              }
+            }
+          } catch (e) {
+            // ignore marker update errors
+          }
+        });
+        // availability updates: update nearbyDrivers availability flag
         socket.on("driver:availability:update", (payload: any) => {
           if (!mounted) return;
-          setData((prev: any) => {
-            if (!prev) return prev;
-            const nearby = Array.isArray(prev.nearbyDrivers) ? [...prev.nearbyDrivers] : [];
-            const idx = nearby.findIndex((d: any) => d.id === payload.driverId);
-            if (idx >= 0) nearby[idx] = { ...nearby[idx], available: payload.available };
-            else nearby.push({ id: payload.driverId, lat: payload.lat ?? null, lng: payload.lng ?? null, available: payload.available });
-            return { ...prev, nearbyDrivers: nearby };
-          });
+          try {
+            setData((prev: any) => {
+              if (!prev) return prev;
+              const nearby = Array.isArray(prev.nearbyDrivers) ? [...prev.nearbyDrivers] : [];
+              const idx = nearby.findIndex((d: any) => d.id === payload.driverId);
+              if (idx >= 0) {
+                nearby[idx] = { ...nearby[idx], available: payload.available };
+              } else {
+                // if we didn't previously know about this driver, add a minimal record
+                nearby.push({ id: payload.driverId, lat: payload.lat ?? null, lng: payload.lng ?? null, available: payload.available });
+              }
+              return { ...prev, nearbyDrivers: nearby };
+            });
+
+            // update marker color if present
+            const mRef = markersRef.current[payload.driverId];
+            if (mRef && mRef.el) {
+              mRef.el.style.backgroundColor = payload.available ? '#10b981' : '#6b7280';
+              // adjust size & pulse
+              const size = payload.available ? 18 : 12;
+              mRef.el.style.width = `${size}px`;
+              mRef.el.style.height = `${size}px`;
+              if (payload.available) {
+                ensurePulseStyle();
+                mRef.el.classList.add('nols-pulse');
+              } else {
+                mRef.el.classList.remove('nols-pulse');
+              }
+            }
+          } catch (e) {
+            // ignore
+          }
         });
       } catch (e) {
         // eslint-disable-next-line no-console
         console.warn("Socket.IO client failed to initialize", e);
       }
     })();
-
-    return () => {
-      mounted = false;
-      try {
-        if (socket) socket.disconnect();
-      } catch {
-        // ignore
-      }
-    };
-  }, []);
+    return () => { mounted = false; try { if (socket) socket.disconnect(); } catch (e) {} };
+  }, [createMarkerEl]);
 
   return (
     <div>
@@ -342,29 +224,14 @@ export default function DriverLiveMap({ liveOnly }: { liveOnly?: boolean } = {})
         <div className="text-gray-500">Loading map data…</div>
       ) : (
         <>
-          <div
-            className={`relative w-full rounded-md overflow-hidden border-2 border-blue-200 bg-gray-50 ${
-              liveOnly ? "h-full min-h-[24rem]" : "h-96"
-            }`}
-          >
-            {!mapboxToken ? (
-              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-emerald-50">
-                <div className="text-center px-4">
-                  <div className="text-sm font-semibold text-slate-800">Mapbox not configured</div>
-                  <div className="text-xs text-slate-600 mt-1">
-                    Set <span className="font-mono">NEXT_PUBLIC_MAPBOX_TOKEN</span> (in <span className="font-mono">apps/web/.env.local</span>) then restart.
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div ref={containerRef} className="absolute inset-0" />
-            )}
+          <div id="driver-live-map" className="w-full h-96 rounded-md overflow-hidden border-2 border-blue-200 bg-gray-50" />
+          {/* Demand zones: show from data or fallback */}
+          {(() => {
+            const zones = Array.isArray((data as any).demandZones) ? (data as any).demandZones : [];
 
-            {/* Demand zones overlay (live-only) */}
-            {liveOnly && (() => {
-              const zones = Array.isArray((data as any).demandZones) ? (data as any).demandZones : [];
+            if (liveOnly) {
               return (
-                <div className="absolute left-4 bottom-6 z-50 pointer-events-auto">
+                <div className="absolute left-4 bottom-6 z-50">
                   <div className="bg-white/95 backdrop-blur-sm rounded-lg p-3 shadow-md border">
                     <div className="flex items-center gap-2 mb-2">
                       <div className="font-semibold text-sm text-gray-800">HIGH DEMAND ZONES</div>
@@ -372,25 +239,37 @@ export default function DriverLiveMap({ liveOnly }: { liveOnly?: boolean } = {})
                     <div className="flex flex-col gap-2">
                       {zones.map((zone: any, idx: number) => (
                         <div key={idx} className="flex items-center gap-2 px-2 py-1 bg-gray-50 rounded-md border">
-                          <span
-                            className={`inline-block h-3 w-3 ${
-                              zone.level === "high" ? "bg-blue-500" : zone.level === "medium" ? "bg-amber-400" : "bg-emerald-500"
-                            } rounded-sm transform rotate-45`}
-                          />
+                          <span className={`inline-block h-3 w-3 ${zone.level === 'high' ? 'bg-blue-500' : zone.level === 'medium' ? 'bg-amber-400' : 'bg-emerald-500'} rounded-sm transform rotate-45`} />
                           <span className="text-sm font-medium text-gray-700">{zone.name}</span>
-                          <span className="text-xs text-gray-500 capitalize">{zone.level === "high" ? "Very High" : zone.level}</span>
+                          <span className="text-xs text-gray-500 capitalize">{zone.level === 'high' ? 'Very High' : zone.level}</span>
                         </div>
                       ))}
-                      {zones.length === 0 ? <div className="text-xs text-slate-500">No zones</div> : null}
                     </div>
                   </div>
                 </div>
               );
-            })()}
+            }
 
-            {/* Live controls overlay */}
+            return (
+              <div className="mt-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="font-semibold text-gray-800">HIGH DEMAND ZONES</div>
+                </div>
+                <div className="mb-4 flex flex-wrap gap-3">
+                  {zones.map((zone: any, idx: number) => (
+                    <div key={idx} className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg border">
+                      <span className={`inline-block h-3 w-3 ${zone.level === 'high' ? 'bg-blue-500' : zone.level === 'medium' ? 'bg-amber-400' : 'bg-emerald-500'} rounded-sm transform rotate-45`} />
+                      <span className="text-sm font-medium text-gray-700">{zone.name}</span>
+                      <span className="text-xs text-gray-500 capitalize">{zone.level === 'high' ? 'Very High' : zone.level}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+            {/* Live controls helper - visible when map is opened in live-only mode */}
             {liveOnly && (
-              <div className="absolute right-4 top-6 z-50 pointer-events-auto">
+              <div className="absolute right-4 top-6 z-50">
                 <div className="bg-white/95 backdrop-blur-sm rounded-lg p-3 shadow-md border w-56">
                   <div className="flex items-center justify-between mb-2">
                     <div className="font-semibold text-sm text-gray-800">Live Controls</div>
@@ -417,77 +296,50 @@ export default function DriverLiveMap({ liveOnly }: { liveOnly?: boolean } = {})
                 </div>
               </div>
             )}
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="p-3 bg-white border rounded">
+              <div className="text-sm text-gray-500">Driver location</div>
+              <div className="text-lg font-medium">{data.driverLocation?.lat?.toFixed?.(4) ?? "-"}, {data.driverLocation?.lng?.toFixed?.(4) ?? "-"}</div>
+            </div>
+            <div className="p-3 bg-white border rounded">
+              <div className="text-sm text-gray-500">Assignments</div>
+              <div className="text-lg font-medium">{(data.assignments || []).length}</div>
+            </div>
+            <div className="p-3 bg-white border rounded">
+              <div className="text-sm text-gray-500">Nearby drivers</div>
+              <div className="text-lg font-medium">{(data.nearbyDrivers || []).length}</div>
+            </div>
           </div>
-
-          {/* Demand zones (non-live layout below map) */}
-          {!liveOnly && (() => {
-            const zones = Array.isArray((data as any).demandZones) ? (data as any).demandZones : [];
-            return (
-              <div className="mt-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="font-semibold text-gray-800">HIGH DEMAND ZONES</div>
-                </div>
-                <div className="mb-4 flex flex-wrap gap-3">
-                  {zones.map((zone: any, idx: number) => (
-                    <div key={idx} className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg border">
-                      <span
-                        className={`inline-block h-3 w-3 ${
-                          zone.level === "high" ? "bg-blue-500" : zone.level === "medium" ? "bg-amber-400" : "bg-emerald-500"
-                        } rounded-sm transform rotate-45`}
-                      />
-                      <span className="text-sm font-medium text-gray-700">{zone.name}</span>
-                      <span className="text-xs text-gray-500 capitalize">{zone.level === "high" ? "Very High" : zone.level}</span>
+          {/* Nearby drivers list (live) */}
+          {Array.isArray(data.nearbyDrivers) && data.nearbyDrivers.length > 0 ? (
+            <div className="mt-4 bg-white border rounded p-3">
+              <div className="text-sm text-gray-500 mb-2">Nearby drivers (live)</div>
+              <ul className="space-y-2">
+                {data.nearbyDrivers.map((d: any, i: number) => (
+                  <li key={d.id ?? `driver-${i}`} className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className={`${d.available ? 'bg-green-500' : 'bg-red-500'} w-2.5 h-2.5 rounded-full border border-white inline-block`} />
+                      <div className="text-sm">
+                        <div className="font-medium">{d.name ?? `Driver ${d.id ?? 'unknown'}`}</div>
+                        <div className="text-xs text-muted-foreground">{d.lat ? `${d.lat.toFixed?.(4) ?? d.lat}, ${d.lng?.toFixed?.(4) ?? d.lng}` : 'location unknown'}</div>
+                      </div>
                     </div>
-                  ))}
-                  {zones.length === 0 ? <div className="text-sm text-slate-500">No zones</div> : null}
-                </div>
-              </div>
-            );
-          })()}
-
-          {!liveOnly && (
-            <>
-              <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div className="p-3 bg-white border rounded">
-                  <div className="text-sm text-gray-500">Driver location</div>
-                  <div className="text-lg font-medium">
-                    {(data as any).driverLocation?.lat?.toFixed?.(4) ?? "-"}, {(data as any).driverLocation?.lng?.toFixed?.(4) ?? "-"}
-                  </div>
-                </div>
-                <div className="p-3 bg-white border rounded">
-                  <div className="text-sm text-gray-500">Assignments</div>
-                  <div className="text-lg font-medium">{((data as any).assignments || []).length}</div>
-                </div>
-                <div className="p-3 bg-white border rounded">
-                  <div className="text-sm text-gray-500">Nearby drivers</div>
-                  <div className="text-lg font-medium">{((data as any).nearbyDrivers || []).length}</div>
-                </div>
-              </div>
-              {Array.isArray((data as any).nearbyDrivers) && (data as any).nearbyDrivers.length > 0 ? (
-                <div className="mt-4 bg-white border rounded p-3">
-                  <div className="text-sm text-gray-500 mb-2">Nearby drivers</div>
-                  <ul className="space-y-2">
-                    {(data as any).nearbyDrivers.map((d: any, i: number) => (
-                      <li key={d.id ?? `driver-${i}`} className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <span className={`${d.available ? "bg-green-500" : "bg-red-500"} w-2.5 h-2.5 rounded-full border border-white inline-block`} />
-                          <div className="text-sm">
-                            <div className="font-medium">{d.name ?? `Driver ${d.id ?? "unknown"}`}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {d.lat ? `${d.lat.toFixed?.(4) ?? d.lat}, ${d.lng?.toFixed?.(4) ?? d.lng}` : "location unknown"}
-                            </div>
-                          </div>
-                        </div>
-                        <div className={`text-xs font-medium ${d.available ? "text-green-600" : "text-red-600"}`}>{d.available ? "Available" : "Offline"}</div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-            </>
-          )}
+                    <div className={`text-xs font-medium ${d.available ? 'text-green-600' : 'text-red-600'}`}>{d.available ? 'Available' : 'Offline'}</div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </>
       )}
     </div>
   );
 }
+
+
+
+
+
+
+
+

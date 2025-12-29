@@ -1,7 +1,7 @@
 "use client";
 import React, { useState } from "react";
 import Image from "next/image";
-import { ChevronUp, ChevronDown, DollarSign, Clock, Navigation, Phone, MessageCircle, X, CheckCircle, Bell } from "lucide-react";
+import { ChevronDown, DollarSign, Clock, Navigation, Phone, MessageCircle, X, CheckCircle } from "lucide-react";
 import DriverMatchingInfo from "./DriverMatchingInfo";
 import LoadingSpinner from "./LoadingSpinner";
 
@@ -54,7 +54,6 @@ type TripStage =
 interface DriverLiveMapBottomSheetProps {
   isCollapsed: boolean;
   onToggle: () => void;
-  mapTheme?: "light" | "dark";
   tripRequest?: TripRequest | null;
   activeTrip?: ActiveTrip | null;
   tripStage?: TripStage;
@@ -63,7 +62,6 @@ interface DriverLiveMapBottomSheetProps {
   onDeclineTrip?: (tripId: string) => void;
   onCompleteTrip?: (tripId: string) => void;
   onArriveAtPickup?: () => void;
-  onPickupPassenger?: () => void;
   onStartTrip?: () => void;
   onArriveAtDestination?: () => void;
   onStartDropoff?: () => void;
@@ -78,19 +76,13 @@ interface DriverLiveMapBottomSheetProps {
 export default function DriverLiveMapBottomSheet({
   isCollapsed,
   onToggle,
-  mapTheme = "light",
   tripRequest,
   activeTrip,
   tripStage = 'waiting',
   todayEarnings = 0,
   onAcceptTrip,
   onDeclineTrip,
-  onCompleteTrip,
-  onArriveAtPickup,
-  onPickupPassenger,
   onStartTrip,
-  onArriveAtDestination,
-  onStartDropoff,
   onCall,
   onMessage,
   onSendQuickMessage,
@@ -98,19 +90,6 @@ export default function DriverLiveMapBottomSheet({
   isAccepting = false,
   isDeclining = false,
 }: DriverLiveMapBottomSheetProps) {
-  const isDark = mapTheme === "dark";
-  const themed = (light: string, dark: string) => (isDark ? dark : light);
-
-  const sheetBase = themed(
-    "bg-white border-t border-slate-200 text-slate-900",
-    "bg-slate-950/85 border-t border-white/12 text-slate-50"
-  );
-  const sheetShadow = themed("shadow-2xl", "shadow-[0_-18px_60px_rgba(0,0,0,0.5)]");
-  const handleBar = themed("bg-slate-300 hover:bg-slate-400", "bg-white/18 hover:bg-white/22");
-  const muted = themed("text-slate-500", "text-slate-200/70");
-  const text = themed("text-slate-900", "text-slate-50");
-  const iconMuted = themed("text-slate-600", "text-slate-200/80");
-
   const formatMoney = (amount: number) => {
     return new Intl.NumberFormat('en-TZ', {
       style: 'currency',
@@ -124,9 +103,21 @@ export default function DriverLiveMapBottomSheet({
     return null;
   }
 
-  // Collapsed state - no earnings button shown
+  // Collapsed state - shows earnings summary (hidden on the right, with a button to open)
   if (isCollapsed && !tripRequest && !activeTrip) {
-    return null;
+    return (
+      <>
+        {/* Earnings button - always visible on the right side when collapsed */}
+        <button
+          onClick={onToggle}
+          className="absolute bottom-4 right-4 z-30 bg-white rounded-full p-2.5 shadow-md hover:shadow-lg transition-all duration-300 hover:scale-110 active:scale-95 pointer-events-auto border border-slate-200"
+          aria-label="Show earnings"
+          title={`Today's Earnings: ${formatMoney(todayEarnings)}`}
+        >
+          <DollarSign className="h-4 w-4 text-emerald-600" />
+        </button>
+      </>
+    );
   }
 
   // Expanded earnings card - slides in from right when button is clicked
@@ -134,24 +125,19 @@ export default function DriverLiveMapBottomSheet({
     return (
       <>
         {/* Earnings card - slides in from right */}
-        <div
-          className={[
-            "absolute bottom-4 right-4 z-30 rounded-2xl shadow-2xl border pointer-events-auto transition-all duration-300 translate-x-0 opacity-100 animate-slide-in-right backdrop-blur-md",
-            themed("bg-white border-slate-200", "bg-slate-950/75 border-white/15 text-slate-50"),
-          ].join(" ")}
-        >
+        <div className="absolute bottom-4 right-4 z-30 bg-white rounded-2xl shadow-2xl border border-slate-200 pointer-events-auto transition-all duration-300 translate-x-0 opacity-100 animate-slide-in-right">
           <div className="px-5 pt-3 pb-4 min-w-[200px]">
             <div className="flex items-center justify-between mb-2">
-              <p className={["text-xs", muted].join(" ")}>Today's Earnings</p>
+              <p className="text-xs text-slate-500">Today&apos;s Earnings</p>
               <button
                 onClick={onToggle}
-                className={["p-1 rounded-full transition-colors", themed("hover:bg-slate-100", "hover:bg-white/10")].join(" ")}
+                className="p-1 hover:bg-slate-100 rounded-full transition-colors"
                 aria-label="Close"
               >
-                <X className={["h-4 w-4", iconMuted].join(" ")} />
+                <X className="h-4 w-4 text-slate-600" />
               </button>
             </div>
-            <p className={["text-2xl font-bold", text].join(" ")}>{formatMoney(todayEarnings)}</p>
+            <p className="text-2xl font-bold text-slate-900">{formatMoney(todayEarnings)}</p>
           </div>
         </div>
       </>
@@ -161,92 +147,58 @@ export default function DriverLiveMapBottomSheet({
   // Trip Request Card
   if (tripRequest) {
     return (
-      <div
-        className={[
-          "absolute bottom-0 left-0 right-0 z-30 rounded-t-3xl animate-slide-up pointer-events-auto ring-2",
-          sheetBase,
-          sheetShadow,
-          themed("ring-emerald-200", "ring-emerald-400/25"),
-        ].join(" ")}
-      >
+      <div className="absolute bottom-0 left-0 right-0 z-30 bg-white rounded-t-3xl shadow-2xl border-t border-slate-200 animate-slide-up pointer-events-auto">
         <div className="px-6 pt-4 pb-6 max-h-[80vh] overflow-y-auto space-y-5">
           {/* Drag handle */}
-          <div className={["w-12 h-1.5 rounded-full mx-auto transition-colors", themed("bg-slate-300", "bg-white/18")].join(" ")} />
-
-          {/* Attention bell (pulsing) */}
-          <div className="absolute right-6 top-4">
-            <div className="relative">
-              <div className="absolute inset-0 rounded-full bg-emerald-400/30 animate-ping" />
-              <div
-                className={[
-                  "relative h-10 w-10 rounded-full border flex items-center justify-center shadow-sm",
-                  themed("bg-emerald-50 border-emerald-200", "bg-emerald-500/12 border-emerald-400/25"),
-                ].join(" ")}
-              >
-                <Bell className={["h-5 w-5", themed("text-emerald-700", "text-emerald-200")].join(" ")} />
-              </div>
-            </div>
-          </div>
+          <div className="w-12 h-1.5 bg-slate-300 rounded-full mx-auto" />
 
           {/* Passenger Info */}
           <div className="flex items-center gap-4">
-            <div
-              className={[
-                "relative w-16 h-16 rounded-full flex items-center justify-center overflow-hidden",
-                themed("bg-slate-200", "bg-white/10 border border-white/10"),
-              ].join(" ")}
-            >
-              {tripRequest.passengerPhoto ? (
-                <Image 
-                  src={tripRequest.passengerPhoto || "/assets/default-avatar.png"} 
-                  alt={tripRequest.passengerName} 
-                  fill
-                  className="object-cover rounded-full"
-                  unoptimized
-                />
-              ) : (
-                <span className={["text-2xl font-semibold", themed("text-slate-600", "text-slate-100")].join(" ")}>
-                  {tripRequest.passengerName.charAt(0).toUpperCase()}
-                </span>
-              )}
-              <div
-                className={[
-                  "absolute -bottom-1 -right-1 rounded-full p-1 shadow",
-                  themed("bg-white", "bg-slate-950/85 border border-white/10"),
-                ].join(" ")}
-              >
+            <div className="relative">
+              <div className="w-16 h-16 rounded-full bg-slate-200 flex items-center justify-center overflow-hidden">
+                {tripRequest.passengerPhoto ? (
+                  <Image
+                    src={tripRequest.passengerPhoto}
+                    alt={tripRequest.passengerName}
+                    className="w-full h-full object-cover"
+                    width={64}
+                    height={64}
+                    style={{ borderRadius: '9999px' }}
+                  />
+                ) : (
+                  <span className="text-2xl font-semibold text-slate-600">
+                    {tripRequest.passengerName.charAt(0).toUpperCase()}
+                  </span>
+                )}
+              </div>
+              <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-1 shadow">
                 <div className="w-4 h-4 bg-emerald-500 rounded-full"></div>
               </div>
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className={["text-xl font-semibold truncate", text].join(" ")}>{tripRequest.passengerName}</h3>
-              <div className={["flex items-center gap-2 mt-1 text-sm", themed("text-slate-600", "text-slate-200/75")].join(" ")}>
+              <h3 className="text-xl font-semibold text-slate-900 truncate">{tripRequest.passengerName}</h3>
+              <div className="flex items-center gap-2 mt-1 text-sm text-slate-600">
                 <span className="text-amber-500">★</span>
                 <span>{tripRequest.passengerRating.toFixed(1)}</span>
               </div>
             </div>
-            <div
-              className={[
-                "px-3 py-1.5 rounded-full text-xs font-semibold border",
-                themed("bg-emerald-50 text-emerald-700 border-emerald-100", "bg-emerald-500/12 text-emerald-200 border-emerald-400/20"),
-              ].join(" ")}
-            >
+            <div className="px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-full text-xs font-semibold border border-emerald-100">
               {tripRequest.tripType}
             </div>
           </div>
 
           <div className="grid gap-4">
             {/* Pickup */}
-            <div className={["rounded-xl border p-4", themed("border-slate-200 bg-white", "border-white/12 bg-white/5")].join(" ")}>
+            <div className="rounded-xl border border-slate-200 p-4 bg-white">
               <div className="flex items-start gap-3">
                 <div className="mt-1">
                   <div className="w-3 h-3 rounded-full bg-emerald-500 border-2 border-white shadow-sm" />
-                  <div className={["w-0.5 h-10 mx-auto", themed("bg-slate-200", "bg-white/12")].join(" ")} />
+                  <div className="w-0.5 h-10 bg-slate-200 mx-auto" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-[11px] uppercase tracking-wide text-emerald-600 font-semibold mb-1">Pickup</p>
-                  <p className={["text-base font-semibold leading-snug", text].join(" ")}>{tripRequest.pickupAddress}</p>
-                  <div className={["flex items-center gap-4 text-xs mt-2", muted].join(" ")}>
+                  <p className="text-base font-semibold text-slate-900 leading-snug">{tripRequest.pickupAddress}</p>
+                  <div className="flex items-center gap-4 text-xs text-slate-500 mt-2">
                     <span className="flex items-center gap-1">
                       <Navigation className="h-3.5 w-3.5" />
                       {tripRequest.pickupDistance}
@@ -261,15 +213,15 @@ export default function DriverLiveMapBottomSheet({
             </div>
 
             {/* Dropoff */}
-            <div className={["rounded-xl border p-4", themed("border-slate-200 bg-white", "border-white/12 bg-white/5")].join(" ")}>
+            <div className="rounded-xl border border-slate-200 p-4 bg-white">
               <div className="flex items-start gap-3">
                 <div className="mt-1">
                   <div className="w-3 h-3 rounded-full bg-red-500 border-2 border-white shadow-sm" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className={["text-[11px] uppercase tracking-wide font-semibold mb-1", muted].join(" ")}>Dropoff</p>
-                  <p className={["text-base font-semibold leading-snug", text].join(" ")}>{tripRequest.dropoffAddress}</p>
-                  <p className={["text-xs mt-2", muted].join(" ")}>{tripRequest.dropoffDistance}</p>
+                  <p className="text-[11px] uppercase tracking-wide text-slate-500 font-semibold mb-1">Dropoff</p>
+                  <p className="text-base font-semibold text-slate-900 leading-snug">{tripRequest.dropoffAddress}</p>
+                  <p className="text-xs text-slate-500 mt-2">{tripRequest.dropoffDistance}</p>
                 </div>
               </div>
             </div>
@@ -277,36 +229,21 @@ export default function DriverLiveMapBottomSheet({
 
           {/* Driver Matching Info */}
           {tripRequest.matchedDriver && (
-            <div
-              className={[
-                "rounded-xl border p-4",
-                themed(
-                  "border-slate-200 bg-gradient-to-br from-emerald-50 to-blue-50",
-                  "border-white/12 bg-gradient-to-br from-emerald-500/12 to-blue-500/10"
-                ),
-              ].join(" ")}
-            >
-              <p className={["text-xs font-semibold mb-2 uppercase tracking-wide", themed("text-slate-700", "text-slate-200/80")].join(" ")}>
-                Matched Driver
-              </p>
+            <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-emerald-50 to-blue-50 p-4">
+              <p className="text-xs font-semibold text-slate-700 mb-2 uppercase tracking-wide">Matched Driver</p>
               <DriverMatchingInfo matchedDriver={tripRequest.matchedDriver} />
             </div>
           )}
 
           {/* Fare Estimate */}
-          <div className={["rounded-2xl border p-5 shadow-sm", themed("border-slate-200 bg-slate-50", "border-white/12 bg-white/5")].join(" ")}>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
-                <p className={["text-xs mb-1", muted].join(" ")}>Estimated Fare</p>
-                <p className={["text-2xl font-bold", text].join(" ")}>{tripRequest.fare}</p>
+                <p className="text-xs text-slate-500 mb-1">Estimated Fare</p>
+                <p className="text-2xl font-bold text-slate-900">{tripRequest.fare}</p>
               </div>
-              <div
-                className={[
-                  "h-12 w-12 rounded-full border flex items-center justify-center",
-                  themed("bg-emerald-50 border-emerald-100", "bg-emerald-500/12 border-emerald-400/20"),
-                ].join(" ")}
-              >
-                <DollarSign className={["h-7 w-7", themed("text-emerald-600", "text-emerald-300")].join(" ")} />
+              <div className="h-12 w-12 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center">
+                <DollarSign className="h-7 w-7 text-emerald-600" />
               </div>
             </div>
           </div>
@@ -382,60 +319,48 @@ export default function DriverLiveMapBottomSheet({
     }, [waitingReply, latestUserMessage]);
 
     return (
-      <div className={["absolute bottom-0 left-0 right-0 z-30 rounded-t-3xl animate-slide-up pointer-events-auto", sheetBase, sheetShadow].join(" ")}>
+      <div className="absolute bottom-0 left-0 right-0 z-30 bg-white rounded-t-3xl shadow-2xl border-t border-slate-200 animate-slide-up pointer-events-auto">
         <div className="px-6 pt-4 pb-6 max-h-[80vh] overflow-y-auto">
           {/* Drag handle */}
-          <div className={["w-12 h-1.5 rounded-full mx-auto mb-4", themed("bg-slate-300", "bg-white/18")].join(" ")} />
+          <div className="w-12 h-1.5 bg-slate-300 rounded-full mx-auto mb-4" />
 
           {/* Status Badge */}
           <div className="flex justify-center mb-4">
-            <div
-              className={[
-                "px-4 py-1.5 rounded-full text-sm font-medium border",
-                tripStage === 'accepted'
-                  ? themed("bg-blue-100 text-blue-700 border-blue-200", "bg-blue-500/12 text-blue-200 border-blue-400/25")
-                  : tripStage === 'pickup'
-                    ? themed("bg-amber-100 text-amber-700 border-amber-200", "bg-amber-500/12 text-amber-200 border-amber-400/25")
-                    : tripStage === 'picked_up'
-                      ? themed("bg-emerald-100 text-emerald-700 border-emerald-200", "bg-emerald-500/12 text-emerald-200 border-emerald-400/25")
-                      : tripStage === 'in_transit'
-                        ? themed("bg-indigo-100 text-indigo-700 border-indigo-200", "bg-indigo-500/12 text-indigo-200 border-indigo-400/25")
-                        : tripStage === 'arrived'
-                          ? themed("bg-purple-100 text-purple-700 border-purple-200", "bg-purple-500/12 text-purple-200 border-purple-400/25")
-                          : themed("bg-slate-100 text-slate-700 border-slate-200", "bg-white/6 text-slate-200/85 border-white/12"),
-              ].join(" ")}
-            >
+            <div className={`px-4 py-1.5 rounded-full text-sm font-medium ${
+              tripStage === 'accepted' ? 'bg-blue-100 text-blue-700' :
+              tripStage === 'pickup' ? 'bg-amber-100 text-amber-700' :
+              tripStage === 'picked_up' ? 'bg-emerald-100 text-emerald-700' :
+              tripStage === 'in_transit' ? 'bg-indigo-100 text-indigo-700' :
+              tripStage === 'arrived' ? 'bg-purple-100 text-purple-700' :
+              'bg-slate-100 text-slate-700'
+            }`}>
               {statusLabels[tripStage] || 'Active Trip'}
             </div>
           </div>
 
           {/* Passenger Info */}
           <div className="flex items-center gap-4 mb-6">
-            <div
-              className={[
-                "relative w-16 h-16 rounded-full flex items-center justify-center overflow-hidden",
-                themed("bg-slate-200", "bg-white/10 border border-white/10"),
-              ].join(" ")}
-            >
+            <div className="w-16 h-16 rounded-full bg-slate-200 flex items-center justify-center overflow-hidden">
               {activeTrip.passengerPhoto ? (
-                <Image 
-                  src={activeTrip.passengerPhoto || "/assets/default-avatar.png"} 
-                  alt={activeTrip.passengerName} 
-                  fill
-                  className="object-cover rounded-full"
-                  unoptimized
+                <Image
+                  src={activeTrip.passengerPhoto}
+                  alt={activeTrip.passengerName}
+                  className="w-full h-full object-cover"
+                  width={64}
+                  height={64}
+                  style={{ borderRadius: '9999px' }}
                 />
               ) : (
-                <span className={["text-2xl font-semibold", themed("text-slate-600", "text-slate-100")].join(" ")}>
+                <span className="text-2xl font-semibold text-slate-600">
                   {activeTrip.passengerName.charAt(0).toUpperCase()}
                 </span>
               )}
             </div>
             <div className="flex-1">
-              <h3 className={["text-lg font-semibold", text].join(" ")}>{activeTrip.passengerName}</h3>
+              <h3 className="text-lg font-semibold text-slate-900">{activeTrip.passengerName}</h3>
               <div className="flex items-center gap-1 mt-1">
                 <span className="text-amber-500">★</span>
-                <span className={["text-sm", themed("text-slate-600", "text-slate-200/75")].join(" ")}>{activeTrip.passengerRating.toFixed(1)}</span>
+                <span className="text-sm text-slate-600">{activeTrip.passengerRating.toFixed(1)}</span>
               </div>
             </div>
             {/* Call and Message buttons - Only visible after accept, hidden once arrived at pickup */}
@@ -443,10 +368,7 @@ export default function DriverLiveMapBottomSheet({
               <div className="flex gap-2">
                 <button
                   onClick={() => onCall?.(activeTrip.phoneNumber!)}
-                  className={[
-                    "p-3 rounded-full transition-colors border",
-                    themed("bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-200", "bg-emerald-500/12 text-emerald-200 border-emerald-400/25 hover:bg-emerald-500/18"),
-                  ].join(" ")}
+                  className="p-3 bg-emerald-100 text-emerald-700 rounded-full hover:bg-emerald-200 transition-colors"
                   aria-label="Call"
                 >
                   <Phone className="h-5 w-5" />
@@ -455,10 +377,7 @@ export default function DriverLiveMapBottomSheet({
                   <div className="relative">
                     <button
                       onClick={() => setShowQuickMessages((p) => !p)}
-                      className={[
-                        "p-3 rounded-full transition-colors border",
-                        themed("bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-200", "bg-blue-500/12 text-blue-200 border-blue-400/25 hover:bg-blue-500/18"),
-                      ].join(" ")}
+                      className="p-3 bg-blue-100 text-blue-700 rounded-full hover:bg-blue-200 transition-colors"
                       aria-label="Quick messages"
                     >
                       <MessageCircle className="h-5 w-5" />
@@ -467,33 +386,23 @@ export default function DriverLiveMapBottomSheet({
                       <div className="fixed inset-0 z-[120] flex items-center justify-center px-3">
                         {/* Backdrop */}
                         <div
-                          className={["absolute inset-0 transition-opacity duration-200", isDark ? "bg-black/55" : "bg-black/40"].join(" ")}
+                          className="absolute inset-0 bg-black/40 transition-opacity duration-200"
                           onClick={() => setShowQuickMessages(false)}
                           aria-hidden
                         />
                         {/* Card */}
-                        <div
-                          className={[
-                            "relative w-full max-w-sm rounded-2xl shadow-2xl border overflow-hidden max-h-[70vh] flex flex-col animate-fade-in-up",
-                            themed("bg-white border-slate-200 text-slate-900", "bg-slate-950/80 border-white/15 text-slate-100"),
-                          ].join(" ")}
-                        >
-                          <div
-                            className={[
-                              "px-4 py-3 border-b flex items-start justify-between gap-3",
-                              themed("border-slate-100", "border-white/10"),
-                            ].join(" ")}
-                          >
+                        <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden max-h-[70vh] flex flex-col animate-fade-in-up">
+                          <div className="px-4 py-3 border-b border-slate-100 flex items-start justify-between gap-3">
                             <div>
-                              <p className={["text-base font-semibold", themed("text-slate-900", "text-slate-50")].join(" ")}>Quick messages</p>
-                              <p className={["text-[12px]", muted].join(" ")}>Choose a prepared note to send to the rider.</p>
+                              <p className="text-base font-semibold text-slate-900">Quick messages</p>
+                              <p className="text-[12px] text-slate-500">Choose a prepared note to send to the rider.</p>
                             </div>
                             <button
                               onClick={() => setShowQuickMessages(false)}
-                              className={["p-1.5 rounded-full transition-colors", themed("hover:bg-slate-100", "hover:bg-white/10")].join(" ")}
+                              className="p-1.5 rounded-full hover:bg-slate-100 transition-colors"
                               aria-label="Close quick messages"
                             >
-                              <X className={["h-4 w-4", iconMuted].join(" ")} />
+                              <X className="h-4 w-4 text-slate-600" />
                             </button>
                           </div>
                           <div className="p-3 space-y-2 overflow-y-auto">
@@ -507,32 +416,19 @@ export default function DriverLiveMapBottomSheet({
                                   await onSendQuickMessage?.(m.key, activeTrip.id);
                                   if (onMessage) onMessage(activeTrip.phoneNumber!);
                                 }}
-                                className={[
-                                  "w-full text-left text-sm px-3 py-2 rounded-xl border transition-colors shadow-sm leading-snug",
-                                  themed("border-slate-200 hover:border-blue-300 hover:bg-blue-50", "border-white/12 bg-white/5 hover:bg-white/10 hover:border-white/20"),
-                                ].join(" ")}
+                                className="w-full text-left text-sm px-3 py-2 rounded-xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50 transition-colors shadow-sm leading-snug"
                               >
                                 {m.label}
                               </button>
                             ))}
                           </div>
                           {waitingReply && (
-                            <div
-                              className={[
-                                "px-4 py-2.5 border-t text-[12px] font-medium",
-                                themed("border-slate-100 bg-emerald-50 text-emerald-700", "border-white/10 bg-emerald-500/10 text-emerald-200"),
-                              ].join(" ")}
-                            >
+                            <div className="px-4 py-2.5 border-t border-slate-100 bg-emerald-50 text-[12px] text-emerald-700 font-medium">
                               Sent. Waiting for user response…
                             </div>
                           )}
                           {!waitingReply && responseMessage && (
-                            <div
-                              className={[
-                                "px-4 py-2.5 border-t text-[12px] font-medium",
-                                themed("border-slate-100 bg-blue-50 text-blue-700", "border-white/10 bg-blue-500/10 text-blue-200"),
-                              ].join(" ")}
-                            >
+                            <div className="px-4 py-2.5 border-t border-slate-100 bg-blue-50 text-[12px] text-blue-700 font-medium">
                               User replied: {responseMessage}
                             </div>
                           )}
@@ -551,13 +447,13 @@ export default function DriverLiveMapBottomSheet({
               <div className="flex items-start gap-3">
                 <div className="mt-1">
                   <div className="w-3 h-3 rounded-full bg-emerald-500 border-2 border-white animate-pulse"></div>
-                  <div className={["w-0.5 h-12 mx-auto", themed("bg-slate-300", "bg-white/14")].join(" ")}></div>
+                  <div className="w-0.5 h-12 bg-slate-300 mx-auto"></div>
                 </div>
                 <div className="flex-1">
-                  <p className={["text-xs mb-1", muted].join(" ")}>PICKUP</p>
-                  <p className={["text-sm font-medium", text].join(" ")}>{activeTrip.pickupAddress}</p>
+                  <p className="text-xs text-slate-500 mb-1">PICKUP</p>
+                  <p className="text-sm font-medium text-slate-900">{activeTrip.pickupAddress}</p>
                   {tripStage === 'pickup' && (
-                    <p className="text-xs text-emerald-600 font-medium mt-1">✓ You've arrived</p>
+                    <p className="text-xs text-emerald-600 font-medium mt-1">✓ You&apos;ve arrived</p>
                   )}
                 </div>
               </div>
@@ -570,11 +466,11 @@ export default function DriverLiveMapBottomSheet({
                 <div className="flex items-start gap-3">
                   <div className="mt-1">
                     <div className="w-3 h-3 rounded-full bg-emerald-500 border-2 border-white"></div>
-                    <div className={["w-0.5 h-12 mx-auto", themed("bg-slate-300", "bg-white/14")].join(" ")}></div>
+                    <div className="w-0.5 h-12 bg-slate-300 mx-auto"></div>
                   </div>
                   <div className="flex-1">
-                    <p className={["text-xs mb-1", muted].join(" ")}>PICKUP</p>
-                    <p className={["text-sm font-medium line-through", text].join(" ")}>{activeTrip.pickupAddress}</p>
+                    <p className="text-xs text-slate-500 mb-1">PICKUP</p>
+                    <p className="text-sm font-medium text-slate-900 line-through">{activeTrip.pickupAddress}</p>
                     <p className="text-xs text-emerald-600 font-medium mt-1">✓ Completed</p>
                   </div>
                 </div>
@@ -588,8 +484,8 @@ export default function DriverLiveMapBottomSheet({
                     }`}></div>
                   </div>
                   <div className="flex-1">
-                    <p className={["text-xs mb-1", muted].join(" ")}>DROPOFF</p>
-                    <p className={["text-sm font-medium", text].join(" ")}>{activeTrip.dropoffAddress}</p>
+                    <p className="text-xs text-slate-500 mb-1">DROPOFF</p>
+                    <p className="text-sm font-medium text-slate-900">{activeTrip.dropoffAddress}</p>
                     {tripStage === 'arrived' && (
                       <p className="text-xs text-emerald-600 font-medium mt-1">✓ You've arrived</p>
                     )}
@@ -600,17 +496,27 @@ export default function DriverLiveMapBottomSheet({
           )}
 
           {/* Fare */}
-          <div className={["rounded-xl p-4 mb-6 border", themed("bg-slate-50 border-slate-200", "bg-white/5 border-white/12")].join(" ")}>
+          <div className="bg-slate-50 rounded-xl p-4 mb-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className={["text-xs mb-1", muted].join(" ")}>Fare</p>
-                <p className={["text-xl font-bold", text].join(" ")}>{activeTrip.fare}</p>
+                <p className="text-xs text-slate-500 mb-1">Fare</p>
+                <p className="text-xl font-bold text-slate-900">{activeTrip.fare}</p>
               </div>
-              <DollarSign className={["h-8 w-8", themed("text-emerald-600", "text-emerald-300")].join(" ")} />
+              <DollarSign className="h-8 w-8 text-emerald-600" />
             </div>
           </div>
 
-          {/* Action buttons removed - now shown at bottom of screen */}
+          {/* Action buttons - shown contextually (uses onStartTrip to avoid unused prop) */}
+          <div className="flex gap-2.5">
+            {tripStage === 'pickup' && (
+              <button
+                onClick={() => onStartTrip?.()}
+                className="flex-1 bg-emerald-500 text-white py-2.5 px-4 rounded-lg text-sm font-semibold hover:bg-emerald-600 transition-all duration-300"
+              >
+                Start Trip
+              </button>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -618,31 +524,31 @@ export default function DriverLiveMapBottomSheet({
 
   // Expanded state - no active trip or request
   return (
-    <div className={["absolute bottom-0 left-0 right-0 z-30 rounded-t-3xl animate-slide-up pointer-events-auto", sheetBase, sheetShadow].join(" ")}>
+    <div className="absolute bottom-0 left-0 right-0 z-30 bg-white rounded-t-3xl shadow-2xl border-t border-slate-200 animate-slide-up pointer-events-auto">
       <div className="px-6 pt-4 pb-6">
         {/* Drag handle */}
         <button
           onClick={onToggle}
-          className={["w-12 h-1.5 rounded-full mx-auto mb-4 block transition-colors", handleBar].join(" ")}
+          className="w-12 h-1.5 bg-slate-300 rounded-full mx-auto mb-4 block hover:bg-slate-400 transition-colors"
           aria-label="Collapse"
         />
         
         <div className="flex items-center justify-between mb-6">
           <div>
-            <p className={["text-xs mb-1", muted].join(" ")}>Today's Earnings</p>
-            <p className={["text-2xl font-bold", text].join(" ")}>{formatMoney(todayEarnings)}</p>
+            <p className="text-xs text-slate-500 mb-1">Today&apos;s Earnings</p>
+            <p className="text-2xl font-bold text-slate-900">{formatMoney(todayEarnings)}</p>
           </div>
           <button
             onClick={onToggle}
-            className={["p-2 rounded-full transition-colors", themed("hover:bg-slate-100", "hover:bg-white/10")].join(" ")}
+            className="p-2 hover:bg-slate-100 rounded-full transition-colors"
             aria-label="Collapse"
           >
-            <ChevronDown className={["h-5 w-5", iconMuted].join(" ")} />
+            <ChevronDown className="h-5 w-5 text-slate-600" />
           </button>
         </div>
 
         {/* Additional stats or actions can go here */}
-        <div className={["text-center py-8", themed("text-slate-400", "text-slate-300/60")].join(" ")}>
+        <div className="text-center py-8 text-slate-400">
           <p className="text-sm">Waiting for trip requests...</p>
         </div>
       </div>

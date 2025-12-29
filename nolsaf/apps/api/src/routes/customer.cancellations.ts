@@ -5,7 +5,6 @@ import { prisma } from "@nolsaf/prisma";
 import { AuthedRequest, requireAuth } from "../middleware/auth.js";
 import { notifyAdmins } from "../lib/notifications.js";
 import { limitCancellationLookup, limitCancellationSubmit, limitCancellationMessages } from "../middleware/rateLimit.js";
-import { validateBookingCode } from "../lib/bookingCodeService.js";
 
 export const router = Router();
 router.use(requireAuth as RequestHandler);
@@ -78,14 +77,13 @@ function computeEligibility(args: {
     rule: "NOT_ELIGIBLE",
     nextStep: "EMAIL",
     reason:
-      "This booking does not qualify for platform cancellation under our policy. Please contact cancellation@nolsaf.com for assistance.",
+      "This booking does not qualify for platform cancellation under our policy.",
   };
 }
 
 /**
  * GET /api/customer/cancellations/lookup?code=XXXX
  * Validate booking code (must belong to authenticated user) and return booking info for cancellation flow.
- * This endpoint allows checking USED codes for cancellation purposes (allowUsed=true).
  */
 router.get("/lookup", limitCancellationLookup, (async (req: AuthedRequest, res) => {
   try {
@@ -93,41 +91,63 @@ router.get("/lookup", limitCancellationLookup, (async (req: AuthedRequest, res) 
     const code = normalizeCode((req.query as any).code);
     if (!code) return res.status(400).json({ error: "Booking code is required" });
 
-    // Use validateBookingCode with allowUsed=true to allow checking USED codes for cancellation
-    const validation = await validateBookingCode(code, undefined, true); // allowUsed=true for cancellation checks
+    const codeHash = hashCode(code);
+    const checkinCode = await prisma.checkinCode.findFirst({
+      where: {
+        OR: [{ code }, { codeHash }],
+      },
+      include: {
+        booking: {
+          select: {
+            id: true,
+            userId: true,
+            status: true,
+            createdAt: true,
+            checkIn: true,
+            checkOut: true,
+            totalAmount: true,
+            property: {
+              select: {
+                id: true,
+                title: true,
+                type: true,
+                regionName: true,
+                district: true,
+                city: true,
+                country: true,
+              },
+            },
+          },
+        },
+      },
+    });
 
-    if (!validation.valid || !validation.booking) {
-      return res.status(404).json({ 
-        error: validation.error || "Booking not found for this code" 
-      });
+    if (!checkinCode?.booking) {
+      return res.status(404).json({ error: "Booking not found for this code" });
     }
 
-    const booking = validation.booking;
-    const checkinCode = booking.code;
-
     // Security: code must belong to the signed-in user.
-    if (booking.userId !== userId) {
+    if (checkinCode.booking.userId !== userId) {
       return res.status(404).json({ error: "Booking not found for this code" });
     }
 
     const now = new Date();
     const eligibility = computeEligibility({
-      bookingStatus: booking.status,
-      codeStatus: checkinCode?.status || "ACTIVE",
-      createdAt: new Date(booking.createdAt),
-      checkIn: new Date(booking.checkIn),
-      checkOut: new Date(booking.checkOut),
+      bookingStatus: checkinCode.booking.status,
+      codeStatus: checkinCode.status,
+      createdAt: new Date(checkinCode.booking.createdAt),
+      checkIn: new Date(checkinCode.booking.checkIn),
+      checkOut: new Date(checkinCode.booking.checkOut),
       now,
     });
 
-    // Check for ANY existing cancellation request for this booking (regardless of status)
-    // Once a request is submitted, the booking code becomes invalid for future claims
-    let existingRequest: { id: number; status: string; createdAt: Date } | null = null;
+    let existingPending: { id: number; status: string; createdAt: Date } | null = null;
     try {
-      existingRequest = await prisma.cancellationRequest.findFirst({
+      existingPending = await prisma.cancellationRequest.findFirst({
         where: {
-          bookingId: booking.id,
+          bookingId: checkinCode.booking.id,
           userId,
+          status: { in: ["SUBMITTED", "REVIEWING", "NEED_INFO", "PROCESSING"] },
         },
         select: { id: true, status: true, createdAt: true },
       });
@@ -135,23 +155,23 @@ router.get("/lookup", limitCancellationLookup, (async (req: AuthedRequest, res) 
       if (!isMissingTableError(err)) throw err;
       // If DB migration hasn't been applied yet, we can still show booking info,
       // but can't check/create requests.
-      existingRequest = null;
+      existingPending = null;
     }
 
     return res.json({
       booking: {
-        id: booking.id,
-        status: booking.status,
-        createdAt: booking.createdAt,
-        checkIn: booking.checkIn,
-        checkOut: booking.checkOut,
-        totalAmount: booking.totalAmount,
-        bookingCode: checkinCode?.code || code,
-        codeStatus: checkinCode?.status || "ACTIVE",
-        property: booking.property,
+        id: checkinCode.booking.id,
+        status: checkinCode.booking.status,
+        createdAt: checkinCode.booking.createdAt,
+        checkIn: checkinCode.booking.checkIn,
+        checkOut: checkinCode.booking.checkOut,
+        totalAmount: checkinCode.booking.totalAmount,
+        bookingCode: checkinCode.code,
+        codeStatus: checkinCode.status,
+        property: checkinCode.booking.property,
       },
       eligibility,
-      existingRequest: existingRequest || null,
+      existingRequest: existingPending || null,
     });
   } catch (error: any) {
     console.error("GET /customer/cancellations/lookup error:", error);
@@ -204,18 +224,12 @@ router.post("/request", limitCancellationSubmit, (async (req: AuthedRequest, res
     }
 
     try {
-      // Check for ANY existing cancellation request for this booking (regardless of status)
-      // Once a request is submitted, the booking code becomes invalid for future claims
-      const existingRequest = await prisma.cancellationRequest.findFirst({
-        where: { bookingId: checkinCode.booking.id, userId },
-        select: { id: true, status: true, createdAt: true },
+      const existingPending = await prisma.cancellationRequest.findFirst({
+        where: { bookingId: checkinCode.booking.id, userId, status: { in: ["SUBMITTED", "REVIEWING", "NEED_INFO", "PROCESSING"] } },
+        select: { id: true },
       });
-      if (existingRequest) {
-        return res.status(409).json({ 
-          error: "A cancellation request has already been submitted for this booking code. Each booking code can only be used once for cancellation requests.",
-          existingRequestId: existingRequest.id,
-          existingRequestStatus: existingRequest.status,
-        });
+      if (existingPending) {
+        return res.status(409).json({ error: "A cancellation request is already pending for this booking." });
       }
 
       const created = await prisma.cancellationRequest.create({
@@ -330,20 +344,7 @@ router.get("/:id", (async (req: AuthedRequest, res) => {
             checkOut: true,
             totalAmount: true,
             status: true,
-            guestName: true,
-            guestPhone: true,
-            roomCode: true,
-            property: { 
-              select: { 
-                title: true, 
-                type: true,
-                regionName: true, 
-                city: true, 
-                district: true,
-                ward: true,
-                country: true,
-              } 
-            },
+            property: { select: { title: true, regionName: true, city: true, district: true } },
           },
         },
         messages: {
