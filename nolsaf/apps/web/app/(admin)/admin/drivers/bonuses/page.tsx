@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
+import "./page.css";
+import { useEffect, useState, useCallback } from "react";
 import { Award, Truck, Search, DollarSign, Eye, X, Calendar, FileText, CheckCircle2, Clock, Plus, Loader2, Trophy, BarChart3, Gem, Edit, ChevronDown } from "lucide-react";
 import axios from "axios";
 
@@ -63,11 +64,40 @@ export default function AdminDriversBonusesPage() {
     period: new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" }),
   });
 
+  const loadBonusReasonTypes = useCallback(async () => {
+    try {
+      const r = await api.get("/admin/bonuses/reason-types");
+      const types = r.data?.reasonTypes || [];
+      setBonusReasonTypes(types);
+    } catch (err) {
+      console.error("Failed to load bonus reason types", err);
+      // Fallback reason types
+      const fallbackTypes = [
+        { type: "PERFORMANCE_EXCELLENCE", label: "Performance Excellence", description: "High ratings and completion rate", defaultAmount: 150000, icon: "Trophy" },
+        { type: "VOLUME_ACHIEVEMENT", label: "Volume Achievement", description: "Trip milestones and consistent activity", defaultAmount: 100000, icon: "BarChart3" },
+        { type: "LOYALTY_RETENTION", label: "Loyalty & Retention", description: "Long-term service and consistent availability", defaultAmount: 200000, icon: "Gem" },
+        { type: "CUSTOM", label: "Custom Reason", description: "Other reasons not covered above", defaultAmount: 0, icon: "Edit" },
+      ];
+      setBonusReasonTypes(fallbackTypes);
+    }
+  }, []);
+
+  const loadDrivers = useCallback(async () => {
+    try {
+      const r = await api.get<{ items: Driver[]; total: number }>("/admin/drivers", { params: { page: 1, pageSize: 100 } });
+      const items = r.data?.items ?? [];
+      setDrivers(items);
+    } catch (err) {
+      console.error("Failed to load drivers", err);
+      setDrivers([]);
+    }
+  }, []);
+
   useEffect(() => {
     authify();
     loadDrivers();
     loadBonusReasonTypes();
-  }, []);
+  }, [loadDrivers, loadBonusReasonTypes]);
 
   // Auto-fill amount when reason types are loaded or reason type changes
   useEffect(() => {
@@ -81,44 +111,6 @@ export default function AdminDriversBonusesPage() {
       }
     }
   }, [bonusReasonTypes, grantForm.bonusReasonType, grantForm.amount]);
-
-  async function loadBonusReasonTypes() {
-    try {
-      const r = await api.get("/admin/bonuses/reason-types");
-      const types = r.data?.reasonTypes || [];
-      setBonusReasonTypes(types);
-      
-      // Auto-fill amount when types are loaded
-      if (types.length > 0 && grantForm.bonusReasonType) {
-        const selected = types.find((r: any) => r.type === grantForm.bonusReasonType);
-        if (selected?.defaultAmount) {
-          setGrantForm(prev => ({
-            ...prev,
-            amount: String(selected.defaultAmount),
-          }));
-        }
-      }
-    } catch (err) {
-      console.error("Failed to load bonus reason types", err);
-      // Fallback reason types
-      const fallbackTypes = [
-        { type: "PERFORMANCE_EXCELLENCE", label: "Performance Excellence", description: "High ratings and completion rate", defaultAmount: 150000, icon: "Trophy" },
-        { type: "VOLUME_ACHIEVEMENT", label: "Volume Achievement", description: "Trip milestones and consistent activity", defaultAmount: 100000, icon: "BarChart3" },
-        { type: "LOYALTY_RETENTION", label: "Loyalty & Retention", description: "Long-term service and consistent availability", defaultAmount: 200000, icon: "Gem" },
-        { type: "CUSTOM", label: "Custom Reason", description: "Other reasons not covered above", defaultAmount: 0, icon: "Edit" },
-      ];
-      setBonusReasonTypes(fallbackTypes);
-      
-      // Auto-fill amount for default type
-      const defaultType = fallbackTypes.find((r: any) => r.type === grantForm.bonusReasonType);
-      if (defaultType?.defaultAmount) {
-        setGrantForm(prev => ({
-          ...prev,
-          amount: String(defaultType.defaultAmount),
-        }));
-      }
-    }
-  }
 
   async function handleGrantBonus() {
     if (!selectedDriver) return;
@@ -157,17 +149,6 @@ export default function AdminDriversBonusesPage() {
       alert(err.response?.data?.error || "Failed to grant bonus");
     } finally {
       setGranting(false);
-    }
-  }
-
-  async function loadDrivers() {
-    try {
-      const r = await api.get<{ items: Driver[]; total: number }>("/admin/drivers", { params: { page: 1, pageSize: 100 } });
-      const items = r.data?.items ?? [];
-      setDrivers(items);
-    } catch (err) {
-      console.error("Failed to load drivers", err);
-      setDrivers([]);
     }
   }
 
@@ -240,46 +221,43 @@ export default function AdminDriversBonusesPage() {
     .reduce((sum, b) => sum + (b.amount || 0), 0);
 
   return (
-    <div className="space-y-6">
-      <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+    <div className="space-y-4 sm:space-y-6 w-full min-w-0 max-w-full overflow-x-hidden">
+      <div className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6 shadow-sm w-full min-w-0">
         <div className="flex flex-col items-center justify-center text-center">
-          <div className="h-12 w-12 rounded-full bg-gradient-to-br from-amber-50 to-amber-100 flex items-center justify-center mb-3">
-            <Award className="h-6 w-6 text-amber-600" />
+          <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-gradient-to-br from-amber-50 to-amber-100 flex items-center justify-center mb-2 sm:mb-3">
+            <Award className="h-5 w-5 sm:h-6 sm:w-6 text-amber-600" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Driver Bonuses</h1>
-          <p className="text-sm text-gray-500 mt-1">View and manage driver bonus history</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Driver Bonuses</h1>
+          <p className="text-xs sm:text-sm text-gray-500 mt-1">View and manage driver bonus history</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 w-full min-w-0">
-        <div className="lg:col-span-1 w-full min-w-0 max-w-full">
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden w-full min-w-0 box-border">
-            <div className="p-3 border-b border-gray-200 w-full min-w-0 box-border bonuses-search-bar">
-              <div className="relative w-full min-w-0 box-border bonuses-search-input-container">
-                <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none z-10 flex-shrink-0" />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 w-full min-w-0">
+        <div className="lg:col-span-1 w-full min-w-0">
+          <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden w-full min-w-0">
+            <div className="p-3 sm:p-4 border-b border-gray-200 w-full min-w-0">
+              <div className="relative w-full min-w-0">
+                <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none z-10" />
                 <input
                   type="text"
                   placeholder="Search drivers..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="w-full min-w-0 pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none bonuses-search-input"
-                  style={{ boxSizing: 'border-box', maxWidth: '100%' }}
+                  className="w-full box-border pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
                 />
               </div>
-              <div className="mt-3 flex items-center gap-2">
-                <label className="text-xs text-gray-600">Filter:</label>
-                <div className="flex items-center gap-2">
-                  <select
-                    value={driverFilter}
-                    onChange={(e) => setDriverFilter(e.target.value as "all" | "a-m" | "n-z")}
-                    className="text-sm border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 appearance-none"
-                    style={{ backgroundImage: "none" }}
-                  >
-                    <option value="all">All</option>
-                    <option value="a-m">Names A-M</option>
-                    <option value="n-z">Names N-Z</option>
-                  </select>
-                </div>
+              <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-2">
+                <label className="text-xs text-gray-600 whitespace-nowrap sm:flex-shrink-0">Filter:</label>
+                <select
+                  title="Filter drivers by name range"
+                  value={driverFilter}
+                  onChange={(e) => setDriverFilter(e.target.value as "all" | "a-m" | "n-z")}
+                  className="w-full sm:w-auto sm:flex-1 text-xs sm:text-sm border border-gray-300 rounded-lg px-2.5 sm:px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none appearance-none select-no-inline"
+                >
+                  <option value="all">All</option>
+                  <option value="a-m">Names A-M</option>
+                  <option value="n-z">Names N-Z</option>
+                </select>
               </div>
             </div>
             <div className="divide-y divide-gray-200 max-h-[600px] overflow-y-auto">
@@ -287,17 +265,17 @@ export default function AdminDriversBonusesPage() {
                 <div
                   key={driver.id}
                   onClick={() => loadDriverBonuses(driver.id)}
-                  className={`p-4 hover:bg-gray-50 cursor-pointer transition-colors ${
+                  className={`p-3 sm:p-4 hover:bg-gray-50 cursor-pointer transition-colors ${
                     selectedDriver === driver.id ? "bg-emerald-50 border-l-4 border-emerald-600" : ""
                   }`}
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-emerald-100 flex items-center justify-center">
-                      <Truck className="h-5 w-5 text-emerald-600" />
+                  <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                    <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                      <Truck className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600" />
                     </div>
-                    <div>
-                      <p className="font-medium text-gray-900">{driver.name}</p>
-                      <p className="text-xs text-gray-500">{driver.email}</p>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-sm sm:text-base text-gray-900 truncate">{driver.name}</p>
+                      <p className="text-xs text-gray-500 truncate">{driver.email}</p>
                     </div>
                   </div>
                 </div>
@@ -306,12 +284,12 @@ export default function AdminDriversBonusesPage() {
           </div>
         </div>
 
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 w-full min-w-0">
           {bonusData ? (
-            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
-              <div className="mb-6">
-                <h2 className="text-xl font-bold text-gray-900 mb-2">{bonusData.driver.name}</h2>
-                <p className="text-sm text-gray-500">{bonusData.driver.email}</p>
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 sm:p-6 w-full min-w-0 overflow-x-hidden">
+              <div className="mb-4 sm:mb-6">
+                <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-1 sm:mb-2 break-words">{bonusData.driver.name}</h2>
+                <p className="text-xs sm:text-sm text-gray-500 break-words">{bonusData.driver.email}</p>
                 <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="p-4 bg-amber-50 rounded-lg border border-amber-100">
                     <p className="text-xs font-medium text-amber-800 mb-1">Total bonuses</p>
@@ -368,7 +346,7 @@ export default function AdminDriversBonusesPage() {
 
               <div>
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-                  <h3 className="text-lg font-semibold text-gray-900">Bonus History</h3>
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-900">Bonus History</h3>
                   <button
                     type="button"
                     onClick={() => {
@@ -382,12 +360,12 @@ export default function AdminDriversBonusesPage() {
                       }));
                       setShowGrantModal(true);
                     }}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition text-sm font-medium"
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition text-xs sm:text-sm font-medium"
                   >
                     <Plus className="h-4 w-4" />
                     Grant Bonus
                   </button>
-                            </div>
+                </div>
                 <div className="overflow-x-auto border border-gray-200 rounded-lg">
                   {filteredBonuses.length > 0 ? (
                     <table className="min-w-full text-sm">
@@ -608,7 +586,7 @@ export default function AdminDriversBonusesPage() {
                 <X className="h-5 w-5 text-gray-500" />
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4" style={{ boxSizing: 'border-box' }}>
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4 box-border">
               {bonusData && (
                 <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
                   <p className="text-xs font-medium text-gray-500 mb-1">Driver</p>
@@ -626,7 +604,6 @@ export default function AdminDriversBonusesPage() {
                     type="button"
                     onClick={() => setDropdownOpen(!dropdownOpen)}
                     className="w-full box-border px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-white flex items-center justify-between"
-                    style={{ width: '100%', boxSizing: 'border-box' }}
                   >
                     <div className="flex items-center gap-2">
                       {getBonusIcon(bonusReasonTypes.find((r) => r.type === grantForm.bonusReasonType)?.icon || "Trophy", "h-4 w-4")}
@@ -681,7 +658,6 @@ export default function AdminDriversBonusesPage() {
                   min="0"
                   step="1000"
                   className="w-full box-border px-3 py-2 text-sm border border-emerald-200 bg-emerald-50 rounded-lg outline-none cursor-not-allowed"
-                  style={{ width: '100%', boxSizing: 'border-box' }}
                 />
                 <p className="text-xs text-emerald-600 mt-1">
                   Amount is automatically calculated and locked based on selected reason type. Change the reason type to update the amount.
@@ -698,7 +674,6 @@ export default function AdminDriversBonusesPage() {
                   onChange={(e) => setGrantForm({ ...grantForm, period: e.target.value })}
                   placeholder="e.g., Jan 2025"
                   className="w-full box-border px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
-                  style={{ width: '100%', boxSizing: 'border-box' }}
                 />
               </div>
 
@@ -712,7 +687,6 @@ export default function AdminDriversBonusesPage() {
                   placeholder="Enter custom reason (optional)"
                   rows={3}
                   className="w-full box-border px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none resize-none"
-                  style={{ width: '100%', boxSizing: 'border-box' }}
                 />
                 <p className="text-xs text-gray-500">
                   Leave empty to auto-generate based on selected type

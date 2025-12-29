@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode, ComponentType } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -44,20 +44,14 @@ import {
   Route,
   ExternalLink,
   Plane,
-  AlignLeft,
   Tags,
   Wifi,
-  Snowflake,
   DoorClosed,
-  BadgePercent,
-  ClipboardList,
   X,
   ChevronRight,
-  XCircle,
   CheckCircle,
   CigaretteOff,
   MessageSquare,
-  Star,
   Map as MapIcon,
   Lock,
   Share2,
@@ -66,13 +60,9 @@ import VerifiedIcon from "../../../../components/VerifiedIcon";
 import TableRow from "../../../../components/TableRow";
 import { 
   getPropertyCommission, 
-  calculatePriceWithCommission,
-  getPropertyDiscountRules,
-  calculateDiscountedPrice 
+  calculatePriceWithCommission
 } from "../../../../lib/priceUtils";
 import { BATHROOM_ICONS, OTHER_AMENITIES_ICONS } from "../../../../lib/amenityIcons";
-import NearbyServices from "../../../../components/NearbyServices";
-import ServicesAndFacilities from "../../../../components/ServicesAndFacilities";
 
 type PublicPropertyDetail = {
   id: number;
@@ -134,6 +124,7 @@ type RoomSpecRow = {
   description: string;
   amenities: string[];
   bathItems: string[];
+  bathPrivate?: string; // "yes" | "no" | undefined
   pricePerNight: number | null;
   discountLabel: string | null;
   payActionLabel: string;
@@ -521,7 +512,6 @@ export default function PublicPropertyDetailPage() {
   const [aboutExpanded, setAboutExpanded] = useState(false);
   const [roomAmenityHint, setRoomAmenityHint] = useState<string | null>(null);
   const [systemCommission, setSystemCommission] = useState<number>(0);
-  const [currentUser, setCurrentUser] = useState<any | null>(null);
   const [isOwner, setIsOwner] = useState<boolean>(false);
 
   // Load system commission settings
@@ -552,12 +542,22 @@ export default function PublicPropertyDetailPage() {
     let mounted = true;
     const load = async () => {
       try {
-        const res = await fetch(`/api/account/me`, { credentials: "include" });
+        const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+        if (!token) {
+          if (mounted) setIsOwner(false);
+          return;
+        }
+        
+        const res = await fetch(`/api/account/me`, {
+          headers: {
+            "Authorization": `Bearer ${token}`,
+          },
+          credentials: "include",
+        });
         
         if (res.ok) {
           const user = await res.json();
           if (mounted) {
-            setCurrentUser(user);
             // Check if user is the owner of this property
             if (property?.ownerId && user?.id && Number(user.id) === Number(property.ownerId)) {
               setIsOwner(true);
@@ -566,11 +566,11 @@ export default function PublicPropertyDetailPage() {
             }
           }
         } else {
-          if (mounted) setCurrentUser(null);
+          if (mounted) setIsOwner(false);
         }
       } catch (e) {
         // Silently fail - user not logged in or error
-        if (mounted) setCurrentUser(null);
+        if (mounted) setIsOwner(false);
       }
     };
     load();
@@ -689,127 +689,28 @@ export default function PublicPropertyDetailPage() {
 
   const lightboxImages = images.length ? images : placeholderLightboxImages;
 
-  // Parse services - can be JSON string, array of strings, or object
-  // Database stores services as JSON, which Prisma may return as string or already parsed object
-  const servicesRaw = property?.services ?? [];
-  let parsedServices: any = servicesRaw;
-  if (typeof servicesRaw === 'string' && servicesRaw.trim()) {
-    try {
-      parsedServices = JSON.parse(servicesRaw);
-    } catch {
-      // If parsing fails, treat as empty
-      parsedServices = null;
-    }
-  }
-  
-  // Handle null/undefined
-  if (!parsedServices) {
-    parsedServices = {};
-  }
-  
-  const servicesArray = Array.isArray(parsedServices) ? parsedServices : [];
-  const servicesObj = typeof parsedServices === 'object' && parsedServices !== null && !Array.isArray(parsedServices) ? parsedServices : {};
-  
-  // Normalize boolean values - handle both true/false and "true"/"false" strings
-  // Also handle undefined values (when service wasn't selected, it won't be in the object)
-  const normalizeBoolean = (value: any): boolean => {
-    if (value === undefined || value === null) return false;
-    if (typeof value === 'boolean') return value;
-    if (typeof value === 'string') return value.toLowerCase() === 'true';
-    return false;
-  };
-  
-  // Create normalized services object with proper boolean values
-  // Check for both direct properties and properties that might be nested
-  const normalizedServicesObj = {
-    // Preserve all original properties
-    ...servicesObj,
-    // Normalize boolean services - if property doesn't exist, default to false
-    breakfastIncluded: normalizeBoolean(servicesObj.breakfastIncluded),
-    breakfastAvailable: normalizeBoolean(servicesObj.breakfastAvailable),
-    restaurant: normalizeBoolean(servicesObj.restaurant),
-    bar: normalizeBoolean(servicesObj.bar),
-    pool: normalizeBoolean(servicesObj.pool),
-    sauna: normalizeBoolean(servicesObj.sauna),
-    laundry: normalizeBoolean(servicesObj.laundry),
-    roomService: normalizeBoolean(servicesObj.roomService),
-    security24: normalizeBoolean(servicesObj.security24),
-    firstAid: normalizeBoolean(servicesObj.firstAid),
-    fireExtinguisher: normalizeBoolean(servicesObj.fireExtinguisher),
-    onSiteShop: normalizeBoolean(servicesObj.onSiteShop),
-    nearbyMall: normalizeBoolean(servicesObj.nearbyMall),
-    socialHall: normalizeBoolean(servicesObj.socialHall),
-    sportsGames: normalizeBoolean(servicesObj.sportsGames),
-    gym: normalizeBoolean(servicesObj.gym),
-    parking: servicesObj.parking || 'no',
-    parkingPrice: servicesObj.parkingPrice || '',
-    // Preserve tags and nearbyFacilities
-    tags: servicesObj.tags || [],
-    nearbyFacilities: servicesObj.nearbyFacilities || [],
-  };
-  
-  // If services is an object with tags, use the tags array for amenities
-  const effectiveServicesArray = normalizedServicesObj.tags && Array.isArray(normalizedServicesObj.tags) 
-    ? normalizedServicesObj.tags 
-    : servicesArray;
-  
-  // Extract service properties from tags array if individual properties are missing
-  // The owner form saves services in tags array, so we need to parse them
-  if (effectiveServicesArray.length > 0) {
-    // Parse tags to extract individual service properties
-    const tags = effectiveServicesArray.map((t: string) => String(t).toLowerCase());
-    
-    // Parking - only set if not already set or if tags have more specific info
-    if (!normalizedServicesObj.parking || normalizedServicesObj.parking === 'no') {
-      if (tags.some(t => t.includes('free parking'))) {
-        normalizedServicesObj.parking = 'free';
-      } else if (tags.some(t => t.includes('paid parking'))) {
-        normalizedServicesObj.parking = 'paid';
-        // Try to extract parking price from tag
-        const paidParkingTag = effectiveServicesArray.find((t: string) => t.toLowerCase().includes('paid parking'));
-        if (paidParkingTag) {
-          const priceMatch = paidParkingTag.match(/\(([^)]+)\)/);
-          if (priceMatch) {
-            normalizedServicesObj.parkingPrice = priceMatch[1].replace(/TZS/i, '').trim();
-          }
-        }
-      }
-    }
-    
-    // Other services - set to true if found in tags (even if already false, tags are source of truth)
-    if (tags.some(t => t.includes('breakfast included'))) normalizedServicesObj.breakfastIncluded = true;
-    if (tags.some(t => t.includes('breakfast available'))) normalizedServicesObj.breakfastAvailable = true;
-    if (tags.some(t => t.includes('restaurant'))) normalizedServicesObj.restaurant = true;
-    if (tags.some(t => t.includes('bar'))) normalizedServicesObj.bar = true;
-    if (tags.some(t => t.includes('pool'))) normalizedServicesObj.pool = true;
-    if (tags.some(t => t.includes('sauna'))) normalizedServicesObj.sauna = true;
-    if (tags.some(t => t.includes('laundry'))) normalizedServicesObj.laundry = true;
-    if (tags.some(t => t.includes('room service'))) normalizedServicesObj.roomService = true;
-    if (tags.some(t => t.includes('24h security') || t.includes('24-hour security'))) normalizedServicesObj.security24 = true;
-    if (tags.some(t => t.includes('first aid'))) normalizedServicesObj.firstAid = true;
-    if (tags.some(t => t.includes('fire extinguisher'))) normalizedServicesObj.fireExtinguisher = true;
-    if (tags.some(t => t.includes('on-site shop'))) normalizedServicesObj.onSiteShop = true;
-    if (tags.some(t => t.includes('nearby mall'))) normalizedServicesObj.nearbyMall = true;
-    if (tags.some(t => t.includes('social hall'))) normalizedServicesObj.socialHall = true;
-    if (tags.some(t => t.includes('sports') || t.includes('games'))) normalizedServicesObj.sportsGames = true;
-    if (tags.some(t => t.includes('gym'))) normalizedServicesObj.gym = true;
-  }
+  // Parse services - can be array of strings or object
+  const servicesRaw = useMemo(() => property?.services ?? [], [property?.services]);
+  const servicesArray = useMemo(
+    () => (Array.isArray(servicesRaw) ? servicesRaw.map(String).map((s) => s.trim()).filter(Boolean) : []),
+    [servicesRaw]
+  );
+  const servicesObj: any = useMemo(
+    () => (typeof servicesRaw === 'object' && !Array.isArray(servicesRaw) && servicesRaw !== null ? servicesRaw : {}),
+    [servicesRaw]
+  );
   
   // Extract nearby facilities from services object (owner fills this in)
   const nearbyFacilities = useMemo(() => {
     let facilities: any[] = [];
     try {
-      // First check normalized object (which preserves nearbyFacilities)
-      if (normalizedServicesObj.nearbyFacilities && Array.isArray(normalizedServicesObj.nearbyFacilities)) {
-        facilities = normalizedServicesObj.nearbyFacilities;
-      }
-      // Fallback: Try to find nearbyFacilities in original services object
-      else if (servicesObj.nearbyFacilities && Array.isArray(servicesObj.nearbyFacilities)) {
+      // Try to find nearbyFacilities in services object
+      if (servicesObj.nearbyFacilities && Array.isArray(servicesObj.nearbyFacilities)) {
         facilities = servicesObj.nearbyFacilities;
       }
       // Also check if it's stored as a JSON string in the services array
-      const facilitiesStr = effectiveServicesArray.find((s: string) => s.includes('nearbyFacilities') || s.startsWith('['));
-      if (facilitiesStr && facilities.length === 0) {
+      const facilitiesStr = servicesArray.find((s: string) => s.includes('nearbyFacilities') || s.startsWith('['));
+      if (facilitiesStr) {
         try {
           const parsed = JSON.parse(facilitiesStr);
           if (Array.isArray(parsed)) facilities = parsed;
@@ -817,14 +718,13 @@ export default function PublicPropertyDetailPage() {
       }
     } catch {}
     return facilities;
-  }, [servicesRaw, servicesObj, servicesArray, normalizedServicesObj, effectiveServicesArray]);
+  }, [servicesObj, servicesArray]);
   
   const services = servicesArray;
 
   // Default payment methods that should always be displayed
-  const DEFAULT_PAYMENT_METHODS = ["Mobile money", "Cash", "Card", "Bank transfer"];
-
   const servicesByCategory = useMemo(() => {
+    const DEFAULT_PAYMENT_METHODS = ["Mobile money", "Cash", "Card", "Bank transfer"];
     const paymentModes = servicesArray
       .filter((s) => /^payment:\s*/i.test(s))
       .map((s) => s.replace(/^payment:\s*/i, "").trim())
@@ -968,6 +868,45 @@ export default function PublicPropertyDetailPage() {
             <span className="truncate">{location || "—"}</span>
           </div>
 
+          {/* Map Card */}
+          {property.latitude && property.longitude && (
+            <div className="mt-4 rounded-xl border border-slate-200 bg-white overflow-hidden">
+              <div className="relative aspect-[16/9] bg-slate-100">
+                {process.env.NEXT_PUBLIC_MAPBOX_TOKEN || process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN ? (
+                  <Image
+                    src={`https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/pin-s+10b981(${property.longitude},${property.latitude})/${property.longitude},${property.latitude},15,0/900x420?access_token=${encodeURIComponent(
+                      (process.env.NEXT_PUBLIC_MAPBOX_TOKEN || process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN) as string
+                    )}`}
+                    alt="Property location map"
+                    fill
+                    className="absolute inset-0 w-full h-full object-cover"
+                    sizes="900px"
+                    priority
+                  />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200">
+                    <div className="text-center">
+                      <MapIcon className="h-8 w-8 text-slate-400 mx-auto mb-2" />
+                      <p className="text-sm text-slate-600 font-medium">Map view</p>
+                      <p className="text-xs text-slate-500 mt-1">
+                        {property.latitude}, {property.longitude}
+                      </p>
+                    </div>
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent pointer-events-none" />
+                <a
+                  href={`https://www.mapbox.com/maps?lon=${property.longitude}&lat=${property.latitude}&zoom=15`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="absolute bottom-3 left-1/2 -translate-x-1/2 inline-flex items-center justify-center px-4 py-2 bg-[#02665e] text-white text-sm font-semibold rounded-lg hover:bg-[#014e47] transition-colors shadow-sm"
+                >
+                  Show on map
+                </a>
+              </div>
+            </div>
+          )}
+
           {/* Verified by NoLSAF statement (anti-fraud) */}
           <div className="mt-3 rounded-xl border border-emerald-200/60 bg-gradient-to-br from-emerald-50 via-emerald-50/95 to-teal-50/80 p-3 shadow-sm">
             <div className="flex items-start justify-between gap-3">
@@ -1074,8 +1013,7 @@ export default function PublicPropertyDetailPage() {
                     {hasMorePhotos ? (
                       <div className="absolute left-3 right-3 bottom-3 flex items-center justify-start">
                         <div
-                          className="nls-blink inline-flex items-center gap-2 rounded-full bg-white/95 text-[#02665e] px-4 py-2 text-xs font-semibold shadow-sm ring-1 ring-black/5 whitespace-nowrap leading-none"
-                          style={{ animationDuration: "1.8s" }}
+                          className="nls-blink inline-flex items-center gap-2 rounded-full bg-white/95 text-[#02665e] px-4 py-2 text-xs font-semibold shadow-sm ring-1 ring-black/5 whitespace-nowrap leading-none blink-animation"
                         >
                           <Eye className="w-4 h-4 flex-shrink-0 text-[#02665e]" aria-hidden />
                           <span className="leading-none">View all photos</span>
@@ -1147,8 +1085,7 @@ export default function PublicPropertyDetailPage() {
                       {i === 1 ? (
                         <div className="absolute left-3 right-3 bottom-3 flex items-center justify-start">
                           <div
-                            className="nls-blink inline-flex items-center gap-2 rounded-full bg-white/95 text-[#02665e] px-4 py-2 text-xs font-semibold shadow-sm ring-1 ring-black/5 whitespace-nowrap leading-none"
-                            style={{ animationDuration: "1.8s" }}
+                            className="nls-blink inline-flex items-center gap-2 rounded-full bg-white/95 text-[#02665e] px-4 py-2 text-xs font-semibold shadow-sm ring-1 ring-black/5 whitespace-nowrap leading-none blink-18"
                           >
                             <Eye className="w-4 h-4 flex-shrink-0 text-[#02665e]" aria-hidden />
                             <span className="leading-none">View all photos</span>
@@ -1215,11 +1152,167 @@ export default function PublicPropertyDetailPage() {
             </div>
 
             {/* Services & Facilities */}
-            <ServicesAndFacilities
-              normalizedServicesObj={normalizedServicesObj}
-              effectiveServicesArray={effectiveServicesArray}
-              servicesArray={servicesArray}
-            />
+            {(Array.isArray(services) && services.length > 0) || (typeof services === 'object' && services !== null && Object.keys(services).length > 0) ? (
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+                <div className="flex items-center gap-2 mb-6">
+                <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#02665e]/10 text-[#02665e]">
+                  <Sparkles className="w-5 h-5" aria-hidden />
+                    </span>
+                  <h2 className="text-lg sm:text-xl font-semibold text-slate-900">Services & Facilities</h2>
+              </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {/* Parking */}
+                  {servicesByCategory.amenities.some((s: string) => s.toLowerCase().includes("parking")) && (
+                    <div className="flex items-center gap-3">
+                      <Car className="h-5 w-5 text-[#02665e] flex-shrink-0" />
+                      <span className="text-sm text-slate-700">
+                        {servicesByCategory.amenities.find((s: string) => s.toLowerCase().includes("parking")) || "Parking"}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Restaurant */}
+                  {servicesByCategory.amenities.some((s: string) => s.toLowerCase().includes("restaurant")) && (
+                    <div className="flex items-center gap-3">
+                      <UtensilsCrossed className="h-5 w-5 text-[#02665e] flex-shrink-0" />
+                      <span className="text-sm text-slate-700">Restaurant</span>
+                </div>
+                  )}
+
+                  {/* Bar */}
+                  {servicesByCategory.amenities.some((s: string) => s.toLowerCase().includes("bar")) && (
+                    <div className="flex items-center gap-3">
+                      <Beer className="h-5 w-5 text-[#02665e] flex-shrink-0" />
+                      <span className="text-sm text-slate-700">Bar</span>
+            </div>
+                  )}
+
+                  {/* Pool */}
+                  {servicesByCategory.amenities.some((s: string) => s.toLowerCase().includes("pool")) && (
+                    <div className="flex items-center gap-3">
+                      <Waves className="h-5 w-5 text-[#02665e] flex-shrink-0" />
+                      <span className="text-sm text-slate-700">
+                        {servicesByCategory.amenities.find((s: string) => s.toLowerCase().includes("pool")) || "Swimming Pool"}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Room Service */}
+                  {servicesByCategory.amenities.some((s: string) => s.toLowerCase().includes("room service")) && (
+                    <div className="flex items-center gap-3">
+                      <ConciergeBell className="h-5 w-5 text-[#02665e] flex-shrink-0" />
+                      <span className="text-sm text-slate-700">Room Service</span>
+                    </div>
+                  )}
+
+                  {/* WiFi */}
+                  {servicesByCategory.amenities.some((s: string) => s.toLowerCase().includes("wifi") || s.toLowerCase().includes("wi-fi")) && (
+                    <div className="flex items-center gap-3">
+                      <Wifi className="h-5 w-5 text-[#02665e] flex-shrink-0" />
+                      <span className="text-sm text-slate-700">Free WiFi</span>
+                    </div>
+                  )}
+
+                  {/* Laundry */}
+                  {servicesByCategory.amenities.some((s: string) => s.toLowerCase().includes("laundry")) && (
+                    <div className="flex items-center gap-3">
+                      <WashingMachine className="h-5 w-5 text-[#02665e] flex-shrink-0" />
+                      <span className="text-sm text-slate-700">Laundry</span>
+                    </div>
+                  )}
+
+                  {/* Security */}
+                  {servicesByCategory.amenities.some((s: string) => s.toLowerCase().includes("security") || s.toLowerCase().includes("24h")) && (
+                    <div className="flex items-center gap-3">
+                      <Shield className="h-5 w-5 text-[#02665e] flex-shrink-0" />
+                      <span className="text-sm text-slate-700">
+                        {servicesByCategory.amenities.find((s: string) => s.toLowerCase().includes("security") || s.toLowerCase().includes("24h")) || "24/7 Security"}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Sauna */}
+                  {servicesByCategory.amenities.some((s: string) => s.toLowerCase().includes("sauna")) && (
+                    <div className="flex items-center gap-3">
+                      <Thermometer className="h-5 w-5 text-[#02665e] flex-shrink-0" />
+                      <span className="text-sm text-slate-700">Sauna</span>
+                    </div>
+                  )}
+
+                  {/* First Aid */}
+                  {servicesByCategory.amenities.some((s: string) => s.toLowerCase().includes("first aid")) && (
+                    <div className="flex items-center gap-3">
+                      <Bandage className="h-5 w-5 text-[#02665e] flex-shrink-0" />
+                      <span className="text-sm text-slate-700">First Aid</span>
+                    </div>
+                  )}
+
+                  {/* Fire Extinguisher */}
+                  {servicesByCategory.amenities.some((s: string) => s.toLowerCase().includes("fire extinguisher")) && (
+                    <div className="flex items-center gap-3">
+                      <FireExtinguisher className="h-5 w-5 text-[#02665e] flex-shrink-0" />
+                      <span className="text-sm text-slate-700">Fire Extinguisher</span>
+                    </div>
+                  )}
+
+                  {/* On-site Shop */}
+                  {servicesByCategory.amenities.some((s: string) => s.toLowerCase().includes("on-site shop") || s.toLowerCase().includes("onsite shop")) && (
+                    <div className="flex items-center gap-3">
+                      <ShoppingBag className="h-5 w-5 text-[#02665e] flex-shrink-0" />
+                      <span className="text-sm text-slate-700">On-site Shop</span>
+                    </div>
+                  )}
+
+                  {/* Nearby Mall */}
+                  {servicesByCategory.amenities.some((s: string) => s.toLowerCase().includes("nearby mall")) && (
+                    <div className="flex items-center gap-3">
+                      <Store className="h-5 w-5 text-[#02665e] flex-shrink-0" />
+                      <span className="text-sm text-slate-700">Nearby Mall</span>
+                    </div>
+                  )}
+
+                  {/* Social Hall */}
+                  {servicesByCategory.amenities.some((s: string) => s.toLowerCase().includes("social hall")) && (
+                    <div className="flex items-center gap-3">
+                      <PartyPopper className="h-5 w-5 text-[#02665e] flex-shrink-0" />
+                      <span className="text-sm text-slate-700">Social Hall</span>
+                    </div>
+                  )}
+
+                  {/* Sports & Games */}
+                  {servicesByCategory.amenities.some((s: string) => s.toLowerCase().includes("sports") || s.toLowerCase().includes("games")) && (
+                    <div className="flex items-center gap-3">
+                      <Gamepad2 className="h-5 w-5 text-[#02665e] flex-shrink-0" />
+                      <span className="text-sm text-slate-700">Sports & Games</span>
+                    </div>
+                  )}
+
+                  {/* Gym */}
+                  {servicesByCategory.amenities.some((s: string) => s.toLowerCase().includes("gym") || s.toLowerCase().includes("fitness")) && (
+                    <div className="flex items-center gap-3">
+                      <Dumbbell className="h-5 w-5 text-[#02665e] flex-shrink-0" />
+                      <span className="text-sm text-slate-700">Gym / Fitness Center</span>
+                    </div>
+                  )}
+
+                  {/* Breakfast Included */}
+                  {servicesByCategory.amenities.some((s: string) => s.toLowerCase().includes("breakfast included")) && (
+                    <div className="flex items-center gap-3">
+                      <Coffee className="h-5 w-5 text-[#02665e] flex-shrink-0" />
+                      <span className="text-sm text-slate-700">Breakfast Included</span>
+                    </div>
+                  )}
+
+                  {/* Breakfast Available */}
+                  {servicesByCategory.amenities.some((s: string) => s.toLowerCase().includes("breakfast available")) && (
+                    <div className="flex items-center gap-3">
+                      <Coffee className="h-5 w-5 text-[#02665e] flex-shrink-0" />
+                      <span className="text-sm text-slate-700">Breakfast Available</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : null}
 
             {/* Payment Methods (mobile/tablet only; on large screens it sits in the right column) */}
             <div className="lg:hidden rounded-2xl border border-slate-200 bg-white p-5">
@@ -1244,12 +1337,91 @@ export default function PublicPropertyDetailPage() {
 
             {/* Nearby Services */}
             {nearbyFacilities.length > 0 && (
-              <NearbyServices
-                facilities={nearbyFacilities}
-                defaultExpanded={false}
-                showExpandButton={true}
-                maxInitialDisplay={2}
-              />
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+                <div className="flex items-center gap-2 mb-6">
+                <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#02665e]/10 text-[#02665e]">
+                    <MapPin className="w-5 h-5" aria-hidden />
+                </span>
+                  <h2 className="text-lg sm:text-xl font-semibold text-slate-900">Nearby Services</h2>
+              </div>
+                <div className="space-y-3">
+                  {nearbyFacilities.map((facility: any, idx: number) => {
+                    // Get icon based on facility type
+                    const getFacilityIcon = (type: string) => {
+                      const t = (type || "").toLowerCase();
+                      if (t.includes("hospital") || t.includes("clinic") || t.includes("pharmacy") || t.includes("polyclinic")) {
+                        return { Icon: Hospital, color: "text-rose-600" };
+                      }
+                      if (t.includes("petrol") || t.includes("fuel") || t.includes("gas")) {
+                        return { Icon: Fuel, color: "text-orange-600" };
+                      }
+                      if (t.includes("airport")) {
+                        return { Icon: Plane, color: "text-blue-600" };
+                      }
+                      if (t.includes("bus") || t.includes("station")) {
+                        return { Icon: Bus, color: "text-amber-700" };
+                      }
+                      if (t.includes("road") || t.includes("main road")) {
+                        return { Icon: Route, color: "text-slate-700" };
+                      }
+                      if (t.includes("police")) {
+                        return { Icon: Shield, color: "text-indigo-600" };
+                      }
+                      return { Icon: MapPin, color: "text-[#02665e]" };
+                    };
+                    
+                    const facilityIcon = getFacilityIcon(facility.type || "");
+                    const Icon = facilityIcon.Icon;
+                    
+                    return (
+                      <div key={idx} className="bg-slate-50 rounded-lg p-3 sm:p-4 border border-slate-200 motion-safe:transition-all motion-safe:duration-200 hover:border-[#02665e]/30 hover:shadow-sm">
+                        <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
+                          {facility.name && (
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <Icon className={`h-5 w-5 ${facilityIcon.color} flex-shrink-0`} />
+                              <span className="text-base font-semibold text-gray-800">{facility.name}</span>
+                            </div>
+                          )}
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-600">
+                            {facility.type && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 font-medium">
+                                {facility.type}
+                              </span>
+                            )}
+                            {facility.ownership && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gray-100 text-gray-700 font-medium">
+                                {facility.ownership}
+                              </span>
+                            )}
+                            {typeof facility.distanceKm === 'number' && (
+                              <span className="inline-flex items-center gap-1 text-gray-600">
+                                <MapPin className="h-3.5 w-3.5 text-pink-600" />
+                                <span className="font-medium">{facility.distanceKm} km</span>
+                              </span>
+                            )}
+                            {facility.url && (
+                              <a href={facility.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[#02665e] hover:underline">
+                                <ExternalLink className="h-3.5 w-3.5" />
+                                <span className="text-xs font-medium">Link</span>
+                            </a>
+                            )}
+                        </div>
+                      </div>
+                        {Array.isArray(facility.reachableBy) && facility.reachableBy.length > 0 && (
+                          <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                            <span className="text-sm text-gray-600 font-medium">Reachable by:</span>
+                            {facility.reachableBy.map((mode: string, mIdx: number) => (
+                              <span key={mIdx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gray-100 text-gray-700 text-sm font-medium">
+                                {mode}
+                              </span>
+                    ))}
+                </div>
+              )}
+            </div>
+                    );
+                  })}
+                </div>
+              </div>
             )}
 
           </div>
@@ -1468,19 +1640,19 @@ export default function PublicPropertyDetailPage() {
                     <table className="w-full table-fixed border-collapse">
                       <thead className="bg-slate-50 text-slate-700">
                         <tr>
-                          <th className="text-left text-sm font-semibold px-3 py-3 border-b border-slate-200 border-r border-slate-200 w-[14%]">
+                          <th className="text-left text-sm font-semibold px-3 py-3 border-b border-r border-slate-200 w-[14%]">
                             Room type
                           </th>
-                          <th className="text-left text-sm font-semibold px-3 py-3 border-b border-slate-200 border-r border-slate-200 w-[13%]">
+                          <th className="text-left text-sm font-semibold px-3 py-3 border-b border-r border-slate-200 w-[13%]">
                             Bed Type &amp; Size
                           </th>
-                          <th className="text-left text-sm font-semibold px-3 py-3 border-b border-slate-200 border-r border-slate-200 w-[30%]">
+                          <th className="text-left text-sm font-semibold px-3 py-3 border-b border-r border-slate-200 w-[30%]">
                             Description &amp; Amenities
                           </th>
-                          <th className="text-left text-sm font-semibold px-3 py-3 border-b border-slate-200 border-r border-slate-200 w-[15%]">
+                          <th className="text-left text-sm font-semibold px-3 py-3 border-b border-r border-slate-200 w-[15%]">
                             Price &amp; Discounts
                           </th>
-                          <th className="text-left text-sm font-semibold px-3 py-3 border-b border-slate-200 border-r border-slate-200 w-[12%]">Pay Now</th>
+                          <th className="text-left text-sm font-semibold px-3 py-3 border-b border-r border-slate-200 w-[12%]">Pay Now</th>
                           <th className="text-left text-sm font-semibold px-3 py-3 border-b border-slate-200 w-[16%]">
                             Policies
                           </th>
@@ -1706,9 +1878,9 @@ export default function PublicPropertyDetailPage() {
                         </div>
                         <div className="mt-2 h-2 bg-slate-200 rounded-full overflow-hidden">
                           <div
-                            className="h-full bg-[#02665e] rounded-full transition-all duration-300"
-                            style={{ width: `${ratingPercent}%` }}
-                          />
+                            className={`h-full bg-[#02665e] rounded-full transition-all duration-300 rating-bar`}
+                            data-rating-width={ratingPercent}
+                          ></div>
                         </div>
                       </div>
                     </>
@@ -1739,8 +1911,8 @@ export default function PublicPropertyDetailPage() {
                             <div className="text-xs font-medium text-slate-700 mb-1.5">{label}</div>
                             <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
                               <div
-                                className={`h-full ${barColor} rounded-full transition-all duration-300`}
-                                style={{ width: `${ratingPercent}%` }}
+                                className={`h-full ${barColor} rounded-full transition-all duration-300 rating-bar-width`}
+                                data-rating-width={ratingPercent}
                               />
                             </div>
                           </div>
@@ -1849,8 +2021,8 @@ export default function PublicPropertyDetailPage() {
                       <div className="flex items-center gap-2">
                         <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden relative">
                           <div
-                            className="h-full bg-[#02665e] rounded-full transition-all duration-200"
-                            style={{ width: `${(categoryRatings[key] / 5) * 100}%` }}
+                            className="h-full bg-[#02665e] rounded-full transition-all duration-200 category-rating-bar"
+                            data-width={categoryRatings[key]}
                           />
                         </div>
                         <div className="flex items-center gap-1">
@@ -1959,41 +2131,6 @@ export default function PublicPropertyDetailPage() {
               <div className="text-sm font-semibold text-slate-900">Leave a review</div>
               <div className="mt-2 text-xs text-slate-600">
                 As the property owner, you cannot leave reviews on your own property. However, you can still book this property like any other user.
-              </div>
-            </div>
-          )}
-
-          {/* Map and Additional Cards Section */}
-          {property.latitude && property.longitude && (
-            <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {/* Placeholder for Chatbot or Emergency Card */}
-              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                {/* This space is reserved for chatbot or emergency card */}
-                <div className="h-full flex items-center justify-center text-slate-400 text-sm">
-                  {/* Additional card content will go here */}
-                </div>
-              </div>
-
-              {/* Map Card - Right Side */}
-              <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm w-full">
-                <div className="relative w-full" style={{ aspectRatio: '1 / 1' }}>
-                  {process.env.NEXT_PUBLIC_MAPBOX_TOKEN || process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN ? (
-                    <InteractivePropertyMap 
-                      latitude={Number(property.latitude)} 
-                      longitude={Number(property.longitude)} 
-                    />
-                  ) : (
-                    <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200">
-                      <div className="text-center">
-                        <MapIcon className="h-8 w-8 text-slate-400 mx-auto mb-2" />
-                        <p className="text-sm text-slate-600 font-medium">Map view</p>
-                        <p className="text-xs text-slate-500 mt-1">
-                          {property.latitude}, {property.longitude}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
               </div>
             </div>
           )}
@@ -2170,139 +2307,6 @@ export default function PublicPropertyDetailPage() {
   );
 }
 
-// Interactive Map Component for Public Property View
-function InteractivePropertyMap({ 
-  latitude, 
-  longitude 
-}: { 
-  latitude: number; 
-  longitude: number; 
-}) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<any | null>(null);
-  const markerRef = useRef<any | null>(null);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (!containerRef.current) return;
-
-    // Validate coordinates
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-      console.warn('Invalid coordinates:', { latitude, longitude });
-      return;
-    }
-
-    if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
-      console.warn('Coordinates out of range:', { latitude, longitude });
-      return;
-    }
-
-    const token =
-      (process.env.NEXT_PUBLIC_MAPBOX_TOKEN as string) ||
-      (process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN as string) ||
-      '';
-
-    if (!token) {
-      console.warn('Mapbox token not found');
-      return;
-    }
-
-    let map: any = null;
-    (async () => {
-      try {
-        const mod = await import('mapbox-gl');
-        const mapboxgl = (mod as any).default ?? mod;
-        mapboxgl.accessToken = token;
-
-        // Clean up existing map if any
-        if (mapRef.current) {
-          mapRef.current.remove();
-          mapRef.current = null;
-        }
-        if (markerRef.current) {
-          markerRef.current.remove();
-          markerRef.current = null;
-        }
-
-        const exactLng = Number(longitude);
-        const exactLat = Number(latitude);
-
-        map = new mapboxgl.Map({
-          container: containerRef.current as HTMLElement,
-          style: 'mapbox://styles/mapbox/streets-v12',
-          center: [exactLng, exactLat],
-          zoom: 15,
-          interactive: true,
-          // Prevent dragging on small screens if needed, but allow pan/zoom
-          dragPan: true,
-          dragRotate: false,
-          touchZoomRotate: true,
-        });
-
-        mapRef.current = map;
-
-        // Wait for map to load before adding marker
-        map.on('load', () => {
-          // Add navigation controls
-          map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
-
-          // Add fixed marker at property location
-          const el = document.createElement('div');
-          el.className = 'property-marker';
-          el.style.width = '32px';
-          el.style.height = '40px';
-          el.style.backgroundImage = 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'none\'%3E%3Cpath d=\'M20 10c0 4.418-8 12-8 12s-8-7.582-8-12a8 8 0 1 1 16 0z\' fill=\'%2310b981\' stroke=\'%23fff\' stroke-width=\'1.5\'/%3E%3Ccircle cx=\'12\' cy=\'10\' r=\'3\' fill=\'%23fff\'/%3E%3C/svg%3E")';
-          el.style.backgroundSize = 'contain';
-          el.style.backgroundRepeat = 'no-repeat';
-          el.style.backgroundPosition = 'center';
-          el.style.cursor = 'pointer';
-
-          markerRef.current = new mapboxgl.Marker(el)
-            .setLngLat([exactLng, exactLat])
-            .addTo(map);
-        });
-
-        // Add mapbox CSS if not already added
-        if (!document.querySelector('link[href*="mapbox-gl.css"]')) {
-          const link = document.createElement('link');
-          link.href = 'https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.css';
-          link.rel = 'stylesheet';
-          document.head.appendChild(link);
-        }
-      } catch (error) {
-        console.error('Error initializing map:', error);
-      }
-    })();
-
-    return () => {
-      if (markerRef.current) {
-        try {
-          markerRef.current.remove();
-        } catch (e) {
-          // ignore
-        }
-        markerRef.current = null;
-      }
-      if (mapRef.current) {
-        try {
-          mapRef.current.remove();
-        } catch (e) {
-          // ignore
-        }
-        mapRef.current = null;
-      }
-    };
-  }, [latitude, longitude]);
-
-  return (
-    <div 
-      ref={containerRef} 
-      className="w-full h-full"
-      style={{ aspectRatio: '1 / 1', minHeight: '200px', width: '100%' }}
-    />
-  );
-}
-
 function Fact({ icon, label, value }: { icon: ReactNode; label: string; value: any }) {
   return (
     <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
@@ -2371,14 +2375,12 @@ function StarPicker({ value, onChange }: { value: number; onChange: (n: number) 
 
 function RoomAmenityChip({
   label,
-  activeHint,
   onTouchHint,
 }: {
   label: string;
   activeHint: string | null;
   onTouchHint: (label: string) => void;
 }) {
-  const show = activeHint === label;
   // Use exact match from the owner's icon mappings first
   const Icon = BATHROOM_ICONS[label] || OTHER_AMENITIES_ICONS[label] || Tags;
   
