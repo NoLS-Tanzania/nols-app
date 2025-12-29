@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import SiteHeader from "@/components/SiteHeader";
 import PublicFooter from "@/components/PublicFooter";
 import LayoutFrame from "@/components/LayoutFrame";
+import FloatingChatWidget from "@/components/FloatingChatWidget";
 
 export default function CustomerAccountLayout({ children }: { children: ReactNode }) {
   return (
@@ -11,7 +12,7 @@ export default function CustomerAccountLayout({ children }: { children: ReactNod
       <SiteHeader role="CUSTOMER" />
 
       <div className="flex-1 w-full overflow-x-hidden">
-        <div className="max-w-6xl mx-auto w-full relative px-4">
+        <div className="public-container relative">
           <LayoutFrame
             heightVariant="sm"
             topVariant="sm"
@@ -24,7 +25,7 @@ export default function CustomerAccountLayout({ children }: { children: ReactNod
 
           {/* Main content */}
           <div className="pt-16 pb-6">
-            <main className="w-full max-w-full overflow-x-hidden px-4 md:px-6">
+            <main className="w-full max-w-full overflow-x-hidden">
               {children}
             </main>
           </div>
@@ -34,6 +35,7 @@ export default function CustomerAccountLayout({ children }: { children: ReactNod
       <div className="relative z-20">
         <PublicFooter withRail />
       </div>
+      <FloatingChatWidget position="bottom-right" />
     </div>
   );
 }

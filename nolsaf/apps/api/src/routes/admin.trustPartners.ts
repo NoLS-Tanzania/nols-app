@@ -36,6 +36,9 @@ router.get("/", requireRole("ADMIN"), async (req, res) => {
 // Get active trust partners (public endpoint)
 router.get("/public", async (req, res) => {
   try {
+    // Ensure we always return JSON, even on errors
+    res.setHeader('Content-Type', 'application/json');
+    
     const partners = await prisma.trustPartner.findMany({
       where: { isActive: true },
       orderBy: [{ displayOrder: "asc" }, { createdAt: "asc" }],
@@ -46,14 +49,29 @@ router.get("/public", async (req, res) => {
         href: true,
       },
     });
-    res.json({ items: partners });
+    res.status(200).json({ items: partners });
   } catch (err: any) {
     console.error("Failed to fetch public trust partners", err);
+    console.error("Error details:", {
+      code: err?.code,
+      message: err?.message,
+      stack: err?.stack,
+      name: err?.name,
+    });
+    
+    // Ensure JSON response header is set
+    res.setHeader('Content-Type', 'application/json');
+    
     // Return empty array instead of 500 to prevent UI crash
-    if (err instanceof Prisma.PrismaClientKnownRequestError && (err.code === 'P2021' || err.code === 'P2022')) {
-      return res.json({ items: [] });
+    if (err instanceof Prisma.PrismaClientKnownRequestError) {
+      if (err.code === 'P2021' || err.code === 'P2022') {
+        console.warn('TrustPartner table may not exist:', err.message);
+        return res.status(200).json({ items: [] });
+      }
     }
-    res.json({ items: [] });
+    
+    // For any other error, still return empty array with 200 status
+    res.status(200).json({ items: [] });
   }
 });
 

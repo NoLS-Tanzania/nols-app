@@ -33,3 +33,57 @@ export const limitCancellationMessages = rateLimit({
   legacyHeaders: false,
   message: { error: "Too many messages. Please wait a moment before sending another message." },
 });
+
+// Rate limiter for plan request submissions (prevents spam)
+export const limitPlanRequestSubmit = rateLimit({
+  windowMs: 15 * 60_000, // 15 minutes
+  max: 3, // 3 submissions per 15 minutes per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many plan request submissions. Please wait before submitting another request." },
+});
+
+// Rate limiter for plan request messages (follow-up messages)
+export const limitPlanRequestMessages = rateLimit({
+  windowMs: 60_000, // 1 minute
+  max: 5, // 5 messages per minute per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many messages. Please wait a moment before sending another message." },
+});
+
+// Rate limiter for chatbot messages (prevents spam/abuse)
+export const limitChatbotMessages = rateLimit({
+  windowMs: 60_000, // 1 minute
+  max: 30, // 30 messages per minute per IP/session
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many messages. Please wait a moment before sending another message." },
+  keyGenerator: (req) => {
+    // Use session ID if available, otherwise fall back to IP
+    const sessionId = req.body?.sessionId || req.cookies?.chatbot_session_id;
+    if (sessionId) {
+      return `chatbot:${sessionId}`;
+    }
+    // Ensure we always return a string
+    return req.ip || req.socket.remoteAddress || "unknown";
+  },
+});
+
+// Rate limiter for chatbot conversation history requests
+export const limitChatbotConversations = rateLimit({
+  windowMs: 60_000, // 1 minute
+  max: 20, // 20 requests per minute per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests. Please wait a moment and try again." },
+});
+
+// Rate limiter for chatbot language changes
+export const limitChatbotLanguageChange = rateLimit({
+  windowMs: 60_000, // 1 minute
+  max: 10, // 10 language changes per minute per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many language changes. Please wait a moment and try again." },
+});

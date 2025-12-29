@@ -26,6 +26,10 @@ export async function notifyAdmins(template: string, data: any) {
         title: "New Cancellation Message",
         body: `There is a new message on cancellation claim${data.requestId ? ` #${data.requestId}` : ""}${data.bookingCode ? ` (code: ${data.bookingCode})` : ""}.`
       },
+      plan_request_submitted: {
+        title: "New Plan Request Submitted",
+        body: `A new plan request${data.requestId ? ` #${data.requestId}` : ""} has been submitted${data.customerName ? ` by ${data.customerName}` : ""}${data.role ? ` (${data.role})` : ""}.`
+      },
     };
 
     const templateData = notificationTemplates[template] || {

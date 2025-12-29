@@ -21,7 +21,10 @@ import {
   Globe,
   Filter,
   Calendar,
-  RefreshCw
+  RefreshCw,
+  GraduationCap,
+  Languages,
+  XCircle
 } from "lucide-react";
 import PublicHeader from "@/components/PublicHeader";
 import PublicFooter from "@/components/PublicFooter";
@@ -209,6 +212,9 @@ function JobCard({ job, onClick }: { job: Job; onClick: () => void }) {
 }
 
 function ApplicationForm({ job, onClose, onSuccess }: { job: Job; onClose: () => void; onSuccess?: () => void }) {
+  // Check if this is a Travel Agent position (by title containing "agent" or "travel")
+  const isTravelAgentPosition = job.title.toLowerCase().includes("agent") || job.title.toLowerCase().includes("travel");
+  
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
@@ -218,11 +224,103 @@ function ApplicationForm({ job, onClose, onSuccess }: { job: Job; onClose: () =>
     portfolio: "",
     linkedIn: "",
     referredBy: "",
+    // Agent-specific fields
+    educationLevel: "",
+    yearsOfExperience: "",
+    bio: "",
+    areasOfOperation: [] as string[],
+    languages: [] as string[],
+    specializations: [] as string[],
+    certifications: [] as Array<{ name: string; issuer: string; year: string; expiryDate?: string }>,
   });
+  
+  // Temporary input states for agent arrays
+  const [areaInput, setAreaInput] = useState("");
+  const [languageInput, setLanguageInput] = useState("");
+  const [specializationInput, setSpecializationInput] = useState("");
+  const [certInput, setCertInput] = useState({ name: "", issuer: "", year: "", expiryDate: "" });
+  
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Agent-specific handlers
+  const handleAddArea = () => {
+    if (areaInput.trim() && !formData.areasOfOperation.includes(areaInput.trim())) {
+      setFormData({
+        ...formData,
+        areasOfOperation: [...formData.areasOfOperation, areaInput.trim()],
+      });
+      setAreaInput("");
+    }
+  };
+
+  const handleRemoveArea = (area: string) => {
+    setFormData({
+      ...formData,
+      areasOfOperation: formData.areasOfOperation.filter((a) => a !== area),
+    });
+  };
+
+  const handleAddLanguage = () => {
+    if (languageInput.trim() && !formData.languages.includes(languageInput.trim())) {
+      setFormData({
+        ...formData,
+        languages: [...formData.languages, languageInput.trim()],
+      });
+      setLanguageInput("");
+    }
+  };
+
+  const handleRemoveLanguage = (lang: string) => {
+    setFormData({
+      ...formData,
+      languages: formData.languages.filter((l) => l !== lang),
+    });
+  };
+
+  const handleAddSpecialization = () => {
+    if (specializationInput.trim() && !formData.specializations.includes(specializationInput.trim())) {
+      setFormData({
+        ...formData,
+        specializations: [...formData.specializations, specializationInput.trim()],
+      });
+      setSpecializationInput("");
+    }
+  };
+
+  const handleRemoveSpecialization = (spec: string) => {
+    setFormData({
+      ...formData,
+      specializations: formData.specializations.filter((s) => s !== spec),
+    });
+  };
+
+  const handleAddCertification = () => {
+    if (certInput.name.trim() && certInput.issuer.trim() && certInput.year.trim()) {
+      setFormData({
+        ...formData,
+        certifications: [
+          ...formData.certifications,
+          {
+            name: certInput.name.trim(),
+            issuer: certInput.issuer.trim(),
+            year: certInput.year.trim(),
+            expiryDate: certInput.expiryDate.trim() || undefined,
+          },
+        ],
+      });
+      setCertInput({ name: "", issuer: "", year: "", expiryDate: "" });
+    }
+  };
+
+  const handleRemoveCertification = (index: number) => {
+    setFormData({
+      ...formData,
+      certifications: formData.certifications.filter((_, i) => i !== index),
+    });
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -266,6 +364,20 @@ function ApplicationForm({ job, onClose, onSuccess }: { job: Job; onClose: () =>
       if (formData.portfolio) formDataToSend.append('portfolio', formData.portfolio);
       if (formData.linkedIn) formDataToSend.append('linkedIn', formData.linkedIn);
       if (formData.referredBy) formDataToSend.append('referredBy', formData.referredBy);
+
+      // Add agent-specific data if this is a Travel Agent position
+      if (isTravelAgentPosition) {
+        const agentApplicationData = {
+          educationLevel: formData.educationLevel || null,
+          yearsOfExperience: formData.yearsOfExperience ? parseInt(formData.yearsOfExperience) : null,
+          bio: formData.bio || null,
+          areasOfOperation: formData.areasOfOperation.length > 0 ? formData.areasOfOperation : null,
+          languages: formData.languages.length > 0 ? formData.languages : null,
+          specializations: formData.specializations.length > 0 ? formData.specializations : null,
+          certifications: formData.certifications.length > 0 ? formData.certifications : null,
+        };
+        formDataToSend.append('agentApplicationData', JSON.stringify(agentApplicationData));
+      }
 
       const response = await fetch(url, {
         method: 'POST',
@@ -478,6 +590,300 @@ function ApplicationForm({ job, onClose, onSuccess }: { job: Job; onClose: () =>
             </div>
           </div>
 
+          {/* Agent-Specific Fields */}
+          {isTravelAgentPosition && (
+            <div className="space-y-6 pt-6 border-t border-gray-200">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                <p className="text-sm text-blue-800 font-medium">
+                  This is a Travel Agent position. Please provide additional information below.
+                </p>
+              </div>
+
+              {/* Education & Experience */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <GraduationCap className="h-5 w-5 text-[#02665e]" />
+                  Education & Experience
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="min-w-0">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Education Level
+                    </label>
+                    <select
+                      value={formData.educationLevel}
+                      onChange={(e) => setFormData({ ...formData, educationLevel: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border"
+                    >
+                      <option value="">Select education level...</option>
+                      <option value="HIGH_SCHOOL">High School</option>
+                      <option value="DIPLOMA">Diploma</option>
+                      <option value="BACHELORS">Bachelors</option>
+                      <option value="MASTERS">Masters</option>
+                      <option value="PHD">PhD</option>
+                      <option value="OTHER">Other</option>
+                    </select>
+                  </div>
+                  <div className="min-w-0">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Years of Experience
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="50"
+                      value={formData.yearsOfExperience}
+                      onChange={(e) => setFormData({ ...formData, yearsOfExperience: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border"
+                      placeholder="e.g., 5"
+                    />
+                  </div>
+                </div>
+                <div className="min-w-0">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Bio/About You
+                  </label>
+                  <textarea
+                    value={formData.bio}
+                    onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
+                    rows={4}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border resize-none"
+                    placeholder="Tell us about your background and experience in travel..."
+                  />
+                </div>
+              </div>
+
+              {/* Skills & Expertise */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-gray-900">Skills & Expertise</h3>
+                
+                {/* Areas of Operation */}
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
+                    <MapPin className="h-4 w-4 text-[#02665e]" />
+                    Areas of Operation
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={areaInput}
+                      onChange={(e) => setAreaInput(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleAddArea();
+                        }
+                      }}
+                      placeholder="Enter area (e.g., Dar es Salaam)"
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddArea}
+                      className="px-4 py-2 bg-[#02665e] text-white rounded-lg text-sm font-medium hover:bg-[#014d47] transition-colors"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  {formData.areasOfOperation.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {formData.areasOfOperation.map((area, idx) => (
+                        <span
+                          key={idx}
+                          className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-700 rounded-lg text-sm"
+                        >
+                          {area}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveArea(area)}
+                            className="hover:text-blue-900"
+                          >
+                            <XCircle className="h-4 w-4" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Languages */}
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
+                    <Languages className="h-4 w-4 text-[#02665e]" />
+                    Languages
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={languageInput}
+                      onChange={(e) => setLanguageInput(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleAddLanguage();
+                        }
+                      }}
+                      placeholder="Enter language (e.g., English)"
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddLanguage}
+                      className="px-4 py-2 bg-[#02665e] text-white rounded-lg text-sm font-medium hover:bg-[#014d47] transition-colors"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  {formData.languages.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {formData.languages.map((lang, idx) => (
+                        <span
+                          key={idx}
+                          className="inline-flex items-center gap-2 px-3 py-1 bg-purple-50 text-purple-700 rounded-lg text-sm"
+                        >
+                          {lang}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveLanguage(lang)}
+                            className="hover:text-purple-900"
+                          >
+                            <XCircle className="h-4 w-4" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Specializations */}
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
+                    <Briefcase className="h-4 w-4 text-[#02665e]" />
+                    Specializations
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={specializationInput}
+                      onChange={(e) => setSpecializationInput(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleAddSpecialization();
+                        }
+                      }}
+                      placeholder="Enter specialization (e.g., Safari Tours)"
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddSpecialization}
+                      className="px-4 py-2 bg-[#02665e] text-white rounded-lg text-sm font-medium hover:bg-[#014d47] transition-colors"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  {formData.specializations.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {formData.specializations.map((spec, idx) => (
+                        <span
+                          key={idx}
+                          className="inline-flex items-center gap-2 px-3 py-1 bg-green-50 text-green-700 rounded-lg text-sm"
+                        >
+                          {spec}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveSpecialization(spec)}
+                            className="hover:text-green-900"
+                          >
+                            <XCircle className="h-4 w-4" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Certifications */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-gray-900">Certifications</h3>
+                <div className="space-y-3 p-4 bg-gray-50 rounded-xl border border-gray-200">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div className="min-w-0">
+                      <input
+                        type="text"
+                        value={certInput.name}
+                        onChange={(e) => setCertInput({ ...certInput, name: e.target.value })}
+                        placeholder="Certification name"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border text-sm"
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <input
+                        type="text"
+                        value={certInput.issuer}
+                        onChange={(e) => setCertInput({ ...certInput, issuer: e.target.value })}
+                        placeholder="Issuer"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border text-sm"
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <input
+                        type="text"
+                        value={certInput.year}
+                        onChange={(e) => setCertInput({ ...certInput, year: e.target.value })}
+                        placeholder="Year"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border text-sm"
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <input
+                        type="text"
+                        value={certInput.expiryDate}
+                        onChange={(e) => setCertInput({ ...certInput, expiryDate: e.target.value })}
+                        placeholder="Expiry date (optional)"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border text-sm"
+                      />
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddCertification}
+                    className="px-4 py-2 bg-[#02665e] text-white rounded-lg text-sm font-medium hover:bg-[#014d47] transition-colors"
+                  >
+                    Add Certification
+                  </button>
+                </div>
+                {formData.certifications.length > 0 && (
+                  <div className="space-y-2">
+                    {formData.certifications.map((cert, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center justify-between p-3 bg-amber-50 border border-amber-200 rounded-lg"
+                      >
+                        <div>
+                          <div className="font-medium text-amber-900">{cert.name}</div>
+                          <div className="text-sm text-amber-700">
+                            {cert.issuer} • {cert.year}
+                            {cert.expiryDate && ` • Expires: ${cert.expiryDate}`}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveCertification(idx)}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <XCircle className="h-5 w-5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="flex flex-col sm:flex-row gap-4 pt-4 w-full box-border">
             <button
               type="button"
@@ -679,8 +1085,8 @@ export default function CareersPage() {
         const apiBase = typeof window === 'undefined'
           ? (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000")
           : '';
-        const url = `${apiBase.replace(/\/$/, '')}/api/admin/careers?status=ACTIVE&page=1&pageSize=100`;
-        const response = await fetch(url, { credentials: 'include' });
+        const url = `${apiBase.replace(/\/$/, '')}/api/public/careers?page=1&pageSize=100`;
+        const response = await fetch(url);
         if (response.ok) {
           const data = await response.json();
           const fetchedJobs: Job[] = (data.jobs || []).map((job: any) => ({

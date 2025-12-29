@@ -247,7 +247,7 @@ export default function MyBookingsPage() {
 
       {/* Filter tabs and Cancellation Management */}
       <div className="flex flex-col items-center gap-4">
-        <div className="inline-flex items-center gap-2">
+        <div className="inline-flex items-center justify-center gap-2 flex-wrap">
         {[
           { key: "all" as const, label: "All", count: bookings.length },
           { key: "active" as const, label: "Valid", count: activeCount },

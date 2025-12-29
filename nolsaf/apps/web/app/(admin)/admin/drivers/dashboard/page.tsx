@@ -175,7 +175,7 @@ export default function DriversDashboardPage() {
           <h3 className="text-lg font-semibold text-gray-900">Driver Performance Overview</h3>
           <p className="text-sm text-gray-500 mt-1">Distribution of drivers by status and booking performance</p>
         </div>
-        <div className="w-full relative overflow-hidden" style={{ height: '384px', maxHeight: '384px', minHeight: '300px' }}>
+        <div className="w-full relative overflow-hidden h-[384px] max-h-[384px] min-h-[300px]">
           {loading ? (
             <div className="h-full w-full flex flex-col justify-end p-4">
               {/* Skeleton Chart */}

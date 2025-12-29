@@ -1,7 +1,8 @@
 "use client";
 
 import React from "react";
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, CheckCircle, ArrowRight } from 'lucide-react';
+import Link from 'next/link';
 
 type Props = {
   selectedRole: string | null;
@@ -9,6 +10,7 @@ type Props = {
 
 export default function PlanRequestForm({ selectedRole }: Props) {
   const [submitting, setSubmitting] = React.useState(false);
+  const [submitted, setSubmitted] = React.useState(false);
 
   const [transportRequired, setTransportRequired] = React.useState<string>('');
 
@@ -23,6 +25,10 @@ export default function PlanRequestForm({ selectedRole }: Props) {
   const [step, setStep] = React.useState<number>(1);
   const totalSteps = 4;
   const [reviewData, setReviewData] = React.useState<Record<string, string>>({});
+  
+  // Storage key for autosave - based on role to separate different form sessions
+  const storageKey = React.useMemo(() => `planRequestForm_${selectedRole || 'default'}`, [selectedRole]);
+  const [hasRestored, setHasRestored] = React.useState(false);
 
   const collectFormAsObject = () => {
     if (!formRef.current) return {} as Record<string, string>;
@@ -33,8 +39,181 @@ export default function PlanRequestForm({ selectedRole }: Props) {
     });
     // ensure role is included
     obj.role = selectedRole ?? '';
+    
+    // Also try to get saved data from sessionStorage to include fields from other steps
+    try {
+      const saved = sessionStorage.getItem(storageKey);
+      if (saved) {
+        const data = JSON.parse(saved);
+        if (data.formData) {
+          // Merge saved data with current form data (current form data takes precedence)
+          Object.keys(data.formData).forEach((key) => {
+            if (obj[key] === '' || obj[key] === undefined) {
+              obj[key] = data.formData[key] || '';
+            }
+          });
+        }
+      }
+    } catch (e) {
+      // Ignore errors when reading saved data
+    }
+    
     return obj;
   };
+
+  // Save form data to sessionStorage
+  const saveFormData = React.useCallback(() => {
+    if (!formRef.current || !selectedRole) return;
+    try {
+      const formData = collectFormAsObject();
+      const dataToSave = {
+        formData,
+        transportRequired,
+        groupSizeState,
+        passengerCount,
+        step,
+      };
+      sessionStorage.setItem(storageKey, JSON.stringify(dataToSave));
+    } catch (e) {
+      console.error('Failed to save form data:', e);
+    }
+  }, [selectedRole, storageKey, transportRequired, groupSizeState, passengerCount, step]);
+
+  // Restore form data from sessionStorage
+  const restoreFormData = React.useCallback(() => {
+    if (!formRef.current || !selectedRole || hasRestored) return;
+    try {
+      const saved = sessionStorage.getItem(storageKey);
+      if (!saved) {
+        setHasRestored(true);
+        return;
+      }
+      
+      const data = JSON.parse(saved);
+      if (data.formData && formRef.current) {
+        // Restore form fields - use setTimeout to ensure DOM is ready
+        setTimeout(() => {
+          if (!formRef.current) return;
+          
+          Object.keys(data.formData).forEach((key) => {
+            if (key === 'role') return; // Skip role, it's set by the component
+            
+            const input = formRef.current?.querySelector(`[name="${key}"]`) as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null;
+            if (input) {
+              const value = data.formData[key] || '';
+              if (input.tagName === 'INPUT') {
+                const inputEl = input as HTMLInputElement;
+                if (inputEl.type === 'checkbox') {
+                  inputEl.checked = value === 'on' || value === 'true' || value === true;
+                } else if (inputEl.type === 'radio') {
+                  const radio = formRef.current?.querySelector(`[name="${key}"][value="${value}"]`) as HTMLInputElement;
+                  if (radio) radio.checked = true;
+                } else {
+                  inputEl.value = value;
+                }
+              } else if (input.tagName === 'SELECT' || input.tagName === 'TEXTAREA') {
+                input.value = value;
+              }
+            }
+          });
+          
+          // Trigger change events to ensure React state updates
+          formRef.current.querySelectorAll('input, select, textarea').forEach((el) => {
+            const event = new Event('change', { bubbles: true });
+            el.dispatchEvent(event);
+          });
+        }, 100);
+        
+        // Restore state
+        if (data.transportRequired !== undefined) setTransportRequired(data.transportRequired);
+        if (data.groupSizeState !== undefined) setGroupSizeState(data.groupSizeState);
+        if (data.passengerCount !== undefined) setPassengerCount(data.passengerCount);
+        if (data.step) setStep(data.step);
+        
+        setHasRestored(true);
+      } else {
+        setHasRestored(true);
+      }
+    } catch (e) {
+      console.error('Failed to restore form data:', e);
+      setHasRestored(true);
+    }
+  }, [selectedRole, storageKey, hasRestored]);
+
+  // Restore on mount and when selectedRole changes
+  React.useEffect(() => {
+    if (selectedRole) {
+      setHasRestored(false);
+      restoreFormData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedRole]); // Only depend on selectedRole to avoid infinite loops
+
+  // Save form data whenever it changes (debounced)
+  React.useEffect(() => {
+    if (!selectedRole || !hasRestored) return;
+    const timeoutId = setTimeout(() => {
+      saveFormData();
+    }, 500); // Debounce saves by 500ms
+    
+    return () => clearTimeout(timeoutId);
+  }, [transportRequired, groupSizeState, passengerCount, step, selectedRole, hasRestored, saveFormData]);
+
+  // Save form data when inputs change (including when navigating between steps)
+  React.useEffect(() => {
+    if (!selectedRole || !hasRestored || !formRef.current) return;
+    
+    const form = formRef.current;
+    const handleChange = () => {
+      saveFormData();
+    };
+    
+    // Also restore when step changes (to restore conditionally rendered fields)
+    const handleStepChange = () => {
+      // Small delay to ensure DOM is updated with new step's fields
+      setTimeout(() => {
+        if (!formRef.current) return;
+        const saved = sessionStorage.getItem(storageKey);
+        if (saved) {
+          try {
+            const data = JSON.parse(saved);
+            if (data.formData) {
+              Object.keys(data.formData).forEach((key) => {
+                if (key === 'role') return;
+                const input = formRef.current?.querySelector(`[name="${key}"]`) as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null;
+                if (input && !input.value) {
+                  const value = data.formData[key] || '';
+                  if (input.tagName === 'INPUT') {
+                    const inputEl = input as HTMLInputElement;
+                    if (inputEl.type === 'checkbox') {
+                      inputEl.checked = value === 'on' || value === 'true' || value === true;
+                    } else if (inputEl.type !== 'radio') {
+                      inputEl.value = value;
+                    }
+                  } else if (input.tagName === 'SELECT' || input.tagName === 'TEXTAREA') {
+                    input.value = value;
+                  }
+                }
+              });
+            }
+          } catch (e) {
+            console.error('Failed to restore on step change:', e);
+          }
+        }
+      }, 50);
+    };
+    
+    form.addEventListener('change', handleChange);
+    form.addEventListener('input', handleChange);
+    
+    // Restore form fields when step changes
+    handleStepChange();
+    
+    return () => {
+      form.removeEventListener('change', handleChange);
+      form.removeEventListener('input', handleChange);
+    };
+  }, [selectedRole, hasRestored, saveFormData, step, storageKey]);
 
   // Friendly labels and preferred order for the review step
   const reviewLabels: Record<string, string> = {
@@ -113,41 +292,168 @@ export default function PlanRequestForm({ selectedRole }: Props) {
   };
 
   const goNext = () => {
+    // Save current step data before moving forward
+    saveFormData();
     const next = Math.min(totalSteps, step + 1);
     if (next === totalSteps) {
-      setReviewData(collectFormAsObject());
+      // Collect all form data for review, including all fields from all steps
+      const allFormData = collectFormAsObject();
+      setReviewData(allFormData);
     }
     setStep(next);
   };
 
-  const goBack = () => setStep(Math.max(1, step - 1));
+  const goBack = () => {
+    // Save current step data before moving back
+    saveFormData();
+    setStep(Math.max(1, step - 1));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formRef.current) return;
     setSubmitting(true);
-    const form = new FormData(formRef.current);
-    form.set('role', selectedRole ?? '');
-
-    // TODO: replace with actual API endpoint
+    
+    // Collect all form data - first try from saved sessionStorage (most complete)
+    // This ensures we get all fields even if they're on different steps
+    let allFormData: Record<string, string> = {};
     try {
-      await fetch('/api/plan-request', {
+      const saved = sessionStorage.getItem(storageKey);
+      if (saved) {
+        const data = JSON.parse(saved);
+        if (data.formData) {
+          allFormData = data.formData;
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load saved form data:', e);
+    }
+    
+    // Fallback to collecting from current form if saved data is incomplete
+    const currentFormData = collectFormAsObject();
+    allFormData = { ...allFormData, ...currentFormData };
+    
+    // Ensure role is set
+    allFormData.role = selectedRole ?? '';
+    
+    // Build FormData from collected data
+    const form = new FormData();
+    Object.keys(allFormData).forEach((key) => {
+      const value = allFormData[key];
+      if (value !== null && value !== undefined && value !== '') {
+        form.append(key, String(value));
+      }
+    });
+    
+    // Debug: Log what's being sent
+    console.log('Submitting form data:', {
+      role: selectedRole,
+      fullName: allFormData.fullName,
+      email: allFormData.email,
+      phone: allFormData.phone,
+      allKeys: Array.from(form.keys()),
+      allFormDataKeys: Object.keys(allFormData),
+    });
+
+    try {
+      const response = await fetch('/api/plan-request', {
         method: 'POST',
         body: form,
       });
-      // simple success UX placeholder
-      alert('Request submitted — we will get back to you within 48 hours.');
+      
+      const data = await response.json().catch(() => ({}));
+      
+      if (!response.ok) {
+        console.error('Request failed:', response.status, data);
+        throw new Error(data.error || data.message || 'Failed to submit request');
+      }
+      
+      // Show success message and hide form
+      setSubmitted(true);
       formRef.current.reset();
       // clear controlled sync state after successful reset
       setGroupSizeState('');
       setPassengerCount('');
-    } catch (err) {
-      console.error(err);
-      alert('Failed to submit request. Try again later.');
+      setTransportRequired('');
+      setStep(1);
+      // Clear saved form data
+      try {
+        sessionStorage.removeItem(storageKey);
+      } catch (e) {
+        console.error('Failed to clear saved form data:', e);
+      }
+      setHasRestored(false);
+    } catch (err: any) {
+      console.error('Submit error:', err);
+      alert(err.message || 'Failed to submit request. Please try again later.');
     } finally {
       setSubmitting(false);
     }
   };
+
+  // Show confirmation message after successful submission
+  if (submitted) {
+    return (
+      <>
+        <style dangerouslySetInnerHTML={{ __html: `
+          @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+          }
+          @keyframes scaleIn {
+            from { opacity: 0; transform: scale(0.8); }
+            to { opacity: 1; transform: scale(1); }
+          }
+          @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+          .success-fade-in { animation: fadeIn 0.5s ease-out; }
+          .success-scale-in { animation: scaleIn 0.6s ease-out; }
+          .success-slide-up { animation: slideUp 0.6s ease-out 0.2s both; }
+          .success-slide-up-delayed { animation: slideUp 0.6s ease-out 0.4s both; }
+          .success-fade-in-delayed { animation: fadeIn 0.5s ease-out 0.6s both; }
+        `}} />
+        <div className="bg-white rounded-2xl border border-slate-200 p-8 sm:p-12 shadow-sm success-fade-in">
+          <div className="max-w-2xl mx-auto text-center space-y-6">
+            {/* Animated success icon */}
+            <div className="flex justify-center">
+              <div className="h-16 w-16 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-lg success-scale-in">
+                <CheckCircle className="h-10 w-10 text-white transition-all duration-300" strokeWidth={2.5} />
+              </div>
+            </div>
+            
+            {/* Heading and description with slide-up animation */}
+            <div className="space-y-3 success-slide-up">
+              <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
+                Thank you for planning with NoLSAF!
+              </h2>
+              <p className="text-base sm:text-lg text-slate-600 leading-relaxed">
+                We've received your request and our team is currently reviewing it. 
+                We'll get back to you within 48 hours with a personalized plan tailored to your needs.
+              </p>
+            </div>
+
+            {/* Button with hover and transition effects */}
+            <div className="pt-4 success-slide-up-delayed">
+              <Link
+                href="/account/event-plans"
+                className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-3 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 active:scale-[0.98] no-underline group"
+              >
+                <span>View My Event Plan</span>
+                <ArrowRight className="h-5 w-5 transition-transform duration-300 group-hover:translate-x-1" />
+              </Link>
+            </div>
+
+            {/* Footer note */}
+            <p className="text-sm text-slate-500 pt-2 success-fade-in-delayed">
+              You can track your request status and view all your event plans in your account.
+            </p>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   return (
     <form ref={formRef} onSubmit={handleSubmit} className="space-y-6 bg-white border rounded-lg p-6 shadow-sm" aria-labelledby={selectedRole ? 'request-form' : undefined}>
@@ -595,31 +901,131 @@ export default function PlanRequestForm({ selectedRole }: Props) {
       )}
 
       {/* Review step (4) */}
-      {step === 4 && (
-        <section aria-labelledby="review-heading" className="space-y-3">
-          <h3 id="review-heading" className="text-lg font-semibold">Review your request</h3>
-          <p className="text-sm text-slate-600">Review the information below before sending. Use Back to edit any section.</p>
-          <div className="rounded border p-3 bg-gray-50 text-sm">
-            {Object.keys(reviewData).length === 0 ? (
-              <p className="text-sm text-slate-500">No details to show.</p>
+      {step === 4 && (() => {
+        // Always collect fresh form data for review to ensure we show everything
+        const currentReviewData = Object.keys(reviewData).length > 0 ? reviewData : collectFormAsObject();
+        const orderedKeys = getOrderedReviewKeys(currentReviewData);
+        
+        // Group fields by category for better organization
+        const tripDetails = ['role', 'tripType', 'destinations', 'dateFrom', 'dateTo', 'groupSize', 'passengerCount', 'budget', 'notes'];
+        const contactDetails = ['fullName', 'email', 'phone'];
+        const transportDetails = ['transportRequired', 'vehicleType', 'pickupLocation', 'dropoffLocation', 'vehiclesNeeded', 'vehicleRequirements'];
+        
+        // Role-specific fields based on role
+        const roleSpecificKeys: string[] = [];
+        if (selectedRole === 'Event planner') {
+          roleSpecificKeys.push('eventType', 'expectedAttendees', 'eventStartDate', 'eventEndDate', 'venuePreferences', 'accommodationNeeded', 'cateringRequired', 'avRequirements', 'budgetPerPerson');
+        } else if (selectedRole === 'School / Teacher') {
+          roleSpecificKeys.push('studentsCount', 'chaperones', 'ageRange', 'learningObjectives', 'riskAssessment', 'specialNeedsSupport');
+        } else if (selectedRole === 'University') {
+          roleSpecificKeys.push('researchPurpose', 'staffCount', 'studentsCountUniv', 'ethicsApproval', 'sampleCollection', 'permitsNeeded');
+        } else if (selectedRole === 'Community group') {
+          roleSpecificKeys.push('communityObjectives', 'beneficiaries', 'projectDuration', 'localPartners');
+        } else if (selectedRole === 'Other') {
+          roleSpecificKeys.push('otherDetails', 'attachments');
+        }
+        
+        // Filter keys by category and get remaining keys
+        const tripKeys = orderedKeys.filter(k => tripDetails.includes(k));
+        const contactKeys = orderedKeys.filter(k => contactDetails.includes(k));
+        const transportKeys = orderedKeys.filter(k => transportDetails.includes(k));
+        const roleKeys = orderedKeys.filter(k => roleSpecificKeys.includes(k));
+        const otherKeys = orderedKeys.filter(k => !tripDetails.includes(k) && !contactDetails.includes(k) && !transportDetails.includes(k) && !roleSpecificKeys.includes(k));
+        
+        return (
+          <section aria-labelledby="review-heading" className="space-y-4">
+            <div>
+              <h3 id="review-heading" className="text-lg font-semibold text-slate-900">Review your request</h3>
+              <p className="text-sm text-slate-600 mt-1">Review all information below before sending. Use Back to edit any section.</p>
+            </div>
+            
+            {orderedKeys.length === 0 ? (
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-6 text-center">
+                <p className="text-sm text-slate-500">No details to show. Please fill out the form.</p>
+              </div>
             ) : (
-              <div className="space-y-3">
-                <div className="bg-white rounded border p-3">
-                  <div className="text-sm font-medium">Summary</div>
-                  <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-slate-700">
-                    {getOrderedReviewKeys(reviewData).map((k) => (
-                      <div key={k} className="flex items-start gap-2">
-                        <div className="w-40 text-xs text-slate-500">{formatLabel(k)}</div>
-                        <div className="flex-1 text-sm text-slate-800 break-words">{formatValue(reviewData[k])}</div>
-                      </div>
-                    ))}
+              <div className="space-y-4">
+                {/* Trip Details Section */}
+                {tripKeys.length > 0 && (
+                  <div className="bg-white rounded-lg border border-slate-200 p-4 shadow-sm">
+                    <h4 className="text-sm font-semibold text-slate-900 mb-3 pb-2 border-b border-slate-200">Trip Details</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {tripKeys.map((k) => (
+                        <div key={k} className="flex flex-col gap-1">
+                          <span className="text-xs font-medium text-slate-500">{formatLabel(k)}</span>
+                          <span className="text-sm text-slate-900 break-words">{formatValue(currentReviewData[k])}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
+                
+                {/* Role-Specific Details Section */}
+                {roleKeys.length > 0 && (
+                  <div className="bg-white rounded-lg border border-slate-200 p-4 shadow-sm">
+                    <h4 className="text-sm font-semibold text-slate-900 mb-3 pb-2 border-b border-slate-200">
+                      {selectedRole} Details
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {roleKeys.map((k) => (
+                        <div key={k} className="flex flex-col gap-1">
+                          <span className="text-xs font-medium text-slate-500">{formatLabel(k)}</span>
+                          <span className="text-sm text-slate-900 break-words">{formatValue(currentReviewData[k])}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Contact Details Section */}
+                {contactKeys.length > 0 && (
+                  <div className="bg-white rounded-lg border border-slate-200 p-4 shadow-sm">
+                    <h4 className="text-sm font-semibold text-slate-900 mb-3 pb-2 border-b border-slate-200">Contact Information</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {contactKeys.map((k) => (
+                        <div key={k} className="flex flex-col gap-1">
+                          <span className="text-xs font-medium text-slate-500">{formatLabel(k)}</span>
+                          <span className="text-sm text-slate-900 break-words">{formatValue(currentReviewData[k])}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Transport Details Section */}
+                {transportKeys.length > 0 && (
+                  <div className="bg-white rounded-lg border border-slate-200 p-4 shadow-sm">
+                    <h4 className="text-sm font-semibold text-slate-900 mb-3 pb-2 border-b border-slate-200">Transport & Vehicle Details</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {transportKeys.map((k) => (
+                        <div key={k} className="flex flex-col gap-1">
+                          <span className="text-xs font-medium text-slate-500">{formatLabel(k)}</span>
+                          <span className="text-sm text-slate-900 break-words">{formatValue(currentReviewData[k])}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Other Details Section */}
+                {otherKeys.length > 0 && (
+                  <div className="bg-white rounded-lg border border-slate-200 p-4 shadow-sm">
+                    <h4 className="text-sm font-semibold text-slate-900 mb-3 pb-2 border-b border-slate-200">Additional Details</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {otherKeys.map((k) => (
+                        <div key={k} className="flex flex-col gap-1">
+                          <span className="text-xs font-medium text-slate-500">{formatLabel(k)}</span>
+                          <span className="text-sm text-slate-900 break-words">{formatValue(currentReviewData[k])}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
-          </div>
-        </section>
-      )}
+          </section>
+        );
+      })()}
 
       </div></>) : null}</div>
 

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
-import { ClipboardList, Search, X, Calendar, MapPin, Clock, User, BarChart3, TrendingUp, CheckCircle, XCircle, Loader2, FileText, AlertTriangle, Edit, Send, Eye } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { ClipboardList, Search, X, Calendar, MapPin, Clock, User, BarChart3, TrendingUp, CheckCircle, XCircle, Loader2, FileText, AlertTriangle, Edit, Send, Eye, MessageSquare, ChevronDown } from "lucide-react";
 import DatePicker from "@/components/ui/DatePicker";
 import axios from "axios";
 import Chart from "@/components/Chart";
@@ -9,6 +10,101 @@ import type { ChartData } from "chart.js";
 // Use same-origin for HTTP calls so Next.js rewrites proxy to the API
 const api = axios.create({ baseURL: "", withCredentials: true });
 function authify() {}
+
+type ConversationMessage = {
+  type: string;
+  message: string;
+  timestamp: Date;
+  formattedDate: string;
+  sender: 'user' | 'admin';
+};
+
+function ConversationHistoryDisplay({ requestId }: { requestId: number }) {
+  const [messages, setMessages] = useState<ConversationMessage[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    const loadMessages = async () => {
+      setLoading(true);
+      try {
+        const response = await api.get(`/api/admin/plan-with-us/requests/${requestId}/messages`);
+        if (response.data.success && response.data.messages) {
+          const formattedMessages: ConversationMessage[] = response.data.messages.map((m: any) => ({
+            type: m.messageType || (m.senderRole === 'ADMIN' ? 'Admin Response' : 'General'),
+            message: m.message,
+            timestamp: new Date(m.createdAt),
+            formattedDate: new Date(m.createdAt).toLocaleString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            }),
+            sender: m.senderRole === 'ADMIN' ? 'admin' : 'user',
+          }));
+          setMessages(formattedMessages);
+        }
+      } catch (err) {
+        console.error('Failed to load messages:', err);
+        setMessages([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    if (requestId) {
+      loadMessages();
+    }
+  }, [requestId]);
+  
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-4">
+        <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+      </div>
+    );
+  }
+  
+  if (messages.length === 0) return null;
+  
+  return (
+    <div className="space-y-3 max-h-[300px] overflow-y-auto">
+      {messages.map((msg, index) => (
+        <div
+          key={index}
+          className={`flex ${msg.sender === 'user' ? 'justify-start' : 'justify-end'}`}
+        >
+          <div className={`flex flex-col ${msg.sender === 'user' ? 'items-start max-w-[80%] sm:max-w-[70%]' : 'items-end max-w-[80%] sm:max-w-[70%]'}`}>
+            <div className={`flex items-center gap-2 mb-1.5 ${msg.sender === 'user' ? '' : 'flex-row-reverse'}`}>
+              {msg.sender === 'user' && (
+                <span className="text-[10px] font-medium text-[#02665e] px-2 py-0.5 rounded-md bg-[#02665e]/10">
+                  {msg.type}
+                </span>
+              )}
+              {msg.sender === 'admin' && (
+                <span className="text-[10px] font-medium text-blue-700 px-2 py-0.5 rounded-md bg-blue-100">
+                  Admin
+                </span>
+              )}
+              <span className="text-[10px] text-slate-400">{msg.formattedDate}</span>
+            </div>
+            <div
+              className={`rounded-xl px-3 py-2 shadow-sm ${
+                msg.sender === 'user'
+                  ? 'bg-[#02665e] text-white rounded-tl-sm'
+                  : 'bg-blue-50 border border-blue-100 text-slate-800 rounded-tr-sm'
+              }`}
+            >
+              <p className={`text-xs sm:text-sm whitespace-pre-wrap leading-relaxed ${msg.sender === 'user' ? 'text-white' : 'text-slate-700'}`}>
+                {msg.message}
+              </p>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 type PlanRequestRow = {
   id: number;
@@ -48,11 +144,32 @@ type PlanRequestStats = {
 };
 
 export default function AdminPlanWithUsRequestsPage() {
+  const searchParams = useSearchParams();
+  
+  // Initialize state from URL params if present
   const [role, setRole] = useState<string>("");
   const [tripType, setTripType] = useState<string>("");
   const [status, setStatus] = useState<string>("");
   const [date, setDate] = useState<string | string[]>("");
   const [q, setQ] = useState("");
+
+  // Initialize from URL params on mount - clear filters if no params in URL
+  useEffect(() => {
+    if (searchParams) {
+      const urlRole = searchParams.get("role");
+      const urlTripType = searchParams.get("tripType");
+      const urlStatus = searchParams.get("status");
+      const urlDate = searchParams.get("date");
+      const urlQ = searchParams.get("q");
+      
+      // Set or clear filters based on URL params
+      setRole(urlRole || "");
+      setTripType(urlTripType || "");
+      setStatus(urlStatus || "");
+      setDate(urlDate || "");
+      setQ(urlQ || "");
+    }
+  }, [searchParams]);
   const [list, setList] = useState<PlanRequestRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -78,8 +195,34 @@ export default function AdminPlanWithUsRequestsPage() {
     requiredPermits: "",
     estimatedTimeline: "",
     assignedAgent: "",
+    assignedAgentId: null as number | null,
     adminResponse: "",
   });
+  const [quickMessage, setQuickMessage] = useState("");
+  const [sendingMessage, setSendingMessage] = useState(false);
+  
+  // Agent selection state
+  const [agents, setAgents] = useState<any[]>([]);
+  const [agentsLoading, setAgentsLoading] = useState(false);
+  const [agentSearchQuery, setAgentSearchQuery] = useState("");
+  const [showAgentDropdown, setShowAgentDropdown] = useState(false);
+  const agentDropdownRef = useRef<HTMLDivElement>(null);
+  
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (agentDropdownRef.current && !agentDropdownRef.current.contains(event.target as Node)) {
+        setShowAgentDropdown(false);
+      }
+    }
+    
+    if (showAgentDropdown) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => {
+        document.removeEventListener("mousedown", handleClickOutside);
+      };
+    }
+  }, [showAgentDropdown]);
 
   async function load() {
     setLoading(true);
@@ -88,24 +231,37 @@ export default function AdminPlanWithUsRequestsPage() {
         page,
         pageSize,
       };
-      if (role) params.role = role;
-      if (tripType) params.tripType = tripType;
-      if (status) params.status = status;
+      // Only include filters if they have values (not empty strings)
+      if (role && role.trim()) params.role = role.trim();
+      if (tripType && tripType.trim()) params.tripType = tripType.trim();
+      if (status && status.trim()) params.status = status.trim();
       if (date) {
-        if (Array.isArray(date)) {
-          params.start = date[0];
-          params.end = date[1];
-        } else {
+        if (Array.isArray(date) && date.length > 0) {
+          if (date[0]) params.start = date[0];
+          if (date[1]) params.end = date[1];
+        } else if (date && !Array.isArray(date)) {
           params.date = date;
         }
       }
-      if (q) params.q = q;
+      if (q && q.trim()) params.q = q.trim();
 
-      const r = await api.get<{ items: PlanRequestRow[]; total: number }>("/admin/plan-with-us/requests", { params });
-      setList(r.data?.items ?? []);
+      console.log('Loading plan requests with params:', params);
+      const r = await api.get<{ items: PlanRequestRow[]; total: number }>("/api/admin/plan-with-us/requests", { params });
+      console.log('Plan requests response:', { 
+        itemsCount: Array.isArray(r.data?.items) ? r.data.items.length : 0, 
+        total: r.data?.total || 0, 
+        items: r.data?.items,
+        fullResponse: r.data
+      });
+      setList(Array.isArray(r.data?.items) ? r.data.items : []);
       setTotal(r.data?.total ?? 0);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to load plan requests", err);
+      console.error("Error details:", err?.response?.data || err?.message);
+      // Show error to user
+      if (err?.response?.data?.error) {
+        alert(`Error loading requests: ${err.response.data.error}`);
+      }
       setList([]);
       setTotal(0);
     } finally {
@@ -116,7 +272,7 @@ export default function AdminPlanWithUsRequestsPage() {
   const loadStats = useCallback(async () => {
     setStatsLoading(true);
     try {
-      const r = await api.get<PlanRequestStats>("/admin/plan-with-us/requests/stats", {
+      const r = await api.get<PlanRequestStats>("/api/admin/plan-with-us/requests/stats", {
         params: { period: statsPeriod },
       });
       setStatsData(r.data);
@@ -128,9 +284,11 @@ export default function AdminPlanWithUsRequestsPage() {
     }
   }, [statsPeriod]);
 
+  // Load data when filters change
   useEffect(() => {
     authify();
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, role, tripType, status, date, q]);
 
   useEffect(() => {
@@ -140,16 +298,60 @@ export default function AdminPlanWithUsRequestsPage() {
 
   const pages = Math.max(1, Math.ceil(total / pageSize));
 
+  // Load agents for selection
+  const loadAgents = async (searchQuery: string = "") => {
+    setAgentsLoading(true);
+    try {
+      const params: any = {
+        page: 1,
+        pageSize: 50,
+        status: "ACTIVE",
+        available: "true",
+      };
+      if (searchQuery && searchQuery.trim()) {
+        params.q = searchQuery.trim();
+      }
+      const response = await api.get("/api/admin/agents", { params });
+      setAgents(response.data.items || []);
+    } catch (err) {
+      console.error("Failed to load agents", err);
+      setAgents([]);
+    } finally {
+      setAgentsLoading(false);
+    }
+  };
+
   // Handle opening response modal
   const handleOpenResponse = async (request: PlanRequestRow) => {
-    setSelectedRequest(request);
-    setResponseForm({
-      suggestedItineraries: request.suggestedItineraries || "",
-      requiredPermits: request.requiredPermits || "",
-      estimatedTimeline: request.estimatedTimeline || "",
-      assignedAgent: request.assignedAgent || "",
-      adminResponse: request.adminResponse || "",
-    });
+    // Load agents when opening modal
+    await loadAgents();
+    
+    // Fetch the full request details to get updated notes
+    try {
+      const response = await api.get(`/api/admin/plan-with-us/requests/${request.id}`);
+      setSelectedRequest(response.data);
+      setResponseForm({
+        suggestedItineraries: response.data.suggestedItineraries || "",
+        requiredPermits: response.data.requiredPermits || "",
+        estimatedTimeline: response.data.estimatedTimeline || "",
+        assignedAgent: response.data.assignedAgent || "",
+        assignedAgentId: response.data.assignedAgentId || null,
+        adminResponse: response.data.adminResponse || "",
+      });
+      setQuickMessage("");
+    } catch (err) {
+      console.error("Failed to load request details", err);
+      // Fallback to the request from the list
+      setSelectedRequest(request);
+      setResponseForm({
+        suggestedItineraries: request.suggestedItineraries || "",
+        requiredPermits: request.requiredPermits || "",
+        estimatedTimeline: request.estimatedTimeline || "",
+        assignedAgent: request.assignedAgent || "",
+        assignedAgentId: null,
+        adminResponse: request.adminResponse || "",
+      });
+    }
     setShowResponseModal(true);
   };
 
@@ -159,10 +361,25 @@ export default function AdminPlanWithUsRequestsPage() {
     
     setSubmitting(true);
     try {
-      await api.patch(`/admin/plan-with-us/requests/${selectedRequest.id}`, {
+      const submitData: any = {
         status: "COMPLETED",
-        ...responseForm,
-      });
+        suggestedItineraries: responseForm.suggestedItineraries,
+        requiredPermits: responseForm.requiredPermits,
+        estimatedTimeline: responseForm.estimatedTimeline,
+        adminResponse: responseForm.adminResponse,
+      };
+      
+      // If agent is selected, assign it
+      if (responseForm.assignedAgentId) {
+        submitData.assignedAgentId = responseForm.assignedAgentId;
+        // Also keep the legacy assignedAgent field updated
+        const selectedAgent = agents.find(a => a.id === responseForm.assignedAgentId);
+        if (selectedAgent) {
+          submitData.assignedAgent = selectedAgent.user?.name || "";
+        }
+      }
+      
+      await api.patch(`/api/admin/plan-with-us/requests/${selectedRequest.id}`, submitData);
       
       // Reload list
       await load();
@@ -173,8 +390,12 @@ export default function AdminPlanWithUsRequestsPage() {
         requiredPermits: "",
         estimatedTimeline: "",
         assignedAgent: "",
+        assignedAgentId: null,
         adminResponse: "",
       });
+      setQuickMessage("");
+      setAgentSearchQuery("");
+      setShowAgentDropdown(false);
     } catch (err) {
       console.error("Failed to submit response", err);
       alert("Failed to submit response. Please try again.");
@@ -182,11 +403,56 @@ export default function AdminPlanWithUsRequestsPage() {
       setSubmitting(false);
     }
   };
+  
+  // Handle agent selection
+  const handleSelectAgent = (agent: any) => {
+    setResponseForm({
+      ...responseForm,
+      assignedAgentId: agent.id,
+      assignedAgent: agent.user?.name || "",
+    });
+    setShowAgentDropdown(false);
+    setAgentSearchQuery(agent.user?.name || "");
+  };
+  
+  // Initialize agent search query when modal opens with existing agent
+  useEffect(() => {
+    if (showResponseModal && responseForm.assignedAgent) {
+      setAgentSearchQuery(responseForm.assignedAgent);
+    }
+  }, [showResponseModal, responseForm.assignedAgent]);
+
+  // Handle sending quick message
+  const handleSendQuickMessage = async () => {
+    if (!selectedRequest || !quickMessage.trim()) return;
+    
+    setSendingMessage(true);
+    try {
+      await api.post(`/api/admin/plan-with-us/requests/${selectedRequest.id}/message`, {
+        message: quickMessage.trim(),
+      });
+      
+      // Clear the message input (messages will reload automatically via ConversationHistoryDisplay useEffect)
+      setQuickMessage("");
+      
+      // Show success message
+      window.dispatchEvent(
+        new CustomEvent("nols:toast", {
+          detail: { type: "success", title: "Message Sent", message: "Your response has been sent to the customer.", duration: 3000 },
+        })
+      );
+    } catch (err) {
+      console.error("Failed to send message", err);
+      alert("Failed to send message. Please try again.");
+    } finally {
+      setSendingMessage(false);
+    }
+  };
 
   // Handle starting work on request
   const handleStartWork = async (requestId: number) => {
     try {
-      await api.patch(`/admin/plan-with-us/requests/${requestId}`, {
+      await api.patch(`/api/admin/plan-with-us/requests/${requestId}`, {
         status: "IN_PROGRESS",
       });
       await load();
@@ -1097,147 +1363,285 @@ export default function AdminPlanWithUsRequestsPage() {
       {/* Response Modal */}
       {showResponseModal && selectedRequest && (
         <>
-          <div className="fixed inset-0 bg-black bg-opacity-50 z-50" onClick={() => setShowResponseModal(false)} />
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-gray-900">
+          <div 
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 transition-opacity duration-300" 
+            onClick={() => setShowResponseModal(false)} 
+          />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full my-8 max-h-[90vh] flex flex-col overflow-hidden transform transition-all duration-300 scale-100 opacity-100">
+              {/* Header */}
+              <div className="sticky top-0 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200 px-4 sm:px-6 py-4 flex items-center justify-between z-10 backdrop-blur-sm">
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
                   {selectedRequest.status === "COMPLETED" ? "View Response" : "Provide Feedback"}
                 </h2>
                 <button
                   onClick={() => setShowResponseModal(false)}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-white/80 rounded-lg transition-all duration-200 hover:scale-110 active:scale-95"
+                  aria-label="Close modal"
                 >
-                  <X className="h-6 w-6" />
+                  <X className="h-5 w-5 sm:h-6 sm:w-6" />
                 </button>
               </div>
 
-              <div className="p-6 space-y-6">
+              {/* Content */}
+              <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-6 space-y-6">
                 {/* Request Details */}
-                <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-                  <h3 className="font-semibold text-gray-900 mb-3">Request Details</h3>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-gray-500">Customer:</span>
-                      <span className="ml-2 font-medium">{selectedRequest.customer.name}</span>
+                <div className="bg-gradient-to-br from-gray-50 to-gray-100/50 rounded-xl p-4 sm:p-5 border border-gray-200/50 shadow-sm transition-all duration-300 hover:shadow-md">
+                  <h3 className="font-bold text-gray-900 mb-4 text-base sm:text-lg flex items-center gap-2">
+                    <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
+                    Request Details
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-sm">
+                    <div className="flex flex-col sm:flex-row sm:items-center">
+                      <span className="text-gray-500 font-medium mb-1 sm:mb-0 sm:mr-2">Customer:</span>
+                      <span className="font-semibold text-gray-900">{selectedRequest.customer.name}</span>
                     </div>
-                    <div>
-                      <span className="text-gray-500">Email:</span>
-                      <span className="ml-2">{selectedRequest.customer.email}</span>
+                    <div className="flex flex-col sm:flex-row sm:items-center">
+                      <span className="text-gray-500 font-medium mb-1 sm:mb-0 sm:mr-2">Email:</span>
+                      <span className="text-gray-900 break-words">{selectedRequest.customer.email}</span>
                     </div>
-                    <div>
-                      <span className="text-gray-500">Role:</span>
-                      <span className="ml-2">{selectedRequest.role}</span>
+                    <div className="flex flex-col sm:flex-row sm:items-center">
+                      <span className="text-gray-500 font-medium mb-1 sm:mb-0 sm:mr-2">Role:</span>
+                      <span className="text-gray-900">{selectedRequest.role}</span>
                     </div>
-                    <div>
-                      <span className="text-gray-500">Trip Type:</span>
-                      <span className="ml-2">{selectedRequest.tripType}</span>
+                    <div className="flex flex-col sm:flex-row sm:items-center">
+                      <span className="text-gray-500 font-medium mb-1 sm:mb-0 sm:mr-2">Trip Type:</span>
+                      <span className="text-gray-900">{selectedRequest.tripType}</span>
                     </div>
-                    <div>
-                      <span className="text-gray-500">Destination:</span>
-                      <span className="ml-2">{selectedRequest.destinations || "N/A"}</span>
+                    <div className="flex flex-col sm:flex-row sm:items-center">
+                      <span className="text-gray-500 font-medium mb-1 sm:mb-0 sm:mr-2">Destination:</span>
+                      <span className="text-gray-900 break-words">{selectedRequest.destinations || "N/A"}</span>
                     </div>
-                    <div>
-                      <span className="text-gray-500">Group Size:</span>
-                      <span className="ml-2">{selectedRequest.groupSize || "N/A"}</span>
+                    <div className="flex flex-col sm:flex-row sm:items-center">
+                      <span className="text-gray-500 font-medium mb-1 sm:mb-0 sm:mr-2">Group Size:</span>
+                      <span className="text-gray-900">{selectedRequest.groupSize || "N/A"}</span>
                     </div>
                   </div>
-                  {selectedRequest.notes && (
-                    <div className="mt-3">
-                      <span className="text-gray-500 text-sm">Notes:</span>
-                      <p className="mt-1 text-sm text-gray-700">{selectedRequest.notes}</p>
+                </div>
+
+                {/* Conversation History */}
+                <div className="bg-gradient-to-br from-slate-50 to-white rounded-xl p-4 sm:p-5 border border-gray-200 shadow-sm">
+                  <h3 className="font-bold text-gray-900 mb-4 text-base sm:text-lg flex items-center gap-2">
+                    <MessageSquare className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
+                    Conversation History
+                  </h3>
+                  <ConversationHistoryDisplay requestId={selectedRequest.id} />
+                  
+                  {/* Quick Message Input */}
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    <label className="block text-xs font-medium text-gray-600 mb-2">
+                      Send Quick Response
+                    </label>
+                    <div className="flex gap-2">
+                      <textarea
+                        value={quickMessage}
+                        onChange={(e) => setQuickMessage(e.target.value)}
+                        placeholder="Type a quick response..."
+                        rows={2}
+                        className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm transition-all resize-none"
+                      />
+                      <button
+                        onClick={handleSendQuickMessage}
+                        disabled={sendingMessage || !quickMessage.trim()}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all"
+                      >
+                        {sendingMessage ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Send className="h-4 w-4" />
+                        )}
+                      </button>
                     </div>
-                  )}
+                  </div>
                 </div>
 
                 {/* Response Form */}
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Suggested Itineraries with Prices *
+                <div className="space-y-5">
+                  <div className="bg-white rounded-xl p-4 sm:p-5 border border-gray-200 shadow-sm transition-all duration-300 hover:shadow-md overflow-hidden">
+                    <label className="block text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                      <Send className="h-4 w-4 text-blue-600" />
+                      Suggested Itineraries with Prices <span className="text-red-500">*</span>
                     </label>
-                    <textarea
-                      value={responseForm.suggestedItineraries}
-                      onChange={(e) => setResponseForm({ ...responseForm, suggestedItineraries: e.target.value })}
-                      disabled={selectedRequest.status === "COMPLETED"}
-                      rows={6}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
-                      placeholder="Provide detailed itineraries with estimated prices..."
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Checklist of Required Permits and Documents *
-                    </label>
-                    <textarea
-                      value={responseForm.requiredPermits}
-                      onChange={(e) => setResponseForm({ ...responseForm, requiredPermits: e.target.value })}
-                      disabled={selectedRequest.status === "COMPLETED"}
-                      rows={4}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
-                      placeholder="List all required permits, documents, and preparation steps..."
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Estimated Timelines and Booking Windows *
-                    </label>
-                    <textarea
-                      value={responseForm.estimatedTimeline}
-                      onChange={(e) => setResponseForm({ ...responseForm, estimatedTimeline: e.target.value })}
-                      disabled={selectedRequest.status === "COMPLETED"}
-                      rows={4}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
-                      placeholder="Provide estimated timelines, booking deadlines, and important dates..."
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Assigned Agent / Contact
-                      </label>
-                      <input
-                        type="text"
-                        value={responseForm.assignedAgent}
-                        onChange={(e) => setResponseForm({ ...responseForm, assignedAgent: e.target.value })}
+                    <div className="w-full max-w-full box-border">
+                      <textarea
+                        value={responseForm.suggestedItineraries}
+                        onChange={(e) => setResponseForm({ ...responseForm, suggestedItineraries: e.target.value })}
                         disabled={selectedRequest.status === "COMPLETED"}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
-                        placeholder="Agent name and contact info"
+                        rows={6}
+                        className="w-full max-w-full min-w-0 box-border px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm transition-all duration-200 resize-y bg-white disabled:bg-gray-50 disabled:cursor-not-allowed placeholder:text-gray-400 overflow-x-hidden"
+                        placeholder="Provide detailed itineraries with estimated prices..."
                       />
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <div className="bg-white rounded-xl p-4 sm:p-5 border border-gray-200 shadow-sm transition-all duration-300 hover:shadow-md overflow-hidden">
+                    <label className="block text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-blue-600" />
+                      Checklist of Required Permits and Documents <span className="text-red-500">*</span>
+                    </label>
+                    <div className="w-full max-w-full box-border">
+                      <textarea
+                        value={responseForm.requiredPermits}
+                        onChange={(e) => setResponseForm({ ...responseForm, requiredPermits: e.target.value })}
+                        disabled={selectedRequest.status === "COMPLETED"}
+                        rows={4}
+                        className="w-full max-w-full min-w-0 box-border px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm transition-all duration-200 resize-y bg-white disabled:bg-gray-50 disabled:cursor-not-allowed placeholder:text-gray-400 overflow-x-hidden"
+                        placeholder="List all required permits, documents, and preparation steps..."
+                      />
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-xl p-4 sm:p-5 border border-gray-200 shadow-sm transition-all duration-300 hover:shadow-md overflow-hidden">
+                    <label className="block text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                      <Calendar className="h-4 w-4 text-blue-600" />
+                      Estimated Timelines and Booking Windows <span className="text-red-500">*</span>
+                    </label>
+                    <div className="w-full max-w-full box-border">
+                      <textarea
+                        value={responseForm.estimatedTimeline}
+                        onChange={(e) => setResponseForm({ ...responseForm, estimatedTimeline: e.target.value })}
+                        disabled={selectedRequest.status === "COMPLETED"}
+                        rows={4}
+                        className="w-full max-w-full min-w-0 box-border px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm transition-all duration-200 resize-y bg-white disabled:bg-gray-50 disabled:cursor-not-allowed placeholder:text-gray-400 overflow-x-hidden"
+                        placeholder="Provide estimated timelines, booking deadlines, and important dates..."
+                      />
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-xl p-4 sm:p-5 border border-gray-200 shadow-sm transition-all duration-300 hover:shadow-md overflow-hidden">
+                    <label className="block text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                      <User className="h-4 w-4 text-blue-600" />
+                      Assign Agent
+                    </label>
+                    <div className="w-full max-w-full box-border relative" ref={agentDropdownRef}>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={agentSearchQuery || responseForm.assignedAgent || ""}
+                          onChange={(e) => {
+                            setAgentSearchQuery(e.target.value);
+                            setShowAgentDropdown(true);
+                            if (e.target.value) {
+                              loadAgents(e.target.value);
+                            } else {
+                              loadAgents();
+                            }
+                          }}
+                          onFocus={() => {
+                            setShowAgentDropdown(true);
+                            if (agents.length === 0) {
+                              loadAgents();
+                            }
+                          }}
+                          disabled={selectedRequest.status === "COMPLETED"}
+                          className="w-full max-w-full min-w-0 box-border pl-4 pr-10 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm transition-all duration-200 bg-white disabled:bg-gray-50 disabled:cursor-not-allowed placeholder:text-gray-400"
+                          placeholder="Search and select an agent..."
+                        />
+                        <ChevronDown className={`absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 transition-transform ${showAgentDropdown ? 'rotate-180' : ''}`} />
+                      </div>
+                      
+                      {/* Agent Dropdown */}
+                      {showAgentDropdown && !selectedRequest.status.includes("COMPLETED") && (
+                        <div className="absolute z-50 w-full mt-1 bg-white border-2 border-gray-200 rounded-xl shadow-xl max-h-80 overflow-y-auto">
+                          {agentsLoading ? (
+                            <div className="p-4 text-center text-sm text-gray-500">Loading agents...</div>
+                          ) : agents.length === 0 ? (
+                            <div className="p-4 text-center text-sm text-gray-500">No agents found. Try a different search.</div>
+                          ) : (
+                            <>
+                              {agents.map((agent) => (
+                                <button
+                                  key={agent.id}
+                                  type="button"
+                                  onClick={() => handleSelectAgent(agent)}
+                                  className={`w-full text-left px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0 transition-colors ${
+                                    responseForm.assignedAgentId === agent.id ? 'bg-blue-50' : ''
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div>
+                                      <div className="font-medium text-gray-900">{agent.user?.name || "N/A"}</div>
+                                      <div className="text-sm text-gray-500">{agent.user?.email}</div>
+                                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                        {agent.yearsOfExperience && (
+                                          <span className="text-xs text-gray-400">{agent.yearsOfExperience} years exp.</span>
+                                        )}
+                                        {agent.areasOfOperation && Array.isArray(agent.areasOfOperation) && agent.areasOfOperation.length > 0 && (
+                                          <span className="text-xs text-gray-400">
+                                            {agent.areasOfOperation.slice(0, 2).join(", ")}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className="text-right ml-2">
+                                      <div className={`text-xs px-2 py-1 rounded ${
+                                        agent.currentActiveRequests >= agent.maxActiveRequests
+                                          ? "bg-red-100 text-red-700"
+                                          : agent.currentActiveRequests >= agent.maxActiveRequests * 0.8
+                                          ? "bg-yellow-100 text-yellow-700"
+                                          : "bg-green-100 text-green-700"
+                                      }`}>
+                                        {agent.currentActiveRequests}/{agent.maxActiveRequests}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </button>
+                              ))}
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    {responseForm.assignedAgentId && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <span className="text-xs text-gray-500">
+                          Selected: <span className="font-semibold text-gray-900">{responseForm.assignedAgent}</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setResponseForm({ ...responseForm, assignedAgentId: null, assignedAgent: "" });
+                            setAgentSearchQuery("");
+                          }}
+                          className="text-xs text-red-600 hover:text-red-800 underline"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="bg-white rounded-xl p-4 sm:p-5 border border-gray-200 shadow-sm transition-all duration-300 hover:shadow-md overflow-hidden">
+                    <label className="block text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-blue-600" />
                       Additional Notes / Recommendations
                     </label>
-                    <textarea
-                      value={responseForm.adminResponse}
-                      onChange={(e) => setResponseForm({ ...responseForm, adminResponse: e.target.value })}
-                      disabled={selectedRequest.status === "COMPLETED"}
-                      rows={4}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
-                      placeholder="Any additional recommendations, tips, or general schedule information..."
-                    />
+                    <div className="w-full max-w-full box-border">
+                      <textarea
+                        value={responseForm.adminResponse}
+                        onChange={(e) => setResponseForm({ ...responseForm, adminResponse: e.target.value })}
+                        disabled={selectedRequest.status === "COMPLETED"}
+                        rows={4}
+                        className="w-full max-w-full min-w-0 box-border px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm transition-all duration-200 resize-y bg-white disabled:bg-gray-50 disabled:cursor-not-allowed placeholder:text-gray-400 overflow-x-hidden"
+                        placeholder="Any additional recommendations, tips, or general schedule information..."
+                      />
+                    </div>
                   </div>
                 </div>
 
                 {/* Action Buttons */}
                 {selectedRequest.status !== "COMPLETED" && (
-                  <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                  <div className="flex flex-col sm:flex-row justify-end gap-3 pt-5 border-t border-gray-200 sticky bottom-0 bg-white -mx-4 sm:-mx-6 px-4 sm:px-6 pb-2">
                     <button
                       onClick={() => setShowResponseModal(false)}
-                      className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+                      className="w-full sm:w-auto px-5 py-2.5 border-2 border-gray-300 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 active:scale-95"
                     >
                       Cancel
                     </button>
                     <button
                       onClick={handleSubmitResponse}
                       disabled={submitting || !responseForm.suggestedItineraries || !responseForm.requiredPermits || !responseForm.estimatedTimeline}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      className="w-full sm:w-auto px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl text-sm font-semibold hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all duration-200 shadow-md hover:shadow-lg active:scale-95 disabled:active:scale-100"
                     >
                       {submitting ? (
                         <>

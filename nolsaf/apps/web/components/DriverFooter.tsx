@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
-import Image from "next/image";
+import React from 'react';
+import Link from 'next/link';
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 
@@ -31,84 +31,92 @@ export default function DriverFooter() {
       }
     }
   }, [pathname]);
+  
+  const handleLegalClick = (type: 'terms' | 'privacy' | 'cookies') => {
+    window.dispatchEvent(new CustomEvent('open-legal', { detail: { type } }));
+  };
 
   return (
-    <footer className="w-full mt-12 page-bottom-buffer bg-slate-50">
+    <footer aria-label="Footer" className="bg-white border-t border-gray-100">
       <h2 className="sr-only">Footer</h2>
 
-      <div className="max-w-6xl mx-auto px-4 py-6 flex flex-col items-center gap-4">
-        {/* About NoLSAF Section */}
-        <div className="w-full">
-          <div className="max-w-4xl mx-auto text-center">
-            <h3 className="text-lg font-semibold text-gray-800">About NoLSAF</h3>
-            <p className="mt-2 text-sm text-gray-600">Who we are and what we do and why You have to choose us.</p>
-          </div>
+      <div className="max-w-6xl mx-auto px-4 py-6 flex flex-col items-center gap-6">
+        {/* Top separator line with circle */}
+        <div className="relative w-full max-w-2xl flex items-center justify-center">
+          <div className="absolute w-full h-px bg-gray-200"></div>
+          <div className="relative bg-white w-3 h-3 rounded-full border-2 border-gray-200"></div>
         </div>
 
-        {/* Policy Links */}
         <nav aria-label="Footer navigation" className="w-full flex justify-center">
-          <ul className="flex flex-wrap items-center justify-center gap-6 text-sm">
+          <ul className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm">
             <li>
-              <a 
-                role="button" 
-                onClick={() => window.dispatchEvent(new CustomEvent('open-legal', { detail: { type: 'terms' } }))} 
-                className="text-[#02665e] font-semibold no-underline hover:no-underline"
+              <button
+                onClick={() => handleLegalClick('terms')}
+                className="text-[#02665e] font-normal hover:text-[#014d47] no-underline cursor-pointer transition-colors duration-200 ease-in-out bg-transparent border-none p-0"
               >
                 Terms of Service
-              </a>
+              </button>
             </li>
             <li>
-              <a 
-                role="button" 
-                onClick={() => window.dispatchEvent(new CustomEvent('open-legal', { detail: { type: 'privacy' } }))} 
-                className="text-[#02665e] font-semibold no-underline hover:no-underline"
+              <button
+                onClick={() => handleLegalClick('privacy')}
+                className="text-[#02665e] font-normal hover:text-[#014d47] no-underline cursor-pointer transition-colors duration-200 ease-in-out bg-transparent border-none p-0"
               >
                 Privacy Policy
-              </a>
+              </button>
             </li>
             <li>
-              <Link href="/cookies-policy" className="text-[#02665e] font-semibold no-underline hover:no-underline">
+              <Link
+                href="/cookies-policy"
+                className="text-[#02665e] font-normal hover:text-[#014d47] no-underline cursor-pointer transition-colors duration-200 ease-in-out"
+              >
                 Cookies Policy
               </Link>
             </li>
             <li>
-              <Link href="/verification-policy" className="text-[#02665e] font-semibold no-underline hover:no-underline">
+              <Link
+                href="/verification-policy"
+                className="text-[#02665e] font-normal hover:text-[#014d47] no-underline cursor-pointer transition-colors duration-200 ease-in-out"
+              >
                 Verification Policy
               </Link>
             </li>
             <li>
-              <Link href="/cancellation-policy" className="text-[#02665e] font-semibold no-underline hover:no-underline">
+              <Link
+                href="/cancellation-policy"
+                className="text-[#02665e] font-normal hover:text-[#014d47] no-underline cursor-pointer transition-colors duration-200 ease-in-out"
+              >
                 Cancellation Policy
               </Link>
             </li>
             <li>
-              <Link href="/driver-disbursement-policy" className="text-[#02665e] font-semibold no-underline hover:no-underline">
+              <Link
+                href="/driver-disbursement-policy"
+                className="text-[#02665e] font-normal hover:text-[#014d47] no-underline cursor-pointer transition-colors duration-200 ease-in-out"
+              >
                 Driver Disbursement Policy
               </Link>
             </li>
           </ul>
         </nav>
 
-        {/* Docs and Version Links */}
-        <nav aria-label="Additional links" className="w-full flex justify-center">
-          <ul className="flex flex-wrap items-center justify-center gap-6 text-sm">
-            <li>
-              <Link href="/docs" className="text-[#02665e] font-semibold no-underline hover:no-underline">
-                Docs
-              </Link>
-            </li>
-            <li>
-              <Link href="/version" className="text-[#02665e] font-semibold no-underline hover:no-underline">
-                v0.1.0
-              </Link>
-            </li>
-          </ul>
-        </nav>
+        <div className="flex items-center justify-center gap-x-4 gap-y-2 text-sm text-[#02665e] font-normal">
+          <Link
+            href="/docs"
+            className="text-[#02665e] hover:text-[#014d47] no-underline cursor-pointer transition-colors duration-200 ease-in-out"
+          >
+            Docs
+          </Link>
+          <Link
+            href="/version"
+            className="text-[#02665e] hover:text-[#014d47] no-underline cursor-pointer transition-colors duration-200 ease-in-out"
+          >
+            v0.1.0
+          </Link>
+        </div>
 
-        {/* Logo and Copyright */}
-        <div className="w-full flex flex-col items-center gap-1 mt-1">
-          <Image src="/assets/NoLS2025-04.png" alt="NoLSAF" width={120} height={30} className="object-contain" />
-          <div className="text-sm text-[#02665e] font-semibold">© {year} NoLSAF — All rights reserved</div>
+        <div className="w-full flex flex-col items-center gap-2 mt-2">
+          <div className="text-sm text-[#02665e] font-normal transition-all duration-300 ease-in-out">© {year} NoLSAF — All rights reserved</div>
         </div>
       </div>
     </footer>

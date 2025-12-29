@@ -257,3 +257,67 @@ const sendInvoiceFromBooking: RequestHandler = async (req, res) => {
   return (res as Response).status(201).json({ ok: true, invoiceId: created.invoiceId });
 };
 router.post("/:id/send-invoice", sendInvoiceFromBooking);
+
+/** GET /owner/bookings/recent - Get recent bookings for the owner */
+const getRecentBookings: RequestHandler = async (req, res) => {
+  const r = req as AuthedRequest;
+  const ownerId = r.user!.id;
+
+  // Get recent bookings (last 50, ordered by creation date descending)
+  // Filter for bookings that belong to owner's properties
+  const bookings = await prisma.booking.findMany({
+    where: {
+      property: { ownerId },
+    },
+    include: {
+      property: {
+        select: {
+          id: true,
+          title: true,
+        },
+      },
+      code: {
+        select: {
+          id: true,
+          codeVisible: true,
+          status: true,
+        },
+      },
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+        },
+      },
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
+    take: 50,
+  });
+
+  // Map to include relevant fields for the UI
+  const mapped = bookings.map((b: any) => ({
+    id: b.id,
+    property: b.property,
+    code: b.code,
+    codeVisible: b.code?.codeVisible ?? null,
+    guestName: b.guestName ?? b.user?.name ?? null,
+    customerName: b.guestName ?? b.user?.name ?? null,
+    guestPhone: b.guestPhone ?? b.user?.phone ?? null,
+    phone: b.guestPhone ?? b.user?.phone ?? null,
+    roomType: b.roomType ?? b.roomCode ?? null,
+    roomCode: b.roomCode,
+    checkIn: b.checkIn,
+    checkOut: b.checkOut,
+    status: b.status,
+    totalAmount: b.totalAmount,
+    createdAt: b.createdAt,
+    user: b.user,
+  }));
+
+  return (res as Response).json(mapped);
+};
+router.get("/recent", getRecentBookings);

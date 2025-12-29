@@ -1,6 +1,6 @@
 "use client";
 import AdminPageHeader from "@/components/AdminPageHeader";
-import { Settings as SettingsIcon } from "lucide-react";
+import { Settings as SettingsIcon, CheckCircle, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import axios from "axios";
 
@@ -9,12 +9,45 @@ const api = axios.create({ baseURL: "", withCredentials: true });
 
 export default function AdminSettings() {
   const [s,setS]=useState<any>(null);
-  const [tab,setTab]=useState<"financial"|"numbering"|"branding"|"notifications"|"security"|"users">("financial");
+  const [tab,setTab]=useState<"financial"|"numbering"|"branding"|"notifications">("financial");
+  const [saving, setSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
 
-  useEffect(()=>{ api.get("/admin/settings").then(r=>setS(r.data)); },[]);
-  const save = async () => { await api.put("/admin/settings", s); alert("Saved"); };
+  useEffect(()=>{ 
+    api.get("/admin/settings").then(r=>setS(r.data)).catch(err => {
+      console.error('Failed to load settings:', err);
+      setSaveMessage({type: 'error', text: 'Failed to load settings'});
+    });
+  },[]);
+  
+  const save = async () => { 
+    setSaving(true);
+    setSaveMessage(null);
+    try {
+      await api.put("/admin/settings", s);
+      setSaveMessage({type: 'success', text: 'Settings saved successfully!'});
+      setTimeout(() => setSaveMessage(null), 3000);
+    } catch (err: any) {
+      console.error('Failed to save settings:', err);
+      setSaveMessage({type: 'error', text: err?.response?.data?.error || 'Failed to save settings'});
+    } finally {
+      setSaving(false);
+    }
+  };
 
-  if (!s) return <div>Loading...</div>;
+  if (!s) return (
+    <div className="flex items-center justify-center py-12">
+      <div className="text-center">
+        <div className="dot-spinner dot-md mx-auto" aria-hidden>
+          <span className="dot dot-blue" />
+          <span className="dot dot-black" />
+          <span className="dot dot-yellow" />
+          <span className="dot dot-green" />
+        </div>
+        <p className="text-sm text-slate-500 mt-4">Loading settings…</p>
+      </div>
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -28,20 +61,65 @@ export default function AdminSettings() {
       <div className="space-y-4">
         <h1 className="text-2xl font-semibold">System Settings</h1>
 
-        <div className="flex gap-2">
-          {["financial","numbering","branding","notifications","security","users"].map(t=>(
-            <button key={t} className={`px-3 py-2 rounded-xl border ${tab===t?"bg-brand-primary text-white":""}`} onClick={()=>setTab(t as any)}>{t}</button>
+        <div className="flex flex-wrap gap-2">
+          {[
+            {id: "financial", label: "Financial"},
+            {id: "numbering", label: "Numbering"},
+            {id: "branding", label: "Branding"},
+            {id: "notifications", label: "Notifications"}
+          ].map(t=>(
+            <button 
+              key={t.id} 
+              className={`px-4 py-2 rounded-xl border transition-all duration-200 ${
+                tab===t.id
+                  ?"bg-[#02665e] text-white border-[#02665e] shadow-md"
+                  :"bg-white text-gray-700 border-gray-300 hover:bg-gray-50 hover:border-gray-400"
+              }`} 
+              onClick={()=>setTab(t.id as any)}
+            >
+              {t.label}
+            </button>
           ))}
         </div>
+
+        {saveMessage && (
+          <div className={`rounded-lg border-2 p-4 ${
+            saveMessage.type === 'success' 
+              ? 'bg-green-50 border-green-200 text-green-800'
+              : 'bg-red-50 border-red-200 text-red-800'
+          }`}>
+            <div className="flex items-center gap-2">
+              {saveMessage.type === 'success' ? (
+                <CheckCircle className="h-5 w-5" />
+              ) : (
+                <X className="h-5 w-5" />
+              )}
+              <span className="font-medium">{saveMessage.text}</span>
+            </div>
+          </div>
+        )}
 
         {tab==="financial" && <Financial s={s} setS={setS} />}
         {tab==="numbering"  && <Numbering  s={s} setS={setS} />}
         {tab==="branding"   && <Branding   s={s} setS={setS} />}
         {tab==="notifications" && <Notifications s={s} setS={setS} />}
-        {tab==="security"   && <Security   s={s} setS={setS} />}
-        {tab==="users"      && <Users />}
 
-        <button className="px-3 py-2 rounded-xl bg-brand-primary text-white" onClick={save}>Save</button>
+        <div className="flex items-center gap-3 pt-4 border-t border-gray-200">
+          <button 
+            className={`px-6 py-2.5 rounded-xl font-semibold transition-all duration-200 ${
+              saving
+                ? 'bg-gray-400 text-white cursor-not-allowed'
+                : 'bg-[#02665e] text-white hover:bg-[#014d47] hover:shadow-md active:scale-95'
+            }`} 
+            onClick={save}
+            disabled={saving}
+          >
+            {saving ? 'Saving...' : 'Save Settings'}
+          </button>
+          {saving && (
+            <span className="text-sm text-gray-500">Please wait while settings are being saved...</span>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -76,61 +154,53 @@ function Notifications({s,setS}:{s:any;setS:any}){
     <Toggle label="SMS enabled" value={s.smsEnabled} onChange={v=>setS({...s, smsEnabled:v})}/>
   </div>;
 }
-function Security({s,setS}:{s:any;setS:any}){
-  return <div className="bg-white border rounded-2xl p-3 grid md:grid-cols-2 gap-3">
-    <Toggle label="Require admin 2FA" value={s.requireAdmin2FA} onChange={v=>setS({...s, requireAdmin2FA:v})}/>
-    <Num label="Min password length" value={s.minPasswordLength} onChange={v=>setS({...s, minPasswordLength:v})}/>
-    <Num label="Session idle minutes" value={s.sessionIdleMinutes} onChange={v=>setS({...s, sessionIdleMinutes:v})}/>
-    <Input label="Admin IP allowlist (CSV CIDRs)" value={s.ipAllowlist||""} onChange={v=>setS({...s, ipAllowlist:v})}/>
-  </div>;
-}
-function Users(){
-  const [q,setQ]=useState(""); const [list,setList]=useState<any[]>([]);
-  const load = useCallback(async ()=>{
-    try {
-      const r = await api.get<any[]>(`/admin/settings/users`, {
-        params:{q}
-      });
-      setList(r.data || []);
-    } catch (err: any) {
-      console.error('Failed to load users:', err);
-      setList([]);
-    }
-  }, [q]);
-  useEffect(()=>{ load(); },[load]);
-  const changeRole=async(id:number,role:string)=>{
-    try {
-      await api.post(`/admin/settings/users/${id}/role`,{role});
-      load();
-    } catch (err: any) {
-      console.error('Failed to change role:', err);
-      alert('Failed to change user role. Please try again.');
-    }
-  };
-  return <div className="bg-white border rounded-2xl p-3">
-    <div className="flex gap-2">
-      <input className="border rounded-xl px-3 py-2" placeholder="Search users..." value={q} onChange={e=>setQ(e.target.value)} />
-      <button className="px-3 py-2 rounded-xl border" onClick={load}>Search</button>
-    </div>
-    <div className="mt-3 grid gap-2">
-      {list.map(u=>(
-        <div key={u.id} className="border rounded-xl px-3 py-2 flex items-center justify-between text-sm">
-          <div>
-            <div className="font-medium">{u.fullName} — {u.email}</div>
-            <div className="opacity-70">Role: {u.role} • 2FA: {u.twoFactorEnabled ? "ON":"OFF"}</div>
-          </div>
-          <div className="flex gap-2">
-            <button className="px-3 py-1 rounded-xl border" onClick={()=>changeRole(u.id, u.role==="ADMIN"?"OWNER":"ADMIN")}>
-              Make {u.role==="ADMIN"?"OWNER":"ADMIN"}
-            </button>
-          </div>
-        </div>
-      ))}
-      {list.length===0 && <div className="text-sm opacity-70">No users</div>}
-    </div>
-  </div>;
+function Input({label,value,onChange,description}:{label:string;value:string;onChange:(v:string)=>void;description?:string}){
+  return (
+    <label className="text-sm grid gap-2">
+      <span className="font-medium text-gray-700">{label}</span>
+      <input 
+        className="border-2 border-gray-300 rounded-xl px-4 py-2.5 focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/20 outline-none transition-all duration-200" 
+        value={value} 
+        onChange={e=>onChange(e.target.value)} 
+      />
+      {description && <span className="text-xs text-gray-500">{description}</span>}
+    </label>
+  );
 }
 
-function Input({label,value,onChange}:{label:string;value:string;onChange:(v:string)=>void}){ return <label className="text-sm grid gap-1"><span className="opacity-70">{label}</span><input className="border rounded-xl px-3 py-2" value={value} onChange={e=>onChange(e.target.value)} /></label>; }
-function Num({label,value,onChange}:{label:string;value:number;onChange:(v:number)=>void}){ return <label className="text-sm grid gap-1"><span className="opacity-70">{label}</span><input type="number" className="border rounded-xl px-3 py-2" value={value} onChange={e=>onChange(Number(e.target.value))} /></label>; }
-function Toggle({label,value,onChange}:{label:string;value:boolean;onChange:(v:boolean)=>void}){ return <label className="text-sm grid gap-2 items-center"><span className="opacity-70">{label}</span><input type="checkbox" checked={value} onChange={e=>onChange(e.target.checked)} /></label>; }
+function Num({label,value,onChange,description,min,max}:{label:string;value:number;onChange:(v:number)=>void;description?:string;min?:number;max?:number}){
+  return (
+    <label className="text-sm grid gap-2">
+      <span className="font-medium text-gray-700">{label}</span>
+      <input 
+        type="number" 
+        className="border-2 border-gray-300 rounded-xl px-4 py-2.5 focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/20 outline-none transition-all duration-200" 
+        value={value || 0} 
+        onChange={e=>onChange(Number(e.target.value))}
+        min={min}
+        max={max}
+      />
+      {description && <span className="text-xs text-gray-500">{description}</span>}
+    </label>
+  );
+}
+
+function Toggle({label,value,onChange,description}:{label:string;value:boolean;onChange:(v:boolean)=>void;description?:string}){
+  return (
+    <label className="text-sm grid gap-2">
+      <div className="flex items-center justify-between">
+        <span className="font-medium text-gray-700">{label}</span>
+        <div className="relative inline-flex items-center cursor-pointer">
+          <input 
+            type="checkbox" 
+            checked={value || false} 
+            onChange={e=>onChange(e.target.checked)}
+            className="sr-only peer"
+          />
+          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[#02665e]/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#02665e]"></div>
+        </div>
+      </div>
+      {description && <span className="text-xs text-gray-500">{description}</span>}
+    </label>
+  );
+}

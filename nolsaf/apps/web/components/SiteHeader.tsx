@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
-import { Bell, LifeBuoy, Settings as SettingsIcon, RefreshCw, Download, Sliders, Sun, Moon, Plus, FileText, Shield, Lock, Truck, User, Gift, Calendar, LogOut, ChevronDown, Trophy, Share2, Building2, CheckCircle, Home, DollarSign } from "lucide-react";
+import { Bell, LifeBuoy, Settings as SettingsIcon, RefreshCw, Download, Sliders, Sun, Moon, Plus, FileText, Shield, Lock, Truck, User, Gift, Calendar, LogOut, ChevronDown, Trophy, Share2, Building2, CheckCircle, Home, DollarSign, LayoutDashboard } from "lucide-react";
 import dynamic from 'next/dynamic';
 const LegalModal = dynamic(() => import('@/components/LegalModal'), { ssr: false });
 import ClientErrorBoundary from '@/components/ClientErrorBoundary';
@@ -121,8 +121,9 @@ export default function SiteHeader({
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
-  const [adminSidebarVisible, setAdminSidebarVisible] = useState(true);
+  const [no4pSecurityDropdownOpen, setNo4pSecurityDropdownOpen] = useState(false);
   const profileDropdownRef = useRef<HTMLDivElement>(null);
+  const no4pSecurityDropdownRef = useRef<HTMLDivElement>(null);
 
   const handleTouch = (id: string) => {
     setTouchedIcon(id);
@@ -191,18 +192,16 @@ export default function SiteHeader({
       if (profileDropdownRef.current && !profileDropdownRef.current.contains(target as Node)) {
         setProfileDropdownOpen(false);
       }
+      // Close No4P Security dropdown when clicking outside
+      if (no4pSecurityDropdownRef.current && !no4pSecurityDropdownRef.current.contains(target as Node)) {
+        setNo4pSecurityDropdownOpen(false);
+      }
     };
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
   }, [role]);
 
-  // Sync header left margin with admin sidebar visibility to avoid leftover gap
-  useEffect(() => {
-    if (!isAdmin) return;
-    const handler = () => setAdminSidebarVisible((v) => !v);
-    window.addEventListener('toggle-admin-sidebar', handler as EventListener);
-    return () => window.removeEventListener('toggle-admin-sidebar', handler as EventListener);
-  }, [isAdmin]);
+  // Note: adminSidebarVisible state is no longer needed since menu icon is fixed
 
   const toggleTheme = () => {
     const next = theme === 'dark' ? 'light' : 'dark';
@@ -273,7 +272,25 @@ export default function SiteHeader({
         filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.15))',
       }}
     >
-      <div className={`mx-auto max-w-6xl px-4 h-16 flex items-center justify-between ${isAdmin && adminSidebarVisible ? 'md:ml-64' : ''} relative`}>
+      {/* Admin: Fixed menu icon on the left side, doesn't move with sidebar */}
+      {isAdmin && (
+        <button
+          onClick={() => {
+            try {
+              window.dispatchEvent(new CustomEvent('toggle-admin-sidebar', { detail: { source: 'header' } }));
+            } catch (e) {
+              // ignore
+            }
+          }}
+          aria-label="Toggle sidebar"
+          className="fixed left-4 top-1/2 -translate-y-1/2 z-50 hidden md:inline-flex items-center justify-center h-10 w-10 rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 hover:scale-105 active:scale-95 transition-all duration-300 ease-out hover:shadow-md"
+        >
+          <svg className="w-5 h-5 text-white transition-transform duration-300" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+            <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      )}
+      <div className={`mx-auto max-w-6xl px-4 h-16 flex items-center justify-between ${isAdmin ? 'md:pl-14' : ''} relative`}>
         {/* Owner: small toggle to hide/show sidebar. Uses a global event so Layout can listen */}
         {isOwner && !driverMode ? (
           <button
@@ -289,23 +306,6 @@ export default function SiteHeader({
           >
             <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
               <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
-        ) : null}
-        {isAdmin ? (
-          <button
-            onClick={() => {
-              try {
-                window.dispatchEvent(new CustomEvent('toggle-admin-sidebar', { detail: { source: 'header' } }));
-              } catch (e) {
-                // ignore
-              }
-            }}
-            aria-label="Toggle sidebar"
-            className="hidden md:inline-flex items-center justify-center h-10 w-10 rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 hover:scale-105 active:scale-95 transition-all duration-300 ease-out hover:shadow-md mr-3"
-          >
-            <svg className="w-5 h-5 text-white transition-transform duration-300" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
-              <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
         ) : null}
@@ -422,12 +422,166 @@ export default function SiteHeader({
 
               <div className="mx-1 h-6 w-px bg-white/30" />
 
-              <Link 
-                href="/account" 
-                className="group relative inline-flex items-center justify-center h-10 w-10 rounded-full border-2 border-white/30 bg-white/10 hover:bg-white/20 hover:border-white/50 hover:scale-105 active:scale-95 transition-all duration-300 ease-out hover:shadow-lg"
-              >
-                <User className="h-5 w-5 text-white/90 group-hover:text-white transition-colors duration-300" />
-              </Link>
+              <div ref={profileDropdownRef} className="relative">
+                <button
+                  onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
+                  className="group inline-flex items-center justify-center gap-2 h-10 px-2 rounded-xl bg-transparent border-0 hover:bg-white/10 hover:backdrop-blur-sm hover:border hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-out hover:shadow-md"
+                  aria-label="Profile menu"
+                  aria-expanded={profileDropdownOpen}
+                >
+                  {avatarUrl ? (
+                    <div className="h-9 w-9 rounded-full overflow-hidden transition-all duration-300 ease-out group-hover:ring-2 group-hover:ring-white/10">
+                      <Image src={avatarUrl} alt="Profile" width={36} height={36} className="object-cover w-full h-full transition-transform duration-300 ease-out group-hover:scale-110" />
+                    </div>
+                  ) : (
+                    <div className="h-9 w-9 rounded-full flex items-center justify-center transition-all duration-300 ease-out group-hover:ring-2 group-hover:ring-white/10 bg-white/10 border border-white/20">
+                      <User className="h-5 w-5 text-white/90" />
+                    </div>
+                  )}
+                  <ChevronDown className={`h-4 w-4 text-white/90 transition-all duration-300 ease-out ${profileDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {profileDropdownOpen && (
+                  <div className="absolute right-0 top-full mt-3 w-72 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-200/50 overflow-hidden z-50 animate-fade-in-up">
+                    {/* Profile Info Section */}
+                    <div className="px-4 py-4 border-b border-gray-100/50 bg-gradient-to-br from-[#02665e]/10 via-[#02665e]/5 to-slate-50/30">
+                      <div className="flex items-center gap-3 mb-3">
+                        {avatarUrl ? (
+                          <div className="h-12 w-12 rounded-full border-2 border-[#02665e]/30 overflow-hidden flex-shrink-0 transition-transform duration-300 hover:scale-110 ring-2 ring-[#02665e]/10 shadow-sm">
+                            <Image src={avatarUrl} alt="Profile" width={48} height={48} className="object-cover w-full h-full" />
+                          </div>
+                        ) : (
+                          <div className="h-12 w-12 rounded-full border-2 border-[#02665e]/30 bg-gradient-to-br from-[#02665e]/10 to-[#02665e]/5 flex items-center justify-center flex-shrink-0 transition-transform duration-300 hover:scale-110 ring-2 ring-[#02665e]/10 shadow-sm">
+                            <Shield className="h-6 w-6 text-[#02665e]" />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <div className="font-bold text-base text-gray-900 truncate">
+                              {userName || 'Administrator'}
+                            </div>
+                            <div className="flex-shrink-0" title="Administrator Account">
+                              <Shield className="h-4 w-4 text-[#02665e]" />
+                            </div>
+                          </div>
+                          <div className="text-xs text-gray-600 truncate mt-0.5">
+                            {userEmail || 'No email'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Menu Items */}
+                    <div className="py-2">
+                      <Link
+                        href="/admin"
+                        onClick={() => setProfileDropdownOpen(false)}
+                        className="group flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-[#02665e]/10 hover:text-[#02665e] transition-all duration-200 no-underline"
+                      >
+                        <LayoutDashboard className="h-4 w-4 text-gray-500 group-hover:text-[#02665e] transition-all duration-200 group-hover:scale-110" />
+                        <span className="font-medium">Dashboard</span>
+                      </Link>
+
+                      <Link
+                        href="/admin/profile"
+                        onClick={() => setProfileDropdownOpen(false)}
+                        className="group flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-[#02665e]/10 hover:text-[#02665e] transition-all duration-200 no-underline"
+                      >
+                        <User className="h-4 w-4 text-gray-500 group-hover:text-[#02665e] transition-all duration-200 group-hover:scale-110" />
+                        <span className="font-medium">My Profile</span>
+                      </Link>
+
+                      <Link
+                        href="/admin/settings"
+                        onClick={() => setProfileDropdownOpen(false)}
+                        className="group flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-[#02665e]/10 hover:text-[#02665e] transition-all duration-200 no-underline"
+                      >
+                        <SettingsIcon className="h-4 w-4 text-gray-500 group-hover:text-[#02665e] transition-all duration-200 group-hover:scale-110" />
+                        <span className="font-medium">Settings</span>
+                      </Link>
+
+                      <div className="my-2 mx-3 h-px bg-gray-200" />
+
+                      <button
+                        onClick={async () => {
+                          try {
+                            await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+                          } catch {}
+                          window.location.href = "/login";
+                        }}
+                        className="group w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-all duration-200 no-underline rounded-lg mx-1"
+                      >
+                        <LogOut className="h-4 w-4 group-hover:scale-110 transition-all duration-200" />
+                        <span className="font-semibold">Logout</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="mx-1 h-6 w-px bg-white/30" />
+
+              {/* No4P Security Dropdown */}
+              <div ref={no4pSecurityDropdownRef} className="relative">
+                <button
+                  onClick={() => setNo4pSecurityDropdownOpen(!no4pSecurityDropdownOpen)}
+                  className="group inline-flex items-center justify-center gap-2 h-10 px-3 rounded-xl bg-transparent border-0 hover:bg-white/10 hover:backdrop-blur-sm hover:border hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-out hover:shadow-md"
+                  aria-label="No4P Security"
+                  aria-expanded={no4pSecurityDropdownOpen}
+                >
+                  <Shield className="h-5 w-5 text-white/90 group-hover:text-white transition-all duration-300 ease-out" />
+                  <span className="text-sm font-medium text-white/90 group-hover:text-white">No4P</span>
+                  <ChevronDown className={`h-4 w-4 text-white/90 transition-all duration-300 ease-out ${no4pSecurityDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {no4pSecurityDropdownOpen && (
+                  <div className="absolute right-0 top-full mt-3 w-72 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-200/50 overflow-hidden z-50 animate-fade-in-up">
+                    {/* Header Section */}
+                    <div className="px-4 py-4 border-b border-gray-100/50 bg-gradient-to-br from-[#02665e]/10 via-[#02665e]/5 to-slate-50/30">
+                      <div className="flex items-center gap-3">
+                        <div className="h-12 w-12 rounded-xl bg-[#02665e] flex items-center justify-center flex-shrink-0 shadow-lg">
+                          <Shield className="h-6 w-6 text-white" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-bold text-base text-gray-900">
+                            No4P Security
+                          </div>
+                          <div className="text-xs text-gray-600 mt-0.5">
+                            Platform Security & Cybersecurity
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Menu Items */}
+                    <div className="py-2">
+                      <Link
+                        href="/admin/security"
+                        onClick={() => setNo4pSecurityDropdownOpen(false)}
+                        className="group flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-[#02665e]/10 hover:text-[#02665e] transition-all duration-200 no-underline"
+                      >
+                        <Shield className="h-4 w-4 text-gray-500 group-hover:text-[#02665e] transition-all duration-200 group-hover:scale-110" />
+                        <span className="font-medium">Security Settings</span>
+                      </Link>
+
+                      <Link
+                        href="/admin/settings?tab=no4p"
+                        onClick={() => setNo4pSecurityDropdownOpen(false)}
+                        className="group flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-[#02665e]/10 hover:text-[#02665e] transition-all duration-200 no-underline"
+                      >
+                        <Lock className="h-4 w-4 text-gray-500 group-hover:text-[#02665e] transition-all duration-200 group-hover:scale-110" />
+                        <span className="font-medium">Advanced Configuration</span>
+                      </Link>
+
+                      <div className="my-2 mx-3 h-px bg-gray-200" />
+
+                      <div className="px-4 py-2 text-xs text-gray-500">
+                        Configure authentication, network security, rate limiting, and audit logging policies
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           ) : null}
 
@@ -1054,7 +1208,7 @@ export default function SiteHeader({
                     <SettingsIcon className="h-5 w-5 text-white/90 group-hover:text-white transition-transform duration-300 group-hover:rotate-90" />
                   </Link>
                   <Link
-                    href="/account"
+                    href="/admin/profile"
                     aria-label="Profile"
                     title="Profile"
                     className="mobile-menu-item group inline-flex h-11 w-11 items-center justify-center rounded-full border-2 border-white/30 bg-white/10 hover:bg-white/20 hover:border-white/50 active:scale-95 transition-all duration-300 ease-out shadow-sm hover:shadow-lg"
@@ -1064,11 +1218,59 @@ export default function SiteHeader({
                     <User className="h-5 w-5 text-white/90 group-hover:text-white transition-colors duration-300" />
                   </Link>
                 </div>
+                <div className="my-2 h-px w-full bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+                <Link 
+                  href="/admin/profile" 
+                  className="mobile-menu-item group relative px-4 py-3 rounded-xl text-sm font-medium text-white/90 no-underline hover:text-white active:scale-[0.98] transition-all duration-300 ease-out animate-fade-in-stagger overflow-hidden"
+                  style={{ '--delay': 8 } as React.CSSProperties}
+                  onClick={() => setOpen(false)}
+                >
+                  <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/10 to-white/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 ease-out" />
+                  <span className="absolute left-0 top-0 bottom-0 w-1 bg-white/40 scale-y-0 group-hover:scale-y-100 transition-transform duration-300 ease-out origin-center" />
+                  <span className="relative z-10 flex items-center gap-2">
+                    <User className="h-4 w-4" />
+                    My Profile
+                  </span>
+                </Link>
+                <Link 
+                  href="/admin/settings" 
+                  className="mobile-menu-item group relative px-4 py-3 rounded-xl text-sm font-medium text-white/90 no-underline hover:text-white active:scale-[0.98] transition-all duration-300 ease-out animate-fade-in-stagger overflow-hidden"
+                  style={{ '--delay': 9 } as React.CSSProperties}
+                  onClick={() => setOpen(false)}
+                >
+                  <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/10 to-white/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 ease-out" />
+                  <span className="absolute left-0 top-0 bottom-0 w-1 bg-white/40 scale-y-0 group-hover:scale-y-100 transition-transform duration-300 ease-out origin-center" />
+                  <span className="relative z-10 flex items-center gap-2">
+                    <SettingsIcon className="h-4 w-4" />
+                    Settings
+                  </span>
+                </Link>
+                <div className="my-2 h-px w-full bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+                <button
+                  onClick={async () => {
+                    setOpen(false);
+                    try {
+                      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+                    } catch {}
+                    window.location.href = "/login";
+                  }}
+                  className="mobile-menu-item group relative px-4 py-3 rounded-xl text-sm font-semibold text-red-300 hover:text-red-100 active:scale-[0.98] transition-all duration-300 ease-out animate-fade-in-stagger overflow-hidden"
+                  style={{ '--delay': 10 } as React.CSSProperties}
+                >
+                  <span className="absolute inset-0 bg-gradient-to-r from-red-500/0 via-red-500/10 to-red-500/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 ease-out" />
+                  <span className="absolute left-0 top-0 bottom-0 w-1 bg-red-400/40 scale-y-0 group-hover:scale-y-100 transition-transform duration-300 ease-out origin-center" />
+                  <span className="relative z-10 flex items-center gap-2">
+                    <LogOut className="h-4 w-4" />
+                    Logout
+                  </span>
+                </button>
               </>
             )}
-            <Link href="/account" className="px-3 py-2 rounded-xl text-sm hover:bg-white/10" onClick={() => setOpen(false)}>
-              My Account
-            </Link>
+            {!isAdmin && (
+              <Link href="/account" className="px-3 py-2 rounded-xl text-sm hover:bg-white/10" onClick={() => setOpen(false)}>
+                My Account
+              </Link>
+            )}
           </nav>
         </div>
         </>

@@ -70,7 +70,7 @@ export default function AdminPlanWithUsRecommendedPage() {
       }
       if (q) params.q = q;
 
-      const r = await api.get<{ items: RecommendedRequest[]; total: number }>("/admin/plan-with-us/requests", { params });
+      const r = await api.get<{ items: RecommendedRequest[]; total: number }>("/api/admin/plan-with-us/requests", { params });
       setList(r.data?.items ?? []);
       setTotal(r.data?.total ?? 0);
     } catch (err) {

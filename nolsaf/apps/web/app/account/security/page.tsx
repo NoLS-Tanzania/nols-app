@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import Image from "next/image";
+import { Shield, Lock, Key, CheckCircle, AlertCircle, Smartphone, Monitor } from "lucide-react";
 // Use same-origin requests (Next rewrites proxy to API in dev) + secure httpOnly cookie session.
 const api = axios.create({ baseURL: "", withCredentials: true });
 
@@ -66,19 +67,44 @@ export default function SecurityTab() {
   };
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Security</h1>
-
-      {/* 2FA */}
-  <section className="bg-white ring-1 ring-gray-100 rounded-2xl p-6 transition-colors">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex-1">
-            <div className="font-semibold text-lg text-gray-800">Two-Factor Authentication (TOTP)</div>
-            <p className="text-sm text-gray-600 mt-1">Add an extra layer of security to your account using a TOTP app (Google Authenticator, Authy).</p>
+    <div className="w-full space-y-6">
+      {/* LayoutFrame is provided by account/layout.tsx; no-op here */}
+      {/* Page Header */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-sm">
+        <div className="flex flex-col items-center text-center">
+          <div className="h-16 w-16 rounded-full bg-gradient-to-br from-[#02665e]/10 to-[#014d47]/10 flex items-center justify-center mb-4">
+            <Shield className="h-8 w-8 text-[#02665e]" />
           </div>
-          <div className="shrink-0">
-            <span className={`inline-block text-xs px-3 py-1 rounded-full font-medium ring-1 ${me?.twoFactorEnabled ? "text-green-700 ring-green-100 bg-green-50":"text-yellow-700 ring-yellow-100 bg-yellow-50"}`}>
-              {me?.twoFactorEnabled ? "ENABLED" : "DISABLED"}
+          <h1 className="text-2xl font-bold text-gray-900">Security</h1>
+          <p className="text-sm text-gray-500 mt-1">Manage your account security settings</p>
+        </div>
+      </div>
+
+      {/* 2FA Section */}
+      <section className="rounded-2xl border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:shadow-md p-4 sm:p-6 overflow-hidden break-words">
+        <div className="flex flex-col sm:flex-row items-start sm:items-start justify-between gap-4 mb-6">
+          <div className="flex items-start gap-4 flex-1 min-w-0">
+            <div className="h-12 w-12 rounded-xl bg-[#02665e]/10 flex items-center justify-center flex-shrink-0 transition-transform duration-200 hover:scale-110">
+              <Smartphone className="h-6 w-6 text-[#02665e]" strokeWidth={2} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-semibold text-lg text-slate-900">Two-Factor Authentication (TOTP)</div>
+              <p className="text-sm text-slate-600 mt-1">Add an extra layer of security to your account using a TOTP app (Google Authenticator, Authy).</p>
+            </div>
+          </div>
+          <div className="shrink-0 self-start sm:self-auto">
+            <span className={`inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-medium ring-1 ${me?.twoFactorEnabled ? "text-green-700 ring-green-200 bg-green-50":"text-amber-700 ring-amber-200 bg-amber-50"}`}>
+              {me?.twoFactorEnabled ? (
+                <>
+                  <CheckCircle className="h-3.5 w-3.5" />
+                  ENABLED
+                </>
+              ) : (
+                <>
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  DISABLED
+                </>
+              )}
             </span>
           </div>
         </div>
@@ -86,53 +112,92 @@ export default function SecurityTab() {
         <div className="mt-4">
           {!me?.twoFactorEnabled ? (
             !twofa ? (
-              <div>
-                <button className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm" onClick={start2FA}>Enable TOTP</button>
-              </div>
+              <button 
+                className="inline-flex items-center justify-center gap-2 px-4 sm:px-6 py-3 rounded-xl bg-[#02665e] text-white font-semibold text-sm hover:bg-[#014d47] hover:shadow-md active:scale-[0.98] transition-all duration-200" 
+                onClick={start2FA}
+              >
+                <Key className="h-4 w-4" />
+                Enable TOTP
+              </button>
             ) : (
-              <div className="grid md:grid-cols-2 gap-6 mt-4 items-start">
-                <div>
-                  <div className="w-48 h-48 rounded-xl overflow-hidden ring-1 ring-gray-100 bg-white flex items-center justify-center">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4 items-start w-full">
+                <div className="flex justify-center md:justify-start w-full min-w-0">
+                  <div className="w-40 h-40 sm:w-48 sm:h-48 rounded-xl overflow-hidden border border-slate-200 bg-white flex items-center justify-center shadow-sm flex-shrink-0">
                     <Image src={twofa.qrDataUrl} alt="TOTP QR" width={160} height={160} className="object-contain" />
                   </div>
                 </div>
-                <div>
-                  <label className="text-sm block mb-2">
-                    <div className="text-gray-700">Enter 6-digit code</div>
-                    <input className="mt-1 w-full border rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-100" value={code} onChange={e=>setCode(e.target.value)} />
+                <div className="w-full min-w-0">
+                  <label className="text-sm grid gap-2 w-full min-w-0">
+                    <span className="font-medium text-slate-700">Enter 6-digit code</span>
+                    <input 
+                      className="border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:border-[#02665e]/50 focus:outline-none focus:ring-1 focus:ring-[#02665e]/20 transition-all duration-200 ease-out w-full bg-white min-w-0 max-w-full" 
+                      value={code} 
+                      onChange={e=>setCode(e.target.value)} 
+                      placeholder="000000"
+                    />
                   </label>
-                  <div className="flex gap-3">
-                    <button className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm" onClick={verify2FA}>Verify & Enable</button>
-                    <button className="px-4 py-2 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50" onClick={()=>setTwofa(null)}>Cancel</button>
+                  <div className="flex flex-col sm:flex-row gap-3 mt-4 w-full">
+                    <button 
+                      className="inline-flex items-center justify-center gap-2 px-4 sm:px-6 py-3 rounded-xl bg-[#02665e] text-white font-semibold text-sm hover:bg-[#014d47] hover:shadow-md active:scale-[0.98] transition-all duration-200 w-full sm:w-auto" 
+                      onClick={verify2FA}
+                    >
+                      <CheckCircle className="h-4 w-4" />
+                      Verify & Enable
+                    </button>
+                    <button 
+                      className="inline-flex items-center justify-center gap-2 px-4 sm:px-6 py-3 rounded-xl border border-slate-300 bg-white text-slate-700 font-semibold text-sm hover:bg-slate-50 hover:border-slate-400 active:scale-[0.98] transition-all duration-200 w-full sm:w-auto" 
+                      onClick={()=>setTwofa(null)}
+                    >
+                      Cancel
+                    </button>
                   </div>
                 </div>
               </div>
             )
           ) : (
-            <div className="mt-3">
-              <button className="px-3 py-2 rounded-xl border" onClick={disable2FA}>Disable 2FA</button>
-            </div>
+            <button 
+              className="inline-flex items-center justify-center gap-2 px-4 sm:px-6 py-3 rounded-xl border border-red-300 bg-white text-red-700 font-semibold text-sm hover:bg-red-50 hover:border-red-400 active:scale-[0.98] transition-all duration-200" 
+              onClick={disable2FA}
+            >
+              Disable 2FA
+            </button>
           )}
         </div>
       </section>
 
-      {/* Password */}
-      <section className="bg-white border rounded-2xl p-6 shadow-sm">
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="font-medium text-lg">Change Password</div>
-            <p className="text-sm text-gray-600 mt-1">Update your account password. Choose a strong, unique password.</p>
+      {/* Password Section */}
+      <section className="rounded-2xl border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:shadow-md p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row items-start gap-4 mb-6">
+          <div className="h-12 w-12 rounded-xl bg-[#02665e]/10 flex items-center justify-center flex-shrink-0 transition-transform duration-200 hover:scale-110">
+            <Lock className="h-6 w-6 text-[#02665e]" strokeWidth={2} />
+          </div>
+          <div className="flex-1 min-w-0 break-words">
+            <div className="font-semibold text-lg text-slate-900 break-words">Change Password</div>
+            <p className="text-sm text-slate-600 mt-1 whitespace-normal break-words">Update your account password. Choose a strong, unique password.</p>
           </div>
         </div>
 
-        <form className="mt-4 grid md:grid-cols-2 gap-4" onSubmit={e=>{ e.preventDefault(); changePassword(); }}>
-          <Input label="Current password" type="password" value={pwd.currentPassword} onChange={v=>setPwd({...pwd, currentPassword:v})}/>
-          <Input label="New password" type="password" value={pwd.newPassword} onChange={v=>setPwd({...pwd, newPassword:v})}/>
-          <div className="md:col-span-2">
-            <Input label="Confirm new password" type="password" value={pwd.confirmPassword} onChange={v=>setPwd({...pwd, confirmPassword:v})}/>
+        <form className="space-y-4 w-full" onSubmit={e=>{ e.preventDefault(); changePassword(); }}>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
+            <div className="min-w-0">
+              <Input label="Current password" type="password" value={pwd.currentPassword} onChange={v=>setPwd({...pwd, currentPassword:v})}/>
+            </div>
+            <div className="min-w-0">
+              <Input label="New password" type="password" value={pwd.newPassword} onChange={v=>setPwd({...pwd, newPassword:v})}/>
+            </div>
+            <div className="min-w-0">
+              <Input label="Confirm new password" type="password" value={pwd.confirmPassword} onChange={v=>setPwd({...pwd, confirmPassword:v})}/>
+            </div>
           </div>
-          <div className="md:col-span-2 flex justify-end">
-            <button type="submit" className="px-3 py-2 rounded-xl bg-brand-primary text-white">Update Password</button>
+          <div className="flex justify-end pt-2">
+            <button 
+              type="submit" 
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 sm:px-6 py-3 rounded-xl bg-[#02665e] text-white font-semibold text-sm hover:bg-[#014d47] hover:shadow-md active:scale-[0.98] transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-[#02665e]"
+              disabled={!pwd.currentPassword || !pwd.newPassword || !pwd.confirmPassword}
+            >
+              <Key className="h-4 w-4" />
+              Update Password
+            </button>
           </div>
         </form>
       </section>
@@ -142,12 +207,21 @@ export default function SecurityTab() {
     </div>
   );
 }
+
 function Input({label, value, onChange, type="text"}:{label:string;value:string;onChange:(v:string)=>void;type?:string}) {
-  return <label className="text-sm grid gap-1">
-    <span className="opacity-70">{label}</span>
-    <input className="border rounded-xl px-3 py-2" type={type} value={value} onChange={e=>onChange(e.target.value)} />
-  </label>;
+  return (
+    <label className="text-sm grid gap-1.5 w-full min-w-0 break-words">
+      <span className="font-medium text-slate-700 text-sm break-words">{label}</span>
+      <input 
+        className="border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:border-[#02665e]/50 focus:outline-none focus:ring-1 focus:ring-[#02665e]/20 transition-all duration-200 ease-out w-full bg-white min-w-0 max-w-full break-words" 
+        type={type} 
+        value={value} 
+        onChange={e=>onChange(e.target.value)} 
+      />
+    </label>
+  );
 }
+
 function Sessions(){
   const [list,setList]=useState<any[]>([]);
   useEffect(() => {
@@ -170,23 +244,45 @@ function Sessions(){
     setList(me.data);
   };
   return (
-    <div className="bg-white border rounded-2xl p-3">
-      <div className="flex items-center justify-between">
-        <div className="font-medium">Sessions & Devices</div>
-        <button className="px-3 py-1 rounded-xl border" onClick={revokeOthers}>Sign out others</button>
+    <section className="rounded-2xl border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:shadow-md p-4 sm:p-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-start justify-between gap-4 mb-6">
+        <div className="flex items-start gap-4 flex-1 min-w-0">
+          <div className="h-12 w-12 rounded-xl bg-[#02665e]/10 flex items-center justify-center flex-shrink-0 transition-transform duration-200 hover:scale-110">
+            <Monitor className="h-6 w-6 text-[#02665e]" strokeWidth={2} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="font-semibold text-lg text-slate-900">Sessions & Devices</div>
+            <p className="text-sm text-slate-600 mt-1">Manage active sessions and devices signed into your account.</p>
+          </div>
+        </div>
+        {list.length > 1 && (
+          <button 
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-slate-300 bg-white text-slate-700 font-semibold text-sm hover:bg-slate-50 hover:border-slate-400 active:scale-[0.98] transition-all duration-200 whitespace-nowrap flex-shrink-0 self-start sm:self-auto" 
+            onClick={revokeOthers}
+          >
+            Sign out others
+          </button>
+        )}
       </div>
-      <div className="mt-2 grid gap-2">
+      <div className="space-y-3 w-full">
         {list.map(s=>(
-          <div key={s.id} className="border rounded-xl px-3 py-2 flex items-center justify-between text-sm">
-            <div>
-              <div>Session: <b>{s.id}</b></div>
-              <div className="opacity-70">IP: {s.ip ?? "-"} • {s.userAgent?.slice(0,50) ?? "-"}</div>
+          <div key={s.id} className="border border-slate-200 rounded-xl px-4 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 hover:border-slate-300 transition-colors w-full min-w-0">
+            <div className="flex-1 min-w-0 w-full sm:w-auto overflow-hidden">
+              <div className="text-sm font-medium text-slate-900 truncate">Session: <span className="font-mono text-xs">{s.id.slice(0, 8)}...</span></div>
+              <div className="text-xs text-slate-600 mt-1 truncate">IP: {s.ip ?? "-"} • {s.userAgent?.slice(0,50) ?? "-"}</div>
             </div>
-            <button className="px-2 py-1 rounded-lg border" onClick={()=>revoke(s.id)}>Sign out</button>
+            <button 
+              className="w-full sm:w-auto px-4 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 font-medium text-sm hover:bg-slate-50 hover:border-slate-400 active:scale-[0.98] transition-all duration-200 whitespace-nowrap flex-shrink-0" 
+              onClick={()=>revoke(s.id)}
+            >
+              Sign out
+            </button>
           </div>
         ))}
-        {list.length===0 && <div className="text-sm opacity-70">No active sessions</div>}
+        {list.length===0 && (
+          <div className="text-sm text-slate-600 text-center py-4">No active sessions</div>
+        )}
       </div>
-    </div>
+    </section>
   );
 }

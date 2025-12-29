@@ -13,6 +13,7 @@ export async function POST(request: NextRequest) {
     const portfolio = formData.get('portfolio') as string | null;
     const linkedIn = formData.get('linkedIn') as string | null;
     const referredBy = formData.get('referredBy') as string | null;
+    const agentApplicationData = formData.get('agentApplicationData') as string | null;
 
     // Validate required fields
     if (!jobId || !fullName || !email || !phone || !coverLetter) {
@@ -84,6 +85,7 @@ export async function POST(request: NextRequest) {
       if (portfolio) backendFormData.append('portfolio', portfolio);
       if (linkedIn) backendFormData.append('linkedIn', linkedIn);
       if (referredBy) backendFormData.append('referredBy', referredBy);
+      if (agentApplicationData) backendFormData.append('agentApplicationData', agentApplicationData);
 
       const backendResponse = await fetch(backendUrl, {
         method: 'POST',

@@ -22,6 +22,7 @@ import publicSupportRouter from './routes/public.support';
 import publicUpdatesRouter from './routes/public.updates';
 import publicBookingRouter from './routes/public.booking';
 import publicPropertiesRouter from './routes/public.properties';
+import publicPlanRequestRouter from './routes/public.planRequest';
 // import { router as ownerPhone } from "./routes/owner.phone.verify";
 import { router as upCld } from "./routes/uploads.cloudinary";
 import { router as upS3 } from "./routes/uploads.s3";
@@ -54,6 +55,7 @@ import adminGroupStaysPassengersRouter from "./routes/admin.groupStays.passenger
 import adminGroupStaysArrangementsRouter from "./routes/admin.groupStays.arrangements";
 import adminPlanWithUsSummaryRouter from "./routes/admin.planWithUs.summary";
 import adminPlanWithUsRequestsRouter from "./routes/admin.planWithUs.requests";
+import adminAgentsRouter from "./routes/admin.agents";
 import adminTrustPartnersRouter from "./routes/admin.trustPartners";
 import adminPropertiesRouter from "./routes/admin.properties.js";
 import adminAuditsRouter from "./routes/admin.audits";
@@ -65,6 +67,7 @@ import { router as adminCareersRouter } from "./routes/admin.careers";
 import adminCareersApplicationsRouter from "./routes/admin.careers.applications";
 import adminCareersStatsRouter from "./routes/admin.careers.stats";
 import publicCareersApplyRouter from "./routes/public.careers.apply";
+import publicCareersRouter from "./routes/public.careers";
 import ownerMessagesRouter from './routes/owner.messages';
 import ownerNotificationsRouter from './routes/owner.notifications';
 import { router as ownerBookingsRouter } from "./routes/owner.booking";
@@ -88,6 +91,9 @@ import customerBookingsRouter from './routes/customer.bookings';
 import customerRidesRouter from './routes/customer.rides';
 import customerGroupStaysRouter from './routes/customer.groupStays';
 import customerCancellationsRouter from "./routes/customer.cancellations";
+import customerPlanRequestsRouter from "./routes/customer.planRequests";
+import chatbotRouter from "./routes/chatbot";
+import adminChatbotRouter from "./routes/admin.chatbot";
 
 // moved the POST handler to after the app is created
 // Create app and server before using them
@@ -146,8 +152,9 @@ const io = new Server(server, {
   } 
 });
 
-// Make io globally available for webhook routes
+// Make io globally available for webhook routes and app context
 (global as any).io = io;
+app.set('io', io);
 
 // Socket.IO handlers
 io.on('connection', (socket) => {
@@ -288,7 +295,11 @@ app.use('/admin/group-stays/requests', adminGroupStaysRequestsRouter);
 app.use('/admin/group-stays/passengers', adminGroupStaysPassengersRouter);
 app.use('/admin/group-stays/arrangements', adminGroupStaysArrangementsRouter);
 app.use('/admin/plan-with-us/summary', adminPlanWithUsSummaryRouter);
+app.use('/api/admin/plan-with-us/summary', adminPlanWithUsSummaryRouter);
 app.use('/admin/plan-with-us/requests', adminPlanWithUsRequestsRouter);
+app.use('/api/admin/plan-with-us/requests', adminPlanWithUsRequestsRouter);
+app.use('/admin/agents', adminAgentsRouter);
+app.use('/api/admin/agents', adminAgentsRouter);
 app.use('/admin/trust-partners', adminTrustPartnersRouter);
 // also expose API-prefixed route so frontend using `/api/admin/trust-partners` works
 app.use('/api/admin/trust-partners', adminTrustPartnersRouter as express.RequestHandler);
@@ -327,6 +338,7 @@ app.use('/api/admin/careers/stats', adminCareersStatsRouter as express.RequestHa
 app.use('/admin/careers', adminCareersRouter);
 app.use('/api/admin/careers', adminCareersRouter as express.RequestHandler);
 app.use('/api/careers/apply', publicCareersApplyRouter);
+app.use('/api/public/careers', publicCareersRouter);
 app.use('/api/owner/revenue', requireRole('OWNER') as express.RequestHandler, ownerRevenue);
 // Owner-scoped messages & notifications (demo implementations)
 app.use('/api/owner/messages', requireRole('OWNER') as express.RequestHandler, ownerMessagesRouter as express.RequestHandler);
@@ -359,6 +371,7 @@ app.use('/api/driver/license', requireRole('DRIVER') as express.RequestHandler, 
 // app.use('/api/owner/phone', ownerPhone);
 app.use("/admin/2fa", admin2faRouter);
 app.use("/owner/bookings", ownerBookingsRouter);
+app.use("/api/owner/bookings", ownerBookingsRouter);
 // Public support contact endpoint
 app.use('/api/public/support', publicSupportRouter);
 // Public updates endpoint
@@ -367,15 +380,48 @@ app.use('/api/public/updates', publicUpdatesRouter);
 app.use('/api/public/booking', publicBookingRouter);
 // Public properties (approved listings for public search/browse)
 app.use('/api/public/properties', publicPropertiesRouter);
+// Public plan request submission
+app.use('/api/plan-request', publicPlanRequestRouter);
 // Customer account endpoints (for travellers/customers)
 app.use('/api/customer/bookings', customerBookingsRouter as express.RequestHandler);
 app.use('/api/customer/cancellations', customerCancellationsRouter as express.RequestHandler);
 app.use('/api/customer/rides', customerRidesRouter as express.RequestHandler);
 app.use('/api/customer/group-stays', customerGroupStaysRouter as express.RequestHandler);
+app.use('/api/customer/plan-requests', customerPlanRequestsRouter as express.RequestHandler);
+// Chatbot endpoints (public, supports authenticated and anonymous users)
+app.use('/api/chatbot', chatbotRouter as express.RequestHandler);
+// Admin chatbot endpoints (for tracking and follow-up)
+app.use('/api/admin/chatbot', adminChatbotRouter as express.RequestHandler);
 // Group bookings (requires authentication)
 app.use('/api/group-bookings', requireRole() as express.RequestHandler, groupBookingsRouter);
 // Property reviews (public GET, authenticated POST)
 app.use('/api/property-reviews', propertyReviewsRouter);
+
+// Global error handler - must be after all routes but before server.listen
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error('Unhandled error:', err);
+  console.error('Error details:', {
+    message: err?.message,
+    stack: err?.stack,
+    code: err?.code,
+    name: err?.name,
+  });
+  
+  // Ensure JSON response
+  res.setHeader('Content-Type', 'application/json');
+  
+  // Return JSON error response
+  res.status(err?.status || 500).json({
+    error: err?.message || 'Internal server error',
+    ...(process.env.NODE_ENV === 'development' && { stack: err?.stack }),
+  });
+});
+
+// 404 handler - must be after all routes and error handler
+app.use((req: express.Request, res: express.Response) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.status(404).json({ error: 'Not found' });
+});
 
 // Start server
 const PORT = Number(process.env.PORT) || 4000;
@@ -387,23 +433,5 @@ server.listen(PORT, HOST, () => {
 server.on('error', (err) => {
   console.error('HTTP server error:', err);
 });
-
-// keep raw body for specific routes
-function rawBodySaver(req: any, _res: any, buf: Buffer) {
-  if (buf && buf.length) req.rawBody = buf.toString("utf8");
-}
-
-// JSON for normal routes (skip raw parsing for webhooks)
-app.use((req, res, next) => {
-  if (req.path.startsWith("/webhooks/")) return next();
-  express.json({ limit: "1mb", verify: rawBodySaver })(req, res, next);
-});
-
-// expose socket.io instance to routers
-app.set("io", io);
-
-
-// health check
-app.get("/health", (_req, res) => res.json({ ok: true }));
 
 // Note: server and PORT are declared earlier; no duplicate server.listen here.

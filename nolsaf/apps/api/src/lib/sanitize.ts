@@ -1,21 +1,43 @@
-// apps/api/src/lib/sanitize.ts
-import sanitizeHtml from "sanitize-html";
+/**
+ * Sanitize user input to prevent XSS attacks
+ * Removes HTML tags and escapes special characters
+ */
 
-export function cleanHtml(input: string | null | undefined) {
-  if (!input) return null;
-  return sanitizeHtml(input, {
-    allowedTags: [
-      "b","i","em","strong","u","br","p","ul","ol","li","a","span"
-    ],
-    allowedAttributes: {
-      a: ["href", "title", "rel", "target"],
-      span: ["style"],
-    },
-    allowedSchemes: ["http", "https", "mailto"],
-    // Drop inline event handlers entirely
-    allowVulnerableTags: false,
-  });
+export function sanitizeHtml(input: string | null | undefined): string {
+  if (!input) return '';
+  
+  // Remove HTML tags
+  const withoutTags = input.replace(/<[^>]*>/g, '');
+  
+  // Escape HTML entities
+  return withoutTags
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+    .replace(/\//g, '&#x2F;');
 }
 
-// Ensure this file is treated as a module in all TS settings
-export {};
+/**
+ * Sanitize text content (preserves line breaks as \n)
+ */
+export function sanitizeText(input: string | null | undefined): string {
+  if (!input) return '';
+  
+  // Remove HTML tags
+  const withoutTags = input.replace(/<[^>]*>/g, '');
+  
+  // Escape HTML entities but preserve newlines
+  return withoutTags
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+}
+
+/**
+ * Alias for sanitizeHtml for backward compatibility
+ */
+export const cleanHtml = sanitizeHtml;

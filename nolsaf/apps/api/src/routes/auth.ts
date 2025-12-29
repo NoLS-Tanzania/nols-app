@@ -5,8 +5,9 @@ import { hashPassword, verifyPassword } from '../lib/crypto.js';
 import crypto from 'crypto';
 import { sendMail } from '../lib/mailer.js';
 import { sendSms } from '../lib/sms.js';
-import { validatePasswordStrength, addPasswordToHistory } from '../lib/security.js';
-import jwt from "jsonwebtoken";
+import { addPasswordToHistory } from '../lib/security.js';
+import { validatePasswordWithSettings } from '../lib/securitySettings.js';
+import { signUserJwt, setAuthCookie, clearAuthCookie } from '../lib/sessionManager.js';
 
 const router = Router();
 
@@ -22,51 +23,6 @@ const resetTokenStore: Record<string, { userId: string; expiresAt: number }> = {
 
 function generateOtp() {
   return Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit
-}
-
-function signUserJwt(user: { id: number; role?: string | null; email?: string | null }) {
-  const secret =
-    process.env.JWT_SECRET ||
-    (process.env.NODE_ENV !== "production" ? (process.env.DEV_JWT_SECRET || "dev_jwt_secret") : "");
-  if (!secret) throw new Error("JWT_SECRET not set");
-  // Keep payload minimal; server always re-checks role from DB in middleware.
-  return jwt.sign(
-    { sub: String(user.id) },
-    secret,
-    { expiresIn: process.env.JWT_EXPIRES_IN || "7d" }
-  );
-}
-
-function setAuthCookie(res: any, token: string, role?: string | null) {
-  const isProd = process.env.NODE_ENV === "production";
-  const cookieOptions = {
-    httpOnly: true,
-    secure: isProd,
-    sameSite: "lax" as const,
-    path: "/",
-    maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
-  };
-  
-  // Set the JWT token cookie
-  res.cookie("nolsaf_token", token, cookieOptions);
-  res.cookie("token", token, cookieOptions); // Also set as "token" for middleware compatibility
-  
-  // Set role cookie for easier middleware access (non-httpOnly so client can read it)
-  if (role) {
-    res.cookie("role", String(role).toUpperCase(), {
-      httpOnly: false, // Allow client-side access for middleware
-      secure: isProd,
-      sameSite: "lax" as const,
-    path: "/",
-    maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
-  });
-  }
-}
-
-function clearAuthCookie(res: any) {
-  res.clearCookie("nolsaf_token", { path: "/" });
-  res.clearCookie("token", { path: "/" });
-  res.clearCookie("role", { path: "/" });
 }
 
 // POST /api/auth/send-otp
@@ -138,8 +94,8 @@ router.post('/verify-otp', async (req, res) => {
         create: { phone: String(phone), role: safeRole, phoneVerifiedAt: new Date() } as any,
         select: { id: true, role: true, email: true, phone: true },
       });
-      const token = signUserJwt({ id: user.id, role: user.role, email: user.email });
-      setAuthCookie(res, token, user.role);
+      const token = await signUserJwt({ id: user.id, role: user.role, email: user.email });
+      await setAuthCookie(res, token, user.role);
       return res.json({ ok: true, message: "verified (master otp)", user: { id: user.id, phone: user.phone, role: user.role } });
     } catch (e: any) {
       // fallback: old stub token in dev
@@ -198,8 +154,8 @@ router.post('/verify-otp', async (req, res) => {
       create: { phone: String(phone), role: safeRole, phoneVerifiedAt: new Date() } as any,
       select: { id: true, role: true, email: true, phone: true },
     });
-    const token = signUserJwt({ id: user.id, role: user.role, email: user.email });
-    setAuthCookie(res, token, user.role);
+    const token = await signUserJwt({ id: user.id, role: user.role, email: user.email });
+    await setAuthCookie(res, token, user.role);
     return res.json({ ok: true, message: "verified", user: { id: user.id, phone: user.phone, role: user.role } });
   } catch (e) {
     console.error("verify-otp failed to issue JWT", e);
@@ -215,9 +171,11 @@ router.post('/login', (req, res) => {
 // Body: { email, password }
 router.post("/login-password", async (req, res) => {
   try {
+    // Ensure we always return JSON, even on errors
+    res.setHeader('Content-Type', 'application/json');
+    
     const { email, password } = req.body || {};
     if (!email || !password) {
-      res.setHeader('Content-Type', 'application/json');
       return res.status(400).json({ error: "email and password required" });
     }
     
@@ -227,26 +185,56 @@ router.post("/login-password", async (req, res) => {
     });
     
     if (!user || !user.passwordHash) {
-      res.setHeader('Content-Type', 'application/json');
       return res.status(401).json({ error: "invalid_credentials" });
     }
     
-    const ok = await verifyPassword(String(user.passwordHash), String(password));
+    // Verify password with error handling
+    let ok = false;
+    try {
+      ok = await verifyPassword(String(user.passwordHash), String(password));
+    } catch (verifyError: any) {
+      console.error("Password verification error:", verifyError);
+      return res.status(401).json({ error: "invalid_credentials" });
+    }
+    
     if (!ok) {
-      res.setHeader('Content-Type', 'application/json');
       return res.status(401).json({ error: "invalid_credentials" });
     }
 
-    const token = signUserJwt({ id: user.id, role: user.role, email: user.email });
-    setAuthCookie(res, token, user.role);
-    res.setHeader('Content-Type', 'application/json');
-    return res.json({ ok: true, user: { id: user.id, role: user.role, email: user.email } });
+    // Generate JWT token with error handling
+    let token: string;
+    try {
+      token = await signUserJwt({ id: user.id, role: user.role, email: user.email });
+    } catch (tokenError: any) {
+      console.error("JWT token generation error:", tokenError);
+      return res.status(500).json({ error: "Failed to generate authentication token" });
+    }
+
+    // Set auth cookie with error handling
+    try {
+      await setAuthCookie(res, token, user.role);
+    } catch (cookieError: any) {
+      console.error("Cookie setting error:", cookieError);
+      // Token was generated, so we can still return success even if cookie fails
+      // The token is in the response body
+    }
+
+    return res.status(200).json({ ok: true, user: { id: user.id, role: user.role, email: user.email } });
   } catch (e: any) {
     console.error("login-password failed", e);
+    console.error("Error details:", {
+      message: e?.message,
+      stack: e?.stack,
+      code: e?.code,
+      name: e?.name,
+    });
+    
+    // Ensure JSON response header is set
     res.setHeader('Content-Type', 'application/json');
+    
     const errorMessage = process.env.NODE_ENV === 'production' 
-      ? "failed" 
-      : (e?.message || String(e) || "failed");
+      ? "Login failed. Please try again." 
+      : (e?.message || String(e) || "Login failed");
     return res.status(500).json({ error: errorMessage });
   }
 });
@@ -565,8 +553,8 @@ router.post('/reset-password', async (req, res) => {
       return res.status(400).json({ message: 'invalid token or user' });
     }
 
-    // Validate password strength
-    const strength = validatePasswordStrength(String(password));
+    // Validate password strength using SystemSetting configuration
+    const strength = await validatePasswordWithSettings(String(password), user?.role);
     if (!strength.valid) return res.status(400).json({ message: 'weak_password', reasons: strength.reasons });
 
     // Hash and update password

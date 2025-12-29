@@ -2,7 +2,15 @@ import argon2 from "argon2";
 
 /** Password hashing */
 export const hashPassword = (plain: string) => argon2.hash(plain, { type: argon2.argon2id });
-export const verifyPassword = (hash: string, plain: string) => argon2.verify(hash, plain);
+export const verifyPassword = async (hash: string, plain: string): Promise<boolean> => {
+  try {
+    return await argon2.verify(hash, plain);
+  } catch (error) {
+    // Invalid hash format or other verification error
+    console.error("Password verification failed:", error);
+    return false;
+  }
+};
 
 /** Backup codes hashing (same as password) */
 export const hashCode = (plain: string) => hashPassword(plain);

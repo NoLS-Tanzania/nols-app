@@ -48,7 +48,7 @@ export default function PlanWithUsDashboardPage() {
     authify();
     async function load() {
       try {
-        const r = await api.get<SummaryData>("/admin/plan-with-us/summary");
+        const r = await api.get<SummaryData>("/api/admin/plan-with-us/summary");
         if (r?.data) {
           setSummary(r.data);
         }

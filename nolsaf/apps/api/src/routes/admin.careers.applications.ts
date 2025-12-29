@@ -71,6 +71,13 @@ router.get("/", async (req: AuthedRequest, res) => {
           },
           reviewedByUser: {
             select: { id: true, name: true, email: true }
+          },
+          agent: {
+            select: {
+              id: true,
+              userId: true,
+              status: true
+            }
           }
         }
       }),
@@ -238,6 +245,14 @@ router.get("/:id", async (req: AuthedRequest, res) => {
         },
         reviewedByUser: {
           select: { id: true, name: true, email: true }
+        },
+        agent: {
+          select: {
+            id: true,
+            userId: true,
+            status: true,
+            isAvailable: true
+          }
         }
       }
     });
@@ -354,18 +369,143 @@ router.patch("/:id", async (req: AuthedRequest, res) => {
       }
     });
 
+    // If status changed to HIRED and this is a Travel Agent application, create Agent profile
+    if (statusChanged && newStatus === "HIRED") {
+      try {
+        const agentData = existingApplication.agentApplicationData as any;
+        
+        // Check if this is a Travel Agent position and has agent data
+        const isTravelAgentJob = existingApplication.job.title?.toLowerCase().includes('agent') || 
+                                  existingApplication.job.title?.toLowerCase().includes('travel');
+        
+        if (isTravelAgentJob && agentData) {
+          // Find or create user account
+          let user = await prisma.user.findFirst({
+            where: {
+              OR: [
+                { email: existingApplication.email?.toLowerCase().trim() },
+                { phone: existingApplication.phone?.trim() }
+              ]
+            }
+          });
+
+          if (!user) {
+            // Create new user account
+            user = await prisma.user.create({
+              data: {
+                email: existingApplication.email?.toLowerCase().trim(),
+                phone: existingApplication.phone?.trim(),
+                name: existingApplication.fullName,
+                role: "AGENT"
+              } as any
+            });
+          } else {
+            // Update existing user role to AGENT if not already
+            if (user.role !== "AGENT") {
+              user = await prisma.user.update({
+                where: { id: user.id },
+                data: { role: "AGENT" } as any
+              });
+            }
+          }
+
+          // Check if agent profile already exists for this user
+          const existingAgent = await (prisma as any).agent.findUnique({
+            where: { userId: user.id }
+          });
+
+          if (!existingAgent) {
+            // Create Agent profile from application data
+            const agentProfile = await (prisma as any).agent.create({
+              data: {
+                userId: user.id,
+                status: agentData.status || "ACTIVE",
+                educationLevel: agentData.educationLevel || null,
+                yearsOfExperience: agentData.yearsOfExperience ? Number(agentData.yearsOfExperience) : null,
+                bio: agentData.bio || null,
+                maxActiveRequests: agentData.maxActiveRequests ? Number(agentData.maxActiveRequests) : 10,
+                isAvailable: agentData.isAvailable !== undefined ? Boolean(agentData.isAvailable) : true,
+                currentActiveRequests: 0,
+                areasOfOperation: (agentData.areasOfOperation && Array.isArray(agentData.areasOfOperation) && agentData.areasOfOperation.length > 0) 
+                  ? agentData.areasOfOperation 
+                  : null,
+                certifications: (agentData.certifications && Array.isArray(agentData.certifications) && agentData.certifications.length > 0)
+                  ? agentData.certifications
+                  : null,
+                languages: (agentData.languages && Array.isArray(agentData.languages) && agentData.languages.length > 0)
+                  ? agentData.languages
+                  : null,
+                specializations: (agentData.specializations && Array.isArray(agentData.specializations) && agentData.specializations.length > 0)
+                  ? agentData.specializations
+                  : null,
+              }
+            });
+
+            // Link application to agent
+            await prisma.jobApplication.update({
+              where: { id: parsedId },
+              data: { agentId: agentProfile.id }
+            });
+
+            console.log(`Created Agent profile (ID: ${agentProfile.id}) for application ${parsedId} (User ID: ${user.id})`);
+          }
+        }
+      } catch (agentError: any) {
+        // Log error but don't fail the request - status update was successful
+        console.error("Error creating Agent profile from application:", agentError);
+        console.error("Agent creation error details:", {
+          message: agentError.message,
+          code: agentError.code,
+          applicationId: parsedId,
+          email: existingApplication.email
+        });
+      }
+    }
+
+    // Re-fetch updated application with all relations (including agent if created)
+    const finalApplication = await prisma.jobApplication.findUnique({
+      where: { id: parsedId },
+      include: {
+        job: {
+          select: {
+            id: true,
+            title: true,
+            department: true
+          }
+        },
+        reviewedByUser: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        },
+        agent: {
+          select: {
+            id: true,
+            userId: true,
+            status: true
+          }
+        }
+      }
+    });
+
+    if (!finalApplication) {
+      return res.status(404).json({ error: "Application not found after update" });
+    }
+
     // Audit log
-    await audit(req as any, "JOB_APPLICATION_UPDATE", "JOB_APPLICATION", existingApplication, updatedApplication);
+    await audit(req as any, "JOB_APPLICATION_UPDATE", "JOB_APPLICATION", existingApplication, finalApplication);
 
     // Send email notification if status changed to a notifiable status
     if (statusChanged && newStatus && ["REVIEWING", "SHORTLISTED", "REJECTED", "HIRED"].includes(newStatus)) {
       try {
         const emailData = {
-          applicantName: updatedApplication.fullName,
-          jobTitle: updatedApplication.job.title,
-          jobDepartment: updatedApplication.job.department || undefined,
+          applicantName: finalApplication.fullName,
+          jobTitle: finalApplication.job.title,
+          jobDepartment: finalApplication.job.department || undefined,
           status: newStatus as "REVIEWING" | "SHORTLISTED" | "REJECTED" | "HIRED",
-          adminNotes: updatedApplication.adminNotes || undefined,
+          adminNotes: finalApplication.adminNotes || undefined,
           companyName: process.env.COMPANY_NAME || "NoLSAF Inc Limited",
           supportEmail: process.env.SUPPORT_EMAIL || process.env.CAREERS_EMAIL || "careers@nolsapp.com"
         };
@@ -373,9 +513,9 @@ router.patch("/:id", async (req: AuthedRequest, res) => {
         const subject = getApplicationEmailSubject(emailData.status, emailData.jobTitle);
         const html = generateApplicationStatusEmail(emailData);
 
-        await sendMail(updatedApplication.email, subject, html);
+        await sendMail(finalApplication.email, subject, html);
         
-        console.log(`Application status email sent to ${updatedApplication.email} for status: ${newStatus}`);
+        console.log(`Application status email sent to ${finalApplication.email} for status: ${newStatus}`);
       } catch (emailError: any) {
         // Log email error but don't fail the request
         console.error("Error sending application status email:", emailError);

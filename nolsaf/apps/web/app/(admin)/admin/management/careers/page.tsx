@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState } from 'react';
-import { Briefcase, Plus, Edit, Trash2, Eye, X, Save, Calendar, MapPin, DollarSign, Clock, CheckCircle2, AlertCircle, FileText, Users, Mail, Phone, ExternalLink, Download, CheckCircle, XCircle, UserCheck, Search, BarChart3, FileDown, Trash, CheckSquare, Square } from "lucide-react";
+import { Briefcase, Plus, Edit, Trash2, Eye, X, Save, Calendar, MapPin, DollarSign, Clock, CheckCircle2, AlertCircle, FileText, Users, Mail, Phone, ExternalLink, Download, CheckCircle, XCircle, UserCheck, Search, BarChart3, FileDown, Trash, CheckSquare, Square, GraduationCap, Languages } from "lucide-react";
 import PDFViewer from "@/components/PDFViewer";
 import DatePicker from "@/components/ui/DatePicker";
 
@@ -50,6 +50,7 @@ type JobFormData = {
   applicationDeadline: string;
   featured: boolean;
   status: string;
+  isTravelAgentPosition: boolean;
 };
 
 const CATEGORIES = ["ENGINEERING", "DESIGN", "MARKETING", "SALES", "OPERATIONS", "SUPPORT", "MANAGEMENT", "OTHER"];
@@ -107,7 +108,8 @@ export default function CareersManagement() {
     salaryPeriod: "MONTHLY",
     applicationDeadline: "",
     featured: false,
-    status: "ACTIVE"
+    status: "ACTIVE",
+    isTravelAgentPosition: false
   });
 
   const loadApplications = async () => {
@@ -335,7 +337,8 @@ export default function CareersManagement() {
       salaryPeriod: "MONTHLY",
       applicationDeadline: "",
       featured: false,
-      status: "ACTIVE"
+      status: "ACTIVE",
+      isTravelAgentPosition: false
     });
     setEditingJob(null);
     setShowForm(false);
@@ -399,8 +402,18 @@ export default function CareersManagement() {
         period: formData.salaryPeriod as "MONTHLY" | "YEARLY"
       } : null;
 
+      // If Travel Agent position is enabled, ensure title contains "Agent" or "Travel"
+      let finalTitle = formData.title;
+      if (formData.isTravelAgentPosition) {
+        const titleLower = finalTitle.toLowerCase();
+        if (!titleLower.includes("agent") && !titleLower.includes("travel")) {
+          // Suggest adding "Travel Agent" to title if not present
+          finalTitle = finalTitle.trim() + (finalTitle.trim().endsWith(".") ? "" : " - Travel Agent");
+        }
+      }
+
       const payload = {
-        title: formData.title,
+        title: finalTitle,
         category: formData.category,
         type: formData.type,
         location: formData.location,
@@ -1173,33 +1186,58 @@ export default function CareersManagement() {
                   <h3 className="text-lg font-semibold text-gray-900">Publishing Options</h3>
                   <p className="text-sm text-gray-500 mt-1">Control visibility and status</p>
                 </div>
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
-                  <label className="flex items-center gap-3 cursor-pointer group">
-                    <input
-                      type="checkbox"
-                      checked={formData.featured}
-                      onChange={(e) => setFormData({ ...formData, featured: e.target.checked })}
-                      className="w-5 h-5 text-[#02665e] border-gray-300 rounded focus:ring-[#02665e] focus:ring-2 cursor-pointer"
-                    />
-                    <div>
-                      <span className="text-sm font-semibold text-gray-900 block">Featured Job</span>
-                      <span className="text-xs text-gray-500">Highlight this job on the careers page</span>
-                    </div>
-                  </label>
-
-                  <div className="flex-1 max-w-xs">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Status
+                <div className="flex flex-col gap-6">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
+                    <label className="flex items-center gap-3 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        checked={formData.featured}
+                        onChange={(e) => setFormData({ ...formData, featured: e.target.checked })}
+                        className="w-5 h-5 text-[#02665e] border-gray-300 rounded focus:ring-[#02665e] focus:ring-2 cursor-pointer"
+                      />
+                      <div>
+                        <span className="text-sm font-semibold text-gray-900 block">Featured Job</span>
+                        <span className="text-xs text-gray-500">Highlight this job on the careers page</span>
+                      </div>
                     </label>
-                    <select
-                      value={formData.status}
-                      onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] transition-colors bg-white"
-                    >
-                      <option value="ACTIVE">Active</option>
-                      <option value="CLOSED">Closed</option>
-                      <option value="DRAFT">Draft</option>
-                    </select>
+
+                    <div className="flex-1 max-w-xs">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Status
+                      </label>
+                      <select
+                        value={formData.status}
+                        onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] transition-colors bg-white"
+                      >
+                        <option value="ACTIVE">Active</option>
+                        <option value="CLOSED">Closed</option>
+                        <option value="DRAFT">Draft</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Travel Agent Position Toggle */}
+                  <div className="border-t border-gray-200 pt-4">
+                    <label className="flex items-start gap-3 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        checked={formData.isTravelAgentPosition}
+                        onChange={(e) => setFormData({ ...formData, isTravelAgentPosition: e.target.checked })}
+                        className="w-5 h-5 text-[#02665e] border-gray-300 rounded focus:ring-[#02665e] focus:ring-2 cursor-pointer mt-0.5"
+                      />
+                      <div>
+                        <span className="text-sm font-semibold text-gray-900 block">Travel Agent Position</span>
+                        <span className="text-xs text-gray-500">Enable this if this job is for a Travel Agent. Applicants will be asked to provide agent-specific information (education, areas of operation, languages, certifications, etc.). When approved, an Agent profile will be automatically created.</span>
+                      </div>
+                    </label>
+                    {formData.isTravelAgentPosition && (
+                      <div className="mt-3 ml-8 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p className="text-xs text-blue-800">
+                          <strong>Note:</strong> Make sure the job title includes "Travel Agent" or "Agent" for proper identification. Applicants will see additional agent-specific fields in the application form.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1533,6 +1571,129 @@ export default function CareersManagement() {
                   <p className="text-sm font-medium text-gray-900">{viewingApplication.job?.title || 'N/A'}</p>
                   <p className="text-xs text-gray-600 mt-1">{viewingApplication.job?.department || ''}</p>
                 </div>
+
+                {/* Agent-Specific Information */}
+                {viewingApplication.agentApplicationData && (
+                  <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">
+                    <div className="flex items-center gap-2 mb-4">
+                      <Users size={18} className="text-[#02665e]" />
+                      <h3 className="text-base font-semibold text-gray-900">Agent Profile Information</h3>
+                    </div>
+                    <div className="space-y-4">
+                      {/* Education & Experience */}
+                      {(viewingApplication.agentApplicationData.educationLevel || viewingApplication.agentApplicationData.yearsOfExperience) && (
+                        <div>
+                          <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                            <GraduationCap size={16} className="text-[#02665e]" />
+                            Education & Experience
+                          </h4>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {viewingApplication.agentApplicationData.educationLevel && (
+                              <div>
+                                <label className="block text-xs font-medium text-gray-500 mb-1">Education Level</label>
+                                <p className="text-sm text-gray-900">{viewingApplication.agentApplicationData.educationLevel.replace('_', ' ')}</p>
+                              </div>
+                            )}
+                            {viewingApplication.agentApplicationData.yearsOfExperience !== null && viewingApplication.agentApplicationData.yearsOfExperience !== undefined && (
+                              <div>
+                                <label className="block text-xs font-medium text-gray-500 mb-1">Years of Experience</label>
+                                <p className="text-sm text-gray-900">{viewingApplication.agentApplicationData.yearsOfExperience} {viewingApplication.agentApplicationData.yearsOfExperience === 1 ? 'year' : 'years'}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Bio */}
+                      {viewingApplication.agentApplicationData.bio && (
+                        <div>
+                          <h4 className="text-sm font-semibold text-gray-700 mb-2">Bio</h4>
+                          <p className="text-sm text-gray-700 whitespace-pre-wrap bg-gray-50 rounded-md p-3 border border-gray-100">{viewingApplication.agentApplicationData.bio}</p>
+                        </div>
+                      )}
+
+                      {/* Areas of Operation */}
+                      {viewingApplication.agentApplicationData.areasOfOperation && Array.isArray(viewingApplication.agentApplicationData.areasOfOperation) && viewingApplication.agentApplicationData.areasOfOperation.length > 0 && (
+                        <div>
+                          <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                            <MapPin size={16} className="text-[#02665e]" />
+                            Areas of Operation
+                          </h4>
+                          <div className="flex flex-wrap gap-2">
+                            {viewingApplication.agentApplicationData.areasOfOperation.map((area: string, idx: number) => (
+                              <span key={idx} className="inline-flex items-center px-3 py-1 bg-blue-50 text-blue-700 rounded-lg text-sm border border-blue-200">
+                                {area}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Languages */}
+                      {viewingApplication.agentApplicationData.languages && Array.isArray(viewingApplication.agentApplicationData.languages) && viewingApplication.agentApplicationData.languages.length > 0 && (
+                        <div>
+                          <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                            <Languages size={16} className="text-[#02665e]" />
+                            Languages
+                          </h4>
+                          <div className="flex flex-wrap gap-2">
+                            {viewingApplication.agentApplicationData.languages.map((lang: string, idx: number) => (
+                              <span key={idx} className="inline-flex items-center px-3 py-1 bg-purple-50 text-purple-700 rounded-lg text-sm border border-purple-200">
+                                {lang}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Specializations */}
+                      {viewingApplication.agentApplicationData.specializations && Array.isArray(viewingApplication.agentApplicationData.specializations) && viewingApplication.agentApplicationData.specializations.length > 0 && (
+                        <div>
+                          <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                            <Briefcase size={16} className="text-[#02665e]" />
+                            Specializations
+                          </h4>
+                          <div className="flex flex-wrap gap-2">
+                            {viewingApplication.agentApplicationData.specializations.map((spec: string, idx: number) => (
+                              <span key={idx} className="inline-flex items-center px-3 py-1 bg-green-50 text-green-700 rounded-lg text-sm border border-green-200">
+                                {spec}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Certifications */}
+                      {viewingApplication.agentApplicationData.certifications && Array.isArray(viewingApplication.agentApplicationData.certifications) && viewingApplication.agentApplicationData.certifications.length > 0 && (
+                        <div>
+                          <h4 className="text-sm font-semibold text-gray-700 mb-2">Certifications</h4>
+                          <div className="space-y-2">
+                            {viewingApplication.agentApplicationData.certifications.map((cert: any, idx: number) => (
+                              <div key={idx} className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                                <div className="font-medium text-amber-900">{cert.name}</div>
+                                <div className="text-sm text-amber-700">
+                                  {cert.issuer} • {cert.year}
+                                  {cert.expiryDate && ` • Expires: ${cert.expiryDate}`}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Agent Profile Created Indicator */}
+                      {viewingApplication.agent && (
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 size={16} className="text-green-600" />
+                            <span className="text-sm font-medium text-green-800">Agent profile has been created</span>
+                          </div>
+                          <p className="text-xs text-green-700 mt-1">This application was approved and an agent profile was automatically created.</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Cover Letter */}
                 <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">

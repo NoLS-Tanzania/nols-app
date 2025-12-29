@@ -3,6 +3,7 @@ import type { Express } from "express";
 import helmet from "helmet";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
+import { dynamicRateLimiter } from "./lib/rateLimiter.js";
 import hpp from "hpp";
 
 export function configureSecurity(app: Express) {
@@ -83,16 +84,22 @@ export function configureSecurity(app: Express) {
   // Param pollution protection
   app.use(hpp());
 
-  // Generic rate limit (burst-friendly)
-  app.use(
-    rateLimit({
-      windowMs: 15 * 60 * 1000,
-      limit: 1000,
-      standardHeaders: "draft-7",
-      legacyHeaders: false,
-      message: { error: "Too many requests, slow down." },
-    })
-  );
+  // Generic rate limit - now uses dynamic rate limiting from SystemSetting
+  try {
+    app.use(dynamicRateLimiter);
+  } catch (err) {
+    console.error('Failed to use dynamic rate limiter, falling back to default:', err);
+    // Fallback to default if dynamic limiter fails to load
+    app.use(
+      rateLimit({
+        windowMs: 15 * 60 * 1000,
+        limit: 1000,
+        standardHeaders: "draft-7",
+        legacyHeaders: false,
+        message: { error: "Too many requests, slow down." },
+      })
+    );
+  }
 }
 
 // Per-route stricter limit (e.g., OTP, login)

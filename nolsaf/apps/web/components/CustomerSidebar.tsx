@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { User, Calendar, Car, Users, Settings, ChevronRight } from "lucide-react";
+import { User, Calendar, Car, Users, Settings, ChevronRight, ClipboardList } from "lucide-react";
 
 export default function CustomerSidebar() {
   const pathname = usePathname();
@@ -27,6 +27,11 @@ export default function CustomerSidebar() {
       href: "/account/group-stays",
       label: "My Group Stay",
       icon: Users,
+    },
+    {
+      href: "/account/event-plans",
+      label: "My Event Plan",
+      icon: ClipboardList,
     },
     {
       href: "/account/security",

@@ -5,7 +5,7 @@ import "@/styles/globals.css";
 import { useState, useEffect } from "react";
 import type { ReactNode } from "react";
 import SiteHeader from "@/components/SiteHeader";
-import SiteFooter from "@/components/SiteFooter";
+import OwnerFooter from "@/components/OwnerFooter";
 import SectionSeparator from "@/components/SectionSeparator";
 import OwnerSidebar from "@/components/OwnerSidebar";
 import LayoutFrame from "@/components/LayoutFrame";
@@ -55,7 +55,8 @@ export default function OwnerLayout({ children }: { children: ReactNode }) {
 
       {/* use the modern SectionSeparator above the footer for owner pages */}
       <SectionSeparator className="mt-6" />
-      <SiteFooter topSeparator={false} withRail={false} />
+      <SectionSeparator className="mt-6" />
+      <OwnerFooter />
     </div>
   );
 }

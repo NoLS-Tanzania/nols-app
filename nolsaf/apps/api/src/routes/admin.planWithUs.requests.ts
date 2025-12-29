@@ -3,6 +3,12 @@ import type { RequestHandler } from "express";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { prisma } from "@nolsaf/prisma";
 import { Prisma } from "@prisma/client";
+import { sanitizeText } from "../lib/sanitize.js";
+import { limitPlanRequestMessages } from "../middleware/rateLimit.js";
+import { AuthedRequest } from "../middleware/auth.js";
+import { sendMail } from "../lib/mailer.js";
+import { getPlanRequestResponseEmail, getPlanRequestAgentAssignmentEmail } from "../lib/planRequestEmailTemplates.js";
+import { notifyUser } from "../lib/notifications.js";
 
 export const router = Router();
 router.use(requireAuth as unknown as RequestHandler, requireRole("ADMIN") as unknown as RequestHandler);
@@ -12,16 +18,18 @@ router.get("/", async (req, res) => {
   try {
     const { role, tripType, status, date, start, end, page = "1", pageSize = "50", q = "" } = req.query as any;
 
+    console.log('GET /admin/plan-with-us/requests - Query params:', { role, tripType, status, date, start, end, page, pageSize, q });
+
     const where: any = {};
 
-    // Filter by role
-    if (role) {
-      where.role = role;
+    // Filter by role - exact match (VARCHAR fields don't support contains with mode)
+    if (role && role.trim()) {
+      where.role = role.trim();
     }
 
-    // Filter by trip type
-    if (tripType) {
-      where.tripType = tripType;
+    // Filter by trip type - exact match (VARCHAR fields don't support contains with mode)
+    if (tripType && tripType.trim()) {
+      where.tripType = tripType.trim();
     }
 
     // Filter by status (map PENDING to NEW for backward compatibility)
@@ -58,16 +66,36 @@ router.get("/", async (req, res) => {
     const skip = (Number(page) - 1) * Number(pageSize);
     const take = Math.min(Number(pageSize), 100);
 
+    console.log('GET /admin/plan-with-us/requests - Prisma where clause:', JSON.stringify(where, null, 2));
+
     try {
+      // First, check total count without filters to verify data exists
+      const totalCount = await (prisma as any).planRequest.count().catch((e: any) => {
+        console.error('Error counting all plan requests:', e.message, e.code);
+        return 0;
+      });
+      console.log(`GET /admin/plan-with-us/requests - Total requests in database (no filters): ${totalCount}`);
+
       const [items, total] = await Promise.all([
         (prisma as any).planRequest.findMany({
           where,
           orderBy: { createdAt: "desc" },
           skip,
           take,
+        }).catch((e: any) => {
+          console.error('Error in planRequest.findMany:', e.message, e.code, e.stack);
+          throw e;
         }),
-        (prisma as any).planRequest.count({ where }),
+        (prisma as any).planRequest.count({ where }).catch((e: any) => {
+          console.error('Error in planRequest.count:', e.message, e.code);
+          throw e;
+        }),
       ]);
+
+      console.log(`GET /admin/plan-with-us/requests - Found ${items.length} items (total: ${total}) with filters:`, JSON.stringify(where));
+      if (items.length === 0 && totalCount > 0) {
+        console.warn('WARNING: No items found but database has', totalCount, 'total requests. Where clause:', JSON.stringify(where));
+      }
 
       const mapped = items.map((r: any) => {
         const notes = (r.notes || "").toLowerCase();
@@ -86,7 +114,7 @@ router.get("/", async (req, res) => {
           dateFrom: r.dateFrom || null,
           dateTo: r.dateTo || null,
           groupSize: r.groupSize || null,
-          budget: r.budget || null,
+          budget: r.budget ? String(r.budget) : null,
           notes: r.notes || "",
           status: r.status || "NEW",
           isUrgent,
@@ -96,31 +124,48 @@ router.get("/", async (req, res) => {
             email: r.email || "",
             phone: r.phone || null,
           },
-          transportRequired: r.transportRequired === "yes" || r.transportRequired === true,
+          transportRequired: r.transportRequired === true || r.transportRequired === "yes" || r.transportRequired === "true",
           // Admin response fields
           adminResponse: r.adminResponse || null,
           suggestedItineraries: r.suggestedItineraries || null,
           requiredPermits: r.requiredPermits || null,
           estimatedTimeline: r.estimatedTimeline || null,
           assignedAgent: r.assignedAgent || null,
+          assignedAgentId: r.assignedAgentId || null,
           respondedAt: r.respondedAt || null,
           createdAt: r.createdAt,
         };
       });
 
-      return res.json({ total, page: Number(page), pageSize: take, items: mapped });
+      return res.json({ 
+        total: total || 0, 
+        page: Number(page), 
+        pageSize: take, 
+        items: Array.isArray(mapped) ? mapped : [] 
+      });
     } catch (e: any) {
+      console.error('GET /admin/plan-with-us/requests - Prisma error:', e);
       if (e instanceof Prisma.PrismaClientKnownRequestError && (e.code === 'P2021' || e.code === 'P2022')) {
         console.warn('Prisma schema mismatch when querying plan requests:', e.message);
-        const page = Number((req.query as any).page ?? 1);
-        const pageSize = Math.min(Number((req.query as any).pageSize ?? 50), 100);
-        return res.json({ total: 0, page, pageSize, items: [] });
+        const pageNum = Number((req.query as any).page ?? 1);
+        const pageSizeNum = Math.min(Number((req.query as any).pageSize ?? 50), 100);
+        return res.json({ total: 0, page: pageNum, pageSize: pageSizeNum, items: [] });
       }
       throw e;
     }
   } catch (err: any) {
     console.error('Unhandled error in GET /admin/plan-with-us/requests:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    console.error('Error stack:', err?.stack);
+    const pageNum = Number((req.query as any).page ?? 1);
+    const pageSizeNum = Math.min(Number((req.query as any).pageSize ?? 50), 100);
+    return res.status(500).json({ 
+      error: 'Internal server error', 
+      message: err?.message,
+      total: 0,
+      page: pageNum,
+      pageSize: pageSizeNum,
+      items: []
+    });
   }
 });
 
@@ -223,6 +268,127 @@ router.get("/stats", async (req, res) => {
   }
 });
 
+/** POST /admin/plan-with-us/requests/:id/message - Send a quick message response to user */
+router.post("/:id/message", limitPlanRequestMessages, async (req: AuthedRequest, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      return res.status(400).json({ error: "Invalid request ID" });
+    }
+
+    const { message } = req.body || {};
+
+    if (!message || typeof message !== 'string' || !message.trim()) {
+      return res.status(400).json({ error: "Message is required" });
+    }
+
+    // Get the plan request
+    const planRequest = await (prisma as any).planRequest.findUnique({
+      where: { id },
+    });
+
+    if (!planRequest) {
+      return res.status(404).json({ error: "Plan request not found" });
+    }
+
+    // Get admin user info
+    const adminUser = req.user;
+    if (!adminUser) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    // Sanitize message content to prevent XSS
+    const sanitizedMessage = sanitizeText(message);
+
+    // Create message record in new PlanRequestMessage table
+    await (prisma as any).planRequestMessage.create({
+      data: {
+        planRequestId: id,
+        senderId: adminUser.id,
+        senderRole: "ADMIN",
+        senderName: adminUser.name || "Admin",
+        messageType: "Admin Response",
+        body: sanitizedMessage,
+        isInternal: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+
+    // Also update the plan request's updatedAt timestamp
+    await (prisma as any).planRequest.update({
+      where: { id },
+      data: {
+        updatedAt: new Date(),
+      },
+    });
+
+    return res.json({
+      success: true,
+      message: "Message sent successfully",
+    });
+  } catch (error: any) {
+    console.error("POST /admin/plan-with-us/requests/:id/message error:", error);
+    return res.status(500).json({ error: "Failed to send message" });
+  }
+});
+
+/** GET /admin/plan-with-us/requests/:id/messages - Get conversation messages for a plan request */
+router.get("/:id/messages", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      return res.status(400).json({ error: "Invalid request ID" });
+    }
+
+    // Verify plan request exists
+    const planRequest = await (prisma as any).planRequest.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+
+    if (!planRequest) {
+      return res.status(404).json({ error: "Plan request not found" });
+    }
+
+    // Fetch messages ordered by creation time
+    const messages = await (prisma as any).planRequestMessage.findMany({
+      where: {
+        planRequestId: id,
+        isInternal: false, // Only return non-internal messages
+      },
+      orderBy: {
+        createdAt: "asc",
+      },
+      select: {
+        id: true,
+        senderId: true,
+        senderRole: true,
+        senderName: true,
+        messageType: true,
+        body: true,
+        createdAt: true,
+      },
+    });
+
+    return res.json({
+      success: true,
+      messages: messages.map((m: any) => ({
+        id: m.id,
+        senderId: m.senderId,
+        senderRole: m.senderRole,
+        senderName: m.senderName,
+        messageType: m.messageType,
+        message: m.body,
+        createdAt: m.createdAt,
+      })),
+    });
+  } catch (error: any) {
+    console.error("GET /admin/plan-with-us/requests/:id/messages error:", error);
+    return res.status(500).json({ error: "Failed to fetch messages" });
+  }
+});
+
 /** GET /admin/plan-with-us/requests/:id */
 router.get("/:id", async (req, res) => {
   try {
@@ -280,10 +446,11 @@ router.get("/:id", async (req, res) => {
         suggestedItineraries: request.suggestedItineraries || null,
         requiredPermits: request.requiredPermits || null,
         estimatedTimeline: request.estimatedTimeline || null,
-        assignedAgent: request.assignedAgent || null,
-        respondedAt: request.respondedAt || null,
-        createdAt: request.createdAt,
-        updatedAt: request.updatedAt,
+          assignedAgent: request.assignedAgent || null,
+          assignedAgentId: request.assignedAgentId || null,
+          respondedAt: request.respondedAt || null,
+          createdAt: request.createdAt,
+          updatedAt: request.updatedAt,
       };
 
       return res.json(mapped);
@@ -315,7 +482,28 @@ router.patch("/:id", async (req, res) => {
       requiredPermits,
       estimatedTimeline,
       assignedAgent,
+      assignedAgentId,
     } = req.body;
+
+    // Get the current plan request to check previous status and agent assignment
+    const currentRequest = await (prisma as any).planRequest.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        status: true,
+        assignedAgentId: true,
+        budget: true,
+        email: true,
+        fullName: true,
+        role: true,
+        tripType: true,
+        userId: true,
+      },
+    });
+
+    if (!currentRequest) {
+      return res.status(404).json({ error: "Plan request not found" });
+    }
 
     const updateData: any = {};
     
@@ -325,10 +513,178 @@ router.patch("/:id", async (req, res) => {
     if (requiredPermits !== undefined) updateData.requiredPermits = requiredPermits;
     if (estimatedTimeline !== undefined) updateData.estimatedTimeline = estimatedTimeline;
     if (assignedAgent !== undefined) updateData.assignedAgent = assignedAgent;
+    if (assignedAgentId !== undefined && assignedAgentId !== null) {
+      updateData.assignedAgentId = Number(assignedAgentId);
+      // If agent is assigned and it's a new assignment (and request is not already COMPLETED), increment their workload
+      if (currentRequest.assignedAgentId !== Number(assignedAgentId) && currentRequest.status !== "COMPLETED") {
+        const agent = await (prisma as any).agent.findUnique({
+          where: { id: Number(assignedAgentId) },
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        });
+        if (agent) {
+          await (prisma as any).agent.update({
+            where: { id: Number(assignedAgentId) },
+            data: {
+              currentActiveRequests: { increment: 1 },
+            },
+          });
+          
+          // Send email notification to agent about assignment (non-blocking)
+          if (agent.user?.email) {
+            try {
+              const agentEmail = getPlanRequestAgentAssignmentEmail({
+                agentName: agent.user.name || "Agent",
+                requestId: currentRequest.id,
+                customerName: currentRequest.fullName || "Customer",
+                role: currentRequest.role || undefined,
+                tripType: currentRequest.tripType || undefined,
+              });
+              
+              await sendMail(agent.user.email, agentEmail.subject, agentEmail.html);
+              console.log(`Email notification sent to agent: ${agent.user.email}`);
+            } catch (agentEmailError: any) {
+              console.error("Failed to send agent assignment email:", agentEmailError);
+              // Don't fail the request if email fails
+            }
+          }
+        }
+      }
+    }
     
     // If status is being set to COMPLETED and we have a response, set respondedAt
     if (status === "COMPLETED" && (adminResponse || suggestedItineraries)) {
       updateData.respondedAt = new Date();
+    }
+
+    // Handle agent promotion metrics when status changes to COMPLETED
+    // Use transaction to ensure atomicity (both request update and agent metrics update succeed or fail together)
+    const agentIdToUpdate = (status === "COMPLETED" && currentRequest.status !== "COMPLETED") 
+      ? (updateData.assignedAgentId || currentRequest.assignedAgentId) 
+      : null;
+    
+    if (agentIdToUpdate) {
+      try {
+        // Get system settings for commission percentage
+        const systemSettings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
+        const commissionPercent = Number(systemSettings?.agentCommissionPercent || 15.0);
+
+        // Get the agent
+        const agent = await (prisma as any).agent.findUnique({
+          where: { id: Number(agentIdToUpdate) },
+          select: {
+            id: true,
+            totalCompletedTrips: true,
+            totalRevenueGenerated: true,
+            currentActiveRequests: true,
+          },
+        });
+
+        if (agent) {
+          // Calculate commission revenue from budget
+          const budget = currentRequest.budget ? Number(currentRequest.budget) : 0;
+          const commissionRevenue = budget > 0 ? (budget * commissionPercent) / 100 : 0;
+
+          // Use transaction to ensure both updates succeed or fail together
+          const result = await prisma.$transaction(async (tx: any) => {
+            // Update plan request status
+            const updatedRequest = await tx.planRequest.update({
+              where: { id },
+              data: updateData,
+            });
+
+            // Update agent's promotion metrics and decrement active requests atomically
+            await tx.agent.update({
+              where: { id: Number(agentIdToUpdate) },
+              data: {
+                totalCompletedTrips: { increment: 1 },
+                totalRevenueGenerated: { increment: commissionRevenue },
+                currentActiveRequests: Math.max(0, (agent.currentActiveRequests || 0) - 1),
+              },
+            });
+
+            return updatedRequest;
+          });
+
+          console.log(`[Agent Promotion] Updated agent ${agentIdToUpdate}: +1 trip, +${commissionRevenue.toFixed(2)} TZS revenue (from budget ${budget}, commission ${commissionPercent}%), -1 active request`);
+
+          // Send email notification to customer if admin responded (status = COMPLETED with response fields)
+          try {
+            const adminUser = req.user;
+            const customerEmail = getPlanRequestResponseEmail({
+              customerName: currentRequest.fullName || "Customer",
+              requestId: currentRequest.id,
+              adminName: adminUser?.name || undefined,
+              hasItineraries: !!result.suggestedItineraries,
+              hasPermits: !!result.requiredPermits,
+              hasTimeline: !!result.estimatedTimeline,
+            });
+            
+            await sendMail(currentRequest.email, customerEmail.subject, customerEmail.html);
+            console.log(`Email notification sent to customer: ${currentRequest.email}`);
+            
+            // Also create in-app notification for user
+            if (currentRequest.userId) {
+              await notifyUser(currentRequest.userId, 'plan_request_response', {
+                requestId: currentRequest.id,
+                status: 'COMPLETED',
+              });
+            }
+          } catch (emailError: any) {
+            console.error("Failed to send customer email notification:", emailError);
+            // Don't fail the request if email fails
+          }
+
+          // Emit real-time update via Socket.IO (non-blocking)
+          try {
+            const io = (req.app as any)?.get?.("io") || (global as any).io;
+            if (io && typeof io.emit === 'function') {
+              // Emit to admin room
+              io.to('admin').emit('plan-request:updated', {
+                id: result.id,
+                status: result.status,
+                assignedAgentId: result.assignedAgentId,
+              });
+              
+              // Emit to user room if userId exists
+              if (currentRequest.userId) {
+                io.to(`user:${currentRequest.userId}`).emit('plan-request:updated', {
+                  id: result.id,
+                  status: result.status,
+                });
+              }
+            }
+          } catch (socketError: any) {
+            console.error("Failed to emit Socket.IO update:", socketError);
+            // Don't fail the request if socket fails
+          }
+
+          return res.json({
+            id: result.id,
+            status: result.status,
+            adminResponse: result.adminResponse,
+            suggestedItineraries: result.suggestedItineraries,
+            requiredPermits: result.requiredPermits,
+            estimatedTimeline: result.estimatedTimeline,
+            assignedAgent: result.assignedAgent,
+            respondedAt: result.respondedAt,
+          });
+        }
+      } catch (agentError: any) {
+        // Log error and fail the request update
+        console.error(`[Agent Promotion] Failed to update agent metrics for agent ${agentIdToUpdate}:`, agentError);
+        return res.status(500).json({ 
+          error: "Failed to update agent promotion metrics",
+          message: agentError?.message || "Internal server error"
+        });
+      }
     }
 
     try {
@@ -336,6 +692,59 @@ router.patch("/:id", async (req, res) => {
         where: { id },
         data: updateData,
       });
+
+      // Send email notification to customer if admin responded (status = COMPLETED with response fields)
+      if (status === "COMPLETED" && (adminResponse || suggestedItineraries || requiredPermits || estimatedTimeline)) {
+        try {
+          const adminUser = req.user;
+          const customerEmail = getPlanRequestResponseEmail({
+            customerName: currentRequest.fullName || "Customer",
+            requestId: currentRequest.id,
+            adminName: adminUser?.name || undefined,
+            hasItineraries: !!suggestedItineraries,
+            hasPermits: !!requiredPermits,
+            hasTimeline: !!estimatedTimeline,
+          });
+          
+          await sendMail(currentRequest.email, customerEmail.subject, customerEmail.html);
+          console.log(`Email notification sent to customer: ${currentRequest.email}`);
+          
+          // Also create in-app notification for user
+          if (currentRequest.userId) {
+            await notifyUser(currentRequest.userId, 'plan_request_response', {
+              requestId: currentRequest.id,
+              status: 'COMPLETED',
+            });
+          }
+        } catch (emailError: any) {
+          console.error("Failed to send customer email notification:", emailError);
+          // Don't fail the request if email fails
+        }
+      }
+
+      // Emit real-time update via Socket.IO (non-blocking)
+      try {
+        const io = (req.app as any)?.get?.("io") || (global as any).io;
+        if (io && typeof io.emit === 'function') {
+          // Emit to admin room
+          io.to('admin').emit('plan-request:updated', {
+            id: updated.id,
+            status: updated.status,
+            assignedAgentId: updated.assignedAgentId,
+          });
+          
+          // Emit to user room if userId exists
+          if (currentRequest.userId) {
+            io.to(`user:${currentRequest.userId}`).emit('plan-request:updated', {
+              id: updated.id,
+              status: updated.status,
+            });
+          }
+        }
+      } catch (socketError: any) {
+        console.error("Failed to emit Socket.IO update:", socketError);
+        // Don't fail the request if socket fails
+      }
 
       return res.json({
         id: updated.id,

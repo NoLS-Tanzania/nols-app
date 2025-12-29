@@ -2579,7 +2579,12 @@ export default function AddProperty() {
                                 <path fillRule="evenodd" d="M5.47 5.47a.75.75 0 011.06 0L12 10.94l5.47-5.47a.75.75 0 111.06 1.06L13.06 12l5.47 5.47a.75.75 0 11-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 11-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 010-1.06z" clipRule="evenodd" />
                               </svg>
                             </button>
-                            <Image src={u} alt={`Room ${idx+1} image ${i+1}`} width={120} height={30} className="w-full h-full object-cover" />
+                            {/^https?:\/\//i.test(u) ? (
+                              <Image src={u} alt={`Room ${idx+1} image ${i+1}`} width={120} height={30} className="w-full h-full object-cover" />
+                            ) : (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={u} alt={`Room ${idx+1} image ${i+1}`} className="w-full h-full object-cover" />
+                            )}
                           </div>
                         ))}
                       </div>
@@ -3505,7 +3510,12 @@ export default function AddProperty() {
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                         {photos.slice(0, 6).map((photo, idx) => (
                           <div key={idx} className="relative aspect-square rounded-lg overflow-hidden border border-slate-200">
-                            <Image src={photo} alt={`Property photo ${idx + 1}`} fill className="object-cover" />
+                            {/^https?:\/\//i.test(photo) ? (
+                              <Image src={photo} alt={`Property photo ${idx + 1}`} fill className="object-cover" />
+                            ) : (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={photo} alt={`Property photo ${idx + 1}`} className="w-full h-full object-cover" />
+                            )}
                           </div>
                         ))}
                       </div>
@@ -3565,7 +3575,12 @@ export default function AddProperty() {
                               <div className="mt-3 grid grid-cols-3 gap-2">
                                 {room.roomImages.slice(0, 3).map((img, i) => (
                                   <div key={i} className="relative aspect-square rounded overflow-hidden border border-slate-200">
-                                    <Image src={img} alt={`${room.roomType} image ${i + 1}`} fill className="object-cover" />
+                                    {/^https?:\/\//i.test(img) ? (
+                                      <Image src={img} alt={`${room.roomType} image ${i + 1}`} fill className="object-cover" />
+                                    ) : (
+                                      // eslint-disable-next-line @next/next/no-img-element
+                                      <img src={img} alt={`${room.roomType} image ${i + 1}`} className="w-full h-full object-cover" />
+                                    )}
                                   </div>
                                 ))}
                               </div>

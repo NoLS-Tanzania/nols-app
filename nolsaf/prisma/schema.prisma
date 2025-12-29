@@ -18,7 +18,7 @@ datasource db {
 // =========================================================
 model User {
   id              Int       @id @default(autoincrement())
-  role            String    @default("CUSTOMER") // ADMIN, OWNER, DRIVER, CUSTOMER
+  role            String    @default("CUSTOMER") // ADMIN, OWNER, DRIVER, CUSTOMER, AGENT
   name            String?
   email           String?   @unique
   phone           String?   @unique
@@ -84,6 +84,9 @@ model User {
 
   // Property reviews written by this user
   propertyReviews PropertyReview[]
+
+  // Agent reviews written by this user
+  agentReviewsWritten AgentReview[] @relation("AgentReviewsUser")
 
   // Check-in codes used by this owner
   checkinCodesUsed CheckinCode[]
@@ -156,6 +159,18 @@ model User {
 
   // Cancellation request messages sent by this user (customer/admin)
   cancellationMessagesSent CancellationMessage[]
+
+  // Agent profile (if user is an agent)
+  agentProfile Agent?
+  
+  // Plan requests created by this user (if authenticated)
+  planRequests PlanRequest[] @relation("PlanRequestsUser")
+  
+  // Plan request messages sent by this user
+  planRequestMessages PlanRequestMessage[] @relation("PlanRequestMessages")
+
+  // Chatbot conversations
+  chatbotConversations ChatbotConversation[] @relation("ChatbotConversations")
 
   @@index([role])
   @@index([email])
@@ -1046,6 +1061,58 @@ model SystemSetting {
   /// Whether SMS notifications are enabled
   smsEnabled Boolean? @default(true)
 
+  // ==================== Security & Cybersecurity Fields ====================
+  /// Require two-factor authentication for admin accounts
+  requireAdmin2FA Boolean? @default(false)
+
+  /// Minimum password length
+  minPasswordLength Int? @default(8)
+
+  /// Require uppercase letters in passwords
+  requirePasswordUppercase Boolean? @default(false)
+
+  /// Require lowercase letters in passwords
+  requirePasswordLowercase Boolean? @default(false)
+
+  /// Require numbers in passwords
+  requirePasswordNumber Boolean? @default(false)
+
+  /// Require special characters in passwords
+  requirePasswordSpecial Boolean? @default(false)
+
+  /// Session idle timeout in minutes
+  sessionIdleMinutes Int? @default(30)
+
+  /// Maximum session duration in hours
+  maxSessionDurationHours Int? @default(24)
+
+  /// Force logout all sessions when password is changed
+  forceLogoutOnPasswordChange Boolean? @default(true)
+
+  /// Admin IP allowlist (CSV CIDR format)
+  ipAllowlist String?
+
+  /// Enable IP allowlist enforcement
+  enableIpAllowlist Boolean? @default(false)
+
+  /// API rate limit (requests per minute per IP)
+  apiRateLimitPerMinute Int? @default(100)
+
+  /// Maximum login attempts before lockout
+  maxLoginAttempts Int? @default(5)
+
+  /// Account lockout duration in minutes
+  accountLockoutDurationMinutes Int? @default(30)
+
+  /// Enable security audit logging
+  enableSecurityAuditLogging Boolean? @default(true)
+
+  /// Log failed login attempts
+  logFailedLoginAttempts Boolean? @default(true)
+
+  /// Alert on suspicious activity
+  alertOnSuspiciousActivity Boolean? @default(false)
+
   // ==================== Business Configuration Fields ====================
   /// Referral credit percentage as decimal (e.g., 0.0035 for 0.35%)
   referralCreditPercent Decimal? @default(0.0035) @db.Decimal(10, 6)
@@ -1055,6 +1122,18 @@ model SystemSetting {
 
   /// Driver level threshold for Diamond (in TZS)
   driverLevelDiamondThreshold Int? @default(2000000)
+
+  /// Agent promotion: Minimum trips required for promotion (default: 30)
+  agentPromotionMinTrips Int? @default(30)
+
+  /// Agent promotion: Maximum trips required for promotion (default: 50, for flexibility)
+  agentPromotionMaxTrips Int? @default(50)
+
+  /// Agent promotion: Minimum revenue required for promotion (in TZS, default: 20,000,000)
+  agentPromotionMinRevenue Int? @default(20000000)
+
+  /// Agent commission percentage (default: 15% of trip budget goes to NoLSAF)
+  agentCommissionPercent Decimal? @default(15.0) @db.Decimal(5, 2)
 
   /// Goal calculation multiplier (e.g., 1.1 for 10% above average)
   goalMultiplier Decimal? @default(1.1) @db.Decimal(5, 2)
@@ -1295,6 +1374,10 @@ model PlanRequest {
   fullName String  @db.VarChar(200)
   email    String  @db.VarChar(255)
   phone    String? @db.VarChar(40)
+  
+  /// Optional reference to User account (if user is logged in)
+  /// If null, request was submitted anonymously (matched by email/phone)
+  userId Int?
 
   /// Trip details
   destinations String?   @db.VarChar(500)
@@ -1321,7 +1404,8 @@ model PlanRequest {
   suggestedItineraries String?   @db.Text
   requiredPermits      String?   @db.Text
   estimatedTimeline    String?   @db.Text
-  assignedAgent        String?   @db.VarChar(200)
+  assignedAgent        String?   @db.VarChar(200) // Legacy field (name string)
+  assignedAgentId      Int? // New field (reference to Agent)
   respondedAt          DateTime?
 
   /// Record creation timestamp
@@ -1329,14 +1413,176 @@ model PlanRequest {
   /// Record last update timestamp
   updatedAt DateTime @updatedAt
 
+  // Relations
+  user                   User?         @relation("PlanRequestsUser", fields: [userId], references: [id], onDelete: SetNull)
+  assignedAgentRelation Agent?        @relation("AssignedAgent", fields: [assignedAgentId], references: [id], onDelete: SetNull)
+  agentReviews          AgentReview[] @relation("AgentReviewsPlanRequest")
+  messages              PlanRequestMessage[]
+
   @@index([role])
   @@index([tripType])
   @@index([status])
   @@index([email])
   @@index([phone])
+  @@index([userId])
+  @@index([assignedAgentId])
   @@index([createdAt])
   @@index([status, createdAt])
+  @@index([userId, status])
   @@map("plan_requests")
+}
+
+// =========================================================
+//  PLAN REQUEST MESSAGE MODEL - For conversation history
+// =========================================================
+model PlanRequestMessage {
+  id            Int      @id @default(autoincrement())
+  planRequestId Int
+  
+  /// Sender information
+  senderId   Int?  // User ID if sender is authenticated (admin or customer)
+  senderRole String @db.VarChar(20) // ADMIN, USER, SYSTEM
+  senderName String? @db.VarChar(200) // Name for display (if not authenticated)
+  
+  /// Message content
+  messageType String? @db.VarChar(50) // "Ask for Feedback", "Admin Response", etc.
+  body        String  @db.Text // Message content (sanitized)
+  
+  /// Metadata
+  isInternal Boolean @default(false) // Internal notes not shown to customers
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  // Relations
+  planRequest PlanRequest @relation(fields: [planRequestId], references: [id], onDelete: Cascade)
+  sender      User?       @relation("PlanRequestMessages", fields: [senderId], references: [id], onDelete: SetNull)
+  
+  @@index([planRequestId])
+  @@index([senderId])
+  @@index([senderRole])
+  @@index([createdAt])
+  @@index([planRequestId, createdAt])
+  @@map("plan_request_messages")
+}
+
+// =========================================================
+//  AGENT MODEL - For managing travel/tour agents
+// =========================================================
+model Agent {
+  id Int @id @default(autoincrement())
+
+  /// Reference to User account (agents are Users with role 'AGENT')
+  userId Int @unique
+
+  /// Agent status: ACTIVE, INACTIVE, SUSPENDED
+  status String @default("ACTIVE") @db.VarChar(50)
+
+  /// Education level: HIGH_SCHOOL, DIPLOMA, BACHELORS, MASTERS, PHD, OTHER
+  educationLevel String? @db.VarChar(100)
+
+  /// Area of operations (JSON array of regions/districts)
+  /// Example: ["Dar es Salaam", "Arusha", "Zanzibar"]
+  areasOfOperation Json? // Array of strings
+
+  /// Certifications (JSON array)
+  /// Example: [{"name": "Tourism Certificate", "issuer": "Tanzania Tourism Board", "year": 2020}]
+  certifications Json? // Array of {name, issuer, year, expiryDate?}
+
+  /// Languages spoken (JSON array)
+  /// Example: ["English", "Swahili", "French"]
+  languages Json? // Array of strings
+
+  /// Years of experience in tourism/travel industry
+  yearsOfExperience Int?
+
+  /// Specializations (JSON array)
+  /// Example: ["Safari Tours", "Cultural Tours", "Adventure Tourism", "Group Travel"]
+  specializations Json? // Array of strings
+
+  /// Bio/Description
+  bio String? @db.Text
+
+  /// Availability status
+  isAvailable Boolean @default(true)
+
+  /// Maximum number of active requests this agent can handle simultaneously
+  maxActiveRequests Int @default(10)
+
+  /// Current workload (number of active requests assigned)
+  currentActiveRequests Int @default(0)
+
+  /// Performance metrics (JSON)
+  /// Example: {totalRequests: 50, completedRequests: 45, averageRating: 4.5, responseTime: 2.5}
+  performanceMetrics Json?
+
+  /// Agent level/rank: BRONZE, SILVER, GOLD, PLATINUM
+  level String @default("BRONZE") @db.VarChar(20)
+
+  /// Total completed trips/requests (count of COMPLETED or CLOSED plan requests)
+  totalCompletedTrips Int @default(0)
+
+  /// Total revenue generated for NoLSAF (in TZS) - sum of commissions from completed trips
+  totalRevenueGenerated Decimal @default(0) @db.Decimal(15, 2)
+
+  /// Created and updated timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user                 User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignedPlanRequests PlanRequest[]   @relation("AssignedAgent")
+  application          JobApplication? @relation // Link back to original job application
+  reviews              AgentReview[]   // Reviews received from users
+
+  @@index([status])
+  @@index([isAvailable])
+  @@index([userId])
+  @@index([status, isAvailable])
+  @@map("Agent")
+}
+
+// =========================================================
+//  AGENT REVIEW MODEL - For user ratings of agents
+// =========================================================
+model AgentReview {
+  id Int @id @default(autoincrement())
+
+  /// Agent being reviewed
+  agentId Int
+
+  /// User who wrote the review (customer who worked with the agent)
+  userId Int
+
+  /// Optional: Link to the plan request that this review is for
+  planRequestId Int?
+
+  /// Punctuality rating (1-5)
+  punctualityRating Int // 1-5
+
+  /// Customer care rating (1-5)
+  customerCareRating Int // 1-5
+
+  /// Communication rating (1-5)
+  communicationRating Int // 1-5
+
+  /// Optional review comment
+  comment String? @db.Text
+
+  /// Record creation timestamp
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  agent        Agent       @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  user         User        @relation("AgentReviewsUser", fields: [userId], references: [id], onDelete: Cascade)
+  planRequest  PlanRequest? @relation("AgentReviewsPlanRequest", fields: [planRequestId], references: [id], onDelete: SetNull)
+
+  @@index([agentId])
+  @@index([userId])
+  @@index([planRequestId])
+  @@index([createdAt])
+  @@index([agentId, createdAt])
+  @@map("agent_reviews")
 }
 
 // =========================================================
@@ -1466,14 +1712,22 @@ model JobApplication {
   reviewedAt DateTime?
   reviewedBy Int? // Admin user ID
 
+  /// Agent-specific application data (for Travel Agent positions)
+  /// Stores: educationLevel, yearsOfExperience, areasOfOperation, certifications, languages, specializations, bio, maxActiveRequests
+  agentApplicationData Json? // Object with agent profile fields
+
+  /// Link to Agent profile if application is approved (status = HIRED)
+  agentId Int? @unique
+
   /// Record creation timestamp
   submittedAt DateTime @default(now())
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   // Relations
-  job            Job   @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  reviewedByUser User? @relation("JobApplicationsReviewed", fields: [reviewedBy], references: [id], onDelete: SetNull)
+  job            Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  reviewedByUser User?  @relation("JobApplicationsReviewed", fields: [reviewedBy], references: [id], onDelete: SetNull)
+  agent          Agent? @relation(fields: [agentId], references: [id], onDelete: SetNull)
 
   @@index([jobId])
   @@index([email])
@@ -1570,4 +1824,52 @@ model DriverReminder {
   @@index([expiresAt])
   @@index([createdAt])
   @@map("driver_reminders")
+}
+
+// =========================================================
+//  CHATBOT CONVERSATION MODEL - For Twiga chatbot conversations
+// =========================================================
+model ChatbotConversation {
+  id        Int      @id @default(autoincrement())
+  userId    Int?     // Optional: user ID if authenticated
+  sessionId String   @unique @db.VarChar(100) // Unique session identifier for anonymous users
+  language  String   @default("en") @db.VarChar(10) // Language code: en, es, fr, pt, ar, zh
+  needsFollowUp Boolean @default(false) // Track if conversation needs agent follow-up
+  followUpNotes String? @db.Text // Notes for agents about the conversation
+  followedUpAt DateTime? // When an agent followed up
+  followedUpBy Int? // Agent/admin user ID who followed up
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user     User?              @relation("ChatbotConversations", fields: [userId], references: [id], onDelete: SetNull)
+  messages ChatbotMessage[]
+
+  @@index([userId])
+  @@index([sessionId])
+  @@index([language])
+  @@index([createdAt])
+  @@index([needsFollowUp])
+  @@map("chatbot_conversations")
+}
+
+// =========================================================
+//  CHATBOT MESSAGE MODEL - Individual messages in chatbot conversations
+// =========================================================
+model ChatbotMessage {
+  id             Int      @id @default(autoincrement())
+  conversationId Int
+  role           String   @db.VarChar(20) // "user" | "assistant"
+  content        String   @db.Text
+  language       String   @default("en") @db.VarChar(10) // Language code at time of message
+  createdAt      DateTime @default(now())
+
+  // Relations
+  conversation ChatbotConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([role])
+  @@index([createdAt])
+  @@index([conversationId, createdAt])
+  @@map("chatbot_messages")
 }

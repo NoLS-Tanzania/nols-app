@@ -8,6 +8,7 @@ import crypto from 'crypto';
 import argon2 from 'argon2';
 import { generateRegistrationOptions, verifyRegistrationResponse, generateAuthenticationOptions, verifyAuthenticationResponse } from '@simplewebauthn/server';
 import { validatePasswordStrength } from '../lib/security.js';
+import { validatePasswordWithSettings } from '../lib/securitySettings.js';
 import { requireAuth, AuthedRequest } from "../middleware/auth.js";
 
 // local no-op audit helper to satisfy references to `audit`
@@ -1141,11 +1142,9 @@ const postChangePassword: RequestHandler = async (req, res) => {
           if (!ok) { res.status(400).json({ error: 'current password is incorrect' }); return; }
         }
 
-        // Validate strength before hashing
+        // Validate strength before hashing using SystemSetting configuration
         try {
-          const s = await prisma.systemSetting.findUnique({ where: { id: 1 } });
-          const minLen = s?.minPasswordLength ?? 10;
-          const { valid, reasons } = validatePasswordStrength(newPassword, { minLength: minLen, role: (user as any).role });
+          const { valid, reasons } = await validatePasswordWithSettings(newPassword, (user as any).role);
           if (!valid) {
             res.status(400).json({ error: 'Password does not meet strength requirements', reasons });
             return;

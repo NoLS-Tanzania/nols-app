@@ -55,7 +55,9 @@ router.post("/", upload.single('resume'), async (req, res) => {
       coverLetter,
       portfolio,
       linkedIn,
-      referredBy
+      referredBy,
+      // Agent-specific fields (for Travel Agent positions)
+      agentApplicationData
     } = req.body;
 
     const resume = req.file;
@@ -122,6 +124,19 @@ router.post("/", upload.single('resume'), async (req, res) => {
       }
     }
 
+    // Parse agent application data if provided (should be JSON string)
+    let parsedAgentData: any = null;
+    if (agentApplicationData) {
+      try {
+        parsedAgentData = typeof agentApplicationData === 'string' 
+          ? JSON.parse(agentApplicationData) 
+          : agentApplicationData;
+      } catch (parseError) {
+        console.warn("Failed to parse agentApplicationData:", parseError);
+        // Continue without agent data rather than failing
+      }
+    }
+
     // Create application record
     const application = await prisma.jobApplication.create({
       data: {
@@ -138,7 +153,8 @@ router.post("/", upload.single('resume'), async (req, res) => {
         resumeUrl,
         resumeSize: resume?.size || null,
         resumeType: resume?.mimetype || null,
-        status: "PENDING"
+        status: "PENDING",
+        agentApplicationData: parsedAgentData
       },
       include: {
         job: {

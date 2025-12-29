@@ -92,9 +92,8 @@ const changePassword: RequestHandler = async (req, res) => {
   const ok = await verifyPassword(u.passwordHash, currentPassword);
   if (!ok) { res.status(400).json({ error: "Current password incorrect" }); return; }
 
-  // Validate password strength with role-aware defaults
-  const minLen = await getMinPasswordLength();
-  const { valid, reasons } = validatePasswordStrength(newPassword, { minLength: minLen, role: (u as any).role });
+  // Validate password strength using SystemSetting configuration
+  const { valid, reasons } = await validatePasswordWithSettings(newPassword, (u as any).role);
   if (!valid) {
     res.status(400).json({ error: "Password does not meet strength requirements", reasons });
     return;
@@ -112,15 +111,19 @@ const changePassword: RequestHandler = async (req, res) => {
     // Record the new hash in password history (best-effort)
     try { await addPasswordToHistory(u.id, newHash); } catch (e) { /* ignore */ }
 
+  // Check if force logout on password change is enabled
+  const { shouldForceLogout, clearAuthCookie } = await import('../lib/sessionManager.js');
+  const forceLogout = await shouldForceLogout();
+  
+  if (forceLogout) {
+    // Clear all cookies to force re-authentication
+    clearAuthCookie(res);
+  }
+
   await audit(req as AuthedRequest, "USER_PASSWORD_CHANGE", `user:${u.id}`);
-  res.json({ ok: true, message: 'Password changed successfully' });
+  res.json({ ok: true, message: 'Password changed successfully', forceLogout });
 };
 router.post("/password/change", sensitive as unknown as RequestHandler, changePassword as unknown as RequestHandler);
-
-async function getMinPasswordLength(): Promise<number> {
-  const s = await prisma.systemSetting.findUnique({ where: { id: 1 } });
-  return s?.minPasswordLength ?? 10;
-}
 
 /** 2FA: TOTP Setup — step 1: create secret + otpauth URL + QR */
 const setupTotp: RequestHandler = async (req, res) => {

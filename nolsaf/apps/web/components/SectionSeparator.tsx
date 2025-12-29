@@ -12,7 +12,7 @@ type Props = {
 export default function SectionSeparator({ label, className = "", variant = 'line', pillLabel }: Props) {
   return (
     <div className={`w-full ${className}`}>
-      <div className="max-w-6xl mx-auto px-4">
+      <div className="public-container">
         {variant === 'pill' ? (
           <div className="flex items-center justify-center" role="separator" aria-hidden={label ? "false" : "true"}>
             <div className="flex-1 h-px bg-gradient-to-r from-transparent via-sky-300 to-transparent" />
