@@ -3,8 +3,27 @@ import { Router } from "express";
 import { prisma } from "@nolsaf/prisma";
 import { sendSms } from "../lib/sms.js";
 import crypto from "crypto";
+import rateLimit from "express-rate-limit";
+import { z } from "zod";
 
 const router = Router();
+
+// Rate limiting for payment initiation (5 requests per 15 minutes)
+const paymentLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // 5 requests per window
+  message: "Too many payment requests, please try again later",
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Validation schema for payment initiation
+const initiatePaymentSchema = z.object({
+  invoiceId: z.number().int().positive(),
+  phoneNumber: z.string().min(10).max(20),
+  provider: z.enum(["Airtel", "Tigo", "M-Pesa", "Halopesa"]).optional(),
+  idempotencyKey: z.string().optional(),
+});
 
 // AzamPay configuration
 const AZAMPAY_API_URL = process.env.AZAMPAY_API_URL || "https://api.azampay.co.tz";
@@ -36,15 +55,27 @@ function generateAzamPaySignature(data: string, secret: string): string {
 /**
  * POST /api/payments/azampay/initiate
  * Initiates AzamPay payment with idempotency protection
- * Body: { invoiceId: number, idempotencyKey?: string, phoneNumber?: string }
+ * Body: { invoiceId: number, idempotencyKey?: string, phoneNumber: string, provider?: string }
+ * 
+ * Security:
+ * - Rate limiting (5 requests per 15 minutes)
+ * - Input validation
+ * - Invoice validation
+ * - Server-side amount verification
+ * - Idempotency protection
  */
-router.post("/initiate", async (req, res) => {
+router.post("/initiate", paymentLimiter, async (req, res) => {
   try {
-    const { invoiceId, idempotencyKey, phoneNumber, provider } = req.body || {};
-    
-    if (!invoiceId) {
-      return res.status(400).json({ error: "invoiceId is required" });
+    // Validate request body
+    const validationResult = initiatePaymentSchema.safeParse(req.body);
+    if (!validationResult.success) {
+      return res.status(400).json({
+        error: "Invalid request data",
+        details: validationResult.error.errors,
+      });
     }
+
+    const { invoiceId, idempotencyKey, phoneNumber, provider } = validationResult.data;
 
     // Validate provider
     const validProviders = ["Airtel", "Tigo", "M-Pesa", "Halopesa"];
@@ -67,7 +98,20 @@ router.post("/initiate", async (req, res) => {
     // Fetch invoice
     const invoice = await prisma.invoice.findUnique({
       where: { id: Number(invoiceId) },
-      include: { booking: { include: { property: true, user: true } } },
+      include: { 
+        booking: { 
+          include: { 
+            property: {
+              select: {
+                id: true,
+                title: true,
+                currency: true,
+              },
+            },
+            user: true 
+          } 
+        } 
+      },
     });
 
     if (!invoice) {
@@ -124,7 +168,7 @@ router.post("/initiate", async (req, res) => {
 
     // Prepare AzamPay payment request
     const amount = Number(invoice.netPayable || invoice.total || 0);
-    const currency = invoice.currency || "TZS";
+    const currency = invoice.booking?.property?.currency || "TZS";
     
     const paymentData = {
       accountNumber: normalizedPhone,
@@ -226,7 +270,19 @@ router.get("/status/:paymentRef", async (req, res) => {
     // Find invoice by paymentRef
     const invoice = await prisma.invoice.findFirst({
       where: { paymentRef },
-      include: { booking: { include: { user: true } } },
+      include: { 
+        booking: { 
+          include: { 
+            user: true,
+            property: {
+              select: {
+                id: true,
+                currency: true,
+              },
+            },
+          } 
+        } 
+      },
     });
 
     if (!invoice) {
@@ -249,7 +305,7 @@ router.get("/status/:paymentRef", async (req, res) => {
       paymentRef,
       paymentStatus: paymentEvent?.status || "UNKNOWN",
       amount: invoice.netPayable || invoice.total,
-      currency: invoice.currency || "TZS",
+      currency: invoice.booking?.property?.currency || "TZS",
       lastEvent: paymentEvent ? {
         status: paymentEvent.status,
         amount: paymentEvent.amount,

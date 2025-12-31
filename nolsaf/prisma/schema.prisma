@@ -97,6 +97,9 @@ model User {
   // Passkeys for passwordless authentication
   passkeys Passkey[]
 
+  // Saved properties (favorites)
+  savedProperties SavedProperty[]
+
   // Audit logs where this user is the actor
   auditLogs AuditLog[]
 
@@ -123,6 +126,10 @@ model User {
 
   // Admin audits performed by this user (if admin)
   adminAudits AdminAudit[] @relation("AdminAudits")
+  // Group booking audits performed by this admin
+  groupBookingAudits GroupBookingAudit[] @relation("GroupBookingAudits")
+  // Group booking messages sent by this user/admin
+  groupBookingMessages GroupBookingMessage[] @relation("GroupBookingMessages")
 
   // User sessions
   sessions Session[] @relation("UserSessions")
@@ -232,6 +239,7 @@ model Property {
   transportBookings TransportBooking[]
   images            PropertyImage[]
   reviews           PropertyReview[]
+  savedBy           SavedProperty[]
 
   @@index([ownerId])
   @@index([status])
@@ -615,6 +623,12 @@ model GroupBooking {
   accommodationType String
   /// Total number of people in the group
   headcount         Int
+  /// Number of males in the group (for accommodation planning)
+  maleCount         Int?
+  /// Number of females in the group (for accommodation planning)
+  femaleCount       Int?
+  /// Number of other/prefer not to say in the group (for accommodation planning)
+  otherCount        Int?
   /// Number of persons per room (1-4)
   roomSize          Int
   /// Calculated number of rooms needed based on headcount and room size
@@ -656,6 +670,14 @@ model GroupBooking {
   /// Stored as JSON for flexibility; separate table available for structured queries
   roster Json?
 
+  // ==================== Property Recommendations ====================
+  /// JSON array of recommended property IDs (admin can attach 1-2 properties)
+  recommendedPropertyIds Json? // Array of property IDs: [1, 2]
+  /// Property ID that user confirmed (after viewing recommendations)
+  confirmedPropertyId    Int?
+  /// Timestamp when user confirmed a property
+  propertyConfirmedAt   DateTime?
+
   // ==================== Status & Financial ====================
   /// Booking status: PENDING, CONFIRMED, PROCESSING, CANCELED, COMPLETED
   status      String   @default("PENDING")
@@ -685,6 +707,10 @@ model GroupBooking {
   user       User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
   /// Individual passenger records (alternative to JSON roster)
   passengers GroupBookingPassenger[]
+  /// Audit logs for this booking
+  auditLogs  GroupBookingAudit[]
+  /// Messages in the conversation
+  messages   GroupBookingMessage[]
 
   // ==================== Indexes ====================
   @@index([userId])
@@ -694,6 +720,62 @@ model GroupBooking {
   @@index([checkIn, checkOut])
   @@index([createdAt])
   @@map("group_bookings")
+}
+
+// =========================================================
+//  GROUP BOOKING AUDIT MODEL - Track admin actions
+// =========================================================
+model GroupBookingAudit {
+  id            Int      @id @default(autoincrement())
+  groupBookingId Int
+  adminId       Int      // Admin who performed the action
+  action        String   @db.VarChar(100) // e.g., STATUS_CHANGED, MESSAGE_SENT, PROPERTY_RECOMMENDED, SUGGESTIONS_PROVIDED
+  description   String?  @db.Text // Human-readable description
+  metadata      Json?    // Additional data (old status, new status, message content, etc.)
+  createdAt     DateTime @default(now())
+
+  // Relations
+  groupBooking  GroupBooking @relation(fields: [groupBookingId], references: [id], onDelete: Cascade)
+  admin         User          @relation("GroupBookingAudits", fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([groupBookingId])
+  @@index([adminId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("GroupBookingAudit")
+}
+
+// =========================================================
+//  GROUP BOOKING MESSAGE MODEL - Conversation messages
+// =========================================================
+model GroupBookingMessage {
+  id            Int      @id @default(autoincrement())
+  groupBookingId Int
+  
+  /// Sender information
+  senderId   Int?  // User ID if sender is authenticated (admin or customer)
+  senderRole String @db.VarChar(20) // ADMIN, USER, SYSTEM
+  senderName String? @db.VarChar(200) // Name for display (if not authenticated)
+  
+  /// Message content
+  messageType String? @db.VarChar(50) // "Ask for Feedback", "Admin Response", etc.
+  body        String  @db.Text // Message content (sanitized)
+  
+  /// Metadata
+  isInternal Boolean @default(false) // Internal notes not shown to customers
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  // Relations
+  groupBooking GroupBooking @relation(fields: [groupBookingId], references: [id], onDelete: Cascade)
+  sender       User?        @relation("GroupBookingMessages", fields: [senderId], references: [id], onDelete: SetNull)
+  
+  @@index([groupBookingId])
+  @@index([senderId])
+  @@index([senderRole])
+  @@index([createdAt])
+  @@index([groupBookingId, createdAt])
+  @@map("group_booking_messages")
 }
 
 /// Individual passenger record for group bookings
@@ -1872,4 +1954,30 @@ model ChatbotMessage {
   @@index([createdAt])
   @@index([conversationId, createdAt])
   @@map("chatbot_messages")
+}
+
+// =========================================================
+//  SAVED PROPERTY MODEL - For users to save/favorite properties
+// =========================================================
+model SavedProperty {
+  id        Int      @id @default(autoincrement())
+  userId    Int      // User who saved the property
+  propertyId Int     // Property that was saved
+  savedAt   DateTime @default(now()) // When the property was saved
+  sharedAt  DateTime? // When the property was shared (optional)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  // Ensure a user can only save a property once
+  @@unique([userId, propertyId])
+  @@index([userId])
+  @@index([propertyId])
+  @@index([savedAt])
+  @@index([sharedAt])
+  @@map("SavedProperty")
 }

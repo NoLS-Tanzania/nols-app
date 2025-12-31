@@ -515,15 +515,20 @@ export default function FloatingChatWidget({ hiddenRoutes = [], position = "bott
 
     try {
       // Send sessionId to save messages to database
+      // Only include sessionId if it's not null (Zod validation expects string or undefined)
+      const requestBody: { message: string; language: SupportedLanguage; sessionId?: string } = {
+        message: userInput,
+        language,
+      };
+      if (sessionId) {
+        requestBody.sessionId = sessionId;
+      }
+
       const response = await fetch(`${API_BASE_URL}/api/chatbot/message`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({
-          message: userInput,
-          language,
-          sessionId, // Send sessionId to persist messages in database
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       const data = await response.json();

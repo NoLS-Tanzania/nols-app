@@ -89,7 +89,7 @@ export async function getMaxLoginAttempts(): Promise<number> {
  */
 export async function getAccountLockoutDurationMinutes(): Promise<number> {
   const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
-  return settings?.accountLockoutDurationMinutes ?? 30;
+  return settings?.accountLockoutDurationMinutes ?? 5; // Default: 5 minutes (was 30)
 }
 
 /**

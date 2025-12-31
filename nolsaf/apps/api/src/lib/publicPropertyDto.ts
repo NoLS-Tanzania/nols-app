@@ -104,14 +104,14 @@ export function pickImages(opts: {
   if (Array.isArray(images) && images.length) {
     const urls = images
       .map((i) => safeString(i.thumbnailUrl) || safeString(i.url))
-      .filter((u): u is string => Boolean(u) && isRenderablePublicImageUrl(u));
+      .filter((u): u is string => typeof u === "string" && isRenderablePublicImageUrl(u)) as string[];
     out.push(...urls);
   }
 
   if (Array.isArray(photos) && photos.length) {
     const urls = photos
       .map((p: any) => safeString(p))
-      .filter((u: any) => typeof u === "string" && isRenderablePublicImageUrl(u));
+      .filter((u): u is string => typeof u === "string" && isRenderablePublicImageUrl(u));
     out.push(...urls);
   }
 

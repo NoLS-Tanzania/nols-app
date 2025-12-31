@@ -8,6 +8,8 @@ import { sendSms } from '../lib/sms.js';
 import { addPasswordToHistory } from '../lib/security.js';
 import { validatePasswordWithSettings } from '../lib/securitySettings.js';
 import { signUserJwt, setAuthCookie, clearAuthCookie } from '../lib/sessionManager.js';
+import { limitOtpSend, limitOtpVerify, limitLoginAttempts } from '../middleware/rateLimit.js';
+import { isEmailLocked, recordFailedAttempt, clearFailedAttempts, getRemainingAttempts, getLockoutStatus } from '../lib/loginAttemptTracker.js';
 
 const router = Router();
 
@@ -26,7 +28,8 @@ function generateOtp() {
 }
 
 // POST /api/auth/send-otp
-router.post('/send-otp', (req, res) => {
+// Rate limited: 3 requests per phone number per 15 minutes
+router.post('/send-otp', limitOtpSend, (req, res) => {
   const { phone, role } = req.body || {};
   if (!phone) return res.status(400).json({ message: 'phone required' });
 
@@ -44,13 +47,16 @@ router.post('/send-otp', (req, res) => {
 });
 
 // POST /api/auth/verify-otp
-router.post('/verify-otp', async (req, res) => {
+// Rate limited: 10 verification attempts per phone number per 15 minutes
+router.post('/verify-otp', limitOtpVerify, async (req, res) => {
   const { phone, otp, role } = req.body || {};
   if (!phone || !otp) return res.status(400).json({ message: 'phone and otp required' });
 
   // Development master OTP override — accepts this code regardless of stored value.
-  const MASTER_OTP = process.env.DEV_MASTER_OTP || '123456';
-  if (String(otp) === MASTER_OTP) {
+  // DISABLED in production for security
+  const isProduction = process.env.NODE_ENV === 'production';
+  const MASTER_OTP = isProduction ? null : (process.env.DEV_MASTER_OTP || '123456');
+  if (!isProduction && MASTER_OTP && String(otp) === MASTER_OTP) {
     // allow even if there's no stored OTP (dev convenience)
     const entry = otpStore[phone] || { role };
     delete otpStore[phone];
@@ -169,7 +175,8 @@ router.post('/login', (req, res) => {
 
 // POST /api/auth/login-password
 // Body: { email, password }
-router.post("/login-password", async (req, res) => {
+// Rate limited: 10 login attempts per IP per 15 minutes
+router.post("/login-password", limitLoginAttempts, async (req, res) => {
   try {
     // Ensure we always return JSON, even on errors
     res.setHeader('Content-Type', 'application/json');
@@ -179,13 +186,57 @@ router.post("/login-password", async (req, res) => {
       return res.status(400).json({ error: "email and password required" });
     }
     
-    const user = await prisma.user.findFirst({
+    // Check if account is locked
+    const lockoutStatus = await isEmailLocked(String(email));
+    if (lockoutStatus.locked) {
+      const timeRemaining = Math.ceil((lockoutStatus.lockedUntil! - Date.now()) / 1000 / 60); // minutes
+      return res.status(423).json({ 
+        error: "Account temporarily locked due to too many failed login attempts.",
+        message: `Please try again in ${timeRemaining} minute${timeRemaining !== 1 ? 's' : ''}.`,
+        code: "ACCOUNT_LOCKED",
+        lockedUntil: lockoutStatus.lockedUntil
+      });
+    }
+    
+    // Get client IP for tracking
+    const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
+    
+    let user;
+    try {
+      user = await prisma.user.findFirst({
       where: { email: String(email) },
       select: { id: true, role: true, email: true, passwordHash: true },
     });
+    } catch (dbError: any) {
+      // Check if it's a database connection error
+      const isConnectionError = 
+        dbError?.code === 'P1001' || // Can't reach database server
+        dbError?.code === 'P1017' || // Server has closed the connection
+        dbError?.message?.includes("Can't reach database server") ||
+        dbError?.message?.includes("connect ECONNREFUSED") ||
+        dbError?.message?.includes("Connection refused");
+      
+      console.error("Database connection error:", dbError);
+      
+      if (isConnectionError) {
+        return res.status(503).json({ 
+          error: "Database connection unavailable. Please contact support or try again later.",
+          code: "DATABASE_UNAVAILABLE"
+        });
+      }
+      
+      // Re-throw if it's not a connection error
+      throw dbError;
+    }
     
     if (!user || !user.passwordHash) {
-      return res.status(401).json({ error: "invalid_credentials" });
+      // Record failed attempt even if user doesn't exist (prevents email enumeration)
+      await recordFailedAttempt(String(email), clientIp);
+      const remaining = await getRemainingAttempts(String(email));
+      return res.status(401).json({ 
+        error: "invalid_credentials",
+        remainingAttempts: remaining
+      });
     }
     
     // Verify password with error handling
@@ -194,12 +245,39 @@ router.post("/login-password", async (req, res) => {
       ok = await verifyPassword(String(user.passwordHash), String(password));
     } catch (verifyError: any) {
       console.error("Password verification error:", verifyError);
-      return res.status(401).json({ error: "invalid_credentials" });
+      await recordFailedAttempt(String(email), clientIp);
+      const remaining = await getRemainingAttempts(String(email));
+      return res.status(401).json({ 
+        error: "invalid_credentials",
+        remainingAttempts: remaining
+      });
     }
     
     if (!ok) {
-      return res.status(401).json({ error: "invalid_credentials" });
+      // Record failed attempt
+      await recordFailedAttempt(String(email), clientIp);
+      const remaining = await getRemainingAttempts(String(email));
+      
+      // Check if account is now locked
+      const newLockoutStatus = await isEmailLocked(String(email));
+      if (newLockoutStatus.locked) {
+        const timeRemaining = Math.ceil((newLockoutStatus.lockedUntil! - Date.now()) / 1000 / 60);
+        return res.status(423).json({ 
+          error: "Account temporarily locked due to too many failed login attempts.",
+          message: `Please try again in ${timeRemaining} minute${timeRemaining !== 1 ? 's' : ''}.`,
+          code: "ACCOUNT_LOCKED",
+          lockedUntil: newLockoutStatus.lockedUntil
+        });
+      }
+      
+      return res.status(401).json({ 
+        error: "invalid_credentials",
+        remainingAttempts: remaining
+      });
     }
+
+    // Successful login - clear failed attempts
+    await clearFailedAttempts(String(email));
 
     // Generate JWT token with error handling
     let token: string;
@@ -231,6 +309,21 @@ router.post("/login-password", async (req, res) => {
     
     // Ensure JSON response header is set
     res.setHeader('Content-Type', 'application/json');
+    
+    // Check for database connection errors in the outer catch as well
+    const isConnectionError = 
+      e?.code === 'P1001' ||
+      e?.code === 'P1017' ||
+      e?.message?.includes("Can't reach database server") ||
+      e?.message?.includes("connect ECONNREFUSED") ||
+      e?.message?.includes("Connection refused");
+    
+    if (isConnectionError) {
+      return res.status(503).json({ 
+        error: "Database connection unavailable. Please contact support or try again later.",
+        code: "DATABASE_UNAVAILABLE"
+      });
+    }
     
     const errorMessage = process.env.NODE_ENV === 'production' 
       ? "Login failed. Please try again." 

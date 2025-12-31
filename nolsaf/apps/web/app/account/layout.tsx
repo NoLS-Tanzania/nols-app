@@ -1,7 +1,7 @@
 "use client";
 import "@/styles/globals.css";
 import type { ReactNode } from "react";
-import SiteHeader from "@/components/SiteHeader";
+import PublicHeader from "@/components/PublicHeader";
 import PublicFooter from "@/components/PublicFooter";
 import LayoutFrame from "@/components/LayoutFrame";
 import FloatingChatWidget from "@/components/FloatingChatWidget";
@@ -9,7 +9,7 @@ import FloatingChatWidget from "@/components/FloatingChatWidget";
 export default function CustomerAccountLayout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen flex flex-col bg-neutral-50">
-      <SiteHeader role="CUSTOMER" />
+      <PublicHeader />
 
       <div className="flex-1 w-full overflow-x-hidden">
         <div className="public-container relative">

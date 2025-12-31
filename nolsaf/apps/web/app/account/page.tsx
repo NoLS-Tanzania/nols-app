@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
 import axios from "axios";
-import { User, Mail, Phone, CalendarDays, Car, Users, ArrowRight, ClipboardList, Shield, Settings, CheckCircle, AlertCircle, Share2, Copy, Check, Upload, Save } from "lucide-react";
+import { User, Mail, Phone, CalendarDays, Car, Users, ArrowRight, ClipboardList, Shield, CheckCircle, AlertCircle, Share2, Copy, Check, Upload, Save, MessageCircle, Heart } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 
@@ -38,11 +38,12 @@ export default function AccountIndex() {
   const [success, setSuccess] = useState<string | null>(null);
   const [referralLink, setReferralLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [stats, setStats] = useState<{ bookings: number; rides: number; groupStays: number; eventPlans: number }>({
+  const [stats, setStats] = useState<{ bookings: number; rides: number; groupStays: number; eventPlans: number; savedProperties: number }>({
     bookings: 0,
     rides: 0,
     groupStays: 0,
     eventPlans: 0,
+    savedProperties: 0,
   });
   const avatarFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -119,6 +120,12 @@ export default function AccountIndex() {
       try {
         const eventPlansRes = await api.get("/api/customer/plan-requests?page=1&pageSize=1");
         setStats((prev) => ({ ...prev, eventPlans: eventPlansRes.data?.total || 0 }));
+      } catch {}
+
+      // Fetch saved properties count
+      try {
+        const savedRes = await api.get("/api/customer/saved-properties?page=1&pageSize=1");
+        setStats((prev) => ({ ...prev, savedProperties: savedRes.data?.total || 0 }));
       } catch {}
     } catch (err) {
       // Stats are optional, don't fail the page
@@ -222,15 +229,15 @@ export default function AccountIndex() {
     }
   };
 
-  const handleEmail = () => {
+  const handleWhatsApp = () => {
     if (!referralLink) {
       setError('No referral link available');
       setTimeout(() => setError(null), 3000);
       return;
     }
-    const subject = encodeURIComponent('Join me on NoLSAF!');
-    const body = encodeURIComponent(`Join me on NoLSAF! Use my referral link: ${referralLink}`);
-    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+    const message = encodeURIComponent(`Join me on NoLSAF! Use my referral link: ${referralLink}`);
+    // Open WhatsApp with the referral link message
+    window.open(`https://wa.me/?text=${message}`, '_blank');
   };
 
   if (loading) {
@@ -349,7 +356,7 @@ export default function AccountIndex() {
       )}
 
       {/* TOP SECTION: Quick Stats - Overview at a glance */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         <Link
           href="/account/bookings"
           className="group no-underline rounded-2xl border border-[#02665e]/20 bg-gradient-to-br from-[#02665e]/5 to-[#014d47]/5 p-5 shadow-sm transition-all duration-300 hover:shadow-md hover:-translate-y-[2px] hover:border-[#02665e]/30 hover:from-[#02665e]/10 hover:to-[#014d47]/10 active:scale-[0.99] relative overflow-hidden"
@@ -412,6 +419,23 @@ export default function AccountIndex() {
               <div className="min-w-0 flex-1">
                 <div className="text-2xl font-extrabold text-slate-900 leading-none">{stats.eventPlans || 0}</div>
                 <div className="mt-1.5 text-sm font-medium text-slate-600">Event Plans</div>
+              </div>
+            </div>
+            <ArrowRight className="h-5 w-5 text-slate-300 group-hover:text-[#02665e] group-hover:translate-x-1 transition-all duration-200 flex-shrink-0" />
+          </div>
+        </Link>
+
+        <Link
+          href="/account/saved"
+          className="group no-underline rounded-2xl border border-[#02665e]/20 bg-gradient-to-br from-[#02665e]/5 to-[#014d47]/5 p-5 shadow-sm transition-all duration-300 hover:shadow-md hover:-translate-y-[2px] hover:border-[#02665e]/30 hover:from-[#02665e]/10 hover:to-[#014d47]/10 active:scale-[0.99] relative overflow-hidden"
+        >
+          <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-rose-500 to-rose-600 transition-all duration-300 group-hover:h-1.5"></div>
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3 flex-1">
+              <Heart className="h-6 w-6 text-[#02665e] flex-shrink-0 transition-transform duration-200 group-hover:scale-110" strokeWidth={2} fill={stats.savedProperties > 0 ? "currentColor" : "none"} />
+              <div className="min-w-0 flex-1">
+                <div className="text-2xl font-extrabold text-slate-900 leading-none">{stats.savedProperties || 0}</div>
+                <div className="mt-1.5 text-sm font-medium text-slate-600">Saved Properties</div>
               </div>
             </div>
             <ArrowRight className="h-5 w-5 text-slate-300 group-hover:text-[#02665e] group-hover:translate-x-1 transition-all duration-200 flex-shrink-0" />
@@ -521,11 +545,11 @@ export default function AccountIndex() {
                     )}
                   </button>
                   <button
-                    onClick={handleEmail}
+                    onClick={handleWhatsApp}
                     className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 border-slate-300 bg-white text-slate-700 font-medium text-sm hover:bg-slate-50 hover:border-[#02665e] hover:text-[#02665e] active:scale-[0.98] transition-all duration-200 flex-1"
                   >
-                    <Mail className="h-4 w-4" />
-                    <span>Email</span>
+                    <MessageCircle className="h-4 w-4" />
+                    <span>WhatsApp</span>
                   </button>
                 </div>
               </div>
@@ -555,12 +579,12 @@ export default function AccountIndex() {
         </div>
       </section>
 
-      {/* BOTTOM SECTION: Account Security & Quick Actions - Settings & Secondary Actions */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      {/* BOTTOM SECTION: Account Security */}
+      <div>
         {/* Account Security Card */}
         <Link
           href="/account/security"
-          className="group no-underline rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-[2px] hover:border-[#02665e]/20 active:scale-[0.99]"
+          className="group no-underline rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-[2px] hover:border-[#02665e]/20 active:scale-[0.99] block"
         >
           <div className="flex items-start gap-4">
             <div className="h-12 w-12 rounded-xl bg-[#02665e]/10 flex items-center justify-center transition-transform duration-200 group-hover:scale-110 group-hover:bg-[#02665e]/15 flex-shrink-0">
@@ -586,26 +610,6 @@ export default function AccountIndex() {
             <ArrowRight className="h-5 w-5 text-slate-300 group-hover:text-[#02665e] group-hover:translate-x-1 transition-all duration-200 flex-shrink-0" />
           </div>
         </Link>
-
-        {/* Quick Actions Card */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-start gap-4">
-            <div className="h-12 w-12 rounded-xl bg-[#02665e]/10 flex items-center justify-center flex-shrink-0">
-              <Settings className="h-6 w-6 text-[#02665e]" strokeWidth={2} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-sm font-semibold text-slate-900 mb-3">Quick Actions</div>
-              <div className="space-y-2">
-                <Link
-                  href="/account/security"
-                  className="block text-xs text-[#02665e] hover:text-[#014d47] hover:underline transition-colors"
-                >
-                  Security Settings
-                </Link>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

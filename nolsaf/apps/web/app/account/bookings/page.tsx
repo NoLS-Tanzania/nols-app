@@ -299,7 +299,7 @@ export default function MyBookingsPage() {
       {filteredBookings.length === 0 ? (
         <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center shadow-sm">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#02665e]/10 transition-transform duration-200 hover:scale-[1.03]">
-            <Calendar className="h-7 w-7 text-[#02665e]" />
+            <Download className="h-7 w-7 text-[#02665e]" />
           </div>
           <div className="mt-4 text-lg font-bold text-slate-900">No bookings found</div>
           <div className="mt-1 text-sm text-slate-600">
@@ -423,19 +423,6 @@ export default function MyBookingsPage() {
         </div>
       )}
 
-      {/* Preview (so you can see how cards will look) */}
-      {bookings.length === 0 && (
-        <div className="pt-2">
-          <div className="text-center text-sm font-semibold text-slate-700">Preview</div>
-          <div className="mt-1 text-center text-xs text-slate-500">
-            Examples of how valid (active) and expired bookings will appear.
-          </div>
-          <div className="mt-4 space-y-4">
-            <BookingCardSkeleton variant="active" />
-            <BookingCardSkeleton variant="expired" />
-          </div>
-        </div>
-      )}
     </div>
   );
 }

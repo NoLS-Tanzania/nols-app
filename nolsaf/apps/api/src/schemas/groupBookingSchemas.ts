@@ -104,6 +104,9 @@ export const CreateGroupBookingInput = z.object({
   // ==================== Accommodation ====================
   accommodationType: z.string().min(1, "Accommodation type is required").max(50),
   headcount: z.number().int().min(1, "Headcount must be at least 1").max(1000, "Headcount cannot exceed 1000"),
+  maleCount: z.number().int().min(0).max(1000).optional().nullable(),
+  femaleCount: z.number().int().min(0).max(1000).optional().nullable(),
+  otherCount: z.number().int().min(0).max(1000).optional().nullable(),
   roomSize: z.number().int().min(1, "Room size must be at least 1").max(10, "Room size cannot exceed 10"),
   roomsNeeded: z.number().int().min(1, "At least one room is required"),
   needsPrivateRoom: z.boolean().default(false),
@@ -161,6 +164,20 @@ export const CreateGroupBookingInput = z.object({
     {
       message: "Check-in date cannot be in the past",
       path: ["checkin"],
+    }
+  )
+  // Custom refinement: validate gender breakdown sums to headcount
+  .refine(
+    (data) => {
+      if (data.maleCount !== undefined || data.femaleCount !== undefined || data.otherCount !== undefined) {
+        const genderSum = (data.maleCount || 0) + (data.femaleCount || 0) + (data.otherCount || 0);
+        return genderSum === data.headcount;
+      }
+      return true;
+    },
+    {
+      message: "Gender breakdown (male + female + other) must equal total headcount",
+      path: ["headcount"],
     }
   );
 

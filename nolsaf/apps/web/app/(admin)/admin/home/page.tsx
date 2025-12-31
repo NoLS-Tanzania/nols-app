@@ -304,7 +304,7 @@ export default function AdminHomePage() {
           `}</style>
         </header>
 
-        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8 lg:mb-12">
+        <section className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8 lg:mb-12">
           <Link href="/admin/owners" className="block p-5 pl-6 relative rounded-lg hover:shadow-md bg-white transition no-underline">
             <span className="absolute left-0 top-0 bottom-0 w-1 rounded-l-md bg-emerald-400" aria-hidden />
             <span className="absolute left-0 right-0 top-0 h-1 rounded-t-md bg-emerald-400" aria-hidden />

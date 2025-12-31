@@ -5,10 +5,20 @@ export async function audit(req: Request, action: string, resource?: string, bef
   const actorId = (req as any).user?.id as number | undefined;
   const actorRole = (req as any).user?.role as string | undefined;
   const ip = req.headers["x-forwarded-for"]?.toString()?.split(",")[0]?.trim() || req.socket.remoteAddress || "";
-  const userAgent = req.headers["user-agent"] || "";
+  const ua = req.headers["user-agent"] || "";
   try {
     await prisma.auditLog.create({
-      data: { actorId, actorRole, action, resource, ip, userAgent, beforeJson, afterJson },
+      data: { 
+        actorId: actorId ?? null, 
+        actorRole: actorRole ?? null, 
+        action, 
+        entity: resource || "SYSTEM",
+        entityId: null,
+        ip: ip || null, 
+        ua: ua || null, 
+        beforeJson: beforeJson ?? null, 
+        afterJson: afterJson ?? null 
+      },
     });
   } catch {
     // swallow

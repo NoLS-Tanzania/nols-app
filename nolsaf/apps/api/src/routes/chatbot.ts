@@ -20,12 +20,12 @@ const messageSchema = z.object({
     .max(5000, "Message is too long (maximum 5000 characters)")
     .refine((msg) => msg.trim().length > 0, "Message cannot be only whitespace"),
   language: z.enum(["en", "es", "fr", "pt", "ar", "zh"]).optional().default("en"),
-  sessionId: z.string().max(100).optional(),
+  sessionId: z.string().max(100).nullish(), // Accepts string, null, or undefined
 });
 
 const setLanguageSchema = z.object({
   language: z.enum(["en", "es", "fr", "pt", "ar", "zh"]),
-  sessionId: z.string().max(100).optional(),
+  sessionId: z.string().max(100).nullish(), // Accepts string, null, or undefined
 });
 
 const sessionIdSchema = z.object({
@@ -135,8 +135,8 @@ router.post("/message", limitChatbotMessages, async (req: Request, res: Response
     const authedReq = req as AuthedRequest;
     const userId = authedReq.user?.id || null;
 
-    // Get or generate session ID
-    const sessionId = providedSessionId || getSessionId(req);
+    // Get or generate session ID (handle null/undefined from validation)
+    const sessionId = (providedSessionId && providedSessionId !== null) ? providedSessionId : getSessionId(req);
 
     // Get or create conversation
     const conversation = await getOrCreateConversation(sessionId, userId, lang);
@@ -192,6 +192,7 @@ router.post("/message", limitChatbotMessages, async (req: Request, res: Response
         maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
         httpOnly: true,
         sameSite: "lax",
+        secure: process.env.NODE_ENV === "production", // Secure flag in production
       });
     }
 

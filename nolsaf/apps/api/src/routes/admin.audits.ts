@@ -1,11 +1,116 @@
-import { Router } from "express";
-import type { RequestHandler } from 'express';
+// apps/api/src/routes/admin.audits.ts
+import { Router, Response } from "express";
+import type { RequestHandler } from "express";
+import { z } from "zod";
 import { prisma } from "@nolsaf/prisma";
-import { requireAuth, requireRole } from "../middleware/auth.js";
+import { AuthedRequest, requireAuth, requireRole } from "../middleware/auth.js";
+import { audit } from "../lib/audit.js";
+import { sanitizeText } from "../lib/sanitize.js";
+import rateLimit from "express-rate-limit";
 import { Prisma } from "@prisma/client";
-// lightweight CSV serializer (avoid adding dependency)
-function toCsv(rows: Array<Record<string, any>>, fields: string[]) {
-  const esc = (v: any) => {
+
+// ============================================================
+// Constants
+// ============================================================
+const DEFAULT_PAGE_SIZE = 50;
+const MAX_PAGE_SIZE = 200;
+const DEFAULT_MAX_RECORDS = 1000;
+const MAX_RECORDS_LIMIT = 5000; // Hard limit to prevent memory issues
+const CSV_FIELDS = ["id", "adminId", "targetUserId", "action", "details", "createdAt"] as const;
+
+// ============================================================
+// TypeScript Interfaces
+// ============================================================
+interface AuditLogResponse {
+  id: number;
+  adminId: number;
+  targetUserId: number | null;
+  action: string;
+  details: any;
+  createdAt: Date;
+}
+
+interface PaginatedAuditResponse {
+  page: number;
+  pageSize: number;
+  total: number;
+  items: AuditLogResponse[];
+}
+
+// ============================================================
+// Rate Limiter
+// ============================================================
+const limitAuditAccess = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // 100 requests per admin per 15 minutes
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many audit log requests. Please wait before trying again." },
+  keyGenerator: (req) => {
+    const adminId = (req as AuthedRequest).user?.id;
+    return adminId ? `admin-audits:${adminId}` : req.ip || req.socket.remoteAddress || "unknown";
+  },
+});
+
+// ============================================================
+// Zod Validation Schemas
+// ============================================================
+const listAuditsQuerySchema = z.object({
+  q: z.string().min(1).max(200).optional(),
+  adminId: z.string().regex(/^\d+$/).optional().transform((val) => val ? Number(val) : undefined),
+  targetId: z.string().regex(/^\d+$/).optional().transform((val) => val ? Number(val) : undefined),
+  action: z.string().min(1).max(80).optional(),
+  from: z.string().datetime().optional().or(z.string().regex(/^\d{4}-\d{2}-\d{2}/).optional()),
+  to: z.string().datetime().optional().or(z.string().regex(/^\d{4}-\d{2}-\d{2}/).optional()),
+  format: z.enum(["csv", "json"]).optional().default("json"),
+  page: z.string().regex(/^\d+$/).optional().transform((val) => Number(val) || 1).default("1"),
+  pageSize: z.string().regex(/^\d+$/).optional().transform((val) => Number(val) || DEFAULT_PAGE_SIZE).default(String(DEFAULT_PAGE_SIZE)),
+  sortBy: z.enum(["id", "createdAt", "action", "adminId"]).optional().default("createdAt"),
+  sortDir: z.enum(["asc", "desc"]).optional().default("desc"),
+}).strict();
+
+// ============================================================
+// Helper Functions
+// ============================================================
+function sendError(res: Response, status: number, message: string, details?: any): void {
+  res.status(status).json({
+    error: message,
+    ...(details && { details }),
+  });
+}
+
+function sendSuccess<T>(res: Response, data?: T, message?: string): void {
+  res.json({
+    ok: true,
+    ...(message && { message }),
+    ...(data && { data }),
+  });
+}
+
+function getAdminId(req: AuthedRequest): number {
+  return req.user!.id;
+}
+
+/**
+ * Parse date string with validation
+ */
+function parseDate(dateString: string): Date | null {
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) {
+      return null;
+    }
+    return date;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Lightweight CSV serializer (avoid adding dependency)
+ */
+function toCsv(rows: Array<Record<string, any>>, fields: readonly string[]): string {
+  const esc = (v: any): string => {
     if (v === null || v === undefined) return "";
     const s = String(v).replace(/"/g, '""');
     if (s.includes(',') || s.includes('\n') || s.includes('"')) return `"${s}"`;
@@ -16,57 +121,235 @@ function toCsv(rows: Array<Record<string, any>>, fields: string[]) {
   return [header, ...lines].join('\n');
 }
 
+// Validation middleware helper
+function validate<T extends z.ZodTypeAny>(schema: T) {
+  return (req: any, res: Response, next: any) => {
+    const result = schema.safeParse(req.query);
+    if (!result.success) {
+      return sendError(res, 400, "Invalid request parameters", { errors: result.error.errors });
+    }
+    req.validatedQuery = result.data;
+    next();
+  };
+}
+
+// ============================================================
+// Router Setup
+// ============================================================
 const router = Router();
-router.use(requireAuth as unknown as RequestHandler, requireRole("ADMIN") as unknown as RequestHandler);
+router.use(requireAuth as unknown as RequestHandler);
+router.use(requireRole("ADMIN") as unknown as RequestHandler);
+router.use(limitAuditAccess);
 
-// GET /
-// supports ?q=search & ?adminId= & ?targetId= & ?action= & ?from= & ?to= & ?format=csv
-// mounted at /api/admin/audits
-router.get("/", async (req, res) => {
-  const { q, adminId, targetId, action, from, to, format } = req.query ?? {};
-
-  const where: any = {};
-  if (adminId) where.adminId = Number(adminId);
-  if (targetId) where.targetUserId = Number(targetId);
-  if (action) where.action = String(action);
-  if (from || to) where.createdAt = {};
-  if (from) where.createdAt.gte = new Date(String(from));
-  if (to) where.createdAt.lte = new Date(String(to));
-  if (q) {
-    // simple search over action and details
-    where.OR = [
-      { action: { contains: String(q), mode: "insensitive" } },
-      { details: { contains: String(q), mode: "insensitive" } },
-    ];
-  }
-
+// ============================================================
+// GET /api/admin/audits
+// ============================================================
+router.get("/", validate(listAuditsQuerySchema), async (req: any, res) => {
   try {
-    const items = await prisma.adminAudit.findMany({ where, orderBy: { createdAt: "desc" }, take: 1000 });
+    const {
+      q,
+      adminId,
+      targetId,
+      action,
+      from,
+      to,
+      format,
+      page,
+      pageSize,
+      sortBy,
+      sortDir,
+    } = req.validatedQuery;
 
-    if (String(format).toLowerCase() === "csv") {
-      const fields = ["id", "adminId", "targetUserId", "action", "details", "createdAt"];
-      const rows = items.map((i: any) => ({ id: i.id, adminId: i.adminId, targetUserId: i.targetUserId, action: i.action, details: JSON.stringify(i.details), createdAt: i.createdAt }));
-      const csv = toCsv(rows, fields);
-      res.setHeader("Content-Type", "text/csv");
+    const adminIdForAudit = getAdminId(req as AuthedRequest);
+
+    // Validate and parse dates
+    let fromDate: Date | null = null;
+    let toDate: Date | null = null;
+    
+    if (from) {
+      fromDate = parseDate(from);
+      if (!fromDate) {
+        return sendError(res, 400, "Invalid 'from' date format. Use ISO 8601 format (YYYY-MM-DD or full datetime)");
+      }
+    }
+    
+    if (to) {
+      toDate = parseDate(to);
+      if (!toDate) {
+        return sendError(res, 400, "Invalid 'to' date format. Use ISO 8601 format (YYYY-MM-DD or full datetime)");
+      }
+    }
+
+    // Validate date range
+    if (fromDate && toDate && fromDate > toDate) {
+      return sendError(res, 400, "'from' date must be before 'to' date");
+    }
+
+    // Build where clause with proper Prisma types
+    const where: Prisma.AdminAuditWhereInput = {};
+
+    if (adminId) {
+      where.adminId = adminId;
+    }
+
+    if (targetId) {
+      where.targetUserId = targetId;
+    }
+
+    if (action) {
+      const sanitizedAction = sanitizeText(action);
+      where.action = { contains: sanitizedAction };
+    }
+
+    if (fromDate || toDate) {
+      where.createdAt = {};
+      if (fromDate) {
+        where.createdAt.gte = fromDate;
+      }
+      if (toDate) {
+        where.createdAt.lte = toDate;
+      }
+    }
+
+    // Search functionality - MySQL compatible
+    if (q) {
+      const sanitizedQ = sanitizeText(q);
+      // For action field, use contains (MySQL supports this)
+      // For JSON details field, we'll need to filter in memory or use raw query
+      where.OR = [
+        { action: { contains: sanitizedQ } },
+        // JSON search will be done in memory after fetch for MySQL compatibility
+      ];
+    }
+
+    // Build orderBy
+    const orderBy: Prisma.AdminAuditOrderByWithRelationInput = {};
+    if (sortBy === "id") {
+      orderBy.id = sortDir;
+    } else if (sortBy === "createdAt") {
+      orderBy.createdAt = sortDir;
+    } else if (sortBy === "action") {
+      orderBy.action = sortDir;
+    } else if (sortBy === "adminId") {
+      orderBy.adminId = sortDir;
+    } else {
+      orderBy.createdAt = "desc"; // Default
+    }
+
+    // Calculate pagination
+    const pageNum = Math.max(1, page);
+    const pageSizeNum = Math.min(Math.max(1, pageSize), MAX_PAGE_SIZE);
+    const skip = (pageNum - 1) * pageSizeNum;
+    const take = pageSizeNum;
+
+    // For CSV export, use larger limit but cap it
+    const effectiveTake = format === "csv" 
+      ? Math.min(DEFAULT_MAX_RECORDS, MAX_RECORDS_LIMIT)
+      : take;
+
+    // Fetch total count and items
+    const [total, items] = await Promise.all([
+      prisma.adminAudit.count({ where }),
+      prisma.adminAudit.findMany({
+        where,
+        orderBy,
+        skip: format === "csv" ? 0 : skip,
+        take: effectiveTake,
+      }),
+    ]);
+
+    // Filter by JSON search in memory if needed (MySQL JSON search limitation)
+    let filteredItems = items;
+    if (q) {
+      const searchTerm = sanitizeText(q).toLowerCase();
+      filteredItems = items.filter((item) => {
+        // Search in action (already filtered in query)
+        if (item.action.toLowerCase().includes(searchTerm)) {
+          return true;
+        }
+        // Search in JSON details (in memory)
+        if (item.details) {
+          try {
+            const detailsString = JSON.stringify(item.details).toLowerCase();
+            return detailsString.includes(searchTerm);
+          } catch {
+            // If JSON parsing fails, skip this item
+            return false;
+          }
+        }
+        return false;
+      });
+    }
+
+    // Adjust total for CSV (if filtered in memory)
+    const effectiveTotal = format === "csv" && q 
+      ? filteredItems.length 
+      : total;
+
+    // Audit log access
+    await audit(req as AuthedRequest, "AUDIT_LOG_ACCESSED", "audits", null, {
+      filters: { adminId, targetId, action, from, to, q: q ? "***" : undefined },
+      format,
+      page: pageNum,
+      pageSize: pageSizeNum,
+    });
+
+    // Handle CSV export
+    if (format === "csv") {
+      const rows = filteredItems.map((item) => ({
+        id: item.id,
+        adminId: item.adminId,
+        targetUserId: item.targetUserId,
+        action: item.action,
+        details: item.details ? JSON.stringify(item.details) : "",
+        createdAt: item.createdAt.toISOString(),
+      }));
+      const csv = toCsv(rows, CSV_FIELDS);
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
       res.setHeader("Content-Disposition", `attachment; filename="audits-${Date.now()}.csv"`);
       return res.send(csv);
     }
 
-    return res.json(items);
+    // Return paginated JSON response
+    const response: PaginatedAuditResponse = {
+      page: pageNum,
+      pageSize: pageSizeNum,
+      total: effectiveTotal,
+      items: filteredItems.map((item) => ({
+        id: item.id,
+        adminId: item.adminId,
+        targetUserId: item.targetUserId,
+        action: item.action,
+        details: item.details,
+        createdAt: item.createdAt,
+      })),
+    };
+
+    sendSuccess(res, response);
   } catch (err: any) {
-    // If DB is out-of-sync, return safe empty response so UI can continue to function in dev
+    // Handle Prisma schema mismatch errors gracefully
     if (err instanceof Prisma.PrismaClientKnownRequestError && (err.code === 'P2021' || err.code === 'P2022')) {
-      console.warn('Prisma schema mismatch when querying adminAudit:', err.message);
-      if (String(format).toLowerCase() === "csv") {
-        const fields = ["id", "adminId", "targetUserId", "action", "details", "createdAt"];
-        res.setHeader("Content-Type", "text/csv");
+      console.warn('[GET /admin/audits] Prisma schema mismatch:', err.message);
+      const format = req.validatedQuery?.format || "json";
+      
+      if (format === "csv") {
+        res.setHeader("Content-Type", "text/csv; charset=utf-8");
         res.setHeader("Content-Disposition", `attachment; filename="audits-${Date.now()}.csv"`);
-        return res.send(fields.join(',') + '\n');
+        return res.send(CSV_FIELDS.join(',') + '\n');
       }
-      return res.json([]);
+      
+      return sendSuccess(res, {
+        page: 1,
+        pageSize: DEFAULT_PAGE_SIZE,
+        total: 0,
+        items: [],
+      });
     }
-    console.error('Unhandled error in GET /admin/audits:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+
+    console.error('[GET /admin/audits] Error:', err);
+    sendError(res, 500, "Failed to fetch audit logs", {
+      message: err.message || "Unknown error",
+    });
   }
 });
 

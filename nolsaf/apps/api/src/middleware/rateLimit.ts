@@ -87,3 +87,47 @@ export const limitChatbotLanguageChange = rateLimit({
   legacyHeaders: false,
   message: { error: "Too many language changes. Please wait a moment and try again." },
 });
+
+// Rate limiter for OTP sending (prevents SMS spam and cost abuse)
+export const limitOtpSend = rateLimit({
+  windowMs: 15 * 60_000, // 15 minutes
+  max: 3, // 3 OTP requests per phone number per 15 minutes
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many OTP requests. Please wait 15 minutes before requesting another code." },
+  keyGenerator: (req) => {
+    // Rate limit by phone number to prevent SMS spam
+    const phone = req.body?.phone;
+    if (phone) {
+      return `otp:${String(phone)}`;
+    }
+    // Fallback to IP if no phone provided
+    return req.ip || req.socket.remoteAddress || "unknown";
+  },
+});
+
+// Rate limiter for OTP verification attempts (prevents brute force)
+export const limitOtpVerify = rateLimit({
+  windowMs: 15 * 60_000, // 15 minutes
+  max: 10, // 10 verification attempts per phone number per 15 minutes
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many verification attempts. Please wait 15 minutes before trying again." },
+  keyGenerator: (req) => {
+    const phone = req.body?.phone;
+    if (phone) {
+      return `otp-verify:${String(phone)}`;
+    }
+    return req.ip || req.socket.remoteAddress || "unknown";
+  },
+});
+
+// Rate limiter for login attempts (IP-based to prevent brute force)
+export const limitLoginAttempts = rateLimit({
+  windowMs: 15 * 60_000, // 15 minutes
+  max: 10, // 10 login attempts per IP per 15 minutes
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many login attempts. Please wait 15 minutes before trying again." },
+  skipSuccessfulRequests: true, // Don't count successful logins
+});

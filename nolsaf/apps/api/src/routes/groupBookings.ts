@@ -85,6 +85,9 @@ const createGroupBooking: RequestHandler = async (req, res) => {
         // Accommodation details
         accommodationType: validatedInput.accommodationType,
         headcount: validatedInput.headcount,
+        maleCount: validatedInput.maleCount ?? null,
+        femaleCount: validatedInput.femaleCount ?? null,
+        otherCount: validatedInput.otherCount ?? null,
         roomSize: validatedInput.roomSize,
         roomsNeeded: validatedInput.roomsNeeded,
         needsPrivateRoom: validatedInput.needsPrivateRoom,

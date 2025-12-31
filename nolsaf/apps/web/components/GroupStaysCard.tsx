@@ -6,7 +6,7 @@ import 'react-day-picker/dist/style.css';
 import { REGIONS as TZ_REGIONS, type Region as TZRegion, type District as TZDistrict, type Ward as TZWard } from '@/lib/tzRegions';
 import { REGIONS_FULL_DATA } from '@/lib/tzRegionsFull';
 import Link from 'next/link';
-import { Calendar, ChevronDown, ChevronLeft, ChevronRight, Check, Truck, Bus, Coffee, Users, Wrench, Download, ArrowLeft } from 'lucide-react';
+import { Calendar, ChevronDown, ChevronLeft, ChevronRight, Check, Truck, Bus, Coffee, Users, Wrench, Download, ArrowLeft, CheckCircle, ArrowRight } from 'lucide-react';
 import Spinner from './Spinner';
 
 // DateRange type is imported from react-day-picker for accurate typing
@@ -16,6 +16,9 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
   const [groupType, setGroupType] = useState<string>('');
   const [accommodationType, setAccommodationType] = useState<string>('');
   const [headcount, setHeadcount] = useState<number>(4);
+  const [maleCount, setMaleCount] = useState<number>(2);
+  const [femaleCount, setFemaleCount] = useState<number>(2);
+  const [otherCount, setOtherCount] = useState<number>(0);
   const [range, setRange] = useState<DateRange | undefined>(undefined);
   const [pendingRange, setPendingRange] = useState<DateRange | undefined>(undefined);
   const [roomSize, setRoomSize] = useState<number>(2);
@@ -60,6 +63,15 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
   const [fromWard, setFromWard] = useState<string>('');
   const [fromLocation, setFromLocation] = useState<string>('');
 
+  // Calculate headcount from gender breakdown
+  const calculatedHeadcount = maleCount + femaleCount + otherCount;
+  // Update headcount when gender breakdown changes
+  useEffect(() => {
+    if (calculatedHeadcount > 0) {
+      setHeadcount(calculatedHeadcount);
+    }
+  }, [maleCount, femaleCount, otherCount]);
+  
   const roomsNeeded = Math.max(0, Math.ceil(headcount / (roomSize || 1)));
   const [numberOfMonths, setNumberOfMonths] = useState<number>(2);
   const [showPickerPopover, setShowPickerPopover] = useState(false);
@@ -206,7 +218,7 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
 
   const validate = () => {
     const e: string[] = [];
-    if (!headcount || headcount < 1) e.push('Headcount must be at least 1.');
+    if (calculatedHeadcount < 1) e.push('Headcount must be at least 1. Please specify at least one person in the gender breakdown.');
     if (needsPrivateRoom && (!privateRoomCount || privateRoomCount < 1)) e.push('Please specify how many private rooms are needed.');
     if (range?.from && range?.to && range.from > range.to) e.push('Check-out must be after check-in.');
     setErrors(e);
@@ -230,7 +242,10 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
       toWard,
       toLocation,
       accommodationType,
-      headcount,
+      headcount: calculatedHeadcount,
+      maleCount: maleCount > 0 ? maleCount : null,
+      femaleCount: femaleCount > 0 ? femaleCount : null,
+      otherCount: otherCount > 0 ? otherCount : null,
       needsPrivateRoom,
       privateRoomCount,
       checkin: range?.from?.toISOString() ?? null,
@@ -291,12 +306,6 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
       
       // Show success message
       setShowSuccess(true);
-      
-      // Close after showing success for 2 seconds
-      setTimeout(() => {
-        setShowSuccess(false);
-        if (onClose) onClose();
-      }, 2000);
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Failed to create group booking:', error);
@@ -366,6 +375,75 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
     }
     return `${f} to ${t}`;
   };
+
+  // Show success screen if booking was created successfully
+  if (showSuccess) {
+    return (
+      <section className="mt-4" aria-labelledby="group-stays-success">
+        <div className="public-container">
+          <div className="bg-white rounded-2xl border border-slate-200 p-8 sm:p-12 shadow-sm">
+            <style dangerouslySetInnerHTML={{ __html: `
+              @keyframes fadeIn {
+                from { opacity: 0; }
+                to { opacity: 1; }
+              }
+              @keyframes scaleIn {
+                from { opacity: 0; transform: scale(0.8); }
+                to { opacity: 1; transform: scale(1); }
+              }
+              @keyframes slideUp {
+                from { opacity: 0; transform: translateY(20px); }
+                to { opacity: 1; transform: translateY(0); }
+              }
+              .success-fade-in { animation: fadeIn 0.5s ease-out; }
+              .success-scale-in { animation: scaleIn 0.6s ease-out; }
+              .success-slide-up { animation: slideUp 0.6s ease-out 0.2s both; }
+              .success-slide-up-delayed { animation: slideUp 0.6s ease-out 0.4s both; }
+              .success-fade-in-delayed { animation: fadeIn 0.5s ease-out 0.6s both; }
+            `}} />
+            <div className="max-w-2xl mx-auto text-center space-y-6">
+              {/* Animated success icon */}
+              <div className="flex justify-center">
+                <div className="h-16 w-16 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-lg success-scale-in">
+                  <CheckCircle className="h-10 w-10 text-white transition-all duration-300" strokeWidth={2.5} />
+                </div>
+              </div>
+              
+              {/* Heading and description with slide-up animation */}
+              <div className="space-y-3 success-slide-up">
+                <h2 id="group-stays-success" className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
+                  Thank you for your Group Stay booking!
+                </h2>
+                <p className="text-base sm:text-lg text-slate-600 leading-relaxed">
+                  We've received your group stay request and our team is currently reviewing it. 
+                  We'll get back to you soon with accommodation options and pricing tailored to your group's needs.
+                </p>
+              </div>
+
+              {/* Button with hover and transition effects */}
+              <div className="pt-4 success-slide-up-delayed">
+                <Link
+                  href="/account/group-stays"
+                  className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-3 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 active:scale-[0.98] no-underline group"
+                  onClick={() => {
+                    if (onClose) onClose();
+                  }}
+                >
+                  <span>View My Group Stays</span>
+                  <ArrowRight className="h-5 w-5 transition-transform duration-300 group-hover:translate-x-1" />
+                </Link>
+              </div>
+
+              {/* Footer note */}
+              <p className="text-sm text-slate-500 pt-2 success-fade-in-delayed">
+                You can track your booking status and view all your group stays in your account.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="mt-4" aria-labelledby="group-stays-heading">
@@ -597,10 +675,60 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
                       <div className="w-1.5 h-6 bg-emerald-500 rounded-sm" aria-hidden />
                       <div>
                         <div className="text-sm font-medium">Headcount</div>
-                        <div className="text-xs text-slate-500">Number of people in your group</div>
+                        <div className="text-xs text-slate-500">Number of people in your group (separated by gender)</div>
                       </div>
                     </div>
-                    <input id="headcount" name="headcount" value={headcount} onChange={(e) => setHeadcount(Math.max(1, Number(e.target.value || 0)))} type="number" min={1} aria-label="How many people are in your group" placeholder="e.g. 12" className="mt-1 w-full rounded px-2 py-1 border" />
+                    {/* Gender-based headcount breakdown */}
+                    <div className="mt-3 space-y-3">
+                      <div className="grid grid-cols-3 gap-3">
+                        <div>
+                          <label htmlFor="male-count" className="block text-xs text-slate-600 mb-1">Male</label>
+                          <input 
+                            id="male-count" 
+                            name="maleCount" 
+                            value={maleCount} 
+                            onChange={(e) => setMaleCount(Math.max(0, Number(e.target.value || 0)))} 
+                            type="number" 
+                            min={0} 
+                            aria-label="Number of males" 
+                            placeholder="0" 
+                            className="w-full rounded px-2 py-1 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200" 
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="female-count" className="block text-xs text-slate-600 mb-1">Female</label>
+                          <input 
+                            id="female-count" 
+                            name="femaleCount" 
+                            value={femaleCount} 
+                            onChange={(e) => setFemaleCount(Math.max(0, Number(e.target.value || 0)))} 
+                            type="number" 
+                            min={0} 
+                            aria-label="Number of females" 
+                            placeholder="0" 
+                            className="w-full rounded px-2 py-1 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200" 
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="other-count" className="block text-xs text-slate-600 mb-1">Other</label>
+                          <input 
+                            id="other-count" 
+                            name="otherCount" 
+                            value={otherCount} 
+                            onChange={(e) => setOtherCount(Math.max(0, Number(e.target.value || 0)))} 
+                            type="number" 
+                            min={0} 
+                            aria-label="Number of other" 
+                            placeholder="0" 
+                            className="w-full rounded px-2 py-1 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200" 
+                          />
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-200">
+                        <span className="text-xs font-medium text-slate-700">Total Headcount:</span>
+                        <span className="text-sm font-bold text-emerald-600">{calculatedHeadcount} {calculatedHeadcount === 1 ? 'person' : 'people'}</span>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="rounded border p-3 mb-4 groupstays-section border-slate-100">

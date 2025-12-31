@@ -38,7 +38,7 @@ export function middleware(req: NextRequest) {
     if (role === "ADMIN") url.pathname = "/admin";
     else if (role === "OWNER") url.pathname = "/owner";
     else if (role === "DRIVER") url.pathname = "/driver";
-    else url.pathname = "/";
+    else url.pathname = "/public";
     return NextResponse.redirect(url);
   }
 
@@ -46,7 +46,7 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/owner/:path*", "/driver/:path*"],
+  matcher: ["/admin/:path*", "/owner/:path*", "/driver/:path*", "/login"],
 };
 
 // stub — replace with real decode

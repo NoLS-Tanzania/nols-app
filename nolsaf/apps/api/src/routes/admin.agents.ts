@@ -1,19 +1,268 @@
-import { Router } from "express";
+// apps/api/src/routes/admin.agents.ts
+import { Router, Response } from "express";
 import type { RequestHandler } from "express";
+import { z } from "zod";
 import { prisma } from "@nolsaf/prisma";
 import { AuthedRequest, requireAuth, requireRole } from "../middleware/auth.js";
+import { audit } from "../lib/audit.js";
+import { sanitizeText } from "../lib/sanitize.js";
+import rateLimit from "express-rate-limit";
 import { Prisma } from "@prisma/client";
 
+// ============================================================
+// Constants
+// ============================================================
+const DEFAULT_PAGE_SIZE = 20;
+const MAX_PAGE_SIZE = 100;
+const DEFAULT_MAX_ACTIVE_REQUESTS = 10;
+const DEFAULT_AGENT_STATUS = "ACTIVE";
+const DEFAULT_AGENT_LEVEL = "BRONZE";
+const DEFAULT_PROMOTION_MIN_TRIPS = 30;
+const DEFAULT_PROMOTION_MAX_TRIPS = 50;
+const DEFAULT_PROMOTION_MIN_REVENUE = 20000000;
+const DEFAULT_COMMISSION_PERCENT = 15.0;
+const RATING_DECIMAL_PLACES = 1;
+
+// Agent Status Enum
+const AGENT_STATUS = {
+  ACTIVE: "ACTIVE",
+  INACTIVE: "INACTIVE",
+  SUSPENDED: "SUSPENDED",
+} as const;
+
+// Education Level Enum
+const EDUCATION_LEVEL = {
+  HIGH_SCHOOL: "HIGH_SCHOOL",
+  DIPLOMA: "DIPLOMA",
+  BACHELORS: "BACHELORS",
+  MASTERS: "MASTERS",
+  PHD: "PHD",
+  OTHER: "OTHER",
+} as const;
+
+// Agent Level Enum
+const AGENT_LEVEL = {
+  BRONZE: "BRONZE",
+  SILVER: "SILVER",
+  GOLD: "GOLD",
+  PLATINUM: "PLATINUM",
+} as const;
+
+// ============================================================
+// TypeScript Interfaces
+// ============================================================
+interface AgentResponse {
+  id: number;
+  userId: number;
+  status: string;
+  educationLevel: string | null;
+  areasOfOperation: string[];
+  certifications: any[];
+  languages: string[];
+  yearsOfExperience: number | null;
+  specializations: string[];
+  bio: string | null;
+  isAvailable: boolean;
+  maxActiveRequests: number;
+  currentActiveRequests: number;
+  performanceMetrics?: any;
+  level?: string;
+  totalCompletedTrips?: number;
+  totalRevenueGenerated?: number | string;
+  promotionProgress?: any;
+  createdAt: Date;
+  updatedAt: Date;
+  user: {
+    id: number;
+    name: string | null;
+    email: string | null;
+    phone: string | null;
+    createdAt?: Date;
+  };
+  assignedPlanRequests?: any[];
+  reviews?: any[];
+}
+
+interface PaginatedResponse<T> {
+  page: number;
+  pageSize: number;
+  total: number;
+  items: T[];
+}
+
+// ============================================================
+// Rate Limiters
+// ============================================================
+const limitAgentOperations = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // 100 operations per admin per 15 minutes
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests. Please wait before trying again." },
+  keyGenerator: (req) => {
+    const adminId = (req as AuthedRequest).user?.id;
+    return adminId ? `admin-agents:${adminId}` : req.ip || req.socket.remoteAddress || "unknown";
+  },
+});
+
+// ============================================================
+// Zod Validation Schemas
+// ============================================================
+const certificationSchema = z.object({
+  name: z.string().min(1).max(200),
+  issuer: z.string().min(1).max(200).optional(),
+  year: z.number().int().min(1900).max(2100).optional(),
+  expiryDate: z.string().optional(),
+}).strict();
+
+const listAgentsQuerySchema = z.object({
+  status: z.enum([AGENT_STATUS.ACTIVE, AGENT_STATUS.INACTIVE, AGENT_STATUS.SUSPENDED]).optional(),
+  educationLevel: z.enum([
+    EDUCATION_LEVEL.HIGH_SCHOOL,
+    EDUCATION_LEVEL.DIPLOMA,
+    EDUCATION_LEVEL.BACHELORS,
+    EDUCATION_LEVEL.MASTERS,
+    EDUCATION_LEVEL.PHD,
+    EDUCATION_LEVEL.OTHER,
+  ]).optional(),
+  available: z.enum(["true", "false"]).optional().transform((val) => val === "true"),
+  areasOfOperation: z.string().optional(),
+  specializations: z.string().optional(),
+  languages: z.string().optional(),
+  page: z.string().regex(/^\d+$/).optional().transform((val) => Number(val) || 1).default("1"),
+  pageSize: z.string().regex(/^\d+$/).optional().transform((val) => Number(val) || DEFAULT_PAGE_SIZE).default(String(DEFAULT_PAGE_SIZE)),
+  q: z.string().min(1).max(200).optional(),
+}).strict();
+
+const getAgentParamsSchema = z.object({
+  id: z.string().regex(/^\d+$/).transform(Number),
+}).strict();
+
+const createAgentSchema = z.object({
+  userId: z.number().int().positive(),
+  status: z.enum([AGENT_STATUS.ACTIVE, AGENT_STATUS.INACTIVE, AGENT_STATUS.SUSPENDED]).optional().default(AGENT_STATUS.ACTIVE),
+  educationLevel: z.enum([
+    EDUCATION_LEVEL.HIGH_SCHOOL,
+    EDUCATION_LEVEL.DIPLOMA,
+    EDUCATION_LEVEL.BACHELORS,
+    EDUCATION_LEVEL.MASTERS,
+    EDUCATION_LEVEL.PHD,
+    EDUCATION_LEVEL.OTHER,
+  ]).optional(),
+  areasOfOperation: z.array(z.string().min(1).max(100)).max(50).optional(),
+  certifications: z.array(certificationSchema).max(20).optional(),
+  languages: z.array(z.string().min(1).max(50)).max(20).optional(),
+  yearsOfExperience: z.number().int().min(0).max(100).optional(),
+  specializations: z.array(z.string().min(1).max(100)).max(30).optional(),
+  bio: z.string().max(5000).optional(),
+  maxActiveRequests: z.number().int().min(1).max(100).optional().default(DEFAULT_MAX_ACTIVE_REQUESTS),
+  isAvailable: z.boolean().optional().default(true),
+}).strict();
+
+const updateAgentSchema = z.object({
+  status: z.enum([AGENT_STATUS.ACTIVE, AGENT_STATUS.INACTIVE, AGENT_STATUS.SUSPENDED]).optional(),
+  educationLevel: z.enum([
+    EDUCATION_LEVEL.HIGH_SCHOOL,
+    EDUCATION_LEVEL.DIPLOMA,
+    EDUCATION_LEVEL.BACHELORS,
+    EDUCATION_LEVEL.MASTERS,
+    EDUCATION_LEVEL.PHD,
+    EDUCATION_LEVEL.OTHER,
+  ]).optional(),
+  areasOfOperation: z.array(z.string().min(1).max(100)).max(50).optional(),
+  certifications: z.array(certificationSchema).max(20).optional(),
+  languages: z.array(z.string().min(1).max(50)).max(20).optional(),
+  yearsOfExperience: z.number().int().min(0).max(100).optional().nullable(),
+  specializations: z.array(z.string().min(1).max(100)).max(30).optional(),
+  bio: z.string().max(5000).optional().nullable(),
+  isAvailable: z.boolean().optional(),
+  maxActiveRequests: z.number().int().min(1).max(100).optional(),
+}).strict();
+
+const assignAgentSchema = z.object({
+  planRequestId: z.number().int().positive(),
+}).strict();
+
+// ============================================================
+// Helper Functions
+// ============================================================
+function sendError(res: Response, status: number, message: string, details?: any): void {
+  res.status(status).json({
+    error: message,
+    ...(details && { details }),
+  });
+}
+
+function sendSuccess<T>(res: Response, data?: T, message?: string, status: number = 200): void {
+  res.status(status).json({
+    ok: true,
+    ...(message && { message }),
+    ...(data && { data }),
+  });
+}
+
+function getAdminId(req: AuthedRequest): number {
+  return req.user!.id;
+}
+
+function formatAgentResponse(agent: any): AgentResponse {
+  return {
+    id: agent.id,
+    userId: agent.userId,
+    status: agent.status,
+    educationLevel: agent.educationLevel,
+    areasOfOperation: Array.isArray(agent.areasOfOperation) ? agent.areasOfOperation : [],
+    certifications: Array.isArray(agent.certifications) ? agent.certifications : [],
+    languages: Array.isArray(agent.languages) ? agent.languages : [],
+    yearsOfExperience: agent.yearsOfExperience,
+    specializations: Array.isArray(agent.specializations) ? agent.specializations : [],
+    bio: agent.bio,
+    isAvailable: agent.isAvailable,
+    maxActiveRequests: agent.maxActiveRequests,
+    currentActiveRequests: agent.currentActiveRequests,
+    performanceMetrics: agent.performanceMetrics || {},
+    level: agent.level || DEFAULT_AGENT_LEVEL,
+    totalCompletedTrips: agent.totalCompletedTrips || 0,
+    totalRevenueGenerated: agent.totalRevenueGenerated || 0,
+    createdAt: agent.createdAt,
+    updatedAt: agent.updatedAt,
+    user: agent.user,
+    ...(agent.assignedPlanRequests && { assignedPlanRequests: agent.assignedPlanRequests }),
+    ...(agent.reviews && { reviews: agent.reviews }),
+  };
+}
+
+// Validation middleware helper
+function validate<T extends z.ZodTypeAny>(schema: T, source: "body" | "query" | "params" = "body") {
+  return (req: any, res: Response, next: any) => {
+    const data = source === "body" ? req.body : source === "query" ? req.query : req.params;
+    const result = schema.safeParse(data);
+    if (!result.success) {
+      return sendError(res, 400, "Invalid request", { errors: result.error.errors });
+    }
+    if (source === "params") {
+      req.validatedParams = result.data;
+    } else if (source === "query") {
+      req.validatedQuery = result.data;
+    } else {
+      req.validatedData = result.data;
+    }
+    next();
+  };
+}
+
+// ============================================================
+// Router Setup
+// ============================================================
 export const router = Router();
 router.use(requireAuth as unknown as RequestHandler);
 router.use(requireRole("ADMIN") as unknown as RequestHandler);
+router.use(limitAgentOperations);
 
-/**
- * GET /api/admin/agents
- * Get all agents with filtering and pagination
- * Query params: status, educationLevel, available, areasOfOperation, specializations, languages, page, pageSize, q
- */
-router.get("/", (async (req: AuthedRequest, res) => {
+// ============================================================
+// GET /api/admin/agents
+// ============================================================
+router.get("/", validate(listAgentsQuerySchema, "query"), async (req: any, res) => {
   try {
     const {
       status,
@@ -22,66 +271,52 @@ router.get("/", (async (req: AuthedRequest, res) => {
       areasOfOperation,
       specializations,
       languages,
-      page = "1",
-      pageSize = "20",
+      page,
+      pageSize,
       q,
-    } = req.query as any;
+    } = req.validatedQuery;
 
-    const pageNum = Math.max(1, Number(page));
-    const pageSizeNum = Math.min(Math.max(1, Number(pageSize)), 100);
+    const pageNum = Math.max(1, page);
+    const pageSizeNum = Math.min(Math.max(1, pageSize), MAX_PAGE_SIZE);
     const skip = (pageNum - 1) * pageSizeNum;
     const take = pageSizeNum;
 
-    // Build where clause
-    const where: any = {
+    // Build where clause with proper Prisma types
+    const where: Prisma.AgentWhereInput = {
       user: {
         role: "AGENT",
       },
     };
 
-    if (status && status.trim()) {
-      where.status = status.trim();
+    if (status) {
+      where.status = status;
     }
 
     if (available !== undefined) {
-      where.isAvailable = available === "true" || available === true;
+      where.isAvailable = available;
     }
 
-    if (educationLevel && educationLevel.trim()) {
-      where.educationLevel = educationLevel.trim();
+    if (educationLevel) {
+      where.educationLevel = educationLevel;
     }
-
-    // For JSON fields, we'll filter in memory after fetching
-    // (Prisma JSON filtering can be complex with MySQL)
 
     // Text search
-    if (q && q.trim()) {
+    if (q) {
+      const sanitizedQ = sanitizeText(q);
       where.user = {
-        ...where.user,
+        role: "AGENT",
         OR: [
-          { name: { contains: q.trim() } },
-          { email: { contains: q.trim() } },
-          { phone: { contains: q.trim() } },
+          { name: { contains: sanitizedQ } },
+          { email: { contains: sanitizedQ } },
+          { phone: { contains: sanitizedQ } },
         ],
       };
     }
 
-    console.log("[GET /admin/agents] Query params:", {
-      status,
-      educationLevel,
-      available,
-      areasOfOperation,
-      specializations,
-      languages,
-      q,
-      page: pageNum,
-      pageSize: pageSizeNum,
-    });
-
     // Fetch agents with user info
     const [total, agents] = await Promise.all([
-      (prisma as any).agent.count({ where }),
-      (prisma as any).agent.findMany({
+      prisma.agent.count({ where }),
+      prisma.agent.findMany({
         where,
         include: {
           user: {
@@ -100,92 +335,75 @@ router.get("/", (async (req: AuthedRequest, res) => {
       }),
     ]);
 
-    // Filter by JSON fields if provided (in memory)
+    // Filter by JSON fields if provided (in memory - Prisma JSON filtering is limited in MySQL)
     let filteredAgents = agents;
 
-    if (areasOfOperation && areasOfOperation.trim()) {
-      const areaFilter = areasOfOperation.trim().toLowerCase();
-      filteredAgents = filteredAgents.filter((agent: any) => {
+    if (areasOfOperation) {
+      const areaFilter = sanitizeText(areasOfOperation).toLowerCase();
+      filteredAgents = filteredAgents.filter((agent) => {
         const areas = agent.areasOfOperation;
         if (!Array.isArray(areas)) return false;
-        return areas.some((area: string) =>
-          String(area).toLowerCase().includes(areaFilter)
-        );
+        return areas.some((area) => {
+          if (typeof area !== "string") return false;
+          return String(area).toLowerCase().includes(areaFilter);
+        });
       });
     }
 
-    if (specializations && specializations.trim()) {
-      const specFilter = specializations.trim().toLowerCase();
-      filteredAgents = filteredAgents.filter((agent: any) => {
+    if (specializations) {
+      const specFilter = sanitizeText(specializations).toLowerCase();
+      filteredAgents = filteredAgents.filter((agent) => {
         const specs = agent.specializations;
         if (!Array.isArray(specs)) return false;
-        return specs.some((spec: string) =>
-          String(spec).toLowerCase().includes(specFilter)
-        );
+        return specs.some((spec) => {
+          if (typeof spec !== "string") return false;
+          return String(spec).toLowerCase().includes(specFilter);
+        });
       });
     }
 
-    if (languages && languages.trim()) {
-      const langFilter = languages.trim().toLowerCase();
-      filteredAgents = filteredAgents.filter((agent: any) => {
+    if (languages) {
+      const langFilter = sanitizeText(languages).toLowerCase();
+      filteredAgents = filteredAgents.filter((agent) => {
         const langs = agent.languages;
         if (!Array.isArray(langs)) return false;
-        return langs.some((lang: string) =>
-          String(lang).toLowerCase().includes(langFilter)
-        );
+        return langs.some((lang) => {
+          if (typeof lang !== "string") return false;
+          return String(lang).toLowerCase().includes(langFilter);
+        });
       });
     }
 
     // Map to response format
-    const items = filteredAgents.map((agent: any) => ({
-      id: agent.id,
-      userId: agent.userId,
-      status: agent.status,
-      educationLevel: agent.educationLevel,
-      areasOfOperation: agent.areasOfOperation || [],
-      certifications: agent.certifications || [],
-      languages: agent.languages || [],
-      yearsOfExperience: agent.yearsOfExperience,
-      specializations: agent.specializations || [],
-      bio: agent.bio,
-      isAvailable: agent.isAvailable,
-      maxActiveRequests: agent.maxActiveRequests,
-      currentActiveRequests: agent.currentActiveRequests,
-      performanceMetrics: agent.performanceMetrics || {},
-      createdAt: agent.createdAt,
-      updatedAt: agent.updatedAt,
-      user: agent.user,
-    }));
+    const items = filteredAgents.map(formatAgentResponse);
 
     // Adjust total count after filtering
     const filteredTotal = areasOfOperation || specializations || languages
       ? items.length
       : total;
 
-    return res.json({
+    const response: PaginatedResponse<AgentResponse> = {
       page: pageNum,
       pageSize: pageSizeNum,
       total: filteredTotal,
       items,
-    });
+    };
+
+    sendSuccess(res, response);
   } catch (err: any) {
-    console.error("GET /admin/agents error:", err);
-    return res.status(500).json({ error: "Failed to fetch agents" });
+    console.error("[GET /admin/agents] Error:", err);
+    sendError(res, 500, "Failed to fetch agents");
   }
-}) as RequestHandler);
+});
 
-/**
- * GET /api/admin/agents/:id
- * Get a single agent by ID
- */
-router.get("/:id", (async (req: AuthedRequest, res) => {
+// ============================================================
+// GET /api/admin/agents/:id
+// ============================================================
+router.get("/:id", validate(getAgentParamsSchema, "params"), async (req: any, res) => {
   try {
-    const id = Number(req.params.id);
-    if (!Number.isFinite(id)) {
-      return res.status(400).json({ error: "Invalid agent ID" });
-    }
+    const { id } = req.validatedParams;
 
-    const agent = await (prisma as any).agent.findUnique({
+    const agent = await prisma.agent.findUnique({
       where: { id },
       include: {
         user: {
@@ -225,6 +443,7 @@ router.get("/:id", (async (req: AuthedRequest, res) => {
             planRequestId: true,
             punctualityRating: true,
             customerCareRating: true,
+            communicationRating: true,
             comment: true,
             createdAt: true,
             user: {
@@ -241,7 +460,7 @@ router.get("/:id", (async (req: AuthedRequest, res) => {
     });
 
     if (!agent) {
-      return res.status(404).json({ error: "Agent not found" });
+      return sendError(res, 404, "Agent not found");
     }
 
     // Calculate average ratings from all reviews
@@ -249,19 +468,19 @@ router.get("/:id", (async (req: AuthedRequest, res) => {
     let avgPunctualityRating = 0;
     let avgCustomerCareRating = 0;
     let avgCommunicationRating = 0;
-    let totalReviews = reviews.length;
+    const totalReviews = reviews.length;
 
     if (totalReviews > 0) {
-      const sumPunctuality = reviews.reduce((sum: number, review: any) => sum + (review.punctualityRating || 0), 0);
-      const sumCustomerCare = reviews.reduce((sum: number, review: any) => sum + (review.customerCareRating || 0), 0);
-      const sumCommunication = reviews.reduce((sum: number, review: any) => sum + (review.communicationRating || 0), 0);
-      avgPunctualityRating = Math.round((sumPunctuality / totalReviews) * 10) / 10; // Round to 1 decimal
-      avgCustomerCareRating = Math.round((sumCustomerCare / totalReviews) * 10) / 10; // Round to 1 decimal
-      avgCommunicationRating = Math.round((sumCommunication / totalReviews) * 10) / 10; // Round to 1 decimal
+      const sumPunctuality = reviews.reduce((sum, review) => sum + (review.punctualityRating || 0), 0);
+      const sumCustomerCare = reviews.reduce((sum, review) => sum + (review.customerCareRating || 0), 0);
+      const sumCommunication = reviews.reduce((sum, review) => sum + (review.communicationRating || 0), 0);
+      avgPunctualityRating = Math.round((sumPunctuality / totalReviews) * Math.pow(10, RATING_DECIMAL_PLACES)) / Math.pow(10, RATING_DECIMAL_PLACES);
+      avgCustomerCareRating = Math.round((sumCustomerCare / totalReviews) * Math.pow(10, RATING_DECIMAL_PLACES)) / Math.pow(10, RATING_DECIMAL_PLACES);
+      avgCommunicationRating = Math.round((sumCommunication / totalReviews) * Math.pow(10, RATING_DECIMAL_PLACES)) / Math.pow(10, RATING_DECIMAL_PLACES);
     }
 
     // Update performanceMetrics with calculated averages
-    const performanceMetrics = agent.performanceMetrics || {};
+    const performanceMetrics = (agent.performanceMetrics as any) || {};
     performanceMetrics.punctualityRating = avgPunctualityRating;
     performanceMetrics.customerCareRating = avgCustomerCareRating;
     performanceMetrics.communicationRating = avgCommunicationRating;
@@ -269,10 +488,10 @@ router.get("/:id", (async (req: AuthedRequest, res) => {
 
     // Get promotion thresholds from system settings
     const systemSettings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
-    const minTrips = systemSettings?.agentPromotionMinTrips || 30;
-    const maxTrips = systemSettings?.agentPromotionMaxTrips || 50;
-    const minRevenue = systemSettings?.agentPromotionMinRevenue || 20000000;
-    const commissionPercent = systemSettings?.agentCommissionPercent || 15.0;
+    const minTrips = systemSettings?.agentPromotionMinTrips || DEFAULT_PROMOTION_MIN_TRIPS;
+    const maxTrips = systemSettings?.agentPromotionMaxTrips || DEFAULT_PROMOTION_MAX_TRIPS;
+    const minRevenue = systemSettings?.agentPromotionMinRevenue || DEFAULT_PROMOTION_MIN_REVENUE;
+    const commissionPercent = systemSettings?.agentCommissionPercent || DEFAULT_COMMISSION_PERCENT;
 
     // Calculate promotion progress
     const currentTrips = agent.totalCompletedTrips || 0;
@@ -284,24 +503,9 @@ router.get("/:id", (async (req: AuthedRequest, res) => {
     // Determine if eligible for promotion (must meet BOTH criteria)
     const eligibleForPromotion = currentTrips >= minTrips && currentRevenue >= minRevenue;
 
-    return res.json({
-      id: agent.id,
-      userId: agent.userId,
-      status: agent.status,
-      educationLevel: agent.educationLevel,
-      areasOfOperation: agent.areasOfOperation || [],
-      certifications: agent.certifications || [],
-      languages: agent.languages || [],
-      yearsOfExperience: agent.yearsOfExperience,
-      specializations: agent.specializations || [],
-      bio: agent.bio,
-      isAvailable: agent.isAvailable,
-      maxActiveRequests: agent.maxActiveRequests,
-      currentActiveRequests: agent.currentActiveRequests,
-      performanceMetrics: performanceMetrics,
-      level: agent.level || "BRONZE",
-      totalCompletedTrips: agent.totalCompletedTrips || 0,
-      totalRevenueGenerated: agent.totalRevenueGenerated || 0,
+    const response: AgentResponse = {
+      ...formatAgentResponse(agent),
+      performanceMetrics,
       promotionProgress: {
         currentTrips,
         minTrips,
@@ -313,210 +517,176 @@ router.get("/:id", (async (req: AuthedRequest, res) => {
         overallProgress,
         eligibleForPromotion,
       },
-      createdAt: agent.createdAt,
-      updatedAt: agent.updatedAt,
-      user: agent.user,
       assignedPlanRequests: agent.assignedPlanRequests || [],
       reviews: reviews,
-    });
+    };
+
+    sendSuccess(res, response);
   } catch (err: any) {
-    console.error("GET /admin/agents/:id error:", err);
-    return res.status(500).json({ error: "Failed to fetch agent" });
+    console.error("[GET /admin/agents/:id] Error:", err);
+    sendError(res, 500, "Failed to fetch agent");
   }
-}) as RequestHandler);
+});
 
-/**
- * POST /api/admin/agents
- * Create a new agent profile for an existing user
- * Body: { userId, educationLevel, areasOfOperation, certifications, languages, yearsOfExperience, specializations, bio, maxActiveRequests }
- */
-router.post("/", (async (req: AuthedRequest, res) => {
+// ============================================================
+// POST /api/admin/agents
+// ============================================================
+router.post("/", validate(createAgentSchema), async (req: any, res) => {
   try {
-    const {
-      userId,
-      status,
-      educationLevel,
-      areasOfOperation,
-      certifications,
-      languages,
-      yearsOfExperience,
-      specializations,
-      bio,
-      maxActiveRequests,
-      isAvailable,
-    } = req.body || {};
+    const validatedData = req.validatedData;
+    const adminId = getAdminId(req as AuthedRequest);
 
-    console.log("[POST /admin/agents] Request body:", {
-      userId,
-      status,
-      educationLevel,
-      areasOfOperation,
-      certifications,
-      languages,
-      yearsOfExperience,
-      specializations,
-      bio,
-      maxActiveRequests,
-      isAvailable,
-    });
-
-    if (!userId || !Number.isFinite(Number(userId))) {
-      return res.status(400).json({ error: "Valid userId is required" });
-    }
-
-    // Check if user exists and can be an agent
+    // Check if user exists
     const user = await prisma.user.findUnique({
-      where: { id: Number(userId) },
+      where: { id: validatedData.userId },
     });
 
     if (!user) {
-      return res.status(404).json({ error: "User not found" });
+      return sendError(res, 404, "User not found");
     }
 
     // Check if agent profile already exists
-    const existingAgent = await (prisma as any).agent.findUnique({
-      where: { userId: Number(userId) },
+    const existingAgent = await prisma.agent.findUnique({
+      where: { userId: validatedData.userId },
     });
 
     if (existingAgent) {
-      return res.status(400).json({ error: "Agent profile already exists for this user" });
+      return sendError(res, 400, "Agent profile already exists for this user");
     }
 
-    // Update user role to AGENT if not already
-    if (user.role !== "AGENT") {
-      await prisma.user.update({
-        where: { id: Number(userId) },
-        data: { role: "AGENT" },
-      });
-    }
-
-    // Prepare data for agent creation
-    const agentData: any = {
-      userId: Number(userId),
-      status: status && typeof status === "string" && status.trim() ? status.trim() : "ACTIVE",
-      educationLevel: educationLevel && typeof educationLevel === "string" && educationLevel.trim() ? educationLevel.trim() : null,
-      yearsOfExperience: yearsOfExperience ? Number(yearsOfExperience) : null,
-      bio: bio && typeof bio === "string" && bio.trim() ? bio.trim() : null,
-      maxActiveRequests: maxActiveRequests ? Number(maxActiveRequests) : 10,
-      isAvailable: isAvailable !== undefined ? Boolean(isAvailable) : true,
+    // Prepare data for agent creation with sanitization
+    const agentData: Prisma.AgentCreateInput = {
+      user: { connect: { id: validatedData.userId } },
+      status: validatedData.status || DEFAULT_AGENT_STATUS,
+      educationLevel: validatedData.educationLevel || null,
+      yearsOfExperience: validatedData.yearsOfExperience || null,
+      bio: validatedData.bio ? sanitizeText(validatedData.bio) : null,
+      maxActiveRequests: validatedData.maxActiveRequests || DEFAULT_MAX_ACTIVE_REQUESTS,
+      isAvailable: validatedData.isAvailable !== undefined ? validatedData.isAvailable : true,
       currentActiveRequests: 0,
+      areasOfOperation: validatedData.areasOfOperation && validatedData.areasOfOperation.length > 0
+        ? validatedData.areasOfOperation.map((area: string) => sanitizeText(area))
+        : null,
+      certifications: validatedData.certifications && validatedData.certifications.length > 0
+        ? validatedData.certifications.map((cert: any) => ({
+            name: sanitizeText(cert.name),
+            issuer: cert.issuer ? sanitizeText(cert.issuer) : undefined,
+            year: cert.year,
+            expiryDate: cert.expiryDate ? sanitizeText(cert.expiryDate) : undefined,
+          }))
+        : null,
+      languages: validatedData.languages && validatedData.languages.length > 0
+        ? validatedData.languages.map((lang: string) => sanitizeText(lang))
+        : null,
+      specializations: validatedData.specializations && validatedData.specializations.length > 0
+        ? validatedData.specializations.map((spec: string) => sanitizeText(spec))
+        : null,
     };
 
-    // Handle JSON array fields - convert empty arrays or undefined to null, otherwise use the array
-    if (areasOfOperation !== undefined && Array.isArray(areasOfOperation) && areasOfOperation.length > 0) {
-      agentData.areasOfOperation = areasOfOperation;
-    } else {
-      agentData.areasOfOperation = null;
-    }
+    // Use transaction to create agent and update user role
+    const result = await prisma.$transaction(async (tx) => {
+      // Update user role to AGENT if not already
+      if (user.role !== "AGENT") {
+        await tx.user.update({
+          where: { id: validatedData.userId },
+          data: { role: "AGENT" },
+        });
+      }
 
-    if (certifications !== undefined && Array.isArray(certifications) && certifications.length > 0) {
-      agentData.certifications = certifications;
-    } else {
-      agentData.certifications = null;
-    }
-
-    if (languages !== undefined && Array.isArray(languages) && languages.length > 0) {
-      agentData.languages = languages;
-    } else {
-      agentData.languages = null;
-    }
-
-    if (specializations !== undefined && Array.isArray(specializations) && specializations.length > 0) {
-      agentData.specializations = specializations;
-    } else {
-      agentData.specializations = null;
-    }
-
-    console.log("[POST /admin/agents] Creating agent with data:", agentData);
-
-    // Create agent profile
-    const agent = await (prisma as any).agent.create({
-      data: agentData,
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true,
+      // Create agent profile
+      const agent = await tx.agent.create({
+        data: agentData,
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true,
+            },
           },
         },
-      },
+      });
+
+      return agent;
     });
 
-    return res.status(201).json({
-      id: agent.id,
-      userId: agent.userId,
-      status: agent.status,
-      educationLevel: agent.educationLevel,
-      areasOfOperation: agent.areasOfOperation || [],
-      certifications: agent.certifications || [],
-      languages: agent.languages || [],
-      yearsOfExperience: agent.yearsOfExperience,
-      specializations: agent.specializations || [],
-      bio: agent.bio,
-      isAvailable: agent.isAvailable,
-      maxActiveRequests: agent.maxActiveRequests,
-      currentActiveRequests: agent.currentActiveRequests,
-      user: agent.user,
+    // Audit log
+    await audit(req as AuthedRequest, "AGENT_CREATED", `agent:${result.id}`, null, {
+      userId: validatedData.userId,
+      status: result.status,
     });
+
+    sendSuccess(res, formatAgentResponse(result), "Agent created successfully", 201);
   } catch (err: any) {
-    console.error("POST /admin/agents error:", err);
-    console.error("Error details:", {
-      message: err.message,
-      code: err.code,
-      meta: err.meta,
-      stack: err.stack,
-    });
+    console.error("[POST /admin/agents] Error:", err);
     if (err.code === "P2002") {
-      return res.status(400).json({ error: "Agent profile already exists for this user" });
+      return sendError(res, 400, "Agent profile already exists for this user");
     }
-    return res.status(500).json({ 
-      error: "Failed to create agent",
-      message: err.message || "Unknown error",
-    });
+    sendError(res, 500, "Failed to create agent", { message: err.message });
   }
-}) as RequestHandler);
+});
 
-/**
- * PATCH /api/admin/agents/:id
- * Update an agent profile
- */
-router.patch("/:id", (async (req: AuthedRequest, res) => {
+// ============================================================
+// PATCH /api/admin/agents/:id
+// ============================================================
+router.patch("/:id", validate(getAgentParamsSchema, "params"), validate(updateAgentSchema, "body"), async (req: any, res) => {
   try {
-    const id = Number(req.params.id);
-    if (!Number.isFinite(id)) {
-      return res.status(400).json({ error: "Invalid agent ID" });
+    const { id } = req.validatedParams;
+    const validatedData = req.validatedData;
+    const adminId = getAdminId(req as AuthedRequest);
+
+    // Get existing agent for audit
+    const existingAgent = await prisma.agent.findUnique({
+      where: { id: Number(id) },
+    });
+
+    if (!existingAgent) {
+      return sendError(res, 404, "Agent not found");
     }
 
-    const {
-      status,
-      educationLevel,
-      areasOfOperation,
-      certifications,
-      languages,
-      yearsOfExperience,
-      specializations,
-      bio,
-      isAvailable,
-      maxActiveRequests,
-    } = req.body || {};
+    // Prepare update data with sanitization
+    const updateData: Prisma.AgentUpdateInput = {};
 
-    const updateData: any = {};
+    if (validatedData.status !== undefined) updateData.status = validatedData.status;
+    if (validatedData.educationLevel !== undefined) updateData.educationLevel = validatedData.educationLevel;
+    if (validatedData.yearsOfExperience !== undefined) updateData.yearsOfExperience = validatedData.yearsOfExperience;
+    if (validatedData.bio !== undefined) updateData.bio = validatedData.bio ? sanitizeText(validatedData.bio) : null;
+    if (validatedData.isAvailable !== undefined) updateData.isAvailable = validatedData.isAvailable;
+    if (validatedData.maxActiveRequests !== undefined) updateData.maxActiveRequests = validatedData.maxActiveRequests;
 
-    if (status !== undefined) updateData.status = status;
-    if (educationLevel !== undefined) updateData.educationLevel = educationLevel;
-    if (areasOfOperation !== undefined) updateData.areasOfOperation = areasOfOperation;
-    if (certifications !== undefined) updateData.certifications = certifications;
-    if (languages !== undefined) updateData.languages = languages;
-    if (yearsOfExperience !== undefined) updateData.yearsOfExperience = yearsOfExperience ? Number(yearsOfExperience) : null;
-    if (specializations !== undefined) updateData.specializations = specializations;
-    if (bio !== undefined) updateData.bio = bio;
-    if (isAvailable !== undefined) updateData.isAvailable = isAvailable;
-    if (maxActiveRequests !== undefined) updateData.maxActiveRequests = maxActiveRequests ? Number(maxActiveRequests) : 10;
+    // Handle JSON array fields
+    if (validatedData.areasOfOperation !== undefined) {
+      updateData.areasOfOperation = validatedData.areasOfOperation.length > 0
+        ? validatedData.areasOfOperation.map((area: string) => sanitizeText(area))
+        : null;
+    }
 
-    const agent = await (prisma as any).agent.update({
-      where: { id },
+    if (validatedData.certifications !== undefined) {
+      updateData.certifications = validatedData.certifications.length > 0
+        ? validatedData.certifications.map((cert: any) => ({
+            name: sanitizeText(cert.name),
+            issuer: cert.issuer ? sanitizeText(cert.issuer) : undefined,
+            year: cert.year,
+            expiryDate: cert.expiryDate ? sanitizeText(cert.expiryDate) : undefined,
+          }))
+        : null;
+    }
+
+    if (validatedData.languages !== undefined) {
+      updateData.languages = validatedData.languages.length > 0
+        ? validatedData.languages.map((lang: string) => sanitizeText(lang))
+        : null;
+    }
+
+    if (validatedData.specializations !== undefined) {
+      updateData.specializations = validatedData.specializations.length > 0
+        ? validatedData.specializations.map((spec: string) => sanitizeText(spec))
+        : null;
+    }
+
+    const agent = await prisma.agent.update({
+      where: { id: Number(id) },
       data: updateData,
       include: {
         user: {
@@ -530,103 +700,113 @@ router.patch("/:id", (async (req: AuthedRequest, res) => {
       },
     });
 
-    return res.json({
-      id: agent.id,
-      userId: agent.userId,
-      status: agent.status,
-      educationLevel: agent.educationLevel,
-      areasOfOperation: agent.areasOfOperation || [],
-      certifications: agent.certifications || [],
-      languages: agent.languages || [],
-      yearsOfExperience: agent.yearsOfExperience,
-      specializations: agent.specializations || [],
-      bio: agent.bio,
-      isAvailable: agent.isAvailable,
-      maxActiveRequests: agent.maxActiveRequests,
-      currentActiveRequests: agent.currentActiveRequests,
-      user: agent.user,
-    });
+    // Audit log
+    await audit(req as AuthedRequest, "AGENT_UPDATED", `agent:${agent.id}`, existingAgent, agent);
+
+    sendSuccess(res, formatAgentResponse(agent), "Agent updated successfully");
   } catch (err: any) {
-    console.error("PATCH /admin/agents/:id error:", err);
+    console.error("[PATCH /admin/agents/:id] Error:", err);
     if (err.code === "P2025") {
-      return res.status(404).json({ error: "Agent not found" });
+      return sendError(res, 404, "Agent not found");
     }
-    return res.status(500).json({ error: "Failed to update agent" });
+    sendError(res, 500, "Failed to update agent");
   }
-}) as RequestHandler);
+});
 
-/**
- * POST /api/admin/agents/:id/assign-to-request
- * Assign an agent to a plan request
- * Body: { planRequestId }
- */
-router.post("/:id/assign-to-request", (async (req: AuthedRequest, res) => {
+// ============================================================
+// POST /api/admin/agents/:id/assign-to-request
+// ============================================================
+router.post("/:id/assign-to-request", validate(getAgentParamsSchema, "params"), validate(assignAgentSchema, "body"), async (req: any, res) => {
   try {
-    const agentId = Number(req.params.id);
-    const { planRequestId } = req.body || {};
+    const { id } = req.validatedParams;
+    const { planRequestId } = req.validatedData;
+    const adminId = getAdminId(req as AuthedRequest);
 
-    if (!Number.isFinite(agentId)) {
-      return res.status(400).json({ error: "Invalid agent ID" });
-    }
+    const agentId = Number(id);
 
-    if (!planRequestId || !Number.isFinite(Number(planRequestId))) {
-      return res.status(400).json({ error: "Valid planRequestId is required" });
-    }
+    // Use transaction for atomic assignment
+    const result = await prisma.$transaction(async (tx) => {
+      // Check if agent exists and is available
+      const agent = await tx.agent.findUnique({
+        where: { id: agentId },
+        include: {
+          user: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      });
 
-    // Check if agent exists and is available
-    const agent = await (prisma as any).agent.findUnique({
-      where: { id: agentId },
+      if (!agent) {
+        throw new Error("Agent not found");
+      }
+
+      if (!agent.isAvailable) {
+        throw new Error("Agent is not available");
+      }
+
+      if (agent.currentActiveRequests >= agent.maxActiveRequests) {
+        throw new Error("Agent has reached maximum active requests");
+      }
+
+      // Check if plan request exists
+      const planRequest = await tx.planRequest.findUnique({
+        where: { id: planRequestId },
+      });
+
+      if (!planRequest) {
+        throw new Error("Plan request not found");
+      }
+
+      // Update plan request with agent assignment
+      await tx.planRequest.update({
+        where: { id: planRequestId },
+        data: {
+          assignedAgentId: agentId,
+          assignedAgent: agent.user?.name || null, // Keep legacy field updated
+        },
+      });
+
+      // Update agent's current active requests count
+      const updatedAgent = await tx.agent.update({
+        where: { id: agentId },
+        data: {
+          currentActiveRequests: agent.currentActiveRequests + 1,
+        },
+      });
+
+      return { agentId, planRequestId, agentName: agent.user?.name };
     });
 
-    if (!agent) {
-      return res.status(404).json({ error: "Agent not found" });
-    }
-
-    if (!agent.isAvailable) {
-      return res.status(400).json({ error: "Agent is not available" });
-    }
-
-    if (agent.currentActiveRequests >= agent.maxActiveRequests) {
-      return res.status(400).json({ error: "Agent has reached maximum active requests" });
-    }
-
-    // Check if plan request exists
-    const planRequest = await (prisma as any).planRequest.findUnique({
-      where: { id: Number(planRequestId) },
+    // Audit log
+    await audit(req as AuthedRequest, "AGENT_ASSIGNED", `agent:${result.agentId}`, null, {
+      planRequestId: result.planRequestId,
+      agentName: result.agentName,
     });
 
-    if (!planRequest) {
-      return res.status(404).json({ error: "Plan request not found" });
-    }
-
-    // Update plan request with agent assignment
-    await (prisma as any).planRequest.update({
-      where: { id: Number(planRequestId) },
-      data: {
-        assignedAgentId: agentId,
-        assignedAgent: agent.user ? agent.user.name : null, // Keep legacy field updated
-      },
-    });
-
-    // Update agent's current active requests count
-    await (prisma as any).agent.update({
-      where: { id: agentId },
-      data: {
-        currentActiveRequests: agent.currentActiveRequests + 1,
-      },
-    });
-
-    return res.json({
+    sendSuccess(res, {
       success: true,
       message: "Agent assigned successfully",
-      agentId,
-      planRequestId: Number(planRequestId),
+      agentId: result.agentId,
+      planRequestId: result.planRequestId,
     });
   } catch (err: any) {
-    console.error("POST /admin/agents/:id/assign-to-request error:", err);
-    return res.status(500).json({ error: "Failed to assign agent" });
+    console.error("[POST /admin/agents/:id/assign-to-request] Error:", err);
+    if (err.message === "Agent not found") {
+      return sendError(res, 404, "Agent not found");
+    }
+    if (err.message === "Plan request not found") {
+      return sendError(res, 404, "Plan request not found");
+    }
+    if (err.message === "Agent is not available") {
+      return sendError(res, 400, "Agent is not available");
+    }
+    if (err.message === "Agent has reached maximum active requests") {
+      return sendError(res, 400, "Agent has reached maximum active requests");
+    }
+    sendError(res, 500, "Failed to assign agent");
   }
-}) as RequestHandler);
+});
 
 export default router;
-

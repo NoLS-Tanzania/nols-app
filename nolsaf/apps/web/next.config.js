@@ -2,7 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   images: {
-    domains: ['img.youtube.com', 'res.cloudinary.com'],
+    domains: ['img.youtube.com', 'res.cloudinary.com', 'api.mapbox.com'],
   },
   webpack: (config, { dev, isServer }) => {
     // Fix sourcemap warnings in development

@@ -144,6 +144,10 @@ export async function notifyUser(userId: number, template: string, data: any) {
         title: "New Message on Cancellation Claim",
         body: `You have a new message on your cancellation claim${data.requestId ? ` #${data.requestId}` : ""}${data.bookingCode ? ` (code: ${data.bookingCode})` : ""}.`
       },
+      group_stay_update: {
+        title: data.title || "Group Stay Update",
+        body: data.body || data.message || "You have an update on your group stay booking."
+      },
     };
 
     const templateData = notificationTemplates[template] || {

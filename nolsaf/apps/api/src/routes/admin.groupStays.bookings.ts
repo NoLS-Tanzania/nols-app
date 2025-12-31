@@ -88,6 +88,9 @@ router.get("/", async (req, res) => {
       groupType: b.groupType || "other",
       accommodationType: b.accommodationType || "other",
       headcount: b.headcount || 0,
+      maleCount: b.maleCount ?? null,
+      femaleCount: b.femaleCount ?? null,
+      otherCount: b.otherCount ?? null,
       roomsNeeded: b.roomsNeeded || 0,
       toRegion: b.toRegion || "N/A",
       toDistrict: b.toDistrict || null,
@@ -238,7 +241,13 @@ router.get("/:id", async (req, res) => {
       groupType: booking.groupType || "other",
       accommodationType: booking.accommodationType || "other",
       headcount: booking.headcount || 0,
+      maleCount: booking.maleCount ?? null,
+      femaleCount: booking.femaleCount ?? null,
+      otherCount: booking.otherCount ?? null,
       roomsNeeded: booking.roomsNeeded || 0,
+      roomSize: booking.roomSize || 0,
+      needsPrivateRoom: booking.needsPrivateRoom || false,
+      privateRoomCount: booking.privateRoomCount || 0,
       toRegion: booking.toRegion || "N/A",
       toDistrict: booking.toDistrict || null,
       toLocation: booking.toLocation || null,
@@ -264,6 +273,12 @@ router.get("/:id", async (req, res) => {
       pickupTime: booking.pickupTime || null,
       arrangementNotes: booking.arrangementNotes || null,
       notes: booking.notes || null,
+      // Property recommendations
+      recommendedPropertyIds: booking.recommendedPropertyIds || null,
+      confirmedPropertyId: booking.confirmedPropertyId || null,
+      propertyConfirmedAt: booking.propertyConfirmedAt || null,
+      // Admin notes/suggestions
+      adminNotes: booking.adminNotes || null,
     };
 
     return res.json(mapped);
@@ -274,6 +289,175 @@ router.get("/:id", async (req, res) => {
     }
     console.error('Error in GET /admin/group-stays/bookings/:id:', err);
     return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/** PATCH /admin/group-stays/bookings/:id - Update booking status, suggestions, or other fields */
+router.patch("/:id", async (req: any, res) => {
+  try {
+    const bookingId = Number(req.params.id);
+    const adminId = req.user!.id;
+    const { status, adminSuggestions } = req.body;
+
+    if (!bookingId || isNaN(bookingId)) {
+      return res.status(400).json({ error: "Invalid booking ID" });
+    }
+
+    // Get current booking to track changes
+    const currentBooking = await (prisma as any).groupBooking.findUnique({
+      where: { id: bookingId },
+      select: { id: true, status: true, userId: true },
+    });
+
+    if (!currentBooking) {
+      return res.status(404).json({ error: "Booking not found" });
+    }
+
+    const updateData: any = {};
+    const auditEntries: any[] = [];
+    let statusChangeNotification: { title: string; body: string } | null = null;
+
+    // Update status if provided
+    if (status && status !== currentBooking.status) {
+      updateData.status = status;
+      auditEntries.push({
+        groupBookingId: bookingId,
+        adminId,
+        action: "STATUS_CHANGED",
+        description: `Status changed from ${currentBooking.status} to ${status}`,
+        metadata: {
+          previousStatus: currentBooking.status,
+          newStatus: status,
+        },
+      });
+
+      // Set notification message based on status
+      switch (status) {
+        case "REVIEWING":
+          statusChangeNotification = {
+            title: "Your Group Stay is Under Review",
+            body: "Thank you for your interest in using NoLSaf! We have received your booking request and our team is currently reviewing it. We will get back to you soon with accommodation options and pricing tailored to your group's needs.",
+          };
+          break;
+        case "PROCESSING":
+          statusChangeNotification = {
+            title: "Your Group Stay is Being Processed",
+            body: "Great news! We're now processing your group stay booking. Our team is working on finding the best accommodation options for your group. We'll contact you shortly with recommendations and pricing details.",
+          };
+          break;
+        case "CONFIRMED":
+          statusChangeNotification = {
+            title: "Your Group Stay is Confirmed",
+            body: "Excellent! Your group stay booking has been confirmed. We've found suitable accommodation options for your group. Please review the recommendations we've sent and let us know if you'd like to proceed.",
+          };
+          break;
+        case "COMPLETED":
+          statusChangeNotification = {
+            title: "Group Stay Completed",
+            body: "Your group stay has been completed. Thank you for choosing NoLSaf! We hope you had a wonderful experience.",
+          };
+          break;
+        case "CANCELED":
+          statusChangeNotification = {
+            title: "Group Stay Canceled",
+            body: "Your group stay booking has been canceled. If you have any questions, please contact our support team.",
+          };
+          break;
+      }
+    }
+
+    // Update admin suggestions if provided
+    if (adminSuggestions) {
+      updateData.adminNotes = JSON.stringify(adminSuggestions);
+      auditEntries.push({
+        groupBookingId: bookingId,
+        adminId,
+        action: "SUGGESTIONS_PROVIDED",
+        description: "Admin provided suggestions and recommendations to customer",
+        metadata: {
+          hasAccommodationOptions: !!adminSuggestions.accommodationOptions,
+          hasPricing: !!adminSuggestions.pricing,
+          hasRecommendations: !!adminSuggestions.recommendations,
+          hasNextSteps: !!adminSuggestions.nextSteps,
+        },
+      });
+    }
+
+    // Update booking
+    if (Object.keys(updateData).length > 0) {
+      await (prisma as any).groupBooking.update({
+        where: { id: bookingId },
+        data: updateData,
+      });
+
+      // Create audit log entries
+      for (const auditEntry of auditEntries) {
+        try {
+          await (prisma as any).groupBookingAudit.create({
+            data: auditEntry,
+          });
+        } catch (auditErr) {
+          console.error("Failed to create audit log:", auditErr);
+          // Don't fail the request if audit logging fails
+        }
+      }
+
+      // Send notification to user if status changed
+      if (statusChangeNotification && currentBooking.userId) {
+        try {
+          const { notifyUser } = await import("../lib/notifications.js");
+          await notifyUser(currentBooking.userId, "group_stay_update", {
+            bookingId: bookingId,
+            status: status,
+            title: statusChangeNotification.title,
+            body: statusChangeNotification.body,
+          });
+
+          // Also create a direct notification
+          await (prisma as any).notification.create({
+            data: {
+              userId: currentBooking.userId,
+              ownerId: null,
+              title: statusChangeNotification.title,
+              body: statusChangeNotification.body,
+              unread: true,
+              meta: {
+                type: "group_stay",
+                bookingId: bookingId,
+                status: status,
+              },
+              type: "group_stay",
+            },
+          });
+
+          // Emit real-time notification
+          try {
+            const io = (global as any).io;
+            if (io && typeof io.to === "function") {
+              io.to(`user:${currentBooking.userId}`).emit("notification:new", {
+                title: statusChangeNotification.title,
+                body: statusChangeNotification.body,
+                type: "group_stay",
+                bookingId: bookingId,
+              });
+            }
+          } catch (ioErr) {
+            // Ignore real-time errors
+          }
+        } catch (notifyErr) {
+          console.error("Failed to send notification to user:", notifyErr);
+          // Don't fail the request if notification fails
+        }
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: "Booking updated successfully",
+    });
+  } catch (err: any) {
+    console.error("Error in PATCH /admin/group-stays/bookings/:id:", err);
+    return res.status(500).json({ error: "Failed to update booking" });
   }
 });
 

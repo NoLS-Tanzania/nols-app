@@ -231,10 +231,44 @@ export default function AdminHome() {
       return;
     }
     
-    const s: Socket = io(url);
+    const s: Socket = io(url, {
+      transports: ['websocket', 'polling'],
+      withCredentials: true, // Send cookies automatically
+      autoConnect: true,
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+    });
+    
+    s.on('connect', () => {
+      console.debug('[Socket.IO] Connected to admin room');
+      // Join admin room after connection
+      s.emit('join-admin-room', (response: any) => {
+        if (response?.error) {
+          console.warn('[Socket.IO] Failed to join admin room:', response.error);
+        } else {
+          console.debug('[Socket.IO] Joined admin room');
+        }
+      });
+    });
+    
+    s.on('connect_error', (error: Error) => {
+      console.warn('[Socket.IO] Connection error:', error.message);
+    });
+    
+    s.on('disconnect', (reason: string) => {
+      console.log('[Socket.IO] Disconnected:', reason);
+    });
+    
     const onPaid = () => { loadKpis(); loadInvoices(); };
     s.on("admin:invoice:paid", onPaid);
-    return () => { s.off("admin:invoice:paid", onPaid); s.close(); };
+    
+    return () => { 
+      s.off("admin:invoice:paid", onPaid);
+      s.emit('leave-admin-room', () => {});
+      s.disconnect();
+    };
   }, [loadKpis, loadInvoices]);
 
   // Persist selected date range and widget limits
@@ -294,7 +328,7 @@ export default function AdminHome() {
         actions={<div className="flex items-center gap-2"><div className="text-sm text-gray-600"> </div></div>} />
 
       {/* KPI strip */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {loadingKpis ? (
           Array.from({ length: 4 }).map((_,i) => (
             <div key={i} className="skeleton-card" />

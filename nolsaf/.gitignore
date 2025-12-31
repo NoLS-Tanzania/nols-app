@@ -1,8 +1,11 @@
 node_modules/
 .pnp.*
 .env
+.env.*
+!.env.example
 apps/**/.env
-apps/**/.env.local
+apps/**/.env.*
+!apps/**/.env.example
 apps/**/.next
 apps/**/out
 dist/
@@ -12,3 +15,24 @@ pnpm-lock.yaml
 *.log
 docker-data/
 .tmp/
+
+# Security: Never commit secrets
+*.pem
+*.key
+*.cert
+*.p12
+secrets/
+.secrets/
+*.secret
+*.private
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

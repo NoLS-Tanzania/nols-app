@@ -21,6 +21,8 @@ import { router as publicEmailVerify } from "./routes/public.email.verify";
 import publicSupportRouter from './routes/public.support';
 import publicUpdatesRouter from './routes/public.updates';
 import publicBookingRouter from './routes/public.booking';
+import publicBookingsRouter from './routes/public.bookings';
+import publicInvoicesRouter from './routes/public.invoices';
 import publicPropertiesRouter from './routes/public.properties';
 import publicPlanRequestRouter from './routes/public.planRequest';
 // import { router as ownerPhone } from "./routes/owner.phone.verify";
@@ -53,6 +55,8 @@ import adminGroupStaysBookingsRouter from "./routes/admin.groupStays.bookings";
 import adminGroupStaysRequestsRouter from "./routes/admin.groupStays.requests";
 import adminGroupStaysPassengersRouter from "./routes/admin.groupStays.passengers";
 import adminGroupStaysArrangementsRouter from "./routes/admin.groupStays.arrangements";
+import adminGroupStaysRecommendationsRouter from "./routes/admin.groupStays.recommendations";
+import adminGroupStaysBookingsAuditRouter from "./routes/admin.groupStays.bookings.audit";
 import adminPlanWithUsSummaryRouter from "./routes/admin.planWithUs.summary";
 import adminPlanWithUsRequestsRouter from "./routes/admin.planWithUs.requests";
 import adminAgentsRouter from "./routes/admin.agents";
@@ -90,10 +94,13 @@ import propertyReviewsRouter from './routes/property.reviews';
 import customerBookingsRouter from './routes/customer.bookings';
 import customerRidesRouter from './routes/customer.rides';
 import customerGroupStaysRouter from './routes/customer.groupStays';
+import customerSavedPropertiesRouter from './routes/customer.savedProperties';
 import customerCancellationsRouter from "./routes/customer.cancellations";
 import customerPlanRequestsRouter from "./routes/customer.planRequests";
 import chatbotRouter from "./routes/chatbot";
 import adminChatbotRouter from "./routes/admin.chatbot";
+import { socketAuthMiddleware, AuthenticatedSocket } from './middleware/socketAuth.js';
+import { errorHandler } from './middleware/errorHandler.js';
 
 // moved the POST handler to after the app is created
 // Create app and server before using them
@@ -113,10 +120,23 @@ app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin) || allowedOrigins.length === 0) {
-      callback(null, true);
+    
+    const isProduction = process.env.NODE_ENV === 'production';
+    
+    if (isProduction) {
+      // Strict in production - only allow configured origins
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'), false);
+      }
     } else {
-      callback(null, true); // Allow all for development
+      // In development, allow localhost and configured origins
+      if (allowedOrigins.includes(origin) || /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'), false);
+      }
     }
   },
   credentials: true,
@@ -126,10 +146,21 @@ app.use(cors({
 app.options('*', cors({
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin) || allowedOrigins.length === 0) {
-      callback(null, true);
+    
+    const isProduction = process.env.NODE_ENV === 'production';
+    
+    if (isProduction) {
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'), false);
+      }
     } else {
-      callback(null, true);
+      if (allowedOrigins.includes(origin) || /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'), false);
+      }
     }
   },
   credentials: true,
@@ -156,74 +187,156 @@ const io = new Server(server, {
 (global as any).io = io;
 app.set('io', io);
 
+// Socket.IO authentication middleware
+io.use(socketAuthMiddleware);
+
 // Socket.IO handlers
-io.on('connection', (socket) => {
-  console.log('Socket connected', socket.id);
+io.on('connection', (socket: AuthenticatedSocket) => {
+  const user = socket.data.user;
+  console.log('Socket connected', socket.id, user ? `(user: ${user.id}, role: ${user.role})` : '(unauthenticated)');
   
   // Handle driver room joining for referral updates
-  socket.on('join-driver-room', async (data: { driverId: string | number }) => {
-    if (data.driverId) {
-      const room = `driver:${data.driverId}`;
-      socket.join(room);
-      console.log(`Driver ${data.driverId} joined room ${room}`);
+  socket.on('join-driver-room', async (data: { driverId: string | number }, callback?: (response: any) => void) => {
+    if (!data.driverId) {
+      if (callback) callback({ error: 'driverId required' });
+      return;
     }
+    
+    const driverId = Number(data.driverId);
+    // Verify user is the driver or an admin
+    if (!user || (user.id !== driverId && user.role !== 'ADMIN')) {
+      if (callback) callback({ error: 'Unauthorized' });
+      return;
+    }
+    
+    const room = `driver:${driverId}`;
+    socket.join(room);
+    console.log(`Driver ${driverId} joined room ${room}`);
+    if (callback) callback({ status: 'ok', room });
   });
 
   // Handle driver room leaving
-  socket.on('leave-driver-room', (data: { driverId: string | number }) => {
-    if (data.driverId) {
-      const room = `driver:${data.driverId}`;
-      socket.leave(room);
-      console.log(`Driver ${data.driverId} left room ${room}`);
+  socket.on('leave-driver-room', (data: { driverId: string | number }, callback?: (response: any) => void) => {
+    if (!data.driverId) {
+      if (callback) callback({ error: 'driverId required' });
+      return;
     }
+    
+    const driverId = Number(data.driverId);
+    // Verify user is the driver or an admin
+    if (!user || (user.id !== driverId && user.role !== 'ADMIN')) {
+      if (callback) callback({ error: 'Unauthorized' });
+      return;
+    }
+    
+    const room = `driver:${driverId}`;
+    socket.leave(room);
+    console.log(`Driver ${driverId} left room ${room}`);
+    if (callback) callback({ status: 'ok' });
   });
 
   // Generic user room (customers/owners can join for inbox messages + notifications)
-  socket.on('join-user-room', (data: { userId: string | number }) => {
-    if (data.userId) {
-      const room = `user:${data.userId}`;
-      socket.join(room);
-      console.log(`User ${data.userId} joined room ${room}`);
+  socket.on('join-user-room', (data: { userId: string | number }, callback?: (response: any) => void) => {
+    if (!data.userId) {
+      if (callback) callback({ error: 'userId required' });
+      return;
     }
+    
+    const userId = Number(data.userId);
+    // Verify user is joining their own room or is an admin
+    if (!user || (user.id !== userId && user.role !== 'ADMIN')) {
+      if (callback) callback({ error: 'Unauthorized' });
+      return;
+    }
+    
+    const room = `user:${userId}`;
+    socket.join(room);
+    console.log(`User ${userId} joined room ${room}`);
+    if (callback) callback({ status: 'ok', room });
   });
 
-  socket.on('leave-user-room', (data: { userId: string | number }) => {
-    if (data.userId) {
-      const room = `user:${data.userId}`;
-      socket.leave(room);
-      console.log(`User ${data.userId} left room ${room}`);
+  socket.on('leave-user-room', (data: { userId: string | number }, callback?: (response: any) => void) => {
+    if (!data.userId) {
+      if (callback) callback({ error: 'userId required' });
+      return;
     }
+    
+    const userId = Number(data.userId);
+    // Verify user is leaving their own room or is an admin
+    if (!user || (user.id !== userId && user.role !== 'ADMIN')) {
+      if (callback) callback({ error: 'Unauthorized' });
+      return;
+    }
+    
+    const room = `user:${userId}`;
+    socket.leave(room);
+    console.log(`User ${userId} left room ${room}`);
+    if (callback) callback({ status: 'ok' });
   });
 
   // Owner room (legacy convenience; also join user room)
-  socket.on('join-owner-room', (data: { ownerId: string | number }) => {
-    if (data.ownerId) {
-      const room = `owner:${data.ownerId}`;
-      socket.join(room);
-      socket.join(`user:${data.ownerId}`);
-      console.log(`Owner ${data.ownerId} joined room ${room}`);
+  socket.on('join-owner-room', (data: { ownerId: string | number }, callback?: (response: any) => void) => {
+    if (!data.ownerId) {
+      if (callback) callback({ error: 'ownerId required' });
+      return;
     }
+    
+    const ownerId = Number(data.ownerId);
+    // Verify user is the owner or is an admin
+    if (!user || (user.id !== ownerId && user.role !== 'ADMIN')) {
+      if (callback) callback({ error: 'Unauthorized' });
+      return;
+    }
+    
+    const room = `owner:${ownerId}`;
+    socket.join(room);
+    socket.join(`user:${ownerId}`);
+    console.log(`Owner ${ownerId} joined room ${room}`);
+    if (callback) callback({ status: 'ok', room });
   });
 
-  socket.on('leave-owner-room', (data: { ownerId: string | number }) => {
-    if (data.ownerId) {
-      const room = `owner:${data.ownerId}`;
-      socket.leave(room);
-      socket.leave(`user:${data.ownerId}`);
-      console.log(`Owner ${data.ownerId} left room ${room}`);
+  socket.on('leave-owner-room', (data: { ownerId: string | number }, callback?: (response: any) => void) => {
+    if (!data.ownerId) {
+      if (callback) callback({ error: 'ownerId required' });
+      return;
     }
+    
+    const ownerId = Number(data.ownerId);
+    // Verify user is the owner or is an admin
+    if (!user || (user.id !== ownerId && user.role !== 'ADMIN')) {
+      if (callback) callback({ error: 'Unauthorized' });
+      return;
+    }
+    
+    const room = `owner:${ownerId}`;
+    socket.leave(room);
+    socket.leave(`user:${ownerId}`);
+    console.log(`Owner ${ownerId} left room ${room}`);
+    if (callback) callback({ status: 'ok' });
   });
 
   // Handle admin room joining
-  socket.on('join-admin-room', async () => {
+  socket.on('join-admin-room', async (callback?: (response: any) => void) => {
+    if (!user || user.role !== 'ADMIN') {
+      if (callback) callback({ error: 'Unauthorized: Admin access required' });
+      return;
+    }
+    
     socket.join('admin');
-    console.log(`Admin joined admin room`);
+    console.log(`Admin ${user.id} joined admin room`);
+    if (callback) callback({ status: 'ok', room: 'admin' });
   });
 
   // Handle admin room leaving
-  socket.on('leave-admin-room', () => {
+  socket.on('leave-admin-room', (callback?: (response: any) => void) => {
+    if (!user || user.role !== 'ADMIN') {
+      if (callback) callback({ error: 'Unauthorized: Admin access required' });
+      return;
+    }
+    
     socket.leave('admin');
-    console.log(`Admin left admin room`);
+    console.log(`Admin ${user.id} left admin room`);
+    if (callback) callback({ status: 'ok' });
   });
 
   socket.on('disconnect', () => console.log('Socket disconnected', socket.id));
@@ -290,10 +403,19 @@ app.use("/admin/drivers", adminDriversRouter);
 app.use('/admin/drivers/levels', adminDriversLevelsRouter);
 app.use('/api/admin/drivers/level-messages', adminAllowlist, requireRole('ADMIN') as express.RequestHandler, adminDriversLevelMessagesRouter);
 app.use('/admin/group-stays/summary', adminGroupStaysSummaryRouter);
+app.use('/api/admin/group-stays/summary', adminGroupStaysSummaryRouter);
 app.use('/admin/group-stays/bookings', adminGroupStaysBookingsRouter);
+app.use('/api/admin/group-stays/bookings', adminGroupStaysBookingsRouter);
+app.use('/admin/group-stays/bookings', adminGroupStaysBookingsAuditRouter);
+app.use('/api/admin/group-stays/bookings', adminGroupStaysBookingsAuditRouter);
 app.use('/admin/group-stays/requests', adminGroupStaysRequestsRouter);
+app.use('/api/admin/group-stays/requests', adminGroupStaysRequestsRouter);
 app.use('/admin/group-stays/passengers', adminGroupStaysPassengersRouter);
+app.use('/api/admin/group-stays/passengers', adminGroupStaysPassengersRouter);
 app.use('/admin/group-stays/arrangements', adminGroupStaysArrangementsRouter);
+app.use('/api/admin/group-stays/arrangements', adminGroupStaysArrangementsRouter);
+app.use('/admin/group-stays/recommendations', adminGroupStaysRecommendationsRouter);
+app.use('/api/admin/group-stays/recommendations', adminGroupStaysRecommendationsRouter);
 app.use('/admin/plan-with-us/summary', adminPlanWithUsSummaryRouter);
 app.use('/api/admin/plan-with-us/summary', adminPlanWithUsSummaryRouter);
 app.use('/admin/plan-with-us/requests', adminPlanWithUsRequestsRouter);
@@ -378,6 +500,10 @@ app.use('/api/public/support', publicSupportRouter);
 app.use('/api/public/updates', publicUpdatesRouter);
 // Public booking view (for QR code scanning)
 app.use('/api/public/booking', publicBookingRouter);
+// Public booking creation (no auth required)
+app.use('/api/public/bookings', publicBookingsRouter);
+// Public invoice creation (no auth required)
+app.use('/api/public/invoices', publicInvoicesRouter);
 // Public properties (approved listings for public search/browse)
 app.use('/api/public/properties', publicPropertiesRouter);
 // Public plan request submission
@@ -387,6 +513,7 @@ app.use('/api/customer/bookings', customerBookingsRouter as express.RequestHandl
 app.use('/api/customer/cancellations', customerCancellationsRouter as express.RequestHandler);
 app.use('/api/customer/rides', customerRidesRouter as express.RequestHandler);
 app.use('/api/customer/group-stays', customerGroupStaysRouter as express.RequestHandler);
+app.use('/api/customer/saved-properties', customerSavedPropertiesRouter as express.RequestHandler);
 app.use('/api/customer/plan-requests', customerPlanRequestsRouter as express.RequestHandler);
 // Chatbot endpoints (public, supports authenticated and anonymous users)
 app.use('/api/chatbot', chatbotRouter as express.RequestHandler);
@@ -397,31 +524,14 @@ app.use('/api/group-bookings', requireRole() as express.RequestHandler, groupBoo
 // Property reviews (public GET, authenticated POST)
 app.use('/api/property-reviews', propertyReviewsRouter);
 
-// Global error handler - must be after all routes but before server.listen
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error('Unhandled error:', err);
-  console.error('Error details:', {
-    message: err?.message,
-    stack: err?.stack,
-    code: err?.code,
-    name: err?.name,
-  });
-  
-  // Ensure JSON response
-  res.setHeader('Content-Type', 'application/json');
-  
-  // Return JSON error response
-  res.status(err?.status || 500).json({
-    error: err?.message || 'Internal server error',
-    ...(process.env.NODE_ENV === 'development' && { stack: err?.stack }),
-  });
-});
-
-// 404 handler - must be after all routes and error handler
+// 404 handler - must be after all routes
 app.use((req: express.Request, res: express.Response) => {
   res.setHeader('Content-Type', 'application/json');
   res.status(404).json({ error: 'Not found' });
 });
+
+// Error handler middleware (must be last, after all routes and 404 handler)
+app.use(errorHandler);
 
 // Start server
 const PORT = Number(process.env.PORT) || 4000;

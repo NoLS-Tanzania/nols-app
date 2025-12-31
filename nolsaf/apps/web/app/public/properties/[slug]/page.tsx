@@ -1,8 +1,9 @@
 "use client";
 
+import "mapbox-gl/dist/mapbox-gl.css";
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import type { ReactNode, ComponentType } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -49,12 +50,28 @@ import {
   DoorClosed,
   X,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   CheckCircle,
+  CheckCircle2,
   CigaretteOff,
   MessageSquare,
   Map as MapIcon,
   Lock,
   Share2,
+  Info,
+  AlertCircle,
+  Clock,
+  PlayCircle,
+  ExternalLink as ExternalLinkIcon,
+  Heart,
+  Copy,
+  Mail,
+  Facebook,
+  Twitter,
+  HelpCircle,
+  Home,
+  Loader2,
 } from "lucide-react";
 import VerifiedIcon from "../../../../components/VerifiedIcon";
 import TableRow from "../../../../components/TableRow";
@@ -86,6 +103,18 @@ type PublicPropertyDetail = {
   services: string[];
   roomsSpec: any[];
   ownerId?: number;
+  verificationVideoUrl?: string | null;
+  houseRules?: string | string[] | {
+    checkIn?: string;
+    checkOut?: string;
+    smoking?: boolean;
+    pets?: boolean;
+    petsNote?: string;
+    parties?: string;
+    safetyMeasures?: string[];
+    other?: string;
+  } | null;
+  faq?: Array<{ question?: string; answer?: string; q?: string; a?: string }> | null;
 };
 
 type ReviewUser = { id: number; name: string | null };
@@ -243,6 +272,103 @@ function extractFirstUrl(s: string): { url: string | null; textWithoutUrl: strin
   const url = m[0];
   const textWithoutUrl = str.replace(url, "").replace(/\s{2,}/g, " ").trim();
   return { url, textWithoutUrl };
+}
+
+// Interactive Map Component for Property
+function PropertyMap({ latitude, longitude, propertyTitle }: { latitude: number; longitude: number; propertyTitle: string }) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<any | null>(null);
+  const markerRef = useRef<any | null>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const token =
+      (process.env.NEXT_PUBLIC_MAPBOX_TOKEN as string) ||
+      (process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN as string) ||
+      (window as any).__MAPBOX_TOKEN ||
+      '';
+
+    if (!token) return;
+    if (!containerRef.current) return;
+
+    let map: any = null;
+    (async () => {
+      try {
+        const mod = await import('mapbox-gl');
+        const mapboxgl = (mod as any).default ?? mod;
+        mapboxgl.accessToken = token;
+
+        map = new mapboxgl.Map({
+          container: containerRef.current as HTMLElement,
+          style: 'mapbox://styles/mapbox/streets-v12',
+          center: [longitude, latitude],
+          zoom: 15,
+          interactive: true,
+        });
+        mapRef.current = map;
+        
+        // Add navigation controls
+        map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
+
+        // Create custom marker
+        const el = document.createElement('div');
+        el.className = 'property-map-marker';
+        el.style.width = '32px';
+        el.style.height = '32px';
+        el.style.borderRadius = '50%';
+        el.style.backgroundColor = '#10b981';
+        el.style.border = '3px solid white';
+        el.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)';
+        el.style.cursor = 'pointer';
+        el.setAttribute('aria-label', propertyTitle);
+
+        // Add marker to map
+        const marker = new mapboxgl.Marker(el)
+          .setLngLat([longitude, latitude])
+          .addTo(map);
+        markerRef.current = marker;
+
+        // Cleanup
+        return () => {
+          if (markerRef.current) {
+            markerRef.current.remove();
+          }
+          if (mapRef.current) {
+            mapRef.current.remove();
+          }
+        };
+      } catch (e) {
+        console.error('Failed to load mapbox:', e);
+      }
+    })();
+
+    return () => {
+      if (markerRef.current) {
+        markerRef.current.remove();
+      }
+      if (mapRef.current) {
+        mapRef.current.remove();
+      }
+    };
+  }, [latitude, longitude, propertyTitle]);
+
+  return (
+    <div className="relative w-full h-[400px] bg-slate-100">
+      <div ref={containerRef} className="absolute inset-0 w-full h-full" />
+      {!process.env.NEXT_PUBLIC_MAPBOX_TOKEN && !process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN && (
+        <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200">
+          <div className="text-center">
+            <MapIcon className="h-8 w-8 text-slate-400 mx-auto mb-2" />
+            <p className="text-sm text-slate-600 font-medium">Map view</p>
+            <p className="text-xs text-slate-500 mt-1">
+              {latitude}, {longitude}
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 type NearbyItem = {
@@ -498,6 +624,7 @@ export default function PublicPropertyDetailPage() {
   const [reviewComment, setReviewComment] = useState<string>("");
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewSubmitMsg, setReviewSubmitMsg] = useState<string | null>(null);
+  const [showAllNearbyServices, setShowAllNearbyServices] = useState(false);
   const [categoryRatings, setCategoryRatings] = useState<{
     customerCare: number;
     security: number;
@@ -513,6 +640,10 @@ export default function PublicPropertyDetailPage() {
   const [roomAmenityHint, setRoomAmenityHint] = useState<string | null>(null);
   const [systemCommission, setSystemCommission] = useState<number>(0);
   const [isOwner, setIsOwner] = useState<boolean>(false);
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [favoriteLoading, setFavoriteLoading] = useState(false);
+  const [showShareMenu, setShowShareMenu] = useState(false);
+  const [copyLinkSuccess, setCopyLinkSuccess] = useState(false);
 
   // Load system commission settings
   useEffect(() => {
@@ -626,6 +757,31 @@ export default function PublicPropertyDetailPage() {
       }
     };
     void load();
+    return () => {
+      mounted = false;
+    };
+  }, [property?.id]);
+
+  // Check if property is saved
+  useEffect(() => {
+    if (!property?.id) return;
+    let mounted = true;
+    const checkSaved = async () => {
+      try {
+        const res = await fetch(`/api/customer/saved-properties?page=1&pageSize=100`, {
+          credentials: "include",
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (!mounted) return;
+          const isSaved = json?.items?.some((p: any) => p.id === property.id) || false;
+          setIsFavorite(isSaved);
+        }
+      } catch (e) {
+        // Silently fail - user might not be logged in
+      }
+    };
+    void checkSaved();
     return () => {
       mounted = false;
     };
@@ -862,50 +1018,216 @@ export default function PublicPropertyDetailPage() {
 
         {/* Title */}
         <div className="mt-5">
-          <h1 className="mt-2 text-2xl sm:text-3xl font-bold tracking-tight">{property.title}</h1>
-          <div className="mt-2 flex items-center gap-2 text-sm text-slate-600">
-            <MapPin className="w-4 h-4" />
-            <span className="truncate">{location || "—"}</span>
-          </div>
-
-          {/* Map Card */}
-          {property.latitude && property.longitude && (
-            <div className="mt-4 rounded-xl border border-slate-200 bg-white overflow-hidden">
-              <div className="relative aspect-[16/9] bg-slate-100">
-                {process.env.NEXT_PUBLIC_MAPBOX_TOKEN || process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN ? (
-                  <Image
-                    src={`https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/pin-s+10b981(${property.longitude},${property.latitude})/${property.longitude},${property.latitude},15,0/900x420?access_token=${encodeURIComponent(
-                      (process.env.NEXT_PUBLIC_MAPBOX_TOKEN || process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN) as string
-                    )}`}
-                    alt="Property location map"
-                    fill
-                    className="absolute inset-0 w-full h-full object-cover"
-                    sizes="900px"
-                    priority
-                  />
-                ) : (
-                  <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200">
-                    <div className="text-center">
-                      <MapIcon className="h-8 w-8 text-slate-400 mx-auto mb-2" />
-                      <p className="text-sm text-slate-600 font-medium">Map view</p>
-                      <p className="text-xs text-slate-500 mt-1">
-                        {property.latitude}, {property.longitude}
-                      </p>
-                    </div>
-                  </div>
-                )}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent pointer-events-none" />
-                <a
-                  href={`https://www.mapbox.com/maps?lon=${property.longitude}&lat=${property.latitude}&zoom=15`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="absolute bottom-3 left-1/2 -translate-x-1/2 inline-flex items-center justify-center px-4 py-2 bg-[#02665e] text-white text-sm font-semibold rounded-lg hover:bg-[#014e47] transition-colors shadow-sm"
-                >
-                  Show on map
-                </a>
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <h1 className="mt-2 text-2xl sm:text-3xl font-bold tracking-tight">{property.title}</h1>
+              <div className="mt-2 flex items-center gap-2 text-sm text-slate-600">
+                <MapPin className="w-4 h-4" />
+                <span className="truncate">{location || "—"}</span>
               </div>
             </div>
-          )}
+            {/* Favorite & Share Buttons */}
+            <div className="flex items-center gap-2 mt-2 flex-shrink-0">
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!property?.id || favoriteLoading) return;
+                  setFavoriteLoading(true);
+                  try {
+                    if (isFavorite) {
+                      // Unsave
+                      const res = await fetch(`/api/customer/saved-properties/${property.id}`, {
+                        method: "DELETE",
+                        credentials: "include",
+                      });
+                      if (res.ok) {
+                        setIsFavorite(false);
+                      } else {
+                        const json = await res.json().catch(() => ({}));
+                        if (json.error?.includes("not found")) {
+                          setIsFavorite(false);
+                        } else {
+                          console.error("Failed to unsave:", json.error || "Unknown error");
+                          alert(json.error || "Failed to remove from saved list. Please try again.");
+                        }
+                      }
+                    } else {
+                      // Save
+                      const propertyId = Number(property.id);
+                      if (!propertyId || isNaN(propertyId)) {
+                        alert("Invalid property ID");
+                        setFavoriteLoading(false);
+                        return;
+                      }
+                      const res = await fetch(`/api/customer/saved-properties`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        credentials: "include",
+                        body: JSON.stringify({ propertyId }),
+                      });
+                      const json = await res.json().catch(() => ({}));
+                      if (res.ok) {
+                        setIsFavorite(true);
+                      } else if (res.status === 401 || res.status === 403) {
+                        // Not logged in - redirect to login
+                        alert("Please log in to save properties");
+                        router.push(`/login?next=${encodeURIComponent(window.location.pathname)}`);
+                      } else {
+                        console.error("Failed to save:", json.error || json.details || "Unknown error");
+                        const errorMsg = json.error || json.message || "Failed to save property. Please try again.";
+                        alert(errorMsg);
+                      }
+                    }
+                  } catch (e: any) {
+                    console.error("Failed to toggle favorite:", e);
+                    alert("Network error. Please check your connection and try again.");
+                  } finally {
+                    setFavoriteLoading(false);
+                  }
+                }}
+                disabled={favoriteLoading}
+                className={[
+                  "inline-flex items-center justify-center w-10 h-10 rounded-lg border",
+                  "transition-all duration-300 ease-in-out",
+                  "hover:scale-110 active:scale-95",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30 focus-visible:ring-offset-2",
+                  "disabled:opacity-50 disabled:cursor-not-allowed",
+                  isFavorite
+                    ? "bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-100 hover:border-rose-300 hover:shadow-md"
+                    : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 hover:shadow-sm",
+                ].join(" ")}
+                aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
+                title={isFavorite ? "Remove from favorites" : "Save property"}
+              >
+                {favoriteLoading ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Heart className={`w-5 h-5 transition-all duration-300 ${isFavorite ? "fill-current scale-110" : "scale-100"}`} />
+                )}
+              </button>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowShareMenu(!showShareMenu)}
+                  className={[
+                    "inline-flex items-center justify-center w-10 h-10 rounded-lg border border-slate-200 bg-white text-slate-600",
+                    "transition-all duration-300 ease-in-out",
+                    "hover:bg-slate-50 hover:border-slate-300 hover:shadow-sm hover:scale-110",
+                    "active:scale-95",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30 focus-visible:ring-offset-2",
+                    showShareMenu ? "bg-slate-50 border-slate-300 shadow-sm" : "",
+                  ].join(" ")}
+                  aria-label="Share property"
+                  title="Share property"
+                >
+                  <Share2 className={`w-5 h-5 transition-transform duration-300 ${showShareMenu ? "rotate-12" : ""}`} />
+                </button>
+                {showShareMenu && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm transition-opacity duration-200"
+                      onClick={() => setShowShareMenu(false)}
+                    />
+                    <div className="absolute right-0 top-full mt-2 w-48 rounded-xl border border-slate-200 bg-white shadow-lg z-50 overflow-hidden transform transition-all duration-200 origin-top-right">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const url = window.location.href;
+                          navigator.clipboard.writeText(url).then(() => {
+                            setCopyLinkSuccess(true);
+                            setTimeout(() => setCopyLinkSuccess(false), 2000);
+                          });
+                          setShowShareMenu(false);
+                          // Mark as shared if property is saved
+                          if (property?.id && isFavorite) {
+                            try {
+                              await fetch(`/api/customer/saved-properties/${property.id}/share`, {
+                                method: "POST",
+                                credentials: "include",
+                              });
+                            } catch (e) {
+                              // Silently fail
+                            }
+                          }
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 transition-all duration-200 hover:translate-x-1 active:scale-95"
+                      >
+                        <Copy className={`w-4 h-4 transition-transform duration-200 ${copyLinkSuccess ? "scale-110 text-[#02665e]" : ""}`} />
+                        <span className={copyLinkSuccess ? "font-semibold text-[#02665e]" : ""}>{copyLinkSuccess ? "Link copied!" : "Copy link"}</span>
+                      </button>
+                      <a
+                        href={`mailto:?subject=${encodeURIComponent(property.title)}&body=${encodeURIComponent(window.location.href)}`}
+                        onClick={async () => {
+                          setShowShareMenu(false);
+                          // Mark as shared if property is saved
+                          if (property?.id && isFavorite) {
+                            try {
+                              await fetch(`/api/customer/saved-properties/${property.id}/share`, {
+                                method: "POST",
+                                credentials: "include",
+                              });
+                            } catch (e) {
+                              // Silently fail
+                            }
+                          }
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 transition-all duration-200 hover:translate-x-1 active:scale-95"
+                      >
+                        <Mail className="w-4 h-4 transition-transform duration-200 group-hover:scale-110" />
+                        <span>Email</span>
+                      </a>
+                      <a
+                        href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={async () => {
+                          setShowShareMenu(false);
+                          // Mark as shared if property is saved
+                          if (property?.id && isFavorite) {
+                            try {
+                              await fetch(`/api/customer/saved-properties/${property.id}/share`, {
+                                method: "POST",
+                                credentials: "include",
+                              });
+                            } catch (e) {
+                              // Silently fail
+                            }
+                          }
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 transition-all duration-200 hover:translate-x-1 active:scale-95"
+                      >
+                        <Facebook className="w-4 h-4 transition-transform duration-200 group-hover:scale-110" />
+                        <span>Facebook</span>
+                      </a>
+                      <a
+                        href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(window.location.href)}&text=${encodeURIComponent(property.title)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={async () => {
+                          setShowShareMenu(false);
+                          // Mark as shared if property is saved
+                          if (property?.id && isFavorite) {
+                            try {
+                              await fetch(`/api/customer/saved-properties/${property.id}/share`, {
+                                method: "POST",
+                                credentials: "include",
+                              });
+                            } catch (e) {
+                              // Silently fail
+                            }
+                          }
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 transition-all duration-200 hover:translate-x-1 active:scale-95 border-t border-slate-100"
+                      >
+                        <Twitter className="w-4 h-4 transition-transform duration-200 group-hover:scale-110" />
+                        <span>Twitter</span>
+                      </a>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
 
           {/* Verified by NoLSAF statement (anti-fraud) */}
           <div className="mt-3 rounded-xl border border-emerald-200/60 bg-gradient-to-br from-emerald-50 via-emerald-50/95 to-teal-50/80 p-3 shadow-sm">
@@ -1151,168 +1473,86 @@ export default function PublicPropertyDetailPage() {
               <div className="h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
             </div>
 
-            {/* Services & Facilities */}
-            {(Array.isArray(services) && services.length > 0) || (typeof services === 'object' && services !== null && Object.keys(services).length > 0) ? (
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
-                <div className="flex items-center gap-2 mb-6">
+            {/* Physical Verification - Our Competitive Advantage */}
+            <div className="rounded-2xl border-2 border-[#02665e]/20 bg-gradient-to-br from-[#02665e]/5 to-white p-5 sm:p-6 shadow-sm">
+              <div className="flex items-center gap-2 mb-4">
                 <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#02665e]/10 text-[#02665e]">
-                  <Sparkles className="w-5 h-5" aria-hidden />
-                    </span>
-                  <h2 className="text-lg sm:text-xl font-semibold text-slate-900">Services & Facilities</h2>
+                  <ShieldCheck className="w-5 h-5" aria-hidden />
+                </span>
+                <h2 className="text-lg sm:text-xl font-semibold text-slate-900">Physically Verified Property</h2>
               </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {/* Parking */}
-                  {servicesByCategory.amenities.some((s: string) => s.toLowerCase().includes("parking")) && (
-                    <div className="flex items-center gap-3">
-                      <Car className="h-5 w-5 text-[#02665e] flex-shrink-0" />
-                      <span className="text-sm text-slate-700">
-                        {servicesByCategory.amenities.find((s: string) => s.toLowerCase().includes("parking")) || "Parking"}
-                      </span>
+              
+              <div className="mb-4">
+                <p className="text-sm text-slate-700 leading-relaxed">
+                  We physically verify every property through on-site visits by our agents or CEO. This ensures authenticity, accuracy, and your peace of mind.
+                </p>
+              </div>
+
+              {/* YouTube Video Thumbnail - Only show if video URL exists */}
+              {property?.verificationVideoUrl ? (
+                <a
+                  href={property.verificationVideoUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group relative block w-full rounded-xl overflow-hidden border-2 border-slate-200 hover:border-[#02665e]/40 transition-all duration-200 hover:shadow-lg mb-4"
+                >
+                  <div className="relative aspect-video bg-gradient-to-br from-slate-100 to-slate-200">
+                    {/* YouTube Thumbnail - Extract video ID and use YouTube thumbnail API */}
+                    {(() => {
+                      const videoId = property.verificationVideoUrl.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/)?.[1];
+                      const thumbnailUrl = videoId 
+                        ? `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`
+                        : null;
+                      
+                      return thumbnailUrl ? (
+                        <Image
+                          src={thumbnailUrl}
+                          alt="Property verification video"
+                          fill
+                          className="object-cover"
+                          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                        />
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-200 to-slate-300">
+                          <PlayCircle className="h-16 w-16 text-slate-400" />
+                        </div>
+                      );
+                    })()}
+                    
+                    {/* Play Button Overlay */}
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/30 transition-colors duration-200">
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="w-16 h-16 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-200">
+                          <PlayCircle className="h-10 w-10 text-[#02665e] ml-1" fill="currentColor" />
+                        </div>
+                        <div className="text-white text-sm font-semibold drop-shadow-lg">Watch Verification</div>
+                      </div>
                     </div>
-                  )}
-
-                  {/* Restaurant */}
-                  {servicesByCategory.amenities.some((s: string) => s.toLowerCase().includes("restaurant")) && (
-                    <div className="flex items-center gap-3">
-                      <UtensilsCrossed className="h-5 w-5 text-[#02665e] flex-shrink-0" />
-                      <span className="text-sm text-slate-700">Restaurant</span>
+                    
+                    {/* External Link Indicator */}
+                    <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm rounded-lg p-1.5 shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                      <ExternalLinkIcon className="h-4 w-4 text-[#02665e]" />
+                    </div>
+                  </div>
+                </a>
+              ) : (
+                <div className="mb-4 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+                  <PlayCircle className="h-12 w-12 text-slate-400 mx-auto mb-3" />
+                  <div className="text-sm font-medium text-slate-700 mb-1">Verification video coming soon</div>
+                  <div className="text-xs text-slate-500">Watch this space for the physical verification video</div>
                 </div>
-                  )}
+              )}
 
-                  {/* Bar */}
-                  {servicesByCategory.amenities.some((s: string) => s.toLowerCase().includes("bar")) && (
-                    <div className="flex items-center gap-3">
-                      <Beer className="h-5 w-5 text-[#02665e] flex-shrink-0" />
-                      <span className="text-sm text-slate-700">Bar</span>
+              <div className="flex items-start gap-2 text-xs text-slate-600">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                <span>
+                  {property?.verificationVideoUrl 
+                    ? "This property has been physically inspected and verified by our team. Click above to see the complete verification process."
+                    : "This property will be physically inspected and verified by our team to ensure authenticity and accuracy."}
+                </span>
+              </div>
             </div>
-                  )}
 
-                  {/* Pool */}
-                  {servicesByCategory.amenities.some((s: string) => s.toLowerCase().includes("pool")) && (
-                    <div className="flex items-center gap-3">
-                      <Waves className="h-5 w-5 text-[#02665e] flex-shrink-0" />
-                      <span className="text-sm text-slate-700">
-                        {servicesByCategory.amenities.find((s: string) => s.toLowerCase().includes("pool")) || "Swimming Pool"}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Room Service */}
-                  {servicesByCategory.amenities.some((s: string) => s.toLowerCase().includes("room service")) && (
-                    <div className="flex items-center gap-3">
-                      <ConciergeBell className="h-5 w-5 text-[#02665e] flex-shrink-0" />
-                      <span className="text-sm text-slate-700">Room Service</span>
-                    </div>
-                  )}
-
-                  {/* WiFi */}
-                  {servicesByCategory.amenities.some((s: string) => s.toLowerCase().includes("wifi") || s.toLowerCase().includes("wi-fi")) && (
-                    <div className="flex items-center gap-3">
-                      <Wifi className="h-5 w-5 text-[#02665e] flex-shrink-0" />
-                      <span className="text-sm text-slate-700">Free WiFi</span>
-                    </div>
-                  )}
-
-                  {/* Laundry */}
-                  {servicesByCategory.amenities.some((s: string) => s.toLowerCase().includes("laundry")) && (
-                    <div className="flex items-center gap-3">
-                      <WashingMachine className="h-5 w-5 text-[#02665e] flex-shrink-0" />
-                      <span className="text-sm text-slate-700">Laundry</span>
-                    </div>
-                  )}
-
-                  {/* Security */}
-                  {servicesByCategory.amenities.some((s: string) => s.toLowerCase().includes("security") || s.toLowerCase().includes("24h")) && (
-                    <div className="flex items-center gap-3">
-                      <Shield className="h-5 w-5 text-[#02665e] flex-shrink-0" />
-                      <span className="text-sm text-slate-700">
-                        {servicesByCategory.amenities.find((s: string) => s.toLowerCase().includes("security") || s.toLowerCase().includes("24h")) || "24/7 Security"}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Sauna */}
-                  {servicesByCategory.amenities.some((s: string) => s.toLowerCase().includes("sauna")) && (
-                    <div className="flex items-center gap-3">
-                      <Thermometer className="h-5 w-5 text-[#02665e] flex-shrink-0" />
-                      <span className="text-sm text-slate-700">Sauna</span>
-                    </div>
-                  )}
-
-                  {/* First Aid */}
-                  {servicesByCategory.amenities.some((s: string) => s.toLowerCase().includes("first aid")) && (
-                    <div className="flex items-center gap-3">
-                      <Bandage className="h-5 w-5 text-[#02665e] flex-shrink-0" />
-                      <span className="text-sm text-slate-700">First Aid</span>
-                    </div>
-                  )}
-
-                  {/* Fire Extinguisher */}
-                  {servicesByCategory.amenities.some((s: string) => s.toLowerCase().includes("fire extinguisher")) && (
-                    <div className="flex items-center gap-3">
-                      <FireExtinguisher className="h-5 w-5 text-[#02665e] flex-shrink-0" />
-                      <span className="text-sm text-slate-700">Fire Extinguisher</span>
-                    </div>
-                  )}
-
-                  {/* On-site Shop */}
-                  {servicesByCategory.amenities.some((s: string) => s.toLowerCase().includes("on-site shop") || s.toLowerCase().includes("onsite shop")) && (
-                    <div className="flex items-center gap-3">
-                      <ShoppingBag className="h-5 w-5 text-[#02665e] flex-shrink-0" />
-                      <span className="text-sm text-slate-700">On-site Shop</span>
-                    </div>
-                  )}
-
-                  {/* Nearby Mall */}
-                  {servicesByCategory.amenities.some((s: string) => s.toLowerCase().includes("nearby mall")) && (
-                    <div className="flex items-center gap-3">
-                      <Store className="h-5 w-5 text-[#02665e] flex-shrink-0" />
-                      <span className="text-sm text-slate-700">Nearby Mall</span>
-                    </div>
-                  )}
-
-                  {/* Social Hall */}
-                  {servicesByCategory.amenities.some((s: string) => s.toLowerCase().includes("social hall")) && (
-                    <div className="flex items-center gap-3">
-                      <PartyPopper className="h-5 w-5 text-[#02665e] flex-shrink-0" />
-                      <span className="text-sm text-slate-700">Social Hall</span>
-                    </div>
-                  )}
-
-                  {/* Sports & Games */}
-                  {servicesByCategory.amenities.some((s: string) => s.toLowerCase().includes("sports") || s.toLowerCase().includes("games")) && (
-                    <div className="flex items-center gap-3">
-                      <Gamepad2 className="h-5 w-5 text-[#02665e] flex-shrink-0" />
-                      <span className="text-sm text-slate-700">Sports & Games</span>
-                    </div>
-                  )}
-
-                  {/* Gym */}
-                  {servicesByCategory.amenities.some((s: string) => s.toLowerCase().includes("gym") || s.toLowerCase().includes("fitness")) && (
-                    <div className="flex items-center gap-3">
-                      <Dumbbell className="h-5 w-5 text-[#02665e] flex-shrink-0" />
-                      <span className="text-sm text-slate-700">Gym / Fitness Center</span>
-                    </div>
-                  )}
-
-                  {/* Breakfast Included */}
-                  {servicesByCategory.amenities.some((s: string) => s.toLowerCase().includes("breakfast included")) && (
-                    <div className="flex items-center gap-3">
-                      <Coffee className="h-5 w-5 text-[#02665e] flex-shrink-0" />
-                      <span className="text-sm text-slate-700">Breakfast Included</span>
-                    </div>
-                  )}
-
-                  {/* Breakfast Available */}
-                  {servicesByCategory.amenities.some((s: string) => s.toLowerCase().includes("breakfast available")) && (
-                    <div className="flex items-center gap-3">
-                      <Coffee className="h-5 w-5 text-[#02665e] flex-shrink-0" />
-                      <span className="text-sm text-slate-700">Breakfast Available</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : null}
 
             {/* Payment Methods (mobile/tablet only; on large screens it sits in the right column) */}
             <div className="lg:hidden rounded-2xl border border-slate-200 bg-white p-5">
@@ -1335,94 +1575,6 @@ export default function PublicPropertyDetailPage() {
               </div>
             </div>
 
-            {/* Nearby Services */}
-            {nearbyFacilities.length > 0 && (
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
-                <div className="flex items-center gap-2 mb-6">
-                <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#02665e]/10 text-[#02665e]">
-                    <MapPin className="w-5 h-5" aria-hidden />
-                </span>
-                  <h2 className="text-lg sm:text-xl font-semibold text-slate-900">Nearby Services</h2>
-              </div>
-                <div className="space-y-3">
-                  {nearbyFacilities.map((facility: any, idx: number) => {
-                    // Get icon based on facility type
-                    const getFacilityIcon = (type: string) => {
-                      const t = (type || "").toLowerCase();
-                      if (t.includes("hospital") || t.includes("clinic") || t.includes("pharmacy") || t.includes("polyclinic")) {
-                        return { Icon: Hospital, color: "text-rose-600" };
-                      }
-                      if (t.includes("petrol") || t.includes("fuel") || t.includes("gas")) {
-                        return { Icon: Fuel, color: "text-orange-600" };
-                      }
-                      if (t.includes("airport")) {
-                        return { Icon: Plane, color: "text-blue-600" };
-                      }
-                      if (t.includes("bus") || t.includes("station")) {
-                        return { Icon: Bus, color: "text-amber-700" };
-                      }
-                      if (t.includes("road") || t.includes("main road")) {
-                        return { Icon: Route, color: "text-slate-700" };
-                      }
-                      if (t.includes("police")) {
-                        return { Icon: Shield, color: "text-indigo-600" };
-                      }
-                      return { Icon: MapPin, color: "text-[#02665e]" };
-                    };
-                    
-                    const facilityIcon = getFacilityIcon(facility.type || "");
-                    const Icon = facilityIcon.Icon;
-                    
-                    return (
-                      <div key={idx} className="bg-slate-50 rounded-lg p-3 sm:p-4 border border-slate-200 motion-safe:transition-all motion-safe:duration-200 hover:border-[#02665e]/30 hover:shadow-sm">
-                        <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
-                          {facility.name && (
-                            <div className="flex items-center gap-2 flex-shrink-0">
-                              <Icon className={`h-5 w-5 ${facilityIcon.color} flex-shrink-0`} />
-                              <span className="text-base font-semibold text-gray-800">{facility.name}</span>
-                            </div>
-                          )}
-                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-600">
-                            {facility.type && (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 font-medium">
-                                {facility.type}
-                              </span>
-                            )}
-                            {facility.ownership && (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gray-100 text-gray-700 font-medium">
-                                {facility.ownership}
-                              </span>
-                            )}
-                            {typeof facility.distanceKm === 'number' && (
-                              <span className="inline-flex items-center gap-1 text-gray-600">
-                                <MapPin className="h-3.5 w-3.5 text-pink-600" />
-                                <span className="font-medium">{facility.distanceKm} km</span>
-                              </span>
-                            )}
-                            {facility.url && (
-                              <a href={facility.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[#02665e] hover:underline">
-                                <ExternalLink className="h-3.5 w-3.5" />
-                                <span className="text-xs font-medium">Link</span>
-                            </a>
-                            )}
-                        </div>
-                      </div>
-                        {Array.isArray(facility.reachableBy) && facility.reachableBy.length > 0 && (
-                          <div className="mt-2 flex items-center gap-1.5 flex-wrap">
-                            <span className="text-sm text-gray-600 font-medium">Reachable by:</span>
-                            {facility.reachableBy.map((mode: string, mIdx: number) => (
-                              <span key={mIdx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gray-100 text-gray-700 text-sm font-medium">
-                                {mode}
-                              </span>
-                    ))}
-                </div>
-              )}
-            </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
 
           </div>
 
@@ -1625,7 +1777,7 @@ export default function PublicPropertyDetailPage() {
 
                       <button
                         type="button"
-                        onClick={() => alert("Pay Now / Booking flow is coming next (Phase 2).")}
+                        onClick={() => router.push(`/public/booking/confirm?property=${property.id}`)}
                         className="mt-4 w-full rounded-lg bg-[#02665e] text-white py-1.5 px-3 text-xs font-medium hover:bg-[#014e47] transition-colors shadow-sm hover:shadow"
                       >
                         Pay now
@@ -1797,7 +1949,7 @@ export default function PublicPropertyDetailPage() {
                             <td className="align-top px-3 py-4 border-t border-slate-200">
                               <button
                                 type="button"
-                                onClick={() => alert("Pay Now / Booking flow is coming next (Phase 2).")}
+                                onClick={() => router.push(`/public/booking/confirm?property=${property.id}`)}
                                 className={[
                                   "w-full rounded-md bg-[#02665e] text-white px-2.5 py-1.5 text-sm font-medium",
                                   "hover:bg-[#014e47]",
@@ -1808,7 +1960,7 @@ export default function PublicPropertyDetailPage() {
                               >
                                 Pay now
                               </button>
-                              <div className="mt-2 text-xs text-slate-500">Secure checkout (coming soon)</div>
+                              <div className="mt-2 text-xs text-slate-500">Secure checkout</div>
                             </td>
                             <td className="align-top px-3 py-4 border-t border-slate-200">
                               <ul className="space-y-1 text-base text-slate-800">
@@ -1934,35 +2086,11 @@ export default function PublicPropertyDetailPage() {
             </>
           )}
 
-          {(reviewsData?.reviews ?? []).slice(0, 20).map((r) => (
-            <div key={r.id} className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <div className="text-sm font-semibold text-slate-900 truncate">{r.user?.name || "Guest"}</div>
-                    {r.isVerified ? (
-                      <span className="inline-flex items-center rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
-                        Verified stay
-                      </span>
-                    ) : null}
-                  </div>
-                  <div className="mt-1 flex items-center gap-2 text-xs text-slate-600">
-                    <StarRow value={r.rating} />
-                    <span>•</span>
-                    <span>{new Date(r.createdAt).toLocaleDateString()}</span>
-                  </div>
-                  {r.title ? <div className="mt-2 text-sm font-semibold text-slate-900">{r.title}</div> : null}
-                  {r.comment ? <div className="mt-1 text-sm text-slate-700 whitespace-pre-wrap">{r.comment}</div> : null}
-                </div>
-              </div>
-              {r.ownerResponse ? (
-                <div className="mt-3 rounded-lg bg-slate-50 border border-slate-200 p-3">
-                  <div className="text-xs font-semibold text-slate-700">Owner response</div>
-                  <div className="mt-1 text-sm text-slate-700 whitespace-pre-wrap">{r.ownerResponse}</div>
-                </div>
-              ) : null}
-            </div>
-          ))}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
+            {(reviewsData?.reviews ?? []).slice(0, 20).map((r) => (
+              <ReviewCard key={r.id} review={r} />
+            ))}
+          </div>
 
           {/* Leave a review */}
           {!isOwner ? (
@@ -2135,7 +2263,418 @@ export default function PublicPropertyDetailPage() {
             </div>
           )}
         </div>
-      </div>
+
+        {/* House Rules Section - Three Column Layout */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
+          <div className="flex items-center gap-2 mb-6">
+            <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#02665e]/10 text-[#02665e]">
+              <Home className="w-5 h-5" aria-hidden />
+            </span>
+            <h2 className="text-lg sm:text-xl font-semibold text-slate-900">House Rules</h2>
+          </div>
+          
+          {property?.houseRules && typeof property.houseRules === 'object' && !Array.isArray(property.houseRules) ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Column 1: Check-in & Check-out */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Clock className="w-5 h-5 text-[#02665e]" />
+                  <h3 className="text-sm font-semibold text-slate-900">Check-in & Check-out</h3>
+                </div>
+                <div className="space-y-3">
+                  {property.houseRules.checkIn ? (
+                    <div className="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3 transition-all duration-200 hover:shadow-sm">
+                      <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Check-in</div>
+                      <div className="text-sm font-medium text-slate-900">{property.houseRules.checkIn}</div>
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3 opacity-60">
+                      <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Check-in</div>
+                      <div className="text-sm text-slate-400">Not specified</div>
+                    </div>
+                  )}
+                  {property.houseRules.checkOut ? (
+                    <div className="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3 transition-all duration-200 hover:shadow-sm">
+                      <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Check-out</div>
+                      <div className="text-sm font-medium text-slate-900">{property.houseRules.checkOut}</div>
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3 opacity-60">
+                      <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Check-out</div>
+                      <div className="text-sm text-slate-400">Not specified</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Column 2: Pets */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Users className="w-5 h-5 text-[#02665e]" />
+                  <h3 className="text-sm font-semibold text-slate-900">Pets</h3>
+                </div>
+                <div className="space-y-3">
+                  {property.houseRules.pets !== undefined ? (
+                    <div className={`rounded-lg border p-3 transition-all duration-200 hover:shadow-sm ${
+                      property.houseRules.pets 
+                        ? "border-emerald-200 bg-gradient-to-br from-emerald-50 to-white" 
+                        : "border-rose-200 bg-gradient-to-br from-rose-50 to-white"
+                    }`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        {property.houseRules.pets ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        ) : (
+                          <X className="w-4 h-4 text-rose-600" />
+                        )}
+                        <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                          {property.houseRules.pets ? "Allowed" : "Not Allowed"}
+                        </div>
+                      </div>
+                      {property.houseRules.petsNote && (
+                        <div className="text-sm text-slate-700 mt-2">{property.houseRules.petsNote}</div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3 opacity-60">
+                      <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Pets</div>
+                      <div className="text-sm text-slate-400">Not specified</div>
+                    </div>
+                  )}
+                  {property.houseRules.smoking !== undefined && (
+                    <div className={`rounded-lg border p-3 transition-all duration-200 hover:shadow-sm ${
+                      !property.houseRules.smoking 
+                        ? "border-emerald-200 bg-gradient-to-br from-emerald-50 to-white" 
+                        : "border-rose-200 bg-gradient-to-br from-rose-50 to-white"
+                    }`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        {property.houseRules.smoking ? (
+                          <CigaretteOff className="w-4 h-4 text-rose-600" />
+                        ) : (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        )}
+                        <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                          Smoking {property.houseRules.smoking ? "Not Allowed" : "Allowed"}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Column 3: Safety Measures */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <ShieldCheck className="w-5 h-5 text-[#02665e]" />
+                  <h3 className="text-sm font-semibold text-slate-900">Safety Measures</h3>
+                </div>
+                <div className="space-y-2">
+                  {[
+                    "Keep the property clean and well-maintained",
+                    "Return all keys and access cards upon checkout",
+                    "Report any incidents or damages immediately",
+                    "Respect quiet hours and neighbors",
+                    "Follow all posted safety guidelines"
+                  ].map((measure, idx) => (
+                    <div 
+                      key={idx}
+                      className="flex items-start gap-2 rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3 transition-all duration-200 hover:shadow-sm hover:border-[#02665e]/30"
+                    >
+                      <CheckCircle2 className="w-4 h-4 text-[#02665e] flex-shrink-0 mt-0.5" />
+                      <span className="text-sm text-slate-700 leading-relaxed">{measure}</span>
+                    </div>
+                  ))}
+                  {property.houseRules.safetyMeasures && Array.isArray(property.houseRules.safetyMeasures) && property.houseRules.safetyMeasures.length > 0 && (
+                    <>
+                      {property.houseRules.safetyMeasures.map((measure: string, idx: number) => (
+                        <div 
+                          key={`custom-${idx}`}
+                          className="flex items-start gap-2 rounded-lg border border-[#02665e]/20 bg-gradient-to-br from-[#02665e]/5 to-white p-3 transition-all duration-200 hover:shadow-sm hover:border-[#02665e]/40"
+                        >
+                          <CheckCircle2 className="w-4 h-4 text-[#02665e] flex-shrink-0 mt-0.5" />
+                          <span className="text-sm text-slate-700 leading-relaxed font-medium">{measure}</span>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-sm text-slate-500 italic text-center py-8">
+              House rules will be available soon. The owner is setting up the rules for this property.
+            </div>
+          )}
+        </div>
+
+        {/* Location & Map - Two column layout */}
+        {property.latitude && property.longitude && (
+          <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Nearby Services - Left Column */}
+            <div className="space-y-6">
+                {/* Nearby Services - Detailed Cards */}
+              {(() => {
+                // Filter to only detailed facilities (with name)
+                const detailedFacilities = nearbyFacilities.filter((f: any) => typeof f !== 'string' && f.name);
+                
+                if (detailedFacilities.length === 0) return null;
+                
+                // Show 2 by default, all when expanded
+                const displayCount = showAllNearbyServices ? detailedFacilities.length : 2;
+                const facilitiesToShow = detailedFacilities.slice(0, displayCount);
+                const hasMore = detailedFacilities.length > 2;
+                
+                return (
+                  <div className="rounded-xl border border-slate-200 bg-white p-5">
+                    <div className="flex items-center gap-2 mb-4">
+                      <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#02665e]/10 text-[#02665e]">
+                        <MapPin className="w-5 h-5" aria-hidden />
+                      </span>
+                      <h2 className="text-lg font-semibold text-slate-900">Nearby Services</h2>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      {facilitiesToShow.map((facility: any, idx: number) => {
+                      
+                      // Get icon based on facility type
+                      const getFacilityIcon = (type: string) => {
+                        const t = (type || "").toLowerCase();
+                        if (t.includes("hospital") || t.includes("clinic") || t.includes("pharmacy") || t.includes("polyclinic")) {
+                          return { Icon: Hospital, color: "text-rose-600", bgColor: "bg-rose-50" };
+                        }
+                        if (t.includes("petrol") || t.includes("fuel") || t.includes("gas")) {
+                          return { Icon: Fuel, color: "text-orange-600", bgColor: "bg-orange-50" };
+                        }
+                        if (t.includes("airport")) {
+                          return { Icon: Plane, color: "text-blue-600", bgColor: "bg-blue-50" };
+                        }
+                        if (t.includes("bus") || t.includes("station")) {
+                          return { Icon: Bus, color: "text-amber-700", bgColor: "bg-amber-50" };
+                        }
+                        if (t.includes("road") || t.includes("main road")) {
+                          return { Icon: Route, color: "text-slate-700", bgColor: "bg-slate-50" };
+                        }
+                        if (t.includes("police")) {
+                          return { Icon: Shield, color: "text-indigo-600", bgColor: "bg-indigo-50" };
+                        }
+                        if (t.includes("conference") || t.includes("center") || t.includes("centre")) {
+                          return { Icon: MapPin, color: "text-emerald-600", bgColor: "bg-emerald-50" };
+                        }
+                        return { Icon: MapPin, color: "text-[#02665e]", bgColor: "bg-[#02665e]/10" };
+                      };
+                      
+                      const facilityIcon = getFacilityIcon(facility.type || "");
+                      const Icon = facilityIcon.Icon;
+                      
+                      return (
+                        <div 
+                          key={idx} 
+                          className="group relative overflow-hidden rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm transition-all duration-300 ease-out hover:border-[#02665e]/30 hover:shadow-lg hover:shadow-[#02665e]/5 hover:-translate-y-0.5"
+                        >
+                          <div className="flex items-start gap-4">
+                            {/* Icon - Enhanced with better styling */}
+                            <div className={`flex-shrink-0 w-12 h-12 rounded-xl ${facilityIcon.bgColor} flex items-center justify-center shadow-sm transition-all duration-300 group-hover:scale-110 group-hover:shadow-md`}>
+                              <Icon className={`h-6 w-6 ${facilityIcon.color} transition-transform duration-300 group-hover:scale-110`} />
+                            </div>
+                            
+                            {/* Content */}
+                            <div className="flex-1 min-w-0 space-y-3">
+                              {/* Name */}
+                              {facility.name && (
+                                <div className="font-bold text-slate-900 text-base leading-snug tracking-tight">{facility.name}</div>
+                              )}
+                              
+                              {/* Tags Row - Enhanced styling */}
+                              <div className="flex flex-wrap items-center gap-2">
+                                {facility.type && (
+                                  <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-semibold border border-blue-100/80 shadow-sm">
+                                    {facility.type}
+                                  </span>
+                                )}
+                                {facility.ownership && (
+                                  <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs font-semibold border border-slate-200/80 shadow-sm">
+                                    {facility.ownership}
+                                  </span>
+                                )}
+                              </div>
+                              
+                              {/* Distance & Link Row - Better spacing and styling */}
+                              <div className="flex flex-wrap items-center gap-4 text-xs">
+                                {typeof facility.distanceKm === 'number' && (
+                                  <div className="inline-flex items-center gap-1.5 text-slate-700 font-semibold">
+                                    <MapPin className="h-4 w-4 text-rose-500 flex-shrink-0" />
+                                    <span>{facility.distanceKm} km</span>
+                                  </div>
+                                )}
+                                {facility.url && (
+                                  <a 
+                                    href={facility.url} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer" 
+                                    className="inline-flex items-center gap-1.5 text-[#02665e] hover:text-[#014e47] font-semibold transition-all duration-200 hover:underline underline-offset-2"
+                                  >
+                                    <ExternalLink className="h-4 w-4 flex-shrink-0" />
+                                    <span>Link</span>
+                                  </a>
+                                )}
+                              </div>
+                              
+                              {/* Transportation - Enhanced with better visual separation */}
+                              {Array.isArray(facility.reachableBy) && facility.reachableBy.length > 0 && (
+                                <div className="pt-2.5 border-t border-slate-100/80">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="text-xs text-slate-500 font-semibold">Reachable by:</span>
+                                    {facility.reachableBy.map((mode: string, mIdx: number) => (
+                                      <span 
+                                        key={mIdx} 
+                                        className="inline-flex items-center px-2.5 py-1 rounded-lg bg-slate-50 text-slate-700 text-xs font-medium border border-slate-200/60 shadow-sm transition-colors duration-200 group-hover:border-slate-300"
+                                      >
+                                        {mode}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          
+                          {/* Subtle accent line on hover */}
+                          <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-[#02665e]/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                        </div>
+                      );
+                      })}
+                    </div>
+                    
+                    {/* Show More/Less Button */}
+                    {hasMore && (
+                      <div className="mt-4 pt-4 border-t border-slate-100">
+                        <button
+                          type="button"
+                          onClick={() => setShowAllNearbyServices(!showAllNearbyServices)}
+                          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 hover:text-slate-900 font-semibold text-sm transition-all duration-200 border border-slate-200 hover:border-slate-300"
+                        >
+                          {showAllNearbyServices ? (
+                            <>
+                              <span>Show less</span>
+                              <ChevronUp className="h-4 w-4" />
+                            </>
+                          ) : (
+                            <>
+                              <span>Show more</span>
+                              <ChevronDown className="h-4 w-4" />
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Simple Nearby Places (string format) */}
+              {nearbyFacilities.length > 0 && nearbyFacilities.some((f: any) => typeof f === 'string' || (!f.name && f)) && (
+                <div className="rounded-xl border border-slate-200 bg-white p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#02665e]/10 text-[#02665e]">
+                      <MapPin className="w-5 h-5" aria-hidden />
+                    </span>
+                    <h2 className="text-lg font-semibold text-slate-900">Nearby Places</h2>
+                  </div>
+                  <div className="space-y-2">
+                    {nearbyFacilities
+                      .filter((f: any) => typeof f === 'string' || !f.name)
+                      .slice(0, 8)
+                      .map((facility: any, idx: number) => {
+                        const facilityStr = typeof facility === 'string' ? facility : (facility?.label || String(facility));
+                        const normalized = normalizeNearby([facilityStr]);
+                        if (!normalized || normalized.length === 0) return null;
+                        const item = normalized[0];
+                        const { Icon, colorClass, title, detail } = item;
+                        return (
+                          <div key={idx} className="flex items-center gap-2 text-sm text-slate-700">
+                            <Icon className={`w-4 h-4 ${colorClass} flex-shrink-0`} />
+                            <span>{title}{detail ? `: ${detail}` : ''}</span>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
+              
+              {/* Nearby Facilities (from services) */}
+              {servicesByCategory.nearby.length > 0 && (
+                <div className="rounded-xl border border-slate-200 bg-white p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#02665e]/10 text-[#02665e]">
+                      <MapPin className="w-5 h-5" aria-hidden />
+                    </span>
+                    <h2 className="text-lg font-semibold text-slate-900">Nearby Facilities</h2>
+                  </div>
+                  <div className="space-y-2">
+                    {servicesByCategory.nearby.slice(0, 6).map((item: string, idx: number) => {
+                      const normalized = normalizeNearby([item]);
+                      if (!normalized || normalized.length === 0) return null;
+                      const { Icon, colorClass, title, detail } = normalized[0];
+                      return (
+                        <div key={idx} className="flex items-center gap-2 text-sm text-slate-700">
+                          <Icon className={`w-4 h-4 ${colorClass} flex-shrink-0`} />
+                          <span>{title}{detail ? `: ${detail}` : ''}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Services & Amenities */}
+              {servicesByCategory.amenities.length > 0 && (
+                <div className="rounded-xl border border-slate-200 bg-white p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#02665e]/10 text-[#02665e]">
+                      <Sparkles className="w-5 h-5" aria-hidden />
+                    </span>
+                    <h2 className="text-lg font-semibold text-slate-900">Services & Amenities</h2>
+                  </div>
+                  <div className="space-y-2">
+                    {servicesByCategory.amenities.map((amenity: string, idx: number) => {
+                      const meta = amenityMeta(amenity);
+                      return (
+                        <div key={idx} className="flex items-center gap-2 text-sm text-slate-700">
+                          <meta.Icon className={`w-4 h-4 ${meta.colorClass} flex-shrink-0`} />
+                          <span className="capitalize">{amenity}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              </div>
+
+              {/* Interactive Map - Right Column */}
+              <div className="space-y-4">
+                {/* Location Header - Map Title */}
+                <div className="rounded-xl border border-slate-200 bg-white p-5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#02665e]/10 text-[#02665e]">
+                      <MapPin className="w-5 h-5" aria-hidden />
+                    </span>
+                    <h2 className="text-lg font-semibold text-slate-900">Location</h2>
+                  </div>
+                  <div className="text-sm text-slate-600">{location || "—"}</div>
+                </div>
+
+                {/* Map */}
+                <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+                  <PropertyMap 
+                    latitude={property.latitude} 
+                    longitude={property.longitude}
+                    propertyTitle={property.title}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
 
       {/* Lightbox */}
       {lightboxOpen && lightboxImages.length > 0 ? (
@@ -2319,6 +2858,203 @@ function Fact({ icon, label, value }: { icon: ReactNode; label: string; value: a
   );
 }
 
+function ReviewCard({ review }: { review: PropertyReview }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const MAX_PREVIEW_LENGTH = 200;
+  const comment = review.comment || "";
+  const isLongComment = comment.length > MAX_PREVIEW_LENGTH;
+  const previewText = isLongComment ? comment.slice(0, MAX_PREVIEW_LENGTH) + "..." : comment;
+
+  return (
+    <>
+      <div className="group relative bg-white rounded-2xl border border-slate-200/60 hover:border-[#02665e]/40 hover:shadow-xl transition-all duration-300 overflow-hidden shadow-sm">
+        <div className="p-6">
+          {/* Header */}
+          <div className="flex items-start justify-between gap-3 mb-4">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2.5 mb-2.5">
+                <div className="text-lg font-bold text-slate-900 truncate">
+                  {review.user?.name || "Guest"}
+                </div>
+                {review.isVerified && (
+                  <span className="inline-flex items-center rounded-full bg-emerald-50 border border-emerald-200/60 px-2.5 py-1 text-[10px] font-bold text-emerald-700 flex-shrink-0 tracking-wide">
+                    ✓ Verified
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2.5 text-xs text-slate-500">
+                <div className="flex items-center">
+                  <StarRow value={review.rating} />
+                </div>
+                <span className="text-slate-300">•</span>
+                <span className="font-medium">{new Date(review.createdAt).toLocaleDateString()}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Title */}
+          {review.title && (
+            <div className="mb-4">
+              <h3 className="text-base font-bold text-slate-900 leading-tight">{review.title}</h3>
+            </div>
+          )}
+
+          {/* Comment */}
+          {comment && (
+            <div className="mb-4">
+              <div className="rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100/50 border border-slate-200/80 p-5 shadow-inner">
+                <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap block font-normal">
+                  {isExpanded ? comment : previewText}
+                </p>
+              </div>
+              {isLongComment && !isExpanded && (
+                <button
+                  onClick={() => {
+                    if (comment.length > 500) {
+                      setShowModal(true);
+                    } else {
+                      setIsExpanded(true);
+                    }
+                  }}
+                  className="mt-4 px-5 py-2.5 rounded-xl bg-white border-2 border-slate-200 text-sm font-semibold text-[#02665e] hover:bg-slate-50 hover:border-[#02665e]/40 hover:shadow-md transition-all duration-200 inline-flex items-center gap-2 active:scale-[0.98]"
+                >
+                  <span>Show more</span>
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+              )}
+              {isLongComment && isExpanded && (
+                <button
+                  onClick={() => setIsExpanded(false)}
+                  className="mt-4 px-5 py-2.5 rounded-xl bg-white border-2 border-slate-200 text-sm font-semibold text-[#02665e] hover:bg-slate-50 hover:border-[#02665e]/40 hover:shadow-md transition-all duration-200 inline-flex items-center gap-2 active:scale-[0.98]"
+                >
+                  <span>Show less</span>
+                  <ChevronUp className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Owner Response */}
+          {review.ownerResponse && (
+            <div className="mt-5 pt-5 border-t border-slate-200/60">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-[#02665e]/10 to-[#02665e]/5 border border-[#02665e]/20 flex items-center justify-center shadow-sm">
+                  <MessageSquare className="w-5 h-5 text-[#02665e]" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide">Owner response</div>
+                  <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap line-clamp-3">
+                    {review.ownerResponse}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Expanded Modal for Very Long Reviews */}
+      {showModal && (
+        <ReviewModal review={review} onClose={() => setShowModal(false)} />
+      )}
+    </>
+  );
+}
+
+function ReviewModal({ review, onClose }: { review: PropertyReview; onClose: () => void }) {
+  useEffect(() => {
+    // Prevent body scroll when modal is open
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "unset";
+    };
+  }, []);
+
+  return (
+    <div
+      className="fixed inset-0 z-[10000] flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300"
+        aria-hidden="true"
+      />
+
+      {/* Modal Card */}
+      <div
+        className="relative w-full max-w-2xl max-h-[90vh] bg-white rounded-3xl shadow-2xl overflow-hidden transform transition-all duration-300 scale-100"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="sticky top-0 bg-gradient-to-r from-[#02665e] to-[#014e47] text-white p-6 flex items-start justify-between gap-4 z-10">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="text-xl font-bold truncate">
+                {review.user?.name || "Guest"}
+              </div>
+              {review.isVerified && (
+                <span className="inline-flex items-center rounded-full bg-white/20 border border-white/30 px-2.5 py-1 text-[11px] font-semibold flex-shrink-0">
+                  Verified stay
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-3 text-sm text-white/90">
+              <StarRow value={review.rating} />
+              <span>•</span>
+              <span>{new Date(review.createdAt).toLocaleDateString()}</span>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="flex-shrink-0 w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
+            aria-label="Close"
+          >
+            <X className="w-5 h-5 text-white" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="overflow-y-auto max-h-[calc(90vh-120px)] p-6">
+          {/* Title */}
+          {review.title && (
+            <h2 className="text-2xl font-bold text-slate-900 mb-4">{review.title}</h2>
+          )}
+
+          {/* Comment */}
+          {review.comment && (
+            <div className="mb-6">
+              <div className="rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100/50 border border-slate-200/80 p-6 shadow-inner">
+                <p className="text-base text-slate-800 leading-relaxed whitespace-pre-wrap block font-normal">
+                  {review.comment}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Owner Response */}
+          {review.ownerResponse && (
+            <div className="mt-6 pt-6 border-t border-slate-200">
+              <div className="flex items-start gap-4">
+                <div className="flex-shrink-0 w-12 h-12 rounded-full bg-[#02665e]/10 flex items-center justify-center">
+                  <MessageSquare className="w-6 h-6 text-[#02665e]" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-bold text-slate-900 mb-2">Owner response</div>
+                  <div className="text-base text-slate-700 leading-relaxed whitespace-pre-wrap">
+                    {review.ownerResponse}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function StarRow({ value }: { value: number }) {
   const v = Math.max(0, Math.min(5, Number(value) || 0));
   return (
@@ -2448,3 +3184,4 @@ function RoomAmenityChip({
     </button>
   );
 }
+

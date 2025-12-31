@@ -65,11 +65,13 @@ async function verifyToken(token: string): Promise<AuthedUser | null> {
     if (!user) return null;
 
     // Map database role to Role type (handle case where role might be different format)
-    const role = (user.role?.toUpperCase() || 'USER') as Role;
+    // Check raw database value before casting to handle CUSTOMER -> USER mapping
+    const rawRole = (user.role?.toUpperCase() || 'USER');
+    const role: Role = rawRole === 'CUSTOMER' ? 'USER' : (rawRole as Role);
     
     return {
       id: user.id,
-      role: role === 'CUSTOMER' ? 'USER' : role, // Map CUSTOMER to USER
+      role,
       email: user.email || undefined,
     };
   } catch (err) {
