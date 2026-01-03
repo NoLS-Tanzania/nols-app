@@ -37,11 +37,12 @@ export default function PropertyEditModal({ property, isOpen, onClose, onSave }:
       loadSystemSettings();
       initializeData();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, property]);
 
   async function loadSystemSettings() {
     try {
-      const response = await api.get("/admin/settings");
+      const response = await api.get("/api/admin/settings");
       if (response.data?.commissionPercent !== undefined) {
         const commission = Number(response.data.commissionPercent);
         setSystemCommission(isNaN(commission) ? 0 : commission);
@@ -137,7 +138,7 @@ export default function PropertyEditModal({ property, isOpen, onClose, onSave }:
         payload.roomPrices = roomPrices;
       }
 
-      await api.patch(`/admin/properties/${property.id}`, payload);
+      await api.patch(`/api/admin/properties/${property.id}`, payload);
       
       // Small delay to ensure database update is complete
       await new Promise(resolve => setTimeout(resolve, 300));
@@ -146,8 +147,13 @@ export default function PropertyEditModal({ property, isOpen, onClose, onSave }:
       onSave();
       onClose();
     } catch (err: any) {
-      setError(err?.response?.data?.error || "Failed to save changes");
-      console.error("Save error:", err);
+      const data = err?.response?.data;
+      const url = err?.config?.url || "unknown";
+      const method = err?.config?.method?.toUpperCase() || "unknown";
+      const status = err?.response?.status;
+      const errorMsg = data?.error ?? data ?? err?.message ?? "Failed to save changes";
+      console.error(`Save error: ${method} ${url}`, { status, error: errorMsg, fullError: err });
+      setError(typeof errorMsg === "string" ? errorMsg : JSON.stringify(errorMsg, null, 2));
     } finally {
       setSaving(false);
     }
@@ -300,6 +306,8 @@ export default function PropertyEditModal({ property, isOpen, onClose, onSave }:
                             checked={useSystemCommission}
                             onChange={() => setUseSystemCommission(true)}
                             className="w-4 h-4 text-[#02665e] flex-shrink-0"
+                            aria-label="Use system default commission"
+                            title="Use system default commission"
                           />
                           <div className="flex-1 min-w-0">
                             <div className="font-medium text-sm text-slate-900">Use System Default</div>
@@ -318,6 +326,8 @@ export default function PropertyEditModal({ property, isOpen, onClose, onSave }:
                             checked={!useSystemCommission}
                             onChange={() => setUseSystemCommission(false)}
                             className="w-4 h-4 text-[#02665e] flex-shrink-0"
+                            aria-label="Override commission"
+                            title="Override commission"
                           />
                           <div className="flex-1 min-w-0">
                             <div className="font-medium text-sm text-slate-900 mb-2">Override Commission</div>
@@ -352,8 +362,10 @@ export default function PropertyEditModal({ property, isOpen, onClose, onSave }:
                         {/* Owner's Original Price Section */}
                         <div className="flex flex-col">
                           <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 mb-2">
-                            Owner's Original Price
-                            <Lock className="h-3.5 w-3.5 text-slate-400" title="Locked - cannot be edited" />
+                            Owner&apos;s Original Price
+                            <span title="Locked - cannot be edited" aria-label="Locked - cannot be edited">
+                              <Lock className="h-3.5 w-3.5 text-slate-400" />
+                            </span>
                           </label>
                           <div className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg">
                             <div className="text-base font-semibold text-slate-700">
@@ -420,7 +432,7 @@ export default function PropertyEditModal({ property, isOpen, onClose, onSave }:
                                 <div className="font-medium text-sm text-slate-900 mb-3">{room.name || `Room ${room.id}`}</div>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                   <div>
-                                    <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                                    <label htmlFor={`room-price-${room.id}`} className="block text-xs font-medium text-slate-700 mb-1.5">
                                       Original Price
                                     </label>
                                     <div className="relative">
@@ -428,6 +440,7 @@ export default function PropertyEditModal({ property, isOpen, onClose, onSave }:
                                         {property.currency || "TZS"}
                                       </span>
                                       <input
+                                        id={`room-price-${room.id}`}
                                         type="number"
                                         value={originalPrice}
                                         onChange={(e) => setRoomPrices({
@@ -437,6 +450,8 @@ export default function PropertyEditModal({ property, isOpen, onClose, onSave }:
                                         min="0"
                                         step="0.01"
                                         className="w-full pl-14 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] transition-all"
+                                        aria-label={`Original price for ${room.name || `Room ${room.id}`}`}
+                                        title={`Original price for ${room.name || `Room ${room.id}`}`}
                                       />
                                     </div>
                                   </div>
@@ -502,11 +517,14 @@ export default function PropertyEditModal({ property, isOpen, onClose, onSave }:
                             <div className="flex items-center gap-3 flex-1 min-w-0">
                               <input
                                 type="checkbox"
+                                id={`discount-rule-${index}`}
                                 checked={rule.enabled}
                                 onChange={(e) => updateDiscountRule(index, "enabled", e.target.checked)}
                                 className="w-4 h-4 text-[#02665e] rounded flex-shrink-0 mt-0.5"
+                                aria-label={`Enable discount rule ${index + 1}`}
+                                title={`Enable discount rule ${index + 1}`}
                               />
-                              <label className="font-medium text-sm text-slate-900">Rule {index + 1}</label>
+                              <label htmlFor={`discount-rule-${index}`} className="font-medium text-sm text-slate-900 cursor-pointer">Rule {index + 1}</label>
                             </div>
                             {discountRules.length > 1 && (
                               <button

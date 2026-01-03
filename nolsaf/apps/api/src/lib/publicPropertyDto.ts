@@ -27,6 +27,8 @@ export type PublicPropertyDetail = {
   type: string;
   status: string;
   description: string | null;
+  buildingType?: string | null;
+  totalFloors?: number | null;
   regionName: string | null;
   district: string | null;
   ward: string | null;
@@ -174,6 +176,8 @@ export function toPublicDetail(p: any): PublicPropertyDetail {
     type: String(p.type || ""),
     status: String(p.status || ""),
     description: typeof p.description === "string" ? p.description : null,
+    buildingType: typeof p.buildingType === "string" ? p.buildingType : (p.buildingType ?? null),
+    totalFloors: typeof p.totalFloors === "number" ? p.totalFloors : (p.totalFloors != null ? Number(p.totalFloors) : null),
     regionName: p.regionName ?? null,
     district: p.district ?? null,
     ward: p.ward ?? null,

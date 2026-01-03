@@ -10,7 +10,6 @@ import {
   UtensilsCrossed, 
   Dumbbell, 
   Waves, 
-  Tv, 
   AirVent,
   CheckCircle2,
   XCircle,
@@ -19,23 +18,14 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
-  ChevronUp,
-  Maximize2,
-  Bed,
   BedDouble,
   Bath,
   Users,
-  DollarSign,
   Phone,
   Mail,
-  Building2,
-  Info,
-  Coffee,
   Beer,
   Thermometer,
   Package,
-  ConciergeBell,
   Shield,
   Bandage,
   FireExtinguisher,
@@ -43,18 +33,11 @@ import {
   Store,
   PartyPopper,
   Gamepad,
-  Fuel,
-  Bus,
-  Plane,
-  Link as LinkIcon,
   WashingMachine,
   Share2,
   Lock,
-  Heart,
   BadgeCheck,
-  TrendingUp,
   Clock,
-  CheckCircle,
   XCircle as XCircleIcon,
   Ban,
   CigaretteOff,
@@ -65,9 +48,7 @@ import {
   Eye,
   DoorClosed,
   Tags,
-  Bike,
-  FootprintsIcon,
-  Sparkles,
+  Building2,
 } from "lucide-react";
 import axios from "axios";
 import { motion } from "framer-motion";
@@ -76,193 +57,38 @@ import TableRow from "./TableRow";
 import PropertyEditModal from "./PropertyEditModal";
 import NearbyServices from "./NearbyServices";
 import ServicesAndFacilities from "./ServicesAndFacilities";
+import { PropertyVisualizationPreview } from "../app/(owner)/owner/properties/add/_components/PropertyVisualizationPreview";
 import { 
   getPropertyCommission, 
   calculatePriceWithCommission,
-  getPropertyDiscountRules 
 } from "../lib/priceUtils";
 import { BATHROOM_ICONS, OTHER_AMENITIES_ICONS } from "../lib/amenityIcons";
+import {
+  fmtMoney,
+  capWords,
+  getBedDimensions,
+  formatTimeRange,
+  normalizeRoomsSpec,
+} from "../lib/propertyUtils";
+import type {
+  PropertyPreviewProps,
+  Property,
+  ReviewsData,
+  AuditHistoryItem,
+  RoomSpec,
+  Review,
+} from "../lib/types/property";
 
 // Use same-origin calls + secure httpOnly cookie session.
 const api = axios.create({ baseURL: "", withCredentials: true });
 
-// Helper functions for rooms
-function fmtMoney(amount: number | null | undefined, currency?: string | null) {
-  if (amount == null || !Number.isFinite(Number(amount))) return "—";
-  const cur = currency || "TZS";
-  try {
-    return new Intl.NumberFormat(undefined, { style: "currency", currency: cur, maximumFractionDigits: 0 }).format(Number(amount));
-  } catch {
-    return `${cur} ${Number(amount).toLocaleString()}`;
-  }
-}
-
-function capWords(s: string, maxChars: number) {
-  const t = String(s || "").trim();
-  if (t.length <= maxChars) return t;
-  return t.slice(0, maxChars - 1).trimEnd() + "…";
-}
-
-// Bed size dimensions reference
-const BED_DIMENSIONS: Record<string, string> = {
-  twin: "38\" × 75\" (96.5 × 190.5 cm)",
-  full: "54\" × 75\" (137 × 190.5 cm)",
-  queen: "60\" × 80\" (152.4 × 203.2 cm)",
-  king: "76\" × 80\" (193 × 203.2 cm)",
-};
-
-function bedsToSummary(beds: any): string {
-  if (!beds || typeof beds !== "object") return "—";
-  const entries: Array<{ key: string; label: string }> = [
-    { key: "twin", label: "twin" },
-    { key: "full", label: "full" },
-    { key: "queen", label: "queen" },
-    { key: "king", label: "king" },
-  ];
-  const parts = entries
-    .map(({ key, label }) => {
-      const n = Number((beds as any)[key]);
-      if (!Number.isFinite(n) || n <= 0) return null;
-      return `${n} ${label}`;
-    })
-    .filter(Boolean) as string[];
-  return parts.length ? parts.join(", ") : "—";
-}
-
-function getBedDimensions(bedsSummary: string): string | null {
-  if (!bedsSummary || bedsSummary === "—") return null;
-  
-  // Extract bed types from summary (e.g., "2 queen, 1 twin")
-  const bedTypes = bedsSummary.split(',').map(s => {
-    const match = s.trim().match(/\d+\s+(twin|full|queen|king)/i);
-    return match ? match[1].toLowerCase() : null;
-  }).filter(Boolean) as string[];
-  
-  if (bedTypes.length === 0) return null;
-  
-  // Get unique bed types and their dimensions
-  const uniqueTypes = Array.from(new Set(bedTypes));
-  const dimensions = uniqueTypes
-    .map(type => {
-      const dim = BED_DIMENSIONS[type];
-      return dim ? `${type.charAt(0).toUpperCase() + type.slice(1)}: ${dim}` : null;
-    })
-    .filter(Boolean) as string[];
-  
-  return dimensions.length > 0 ? dimensions.join(" • ") : null;
-}
-
-type PolicyItem = {
-  text: string;
-  Icon?: any;
-  iconColor?: string;
-};
-
-type RoomSpecRow = {
-  roomType: string;
-  roomsCount: number | null;
-  bedsSummary: string;
-  description: string;
-  amenities: string[];
-  bathItems: string[];
-  bathPrivate: string;
-  pricePerNight: number | null;
-  discountLabel: string | null;
-  payActionLabel: string;
-  policies: PolicyItem[];
-};
-
-function normalizeRoomSpec(r: any, idx: number, currency: string | null, fallbackBasePrice: number | null): RoomSpecRow {
-  const roomType = String(r?.roomType || r?.name || r?.label || `Room ${idx + 1}`).trim() || `Room ${idx + 1}`;
-  const roomsCountRaw = r?.roomsCount ?? r?.count ?? r?.quantity ?? null;
-  const roomsCount = roomsCountRaw == null ? null : (Number.isFinite(Number(roomsCountRaw)) ? Number(roomsCountRaw) : null);
-
-  const bedsSummary = bedsToSummary(r?.beds);
-  const description = String(r?.roomDescription || r?.description || "").trim();
-
-  const amenities = Array.from(
-    new Set<string>([
-      ...(Array.isArray(r?.otherAmenities) ? r.otherAmenities : []),
-      ...(Array.isArray(r?.amenities) ? r.amenities : []),
-    ].map((x: any) => String(x || "").trim()).filter(Boolean))
-  );
-
-  const priceRaw = r?.pricePerNight ?? r?.price ?? null;
-  const pricePerNight = Number.isFinite(Number(priceRaw)) && Number(priceRaw) > 0 ? Number(priceRaw) : (fallbackBasePrice != null ? Number(fallbackBasePrice) : null);
-
-  const discountPercent = Number.isFinite(Number(r?.discountPercent)) ? Number(r.discountPercent) : null;
-  const discountAmount = Number.isFinite(Number(r?.discountAmount)) ? Number(r.discountAmount) : null;
-  const discountedPrice = Number.isFinite(Number(r?.discountedPrice)) ? Number(r.discountedPrice) : null;
-  const discountLabel =
-    discountPercent && discountPercent > 0
-      ? `${discountPercent}% off`
-      : discountAmount && discountAmount > 0
-        ? `${fmtMoney(discountAmount, currency)} off`
-        : discountedPrice && discountedPrice > 0 && pricePerNight && discountedPrice < pricePerNight
-          ? `Now ${fmtMoney(discountedPrice, currency)}`
-          : null;
-
-  const smoking = String(r?.smoking || "").toLowerCase();
-  const bathPrivate = String(r?.bathPrivate || "").toLowerCase();
-  const towelColor = String(r?.towelColor || "").trim();
-  const bathItems = Array.isArray(r?.bathItems) ? r.bathItems.map((x: any) => String(x || "").trim()).filter(Boolean) : [];
-
-  const policies: PolicyItem[] = [
-    smoking ? {
-      text: "Smoking",
-      Icon: smoking === "yes" ? CheckCircle : CigaretteOff,
-      iconColor: smoking === "yes" ? "text-green-600" : "text-red-600",
-    } : null,
-    towelColor ? {
-      text: `Towels: ${towelColor}`,
-    } : null,
-  ].filter(Boolean) as PolicyItem[];
-
-  return {
-    roomType,
-    roomsCount,
-    bedsSummary,
-    description,
-    amenities,
-    bathItems,
-    bathPrivate,
-    pricePerNight,
-    discountLabel,
-    payActionLabel: "Pay now",
-    policies: policies.length ? policies : [{ text: "—" }],
-  };
-}
-
-function normalizeRoomsSpec(
-  roomsSpec: any[], 
-  currency: string | null, 
-  fallbackBasePrice: number | null,
-  property?: any,
-  systemCommission: number = 0
-): RoomSpecRow[] {
-  if (!Array.isArray(roomsSpec)) return [];
-  return roomsSpec.map((r, idx) => normalizeRoomSpec(r, idx, currency, fallbackBasePrice, property, systemCommission));
-}
+// Utility functions and types are now imported from lib/propertyUtils and lib/types/property
 
 // Icon mappings matching the owner's add page exactly
 // Icon mappings are imported from shared source to ensure consistency with owner submissions
 // DO NOT define custom icon mappings here - use the shared BATHROOM_ICONS and OTHER_AMENITIES_ICONS
 
-// Helper function to get icon for room amenity - uses exact mappings from owner's add page
-// Transport method to icon mapping
-function getTransportIcon(mode: string): React.ComponentType<{ className?: string }> | null {
-  const modeLower = mode.toLowerCase();
-  if (modeLower.includes('walk') || modeLower === 'walking') return FootprintsIcon;
-  if (modeLower.includes('car') || modeLower.includes('taxi')) return Car;
-  if (modeLower.includes('boda') || modeLower.includes('motorcycle') || modeLower.includes('bike')) return Bike;
-  if (modeLower.includes('public') || modeLower.includes('bus') || modeLower.includes('transport')) return Bus;
-  return null;
-}
-
-function getRoomAmenityIcon(label: string): React.ComponentType<{ className?: string }> | null {
-  // Use exact match from the owner's icon mappings first
-  return BATHROOM_ICONS[label] || OTHER_AMENITIES_ICONS[label] || null;
-}
+// Icon mappings are imported from shared source to ensure consistency with owner submissions
 
 // RoomAmenityChip component matching public view - icon-only with hover tooltip
 function RoomAmenityChip({ label }: { label: string }) {
@@ -331,13 +157,7 @@ function RoomAmenityChip({ label }: { label: string }) {
   );
 }
 
-interface PropertyPreviewProps {
-  propertyId: number;
-  mode?: "admin" | "public" | "owner";
-  onApproved?: () => void;
-  onRejected?: () => void;
-  onUpdated?: () => void;
-}
+// PropertyPreviewProps is now imported from lib/types/property
 
 export default function PropertyPreview({ 
   propertyId, 
@@ -347,11 +167,12 @@ export default function PropertyPreview({
   onUpdated,
   onClose
 }: PropertyPreviewProps) {
-  const [property, setProperty] = useState<any>(null);
+  const [property, setProperty] = useState<Property | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [adminNotice, setAdminNotice] = useState<null | { kind: "success" | "error" | "info"; title: string; body?: string }>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [editData, setEditData] = useState<any>(null);
+  const [editData, setEditData] = useState<Partial<Property> | null>(null);
   const [saving, setSaving] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [showLightbox, setShowLightbox] = useState(false);
@@ -363,16 +184,61 @@ export default function PropertyPreview({
   const [unsuspendReason, setUnsuspendReason] = useState("");
   const [showUnsuspendDialog, setShowUnsuspendDialog] = useState(false);
   const [displayPhotos, setDisplayPhotos] = useState<string[]>([]);
-  const [isFavorite, setIsFavorite] = useState<boolean>(false);
   const [showShareMenu, setShowShareMenu] = useState<boolean>(false);
-  const [reviews, setReviews] = useState<any>(null);
-  const [reviewsLoading, setReviewsLoading] = useState<boolean>(false);
+  const [reviews, setReviews] = useState<ReviewsData | null>(null);
   const [aboutExpanded, setAboutExpanded] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [systemCommission, setSystemCommission] = useState<number>(0);
-  const [nearbyFacilitiesExpanded, setNearbyFacilitiesExpanded] = useState(false);
-  const [auditHistory, setAuditHistory] = useState<any[]>([]);
+  const [auditHistory, setAuditHistory] = useState<AuditHistoryItem[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
+
+  // Parse houseRules - can be a JSON string or object
+  const houseRules = useMemo(() => {
+    // Prefer `property.houseRules` if present, otherwise fall back to `services.houseRules`
+    const direct = (property as any)?.houseRules;
+    if (direct) {
+      if (typeof direct === 'string') {
+        try {
+          const parsed = JSON.parse(direct);
+          return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) ? parsed : null;
+        } catch (e) {
+          return null;
+        }
+      }
+      if (typeof direct === 'object' && direct !== null && !Array.isArray(direct)) {
+        return direct;
+      }
+    }
+
+    // Fallback: `services.houseRules` (we persist house rules under services for now)
+    const servicesRaw = (property as any)?.services;
+    let servicesObj: any = null;
+    try {
+      if (typeof servicesRaw === "string" && servicesRaw.trim()) {
+        servicesObj = JSON.parse(servicesRaw);
+      } else if (servicesRaw && typeof servicesRaw === "object") {
+        servicesObj = servicesRaw;
+      }
+    } catch {
+      servicesObj = null;
+    }
+    const viaServices = servicesObj?.houseRules;
+    if (!viaServices) return null;
+    if (typeof viaServices === "string") {
+      try {
+        const parsed = JSON.parse(viaServices);
+        return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed) ? parsed : null;
+      } catch (e) {
+        return null;
+      }
+    }
+    if (typeof viaServices === "object" && viaServices !== null && !Array.isArray(viaServices)) {
+      return viaServices;
+    }
+    return null;
+  }, [property]);
+
+  // formatTimeRange is now imported from lib/propertyUtils
 
   // Professional auto-fill template for suspension reason
   const SUSPENSION_REASON_TEMPLATE = `This property has been temporarily suspended due to a violation of our platform policies and terms of service. The suspension is effective immediately and the property has been removed from public search and booking availability. The property owner will be notified and provided with guidance on the steps required for reinstatement. The property will remain visible to administrators only until the issues have been resolved and the suspension is lifted.`;
@@ -398,59 +264,6 @@ export default function PropertyPreview({
       mounted = false;
     };
   }, [mode]);
-
-  useEffect(() => {
-    loadProperty();
-  }, [propertyId]);
-
-  useEffect(() => {
-    if (property && (mode === "public" || mode === "owner")) {
-      loadReviews();
-    }
-    if (property && mode === "admin") {
-      loadAuditHistory();
-    }
-  }, [property, mode]);
-
-  async function loadReviews() {
-    try {
-      setReviewsLoading(true);
-      const response = await api.get(`/api/property-reviews/${propertyId}`);
-      setReviews(response.data);
-    } catch (err: any) {
-      console.error("Load reviews error:", err);
-      // Don't show error - reviews are optional
-    } finally {
-      setReviewsLoading(false);
-    }
-  }
-
-  async function loadAuditHistory() {
-    try {
-      setAuditLoading(true);
-      const response = await api.get(`/api/admin/properties/${propertyId}/audit-history`);
-      setAuditHistory(response.data || []);
-    } catch (err: any) {
-      console.error("Load audit history error:", err);
-      setAuditHistory([]);
-    } finally {
-      setAuditLoading(false);
-    }
-  }
-
-  // Close share menu when clicking outside
-  useEffect(() => {
-    if (showShareMenu) {
-      const handleClickOutside = (e: MouseEvent) => {
-        const target = e.target as HTMLElement;
-        if (!target.closest('.share-menu-container')) {
-          setShowShareMenu(false);
-        }
-      };
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }
-  }, [showShareMenu]);
 
   async function loadProperty() {
     try {
@@ -483,6 +296,61 @@ export default function PropertyPreview({
     }
   }
 
+  useEffect(() => {
+    loadProperty();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [propertyId]);
+
+  useEffect(() => {
+    if (property && (mode === "public" || mode === "owner")) {
+      loadReviews();
+    }
+    if (property && mode === "admin") {
+      loadAuditHistory();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [property, mode]);
+
+
+
+  async function loadReviews() {
+    try {
+      const response = await api.get(`/api/property-reviews/${propertyId}`);
+      setReviews(response.data);
+    } catch (err: any) {
+      console.error("Load reviews error:", err);
+      // Don't show error - reviews are optional
+    }
+  }
+
+  async function loadAuditHistory() {
+    try {
+      setAuditLoading(true);
+      const response = await api.get(`/api/admin/properties/${propertyId}/audit-history`);
+      setAuditHistory(response.data || []);
+    } catch (err: any) {
+      console.error("Load audit history error:", err);
+      setAuditHistory([]);
+    } finally {
+      setAuditLoading(false);
+    }
+  }
+
+  // Close share menu when clicking outside
+  useEffect(() => {
+    if (showShareMenu) {
+      const handleClickOutside = (e: MouseEvent) => {
+        const target = e.target as HTMLElement;
+        if (!target.closest('.share-menu-container')) {
+          setShowShareMenu(false);
+        }
+      };
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showShareMenu]);
+
+
   async function handleApprove() {
     if (!confirm("Are you sure you want to approve this property?")) return;
     try {
@@ -491,9 +359,18 @@ export default function PropertyPreview({
       await loadProperty();
       await loadAuditHistory();
       onApproved?.();
-      alert("Property approved successfully!");
+      setAdminNotice({
+        kind: "success",
+        title: "Approved successfully",
+        body: "This property is now visible to guests. You can still edit details or suspend it later if needed.",
+      });
     } catch (err: any) {
-      alert(err?.response?.data?.error || "Failed to approve property");
+      const msg = err?.response?.data?.error || "Failed to approve property";
+      setAdminNotice({
+        kind: "error",
+        title: "Approval failed",
+        body: typeof msg === "string" ? msg : undefined,
+      });
     } finally {
       setSaving(false);
     }
@@ -608,24 +485,6 @@ export default function PropertyPreview({
     }
   }
 
-  function handleShare() {
-    if (navigator.share) {
-      navigator.share({
-        title: property?.title,
-        text: property?.description?.substring(0, 100),
-        url: window.location.href,
-      }).catch(() => {});
-    } else {
-      navigator.clipboard.writeText(window.location.href);
-      alert("Link copied to clipboard!");
-    }
-    setShowShareMenu(false);
-  }
-
-  function handleFavorite() {
-    setIsFavorite(!isFavorite);
-    // TODO: Implement favorite API call
-  }
 
   // Collect all images: property photos + room photos
   // Must be called before early returns to maintain consistent hook order
@@ -636,7 +495,7 @@ export default function PropertyPreview({
     
     // Collect photos from all rooms
     if (Array.isArray(property.roomsSpec)) {
-      property.roomsSpec.forEach((room: any) => {
+      property.roomsSpec.forEach((room: RoomSpec) => {
         if (room?.photos && Array.isArray(room.photos)) {
           roomPhotos.push(...room.photos);
         }
@@ -648,6 +507,7 @@ export default function PropertyPreview({
     
     // Combine property photos first, then room photos
     return [...propertyPhotos, ...roomPhotos];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [displayPhotos, property?.photos, property?.roomsSpec]);
 
   // About this place - description handling
@@ -661,6 +521,65 @@ export default function PropertyPreview({
     const collapsed = hasMore ? raw.slice(0, limit).trimEnd() + "…" : text;
     return { raw, text, hasMore, collapsed };
   }, [property?.description]);
+
+  // Derive building info even when DB fields are missing (older properties)
+  // Must be declared BEFORE early returns to maintain consistent hook order.
+  const derivedBuilding = useMemo(() => {
+    if (!property) return { type: "", floors: 1 };
+
+    const roomsSpec: any[] = Array.isArray((property as any)?.roomsSpec) ? (property as any).roomsSpec : [];
+    const layoutRaw = (property as any)?.layout;
+    let layout: any = layoutRaw;
+    if (typeof layoutRaw === "string" && layoutRaw.trim()) {
+      try { layout = JSON.parse(layoutRaw); } catch { layout = null; }
+    }
+
+    // Prefer explicit totalFloors if present
+    const explicitFloors = typeof (property as any)?.totalFloors === "number" && (property as any).totalFloors > 0
+      ? (property as any).totalFloors
+      : null;
+
+    let floors: number | null = explicitFloors;
+
+    // Try layout.floors length
+    if (!floors && layout && Array.isArray(layout.floors) && layout.floors.length > 0) {
+      floors = layout.floors.length;
+    }
+
+    // Try roomsSpec floorDistribution max key
+    if (!floors && roomsSpec.length > 0) {
+      let maxFloor = 0;
+      for (const r of roomsSpec) {
+        const fd = (r as any)?.floorDistribution;
+        let obj: any = null;
+        if (typeof fd === "string" && fd.trim()) {
+          try { obj = JSON.parse(fd); } catch { obj = null; }
+        } else if (fd && typeof fd === "object" && !Array.isArray(fd)) {
+          obj = fd;
+        }
+        if (obj && typeof obj === "object") {
+          for (const k of Object.keys(obj)) {
+            const n = Number(k);
+            if (Number.isFinite(n) && n > maxFloor) maxFloor = n;
+          }
+        }
+      }
+      if (maxFloor > 0) floors = maxFloor;
+    }
+
+    if (!floors) floors = 1;
+
+    const explicitType = String((property as any)?.buildingType || "").trim();
+    const type = explicitType ? explicitType : (floors > 1 ? "multi_storey" : "single_storey");
+
+    return { type, floors };
+  }, [property]);
+
+  const effectiveBuildingType = String((property as any)?.buildingType || "").trim() || derivedBuilding.type;
+  const effectiveTotalFloors =
+    (typeof (property as any)?.totalFloors === "number" && (property as any).totalFloors > 0)
+      ? (property as any).totalFloors
+      : derivedBuilding.floors;
 
   if (loading) {
     return (
@@ -684,17 +603,11 @@ export default function PropertyPreview({
     );
   }
 
-  // Calculate mock booking count (would come from API)
-  const bookingCount = property?.status === "APPROVED" ? Math.floor(Math.random() * 50) + 10 : 0;
-  const isPopular = bookingCount > 30;
-  const isRecentlyBooked = bookingCount > 0 && Math.random() > 0.5;
-
   const photos = allImages;
-  const rooms = property.roomsSpec || [];
+  const rooms: RoomSpec[] = property.roomsSpec || [];
   const servicesRaw = property.services;
   const location = property.location || {};
   const status = property.status;
-  const hotelStar = property.hotelStar;
   const totalBedrooms = property.totalBedrooms;
   const totalBathrooms = property.totalBathrooms;
   const maxGuests = property.maxGuests;
@@ -775,15 +688,6 @@ export default function PropertyPreview({
     ? normalizedServicesObj.tags 
     : servicesArray;
   
-  // Extract service properties from tags array if individual properties are missing
-  // The owner form saves services in tags array, so we need to parse them
-  // Check if we have tags but no individual service properties
-  const hasIndividualProperties = Object.keys(servicesObj).some(k => 
-    k !== 'tags' && 
-    k !== 'nearbyFacilities' && 
-    (k === 'parking' || k === 'breakfastIncluded' || k === 'restaurant' || k === 'bar' || k === 'pool' || k === 'sauna' || k === 'laundry' || k === 'roomService' || k === 'security24' || k === 'firstAid' || k === 'fireExtinguisher' || k === 'onSiteShop' || k === 'nearbyMall' || k === 'socialHall' || k === 'sportsGames' || k === 'gym')
-  );
-  
   // Always parse tags to ensure we have the latest values, even if some properties exist
   // This ensures we don't miss any services that might be in tags but not in individual properties
   if (effectiveServicesArray.length > 0) {
@@ -792,9 +696,9 @@ export default function PropertyPreview({
     
     // Parking - only set if not already set or if tags have more specific info
     if (!normalizedServicesObj.parking || normalizedServicesObj.parking === 'no') {
-      if (tags.some(t => t.includes('free parking'))) {
+      if (tags.some((t: string) => t.includes('free parking'))) {
         normalizedServicesObj.parking = 'free';
-      } else if (tags.some(t => t.includes('paid parking'))) {
+      } else if (tags.some((t: string) => t.includes('paid parking'))) {
         normalizedServicesObj.parking = 'paid';
         // Try to extract parking price from tag
         const paidParkingTag = effectiveServicesArray.find((t: string) => t.toLowerCase().includes('paid parking'));
@@ -808,22 +712,22 @@ export default function PropertyPreview({
     }
     
     // Other services - set to true if found in tags (even if already false, tags are source of truth)
-    if (tags.some(t => t.includes('breakfast included'))) normalizedServicesObj.breakfastIncluded = true;
-    if (tags.some(t => t.includes('breakfast available'))) normalizedServicesObj.breakfastAvailable = true;
-    if (tags.some(t => t.includes('restaurant'))) normalizedServicesObj.restaurant = true;
-    if (tags.some(t => t.includes('bar'))) normalizedServicesObj.bar = true;
-    if (tags.some(t => t.includes('pool'))) normalizedServicesObj.pool = true;
-    if (tags.some(t => t.includes('sauna'))) normalizedServicesObj.sauna = true;
-    if (tags.some(t => t.includes('laundry'))) normalizedServicesObj.laundry = true;
-    if (tags.some(t => t.includes('room service'))) normalizedServicesObj.roomService = true;
-    if (tags.some(t => t.includes('24h security') || t.includes('24-hour security'))) normalizedServicesObj.security24 = true;
-    if (tags.some(t => t.includes('first aid'))) normalizedServicesObj.firstAid = true;
-    if (tags.some(t => t.includes('fire extinguisher'))) normalizedServicesObj.fireExtinguisher = true;
-    if (tags.some(t => t.includes('on-site shop'))) normalizedServicesObj.onSiteShop = true;
-    if (tags.some(t => t.includes('nearby mall'))) normalizedServicesObj.nearbyMall = true;
-    if (tags.some(t => t.includes('social hall'))) normalizedServicesObj.socialHall = true;
-    if (tags.some(t => t.includes('sports') || t.includes('games'))) normalizedServicesObj.sportsGames = true;
-    if (tags.some(t => t.includes('gym'))) normalizedServicesObj.gym = true;
+    if (tags.some((t: string) => t.includes('breakfast included'))) normalizedServicesObj.breakfastIncluded = true;
+    if (tags.some((t: string) => t.includes('breakfast available'))) normalizedServicesObj.breakfastAvailable = true;
+    if (tags.some((t: string) => t.includes('restaurant'))) normalizedServicesObj.restaurant = true;
+    if (tags.some((t: string) => t.includes('bar'))) normalizedServicesObj.bar = true;
+    if (tags.some((t: string) => t.includes('pool'))) normalizedServicesObj.pool = true;
+    if (tags.some((t: string) => t.includes('sauna'))) normalizedServicesObj.sauna = true;
+    if (tags.some((t: string) => t.includes('laundry'))) normalizedServicesObj.laundry = true;
+    if (tags.some((t: string) => t.includes('room service'))) normalizedServicesObj.roomService = true;
+    if (tags.some((t: string) => t.includes('24h security') || t.includes('24-hour security'))) normalizedServicesObj.security24 = true;
+    if (tags.some((t: string) => t.includes('first aid'))) normalizedServicesObj.firstAid = true;
+    if (tags.some((t: string) => t.includes('fire extinguisher'))) normalizedServicesObj.fireExtinguisher = true;
+    if (tags.some((t: string) => t.includes('on-site shop'))) normalizedServicesObj.onSiteShop = true;
+    if (tags.some((t: string) => t.includes('nearby mall'))) normalizedServicesObj.nearbyMall = true;
+    if (tags.some((t: string) => t.includes('social hall'))) normalizedServicesObj.socialHall = true;
+    if (tags.some((t: string) => t.includes('sports') || t.includes('games'))) normalizedServicesObj.sportsGames = true;
+    if (tags.some((t: string) => t.includes('gym'))) normalizedServicesObj.gym = true;
     
     // Debug logging
     if (mode === "admin") {
@@ -1009,6 +913,38 @@ export default function PropertyPreview({
                 )}
               </div>
             </div>
+
+            {/* Admin action banner (approval success/failure, etc.) */}
+            {adminNotice ? (
+              <div
+                role="status"
+                aria-live="polite"
+                className={[
+                  "mt-4 rounded-xl border px-4 py-3 flex items-start justify-between gap-3",
+                  adminNotice.kind === "success"
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                    : adminNotice.kind === "error"
+                      ? "border-red-200 bg-red-50 text-red-900"
+                      : "border-slate-200 bg-slate-50 text-slate-900",
+                ].join(" ")}
+              >
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold">{adminNotice.title}</div>
+                  {adminNotice.body ? (
+                    <div className="text-sm opacity-90 mt-0.5">{adminNotice.body}</div>
+                  ) : null}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAdminNotice(null)}
+                  className="shrink-0 inline-flex items-center justify-center rounded-lg border border-transparent hover:border-black/10 hover:bg-white/40 px-2 py-1 text-sm"
+                  aria-label="Dismiss message"
+                  title="Dismiss"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ) : null}
           </div>
         </div>
       )}
@@ -1024,6 +960,8 @@ export default function PropertyPreview({
                 value={editData?.title || ""}
                 onChange={(e) => setEditData({ ...editData, title: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-2xl sm:text-3xl font-bold"
+                aria-label="Property title"
+                title="Property title"
               />
             ) : (
               property.title
@@ -1140,8 +1078,7 @@ export default function PropertyPreview({
                   {photos.length > 3 && (
                     <div className="absolute left-3 right-3 bottom-3 flex items-center justify-start">
                       <div
-                        className="nls-blink inline-flex items-center gap-2 rounded-full bg-white/95 text-[#02665e] px-4 py-2 text-xs font-semibold shadow-sm ring-1 ring-black/5 whitespace-nowrap leading-none"
-                        style={{ animationDuration: "1.8s" }}
+                        className="nls-blink inline-flex items-center gap-2 rounded-full bg-white/95 text-[#02665e] px-4 py-2 text-xs font-semibold shadow-sm ring-1 ring-black/5 whitespace-nowrap leading-none [animation-duration:1.8s]"
                   >
                         <Eye className="w-4 h-4 flex-shrink-0 text-[#02665e]" aria-hidden />
                         <span className="leading-none">View all photos</span>
@@ -1217,8 +1154,7 @@ export default function PropertyPreview({
                     {i === 1 && (
                       <div className="absolute left-3 right-3 bottom-3 flex items-center justify-start">
                         <div
-                          className="nls-blink inline-flex items-center gap-2 rounded-full bg-white/95 text-[#02665e] px-4 py-2 text-xs font-semibold shadow-sm ring-1 ring-black/5 whitespace-nowrap leading-none"
-                          style={{ animationDuration: "1.8s" }}
+                          className="nls-blink inline-flex items-center gap-2 rounded-full bg-white/95 text-[#02665e] px-4 py-2 text-xs font-semibold shadow-sm ring-1 ring-black/5 whitespace-nowrap leading-none [animation-duration:1.8s]"
                         >
                           <Eye className="w-4 h-4 flex-shrink-0 text-[#02665e]" aria-hidden />
                           <span className="leading-none">View all photos</span>
@@ -1398,6 +1334,124 @@ export default function PropertyPreview({
               </section>
             )}
 
+            {/* Policies & Payments (derived from services tags) - Admin/Owner Only */}
+            {(mode === "admin" || mode === "owner") && (() => {
+              const tags: string[] = Array.isArray((normalizedServicesObj as any)?.tags)
+                ? (normalizedServicesObj as any).tags.filter((t: any) => typeof t === "string")
+                : [];
+              const freeCancellation = tags.some((t) => t.toLowerCase() === "free cancellation");
+              const groupStay = tags.some((t) => t.toLowerCase() === "group stay");
+              const paymentModes = tags
+                .filter((t) => /^payment:/i.test(t))
+                .map((t) => t.replace(/^payment:\s*/i, "").trim())
+                .filter(Boolean);
+
+              if (!freeCancellation && !groupStay && paymentModes.length === 0) return null;
+
+              return (
+                <section className="border-b border-gray-200 pb-6">
+                  <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
+                    <div className="flex items-center gap-2 mb-4">
+                      <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#02665e]/10 text-[#02665e]">
+                        <Shield className="w-5 h-5" aria-hidden />
+                      </span>
+                      <h2 className="text-lg font-semibold text-slate-900">Policies & Payments</h2>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      {freeCancellation && (
+                        <span className="inline-flex items-center rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 px-3 py-1 text-xs font-semibold">
+                          Free cancellation
+                        </span>
+                      )}
+                      {groupStay && (
+                        <span className="inline-flex items-center rounded-full bg-indigo-50 text-indigo-800 border border-indigo-200 px-3 py-1 text-xs font-semibold">
+                          Group stay accepted
+                        </span>
+                      )}
+                      {paymentModes.map((m) => (
+                        <span
+                          key={m}
+                          className="inline-flex items-center rounded-full bg-slate-50 text-slate-800 border border-slate-200 px-3 py-1 text-xs font-semibold"
+                        >
+                          Payment: {m}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </section>
+              );
+            })()}
+
+            {/* Building Structure Information - Admin/Owner Only */}
+            {(mode === "admin" || mode === "owner") && (effectiveBuildingType || effectiveTotalFloors) && (
+              <section className="border-b border-gray-200 pb-6">
+                <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-emerald-50/40 p-5 sm:p-6 shadow-sm">
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#02665e]/10 text-[#02665e]">
+                      <Building2 className="w-5 h-5" aria-hidden />
+                    </span>
+                    <h2 className="text-lg font-semibold text-slate-900">Building Structure</h2>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {effectiveBuildingType && (
+                      <div className="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3">
+                        <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Building Type</div>
+                        <div className="text-sm font-medium text-slate-900">
+                          {effectiveBuildingType === "single_storey" ? "Single Storey" : 
+                           effectiveBuildingType === "multi_storey" ? "Multi-Storey" : 
+                           effectiveBuildingType === "separate_units" ? "Separate Units" : 
+                           effectiveBuildingType}
+                        </div>
+                      </div>
+                    )}
+                    {typeof effectiveTotalFloors === "number" && effectiveTotalFloors > 0 && (
+                      <div className="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3">
+                        <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Total Floors</div>
+                        <div className="text-sm font-medium text-slate-900">{effectiveTotalFloors} {effectiveTotalFloors === 1 ? "Floor" : "Floors"}</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/* Property Visualization - Floor Plan Preview - Admin/Owner Only */}
+            {(mode === "admin" || mode === "owner") && rooms.length > 0 && effectiveBuildingType && (
+              <section className="border-b border-gray-200 pb-6">
+                <PropertyVisualizationPreview
+                  title={property.title || "Property"}
+                  buildingType={effectiveBuildingType}
+                  totalFloors={effectiveTotalFloors || ""}
+                  showHeader={false}
+                  rooms={rooms.map((room) => {
+                    // Parse floorDistribution if it's a JSON string
+                    let floorDist: Record<number, number> | undefined = undefined;
+                    if (room.floorDistribution) {
+                      if (typeof room.floorDistribution === "string") {
+                        try {
+                          const parsed = JSON.parse(room.floorDistribution);
+                          if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+                            floorDist = parsed;
+                          }
+                        } catch {
+                          // Invalid JSON, ignore
+                        }
+                      } else if (typeof room.floorDistribution === "object" && room.floorDistribution !== null && !Array.isArray(room.floorDistribution)) {
+                        floorDist = room.floorDistribution as Record<number, number>;
+                      }
+                    }
+                    
+                    return {
+                      roomType: room.roomType || room.name || room.label || "Room",
+                      roomsCount: room.roomsCount || room.count || room.quantity || 0,
+                      floorDistribution: floorDist,
+                    };
+                  })}
+                />
+              </section>
+            )}
+
             {/* Rooms Section - Match Public View with Table */}
             {rooms.length > 0 && (
               <section className="border-b border-gray-200 pb-10">
@@ -1409,7 +1463,7 @@ export default function PropertyPreview({
                     <h2 className="text-lg font-semibold text-slate-900">Rooms & Pricing</h2>
                             </div>
                   {(() => {
-                    const rows = normalizeRoomsSpec(property.roomsSpec || rooms, property.currency, property.basePrice, property, systemCommission);
+                    const rows = normalizeRoomsSpec(rooms, property.currency ?? null, property.basePrice ?? null);
                     if (!rows.length) return <p className="mt-2 text-sm text-slate-600">Room details coming soon.</p>;
 
                     return (
@@ -1552,19 +1606,19 @@ export default function PropertyPreview({
                             <table className="w-full table-fixed border-collapse">
                               <thead className="bg-slate-50 text-slate-700">
                                 <tr>
-                                  <th className="text-left text-sm font-semibold px-3 py-3 border-b border-slate-200 border-r border-slate-200 w-[13%]">
+                                  <th className="text-left text-sm font-semibold px-3 py-3 border-b border-r border-slate-200 w-[13%]">
                                     Room type
                                   </th>
-                                  <th className="text-left text-sm font-semibold px-3 py-3 border-b border-slate-200 border-r border-slate-200 w-[11%]">
+                                  <th className="text-left text-sm font-semibold px-3 py-3 border-b border-r border-slate-200 w-[11%]">
                                     Bed Type &amp; Size
                                   </th>
-                                  <th className="text-left text-sm font-semibold px-3 py-3 border-b border-slate-200 border-r border-slate-200 w-[28%]">
+                                  <th className="text-left text-sm font-semibold px-3 py-3 border-b border-r border-slate-200 w-[28%]">
                                     Description &amp; Amenities
                                   </th>
-                                  <th className="text-left text-sm font-semibold px-3 py-3 border-b border-slate-200 border-r border-slate-200 w-[14%]">
+                                  <th className="text-left text-sm font-semibold px-3 py-3 border-b border-r border-slate-200 w-[14%]">
                                     Price &amp; Discounts
                                   </th>
-                                  <th className="text-left text-sm font-semibold px-3 py-3 border-b border-slate-200 border-r border-slate-200 w-[11%]">Pay Now</th>
+                                  <th className="text-left text-sm font-semibold px-3 py-3 border-b border-r border-slate-200 w-[11%]">Pay Now</th>
                                   <th className="text-left text-sm font-semibold px-3 py-3 border-b border-slate-200 w-[23%] min-w-[160px]">
                                     Policies
                                   </th>
@@ -1826,50 +1880,130 @@ export default function PropertyPreview({
             )}
 
             {/* House Rules Section */}
-            {mode === "public" && (
+            {houseRules && (
               <section className="border-b border-gray-200 pb-10">
                 <h2 className="text-2xl font-bold text-gray-900 mb-6">House Rules</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-lg">
-                    <CheckCircle className="h-5 w-5 text-emerald-600 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <div className="font-semibold text-gray-900 mb-1">Check-in</div>
-                      <div className="text-sm text-gray-600">3:00 PM - 11:00 PM</div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Column 1: Check-in & Check-out */}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Clock className="w-5 h-5 text-[#02665e]" />
+                      <h3 className="text-sm font-semibold text-slate-900">Check-in & Check-out</h3>
+                    </div>
+                    <div className="space-y-3">
+                      {(() => {
+                        const checkInStr = formatTimeRange(houseRules.checkInFrom, houseRules.checkInTo);
+                        return checkInStr ? (
+                          <div className="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3 transition-all duration-200 hover:shadow-sm">
+                            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Check-in</div>
+                            <div className="text-sm font-medium text-slate-900">{checkInStr}</div>
+                          </div>
+                        ) : (
+                          <div className="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3 opacity-60">
+                            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Check-in</div>
+                            <div className="text-sm text-slate-400">Not specified</div>
+                          </div>
+                        );
+                      })()}
+                      {(() => {
+                        const checkOutStr = formatTimeRange(houseRules.checkOutFrom, houseRules.checkOutTo);
+                        return checkOutStr ? (
+                          <div className="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3 transition-all duration-200 hover:shadow-sm">
+                            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Check-out</div>
+                            <div className="text-sm font-medium text-slate-900">{checkOutStr}</div>
+                          </div>
+                        ) : (
+                          <div className="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3 opacity-60">
+                            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Check-out</div>
+                            <div className="text-sm text-slate-400">Not specified</div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
-                  <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-lg">
-                    <CheckCircle className="h-5 w-5 text-emerald-600 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <div className="font-semibold text-gray-900 mb-1">Check-out</div>
-                      <div className="text-sm text-gray-600">Before 11:00 AM</div>
+
+                  {/* Column 2: Pets & Smoking */}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Users className="w-5 h-5 text-[#02665e]" />
+                      <h3 className="text-sm font-semibold text-slate-900">Pets & Smoking</h3>
+                    </div>
+                    <div className="space-y-3">
+                      {houseRules.petsAllowed !== undefined ? (
+                        <div className={`rounded-lg border p-3 transition-all duration-200 hover:shadow-sm ${
+                          houseRules.petsAllowed 
+                            ? "border-emerald-200 bg-gradient-to-br from-emerald-50 to-white" 
+                            : "border-rose-200 bg-gradient-to-br from-rose-50 to-white"
+                        }`}>
+                          <div className="flex items-center gap-2 mb-2">
+                            {houseRules.petsAllowed ? (
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                            ) : (
+                              <XCircleIcon className="w-4 h-4 text-rose-600" />
+                            )}
+                            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                              {houseRules.petsAllowed ? "Allowed" : "Not Allowed"}
+                            </div>
+                          </div>
+                          {houseRules.petsNote && (
+                            <div className="text-sm text-slate-700 mt-2">{houseRules.petsNote}</div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3 opacity-60">
+                          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Pets</div>
+                          <div className="text-sm text-slate-400">Not specified</div>
+                        </div>
+                      )}
+                      {houseRules.smokingNotAllowed !== undefined && (
+                        <div className={`rounded-lg border p-3 transition-all duration-200 hover:shadow-sm ${
+                          !houseRules.smokingNotAllowed 
+                            ? "border-emerald-200 bg-gradient-to-br from-emerald-50 to-white" 
+                            : "border-rose-200 bg-gradient-to-br from-rose-50 to-white"
+                        }`}>
+                          <div className="flex items-center gap-2 mb-2">
+                            {houseRules.smokingNotAllowed ? (
+                              <CigaretteOff className="w-4 h-4 text-rose-600" />
+                            ) : (
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                            )}
+                            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                              Smoking {houseRules.smokingNotAllowed ? "Not Allowed" : "Allowed"}
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-lg">
-                    <XCircleIcon className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <div className="font-semibold text-gray-900 mb-1">No smoking</div>
-                      <div className="text-sm text-gray-600">Smoking is not allowed</div>
+
+                  {/* Column 3: Other Rules */}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Shield className="w-5 h-5 text-[#02665e]" />
+                      <h3 className="text-sm font-semibold text-slate-900">Other Rules</h3>
                     </div>
-                  </div>
-                  <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-lg">
-                    <Users className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <div className="font-semibold text-gray-900 mb-1">Max guests</div>
-                      <div className="text-sm text-gray-600">{maxGuests || "As specified"} guests maximum</div>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-lg">
-                    <Ban className="h-5 w-5 text-orange-600 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <div className="font-semibold text-gray-900 mb-1">No parties or events</div>
-                      <div className="text-sm text-gray-600">Quiet hours after 10 PM</div>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-lg">
-                    <Shield className="h-5 w-5 text-purple-600 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <div className="font-semibold text-gray-900 mb-1">Security deposit</div>
-                      <div className="text-sm text-gray-600">May be required</div>
+                    <div className="space-y-2">
+                      {[
+                        "Keep the property clean and well-maintained",
+                        "Return all keys and access cards upon checkout",
+                        "Report any incidents or damages immediately",
+                        "Respect quiet hours and neighbors",
+                        "Follow all posted safety guidelines"
+                      ].map((measure, idx) => (
+                        <div 
+                          key={idx}
+                          className="flex items-start gap-2 rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3 transition-all duration-200 hover:shadow-sm hover:border-[#02665e]/30"
+                        >
+                          <CheckCircle2 className="w-4 h-4 text-[#02665e] flex-shrink-0 mt-0.5" />
+                          <span className="text-sm text-slate-700 leading-relaxed">{measure}</span>
+                        </div>
+                      ))}
+                      {houseRules.other && houseRules.other.trim() && (
+                        <div className="rounded-lg border border-[#02665e]/20 bg-gradient-to-br from-[#02665e]/5 to-white p-3 transition-all duration-200 hover:shadow-sm hover:border-[#02665e]/40">
+                          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Additional Rules</div>
+                          <div className="text-sm text-slate-700 leading-relaxed">{houseRules.other}</div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1924,7 +2058,7 @@ export default function PropertyPreview({
                 )}
 
                 <div className="space-y-6">
-                  {reviews.reviews.slice(0, 5).map((review: any, idx: number) => (
+                  {reviews.reviews.slice(0, 5).map((review: Review, idx: number) => (
                     <motion.div
                       key={review.id}
                       initial={{ opacity: 0, x: -20 }}
@@ -1962,7 +2096,7 @@ export default function PropertyPreview({
                                 </span>
                               )}
                               <span className="text-gray-500">
-                                {new Date(review.createdAt).toLocaleDateString()}
+                                {review.createdAt ? new Date(review.createdAt).toLocaleDateString() : 'N/A'}
                               </span>
                             </div>
                           </div>
@@ -2003,7 +2137,7 @@ export default function PropertyPreview({
                   <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#02665e]/10 text-[#02665e]">
                     <MapPin className="w-5 h-5" aria-hidden />
                   </span>
-                  <h2 className="text-lg sm:text-xl font-semibold text-slate-900">Where you'll be</h2>
+                  <h2 className="text-lg sm:text-xl font-semibold text-slate-900">Where you&apos;ll be</h2>
                 </div>
                 <div className="grid grid-cols-2 gap-3 sm:gap-4">
                 {location.street && (
@@ -2071,13 +2205,15 @@ export default function PropertyPreview({
                           const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
                           return (
                             <>
-                              {mapboxToken ? (
-                        <img
-                                  src={`https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/pin-s+10b981(${lng},${lat})/${lng},${lat},15,0/900x420?access_token=${encodeURIComponent(mapboxToken)}`}
-                                  alt="Property location map"
-                          className="absolute inset-0 w-full h-full object-cover"
-                        />
-                      ) : (
+                      {mapboxToken ? (
+                                              <Image
+                                                src={`https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/pin-s+10b981(${lng},${lat})/${lng},${lat},15,0/900x420?access_token=${encodeURIComponent(mapboxToken)}`}
+                                                alt="Property location map"
+                                                fill
+                                                className="absolute inset-0 w-full h-full object-cover"
+                                                unoptimized
+                                              />
+                                            ) : (
                                 <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200">
                           <div className="text-center">
                                     <Map className="h-8 w-8 text-slate-400 mx-auto mb-2" />

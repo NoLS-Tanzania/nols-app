@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import axios from "axios";
@@ -13,8 +12,7 @@ import {
   CheckCircle, 
   Eye,
   MessageSquare,
-  ImageIcon,
-  BadgeCheck
+  ImageIcon
 } from "lucide-react";
 import { 
   getPropertyCommission, 
@@ -74,13 +72,12 @@ function buildPropertySlug(title: string, id: number): string {
 }
 
 export default function ApprovedProps() {
-  const router = useRouter();
   const [list, setList] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPropertyId, setSelectedPropertyId] = useState<number | null>(null);
   const [reviewsMap, setReviewsMap] = useState<Record<number, ReviewsData>>({});
   const [systemCommission, setSystemCommission] = useState<number>(0);
-  const [loadingReviews, setLoadingReviews] = useState<Record<number, boolean>>({});
+  const loadingReviewsRef = useRef<Record<number, boolean>>({});
 
   // Load system commission settings
   useEffect(() => {
@@ -100,6 +97,38 @@ export default function ApprovedProps() {
     return () => {
       mounted = false;
     };
+  }, []);
+
+  const loadReviewsForProperty = useCallback(async (propertyId: number) => {
+    // Prevent duplicate concurrent fetches using a ref to track loading per property
+    if (loadingReviewsRef.current[propertyId]) return;
+    loadingReviewsRef.current[propertyId] = true;
+    
+    try {
+      const response = await api.get(`/api/property-reviews/${propertyId}`);
+      const data = response.data;
+      
+      setReviewsMap(prev => ({
+        ...prev,
+        [propertyId]: {
+          averageRating: data.averageRating || 0,
+          totalReviews: data.totalReviews || 0,
+          reviews: data.reviews || [],
+        },
+      }));
+    } catch (err) {
+      // Silently fail - reviews are optional
+      setReviewsMap(prev => ({
+        ...prev,
+        [propertyId]: {
+          averageRating: 0,
+          totalReviews: 0,
+          reviews: [],
+        },
+      }));
+    } finally {
+      loadingReviewsRef.current[propertyId] = false;
+    }
   }, []);
 
   useEffect(() => {
@@ -140,38 +169,7 @@ export default function ApprovedProps() {
       mounted = false;
       clearTimeout(timer);
     };
-  }, []);
-
-  async function loadReviewsForProperty(propertyId: number) {
-    if (loadingReviews[propertyId]) return;
-    
-    setLoadingReviews(prev => ({ ...prev, [propertyId]: true }));
-    try {
-      const response = await api.get(`/api/property-reviews/${propertyId}`);
-      const data = response.data;
-      
-      setReviewsMap(prev => ({
-        ...prev,
-        [propertyId]: {
-          averageRating: data.averageRating || 0,
-          totalReviews: data.totalReviews || 0,
-          reviews: data.reviews || [],
-        },
-      }));
-    } catch (err) {
-      // Silently fail - reviews are optional
-      setReviewsMap(prev => ({
-        ...prev,
-        [propertyId]: {
-          averageRating: 0,
-          totalReviews: 0,
-          reviews: [],
-        },
-      }));
-    } finally {
-      setLoadingReviews(prev => ({ ...prev, [propertyId]: false }));
-    }
-  }
+  }, [loadReviewsForProperty]);
 
   // If a property is selected, show PropertyPreview
   if (selectedPropertyId) {

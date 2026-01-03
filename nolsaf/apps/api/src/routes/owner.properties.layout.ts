@@ -74,11 +74,25 @@ router.get("/:id/availability", async (req: AuthedRequest, res) => {
       occupancyPct: Math.round(pct), // integer 0..100
       nightsBooked: capped,
       nightsTotal,
-      bookings: bs.map(b => ({ id: b.id, checkIn: b.checkIn, checkOut: b.checkOut, status: b.status }))
+      // Convert Date objects to ISO strings for JSON serialization
+      bookings: bs.map(b => ({ 
+        id: b.id, 
+        checkIn: b.checkIn instanceof Date ? b.checkIn.toISOString() : b.checkIn, 
+        checkOut: b.checkOut instanceof Date ? b.checkOut.toISOString() : b.checkOut, 
+        status: b.status 
+      }))
     };
   });
 
-  res.json({ window: { from: clipStart, to: clipEnd }, rooms, nightsTotal });
+  // Convert Date objects to ISO strings for JSON serialization
+  res.json({ 
+    window: { 
+      from: clipStart instanceof Date ? clipStart.toISOString() : clipStart, 
+      to: clipEnd instanceof Date ? clipEnd.toISOString() : clipEnd 
+    }, 
+    rooms, 
+    nightsTotal 
+  });
 });
 
 /* ----- local helpers (put at bottom of this file) ----- */

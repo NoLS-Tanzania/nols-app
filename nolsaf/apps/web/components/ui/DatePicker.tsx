@@ -28,11 +28,13 @@ export default function DatePicker({
   onSelect,
   onClose,
   allowRange = true,
+  minDate,
 }: {
   selected?: string | string[];
   onSelect: (s: string | string[]) => void;
   onClose?: () => void;
   allowRange?: boolean;
+  minDate?: string; // ISO date string (YYYY-MM-DD)
 }) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const btnRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -221,11 +223,29 @@ export default function DatePicker({
           const cellDateM = cell.m;
           const cellDateD = cell.d;
           const isToday = cellDateY === todayY && cellDateM === todayM && cellDateD === todayD;
-          // naive past check (only compare yyyy-mm-dd)
+          
+          // Check if date is before minimum date (either today or custom minDate)
           let isPast = false;
-          if (cellDateY < todayY) isPast = true;
-          else if (cellDateY === todayY && cellDateM < todayM) isPast = true;
-          else if (cellDateY === todayY && cellDateM === todayM && cellDateD < todayD) isPast = true;
+          let isBeforeMin = false;
+          
+          if (minDate) {
+            // Use custom minDate if provided
+            const minDateObj = new Date(minDate + "T00:00:00");
+            const minY = minDateObj.getFullYear();
+            const minM = minDateObj.getMonth();
+            const minD = minDateObj.getDate();
+            
+            if (cellDateY < minY) isBeforeMin = true;
+            else if (cellDateY === minY && cellDateM < minM) isBeforeMin = true;
+            else if (cellDateY === minY && cellDateM === minM && cellDateD < minD) isBeforeMin = true;
+          } else {
+            // Default: check against today
+            if (cellDateY < todayY) isPast = true;
+            else if (cellDateY === todayY && cellDateM < todayM) isPast = true;
+            else if (cellDateY === todayY && cellDateM === todayM && cellDateD < todayD) isPast = true;
+          }
+          
+          const isDisabled = isPast || isBeforeMin;
 
           const hasCount = perDayCounts[isoKey] && perDayCounts[isoKey].total > 0;
 
@@ -270,7 +290,7 @@ export default function DatePicker({
                   ? "bg-emerald-600 text-white shadow-md scale-105"
                   : isToday
                   ? "bg-emerald-50 text-emerald-700 border-2 border-emerald-500 font-semibold"
-                  : isPast
+                  : isDisabled
                   ? "text-gray-400 cursor-not-allowed"
                   : "text-gray-700 hover:bg-gray-100 active:scale-95"}
                 ${hasCount && !sel ? "font-semibold" : ""}
@@ -281,7 +301,7 @@ export default function DatePicker({
                 if (!c) return undefined;
                 return Object.entries(c.statuses).map(([k, v]) => `${k}: ${v}`).join(", ");
               })()}
-              disabled={isPast && !sel}
+              disabled={isDisabled && !sel}
             >
               <span className="relative z-10">{cell.d}</span>
               {hasCount && !sel && (

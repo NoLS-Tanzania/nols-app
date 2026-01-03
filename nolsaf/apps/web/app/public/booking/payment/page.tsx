@@ -63,11 +63,27 @@ type InvoiceData = {
     checkIn: string;
     checkOut: string;
     nights: number;
+    guestName: string | null;
+    guestPhone: string | null;
+    roomCode: string | null;
+    totalAmount: number;
   };
   property: {
     id: number;
     title: string;
+    type: string;
     primaryImage: string | null;
+    basePrice: number;
+  };
+  priceBreakdown: {
+    accommodationSubtotal: number;
+    taxPercent: number;
+    taxAmount: number;
+    discount: number;
+    transportFare: number;
+    commission: number;
+    subtotal: number;
+    total: number;
   };
 };
 
@@ -114,6 +130,12 @@ export default function PaymentPage() {
       }
 
       const data = await response.json();
+      
+      // Validate that we have required data
+      if (!data || !data.property || !data.property.id) {
+        throw new Error("Invoice data is incomplete. Property information is missing.");
+      }
+      
       setInvoice(data);
       
       // If already paid, redirect to receipt
@@ -229,10 +251,14 @@ export default function PaymentPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin text-[#02665e] mx-auto mb-4" />
-          <p className="text-slate-600">Loading payment details...</p>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50">
+        <div className="text-center animate-in fade-in duration-300">
+          <div className="relative">
+            <Loader2 className="w-12 h-12 animate-spin text-[#02665e] mx-auto mb-4" />
+            <div className="absolute inset-0 w-12 h-12 mx-auto border-4 border-[#02665e]/20 rounded-full"></div>
+          </div>
+          <p className="text-slate-700 font-medium text-lg">Loading payment details...</p>
+          <p className="text-slate-500 text-sm mt-2">Please wait</p>
         </div>
       </div>
     );
@@ -240,14 +266,16 @@ export default function PaymentPage() {
 
   if (error && !invoice) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
-        <div className="max-w-md w-full bg-white rounded-xl shadow-sm border border-slate-200 p-6 text-center">
-          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-slate-900 mb-2">Error</h2>
-          <p className="text-slate-600 mb-6">{error}</p>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50 p-6">
+        <div className="max-w-md w-full bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border-2 border-red-200/60 p-8 text-center animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <AlertCircle className="w-8 h-8 text-red-500" />
+          </div>
+          <h2 className="text-2xl font-bold text-slate-900 mb-3">Error</h2>
+          <p className="text-slate-600 mb-6 leading-relaxed">{error}</p>
           <Link
             href="/public/properties"
-            className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-[#02665e] text-white hover:bg-[#014e47] transition-colors"
+            className="inline-flex items-center justify-center px-6 py-3 rounded-xl bg-gradient-to-r from-[#02665e] to-[#014e47] text-white font-semibold hover:from-[#014e47] hover:to-[#02665e] transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95"
           >
             Browse Properties
           </Link>
@@ -257,44 +285,48 @@ export default function PaymentPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50">
       {/* Header */}
-      <div className="bg-white border-b border-slate-200">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <Link
-            href={invoice ? `/public/properties/${invoice.property.id}` : "/public/properties"}
-            className="inline-flex items-center text-slate-600 hover:text-slate-900 transition-colors"
+      <div className="bg-white/80 backdrop-blur-sm border-b border-slate-200/60 shadow-sm sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <button
+            onClick={() => router.back()}
+            className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-slate-100 hover:bg-[#02665e] text-slate-600 hover:text-white transition-all duration-200 group shadow-sm hover:shadow-md"
+            aria-label="Go back"
           >
-            <ChevronLeft className="w-5 h-5 mr-1" />
-            Back
-          </Link>
+            <ChevronLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform duration-200" />
+          </button>
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-12">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+          {/* Main Content - Payment Methods */}
           <div className="lg:col-span-2 space-y-6">
             {/* Payment Status */}
             {paymentStatus === "success" && (
-              <div className="bg-green-50 border-2 border-green-200 rounded-xl p-6 text-center">
-                <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-4" />
-                <h2 className="text-2xl font-semibold text-green-900 mb-2">
+              <div className="bg-gradient-to-br from-green-50 to-emerald-50/50 border-2 border-green-200 rounded-2xl p-8 text-center shadow-lg animate-in fade-in slide-in-from-top-4">
+                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle2 className="w-10 h-10 text-green-500" />
+                </div>
+                <h2 className="text-2xl lg:text-3xl font-bold text-green-900 mb-3">
                   Payment Successful!
                 </h2>
-                <p className="text-green-700">
+                <p className="text-green-700 font-medium">
                   Redirecting to your receipt...
                 </p>
               </div>
             )}
 
             {paymentStatus === "pending" && processing && (
-              <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-6 text-center">
-                <Loader2 className="w-12 h-12 text-blue-500 mx-auto mb-4 animate-spin" />
-                <h2 className="text-2xl font-semibold text-blue-900 mb-2">
+              <div className="bg-gradient-to-br from-blue-50 to-cyan-50/50 border-2 border-blue-200 rounded-2xl p-8 text-center shadow-lg animate-in fade-in slide-in-from-top-4">
+                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
+                </div>
+                <h2 className="text-2xl lg:text-3xl font-bold text-blue-900 mb-3">
                   Processing Payment...
                 </h2>
-                <p className="text-blue-700">
+                <p className="text-blue-700 font-medium">
                   Please complete the payment on your phone. We'll update you when it's confirmed.
                 </p>
               </div>
@@ -303,42 +335,51 @@ export default function PaymentPage() {
             {/* Payment Method Selection */}
             {paymentStatus === "idle" && (
               <>
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                  <h2 className="text-2xl font-semibold text-slate-900 mb-6">
+                <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-slate-200/60 p-5 lg:p-6 transition-all duration-300 hover:shadow-xl">
+                  <h2 className="text-xl lg:text-2xl font-bold text-slate-900 mb-4 lg:mb-5">
                     Select Payment Method
                   </h2>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-3 lg:gap-4">
                     {PAYMENT_METHODS.map((method) => (
                       <button
                         key={method.id}
                         type="button"
                         onClick={() => setSelectedMethod(method)}
-                        className={`p-4 rounded-lg border-2 transition-all ${
+                        className={`group relative p-3.5 lg:p-4 rounded-lg border-2 transition-all duration-300 ${
                           selectedMethod?.id === method.id
-                            ? "border-[#02665e] bg-[#02665e]/5"
-                            : "border-slate-200 hover:border-slate-300"
+                            ? "border-[#02665e] bg-gradient-to-br from-[#02665e]/10 to-blue-50/50 shadow-md ring-2 ring-[#02665e]/20"
+                            : "border-slate-200 hover:border-[#02665e]/50 hover:shadow-md bg-white"
                         }`}
                       >
-                        <div className="flex items-center gap-3">
-                          <div className="relative w-12 h-12 rounded-lg overflow-hidden flex-shrink-0">
+                        <div className="flex flex-col items-center text-center gap-2">
+                          <div className="relative w-12 h-12 lg:w-14 lg:h-14 rounded-lg overflow-hidden flex-shrink-0 bg-white shadow-sm ring-1 ring-slate-100">
                             <Image
                               src={method.icon}
                               alt={method.name}
                               fill
-                              className="object-contain"
+                              sizes="(max-width: 768px) 48px, 56px"
+                              className="object-contain p-1.5"
                             />
                           </div>
-                          <div className="text-left">
-                            <div className="font-semibold text-slate-900">
+                          <div className="w-full">
+                            <div className={`font-bold text-sm lg:text-base mb-0.5 ${
+                              selectedMethod?.id === method.id
+                                ? "text-[#02665e]"
+                                : "text-slate-900"
+                            }`}>
                               {method.name}
                             </div>
-                            <div className="text-sm text-slate-600">
+                            <div className="text-xs text-slate-600">
                               {method.description}
                             </div>
                           </div>
                           {selectedMethod?.id === method.id && (
-                            <CheckCircle2 className="w-5 h-5 text-[#02665e] ml-auto" />
+                            <div className="absolute top-1.5 right-1.5">
+                              <div className="w-5 h-5 rounded-full bg-[#02665e] flex items-center justify-center shadow-md">
+                                <CheckCircle2 className="w-3 h-3 text-white" />
+                              </div>
+                            </div>
                           )}
                         </div>
                       </button>
@@ -348,35 +389,33 @@ export default function PaymentPage() {
 
                 {/* Phone Number Input */}
                 {selectedMethod && (
-                  <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                    <h2 className="text-xl font-semibold text-slate-900 mb-4">
+                  <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-slate-200/60 p-5 lg:p-6 transition-all duration-300 hover:shadow-xl overflow-hidden">
+                    <h2 className="text-xl lg:text-2xl font-bold text-slate-900 mb-5">
                       Enter Phone Number
                     </h2>
 
                     <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                          Phone Number <span className="text-red-500">*</span>
+                      <div className="min-w-0">
+                        <label className="block text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                          <Smartphone className="w-4 h-4 text-[#02665e] flex-shrink-0" />
+                          <span>Phone Number <span className="text-red-500">*</span></span>
                         </label>
-                        <div className="flex items-center gap-2">
-                          <Smartphone className="w-5 h-5 text-slate-400" />
-                          <input
-                            type="tel"
-                            value={phoneNumber}
-                            onChange={(e) => setPhoneNumber(e.target.value)}
-                            placeholder="+255 XXX XXX XXX"
-                            className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent"
-                          />
-                        </div>
-                        <p className="text-xs text-slate-500 mt-1">
+                        <input
+                          type="tel"
+                          value={phoneNumber}
+                          onChange={(e) => setPhoneNumber(e.target.value)}
+                          placeholder="+255 XXX XXX XXX"
+                          className="w-full min-w-0 px-4 py-3.5 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] transition-all duration-200 text-slate-900 font-medium bg-white shadow-sm hover:shadow-md box-border"
+                        />
+                        <p className="text-xs text-slate-500 mt-2 ml-1">
                           Enter the phone number linked to your {selectedMethod.name} account
                         </p>
                       </div>
 
                       {error && (
-                        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
+                        <div className="bg-red-50/80 border-2 border-red-200 rounded-xl p-4 flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
                           <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-                          <p className="text-sm text-red-700">{error}</p>
+                          <p className="text-sm font-medium text-red-700">{error}</p>
                         </div>
                       )}
 
@@ -384,17 +423,17 @@ export default function PaymentPage() {
                         type="button"
                         onClick={handlePayment}
                         disabled={submitting || !phoneNumber.trim()}
-                        className="w-full py-3 px-6 rounded-lg bg-[#02665e] text-white font-medium hover:bg-[#014e47] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        className="w-full py-4 px-6 rounded-xl bg-gradient-to-r from-[#02665e] to-[#014e47] text-white font-semibold hover:from-[#014e47] hover:to-[#02665e] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98]"
                       >
                         {submitting ? (
                           <>
                             <Loader2 className="w-5 h-5 animate-spin" />
-                            Initiating payment...
+                            <span>Initiating payment...</span>
                           </>
                         ) : (
                           <>
                             <CreditCard className="w-5 h-5" />
-                            Pay {invoice?.totalAmount.toLocaleString()} {invoice?.currency}
+                            <span>Pay {invoice?.totalAmount.toLocaleString()} {invoice?.currency}</span>
                           </>
                         )}
                       </button>
@@ -407,62 +446,185 @@ export default function PaymentPage() {
 
           {/* Sidebar - Booking Summary */}
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 sticky top-8">
-              <h2 className="text-xl font-semibold text-slate-900 mb-6">
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-slate-200/60 p-6 lg:p-8 sticky top-8 transition-all duration-300 hover:shadow-xl">
+              <h2 className="text-xl lg:text-2xl font-bold text-slate-900 mb-6 lg:mb-8">
                 Booking Summary
               </h2>
 
               {invoice && (
-                <div className="space-y-4">
+                <div className="space-y-5">
                   {invoice.property.primaryImage && (
-                    <div className="relative w-full h-32 rounded-lg overflow-hidden">
+                    <div className="relative w-full h-40 lg:h-48 rounded-xl overflow-hidden shadow-md ring-2 ring-slate-100">
                       <Image
                         src={invoice.property.primaryImage}
                         alt={invoice.property.title}
                         fill
+                        sizes="(max-width: 1024px) 100vw, 384px"
                         className="object-cover"
                       />
                     </div>
                   )}
 
-                  <div>
-                    <div className="text-sm text-slate-600 mb-1">Property</div>
-                    <div className="font-semibold text-slate-900">
+                  {/* Property */}
+                  <div className="pb-4 border-b border-slate-200/60">
+                    <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Property</div>
+                    <div className="text-lg font-bold text-slate-900 leading-tight">
                       {invoice.property.title}
                     </div>
+                    {invoice.property.type && (
+                      <div className="text-sm text-slate-600 mt-1">
+                        {invoice.property.type}
+                      </div>
+                    )}
                   </div>
 
-                  <div>
-                    <div className="text-sm text-slate-600 mb-1">Booking Code</div>
-                    <div className="font-mono font-semibold text-[#02665e]">
-                      {invoice.booking.bookingCode}
+                  {/* Guest Information */}
+                  {(invoice.booking.guestName || invoice.booking.guestPhone) && (
+                    <div className="pb-4 border-b border-slate-200/60">
+                      <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Guest Information</div>
+                      {invoice.booking.guestName && (
+                        <div className="mb-2">
+                          <div className="text-xs text-slate-500 mb-1">Name</div>
+                          <div className="text-sm font-semibold text-slate-900">
+                            {invoice.booking.guestName}
+                          </div>
+                        </div>
+                      )}
+                      {invoice.booking.guestPhone && (
+                        <div>
+                          <div className="text-xs text-slate-500 mb-1">Phone</div>
+                          <div className="text-sm font-semibold text-slate-900">
+                            {invoice.booking.guestPhone}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Check-in & Check-out */}
+                  <div className="pb-4 border-b border-slate-200/60">
+                    <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Dates</div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <div className="text-xs text-slate-500 mb-1">Check-in</div>
+                        <div className="text-sm font-semibold text-slate-900">
+                          {new Date(invoice.booking.checkIn).toLocaleDateString("en-US", {
+                            weekday: "short",
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-slate-500 mb-1">Check-out</div>
+                        <div className="text-sm font-semibold text-slate-900">
+                          {new Date(invoice.booking.checkOut).toLocaleDateString("en-US", {
+                            weekday: "short",
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-3 pt-3 border-t border-slate-200/60">
+                      <div className="text-xs text-slate-500 mb-1">Duration</div>
+                      <div className="text-sm font-semibold text-slate-900">
+                        {invoice.booking.nights} night{invoice.booking.nights !== 1 ? "s" : ""}
+                      </div>
                     </div>
                   </div>
 
-                  <div>
-                    <div className="text-sm text-slate-600 mb-1">Duration</div>
-                    <div className="text-slate-900">
-                      {invoice.booking.nights} night{invoice.booking.nights !== 1 ? "s" : ""}
+                  {/* Room Type */}
+                  {invoice.booking.roomCode && (
+                    <div className="pb-4 border-b border-slate-200/60">
+                      <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Room</div>
+                      <div className="text-sm font-semibold text-slate-900">
+                        {invoice.booking.roomCode}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Price Breakdown */}
+                  <div className="pb-4 border-b border-slate-200/60">
+                    <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Price Breakdown</div>
+                    <div className="space-y-2.5">
+                      {/* Accommodation */}
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-600">Accommodation ({invoice.booking.nights} night{invoice.booking.nights !== 1 ? "s" : ""})</span>
+                        <span className="font-semibold text-slate-900">
+                          {invoice.priceBreakdown?.accommodationSubtotal.toLocaleString() || (invoice.property.basePrice * invoice.booking.nights).toLocaleString()} {invoice.currency}
+                        </span>
+                      </div>
+                      
+                      {/* Tax - Always shown */}
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-600">
+                          Tax {invoice.priceBreakdown?.taxPercent && invoice.priceBreakdown.taxPercent > 0 ? `(${invoice.priceBreakdown.taxPercent}%)` : ""}
+                        </span>
+                        <span className={`font-semibold ${invoice.priceBreakdown?.taxAmount && invoice.priceBreakdown.taxAmount > 0 ? "text-slate-900" : "text-slate-400"}`}>
+                          {invoice.priceBreakdown?.taxAmount ? invoice.priceBreakdown.taxAmount.toLocaleString() : "0"} {invoice.currency}
+                        </span>
+                      </div>
+                      
+                      {/* Service Fee/Commission - Always shown */}
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-600">Service Fee</span>
+                        <span className={`font-semibold ${invoice.priceBreakdown?.commission && invoice.priceBreakdown.commission > 0 ? "text-slate-900" : "text-slate-400"}`}>
+                          {invoice.priceBreakdown?.commission ? invoice.priceBreakdown.commission.toLocaleString() : "0"} {invoice.currency}
+                        </span>
+                      </div>
+                      
+                      {/* Transportation - Always shown */}
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-600">Transportation</span>
+                        <span className={`font-semibold ${invoice.priceBreakdown?.transportFare && invoice.priceBreakdown.transportFare > 0 ? "text-slate-900" : "text-slate-400"}`}>
+                          {invoice.priceBreakdown?.transportFare ? invoice.priceBreakdown.transportFare.toLocaleString() : "0"} {invoice.currency}
+                        </span>
+                      </div>
+                      
+                      {/* Subtotal - Always shown if breakdown exists */}
+                      {invoice.priceBreakdown?.subtotal !== undefined && (
+                        <div className="flex justify-between text-sm pt-2 border-t border-slate-200/60">
+                          <span className="font-medium text-slate-700">Subtotal</span>
+                          <span className="font-semibold text-slate-900">
+                            {invoice.priceBreakdown.subtotal.toLocaleString()} {invoice.currency}
+                          </span>
+                        </div>
+                      )}
+                      
+                      {/* Discount - Always shown */}
+                      <div className="flex justify-between text-sm">
+                        <span className={`font-medium ${invoice.priceBreakdown?.discount && invoice.priceBreakdown.discount > 0 ? "text-green-600" : "text-slate-400"}`}>
+                          Discount
+                        </span>
+                        <span className={`font-semibold ${invoice.priceBreakdown?.discount && invoice.priceBreakdown.discount > 0 ? "text-green-600" : "text-slate-400"}`}>
+                          {invoice.priceBreakdown?.discount && invoice.priceBreakdown.discount > 0 ? "-" : ""}{invoice.priceBreakdown?.discount ? invoice.priceBreakdown.discount.toLocaleString() : "0"} {invoice.currency}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="pt-4 border-t border-slate-200">
+                  {/* Total */}
+                  <div className="pt-2 pb-4 border-b border-slate-200/60">
                     <div className="flex justify-between items-center">
-                      <span className="text-lg font-semibold text-slate-900">Total</span>
+                      <span className="text-lg font-bold text-slate-900">Total</span>
                       <span className="text-2xl font-bold text-[#02665e]">
                         {invoice.totalAmount.toLocaleString()} {invoice.currency}
                       </span>
                     </div>
                   </div>
 
-                  <div className="pt-4 border-t border-slate-200">
-                    <div className="flex items-start gap-2 text-sm text-slate-600">
+                  {/* Secure Payment */}
+                  <div className="pt-4">
+                    <div className="flex items-start gap-3 p-4 bg-gradient-to-br from-slate-50 to-blue-50/50 rounded-xl border border-slate-200/60">
                       <ShieldCheck className="w-5 h-5 text-[#02665e] flex-shrink-0 mt-0.5" />
                       <div>
-                        <div className="font-medium text-slate-900 mb-1">
+                        <div className="font-semibold text-slate-900 mb-1 text-sm">
                           Secure Payment
                         </div>
-                        <div>
+                        <div className="text-xs text-slate-600 leading-relaxed">
                           Your payment is processed securely through our payment partners.
                         </div>
                       </div>

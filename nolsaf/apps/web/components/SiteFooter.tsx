@@ -79,7 +79,7 @@ export default function SiteFooter({ withRail = true, topSeparator = true }: { w
 
         {/* Centered logo and copyright below links */}
         <div className="w-full flex flex-col items-center gap-1 mt-1">
-          <Image src="/assets/NoLS2025-04.png" alt="NoLSAF" width={120} height={30} className="object-contain" />
+          <Image src="/assets/NoLS2025-04.png" alt="NoLSAF" width={120} height={30} className="object-contain" style={{ width: "auto", height: "auto" }} />
           <div className="text-sm text-[#02665e] font-semibold">© {year} NoLSAF — All rights reserved</div>
         </div>
       </div>

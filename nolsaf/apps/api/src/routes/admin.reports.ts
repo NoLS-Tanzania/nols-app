@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { prisma } from "@nolsaf/prisma";
 import { requireAuth, requireRole } from "../middleware/auth.js";
-import { Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 
 const router = Router();
 router.use(requireAuth as any, requireRole("ADMIN") as any);

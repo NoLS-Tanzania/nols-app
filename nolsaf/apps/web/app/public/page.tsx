@@ -1223,14 +1223,14 @@ export default function Page() {
                 <div className="mt-3 flex items-center gap-2 flex-wrap relative z-20">
                   <Link href="/help/payments" className="no-underline transition-transform duration-200 hover:scale-105" onClick={(e) => e.stopPropagation()}>
                     <span className="inline-flex items-center text-xs bg-blue-50 border border-blue-100 text-blue-700 px-2.5 py-1.5 rounded-md transition-all duration-200 hover:bg-blue-100 hover:border-blue-200 font-medium">
-                      <Image src="/assets/M-pesa.png" alt="M-PESA" width={18} height={18} className="mr-1.5 object-contain w-4.5 h-4.5 flex-shrink-0" />
+                      <Image src="/assets/M-pesa.png" alt="M-PESA" width={18} height={18} className="mr-1.5 object-contain w-4.5 h-4.5 flex-shrink-0" style={{ width: "auto", height: "auto" }} />
                       <span className="whitespace-nowrap">Local payments</span>
                     </span>
                   </Link>
 
                   <Link href="/help/payments" className="no-underline transition-transform duration-200 hover:scale-105" onClick={(e) => e.stopPropagation()}>
                     <span className="inline-flex items-center text-xs bg-slate-50 border border-slate-100 text-slate-700 px-2.5 py-1.5 rounded-md transition-all duration-200 hover:bg-slate-100 hover:border-slate-200 font-medium">
-                      <Image src="/assets/visa_card.png" alt="VISA" width={18} height={18} className="mr-1.5 object-contain w-4.5 h-4.5 flex-shrink-0" />
+                      <Image src="/assets/visa_card.png" alt="VISA" width={18} height={18} className="mr-1.5 object-contain w-4.5 h-4.5 flex-shrink-0" style={{ width: "auto", height: "auto" }} />
                       <span className="whitespace-nowrap">International payments</span>
                     </span>
                   </Link>

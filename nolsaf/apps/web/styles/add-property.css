@@ -1,0 +1,360 @@
+.add-property-view {
+  /* This page is rendered inside `OwnerLayout`'s max-w-6xl frame.
+     Avoid adding extra global padding/max-width here so it aligns with `LayoutFrame`.
+     Also avoid `min-h-screen` to prevent nested scroll/overflow inside the layout. */
+  @apply relative min-h-full w-full overflow-x-clip bg-slate-950/5;
+}
+
+.add-property-view select {
+  @apply appearance-none bg-white;
+  background-image: none;
+}
+
+.add-property-view select::-ms-expand {
+  display: none;
+}
+
+.add-property-background {
+  @apply pointer-events-none absolute inset-0 overflow-hidden;
+}
+
+.add-property-layout {
+  /* Keep the layout fluid; OwnerLayout provides the outer max width + padding. */
+  @apply relative w-full;
+}
+
+.add-property-shell {
+  @apply grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start;
+}
+
+.add-property-stepper {
+  @apply min-w-0 rounded-3xl border border-slate-200/80 bg-white/95 shadow-xl shadow-emerald-100/40 backdrop-blur;
+}
+
+.add-property-snapshot {
+  @apply rounded-3xl border border-slate-200/70 bg-white/90 shadow-md shadow-emerald-100/30 backdrop-blur transition-all;
+}
+
+.add-property-snapshot-hover {
+  @apply hover:border-emerald-200/70 hover:shadow-lg;
+}
+
+.add-property-snapshot-stat {
+  @apply rounded-2xl border border-slate-200/70 bg-white/80 p-3 shadow-sm shadow-emerald-100/30;
+}
+
+.add-property-photo-progress {
+  @apply rounded-2xl border border-slate-200/70 bg-white/80 p-4;
+}
+
+.add-property-preview-panel {
+  @apply bg-white rounded-xl p-6 shadow-sm border border-slate-200;
+}
+
+.add-property-preview-grid {
+  @apply grid grid-cols-2 gap-3 md:grid-cols-3;
+}
+
+.add-property-review-card {
+  @apply rounded-lg border border-gray-200 bg-gray-50 p-4 transition-all hover:border-gray-300 hover:shadow-md;
+}
+
+.add-property-review-warning {
+  @apply rounded-lg border border-amber-200 bg-amber-50 p-4 transition-all hover:shadow-lg hover:shadow-amber-100;
+}
+
+.add-property-review-success {
+  @apply rounded-lg border border-green-200 bg-green-50 p-4 transition-all hover:shadow-lg hover:shadow-green-100;
+}
+
+.add-property-sidebar-card {
+  @apply rounded-3xl border border-slate-200/70 bg-white/90 p-6 shadow-md shadow-emerald-100/30 backdrop-blur;
+}
+
+.add-property-sidebar-pill {
+  @apply flex items-start gap-2 rounded-2xl border border-slate-200/70 bg-white/80 px-3 py-2 shadow-sm shadow-emerald-100/30;
+}
+
+.add-property-help-banner {
+  @apply rounded-2xl border border-slate-200/70 bg-gradient-to-br from-emerald-50 to-sky-50 px-4 py-3 text-sm text-slate-700;
+}
+
+.add-property-modal {
+  @apply fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm;
+}
+
+.add-property-modal-card {
+  @apply flex h-full max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl;
+}
+
+.add-property-modal-header {
+  @apply flex items-center justify-between border-b border-slate-200 bg-gradient-to-r from-[#02665e] to-[#014e47] p-4 sm:p-6;
+}
+
+.add-property-modal-body {
+  @apply flex-1 overflow-y-auto bg-gray-50 p-4 sm:p-6;
+}
+
+.add-property-modal-section {
+  @apply space-y-6;
+}
+
+/* Property Location Fields - Responsive Grid Spacing */
+/* Target grids containing location fields (Street, City, Zip, Latitude, Longitude) */
+.add-property-view div[class*="grid"][class*="grid-cols"] {
+  gap: 1rem !important; /* 16px on mobile */
+  width: 100% !important;
+  display: grid !important;
+}
+
+@media (min-width: 640px) {
+  .add-property-view div[class*="grid"][class*="grid-cols"] {
+    gap: 1.5rem !important; /* 24px on small screens and up */
+  }
+}
+
+/* Ensure grid items don't overflow and have proper spacing */
+.add-property-view div[class*="grid"] > div {
+  min-width: 0 !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  padding: 0 !important;
+}
+
+/* Ensure inputs and selects inside grid items are properly sized */
+.add-property-view div[class*="grid"] > div input,
+.add-property-view div[class*="grid"] > div select {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/* Clean Yes/No Toggle Switch - Ultra Minimal Design */
+.clean-toggle-container {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  background: transparent;
+  padding: 0;
+}
+
+.clean-toggle-option {
+  position: relative;
+  padding: 0.625rem 1.75rem;
+  border: 1.5px solid #e5e7eb;
+  background: #ffffff;
+  color: #374151;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  min-width: 80px;
+  text-align: center;
+  outline: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.clean-toggle-option:hover:not(.clean-toggle-active) {
+  border-color: #d1d5db;
+  color: #111827;
+  background: #f9fafb;
+}
+
+.clean-toggle-option:focus-visible {
+  outline: 2px solid #02665e;
+  outline-offset: 2px;
+}
+
+.clean-toggle-active {
+  border-color: #02665e;
+  background: #02665e;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(2, 102, 94, 0.25), 0 1px 2px rgba(2, 102, 94, 0.15);
+}
+
+.clean-toggle-active::before {
+  content: "";
+  position: absolute;
+  top: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 6px;
+  height: 6px;
+  background: #02665e;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px #ffffff, 0 1px 3px rgba(2, 102, 94, 0.3);
+}
+
+/* Progress bars with dynamic width */
+.add-property-progress-bar {
+  width: var(--progress-width, 0%);
+}
+
+/* Property Visualization Preview Styles */
+.property-viz-pattern-bg {
+  background-image: repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.05) 10px, rgba(255,255,255,0.05) 20px);
+}
+
+.property-viz-room-card {
+  animation-delay: var(--room-animation-delay, 0ms);
+}
+
+.property-viz-hover-glow {
+  box-shadow: 0 0 0 2px rgba(2, 102, 94, 0.1), 0 0 20px rgba(2, 102, 94, 0.2);
+}
+
+/* Floor Button with Dynamic Colors */
+.property-viz-floor-button {
+  background: linear-gradient(to bottom right, var(--floor-bg-from), var(--floor-bg-to));
+  border-color: var(--floor-border, #d1d5db);
+}
+
+.property-viz-floor-button:hover {
+  border-color: var(--floor-border);
+}
+
+/* Floor Accent Line */
+.property-viz-floor-accent {
+  background-color: var(--floor-accent);
+}
+
+/* Floor Label */
+.property-viz-floor-label {
+  color: #374151;
+}
+
+.property-viz-floor-label-active {
+  color: var(--floor-text);
+}
+
+/* Floor Badge */
+.property-viz-floor-badge {
+  background-color: rgba(var(--floor-accent-rgb, 59, 130, 246), 0.15);
+  color: var(--floor-text, #1e40af);
+}
+
+.property-viz-floor-badge-active {
+  background-color: rgba(255, 255, 255, 0.3);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: var(--floor-text);
+}
+
+/* Floor Types */
+.property-viz-floor-types {
+  color: #4b5563;
+}
+
+.property-viz-floor-types-active {
+  color: var(--floor-text);
+}
+
+/* Floor Active Indicator */
+.property-viz-floor-indicator {
+  background-color: var(--floor-accent);
+}
+
+/* Compact Floor Button */
+.property-viz-floor-button-compact {
+  background: linear-gradient(to bottom right, var(--floor-bg-from), var(--floor-bg-to));
+  border-color: var(--floor-border, #e5e7eb);
+}
+
+.property-viz-floor-button-compact:hover {
+  border-color: var(--floor-border);
+}
+
+.property-viz-floor-button-compact:focus {
+  outline: none;
+}
+
+.property-viz-floor-button-compact[style*="--ring-color"] {
+  --tw-ring-color: var(--ring-color);
+}
+
+/* Compact Floor Badge */
+.property-viz-floor-badge-compact {
+  background-color: rgba(var(--floor-accent-rgb, 59, 130, 246), 0.15);
+  color: var(--floor-text, #1e40af);
+}
+
+.property-viz-floor-badge-compact.property-viz-floor-badge-active {
+  background-color: rgba(255, 255, 255, 0.4);
+  color: var(--floor-text);
+  font-weight: 700;
+}
+
+/* Micro-interactions: Subtle animations */
+.property-viz-room-card {
+  animation: fadeInUp 0.4s ease-out backwards;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Stagger animation for room cards */
+.property-viz-room-card:nth-child(1) { animation-delay: 0.05s; }
+.property-viz-room-card:nth-child(2) { animation-delay: 0.1s; }
+.property-viz-room-card:nth-child(3) { animation-delay: 0.15s; }
+.property-viz-room-card:nth-child(4) { animation-delay: 0.2s; }
+.property-viz-room-card:nth-child(5) { animation-delay: 0.25s; }
+.property-viz-room-card:nth-child(6) { animation-delay: 0.3s; }
+
+/* Smooth hover micro-interactions */
+.property-viz-floor-button-compact:active {
+  transform: scale(0.98);
+  transition: transform 0.1s ease-out;
+}
+
+/* Focus ring animations */
+button:focus-visible,
+.property-viz-room-card:focus-visible {
+  animation: pulseRing 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulseRing {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(2, 102, 94, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(2, 102, 94, 0);
+  }
+}
+
+/* Micro-interactions: Button press feedback */
+button:active:not(:disabled) {
+  transform: scale(0.95);
+  transition: transform 0.1s ease-out;
+}
+
+/* Smooth transitions for all interactive elements */
+.clean-toggle-option:active {
+  transform: scale(0.97);
+}
+
+/* Loading state animation */
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+.property-loading {
+  animation: shimmer 2s infinite linear;
+  background: linear-gradient(to right, #f0f0f0 0%, #e0e0e0 20%, #f0f0f0 40%, #f0f0f0 100%);
+  background-size: 1000px 100%;
+}

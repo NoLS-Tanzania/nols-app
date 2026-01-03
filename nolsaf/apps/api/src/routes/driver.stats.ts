@@ -1,7 +1,7 @@
 import { Router } from "express";
 import type { RequestHandler } from "express";
 import { prisma } from "@nolsaf/prisma";
-import { Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import qrcode from 'qrcode';
 import { authenticator } from 'otplib';
 import crypto from 'crypto';

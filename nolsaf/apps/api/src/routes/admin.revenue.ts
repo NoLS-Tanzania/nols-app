@@ -1,7 +1,7 @@
 // apps/api/src/routes/admin.revenue.ts
 import { Router } from "express";
 import { prisma } from "@nolsaf/prisma";
-import { Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import express from "express";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { makeQR } from "../lib/qr.js";
@@ -34,6 +34,9 @@ function nextReceiptNumber(prefix = "RCPT", seq: number) {
 /** GET /admin/invoices */
 router.get("/invoices", async (req, res) => {
   try {
+    // Explicitly set Content-Type to JSON
+    res.setHeader('Content-Type', 'application/json');
+    
     const { status, ownerId, propertyId, from, to, q, page = "1", pageSize = "50", sortBy, sortDir, amountMin, amountMax } = req.query as any;
 
     const where: any = {};
@@ -95,15 +98,18 @@ router.get("/invoices", async (req, res) => {
       prisma.invoice.count({ where }),
     ]);
 
-    res.json({ total, page: Number(page), pageSize: take, items });
+    return res.json({ total, page: Number(page), pageSize: take, items });
   } catch (err: any) {
+    // Ensure error responses are JSON
+    res.setHeader('Content-Type', 'application/json');
+    
     // If the DB schema is out-of-date (missing column), Prisma will throw P2022
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2022") {
       console.error("Prisma schema mismatch error in /admin/invoices:", err.message);
       return res.status(500).json({ error: "Database schema mismatch: missing column(s). Please run migrations.", detail: err.message });
     }
     console.error("Unhandled error in GET /admin/invoices:", err);
-    res.status(500).json({ error: "Internal server error" });
+    return res.status(500).json({ error: "Internal server error", message: err?.message || "Unknown error" });
   }
 });
 

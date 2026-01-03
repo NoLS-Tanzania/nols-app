@@ -429,8 +429,8 @@ export default function PlanRequestForm({ selectedRole }: Props) {
                 Thank you for planning with NoLSAF!
               </h2>
               <p className="text-base sm:text-lg text-slate-600 leading-relaxed">
-                We've received your request and our team is currently reviewing it. 
-                We'll get back to you within 48 hours with a personalized plan tailored to your needs.
+                We&apos;ve received your request and our team is currently reviewing it. 
+                We&apos;ll get back to you within 48 hours with a personalized plan tailored to your needs.
               </p>
             </div>
 

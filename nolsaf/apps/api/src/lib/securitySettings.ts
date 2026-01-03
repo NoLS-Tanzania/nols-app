@@ -5,14 +5,26 @@ import { validatePasswordStrength } from "./security.js";
  * Get password validation options from SystemSetting
  */
 export async function getPasswordValidationOptions() {
-  const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
-  return {
-    minLength: settings?.minPasswordLength ?? 8,
-    requireUpper: settings?.requirePasswordUppercase ?? false,
-    requireLower: settings?.requirePasswordLowercase ?? false,
-    requireNumber: settings?.requirePasswordNumber ?? false,
-    requireSpecial: settings?.requirePasswordSpecial ?? false,
-  };
+  try {
+    const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
+    return {
+      minLength: settings?.minPasswordLength ?? 8,
+      requireUpper: settings?.requirePasswordUppercase ?? false,
+      requireLower: settings?.requirePasswordLowercase ?? false,
+      requireNumber: settings?.requirePasswordNumber ?? false,
+      requireSpecial: settings?.requirePasswordSpecial ?? false,
+    };
+  } catch (err) {
+    console.error('Failed to fetch password validation options from SystemSetting:', err);
+    // Return safe defaults
+    return {
+      minLength: 8,
+      requireUpper: false,
+      requireLower: false,
+      requireNumber: false,
+      requireSpecial: false,
+    };
+  }
 }
 
 /**
@@ -30,8 +42,13 @@ export async function validatePasswordWithSettings(
  * Check if admin 2FA is required
  */
 export async function isAdmin2FARequired(): Promise<boolean> {
-  const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
-  return settings?.requireAdmin2FA ?? false;
+  try {
+    const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
+    return settings?.requireAdmin2FA ?? false;
+  } catch (err) {
+    console.error('Failed to fetch admin 2FA requirement setting:', err);
+    return false; // Default fallback
+  }
 }
 
 /**
@@ -64,55 +81,90 @@ export async function getMaxSessionDurationHours(): Promise<number> {
  * Check if force logout on password change is enabled
  */
 export async function shouldForceLogoutOnPasswordChange(): Promise<boolean> {
-  const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
-  return settings?.forceLogoutOnPasswordChange ?? true;
+  try {
+    const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
+    return settings?.forceLogoutOnPasswordChange ?? true;
+  } catch (err) {
+    console.error('Failed to fetch force logout on password change setting:', err);
+    return true; // Default fallback
+  }
 }
 
 /**
  * Get API rate limit per minute
  */
 export async function getApiRateLimitPerMinute(): Promise<number> {
-  const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
-  return settings?.apiRateLimitPerMinute ?? 100;
+  try {
+    const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
+    return settings?.apiRateLimitPerMinute ?? 100;
+  } catch (err) {
+    console.error('Failed to fetch API rate limit from SystemSetting:', err);
+    return 100; // Default fallback
+  }
 }
 
 /**
  * Get max login attempts before lockout
  */
 export async function getMaxLoginAttempts(): Promise<number> {
-  const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
-  return settings?.maxLoginAttempts ?? 5;
+  try {
+    const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
+    return settings?.maxLoginAttempts ?? 5;
+  } catch (err) {
+    console.error('Failed to fetch max login attempts from SystemSetting:', err);
+    return 5; // Default fallback
+  }
 }
 
 /**
  * Get account lockout duration in minutes
  */
 export async function getAccountLockoutDurationMinutes(): Promise<number> {
-  const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
-  return settings?.accountLockoutDurationMinutes ?? 5; // Default: 5 minutes (was 30)
+  try {
+    const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
+    return settings?.accountLockoutDurationMinutes ?? 5; // Default: 5 minutes (was 30)
+  } catch (err) {
+    console.error('Failed to fetch account lockout duration from SystemSetting:', err);
+    return 5; // Default fallback
+  }
 }
 
 /**
  * Check if security audit logging is enabled
  */
 export async function isSecurityAuditLoggingEnabled(): Promise<boolean> {
-  const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
-  return settings?.enableSecurityAuditLogging ?? true;
+  try {
+    const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
+    return settings?.enableSecurityAuditLogging ?? true;
+  } catch (err) {
+    console.error('Failed to fetch security audit logging setting:', err);
+    return true; // Default fallback
+  }
 }
 
 /**
  * Check if failed login attempts should be logged
  */
 export async function shouldLogFailedLoginAttempts(): Promise<boolean> {
-  const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
-  return settings?.logFailedLoginAttempts ?? true;
+  try {
+    const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
+    return settings?.logFailedLoginAttempts ?? true;
+  } catch (err) {
+    console.error('Failed to fetch log failed login attempts setting:', err);
+    return true; // Default fallback
+  }
 }
 
 /**
  * Check if alerts should be sent on suspicious activity
  */
 export async function shouldAlertOnSuspiciousActivity(): Promise<boolean> {
-  const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
-  return settings?.alertOnSuspiciousActivity ?? false;
+  try {
+    const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
+    return settings?.alertOnSuspiciousActivity ?? false;
+  } catch (err) {
+    console.error('Failed to fetch alert on suspicious activity setting:', err);
+    return false; // Default fallback
+  }
 }
 

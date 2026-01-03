@@ -31,6 +31,10 @@ function broadcastStatus(req: any, payload: any) {
 /** GET /admin/properties?status=&q=&regionId=&regionName=&type=&ownerId=&page=&pageSize= */
 router.get("/", (async (req: AuthedRequest, res) => {
   try {
+    console.log('[GET /admin/properties] Request received');
+    // Explicitly set Content-Type to JSON
+    res.setHeader('Content-Type', 'application/json');
+    
     const { status, q, regionId, regionName, type, ownerId, page = "1", pageSize = "20" } =
       req.query as any;
 
@@ -112,18 +116,27 @@ router.get("/", (async (req: AuthedRequest, res) => {
       console.log('[GET /admin/properties] Executing Prisma query with where:', JSON.stringify(where, null, 2));
       console.log('[GET /admin/properties] Skip:', skip, 'Take:', take);
       
-      [items, total] = await Promise.all([
-        prisma.property.findMany({
+      const findManyPromise = prisma.property.findMany({
           where,
-          orderBy: { updatedAt: "desc" },
+          // Avoid MySQL "Out of sort memory" on large tables by ordering on indexed PK
+          orderBy: { id: "desc" },
           include: { owner: { select: { id: true, name: true, email: true } } },
           skip,
           take,
-        }),
-        prisma.property.count({ where }),
-      ]);
+        });
+
+      const countPromise = prisma.property.count({ where });
+
+      [items, total] = await Promise.all([findManyPromise, countPromise]);
       
       console.log('[GET /admin/properties] Query succeeded - items:', items.length, 'total:', total);
+      
+      // Safety check - ensure items is an array
+      if (!Array.isArray(items)) {
+        console.error('[GET /admin/properties] Items is not an array:', typeof items, items);
+        items = [];
+      }
+
     } catch (dbError: any) {
       console.error('Database query failed in GET /admin/properties:', dbError);
       console.error('Error details:', {
@@ -182,7 +195,7 @@ router.get("/", (async (req: AuthedRequest, res) => {
       basePrice?: number | null;
       currency?: string | null;
       services?: any;
-      updatedAt: Date;
+      updatedAt: string; // ISO string for JSON serialization
     }
 
     interface AdminPropertyListResponse {
@@ -221,29 +234,194 @@ router.get("/", (async (req: AuthedRequest, res) => {
       console.log('[GET /admin/properties] Available statuses in DB:', allStatuses.map((p: any) => p.status));
     }
 
+    // Helper function to safely serialize Prisma objects
+    const serializePrismaObject = (obj: any): any => {
+      if (obj === null || obj === undefined) return obj;
+      if (typeof obj !== 'object') return obj;
+      
+      const result: any = {};
+      const keys = Object.keys(obj);
+      
+      for (const key of keys) {
+        try {
+          const value = obj[key];
+          
+          // Skip functions and symbols
+          if (typeof value === 'function' || typeof value === 'symbol') {
+            continue;
+          }
+          
+          // Handle Dates
+          if (value instanceof Date) {
+            result[key] = value.toISOString();
+          }
+          // Handle BigInt
+          else if (typeof value === 'bigint') {
+            result[key] = value.toString();
+          }
+          // Handle null/undefined
+          else if (value === null || value === undefined) {
+            result[key] = value;
+          }
+          // Handle arrays
+          else if (Array.isArray(value)) {
+            result[key] = value.map(v => serializePrismaObject(v));
+          }
+          // Handle nested objects (but skip Prisma internal properties)
+          else if (typeof value === 'object') {
+            // Skip Prisma internal properties
+            if (key.startsWith('_') || key === 'toJSON' || key === 'toString') {
+              continue;
+            }
+            try {
+              result[key] = serializePrismaObject(value);
+            } catch {
+              // If nested object can't be serialized, skip it
+              continue;
+            }
+          }
+          // Handle primitives
+          else {
+            result[key] = value;
+          }
+        } catch (fieldError) {
+          // Skip fields that can't be serialized
+          continue;
+        }
+      }
+      
+      return result;
+    };
+
+    // Safety check - ensure items is an array before processing
+    if (!Array.isArray(items)) {
+      console.error('[GET /admin/properties] Items is not an array before serialization:', typeof items);
+      items = [];
+    }
+    
+    // Serialize items safely
+    const serializedItems: AdminPropertyListItem[] = [];
+    for (const p of items as AdminPropertyRow[]) {
+      try {
+        // Manually construct the item to ensure proper serialization
+        // Handle owner object safely
+        let ownerObj: any = null;
+        if (p.owner) {
+          try {
+            ownerObj = {
+              id: typeof p.owner.id === 'bigint' ? Number(p.owner.id) : Number(p.owner.id),
+              name: p.owner.name ?? null,
+              email: p.owner.email ?? null,
+            };
+            // Test owner serialization
+            JSON.stringify(ownerObj);
+          } catch (ownerError) {
+            console.error(`[GET /admin/properties] Error serializing owner for property ${p.id}:`, ownerError);
+            ownerObj = null;
+          }
+        }
+        
+        // Handle services safely (might be object or array)
+        let servicesValue: any = null;
+        try {
+          if (p.services !== null && p.services !== undefined) {
+            if (typeof p.services === 'string') {
+              // Try to parse if it's a JSON string
+              try {
+                servicesValue = JSON.parse(p.services);
+              } catch {
+                servicesValue = p.services;
+              }
+            } else {
+              servicesValue = p.services;
+            }
+            // Test services serialization
+            JSON.stringify(servicesValue);
+          }
+        } catch (servicesError) {
+          console.error(`[GET /admin/properties] Error serializing services for property ${p.id}:`, servicesError);
+          servicesValue = null;
+        }
+        
+        const item: any = {
+          id: typeof p.id === 'bigint' ? Number(p.id) : Number(p.id),
+          title: String(p.title || ''),
+          status: String(p.status || 'DRAFT'),
+          type: p.type ? String(p.type) : null,
+          owner: ownerObj,
+          regionName: p.regionName ? String(p.regionName) : null,
+          district: p.district ? String(p.district) : null,
+          photos: Array.isArray(p.photos) ? p.photos.slice(0, 3).map((photo: any) => String(photo)) : [],
+          basePrice: p.basePrice !== null && p.basePrice !== undefined ? Number(p.basePrice) : null,
+          currency: p.currency ? String(p.currency) : null,
+          services: servicesValue,
+          updatedAt: p.updatedAt instanceof Date ? p.updatedAt.toISOString() : (typeof p.updatedAt === 'string' ? p.updatedAt : new Date().toISOString()),
+        };
+        
+        // Test full item serialization
+        JSON.stringify(item);
+        serializedItems.push(item as AdminPropertyListItem);
+      } catch (itemError: any) {
+        console.error(`[GET /admin/properties] Error serializing property ${p?.id}:`, itemError);
+        console.error(`[GET /admin/properties] Property data:`, {
+          id: p?.id,
+          title: p?.title,
+          status: p?.status,
+          hasOwner: !!p?.owner,
+          ownerType: typeof p?.owner,
+        });
+        // Add minimal item if serialization fails
+        try {
+          serializedItems.push({
+            id: p?.id || 0,
+            title: p?.title || '',
+            status: p?.status || 'DRAFT',
+            type: p?.type || null,
+            owner: p?.owner ? {
+              id: p.owner.id,
+              name: p.owner.name,
+              email: p.owner.email,
+            } : null,
+            regionName: p?.regionName ?? null,
+            district: p?.district ?? null,
+            photos: [],
+            basePrice: p?.basePrice ?? null,
+            currency: p?.currency ?? null,
+            services: p?.services ?? null,
+            updatedAt: p?.updatedAt instanceof Date ? p.updatedAt.toISOString() : new Date().toISOString(),
+          });
+        } catch (minimalError) {
+          console.error(`[GET /admin/properties] Failed to create minimal item for property ${p?.id}:`, minimalError);
+          // Skip this item entirely if even minimal serialization fails
+        }
+      }
+    }
+
     const response: AdminPropertyListResponse = {
       page: Number(page),
       pageSize: take,
       total,
-      items: (items as AdminPropertyRow[]).map((p) => ({
-        id: p.id,
-        title: p.title,
-        status: p.status,
-        type: p.type,
-        owner: p.owner,
-        regionName: p.regionName ?? null,
-        district: p.district ?? null,
-        photos: Array.isArray(p.photos) ? p.photos.slice(0, 3) : [],
-        basePrice: p.basePrice ?? null,
-        currency: p.currency ?? null,
-        services: p.services ?? null,
-        updatedAt: p.updatedAt,
-      })),
+      items: serializedItems,
     };
 
-    console.log('[GET /admin/properties] Response items count:', response.items.length);
-    res.json(response);
+    // Test JSON serialization before sending
+    try {
+      JSON.stringify(response);
+      console.log('[GET /admin/properties] Response items count:', response.items.length);
+      res.json(response);
+    } catch (jsonError: any) {
+      console.error('[GET /admin/properties] JSON serialization error:', jsonError);
+      // Return minimal safe response
+      res.json({
+        page: Number(page),
+        pageSize: take,
+        total: 0,
+        items: [],
+      });
+    }
   } catch (err: any) {
+    // Ensure error responses are JSON
+    res.setHeader('Content-Type', 'application/json');
     // Ultimate fallback - catch ANY error
     console.error('CRITICAL ERROR in GET /admin/properties:', err);
     console.error('Error type:', typeof err);
@@ -258,16 +436,32 @@ router.get("/", (async (req: AuthedRequest, res) => {
       console.warn('Prisma validation error in GET /admin/properties:', err.message);
     }
     
-    // Always return valid JSON response
+    // Always return valid JSON response - use same structure as success response
     const pageNum = Number((req.query as any)?.page) || 1;
     const pageSizeNum = Math.min(Number((req.query as any)?.pageSize || 20), 200);
     
-    return res.json({
+    // Create safe error response
+    const errorResponse = {
       page: pageNum,
       pageSize: pageSizeNum,
       total: 0,
       items: [],
-    });
+    };
+    
+    // Test serialization before sending
+    try {
+      JSON.stringify(errorResponse);
+      return res.status(500).json(errorResponse);
+    } catch (serializeError) {
+      // If even error response can't be serialized, send minimal response
+      console.error('Failed to serialize error response:', serializeError);
+      return res.status(500).json({ 
+        page: 1, 
+        pageSize: 20, 
+        total: 0, 
+        items: [] 
+      });
+    }
   }
 }) as RequestHandler);
 
@@ -281,7 +475,8 @@ router.get("/counts", (async (req: AuthedRequest, res) => {
     await Promise.all(statuses.map(async (s) => {
       try {
         const c = await prisma.property.count({ where: { status: s as any } });
-        results[s] = c;
+        // Ensure count is a number (not BigInt) for JSON serialization
+        results[s] = typeof c === 'bigint' ? Number(c) : Number(c);
       } catch (countErr: any) {
         console.error(`[GET /admin/properties/counts] Failed to count status ${s}:`, countErr);
         results[s] = 0;
@@ -289,8 +484,18 @@ router.get("/counts", (async (req: AuthedRequest, res) => {
     }));
     
     console.log('[GET /admin/properties/counts] Results:', results);
-    res.setHeader('Content-Type', 'application/json');
-    res.json(results);
+    
+    // Test JSON serialization before sending
+    try {
+      JSON.stringify(results);
+      res.setHeader('Content-Type', 'application/json');
+      res.json(results);
+    } catch (jsonError: any) {
+      console.error('[GET /admin/properties/counts] JSON serialization error:', jsonError);
+      // Return empty results on serialization error
+      res.setHeader('Content-Type', 'application/json');
+      res.json({ DRAFT:0, PENDING:0, APPROVED:0, NEEDS_FIXES:0, REJECTED:0, SUSPENDED:0 });
+    }
   } catch (err: any) {
     console.error("/admin/properties/counts failed:", err?.message || err);
     console.error("/admin/properties/counts error stack:", err?.stack);
@@ -329,7 +534,7 @@ router.get("/:id/audit-history", (async (req: AuthedRequest, res) => {
     console.log(`[audit-history] Found ${audits.length} audit logs for property ${id}`);
 
     // Transform to ensure consistent response format
-    const formattedAudits = audits.map((audit) => ({
+    const formattedAudits = audits.map((audit: any) => ({
       id: audit.id.toString(),
       actorId: audit.actorId,
       actorRole: audit.actorRole,
@@ -356,7 +561,8 @@ router.get("/:id/audit-history", (async (req: AuthedRequest, res) => {
       stack: err?.stack,
       propertyId: req.params.id,
     });
-    res.status(500).json({ error: "Failed to fetch audit history" });
+    res.setHeader('Content-Type', 'application/json');
+    return res.status(500).json({ error: "Failed to fetch audit history", message: err?.message || 'Unknown error' });
   }
 }) as RequestHandler);
 
@@ -372,7 +578,8 @@ router.get(
       },
     });
     if (!p) return res.status(404).json({ error: "Not found" });
-    res.json(toAdminPropertyDTO(p));
+    const dto = toAdminPropertyDTO(p);
+    res.json(dto);
   }) as RequestHandler
 );
 
@@ -747,8 +954,8 @@ router.post("/:id/suspend", (async (req: AuthedRequest, res) => {
         entityId: id,
         before,
         after: { status: newStatus, reason: parse.data.reason },
-        ip: (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket?.remoteAddress || req.ip || null,
-        ua: (req.headers["user-agent"] as string) || null,
+        ip: (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket?.remoteAddress || req.ip || undefined,
+        ua: (req.headers["user-agent"] as string) || undefined,
       });
       if (!auditResult) {
         console.error(`[suspend] Failed to create audit log for property ${id}`);

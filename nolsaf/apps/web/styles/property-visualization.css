@@ -1,0 +1,241 @@
+.property-viz-pattern-bg {
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 10px,
+    rgba(255, 255, 255, 0.05) 10px,
+    rgba(255, 255, 255, 0.05) 20px
+  );
+}
+
+.property-viz-room-card {
+  animation-delay: var(--room-animation-delay, 0ms);
+  animation: fadeInUp 0.4s ease-out backwards;
+}
+
+.property-viz-hover-glow {
+  box-shadow: 0 0 0 2px rgba(2, 102, 94, 0.1), 0 0 20px rgba(2, 102, 94, 0.2);
+}
+
+/* Floor Button with Dynamic Colors */
+.property-viz-floor-button {
+  background: linear-gradient(to bottom right, var(--floor-bg-from), var(--floor-bg-to));
+  border-color: var(--floor-border, #d1d5db);
+}
+
+.property-viz-floor-button:hover {
+  border-color: var(--floor-border);
+}
+
+/* Floor Accent Line */
+.property-viz-floor-accent {
+  background-color: var(--floor-accent);
+}
+
+/* Floor Label */
+.property-viz-floor-label {
+  color: #374151;
+}
+
+.property-viz-floor-label-active {
+  color: var(--floor-text);
+}
+
+/* Floor Badge */
+.property-viz-floor-badge {
+  background-color: rgba(var(--floor-accent-rgb, 59, 130, 246), 0.15);
+  color: var(--floor-text, #1e40af);
+}
+
+.property-viz-floor-badge-active {
+  background-color: rgba(255, 255, 255, 0.3);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: var(--floor-text);
+}
+
+/* Floor Types */
+.property-viz-floor-types {
+  color: #4b5563;
+}
+
+.property-viz-floor-types-active {
+  color: var(--floor-text);
+}
+
+/* Floor Active Indicator */
+.property-viz-floor-indicator {
+  background-color: var(--floor-accent);
+}
+
+/* Compact Floor Button */
+.property-viz-floor-button-compact {
+  background: linear-gradient(to bottom right, var(--floor-bg-from), var(--floor-bg-to));
+  border-color: var(--floor-border, #e5e7eb);
+}
+
+.property-viz-floor-button-compact:hover {
+  border-color: var(--floor-border);
+}
+
+.property-viz-floor-button-compact:focus {
+  outline: none;
+}
+
+/* Make Tailwind ring use our per-floor accent color */
+.property-viz-floor-button-compact {
+  --tw-ring-color: var(--ring-color, var(--floor-accent, #3b82f6));
+}
+
+/* Floor selector tabs (plan view) */
+.property-viz-floor-tabs {
+  background: linear-gradient(135deg, rgba(248, 250, 252, 0.9), rgba(236, 253, 245, 0.5));
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 18px;
+  padding: 10px;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.04);
+}
+
+.property-viz-floor-tab {
+  border: 1px solid rgba(148, 163, 184, 0.55);
+  background: rgba(255, 255, 255, 0.85);
+  color: #334155;
+  border-radius: 14px;
+  padding: 10px 14px;
+  font-weight: 700;
+  transition: transform 150ms ease, box-shadow 150ms ease, background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
+}
+
+.property-viz-floor-tab:hover {
+  border-color: rgba(2, 102, 94, 0.35);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+  transform: translateY(-1px);
+}
+
+.property-viz-floor-tab:active {
+  transform: translateY(0px) scale(0.99);
+}
+
+.property-viz-floor-tab-active {
+  border-color: rgba(2, 102, 94, 0.2);
+  background: linear-gradient(135deg, #02665e, #014e47);
+  color: #ffffff;
+  box-shadow: 0 14px 26px rgba(2, 102, 94, 0.22);
+}
+
+.property-viz-floor-tab-active:hover {
+  border-color: rgba(2, 102, 94, 0.2);
+  transform: translateY(-1px);
+}
+
+/* Predefined themes (avoid inline styles) */
+.property-viz-theme-0 { --floor-bg-from:#dbeafe; --floor-bg-to:#bfdbfe; --floor-border:#60a5fa; --floor-accent:#3b82f6; --floor-accent-rgb:59,130,246; --floor-text:#1e40af; --ring-color:#3b82f6; }
+.property-viz-theme-1 { --floor-bg-from:#d1fae5; --floor-bg-to:#a7f3d0; --floor-border:#34d399; --floor-accent:#10b981; --floor-accent-rgb:16,185,129; --floor-text:#047857; --ring-color:#10b981; }
+.property-viz-theme-2 { --floor-bg-from:#f3e8ff; --floor-bg-to:#e9d5ff; --floor-border:#a78bfa; --floor-accent:#8b5cf6; --floor-accent-rgb:139,92,246; --floor-text:#6b21a8; --ring-color:#8b5cf6; }
+.property-viz-theme-3 { --floor-bg-from:#fef3c7; --floor-bg-to:#fde68a; --floor-border:#fbbf24; --floor-accent:#f59e0b; --floor-accent-rgb:245,158,11; --floor-text:#92400e; --ring-color:#f59e0b; }
+.property-viz-theme-4 { --floor-bg-from:#ffe4e6; --floor-bg-to:#fecdd3; --floor-border:#fb7185; --floor-accent:#f43f5e; --floor-accent-rgb:244,63,94; --floor-text:#9f1239; --ring-color:#f43f5e; }
+.property-viz-theme-5 { --floor-bg-from:#ccfbf1; --floor-bg-to:#99f6e4; --floor-border:#2dd4bf; --floor-accent:#14b8a6; --floor-accent-rgb:20,184,166; --floor-text:#0f766e; --ring-color:#14b8a6; }
+.property-viz-theme-6 { --floor-bg-from:#e0e7ff; --floor-bg-to:#c7d2fe; --floor-border:#818cf8; --floor-accent:#6366f1; --floor-accent-rgb:99,102,241; --floor-text:#4338ca; --ring-color:#6366f1; }
+.property-viz-theme-7 { --floor-bg-from:#fce7f3; --floor-bg-to:#fbcfe8; --floor-border:#f472b6; --floor-accent:#ec4899; --floor-accent-rgb:236,72,153; --floor-text:#9f1239; --ring-color:#ec4899; }
+
+/* Room Type themes (deterministic mapping from roomType -> 0..7) */
+.property-viz-roomtype-card {
+  background: linear-gradient(to bottom right, var(--rt-bg-from, #ffffff), var(--rt-bg-to, #f8fafc));
+  border-color: var(--rt-border, #e5e7eb);
+}
+
+.property-viz-roomtype-icon {
+  background-color: rgba(var(--rt-accent-rgb, 2, 102, 94), 0.12);
+  color: var(--rt-accent, #02665e);
+}
+
+.property-viz-roomtype-accent {
+  background-color: var(--rt-accent, #02665e);
+}
+
+/* Large icon container on plan cards */
+.property-viz-roomtype-icon-lg {
+  background: linear-gradient(
+    to bottom right,
+    rgba(var(--rt-accent-rgb, 2, 102, 94), 0.16),
+    rgba(var(--rt-accent-rgb, 2, 102, 94), 0.06)
+  );
+}
+
+.property-viz-roomtype-pill {
+  background-color: rgba(var(--rt-accent-rgb, 2, 102, 94), 0.14);
+  border: 1px solid rgba(var(--rt-accent-rgb, 2, 102, 94), 0.22);
+  color: var(--rt-accent, #02665e);
+}
+
+.property-viz-roomtype-plan-card {
+  --tw-ring-color: rgba(var(--rt-accent-rgb, 2, 102, 94), 0.35);
+}
+
+.property-viz-roomtype-theme-0 { --rt-bg-from:#dbeafe; --rt-bg-to:#bfdbfe; --rt-border:#60a5fa; --rt-accent:#3b82f6; --rt-accent-rgb:59,130,246; }
+.property-viz-roomtype-theme-1 { --rt-bg-from:#d1fae5; --rt-bg-to:#a7f3d0; --rt-border:#34d399; --rt-accent:#10b981; --rt-accent-rgb:16,185,129; }
+.property-viz-roomtype-theme-2 { --rt-bg-from:#f3e8ff; --rt-bg-to:#e9d5ff; --rt-border:#a78bfa; --rt-accent:#8b5cf6; --rt-accent-rgb:139,92,246; }
+.property-viz-roomtype-theme-3 { --rt-bg-from:#fef3c7; --rt-bg-to:#fde68a; --rt-border:#fbbf24; --rt-accent:#f59e0b; --rt-accent-rgb:245,158,11; }
+.property-viz-roomtype-theme-4 { --rt-bg-from:#ffe4e6; --rt-bg-to:#fecdd3; --rt-border:#fb7185; --rt-accent:#f43f5e; --rt-accent-rgb:244,63,94; }
+.property-viz-roomtype-theme-5 { --rt-bg-from:#ccfbf1; --rt-bg-to:#99f6e4; --rt-border:#2dd4bf; --rt-accent:#14b8a6; --rt-accent-rgb:20,184,166; }
+.property-viz-roomtype-theme-6 { --rt-bg-from:#e0e7ff; --rt-bg-to:#c7d2fe; --rt-border:#818cf8; --rt-accent:#6366f1; --rt-accent-rgb:99,102,241; }
+.property-viz-roomtype-theme-7 { --rt-bg-from:#fce7f3; --rt-bg-to:#fbcfe8; --rt-border:#f472b6; --rt-accent:#ec4899; --rt-accent-rgb:236,72,153; }
+.property-viz-roomtype-theme-8 { --rt-bg-from:#cffafe; --rt-bg-to:#a5f3fc; --rt-border:#22d3ee; --rt-accent:#06b6d4; --rt-accent-rgb:6,182,212; }
+.property-viz-roomtype-theme-9 { --rt-bg-from:#ecfccb; --rt-bg-to:#d9f99d; --rt-border:#84cc16; --rt-accent:#65a30d; --rt-accent-rgb:101,163,13; }
+.property-viz-roomtype-theme-10 { --rt-bg-from:#ffedd5; --rt-bg-to:#fed7aa; --rt-border:#fb923c; --rt-accent:#f97316; --rt-accent-rgb:249,115,22; }
+.property-viz-roomtype-theme-11 { --rt-bg-from:#e2e8f0; --rt-bg-to:#cbd5e1; --rt-border:#94a3b8; --rt-accent:#475569; --rt-accent-rgb:71,85,105; }
+
+/* Compact Floor Badge */
+.property-viz-floor-badge-compact {
+  background-color: rgba(var(--floor-accent-rgb, 59, 130, 246), 0.15);
+  color: var(--floor-text, #1e40af);
+}
+
+.property-viz-floor-badge-compact.property-viz-floor-badge-active {
+  background-color: rgba(255, 255, 255, 0.4);
+  color: var(--floor-text);
+  font-weight: 700;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Smooth hover micro-interactions */
+.property-viz-floor-button-compact:active {
+  transform: scale(0.98);
+  transition: transform 0.1s ease-out;
+}
+
+/* Focus ring animations */
+button:focus-visible,
+.property-viz-room-card:focus-visible {
+  animation: pulseRing 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulseRing {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(2, 102, 94, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(2, 102, 94, 0);
+  }
+}
+
+/* Micro-interactions: Button press feedback */
+button:active:not(:disabled) {
+  transform: scale(0.95);
+  transition: transform 0.1s ease-out;
+}
+
+

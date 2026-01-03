@@ -75,6 +75,9 @@ export default function DriverSidebar() {
           {/* My Trips */}
           <Item href="/driver/trips" label="My Trips" Icon={ListChecks} />
 
+          {/* Claim Trips */}
+          <Item href="/driver/trips/scheduled" label="Claim Trips" Icon={BarChart2} />
+
           {/* Reminders */}
           <Item href="/driver/reminders" label="Reminders" Icon={Bell} />
 

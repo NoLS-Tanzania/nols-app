@@ -1,23 +1,42 @@
 "use client";
 import type { ReactNode } from "react";
 import { useMemo, useRef, useState, useEffect, useCallback } from "react";
-import Image from "next/image";
-import PicturesUploader from "@/components/PicturesUploader";
-import { Plus, ChevronDown, Minus, ChevronLeft, ChevronRight, Home, Building, Building2, TreePine, Hotel, HelpCircle, Car, Coffee, Beer, Thermometer, Package, Shield, Bandage, FireExtinguisher, ShoppingBag, Store, PartyPopper, Gamepad, Dumbbell, Bus, Fuel, Sparkles, ScrollText, ShowerHead, Flame, Toilet as ToiletIcon, Wind, Trash2, Brush, ScanFace, FootprintsIcon, Shirt, RectangleHorizontal, Waves, Wifi, Table2, Armchair, CircleDot, Tv, MonitorPlay, Gamepad2, AirVent, Refrigerator, Phone, LampDesk, Heater, LockKeyhole, Eclipse, Sofa, Bed, BedDouble, BedSingle, WashingMachine, CheckCircle2, XCircle, AlertCircle, UtensilsCrossed, MapPin, Link as LinkIcon, BadgeCheck, Users, CreditCard, Smartphone, Navigation, Locate, Eye, X, Bath } from "lucide-react";
+import { twMerge } from "tailwind-merge";
+import { Plus, Home, Building, Building2, TreePine, Hotel, HelpCircle, Car, Shield, Bus, Bed, BedDouble, BedSingle, CheckCircle2, AlertCircle, MapPin, Users, X, ArrowRight, ImageIcon, Loader2, Hospital, Pill, Plane, Fuel, Route, Building as BuildingIcon, Lock, ExternalLink, Edit2, Clock, Bell } from "lucide-react";
 import axios from "axios";
 import { REGIONS, REGION_BY_ID } from "@/lib/tzRegions";
 import { REGIONS_FULL_DATA } from "@/lib/tzRegionsFull";
-import { BATHROOM_ICONS, OTHER_AMENITIES_ICONS } from "@/lib/amenityIcons";
-import ServicesAndFacilities from "@/components/ServicesAndFacilities";
-import NearbyServices from "@/components/NearbyServices";
+import { TotalsStep } from "./_components/TotalsStep";
+import { PhotosStep } from "./_components/PhotosStep";
+import { RoomsStep } from "./_components/RoomsStep";
+import { ServicesStep } from "./_components/ServicesStep";
+import { ReviewStep } from "./_components/ReviewStep";
+import { BasicsStep } from "./_components/BasicsStep";
+import { ResumeDraftScreen } from "./_components/ResumeDraftScreen";
+import "@/styles/add-property.css";
 
 const api = axios.create({ baseURL: "", withCredentials: true });
-function authify() {}
+function authify() {
+  if (typeof window === "undefined") return;
 
-// Safe icon renderer: renders the icon component if available, otherwise renders a small placeholder span
-function IconOr({ Icon, className }: { Icon: any; className?: string }) {
-  if (!Icon) return <span className={className} aria-hidden />;
-  return <Icon className={className} />;
+  // Most of the app uses a Bearer token (often stored in localStorage).
+  // The Cloudinary signature endpoint is protected by requireAuth, so we must attach it.
+  const lsToken =
+    window.localStorage.getItem("token") ||
+    window.localStorage.getItem("nolsaf_token") ||
+    window.localStorage.getItem("__Host-nolsaf_token");
+
+  if (lsToken) {
+    api.defaults.headers.common["Authorization"] = `Bearer ${lsToken}`;
+    return;
+  }
+
+  // Fallback: non-httpOnly cookie (if present)
+  const m = String(document.cookie || "").match(/(?:^|;\s*)(?:nolsaf_token|__Host-nolsaf_token)=([^;]+)/);
+  const cookieToken = m?.[1] ? decodeURIComponent(m[1]) : "";
+  if (cookieToken) {
+    api.defaults.headers.common["Authorization"] = `Bearer ${cookieToken}`;
+  }
 }
 
 type BedKey = "twin" | "full" | "queen" | "king";
@@ -110,6 +129,42 @@ const FACILITIES_WITH_OWNERSHIP: FacilityType[] = ["Hospital", "Pharmacy", "Poly
 const requiresOwnership = (type: FacilityType): boolean => {
   return FACILITIES_WITH_OWNERSHIP.includes(type);
 };
+
+/* Utility functions - moved up for use in components */
+function LabelSmall({children, className=""}:{children:ReactNode; className?:string}) {
+  return <label className={`block text-xs text-gray-600 ${className}`}>{children}</label>;
+}
+
+function numOrEmpty(v: string|number){ if (v === "" || v == null) return ""; const n = Number(v); return Number.isFinite(n) ? n : ""; }
+function numOrNull(v: any){ return v==="" || v==null ? null : Number(v); }
+function splitComma(s:string){ return s.split(",").map(x=>x.trim()).filter(Boolean); }
+function inferBasePrice(rooms: any[]){ 
+  const prices = rooms.map(r => {
+    // Try multiple possible field names for price
+    const price = r.pricePerNight || r.price || 0;
+    const numPrice = Number(price);
+    return numPrice > 0 ? numPrice : 0;
+  }).filter(n => n > 0); 
+  const result = prices.length ? Math.min(...prices) : null;
+  // Debug logging
+  console.log('[inferBasePrice]', { 
+    roomsCount: rooms.length, 
+    rooms: rooms.map(r => ({ pricePerNight: r.pricePerNight, price: r.price })), 
+    prices, 
+    result 
+  });
+  return result;
+}
+function toServerType(t: string){
+  const map: Record<string, string> = { "Guest House":"GUEST_HOUSE", "Townhouse":"TOWNHOUSE", "Other":"OTHER" };
+  const up = t.toUpperCase().replace(/\s+/g,"_");
+  return (map[t] ?? up);
+}
+function cryptoId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
+  return Math.random().toString(36).slice(2);
+}
+
 type NearbyFacility = {
   id: string;
   type: FacilityType;
@@ -120,6 +175,7 @@ type NearbyFacility = {
   url?: string;
 };
 
+/** Facilities mini-components - FacilityRow defined after type */
 // Small inline SVGs for walking and motorbike when lucide doesn't expose those icons in this package version
 function WalkingIcon({ className }: { className?: string }) {
   return (
@@ -150,17 +206,501 @@ const REACH_ICONS: Record<string, React.ComponentType<{ className?: string }>> =
   "Public Transport": Bus,
   "Car/Taxi": Car,
 };
-// Color mapping for reach mode icons in summaries
-const REACH_ICON_COLORS: Record<string, string> = {
-  "Walking": "text-emerald-600",
-  "Boda": "text-orange-600",
-  "Public Transport": "text-indigo-600",
-  "Car/Taxi": "text-blue-600",
-};
+
+/** Facilities mini-components - FacilityRow */
+function FacilityRow({
+  facility, onChange, onRemove
+}:{ facility: NearbyFacility; onChange:(f:NearbyFacility)=>void; onRemove:()=>void }) {
+  const [isEditing, setIsEditing] = useState(false);
+  
+  // allow multiple selection: toggle presence in array
+  const toggleMode = (m: ReachMode) => {
+    const current = facility.reachableBy || [];
+    const next = current.includes(m) ? current.filter(x => x !== m) : [...current, m];
+    onChange({ ...facility, reachableBy: next });
+  };
+
+  // Get context-aware placeholder based on selected type
+  const namePlaceholder = FACILITY_PLACEHOLDERS[facility.type] || "e.g. Facility name";
+  
+  // Get facility icon based on type (matching public view)
+  const getFacilityIcon = (type: string) => {
+    const t = (type || "").toLowerCase();
+    if (t.includes("hospital") || t.includes("clinic") || t.includes("pharmacy") || t.includes("polyclinic")) {
+      return { Icon: Hospital, color: "text-rose-600", bgColor: "bg-rose-50" };
+    }
+    if (t.includes("petrol") || t.includes("fuel") || t.includes("gas")) {
+      return { Icon: Fuel, color: "text-orange-600", bgColor: "bg-orange-50" };
+    }
+    if (t.includes("airport")) {
+      return { Icon: Plane, color: "text-blue-600", bgColor: "bg-blue-50" };
+    }
+    if (t.includes("bus") || t.includes("station")) {
+      return { Icon: Bus, color: "text-amber-700", bgColor: "bg-amber-50" };
+    }
+    if (t.includes("road") || t.includes("main road")) {
+      return { Icon: Route, color: "text-slate-700", bgColor: "bg-slate-50" };
+    }
+    if (t.includes("police")) {
+      return { Icon: Shield, color: "text-indigo-600", bgColor: "bg-indigo-50" };
+    }
+    if (t.includes("conference") || t.includes("center") || t.includes("centre")) {
+      return { Icon: MapPin, color: "text-emerald-600", bgColor: "bg-emerald-50" };
+    }
+    return { Icon: MapPin, color: "text-[#02665e]", bgColor: "bg-[#02665e]/10" };
+  };
+  
+  const facilityIcon = getFacilityIcon(facility.type || "");
+  const Icon = facilityIcon.Icon;
+  
+  // Check if facility is complete (has type and name)
+  const isComplete = facility.type && facility.name && facility.name.trim().length > 0;
+  
+  // Validation states
+  const [touched, setTouched] = useState<{ name?: boolean; url?: boolean; distance?: boolean }>({});
+  const nameError = touched.name && (!facility.name || facility.name.trim().length < 2) ? "Name must be at least 2 characters" : "";
+  const urlError = touched.url && facility.url && !/^https?:\/\/.+/.test(facility.url) ? "Please enter a valid URL (starting with http:// or https://)" : "";
+  const distanceError = touched.distance && typeof facility.distanceKm === 'number' && facility.distanceKm < 0 ? "Distance cannot be negative" : "";
+
+  // Show compact card view when complete, or editing mode
+  if (isComplete && !isEditing) {
+    return (
+      <div 
+        className="group relative overflow-hidden rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm transition-all duration-300 ease-out hover:border-[#02665e]/30 hover:shadow-lg hover:shadow-[#02665e]/5 hover:-translate-y-0.5"
+      >
+        <div className="flex items-start gap-4">
+          {/* Icon */}
+          <div className={`flex-shrink-0 w-12 h-12 rounded-xl ${facilityIcon.bgColor} flex items-center justify-center shadow-sm transition-all duration-300 group-hover:scale-110 group-hover:shadow-md`}>
+            <Icon className={`h-6 w-6 ${facilityIcon.color} transition-transform duration-300 group-hover:scale-110`} />
+          </div>
+          
+          {/* Content */}
+          <div className="flex-1 min-w-0 space-y-3">
+            {/* Name */}
+            {facility.name && (
+              <div className="font-bold text-slate-900 text-base leading-snug tracking-tight">{facility.name}</div>
+            )}
+            
+            {/* Tags Row */}
+            <div className="flex flex-wrap items-center gap-2">
+              {facility.type && (
+                <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-semibold border border-blue-100/80 shadow-sm">
+                  {facility.type}
+                </span>
+              )}
+              {facility.ownership && (
+                <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs font-semibold border border-slate-200/80 shadow-sm">
+                  {facility.ownership}
+                </span>
+              )}
+            </div>
+            
+            {/* Distance & Link Row */}
+            <div className="flex flex-wrap items-center gap-4 text-xs">
+              {typeof facility.distanceKm === 'number' && (
+                <div className="inline-flex items-center gap-1.5 text-slate-700 font-semibold">
+                  <MapPin className="h-4 w-4 text-rose-500 flex-shrink-0" />
+                  <span>{facility.distanceKm} km</span>
+                </div>
+              )}
+              {facility.url && (
+                <a 
+                  href={facility.url} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="inline-flex items-center gap-1.5 text-[#02665e] hover:text-[#014e47] font-semibold transition-all duration-200 hover:underline underline-offset-2"
+                >
+                  <ExternalLink className="h-4 w-4 flex-shrink-0" />
+                  <span>Link</span>
+                </a>
+              )}
+            </div>
+            
+            {/* Transportation */}
+            {Array.isArray(facility.reachableBy) && facility.reachableBy.length > 0 && (
+              <div className="pt-2.5 border-t border-slate-100/80">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-slate-500 font-semibold">Reachable by:</span>
+                  {facility.reachableBy.map((mode: string, mIdx: number) => {
+                    const ModeIcon = REACH_ICONS[mode as string];
+                    return (
+                      <span 
+                        key={mIdx} 
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-50 text-slate-700 text-xs font-medium border border-slate-200/60 shadow-sm transition-colors duration-200 group-hover:border-slate-300"
+                      >
+                        {ModeIcon && <ModeIcon className="h-3.5 w-3.5" />}
+                        {mode}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+        
+        {/* Action buttons */}
+        <div className="absolute top-3 right-3 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setIsEditing(true)}
+            className="p-1.5 rounded-lg bg-white/80 hover:bg-white border border-slate-200 hover:border-emerald-300 text-slate-600 hover:text-emerald-700 transition-all duration-200 shadow-sm hover:shadow-md"
+            title="Edit facility"
+          >
+            <Edit2 className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={onRemove}
+            className="p-1.5 rounded-lg bg-white/80 hover:bg-red-50 border border-slate-200 hover:border-red-300 text-slate-600 hover:text-red-700 transition-all duration-200 shadow-sm hover:shadow-md"
+            title="Remove facility"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        
+        {/* Subtle accent line on hover */}
+        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-[#02665e]/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+      </div>
+    );
+  }
+
+  // Editing mode - show all fields
+  return (
+    <div className="bg-white rounded-xl p-5 sm:p-6 border border-gray-200 shadow-sm">
+      {/* Header with edit/close button */}
+      {isComplete && (
+        <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-200">
+          <span className="text-sm font-semibold text-gray-700">Editing: {facility.name}</span>
+          <button
+            type="button"
+            onClick={() => setIsEditing(false)}
+            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-600 hover:text-gray-900 transition-colors"
+            title="Close editing"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      <div className="space-y-5">
+        {/* Type selection - Only show when no type selected or editing */}
+        {(!facility.type || isEditing) && (
+          <div className="bg-gradient-to-br from-gray-50 to-white rounded-xl p-4 border-2 border-gray-200 shadow-sm">
+            <LabelSmall className="font-semibold text-gray-900 text-sm mb-3 block">Facility Type</LabelSmall>
+            
+            {/* Medical Facilities */}
+            <div className="mb-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Hospital className="w-4 h-4 text-rose-600" />
+                <span className="text-xs font-bold text-gray-700 uppercase tracking-wide">Medical</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {["Hospital", "Pharmacy", "Polyclinic", "Clinic"].map(t => {
+                  const sel = facility.type === t;
+                  const icons: Record<string, React.ComponentType<{ className?: string }>> = {
+                    "Hospital": Hospital,
+                    "Pharmacy": Pill,
+                    "Polyclinic": Hospital,
+                    "Clinic": Hospital,
+                  };
+                  const TypeIcon = icons[t] || Building2;
+                  return (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => {
+                        const updatedFacility: NearbyFacility = { 
+                          ...facility, 
+                          type: t as FacilityType,
+                          ownership: requiresOwnership(t as FacilityType) ? facility.ownership : ""
+                        };
+                        onChange(updatedFacility);
+                      }}
+                      className={`flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg border-2 text-xs font-semibold transition-all ${
+                        sel
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-500'
+                          : 'bg-white text-gray-700 border-gray-200 hover:border-emerald-300'
+                      }`}
+                    >
+                      <TypeIcon className="w-3.5 h-3.5" />
+                      <span>{t}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Transportation */}
+            <div className="mb-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Car className="w-4 h-4 text-blue-600" />
+                <span className="text-xs font-bold text-gray-700 uppercase tracking-wide">Transportation</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {["Airport", "Bus station", "Petrol station", "Main road"].map(t => {
+                  const sel = facility.type === t;
+                  const icons: Record<string, React.ComponentType<{ className?: string }>> = {
+                    "Airport": Plane,
+                    "Bus station": Bus,
+                    "Petrol station": Fuel,
+                    "Main road": Route,
+                  };
+                  const TypeIcon = icons[t] || MapPin;
+                  return (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => {
+                        const updatedFacility: NearbyFacility = { 
+                          ...facility, 
+                          type: t as FacilityType,
+                          ownership: requiresOwnership(t as FacilityType) ? facility.ownership : ""
+                        };
+                        onChange(updatedFacility);
+                      }}
+                      className={`flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg border-2 text-xs font-semibold transition-all ${
+                        sel
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-500'
+                          : 'bg-white text-gray-700 border-gray-200 hover:border-emerald-300'
+                      }`}
+                    >
+                      <TypeIcon className="w-3.5 h-3.5" />
+                      <span>{t}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Public Services & Venues */}
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <Shield className="w-4 h-4 text-indigo-600" />
+                <span className="text-xs font-bold text-gray-700 uppercase tracking-wide">Public Services & Venues</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {["Police station", "Conference center", "Stadium"].map(t => {
+                  const sel = facility.type === t;
+                  const icons: Record<string, React.ComponentType<{ className?: string }>> = {
+                    "Police station": Shield,
+                    "Conference center": BuildingIcon,
+                    "Stadium": Building2,
+                  };
+                  const TypeIcon = icons[t] || MapPin;
+                  return (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => {
+                        const updatedFacility: NearbyFacility = { 
+                          ...facility, 
+                          type: t as FacilityType,
+                          ownership: requiresOwnership(t as FacilityType) ? facility.ownership : ""
+                        };
+                        onChange(updatedFacility);
+                      }}
+                      className={`flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg border-2 text-xs font-semibold transition-all ${
+                        sel
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-500'
+                          : 'bg-white text-gray-700 border-gray-200 hover:border-emerald-300'
+                      }`}
+                    >
+                      <TypeIcon className="w-3.5 h-3.5" />
+                      <span>{t}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Ownership - Only show when required */}
+        {requiresOwnership(facility.type) && (
+          <div className="bg-blue-50/50 rounded-xl p-4 border-2 border-blue-200">
+            <LabelSmall className="font-semibold text-gray-900 text-sm mb-3 block">Ownership Type</LabelSmall>
+            <div className="grid grid-cols-2 gap-2.5 max-w-md">
+              {["Public/Government", "Private"].map(o => {
+                const sel = facility.ownership === o;
+                return (
+                  <button
+                    key={o}
+                    type="button"
+                    onClick={() => onChange({ ...facility, ownership: o as any })}
+                    className={`text-xs font-semibold px-4 py-2.5 rounded-xl border-2 transition-all text-center ${
+                      sel
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-500'
+                        : 'bg-white text-gray-700 border-gray-200 hover:border-emerald-300'
+                    }`}
+                  >
+                    {o}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Name, Distance, URL */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="space-y-2">
+            <LabelSmall className="font-semibold text-gray-900 text-xs">Name <span className="text-red-500">*</span></LabelSmall>
+            <input
+              title="Facility name"
+              placeholder={namePlaceholder}
+              value={facility.name}
+              onChange={e => {
+                onChange({ ...facility, name: e.target.value });
+                setTouched(prev => ({ ...prev, name: true }));
+              }}
+              onBlur={() => setTouched(prev => ({ ...prev, name: true }))}
+              className={`w-full h-11 px-4 border-2 rounded-xl text-sm font-medium text-gray-900 placeholder-gray-400 bg-white hover:border-gray-400 focus:outline-none focus:ring-2 transition-all duration-200 ${
+                nameError 
+                  ? 'border-red-300 focus:border-red-500 focus:ring-red-500/20' 
+                  : 'border-gray-300 focus:ring-emerald-500/20 focus:border-emerald-500'
+              }`}
+            />
+            {nameError && (
+              <p className="text-xs text-red-600 flex items-center gap-1 mt-1">
+                <AlertCircle className="h-3 w-3" />
+                {nameError}
+              </p>
+            )}
+          </div>
+          
+          <div className="space-y-2">
+            <LabelSmall className="font-semibold text-gray-900 text-xs">Distance (km)</LabelSmall>
+            <input
+              title="Distance (km)"
+              placeholder="2.5"
+              value={facility.distanceKm as any}
+              onChange={e => {
+                onChange({ ...facility, distanceKm: numOrEmpty(e.target.value) });
+                setTouched(prev => ({ ...prev, distance: true }));
+              }}
+              onBlur={() => setTouched(prev => ({ ...prev, distance: true }))}
+              type="number" 
+              step="0.1"
+              min="0"
+              className={`w-full h-11 px-4 border-2 rounded-xl text-sm font-medium text-gray-900 placeholder-gray-400 bg-white hover:border-gray-400 focus:outline-none focus:ring-2 transition-all duration-200 ${
+                distanceError 
+                  ? 'border-red-300 focus:border-red-500 focus:ring-red-500/20' 
+                  : 'border-gray-300 focus:ring-emerald-500/20 focus:border-emerald-500'
+              }`}
+            />
+            {distanceError && (
+              <p className="text-xs text-red-600 flex items-center gap-1 mt-1">
+                <AlertCircle className="h-3 w-3" />
+                {distanceError}
+              </p>
+            )}
+          </div>
+          
+          <div className="space-y-2">
+            <LabelSmall className="font-semibold text-gray-900 text-xs">More info (URL)</LabelSmall>
+            <input
+              title="More info (URL)"
+              placeholder="https://example.com"
+              value={facility.url ?? ""}
+              onChange={e => {
+                onChange({ ...facility, url: e.target.value });
+                setTouched(prev => ({ ...prev, url: true }));
+              }}
+              onBlur={() => setTouched(prev => ({ ...prev, url: true }))}
+              type="url"
+              className={`w-full h-11 px-4 border-2 rounded-xl text-sm font-medium text-gray-900 placeholder-gray-400 bg-white hover:border-gray-400 focus:outline-none focus:ring-2 transition-all duration-200 ${
+                urlError 
+                  ? 'border-red-300 focus:border-red-500 focus:ring-red-500/20' 
+                  : 'border-gray-300 focus:ring-emerald-500/20 focus:border-emerald-500'
+              }`}
+            />
+            {urlError && (
+              <p className="text-xs text-red-600 flex items-center gap-1 mt-1">
+                <AlertCircle className="h-3 w-3" />
+                {urlError}
+              </p>
+            )}
+            {!urlError && facility.url && (
+              <p className="text-xs text-emerald-600 flex items-center gap-1 mt-1">
+                <CheckCircle2 className="h-3 w-3" />
+                Valid URL format
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Reachable by */}
+        <div className="pt-4 border-t border-gray-200">
+          <LabelSmall className="font-semibold text-gray-900 text-sm mb-3 block">Reachable by</LabelSmall>
+          <div className="grid grid-cols-2 gap-2.5"> 
+            {REACH_MODES.map(m => {
+              const sel = facility.reachableBy.includes(m as ReachMode);
+              const ModeIcon = REACH_ICONS[m as string];
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => toggleMode(m as ReachMode)}
+                  className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 text-xs font-semibold transition-all ${
+                    sel 
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-500' 
+                      : 'bg-white text-gray-700 border-gray-200 hover:border-emerald-300'
+                  }`}
+                >
+                  {ModeIcon && <ModeIcon className="h-4 w-4" />}
+                  <span>{m}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Action buttons */}
+        <div className="pt-4 border-t border-gray-200 flex justify-end gap-3">
+          {isComplete && (
+            <button
+              type="button"
+              onClick={() => setIsEditing(false)}
+              className="px-4 py-2 rounded-xl border-2 border-gray-200 text-gray-700 font-semibold hover:bg-gray-50 transition-all"
+            >
+              Done
+            </button>
+          )}
+          <button 
+            type="button" 
+            onClick={onRemove} 
+            className="px-4 py-2 rounded-xl border-2 border-red-200 text-red-700 font-semibold hover:bg-red-50 hover:border-red-300 transition-all"
+          >
+            Remove
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const PAGE_WRAPPER_CLASS = "add-property-view" as const;
+const PAGE_BACKGROUND_CLASS = "add-property-background" as const;
+const PAGE_LAYOUT_CLASS = "add-property-layout" as const;
+const PAGE_SHELL_CLASS = "add-property-shell" as const;
+const STEPPER_WRAPPER_CLASS = "add-property-stepper" as const;
+const SNAPSHOT_CARD_CLASS = "add-property-snapshot" as const;
+const SNAPSHOT_CARD_DESKTOP = "add-property-snapshot-hover" as const;
+const SNAPSHOT_STAT_CLASS = "add-property-snapshot-stat" as const;
+const SNAPSHOT_BADGE_CLASS = "inline-flex items-center gap-1.5 rounded-full border border-emerald-200/60 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700" as const;
+const SNAPSHOT_HIGHLIGHT_CLASS = "inline-flex items-center rounded-full border border-slate-200 bg-white/70 px-3 py-1 text-xs font-semibold text-slate-600" as const;
+const SNAPSHOT_ALERT_CLASS = "flex items-center gap-2 text-sm text-amber-600" as const;
+const SNAPSHOT_PROGRESS_WRAPPER = "add-property-photo-progress" as const;
+const SIDEBAR_CARD_CLASS = "add-property-sidebar-card" as const;
 type RoomEntry = {
   roomType: string;
   beds: Record<BedKey, number>;
   roomsCount: number;
+  /** Optional floor/location metadata used by visualization */
+  floors?: number[];
+  /** For multi-storey buildings: rooms count per floor (key = floor index; 0 = Ground) */
+  floorDistribution?: Record<number, number>;
   smoking: "yes" | "no";
   bathPrivate: "yes" | "no";
   bathItems: string[];
@@ -290,7 +830,9 @@ function PropertyLocationMap({
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    if (!containerRef.current) return;
+    const containerEl = containerRef.current;
+    if (!containerEl) return;
+    let cancelled = false;
 
     // Check if coordinates are default/unset - if so, try auto-detection once
     const hasDefaultCoords = (!Number.isFinite(latitude) || !Number.isFinite(longitude)) ||
@@ -334,6 +876,7 @@ function PropertyLocationMap({
     (async () => {
       try {
         const mod = await import('mapbox-gl');
+        if (cancelled) return;
         const mapboxgl = (mod as any).default ?? mod;
         mapboxgl.accessToken = token;
 
@@ -364,8 +907,11 @@ function PropertyLocationMap({
           format: '[longitude, latitude]'
         });
 
+        // If the component unmounted or container got detached, don't initialize.
+        if (!containerEl.isConnected) return;
+
         map = new mapboxgl.Map({
-          container: containerRef.current as HTMLElement,
+          container: containerEl,
           style: 'mapbox://styles/mapbox/light-v10',
           center: [exactLng, exactLat], // [longitude, latitude] - Mapbox format
           zoom: 17, // Higher zoom for very precise location
@@ -543,9 +1089,9 @@ function PropertyLocationMap({
               .then(res => res.json())
               .then(data => {
                 if (data.features && data.features.length > 0) {
-                  const feature = data.features[0];
-                  const context = feature.context || [];
-                  const postcodeFromApi = context.find((c: any) => c.id?.startsWith('postcode'))?.text;
+                  // const feature = data.features[0];
+                  // const context = feature.context || [];
+                  // const postcodeFromApi = context.find((c: any) => c.id?.startsWith('postcode'))?.text;
                   
                   // Postcode mismatch detected but not logged to avoid console noise
                 }
@@ -567,6 +1113,7 @@ function PropertyLocationMap({
     })();
 
     return () => {
+      cancelled = true;
       if (centerMarkerRef.current) {
         try {
           centerMarkerRef.current.remove();
@@ -600,15 +1147,15 @@ function PropertyLocationMap({
         mapRef.current = null;
       }
     };
-  }, [latitude, longitude, postcode, detectLocation]);
+  // detectLocation is memoized; keeping deps accurate avoids stale closures.
+  }, [latitude, longitude, postcode, detectLocation, onLocationDetected, isDetectingLocation]);
 
   return (
     <div className="w-full">
       <div className="relative">
       <div 
         ref={containerRef} 
-        className="w-full h-64 sm:h-80 rounded-lg overflow-hidden border-2 border-gray-200 shadow-sm bg-gray-50"
-        style={{ minHeight: '256px' }}
+        className="w-full h-64 sm:h-80 min-h-64 rounded-lg overflow-hidden border-2 border-gray-200 shadow-sm bg-gray-50"
       />
         {/* Loading overlay when detecting location */}
         {isDetectingLocation && (
@@ -661,7 +1208,10 @@ export default function AddProperty() {
   const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const DRAFT_STORAGE_KEY = 'property_draft';
-  const [showLivePreview, setShowLivePreview] = useState(false);
+  const [showResumeDraft, setShowResumeDraft] = useState(false);
+  const [localDraft, setLocalDraft] = useState<any | null>(null);
+  const [serverDrafts, setServerDrafts] = useState<Array<{ id: number; title?: string; updatedAt?: string }>>([]);
+  const [showSubmissionSuccess, setShowSubmissionSuccess] = useState(false);
 
   // Load existing property if ID is provided in query params
   useEffect(() => {
@@ -676,7 +1226,7 @@ export default function AddProperty() {
         if (!isNaN(id)) {
           setLoadingProperty(true);
           try {
-            const response = await api.get(`/owner/properties/${id}`);
+            const response = await api.get(`/api/owner/properties/${id}`);
             const property = response.data;
             
             if (property) {
@@ -686,6 +1236,8 @@ export default function AddProperty() {
               if (property.title) setTitle(property.title);
               if (property.type) setType(property.type);
               if (property.hotelStar) setHotelStar(property.hotelStar);
+              if (property.buildingType) setBuildingType(property.buildingType);
+              if (typeof property.totalFloors === "number") setTotalFloors(property.totalFloors);
               if (property.regionId) setRegionId(property.regionId);
               if (property.district) setDistrict(property.district);
               if (property.ward) setWard(property.ward);
@@ -697,6 +1249,48 @@ export default function AddProperty() {
               if (property.totalBedrooms) setTotalBedrooms(property.totalBedrooms);
               if (property.totalBathrooms) setTotalBathrooms(property.totalBathrooms);
               if (property.maxGuests) setMaxGuests(property.maxGuests);
+
+              // Load house rules (for public display: check-in/out, pets, smoking, etc.)
+              if (property.houseRules) {
+                try {
+                  const hr =
+                    typeof property.houseRules === "string"
+                      ? JSON.parse(property.houseRules)
+                      : property.houseRules;
+                  if (hr && typeof hr === "object" && !Array.isArray(hr)) {
+                    const hrObj = typeof hr === "object" && hr !== null ? hr : {};
+                    setHouseRules((prev) => {
+                      const prevObj = typeof prev === "object" && prev !== null ? prev : {
+                        checkInFrom: "",
+                        checkInTo: "",
+                        checkOutFrom: "",
+                        checkOutTo: "",
+                        petsAllowed: null,
+                        petsNote: "",
+                        smokingNotAllowed: null,
+                        other: "",
+                      };
+                      return {
+                        ...prevObj,
+                      // If backend stores a single string like "14:00 – 22:00", keep it in the "from" field.
+                        checkInFrom: String((hrObj as any).checkIn || prevObj.checkInFrom || ""),
+                        checkOutFrom: String((hrObj as any).checkOut || prevObj.checkOutFrom || ""),
+                      petsAllowed:
+                          typeof (hrObj as any).pets === "boolean" ? (hrObj as any).pets : prevObj.petsAllowed,
+                        petsNote: String((hrObj as any).petsNote || prevObj.petsNote || ""),
+                      // In public UI, houseRules.smoking is treated as "Smoking Not Allowed" when true.
+                      smokingNotAllowed:
+                          typeof (hrObj as any).smoking === "boolean"
+                            ? (hrObj as any).smoking
+                            : prevObj.smokingNotAllowed,
+                        other: String((hrObj as any).other || prevObj.other || ""),
+                      };
+                    });
+                  }
+                } catch (e) {
+                  console.error("Error parsing houseRules:", e);
+                }
+              }
               
               // Load photos
               if (property.images && Array.isArray(property.images)) {
@@ -800,8 +1394,6 @@ export default function AddProperty() {
   const [regionId, setRegionId] = useState<string>("");
   const [district, setDistrict] = useState<string>("");
   const [ward, setWard] = useState<string>("");
-  const [wardNotAvailable, setWardNotAvailable] = useState<boolean>(false);
-  const [customWard, setCustomWard] = useState<string>("");
   const regionName = useMemo(() => REGION_BY_ID[regionId]?.name ?? "", [regionId]);
   
   // Get districts from REGIONS_FULL_DATA to ensure all regions work consistently
@@ -837,7 +1429,7 @@ export default function AddProperty() {
     }
     
     // Find the district using normalized matching
-    const districtData = regionData.districts.find((d: any) => 
+    const districtData = regionData.districts?.find((d: any) => 
       normalizeName(d.name) === normalizeName(district)
     );
     
@@ -871,7 +1463,7 @@ export default function AddProperty() {
       return null;
     }
     
-    const districtData = regionData.districts.find((d: any) => 
+    const districtData = regionData.districts?.find((d: any) => 
       normalizeName(d.name) === normalizeName(district)
     );
     
@@ -887,25 +1479,9 @@ export default function AddProperty() {
       return null;
     }
     
-    // Get postcode - prefer postcode field, fallback to code
-    // Handle null, undefined, and empty string values
-    let postcode = wardData.postcode;
-    
-    // If postcode is null, undefined, or empty, try the code field
-    if (postcode === null || postcode === undefined || postcode === '' || String(postcode).trim() === '') {
-      postcode = wardData.code;
-    }
-    
-    // Handle null/undefined/empty code as well
-    if (postcode === null || postcode === undefined || postcode === '' || String(postcode).trim() === '') {
-      postcode = null;
-    }
-    
-    // Convert to string and validate it's not empty
-    const postcodeStr = (postcode !== null && postcode !== undefined && String(postcode).trim() !== '') 
-      ? String(postcode).trim() 
-      : null;
-    
+    // Get postcode - prefer postcode field, fallback to code; normalize to string|null
+    const rawPostcode = wardData.postcode ?? wardData.code ?? null;
+    const postcodeStr = rawPostcode && String(rawPostcode).trim() !== "" ? String(rawPostcode).trim() : null;
     return postcodeStr;
   }, [regionId, district, ward]);
 
@@ -920,7 +1496,7 @@ export default function AddProperty() {
     
     if (!regionData) return [];
     
-    const districtData = regionData.districts.find((d: any) => 
+    const districtData = regionData.districts?.find((d: any) => 
       normalizeName(d.name) === normalizeName(district)
     );
     
@@ -937,6 +1513,9 @@ export default function AddProperty() {
   const [apartment] = useState("");
   const [city, setCity] = useState("");
   const [zip, setZip] = useState("");
+  // Building layout (used for visualization + room placement)
+  const [buildingType, setBuildingType] = useState<string>("");
+  const [totalFloors, setTotalFloors] = useState<number | "">("");
   const [latitude, setLatitude] = useState<number | "">("");
   const [longitude, setLongitude] = useState<number | "">("");
   const [locationLoading, setLocationLoading] = useState(false);
@@ -1017,6 +1596,25 @@ export default function AddProperty() {
   const [maxGuests, setMaxGuests] = useState<number | "">("");
   const [desc, setDesc] = useState("");
   const [acceptGroupBooking, setAcceptGroupBooking] = useState<boolean>(false);
+  const [houseRules, setHouseRules] = useState<string | {
+    checkInFrom: string;
+    checkInTo: string;
+    checkOutFrom: string;
+    checkOutTo: string;
+    petsAllowed: boolean | null;
+    petsNote: string;
+    smokingNotAllowed: boolean | null; // aligns with public property UI (true => Not Allowed)
+    other: string;
+  }>({
+    checkInFrom: "",
+    checkInTo: "",
+    checkOutFrom: "",
+    checkOutTo: "",
+    petsAllowed: null,
+    petsNote: "",
+    smokingNotAllowed: null,
+    other: "",
+  });
 
   // property photos (controlled here)
   const [photos, setPhotos] = useState<string[]>([]);
@@ -1024,11 +1622,18 @@ export default function AddProperty() {
   const [photosUploading, setPhotosUploading] = useState<boolean[]>([]);
   const photosRef = useRef<string[]>([]);
   useEffect(()=>{ photosRef.current = photos; }, [photos]);
+  
+  // Refs for progress bars to avoid inline styles
+  const photosProgressBarRef = useRef<HTMLDivElement>(null);
+  const stepProgressBarRef = useRef<HTMLDivElement>(null);
 
   // room-type mini form
   const [roomType, setRoomType] = useState("Single");
   const [beds, setBeds] = useState<Record<BedKey, number>>({ twin: 0, full: 0, queen: 0, king: 0 });
   const [roomsCount, setRoomsCount] = useState<number | "">("");
+  // Room placement (only used when buildingType === "multi_storey")
+  const [roomFloors, setRoomFloors] = useState<number[]>([]);
+  const [roomFloorDistribution, setRoomFloorDistribution] = useState<Record<number, number>>({});
   const [smoking, setSmoking] = useState<"yes"|"no">("yes");
   const [bathPrivate, setBathPrivate] = useState<"yes"|"no">("yes");
   const [bathItems, setBathItems] = useState<string[]>([]);
@@ -1044,6 +1649,45 @@ export default function AddProperty() {
   // const roomImageInput = useRef<HTMLInputElement>(null);
   const [pricePerNight, setPricePerNight] = useState<number | "">("");
   const [definedRooms, setDefinedRooms] = useState<RoomEntry[]>([]);
+
+  // Totals: auto-fill bedrooms from the saved room types (roomsCount per type).
+  const autoTotalBedrooms = useMemo(() => {
+    return (definedRooms || []).reduce((sum, r: any) => {
+      const n = Number(r?.roomsCount);
+      return sum + (Number.isFinite(n) ? Math.max(0, n) : 0);
+    }, 0);
+  }, [definedRooms]);
+
+  useEffect(() => {
+    setTotalBedrooms((prev) => (prev === autoTotalBedrooms ? prev : autoTotalBedrooms));
+  }, [autoTotalBedrooms]);
+
+  // Auto-calculate maxGuests from total beds across all room types
+  const autoMaxGuests = useMemo(() => {
+    const totalBeds = (definedRooms || []).reduce((sum, r: any) => {
+      const roomsCount = Number(r?.roomsCount) || 0;
+      const beds = r?.beds || {};
+      const bedsPerRoom = (Number(beds?.twin) || 0) + (Number(beds?.full) || 0) + (Number(beds?.queen) || 0) + (Number(beds?.king) || 0);
+      return sum + (bedsPerRoom * roomsCount);
+    }, 0);
+    // Ensure at least 1 guest (backend requirement: > 0)
+    return Math.max(1, totalBeds);
+  }, [definedRooms]);
+
+  useEffect(() => {
+    // Only auto-fill if user hasn't manually set a value (empty or 0)
+    if (maxGuests === "" || maxGuests === 0) {
+      setMaxGuests(autoMaxGuests);
+    }
+  }, [autoMaxGuests, maxGuests]);
+
+  // Reset room placement state when building layout changes away from multi-storey
+  useEffect(() => {
+    if (buildingType !== "multi_storey") {
+      setRoomFloors([]);
+      setRoomFloorDistribution({});
+    }
+  }, [buildingType]);
 
   // services (added nearbyFacilities)
   const [services, setServices] = useState<ServicesState>({
@@ -1070,6 +1714,13 @@ export default function AddProperty() {
   // Inline validation state for Basics
   const [touchedBasics, setTouchedBasics] = useState<Record<string, boolean>>({});
   const [announcement, setAnnouncement] = useState<string>("");
+
+  // Stepper refs + progress overlay (declared early so autosave can include step position)
+  const stepperContainerRef = useRef<HTMLDivElement | null>(null);
+  const sectionRefs = useRef<Array<HTMLElement | null>>([]);
+  const progressHeight = 0;
+  const [currentStep, setCurrentStep] = useState(0);
+  const [visitedSteps, setVisitedSteps] = useState<Set<number>>(new Set([0])); // Start with step 0 visited
   
   // Auto-save to localStorage (debounced) - defined after all state variables
   const autoSaveDraft = useCallback(() => {
@@ -1081,12 +1732,20 @@ export default function AddProperty() {
       try {
         const draftData = {
           title, type, otherType, hotelStar,
+          buildingType,
+          totalFloors,
           regionId, district, ward, street, city, zip,
           latitude: typeof latitude === 'number' ? latitude : '',
           longitude: typeof longitude === 'number' ? longitude : '',
           desc, totalBedrooms, totalBathrooms, maxGuests,
+          houseRules,
           photos, definedRooms, services, nearbyFacilities,
+          roomType, beds, roomsCount, smoking, bathPrivate,
+          roomFloors,
+          roomFloorDistribution,
           acceptGroupBooking, freeCancellation, paymentModes,
+          currentStep,
+          visitedSteps: Array.from(visitedSteps),
           timestamp: new Date().toISOString(),
         };
         
@@ -1103,19 +1762,23 @@ export default function AddProperty() {
     }, 2000); // Debounce: save 2 seconds after last change
   }, [
     title, type, otherType, hotelStar,
+    buildingType, totalFloors,
     regionId, district, ward, street, city, zip,
     latitude, longitude, desc, totalBedrooms, totalBathrooms, maxGuests,
     photos, definedRooms, services, nearbyFacilities,
+    roomType, beds, roomsCount, smoking, bathPrivate, roomFloors, roomFloorDistribution,
     acceptGroupBooking, freeCancellation, paymentModes,
+    houseRules,
+    currentStep, visitedSteps,
   ]);
   
-  // Trigger auto-save on form changes
+  // Trigger auto-save on form changes (and step changes so we can resume where user reached)
   useEffect(() => {
     // Don't auto-save if loading existing property
     if (loadingProperty) return;
     
     // Don't auto-save empty forms
-    if (!title && !regionId && photos.length === 0) return;
+    if (!title && !regionId && photos.length === 0 && !type && !buildingType) return;
     
     setAutoSaveStatus('saving');
     autoSaveDraft();
@@ -1125,11 +1788,16 @@ export default function AddProperty() {
         clearTimeout(autoSaveTimeoutRef.current);
       }
     };
-  }, [autoSaveDraft, loadingProperty, title, regionId, photos.length]);
+  }, [autoSaveDraft, loadingProperty, title, type, buildingType, totalFloors, regionId, photos.length, currentStep]);
   
-  // Load draft on mount (if no propertyId is being loaded)
+  // Resume experience (no browser confirm): show a clean resume screen instead.
   useEffect(() => {
+    if (typeof window === "undefined") return;
     if (propertyId || loadingProperty) return; // Skip if loading existing property
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const idParam = urlParams.get("id");
+    if (idParam) return; // editing a server draft
     
     try {
       const savedDraft = localStorage.getItem(DRAFT_STORAGE_KEY);
@@ -1140,38 +1808,8 @@ export default function AddProperty() {
         
         // Only restore if draft is less than 7 days old
         if (daysOld < 7) {
-          const shouldRestore = window.confirm(
-            `You have a saved draft from ${daysOld < 1 ? 'today' : `${Math.floor(daysOld)} day(s) ago`}. Would you like to restore it?`
-          );
-          
-          if (shouldRestore) {
-            if (draft.title) setTitle(draft.title);
-            if (draft.type) setType(draft.type);
-            if (draft.otherType) setOtherType(draft.otherType);
-            if (draft.hotelStar) setHotelStar(draft.hotelStar);
-            if (draft.regionId) setRegionId(draft.regionId);
-            if (draft.district) setDistrict(draft.district);
-            if (draft.ward) setWard(draft.ward);
-            if (draft.street) setStreet(draft.street);
-            if (draft.city) setCity(draft.city);
-            if (draft.zip) setZip(draft.zip);
-            if (draft.latitude) setLatitude(typeof draft.latitude === 'number' ? draft.latitude : parseFloat(draft.latitude) || '');
-            if (draft.longitude) setLongitude(typeof draft.longitude === 'number' ? draft.longitude : parseFloat(draft.longitude) || '');
-            if (draft.desc) setDesc(draft.desc);
-            if (draft.totalBedrooms) setTotalBedrooms(draft.totalBedrooms);
-            if (draft.totalBathrooms) setTotalBathrooms(draft.totalBathrooms);
-            if (draft.maxGuests) setMaxGuests(draft.maxGuests);
-            if (draft.photos && Array.isArray(draft.photos)) setPhotos(draft.photos);
-            if (draft.definedRooms && Array.isArray(draft.definedRooms)) setDefinedRooms(draft.definedRooms);
-            if (draft.services) setServices(draft.services);
-            if (draft.nearbyFacilities && Array.isArray(draft.nearbyFacilities)) setNearbyFacilities(draft.nearbyFacilities);
-            if (draft.acceptGroupBooking !== undefined) setAcceptGroupBooking(draft.acceptGroupBooking);
-            if (draft.freeCancellation !== undefined) setFreeCancellation(draft.freeCancellation);
-            if (draft.paymentModes && Array.isArray(draft.paymentModes)) setPaymentModes(draft.paymentModes);
-          } else {
-            // Clear draft if user doesn't want to restore
-            localStorage.removeItem(DRAFT_STORAGE_KEY);
-          }
+          setLocalDraft(draft);
+          setShowResumeDraft(true);
         } else {
           // Clear old drafts
           localStorage.removeItem(DRAFT_STORAGE_KEY);
@@ -1180,6 +1818,35 @@ export default function AddProperty() {
     } catch (error) {
       console.error('Error loading draft:', error);
     }
+  }, [propertyId, loadingProperty]);
+
+  // Fetch server drafts to show in the resume screen
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (propertyId || loadingProperty) return;
+    const urlParams = new URLSearchParams(window.location.search);
+    const idParam = urlParams.get("id");
+    if (idParam) return;
+
+    (async () => {
+      try {
+        const r = await api.get("/api/owner/properties/mine", { params: { status: "DRAFT", pageSize: 5 } });
+        const items = ((r.data as any)?.items ?? []) as any[];
+        const normalized = Array.isArray(items)
+          ? items
+              .map((it) => ({
+                id: Number(it?.id),
+                title: it?.title ?? it?.name ?? "",
+                updatedAt: it?.updatedAt ?? it?.updated_at ?? it?.timestamp ?? it?.lastEdited ?? "",
+              }))
+              .filter((x) => Number.isFinite(x.id) && x.id > 0)
+          : [];
+        setServerDrafts(normalized);
+        if (normalized.length > 0) setShowResumeDraft(true);
+      } catch {
+        // ignore (resume screen can still show local draft)
+      }
+    })();
   }, [propertyId, loadingProperty]);
   
   // Clear draft on successful submission
@@ -1192,6 +1859,11 @@ export default function AddProperty() {
     const missing: string[] = [];
     if (title.trim().length < 3) missing.push('Property name');
     if (!type) missing.push('Property type');
+    if (!buildingType) missing.push('Building layout');
+    if (buildingType === "multi_storey") {
+      const floorsNum = Number(totalFloors);
+      if (!floorsNum || floorsNum < 2) missing.push('Total floors (min 2)');
+    }
     if (!regionId) missing.push('Region');
     if (!district) missing.push('District');
     if (!ward) missing.push('Ward');
@@ -1204,8 +1876,9 @@ export default function AddProperty() {
 
     if (missing.length) {
       // mark fields as touched so inline errors appear
-      const touchedFields: Record<string, boolean> = { title: true, type: true, regionId: true, district: true, ward: true, street: true };
+      const touchedFields: Record<string, boolean> = { title: true, type: true, buildingType: true, regionId: true, district: true, ward: true, street: true };
       if (selectedWardPostcode) touchedFields.zip = true;
+      if (buildingType === "multi_storey") touchedFields.totalFloors = true;
       setTouchedBasics((t) => ({ ...t, ...touchedFields }));
       setAnnouncement(`Please complete: ${missing.join(', ')}.`);
       return false;
@@ -1214,13 +1887,6 @@ export default function AddProperty() {
   };
 
 
-  // Stepper refs + progress overlay
-  const stepperContainerRef = useRef<HTMLDivElement|null>(null);
-  const sectionRefs = useRef<Array<HTMLElement | null>>([]);
-  const progressHeight = 0;
-  const [currentStep, setCurrentStep] = useState(0);
-  const [visitedSteps, setVisitedSteps] = useState<Set<number>>(new Set([0])); // Start with step 0 visited
-  
   const goToNextStep = () => {
     if (currentStep < 5) {
       if (currentStep === 0) {
@@ -1234,13 +1900,6 @@ export default function AddProperty() {
     }
   };
 
-  const previewNextStep = () => {
-    if (currentStep < 5) {
-      const nextStep = currentStep + 1;
-      setVisitedSteps(prev => new Set([...prev, nextStep]));
-      scrollToStep(nextStep, true);
-    }
-  };
   
   const goToPreviousStep = () => {
     if (currentStep > 0) {
@@ -1314,38 +1973,7 @@ export default function AddProperty() {
     return (resp.data as { secure_url: string }).secure_url;
   }
 
-  const pickPropertyPhotos = async (files: FileList | null) => {
-    if (!files) return;
-    const chosen = Array.from(files).slice(0, 10);
-    const localBlobs = chosen.map(f => URL.createObjectURL(f));
-    setPhotos(prev => [...prev, ...localBlobs]);
-    setPhotosSaved(prev => [...prev, ...Array(localBlobs.length).fill(false)]);
-    setPhotosUploading(prev => [...prev, ...Array(localBlobs.length).fill(true)]);
-
-    chosen.forEach((file, i) => {
-      const blobUrl = localBlobs[i];
-      uploadToCloudinary(file, "properties").then(url => {
-        setPhotos(prev => {
-          const idx = prev.indexOf(blobUrl);
-          if (idx === -1) return prev;
-          const copy = [...prev];
-          copy[idx] = url;
-          return copy;
-        });
-        setPhotosUploading(prev => {
-          const idxNow = photosRef.current.indexOf(blobUrl);
-          if (idxNow === -1) return prev;
-          const copy = [...prev];
-          copy[idxNow] = false;
-          return copy;
-        });
-      }).catch(err => {
-        console.error("Property photo upload failed", err);
-      }).finally(() => {
-        try { URL.revokeObjectURL(blobUrl); } catch {}
-      });
-    });
-  };
+  // PhotosStep handles file uploads internally, so pickPropertyPhotos is not needed
 
   const onPickRoomImages = async (files: FileList | null) => {
     if (!files) return;
@@ -1384,10 +2012,22 @@ export default function AddProperty() {
     const errs: string[] = [];
     if (!roomsCount || Number(roomsCount) <= 0) errs.push("Rooms count is required.");
     if (roomImages.length === 0) errs.push("At least one room image is required.");
+    if (buildingType === "multi_storey") {
+      if (roomFloors.length === 0) errs.push("Select at least one floor for this room type.");
+      const total = roomFloors.reduce((sum, f) => sum + (roomFloorDistribution[f] || 0), 0);
+      if (Number(roomsCount) > 0 && total !== Number(roomsCount)) {
+        errs.push("Floor distribution must add up to the total number of rooms.");
+      }
+    }
     if (errs.length) { alert(errs.join("\n")); return; }
 
     const entry: RoomEntry = {
       roomType, beds, roomsCount: Number(roomsCount),
+      ...(buildingType === "multi_storey"
+        ? { floors: roomFloors, floorDistribution: roomFloorDistribution }
+        : buildingType === "single_storey"
+          ? { floors: [0], floorDistribution: { 0: Number(roomsCount) } }
+          : {}),
       smoking, bathPrivate, bathItems, towelColor,
       otherAmenities: Array.from(new Set([...otherAmenities, ...splitComma(otherAmenitiesText)])),
       roomDescription, roomImages, pricePerNight: Number(pricePerNight || 0)
@@ -1397,6 +2037,7 @@ export default function AddProperty() {
     // reset mini
     setBeds({ twin:0, full:0, queen:0, king:0 });
     setRoomsCount(""); setSmoking("yes"); setBathPrivate("yes");
+    setRoomFloors([]); setRoomFloorDistribution({});
     setBathItems([]); setTowelColor(""); setOtherAmenities([]);
     setOtherAmenitiesText(""); setRoomDescription(""); setRoomImages([]);
     setPricePerNight("");
@@ -1418,9 +2059,51 @@ export default function AddProperty() {
     const regionData = REGION_BY_ID[regionId];
     const regionCode = regionData?.code ? Number(regionData.code) : undefined;
     
+    const fmtWindow = (from: string, to: string) => {
+      const f = String(from || "").trim();
+      const t = String(to || "").trim();
+      if (f && t) return `${f} – ${t}`;
+      if (f) return `From ${f}`;
+      if (t) return `Until ${t}`;
+      return "";
+    };
+
+    const houseRulesObj = (() => {
+      const hr = typeof houseRules === "object" && houseRules !== null ? houseRules : {
+        checkInFrom: "",
+        checkInTo: "",
+        checkOutFrom: "",
+        checkOutTo: "",
+        petsAllowed: null,
+        petsNote: "",
+        smokingNotAllowed: null,
+        other: "",
+      };
+      const checkIn = fmtWindow(hr.checkInFrom || "", hr.checkInTo || "");
+      const checkOut = fmtWindow(hr.checkOutFrom || "", hr.checkOutTo || "");
+
+      const out: any = {};
+      if (checkIn) out.checkIn = checkIn;
+      if (checkOut) out.checkOut = checkOut;
+      if (typeof hr.petsAllowed === "boolean") out.pets = hr.petsAllowed;
+      if (hr.petsNote && typeof hr.petsNote === "string" && hr.petsNote.trim()) out.petsNote = hr.petsNote.trim();
+      // In public UI, houseRules.smoking === true means "Smoking Not Allowed"
+      if (typeof hr.smokingNotAllowed === "boolean") out.smoking = hr.smokingNotAllowed;
+      if (hr.other && typeof hr.other === "string" && hr.other.trim()) out.other = hr.other.trim();
+
+      return Object.keys(out).length ? out : null;
+    })();
+
     return {
       title,
       type: toServerType(type),
+      buildingType: buildingType || null,
+      totalFloors:
+        buildingType === "multi_storey"
+          ? (Number(totalFloors) >= 2 ? Number(totalFloors) : null)
+          : buildingType === "single_storey"
+            ? 1
+            : null,
       description: desc || null,
       // location - send numeric code if available (for regions with codes), otherwise send slug
       ...(regionId ? { regionId: regionCode || regionId } : {}),
@@ -1442,8 +2125,9 @@ export default function AddProperty() {
       roomsSpec: definedRooms,
 
       totalBedrooms: numOrNull(totalBedrooms),
-      totalBathrooms: numOrNull(totalBathrooms),
-      maxGuests: numOrNull(maxGuests),
+      totalBathrooms: totalBathrooms === "" || totalBathrooms == null ? 0 : Number(totalBathrooms),
+      maxGuests: maxGuests === "" || maxGuests == null || Number(maxGuests) <= 0 ? Math.max(1, autoMaxGuests) : Number(maxGuests),
+      houseRules: houseRulesObj,
 
       // Backend expects services as JSON: can be array of strings OR object with nearbyFacilities
       // Send as object to preserve full nearbyFacilities data (name, distance, etc.) AND all service properties
@@ -1492,18 +2176,6 @@ export default function AddProperty() {
       basePrice: inferBasePrice(definedRooms),
       currency: "TZS",
     };
-    
-    // Debug logging for basePrice
-    console.log('[payload] basePrice calculation:', {
-      definedRoomsCount: definedRooms.length,
-      definedRooms: definedRooms.map((r: any) => ({ 
-        roomType: r.roomType, 
-        pricePerNight: r.pricePerNight,
-        price: r.price 
-      })),
-      calculatedBasePrice: inferBasePrice(definedRooms),
-      finalPayloadBasePrice: inferBasePrice(definedRooms)
-    });
   };
 
   function nearbyFacilitiesToServiceTags(list: NearbyFacility[]): string[] {
@@ -1562,25 +2234,6 @@ export default function AddProperty() {
     // if this is a Hotel, ensure a star rating was chosen
     (!isHotel || (typeof hotelStar === "string" && hotelStar !== ""));
 
-  async function saveDraft() {
-    try {
-      const body = payload();
-      if (!propertyId) {
-  const r = await api.post("/owner/properties", body);
-  setPropertyId((r.data as { id: number }).id);
-        alert("Draft created.");
-        // After creating, take user to Pending view (shows drafts too)
-        window.location.href = "/owner/properties/pending";
-      } else {
-        await api.put(`/owner/properties/${propertyId}`, body);
-        alert("Draft saved.");
-        // After saving, take user to Pending view (shows drafts too)
-        window.location.href = "/owner/properties/pending";
-      }
-    } catch (e:any) {
-      alert(e?.response?.data?.error ? JSON.stringify(e.response.data.error) : "Save failed");
-    }
-  }
 
   async function submitForReview() {
     if (!completeEnough) {
@@ -1597,35 +2250,187 @@ export default function AddProperty() {
     try {
       const confirmed = window.confirm("Are you sure you're submitting this for review? You won't be able to edit while it's pending.");
       if (!confirmed) return;
-      if (!propertyId) {
-  const r = await api.post("/owner/properties", payload());
-  setPropertyId((r.data as { id: number }).id);
+      // Determine the property ID - use existing or create new
+      let id: number | null = null;
+      let createResponse: any = null;
+      
+      if (propertyId) {
+        // Update existing property
+        console.log(`Updating existing property ${propertyId}...`);
+        await api.put(`/api/owner/properties/${propertyId}`, payload());
+        id = propertyId;
       } else {
-        await api.put(`/owner/properties/${propertyId}`, payload());
+        // Create new property - use ID directly from response (don't rely on state update)
+        console.log("Creating new property...");
+        createResponse = await api.post("/api/owner/properties", payload());
+        id = (createResponse.data as { id: number })?.id;
+        if (id) {
+          setPropertyId(id);
+          console.log(`Property created with ID: ${id}`);
+        } else {
+          // Fallback: try to fetch the latest draft
+          console.log("No ID in create response, trying to fetch latest draft...");
+          const fetchedId = await refetchLatestId();
+          if (fetchedId) {
+            id = fetchedId;
+            setPropertyId(fetchedId);
+            console.log(`Fetched property ID: ${id}`);
+          }
+        }
       }
-      const id = propertyId ?? (await refetchLatestId());
-      const resp = await api.post(`/owner/properties/${id}/submit`);
+      
+      if (!id || !Number.isFinite(id)) {
+        console.error("Could not determine property ID. Create response:", createResponse?.data);
+        alert("Error: Could not determine property ID. Please try again.");
+        return;
+      }
+
+      console.log(`Submitting property ${id} for review...`);
+      const resp = await api.post(`/api/owner/properties/${id}/submit`);
       // Accept 200 OK with body or 204 No Content
       if (resp.status === 200 || resp.status === 204) {
+        console.log(`Property ${id} submitted successfully. Response:`, resp.data);
         clearDraft(); // Clear draft on successful submission
-        alert("Submitted for review!");
-        // Navigate to Pending list to reflect status change
-        window.location.href = "/owner/properties/pending";
+        setShowSubmissionSuccess(true);
       } else {
+        console.error("Unexpected response status:", resp.status, resp.data);
         alert("Unexpected response: " + resp.status);
       }
     } catch (e:any) {
-      alert(e?.response?.data?.error || "Submit failed");
+      const data = e?.response?.data;
+      const url = e?.config?.url || "unknown";
+      const method = e?.config?.method?.toUpperCase() || "unknown";
+      const status = e?.response?.status;
+      const err = data?.error ?? data ?? e?.message ?? "Submit failed";
+      const errorMsg = typeof err === "string" ? err : JSON.stringify(err, null, 2);
+      console.error(`Submit failed: ${method} ${url}`, { status, error: err, fullError: e });
+      alert(`Submit failed (${status || "network error"}): ${errorMsg}\n\nURL: ${method} ${url}`);
     }
   }
 
   async function refetchLatestId(): Promise<number | undefined> {
-    const r = await api.get("/owner/properties/mine", { params: { status: "DRAFT", pageSize: 1 } });
+    const r = await api.get("/api/owner/properties/mine", { params: { status: "DRAFT", pageSize: 1 } });
     const items = (r.data as any)?.items;
     return Array.isArray(items) ? items[0]?.id : undefined;
   }
 
   /* UI below */
+
+  const restoreLocalDraft = () => {
+    const draft = localDraft;
+    if (!draft) return;
+    // Apply values
+    if (draft.title) setTitle(draft.title);
+    if (draft.type) setType(draft.type);
+    if (draft.otherType) setOtherType(draft.otherType);
+    if (draft.hotelStar) setHotelStar(draft.hotelStar);
+    if (draft.buildingType) setBuildingType(draft.buildingType);
+    if (draft.totalFloors !== undefined && draft.totalFloors !== null && draft.totalFloors !== "") {
+      const n = typeof draft.totalFloors === "number" ? draft.totalFloors : parseFloat(draft.totalFloors);
+      setTotalFloors(Number.isFinite(n) ? n : "");
+    }
+    if (draft.roomType) setRoomType(draft.roomType);
+    if (draft.beds) setBeds(draft.beds);
+    if (draft.roomsCount !== undefined) setRoomsCount(draft.roomsCount);
+    if (draft.smoking) setSmoking(draft.smoking);
+    if (draft.bathPrivate) setBathPrivate(draft.bathPrivate);
+    if (Array.isArray(draft.roomFloors)) setRoomFloors(draft.roomFloors);
+    if (draft.roomFloorDistribution && typeof draft.roomFloorDistribution === "object") setRoomFloorDistribution(draft.roomFloorDistribution);
+    if (draft.regionId) setRegionId(draft.regionId);
+    if (draft.district) setDistrict(draft.district);
+    if (draft.ward) setWard(draft.ward);
+    if (draft.street) setStreet(draft.street);
+    if (draft.city) setCity(draft.city);
+    if (draft.zip) setZip(draft.zip);
+    if (draft.latitude) setLatitude(typeof draft.latitude === "number" ? draft.latitude : parseFloat(draft.latitude) || "");
+    if (draft.longitude) setLongitude(typeof draft.longitude === "number" ? draft.longitude : parseFloat(draft.longitude) || "");
+    if (draft.desc) setDesc(draft.desc);
+    if (draft.totalBedrooms) setTotalBedrooms(draft.totalBedrooms);
+    if (draft.totalBathrooms) setTotalBathrooms(draft.totalBathrooms);
+    if (draft.maxGuests) setMaxGuests(draft.maxGuests);
+    if (draft.houseRules && typeof draft.houseRules === "object" && draft.houseRules !== null && !Array.isArray(draft.houseRules)) {
+      setHouseRules((prev) => {
+        const prevObj = typeof prev === "object" && prev !== null ? prev : {
+          checkInFrom: "",
+          checkInTo: "",
+          checkOutFrom: "",
+          checkOutTo: "",
+          petsAllowed: null,
+          petsNote: "",
+          smokingNotAllowed: null,
+          other: "",
+        };
+        return { ...prevObj, ...(draft.houseRules as Record<string, any>) };
+      });
+    }
+    if (draft.photos && Array.isArray(draft.photos)) setPhotos(draft.photos);
+    if (draft.definedRooms && Array.isArray(draft.definedRooms)) setDefinedRooms(draft.definedRooms);
+    if (draft.services) setServices(draft.services);
+    if (draft.nearbyFacilities && Array.isArray(draft.nearbyFacilities)) setNearbyFacilities(draft.nearbyFacilities);
+    if (draft.acceptGroupBooking !== undefined) setAcceptGroupBooking(draft.acceptGroupBooking);
+    if (draft.freeCancellation !== undefined) setFreeCancellation(draft.freeCancellation);
+    if (draft.paymentModes && Array.isArray(draft.paymentModes)) setPaymentModes(draft.paymentModes);
+
+    const step = typeof draft.currentStep === "number" ? Math.max(0, Math.min(5, draft.currentStep)) : 0;
+    const visited = Array.isArray(draft.visitedSteps)
+      ? new Set<number>(draft.visitedSteps.map((n: any) => Number(n)).filter((n: number) => Number.isFinite(n)))
+      : new Set<number>(Array.from({ length: step + 1 }, (_, i) => i));
+    setVisitedSteps(visited);
+    setShowResumeDraft(false);
+
+    // flip into the last step smoothly; skip validation (draft may already be partially filled)
+    setTimeout(() => scrollToStep(step, true), 50);
+  };
+
+  const continueServerDraft = useCallback((id: number) => {
+    if (typeof window === "undefined") return;
+    window.location.href = `/owner/properties/add?id=${id}`;
+  }, []);
+
+  const startNewListing = useCallback(() => {
+    if (typeof window === "undefined") return;
+    localStorage.removeItem(DRAFT_STORAGE_KEY);
+    window.location.href = "/owner/properties/add";
+  }, []);
+
+  const stepTitles = ["Basic details", "Room & bathroom", "Services", "Totals & description", "Property photos", "Review & submit"] as const;
+
+  const servicesCompleted = useMemo(() => {
+    const s: any = services || {};
+    const anyNearby = (nearbyFacilities?.length ?? 0) > 0;
+
+    // If parking is set to paid, require a valid price to consider the step complete.
+    const parkingPaidOk = s.parking !== "paid" || Number(s.parkingPrice) > 0;
+
+    const anyOnProperty =
+      s.parking !== "no" ||
+      !!s.breakfastIncluded ||
+      !!s.breakfastAvailable ||
+      !!s.restaurant ||
+      !!s.bar ||
+      !!s.pool ||
+      !!s.sauna ||
+      !!s.laundry ||
+      !!s.roomService ||
+      !!s.security24 ||
+      !!s.firstAid ||
+      !!s.fireExtinguisher ||
+      !!s.onSiteShop ||
+      !!s.nearbyMall ||
+      !!s.socialHall ||
+      !!s.sportsGames ||
+      !!s.gym;
+
+    return (anyNearby || anyOnProperty) && parkingPaidOk;
+  }, [services, nearbyFacilities]);
+
+  // Check if Totals step is completed
+  const totalsCompleted = useMemo(() => {
+    const bathroomsOk = typeof totalBathrooms === "number" && totalBathrooms > 0;
+    const guestsOk = typeof maxGuests === "number" && maxGuests > 0;
+    // Description is optional but nice to have
+    return bathroomsOk && guestsOk;
+  }, [totalBathrooms, maxGuests]);
 
   if (loadingProperty) {
     return (
@@ -1642,2084 +2447,885 @@ export default function AddProperty() {
     );
   }
 
-  return (
-    <div id="addPropertyView" className="w-full py-6 sm:py-8">
-      <style dangerouslySetInnerHTML={{__html: `
-        #addPropertyView {
-          overflow-x: hidden !important;
-        }
-        #addPropertyView select {
-          -webkit-appearance: none !important;
-          -moz-appearance: none !important;
-          appearance: none !important;
-          background-image: none !important;
-        }
-        #addPropertyView select::-ms-expand {
-          display: none !important;
-        }
-        /* Small screens - prevent overflow */
-        @media (max-width: 767px) {
-          #addPropertyView {
-            padding-left: 0.5rem !important;
-            padding-right: 0.5rem !important;
-          }
-          #addPropertyView > div {
-            padding-left: 0.75rem !important;
-            padding-right: 0.75rem !important;
-          }
-          #addPropertyView input[type="text"],
-          #addPropertyView input[type="number"] {
-            max-width: 100% !important;
-            box-sizing: border-box !important;
-          }
-          /* Other type input - ensure it's constrained on mobile */
-          @media (max-width: 767px) {
-            #addPropertyView input[placeholder="Please specify"] {
-              max-width: 100% !important;
-              width: 100% !important;
-              box-sizing: border-box !important;
-            }
-          }
-          #addPropertyView .grid[class*="grid-cols"]:not([role="radiogroup"]) {
-            display: grid !important;
-            grid-template-columns: 1fr !important;
-            gap: 1rem !important;
-            width: 100% !important;
-            max-width: 100% !important;
-            box-sizing: border-box !important;
-            margin-left: 0 !important;
-            margin-right: 0 !important;
-            padding-left: 0 !important;
-            padding-right: 0 !important;
-          }
-          /* Property type grid - ensure 2 columns on small screens */
-          #addPropertyView [role="radiogroup"] {
-            display: grid !important;
-            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-            gap: 0.5rem !important;
-            width: 100% !important;
-            max-width: 100% !important;
-            box-sizing: border-box !important;
-          }
-          #addPropertyView .grid[class*="grid-cols"]:not([role="radiogroup"]) > div {
-            width: 100% !important;
-            min-width: 0 !important;
-            max-width: 100% !important;
-            box-sizing: border-box !important;
-            overflow: hidden !important;
-            padding-left: 0 !important;
-            padding-right: 0 !important;
-          }
-          #addPropertyView [role="radiogroup"] > label {
-            width: 100% !important;
-            min-width: 0 !important;
-            max-width: 100% !important;
-            box-sizing: border-box !important;
-          }
-          #addPropertyView .grid[class*="grid-cols"]:not([role="radiogroup"]) > div > input,
-          #addPropertyView .grid[class*="grid-cols"]:not([role="radiogroup"]) > div > div > select,
-          #addPropertyView .grid[class*="grid-cols"]:not([role="radiogroup"]) > div > div > input {
-            width: 100% !important;
-            max-width: 100% !important;
-            box-sizing: border-box !important;
-            padding-left: 1rem !important;
-            padding-right: 1rem !important;
-          }
-        }
-        /* Large screens - uniform columns */
-        @media (min-width: 768px) {
-          #addPropertyView .grid[class*="grid-cols"] {
-            display: grid !important;
-          }
-          #addPropertyView .grid[class*="grid-cols"][class*="md:grid-cols-3"] {
-            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-          }
-          #addPropertyView .grid[class*="grid-cols"][class*="md:grid-cols-4"] {
-            grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-          }
-          #addPropertyView .grid[class*="grid-cols"] > div {
-            width: 100% !important;
-            min-width: 0 !important;
-            max-width: 100% !important;
-            box-sizing: border-box !important;
-            flex-shrink: 0 !important;
-          }
-          #addPropertyView .grid[class*="grid-cols"] > div > input,
-          #addPropertyView .grid[class*="grid-cols"] > div > div > select,
-          #addPropertyView .grid[class*="grid-cols"] > div > div > input {
-            width: 100% !important;
-            box-sizing: border-box !important;
-          }
-        }
-      `}} />
-      {/* Live region for screen reader announcements about step changes and validation */}
-      <div aria-live="polite" className="sr-only" role="status">{announcement}</div>
-      <div className="bg-white rounded shadow-md p-4 sm:p-6 border-l-4 border-emerald-500 overflow-hidden w-full max-w-full box-border">
-  <div className="w-full relative" ref={stepperContainerRef} data-progress={progressHeight}>
-        {/* header constrained so it doesn't stretch full width */}
-        <div className="mb-4 text-center max-w-3xl mx-auto bg-white/80 backdrop-blur rounded-2xl shadow-sm border border-gray-100 p-5 sm:p-6">
-          <div className="flex flex-col items-center gap-3">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold border border-emerald-100">
-              <Plus className="h-4 w-4" />
-              <span>New Listing</span>
+  if (showResumeDraft) {
+    return (
+      <ResumeDraftScreen
+        localDraft={localDraft}
+        serverDrafts={serverDrafts}
+        stepTitles={stepTitles}
+        onContinueLocal={restoreLocalDraft}
+        onContinueServer={continueServerDraft}
+        onStartNew={startNewListing}
+        onDismiss={() => setShowResumeDraft(false)}
+      />
+    );
+  }
+
+  const currentStepTitle = stepTitles[currentStep] || "Add property";
+  const stepProgressPct = Math.round(((currentStep + 1) / stepTitles.length) * 100);
+
+  const stepsMeta = [
+    { index: 0, title: "Basic details", completed: title.trim().length >= 3 && !!regionId && !!district },
+    { index: 1, title: "Rooms", completed: definedRooms.length >= 1 },
+    { index: 2, title: "Services", completed: servicesCompleted },
+    { index: 3, title: "Totals", completed: totalsCompleted },
+    { index: 4, title: "Photos", completed: photos.length >= 3 },
+    { index: 5, title: "Review", completed: false },
+  ] as const;
+
+  const completedStepsCount = stepsMeta.filter((s) => s.completed).length;
+  const locationSummary = [street, ward, district, REGION_BY_ID[regionId]?.name]
+    .filter((segment) => !!segment && String(segment).trim().length > 0)
+    .join(", ") || "Location pending";
+  const nextStepTitle = stepTitles[currentStep + 1] || null;
+  const totalDefinedRooms = definedRooms.reduce((sum, room) => sum + (Number(room?.roomsCount) || 0), 0);
+  const totalBedsAcrossRooms = definedRooms.reduce((sum, room) => {
+    const counts = room?.beds || {};
+    const perRoomBeds = (Number(counts?.twin) || 0) + (Number(counts?.full) || 0) + (Number(counts?.queen) || 0) + (Number(counts?.king) || 0);
+    return sum + perRoomBeds * (Number(room?.roomsCount) || 0);
+  }, 0);
+  const amenityHighlights = servicesToArray(services).slice(0, 6);
+  const photosProgressPct = photos.length === 0 ? 0 : Math.min(100, Math.round((Math.min(photos.length, 5) / 5) * 100));
+  const propertyHeroTitle = title.trim().length > 0 ? title.trim() : "Create your next stay";
+  const photosNeeded = Math.max(0, 5 - photos.length);
+  const hasHotelStar = !isHotel || (typeof hotelStar === "string" && hotelStar !== "");
+  const snapshotStats = [
+    { label: "Room types", value: totalDefinedRooms, hint: "configured" },
+    { label: "Beds ready", value: totalBedsAcrossRooms, hint: "sleeping spots" },
+    { label: "Photos", value: photos.length, hint: "uploaded" },
+  ] as const;
+  const helpfulReminders = [
+    photosNeeded > 0 ? `${photosNeeded} more photo${photosNeeded === 1 ? "" : "s"} recommended for a standout gallery.` : "Add descriptive captions to your best shots to boost conversions.",
+    !hasHotelStar ? "Select a hotel star rating so travellers understand your comfort level." : null,
+    definedRooms.length === 0 ? "Capture at least one room type to unlock the review step." : "Double-check room prices and capacity before submitting.",
+  ].filter(Boolean) as string[];
+
+  const renderListingSnapshot = (variant: "mobile" | "desktop") => (
+    <section className={twMerge(SNAPSHOT_CARD_CLASS, variant === "desktop" && SNAPSHOT_CARD_DESKTOP)}>
+      <div className="relative overflow-hidden rounded-3xl">
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-100/20 via-white to-sky-100/25" aria-hidden />
+        <div className="relative z-10 p-5 sm:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-600">Listing snapshot</p>
+              <h2 className="mt-1 text-xl font-semibold text-slate-900 sm:text-2xl">{propertyHeroTitle}</h2>
+              <p className="mt-1 text-sm text-slate-600">{locationSummary}</p>
             </div>
-            <div className="flex items-center justify-between w-full gap-4">
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex-1">Add New Property</h1>
-              {/* Auto-save status & Live Preview */}
-              <div className="flex items-center gap-3">
-                {/* Auto-save status indicator */}
-                {autoSaveStatus !== 'idle' && (
-                  <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${
-                    autoSaveStatus === 'saving' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
-                    autoSaveStatus === 'saved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-                    'bg-red-50 text-red-700 border border-red-200'
-                  }`}>
-                    {autoSaveStatus === 'saving' && (
-                      <>
-                        <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                        <span>Saving...</span>
-                      </>
-                    )}
-                    {autoSaveStatus === 'saved' && (
-                      <>
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>Saved</span>
-                      </>
-                    )}
-                    {autoSaveStatus === 'error' && (
-                      <>
-                        <AlertCircle className="w-3.5 h-3.5" />
-                        <span>Save failed</span>
-                      </>
-                    )}
-                  </div>
-                )}
-                {/* Live Preview Button */}
-                {title.trim().length >= 3 && (
-                  <button
-                    type="button"
-                    onClick={() => setShowLivePreview(true)}
-                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#02665e] text-white text-sm font-semibold hover:bg-[#014e47] transition-colors shadow-sm hover:shadow"
-                  >
-                    <Eye className="w-4 h-4" />
-                    <span className="hidden sm:inline">Live Preview</span>
-                    <span className="sm:hidden">Preview</span>
-                  </button>
-                )}
-              </div>
-            </div>
-            <span className="inline-block w-24 h-1 rounded-full bg-gradient-to-r from-emerald-500 to-sky-500 shadow-sm" />
-            <p className="text-sm sm:text-base text-gray-600 leading-relaxed max-w-2xl">
-              Share clear, accurate details and include at least <span className="font-semibold text-emerald-600">5 high-quality photos</span> covering the exterior, living area, bedroom, bathroom, and kitchen. This helps us review and publish your property faster.
-          </p>
-            <p className="text-xs sm:text-sm text-emerald-700 font-medium">Step 1 of 6 · Basic details</p>
+            <span className={SNAPSHOT_BADGE_CLASS}>
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              {completedStepsCount}/{stepTitles.length} steps
+            </span>
           </div>
-          
-          {/* Mobile horizontal stepper */}
-          <nav className="owner-steps-container mt-6 mb-2 md:hidden" aria-label="Property creation steps">
-            <div className="owner-steps-wrapper" />
-          </nav>
-        </div>
 
-        <div className="md:grid md:grid-cols-12 gap-2 md:gap-3 mt-8 relative">
-          {/* Vertical step navigation on the left */}
-          <aside className="md:col-span-1 hidden md:block relative">
-            <nav className="owner-steps-container-vertical sticky top-6" aria-label="Property creation steps">
-              <div className="owner-steps-wrapper-vertical">
-                {(() => {
-                  const steps = [
-                    { index: 0, label: "Details", completed: title.trim().length >= 3 && !!regionId && !!district },
-                    { index: 1, label: "Rooms", completed: definedRooms.length >= 1 },
-                    { index: 2, label: "Services", completed: false },
-                    { index: 3, label: "Totals", completed: false },
-                    { index: 4, label: "Photos", completed: photos.length >= 3 },
-                    { index: 5, label: "Review", completed: false },
-                  ];
-                  const stepNames = ['Basic details','Room & Bathroom','Services','Totals & Description','Property Photos','Review & Submit'];
-                  
-                  // Filter to only show visited steps
-                  const visibleSteps = steps.filter(step => visitedSteps.has(step.index));
-                  
-                  return visibleSteps.map((step, idx) => {
-                    const isActive = currentStep === step.index;
-                    const isCompleted = step.completed && currentStep > step.index;
-                    const isPast = currentStep > step.index;
-                    const connectorCompleted = isPast || (isActive && step.completed);
-                    const isLastVisible = idx === visibleSteps.length - 1;
-                    const nextStepIndex = visibleSteps[idx + 1]?.index;
-                    const shouldShowConnector = !isLastVisible && nextStepIndex !== undefined && nextStepIndex === step.index + 1;
-                    
-                    return (
-                      <div key={step.index} className="owner-step-item-vertical">
-                        <div
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => scrollToStep(step.index)}
-                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); scrollToStep(step.index); } }}
-                          className={`owner-step-button-vertical ${isActive ? 'owner-step-button-vertical--active' : ''} ${isCompleted ? 'owner-step-button-vertical--completed' : ''} ${isPast ? 'owner-step-button-vertical--past' : ''}`}
-                          aria-label={`Go to ${stepNames[step.index]}`}
-                          aria-current={isActive ? 'step' : undefined}
-                          title={step.label}
-                        >
-                          <div className="owner-step-circle-vertical">
-                            {isCompleted ? (
-                              <svg className="owner-step-checkmark-vertical" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M16.7071 5.29289C17.0976 5.68342 17.0976 6.31658 16.7071 6.70711L8.70711 14.7071C8.31658 15.0976 7.68342 15.0976 7.29289 14.7071L3.29289 10.7071C2.90237 10.3166 2.90237 9.68342 3.29289 9.29289C3.68342 8.90237 4.31658 8.90237 4.70711 9.29289L8 12.5858L15.2929 5.29289C15.6834 4.90237 16.3166 4.90237 16.7071 5.29289Z" fill="currentColor"/>
-                              </svg>
-                            ) : (
-                              <span className="owner-step-number-vertical">{step.index + 1}</span>
-                            )}
-                          </div>
-                        </div>
-                        {shouldShowConnector && (
-                          <div className={`owner-step-connector-vertical ${connectorCompleted ? 'owner-step-connector-vertical--completed' : ''} ${isActive ? 'owner-step-connector-vertical--active' : ''}`}>
-                            <div className="owner-step-connector-line-vertical"></div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  });
-                })()}
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {snapshotStats.map((stat) => (
+              <div key={stat.label} className={SNAPSHOT_STAT_CLASS}>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{stat.label}</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900">{stat.value}</p>
+                <p className="text-xs text-slate-500">{stat.hint}</p>
               </div>
-            </nav>
-          </aside>
+            ))}
+          </div>
 
-          {/* Content area on the right */}
-          <main className="md:col-span-11 relative">
-            <div className="relative w-full">
-        {/* BASICS */}
-        <section
-          ref={el => { sectionRefs.current[0] = el }}
-          className={`bg-white rounded pl-3 pr-3 sm:pr-4 py-4 border-l-4 border-primary-600 ${showBasics ? 'block' : 'hidden'}`}
-        >
-          {showBasics && (
-            <div id="propertyBasicsInner" className="w-full">
-              <div className="space-y-6 w-full">
-                <div className="w-full max-w-lg sm:max-w-xl">
-                  <div className="flex flex-col space-y-2">
-                    <label htmlFor="propertyName" className="block text-sm font-medium text-gray-700">
-                      Property Name <span className="text-red-500">*</span>
-                    </label>
-                    <p className="text-xs text-gray-500">Keep it short and clear, e.g., “Cozy 2BR in City Center”.</p>
-                    <input
-                      id="propertyName"
-                      aria-describedby={touchedBasics.title && title.trim().length < 3 ? 'nameError' : undefined}
-                      value={title}
-                      onChange={e => setTitle(e.target.value)}
-                      onBlur={() => setTouchedBasics(t => ({ ...t, title: true }))}
-                      type="text"
-                      placeholder="Enter property name"
-                      className={`w-full h-12 px-4 text-sm rounded-lg shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 ${
-                        touchedBasics.title && title.trim().length < 3 
-                          ? 'border-2 border-red-400 bg-red-50 text-gray-900 focus:ring-red-200 focus:border-red-500' 
-                          : 'border border-gray-300 bg-white text-gray-900 placeholder-gray-400 hover:border-gray-400 focus:ring-emerald-500/20 focus:border-emerald-500'
-                      }`}
-                      aria-required={true}
-                    />
-                  {touchedBasics.title && title.trim().length < 3 && (
-                      <p id="nameError" className="text-xs text-red-600 mt-0.5">Please enter at least 3 characters</p>
-                    )}
-                    </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-800 mb-4" id="propertyTypeLabel">
-                    Select type of your Property <span className="text-red-500">*</span>
-                  </label>
-
-                  <div
-                    role="radiogroup"
-                    aria-labelledby="propertyTypeLabel"
-                    className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 w-full"
-                  >
-                      {PROPERTY_TYPES.map((pt) => {
-                        const selected = type === pt;
-                        const labelText = pt === 'Other' ? 'Specify if none of the above' : `Typical ${pt.toLowerCase()}`;
-                        const IconComponent = PROPERTY_TYPE_ICONS[pt] || HelpCircle;
-                        const styles = PROPERTY_TYPE_STYLES[pt] || PROPERTY_TYPE_STYLES["Other"];
-                        
-                        return (
-                          <label
-                            key={pt}
-                          className={`group relative flex flex-col items-center text-center gap-2.5 p-4 rounded-lg border cursor-pointer transition-all duration-200 ${
-                              selected 
-                              ? `${styles.border} bg-white shadow-md ${styles.leftBorder}` 
-                              : `border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm`
-                            }`}
-                          >
-                              <input
-                                type="radio"
-                                name="propertyType"
-                                value={pt}
-                                checked={selected}
-                                onChange={() => { 
-                                  setType(pt); 
-                                  setTouchedBasics(t => ({ ...t, type: true })); 
-                                }}
-                            className="sr-only"
-                              />
-                          <div className={`w-12 h-12 rounded-lg flex items-center justify-center transition-all duration-200 ${
-                            selected 
-                              ? styles.bg.replace('from-white to-', 'bg-gradient-to-br from-').replace('-50', '-50/80 to-white')
-                              : 'bg-gray-50 group-hover:bg-gray-100'
-                          }`}>
-                              <IconComponent 
-                              className={`w-6 h-6 transition-colors duration-200 ${
-                                  selected 
-                                  ? styles.text
-                                  : 'text-gray-400 group-hover:text-gray-600'
-                                }`}
-                              />
-                          </div>
-                          <div className="w-full">
-                            <div className={`font-semibold text-sm mb-0.5 transition-colors ${
-                                  selected ? 'text-gray-900' : 'text-gray-700 group-hover:text-gray-900'
-                                }`}>{pt}</div>
-                            <div className={`text-xs transition-colors line-clamp-2 ${
-                              selected 
-                                ? 'text-gray-500' 
-                                : 'text-gray-400 group-hover:text-gray-500'
-                            }`}>{labelText}</div>
-                              </div>
-                          {selected && (
-                            <div className={`absolute top-2 right-2 w-5 h-5 rounded-full ${styles.border.replace('border-', 'bg-')} flex items-center justify-center shadow-sm`}>
-                              <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                              </svg>
-                            </div>
-                          )}
-                          </label>
-                        );
-                      })}
-                    </div>
-
-                    {touchedBasics.type && !type && (
-                      <div id="typeError" className="text-xs text-red-600 mt-2">Please select a property type.</div>
-                    )}
-
-                    {type === 'Other' && (
-                      <div className="mt-3 w-full max-w-xs sm:max-w-sm box-border">
-                        <input 
-                          value={otherType} 
-                          onChange={e => setOtherType(e.target.value)} 
-                          className="w-full h-11 px-3 text-sm text-gray-900 placeholder-gray-400 bg-white border border-gray-300 rounded-lg shadow-sm transition-all duration-200 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 box-border" 
-                          placeholder="Please specify" 
-                        />
-                      </div>
-                    )}
-
-                    {type === 'Hotel' && (
-                      <div className="mt-4 flex flex-col space-y-2 w-full max-w-xs sm:max-w-sm">
-                        <label htmlFor="hotelStarRating" className="text-sm font-medium text-gray-800">
-                          Hotel Star Rating <span className="text-red-500">*</span>
-                        </label>
-                        <div className="relative">
-                          <select
-                            id="hotelStarRating"
-                            title="Hotel Star Rating"
-                            aria-required={true}
-                            value={hotelStar}
-                            onChange={e => setHotelStar(e.target.value)}
-                            className="w-full h-12 pl-4 pr-10 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg shadow-sm transition-all duration-200 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 appearance-none cursor-pointer"
-                          >
-                            {HOTEL_STAR_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                          </select>
-                          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
-                            <ChevronDown className="h-4 w-4" />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                </div>
-
-                {/* Property Location Section */}
-                <div className="space-y-6 sm:space-y-8 w-full max-w-full overflow-hidden">
-                  <div className="space-y-1">
-                    <h2 className="text-xl font-semibold text-gray-900">Where is your property located? <span className="text-red-500">*</span></h2>
-                    <p className="text-sm text-gray-500">Provide the location details for your property</p>
-                  </div>
-
-                  {/* Region, District, Ward - Uniform Grid Layout */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {/* Region */}
-                    <div className="flex flex-col space-y-2">
-                      <label className="block text-sm font-medium text-gray-700">
-                        Region <span className="text-red-500">*</span>
-                      </label>
-                      <div className="relative">
-                        <select
-                          title="Region"
-                          value={regionId}
-                          onChange={e => { setRegionId(e.target.value); setDistrict(''); setWard(''); }}
-                          style={{ WebkitAppearance: 'none', MozAppearance: 'none', appearance: 'none' }}
-                          className="w-full h-12 pl-4 pr-10 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg shadow-sm transition-all duration-200 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 cursor-pointer"
-                          aria-required={true}
-                        >
-                          <option value="">Select region</option>
-                          {REGIONS.map((r: { id: string; name: string }) => (
-                            <option key={r.id} value={r.id}>{r.name}</option>
-                          ))}
-                        </select>
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400 z-10">
-                          <ChevronDown className="h-5 w-5" />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* District */}
-                    <div className="flex flex-col space-y-2">
-                      <label className="block text-sm font-medium text-gray-700">
-                        District <span className="text-red-500">*</span>
-                      </label>
-                      <div className="relative">
-                        <select
-                          title="District"
-                          value={district}
-                          onChange={e => { setDistrict(e.target.value); setWard(''); setStreet(''); setZip(''); }}
-                          onBlur={() => setTouchedBasics(t => ({ ...t, district: true }))}
-                          disabled={!regionId}
-                          style={{ WebkitAppearance: 'none', MozAppearance: 'none', appearance: 'none' }}
-                          className={`w-full h-12 pl-4 pr-10 text-sm rounded-lg shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 cursor-pointer ${
-                            touchedBasics.district && !district 
-                              ? 'border-2 border-red-400 bg-red-50 text-gray-900 focus:ring-red-200 focus:border-red-500' 
-                              : !regionId
-                              ? 'border border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
-                              : 'border border-gray-300 bg-white text-gray-900 hover:border-gray-400 focus:ring-emerald-500/20 focus:border-emerald-500'
-                          }`}
-                          aria-required={true}
-                          aria-describedby={touchedBasics.district && !district ? 'districtError' : undefined}
-                        >
-                          <option value="">{regionId ? 'Select district' : 'Select region first'}</option>
-                          {districts.map((d: string) => (
-                            <option key={d} value={d}>{d}</option>
-                          ))}
-                        </select>
-                        <div className={`absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none z-10 ${!regionId ? 'text-gray-300' : 'text-gray-400'}`}>
-                          <ChevronDown className="h-5 w-5" />
-                        </div>
-                      </div>
-                      {touchedBasics.district && !district && (
-                        <p id="districtError" className="text-xs text-red-600 mt-0.5">Please select a district</p>
-                      )}
-                    </div>
-
-                    {/* Ward */}
-                    <div className="flex flex-col space-y-2">
-                      <label className="block text-sm font-medium text-gray-700">
-                        Ward <span className="text-red-500">*</span>
-                      </label>
-                      <div className="relative">
-                            <select
-                              title="Ward"
-                              value={ward}
-                          onChange={e => { setWard(e.target.value); setStreet(''); setZip(''); }}
-                              onBlur={() => setTouchedBasics(t => ({ ...t, ward: true }))}
-                              disabled={!district}
-                          style={{ WebkitAppearance: 'none', MozAppearance: 'none', appearance: 'none' }}
-                          className={`w-full h-12 pl-4 pr-10 text-sm rounded-lg shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 cursor-pointer ${
-                            touchedBasics.ward && !ward
-                              ? 'border-2 border-red-400 bg-red-50 text-gray-900 focus:ring-red-200 focus:border-red-500' 
-                                  : !district
-                                  ? 'border border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
-                              : 'border border-gray-300 bg-white text-gray-900 hover:border-gray-400 focus:ring-emerald-500/20 focus:border-emerald-500'
-                              }`}
-                              aria-required={true}
-                          aria-describedby={touchedBasics.ward && !ward ? 'wardError' : undefined}
-                            >
-                              <option value="">{district ? 'Select ward' : 'Select district first'}</option>
-                              {wards.map((w: string) => (
-                                <option key={w} value={w}>{w}</option>
-                              ))}
-                            </select>
-                        <div className={`absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none z-10 ${!district ? 'text-gray-300' : 'text-gray-400'}`}>
-                          <ChevronDown className="h-5 w-5" />
-                            </div>
-                          </div>
-                      {touchedBasics.ward && !ward && (
-                        <p id="wardError" className="text-xs text-red-600 mt-0.5">Please select a ward</p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Street Address, City, Zip Code - Uniform Grid Layout */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="flex flex-col space-y-2">
-                      <label htmlFor="streetAddress" className="block text-sm font-medium text-gray-700">
-                        Street Address <span className="text-red-500">*</span>
-                      </label>
-                      <div className="relative">
-                        <select
-                          id="streetAddress"
-                          title="Street"
-                          value={street}
-                          onChange={e => setStreet(e.target.value)}
-                          onBlur={() => setTouchedBasics(t => ({ ...t, street: true }))}
-                          disabled={!ward}
-                          style={{ WebkitAppearance: 'none', MozAppearance: 'none', appearance: 'none' }}
-                          className={`w-full h-12 pl-4 pr-10 text-sm rounded-lg shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 cursor-pointer ${
-                            touchedBasics.street && !street
-                              ? 'border-2 border-red-400 bg-red-50 text-gray-900 focus:ring-red-200 focus:border-red-500' 
-                              : !ward
-                              ? 'border border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
-                              : 'border border-gray-300 bg-white text-gray-900 hover:border-gray-400 focus:ring-emerald-500/20 focus:border-emerald-500'
-                          }`}
-                          aria-required={true}
-                          aria-describedby={touchedBasics.street && !street ? 'streetError' : undefined}
-                        >
-                          <option value="">{ward ? 'Select street' : 'Select ward first'}</option>
-                          {streets.map((s: string) => (
-                            <option key={s} value={s}>{s}</option>
-                          ))}
-                        </select>
-                        <div className={`absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none z-10 ${!ward ? 'text-gray-300' : 'text-gray-400'}`}>
-                          <ChevronDown className="h-5 w-5" />
-                        </div>
-                      </div>
-                      {touchedBasics.street && !street && (
-                        <p id="streetError" className="text-xs text-red-600 mt-0.5">Please select a street</p>
-                      )}
-                      </div>
-                    <div className="flex flex-col space-y-2">
-                      <label htmlFor="city" className="block text-sm font-medium text-gray-700">
-                        City <span className="text-xs text-gray-400 font-normal">(optional)</span>
-                      </label>
-                        <input
-                          id="city"
-                          type="text"
-                          value={city}
-                          onChange={e => setCity(e.target.value)}
-                        className="w-full h-12 px-4 text-sm text-gray-900 placeholder-gray-400 bg-white border border-gray-300 rounded-lg shadow-sm transition-all duration-200 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                        placeholder="City"
-                        />
-                      </div>
-                    <div className="flex flex-col space-y-2">
-                      <label htmlFor="zip" className="block text-sm font-medium text-gray-700">
-                        Zip Code {selectedWardPostcode ? <span className="text-red-500">*</span> : <span className="text-xs text-gray-400 font-normal">(optional)</span>}
-                      </label>
-                        <input
-                          id="zip"
-                          type="text"
-                          value={zip}
-                          onChange={e => setZip(e.target.value)}
-                          onBlur={() => setTouchedBasics(t => ({ ...t, zip: true }))}
-                          readOnly={!!selectedWardPostcode}
-                          className={`w-full h-12 px-4 text-sm rounded-lg shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 ${
-                            touchedBasics.zip && selectedWardPostcode && (!zip || zip.trim().length === 0)
-                              ? 'border-2 border-red-400 bg-red-50 text-gray-900 focus:ring-red-200 focus:border-red-500' 
-                              : selectedWardPostcode
-                              ? 'border border-gray-300 bg-gray-50 text-gray-700 cursor-not-allowed'
-                              : 'border border-gray-300 bg-white text-gray-900 placeholder-gray-400 hover:border-gray-400 focus:ring-emerald-500/20 focus:border-emerald-500'
-                          }`}
-                          placeholder={selectedWardPostcode ? "Auto-filled from ward" : "Zip code (enter manually if not auto-filled)"}
-                          aria-required={!!selectedWardPostcode}
-                          aria-describedby={touchedBasics.zip && selectedWardPostcode && (!zip || zip.trim().length === 0) ? 'zipError' : undefined}
-                        />
-                      {touchedBasics.zip && selectedWardPostcode && (!zip || zip.trim().length === 0) && (
-                        <p id="zipError" className="text-xs text-red-600 mt-0.5">Zip code is required</p>
-                      )}
-                      {selectedWardPostcode && zip && (
-                        <p className="text-xs text-emerald-600 mt-0.5">Auto-filled from selected ward</p>
-                      )}
-                      {!selectedWardPostcode && ward && (
-                        <p className="text-xs text-amber-600 mt-0.5">Postcode not available for this ward - please enter manually</p>
-                      )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Latitude and Longitude */}
-                  <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="flex flex-col space-y-2">
-                      <label htmlFor="latitude" className="block text-sm font-medium text-gray-700">
-                        Latitude <span className="text-xs text-gray-400 font-normal">(optional)</span>
-                      </label>
-                      <input
-                        id="latitude"
-                        type="number"
-                        step="any"
-                        value={latitude}
-                        onChange={e => setLatitude(e.target.value ? parseFloat(e.target.value) : "")}
-                        className="w-full h-12 px-4 text-sm text-gray-900 placeholder-gray-400 bg-white border border-gray-300 rounded-lg shadow-sm transition-all duration-200 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                        placeholder="Auto-detected from location"
-                      />
-                    </div>
-                    <div className="flex flex-col space-y-2">
-                      <label htmlFor="longitude" className="block text-sm font-medium text-gray-700">
-                        Longitude <span className="text-xs text-gray-400 font-normal">(optional)</span>
-                      </label>
-                      <input
-                        id="longitude"
-                        type="number"
-                        step="any"
-                        value={longitude}
-                        onChange={e => setLongitude(e.target.value ? parseFloat(e.target.value) : "")}
-                        className="w-full h-12 px-4 text-sm text-gray-900 placeholder-gray-400 bg-white border border-gray-300 rounded-lg shadow-sm transition-all duration-200 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                        placeholder="Auto-detected from location"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Location Tracking Toggle Switch */}
-                  <div className="mt-4">
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors">
-                      <div className="flex items-center gap-3">
-                        <div className="relative">
-                          <div className={`absolute inset-0 rounded-full ${locationTrackingEnabled ? 'bg-[#02665e]/10 animate-ping' : ''}`} style={{ animationDuration: '3s', animationIterationCount: 'infinite' }} />
-                          <div className={`relative p-1.5 rounded-full transition-colors duration-200 ${locationTrackingEnabled ? 'bg-[#02665e]/5' : 'bg-gray-100'}`}>
-                            {locationLoading ? (
-                              <div className="w-4 h-4 border-2 border-[#02665e]/30 border-t-[#02665e] rounded-full animate-spin" />
-                            ) : (
-                              <MapPin
-                                className={`w-4 h-4 transition-colors duration-200 ${
-                                  locationTrackingEnabled
-                                    ? 'text-[#02665e]'
-                                    : 'text-gray-400'
-                                }`}
-                                strokeWidth={2}
-                              />
-                            )}
-                          </div>
-                        </div>
-                        <div>
-                          <label htmlFor="locationToggle" className="text-sm font-medium text-gray-900 cursor-pointer transition-colors hover:text-[#02665e]">
-                            Enable location tracking
-                          </label>
-                          <p className="text-xs text-gray-500 mt-0.5">
-                            Automatically detect your current location using GPS
-                          </p>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        id="locationToggle"
-                        role="switch"
-                        aria-checked={locationTrackingEnabled}
-                        onClick={() => handleLocationToggle(!locationTrackingEnabled)}
-                        disabled={locationLoading}
-                        className={`
-                          relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed
-                          ${locationTrackingEnabled ? 'bg-[#02665e]' : 'bg-gray-300 hover:bg-gray-400'}
-                        `}
-                      >
-                        <span
-                          className={`
-                            inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-200 ease-in-out
-                            ${locationTrackingEnabled ? 'translate-x-6' : 'translate-x-1'}
-                            ${locationLoading ? 'opacity-70' : ''}
-                          `}
-                        >
-                          {locationLoading && (
-                            <div className="w-full h-full flex items-center justify-center">
-                              <div className="w-2.5 h-2.5 border-2 border-[#02665e]/30 border-t-[#02665e] rounded-full animate-spin" />
-                            </div>
-                          )}
-                        </span>
-                      </button>
-                    </div>
-                    {locationTrackingEnabled && latitude && longitude && (
-                      <p className="mt-2 text-xs text-emerald-600 flex items-center gap-1">
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        Location detected: {Number(latitude).toFixed(6)}, {Number(longitude).toFixed(6)}
-                      </p>
-                    )}
-                  </div>
-                  
-                  {/* Map Display - Shows exact location using latitude, longitude, and postcode */}
-                  {latitude && longitude && (
-                    <div className="mt-6">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Property Location Map
-                        <span className="text-xs text-gray-500 font-normal ml-2">
-                          (Exact coordinates: {Number(latitude).toFixed(6)}, {Number(longitude).toFixed(6)})
-                        </span>
-                      </label>
-                      <PropertyLocationMap 
-                        latitude={Number(latitude) || 0} 
-                        longitude={Number(longitude) || 0}
-                        postcode={zip || selectedWardPostcode || null}
-                        onLocationDetected={(lat, lng) => {
-                          setLatitude(lat);
-                          setLongitude(lng);
-                        }}
-                      />
-                    </div>
-                  )}
-                </div>
-            </div>
-          )}
-          
-          {/* Pagination for Basics */}
-          {showBasics && (
-            <div className="mt-6 flex items-center justify-end gap-3 pt-4 border-t border-gray-200 flex-wrap">
-              <button
-                type="button"
-                onClick={previewNextStep}
-                disabled={currentStep >= 5}
-                className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                title="Preview next steps without validation"
-              >
-                Preview steps
-                <ChevronRight className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                onClick={goToNextStep}
-                disabled={currentStep >= 5}
-                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                Next
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
-          )}
-        </section>
-
-        {/* ROOM TYPES */}
-        <section ref={el => { sectionRefs.current[1] = el }} className={`bg-white rounded-lg pl-4 pr-6 py-6 border-l-4 border-primary-600 shadow-sm ${showRooms ? 'block' : 'hidden'}`}>
-          {showRooms && (
-            <div className="w-full">
-            <div className="space-y-4 text-gray-700 mt-2">
+          <div className={twMerge("mt-5", SNAPSHOT_PROGRESS_WRAPPER)}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <label className="block text-sm font-medium">What type of room is this? <span className="text-red-600">*</span></label>
-                <div className="relative">
-                  <select title="Room type" value={roomType} onChange={e=>setRoomType(e.target.value)} className="mt-2 w-full h-9 appearance-none rounded-lg px-3 pr-10 border border-gray-300">
-                    {["Single","Double","Studio","Suite","Family","Other"].map(o=><option key={o}>{o}</option>)}
-                  </select>
-                  <div className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 bg-transparent border-0 flex items-center justify-center pointer-events-none text-gray-400">
-                    <ChevronDown className="h-4 w-4" />
-                  </div>
-                </div>
+                <p className="text-sm font-semibold text-slate-800">Photo progress</p>
+                <p className="text-xs text-slate-500">{photosNeeded > 0 ? `${photosNeeded} more recommended` : "Looks great"}</p>
               </div>
-
-              <div>
-                <label className="block text-sm font-medium">What beds are available in this room?</label>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
-                  {(["twin","full","queen","king"] as BedKey[]).map(k=>{
-                    const BedIcon = BED_ICONS[k];
-                    return (
-                    <div key={k} className="bg-gray-50 p-2 rounded flex items-center justify-between">
-                      <div className="text-sm capitalize flex items-center gap-2">
-                        {BedIcon && <BedIcon className="w-4 h-4 text-blue-600" />}
-                        {k} bed(s)
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <button
-                          type="button"
-                          aria-label={`Remove one ${k} bed`}
-                          onClick={()=>changeBed(k,-1)}
-                          className="inline-flex items-center justify-center h-8 w-8 rounded border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
-                        >
-                          <Minus className="h-4 w-4" />
-                        </button>
-                        <input
-                          readOnly
-                          aria-label={`${k} beds count`}
-                          title={`${k} beds count`}
-                          className="w-10 h-8 text-center rounded border border-gray-200"
-                          value={beds[k]}
-                        />
-                        <button
-                          type="button"
-                          aria-label={`Add one ${k} bed`}
-                          onClick={()=>changeBed(k,1)}
-                          className="inline-flex items-center justify-center h-8 w-8 rounded border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
-                        >
-                          <Plus className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <label className="text-sm">How many rooms of this type do you have? <span className="text-red-600">*</span></label>
-                  <input value={roomsCount} onChange={e=>setRoomsCount(numOrEmpty(e.target.value))} type="number" min={1} placeholder="e.g. 3" className="mt-2 w-full h-9 border rounded-lg px-3" />
-                </div>
-                <div>
-                  <label className="text-sm">Is smoking allowed in this room?</label>
-                  <div className="mt-2">
-                    <div className="p-3 bg-gray-50 border border-gray-100 rounded-lg">
-                      <div className="flex items-center space-x-4">
-                        <label className="inline-flex items-center">
-                          <input type="radio" checked={smoking==="yes"} onChange={()=>setSmoking("yes")} className="mr-2" />
-                          Yes
-                        </label>
-                        <label className="inline-flex items-center">
-                          <input type="radio" checked={smoking==="no"} onChange={()=>setSmoking("no")} className="mr-2" />
-                          No
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* bathroom */}
-              <div className="mt-2">
-                <h4 className="font-semibold">Bathroom Details</h4>
-                <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <div>
-                    <label className="text-sm">Is the bathroom private?</label>
-                    <div className="mt-2 flex items-center space-x-4">
-                      <label className="inline-flex items-center"><input type="radio" checked={bathPrivate==="yes"} onChange={()=>setBathPrivate("yes")} className="mr-2" /> Yes</label>
-                      <label className="inline-flex items-center"><input type="radio" checked={bathPrivate==="no"} onChange={()=>setBathPrivate("no")} className="mr-2" /> No, it&apos;s shared</label>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="text-sm">What bathroom items are available in this room?</label>
-                    <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
-                      {["Free toiletries","Toilet paper","Shower","Water Heater","Toilet","Hairdryer","Trash Bin","Toilet Brush","Mirror","Slippers","Bathrobe","Bath Mat","Towel"].map(i=>{
-                        const Icon = BATHROOM_ICONS[i];
-                        return (
-                          <label key={i} className="flex items-center">
-                            <input type="checkbox" className="mr-2" checked={bathItems.includes(i)} onChange={()=>toggleStr(bathItems,setBathItems,i)} />
-                            {Icon && <Icon className="w-4 h-4 mr-1.5 text-blue-600" />}
-                            <span className="text-sm">{i}</span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                    <div className="mt-2">
-                      <label className="text-sm">Towel color (optional)</label>
-                      <input value={towelColor} onChange={e=>setTowelColor(e.target.value)} className="mt-1 w-full h-9 border rounded-lg px-3" placeholder="e.g. white, blue" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* other amenities */}
-              <div className="mt-2">
-                <h4 className="font-semibold">Other room amenities</h4>
-                <div className="mt-2 grid grid-cols-2 gap-2 text-sm other-amenities-grid">
-                  {["Free Wi-Fi","Table","Chair","Iron","TV","Flat Screen TV","PS Station","Wardrobe","Air Conditioning","Mini Fridge","Coffee Maker","Phone","Mirror","Bedside Lamps","Heating","Desk","Safe","Clothes Rack","Blackout Curtains","Couches"].map(i=>{
-                    const Icon = OTHER_AMENITIES_ICONS[i];
-                    return (
-                      <label key={i} className="flex items-center">
-                        <input type="checkbox" className="mr-2" checked={otherAmenities.includes(i)} onChange={()=>toggleStr(otherAmenities,setOtherAmenities,i)} />
-                        {Icon && <Icon className="w-4 h-4 mr-1.5 text-blue-600" />}
-                        <span className="text-sm">{i}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-                <div className="mt-2">
-                  <label className="text-sm">Other amenities (comma separated)</label>
-                  <input value={otherAmenitiesText} onChange={e=>setOtherAmenitiesText(e.target.value)} className="mt-1 w-full h-9 border rounded-lg px-3" placeholder="e.g. minibar, balcony" />
-                </div>
-              </div>
-
-              {/* room desc + images + price */}
-              <div className="mt-4 w-full max-w-full sm:max-w-xl box-border">
-                <label className="text-sm">Room description (optional)</label>
-                <textarea
-                  value={roomDescription}
-                  onChange={e=>setRoomDescription(e.target.value)}
-                  rows={3}
-                  className="mt-2 w-full max-w-full sm:max-w-xl rounded border border-gray-300 px-3 py-2 box-border"
-                  placeholder="Short description for this room type"
-                  style={{ minHeight: 96 }}
-                />
-              </div>
-
-              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 items-end">
-                <div>
-                  <PicturesUploader
-                    title="Room images"
-                    minRequired={3}
-                    images={roomImages}
-                    onUpload={onPickRoomImages}
-                    onRemove={(index)=>{
-                      setRoomImages(prev=>prev.filter((_,i)=>i!==index));
-                      setRoomImageSaved(prev=>prev.filter((_,i)=>i!==index));
-                      setRoomImageUploading(prev=>prev.filter((_,i)=>i!==index));
-                    }}
-                    saved={roomImageSaved}
-                    onSave={(index)=>setRoomImageSaved(prev=>prev.map((v,i)=>i===index?true:v))}
-                    uploading={roomImageUploading}
-                  />
-
-                  {/* Price moved below the uploader as requested */}
-                  <div className="mt-3">
-                    <label className="text-sm">Price per night for this room type</label>
-                    <div className="mt-2 flex items-center">
-                      <input value={pricePerNight} onChange={e=>setPricePerNight(numOrEmpty(e.target.value))} type="number" step="0.01" placeholder="e.g. 45.00" className="w-full h-9 border rounded-lg px-3" />
-                      <span className="ml-2 text-sm">/ night</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="text-right">
-                  <button type="button" onClick={addRoomType} className="bg-primary-600 px-4 py-2 rounded text-white">Add room type</button>
-                </div>
-              </div>
-
-              <div className="mt-6">
-                <h4 className="text-lg font-semibold">Defined room types</h4>
-                <div className="mt-3 space-y-3 text-gray-800">
-                  {definedRooms.length === 0 && <div className="text-sm opacity-70">No room types yet.</div>}
-                  {definedRooms.map((r, idx)=>(
-                    <div key={idx} className="border rounded-xl p-3">
-                      <div className="font-medium">{r.roomType} • {r.roomsCount} room(s)</div>
-                      <div className="text-xs opacity-70">Beds: T{r.beds.twin} / F{r.beds.full} / Q{r.beds.queen} / K{r.beds.king}</div>
-                      <div className="text-xs opacity-70 mt-1">Smoking: {r.smoking}, Private bath: {r.bathPrivate}</div>
-                      <div className="mt-2 flex gap-2 flex-wrap">
-                        {r.roomImages.map((u:string,i:number)=>(
-                          <div key={i} className="w-20 h-20 rounded overflow-hidden border relative defined-room-thumb">
-                            <button
-                              type="button"
-                              aria-label={`Remove image ${i + 1} from room ${idx + 1}`}
-                              onClick={() => setDefinedRooms(prev => prev.map((rr, ri) => ri === idx ? { ...rr, roomImages: rr.roomImages.filter((_: string, k: number) => k !== i) } : rr))}
-                              className="thumbnail-remove-btn"
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
-                                <path fillRule="evenodd" d="M5.47 5.47a.75.75 0 011.06 0L12 10.94l5.47-5.47a.75.75 0 111.06 1.06L13.06 12l5.47 5.47a.75.75 0 11-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 11-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 010-1.06z" clipRule="evenodd" />
-                              </svg>
-                            </button>
-                            {/^https?:\/\//i.test(u) ? (
-                              <Image src={u} alt={`Room ${idx+1} image ${i+1}`} width={120} height={30} className="w-full h-full object-cover" />
-                            ) : (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img src={u} alt={`Room ${idx+1} image ${i+1}`} className="w-full h-full object-cover" />
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <span className="text-sm font-semibold text-emerald-700">{photosProgressPct}%</span>
             </div>
+            <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+              <div ref={photosProgressBarRef} className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-sky-500" />
             </div>
-          )}
-          
-          {/* Pagination for Rooms */}
-          {showRooms && (
-            <div className="mt-6 flex items-center justify-between pt-4 border-t border-gray-200">
-              <button
-                type="button"
-                onClick={goToPreviousStep}
-                disabled={currentStep <= 0}
-                className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                <ChevronLeft className="h-4 w-4" />
-                Previous
-              </button>
-              <button
-                type="button"
-                onClick={goToNextStep}
-                disabled={currentStep >= 5}
-                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                Next
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
-          )}
-        </section>
+          </div>
 
-        {/* SERVICES */}
-        <section ref={el => { sectionRefs.current[2] = el }} className={`bg-white rounded-lg pl-4 pr-6 py-6 border-l-4 border-primary-600 shadow-sm ${showServices ? 'block' : 'hidden'}`}>
-          {showServices && (
-            <div className="w-full">
-              <div className="mb-8">
-                <h2 className="text-2xl font-bold text-gray-800 mb-2 bg-gradient-to-r from-blue-600 to-emerald-600 bg-clip-text text-transparent">Services & Facilities Available</h2>
-                <p className="text-sm text-gray-600">Select the services and amenities available at your property</p>
-              </div>
-              
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                
-                {/* Parking */}
-                <div className="group bg-gradient-to-br from-white to-gray-50 rounded-2xl p-6 border-2 border-gray-100 hover:border-blue-300 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="p-3 bg-blue-100 rounded-xl group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                      <Car className="w-6 h-6 text-blue-600" />
-                    </div>
-                    <h3 className="text-lg font-bold text-gray-800">Parking</h3>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    {(["no","free","paid"] as const).map((v) => (
-                      <label
-                        key={v}
-                        className={`flex items-center justify-center h-11 w-full rounded-xl border-2 text-xs font-semibold transition-all duration-300 cursor-pointer transform hover:scale-105 animate-fade-in ${
-                          services.parking === v 
-                            ? 'bg-gradient-to-br from-[#02665e] to-[#02665e] border-[#02665e] text-white shadow-lg scale-105' 
-                            : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300 hover:shadow-md'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="parking"
-                          checked={services.parking === v}
-                          onChange={() => setServices(s => ({ ...s, parking: v }))}
-                          className="sr-only"
-                        />
-                        <Car className={`w-3.5 h-3.5 mr-1.5 transition-colors ${services.parking === v ? 'text-white' : 'text-blue-600'}`} />
-                        <span>{v === 'no' ? 'No' : v === 'free' ? 'Free' : 'Paid'}</span>
-                      </label>
-                    ))}
-                  </div>
-                  <div className={`overflow-hidden transition-all duration-500 ease-in-out ${services.parking === "paid" ? "max-h-24 opacity-100 mt-3" : "max-h-0 opacity-0"}`}>
-                    <label className="block text-xs font-semibold text-gray-700 mb-2">Daily Price</label>
-                    <input 
-                      value={services.parkingPrice as any} 
-                      onChange={e => setServices(s => ({ ...s, parkingPrice: numOrEmpty(e.target.value) }))} 
-                      type="number" 
-                      step="0.01" 
-                      className="w-full h-10 border-2 border-gray-200 rounded-xl px-3 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all" 
-                      placeholder="e.g. 5.00" 
-                    />
-                  </div>
-                </div>
-
-                {/* Breakfast */}
-                <div className="group bg-gradient-to-br from-white to-orange-50 rounded-2xl p-6 border-2 border-orange-100 hover:border-orange-300 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="p-3 bg-orange-100 rounded-xl group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                      <Coffee className="w-6 h-6 text-orange-600" />
-                    </div>
-                    <h3 className="text-lg font-bold text-gray-800">Breakfast</h3>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <label
-                      className={`flex items-center justify-center h-11 w-full rounded-xl border-2 text-xs font-semibold transition-all duration-300 cursor-pointer transform hover:scale-105 ${
-                        services.breakfastIncluded 
-                          ? 'bg-gradient-to-br from-[#02665e] to-[#02665e] border-[#02665e] text-white shadow-lg scale-105' 
-                          : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300 hover:shadow-md'
-                      }`}
-                    >
-                      <input type="checkbox" checked={services.breakfastIncluded} onChange={e => setServices(s => ({ ...s, breakfastIncluded: e.target.checked }))} className="sr-only" />
-                      <Coffee className={`w-3.5 h-3.5 mr-1.5 ${services.breakfastIncluded ? 'text-white' : 'text-orange-600'}`} />
-                      <span>Included</span>
-                    </label>
-                    <label
-                      className={`flex items-center justify-center h-11 w-full rounded-xl border-2 text-xs font-semibold transition-all duration-300 cursor-pointer transform hover:scale-105 ${
-                        services.breakfastAvailable 
-                          ? 'bg-gradient-to-br from-[#02665e] to-[#02665e] border-[#02665e] text-white shadow-lg scale-105' 
-                          : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300 hover:shadow-md'
-                      }`}
-                    >
-                      <input type="checkbox" checked={services.breakfastAvailable} onChange={e => setServices(s => ({ ...s, breakfastAvailable: e.target.checked }))} className="sr-only" />
-                      <Coffee className={`w-3.5 h-3.5 mr-1.5 ${services.breakfastAvailable ? 'text-white' : 'text-orange-600'}`} />
-                      <span>Extra</span>
-                    </label>
-                  </div>
-                </div>
-
-                {/* Restaurant / Bar */}
-                <div className="group bg-gradient-to-br from-white to-purple-50 rounded-2xl p-6 border-2 border-purple-100 hover:border-purple-300 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="p-3 bg-purple-100 rounded-xl group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                      <Coffee className="w-6 h-6 text-purple-600" />
-                    </div>
-                    <h3 className="text-lg font-bold text-gray-800">Restaurant / Bar</h3>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <label className={`flex items-center justify-center h-11 w-full rounded-xl border-2 text-xs font-semibold transition-all duration-300 cursor-pointer transform hover:scale-105 ${services.restaurant ? 'bg-gradient-to-br from-[#02665e] to-[#02665e] border-[#02665e] text-white shadow-lg scale-105' : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300 hover:shadow-md'}`}>
-                      <input type="checkbox" checked={services.restaurant} onChange={e => setServices(s => ({ ...s, restaurant: e.target.checked }))} className="sr-only" />
-                      <Coffee className={`w-3.5 h-3.5 mr-1.5 ${services.restaurant ? 'text-white' : 'text-purple-600'}`} />
-                      <span>Restaurant</span>
-                    </label>
-                    <label className={`flex items-center justify-center h-11 w-full rounded-xl border-2 text-xs font-semibold transition-all duration-300 cursor-pointer transform hover:scale-105 ${services.bar ? 'bg-gradient-to-br from-[#02665e] to-[#02665e] border-[#02665e] text-white shadow-lg scale-105' : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300 hover:shadow-md'}`}>
-                      <input type="checkbox" checked={services.bar} onChange={e => setServices(s => ({ ...s, bar: e.target.checked }))} className="sr-only" />
-                      <Beer className={`w-3.5 h-3.5 mr-1.5 ${services.bar ? 'text-white' : 'text-purple-600'}`} />
-                      <span>Bar</span>
-                    </label>
-                  </div>
-                </div>
-
-                {/* Wellness & Leisure */}
-                <div className="group bg-gradient-to-br from-white to-cyan-50 rounded-2xl p-6 border-2 border-cyan-100 hover:border-cyan-300 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="p-3 bg-cyan-100 rounded-xl group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                      <Waves className="w-6 h-6 text-cyan-600" />
-                    </div>
-                    <h3 className="text-lg font-bold text-gray-800">Wellness & Leisure</h3>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <label className={`flex items-center justify-center h-11 w-full rounded-xl border-2 text-xs font-semibold transition-all duration-300 cursor-pointer transform hover:scale-105 ${services.pool ? 'bg-gradient-to-br from-[#02665e] to-[#02665e] border-[#02665e] text-white shadow-lg scale-105' : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300 hover:shadow-md'}`}>
-                      <input type="checkbox" checked={services.pool} onChange={e => setServices(s => ({ ...s, pool: e.target.checked }))} className="sr-only" />
-                      <Waves className={`w-3.5 h-3.5 mr-1.5 ${services.pool ? 'text-white' : 'text-cyan-600'}`} />
-                      <span>Pool</span>
-                    </label>
-                    <label className={`flex items-center justify-center h-11 w-full rounded-xl border-2 text-xs font-semibold transition-all duration-300 cursor-pointer transform hover:scale-105 ${services.sauna ? 'bg-gradient-to-br from-[#02665e] to-[#02665e] border-[#02665e] text-white shadow-lg scale-105' : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300 hover:shadow-md'}`}>
-                      <input type="checkbox" checked={services.sauna} onChange={e => setServices(s => ({ ...s, sauna: e.target.checked }))} className="sr-only" />
-                      <Thermometer className={`w-3.5 h-3.5 mr-1.5 ${services.sauna ? 'text-white' : 'text-cyan-600'}`} />
-                      <span>Sauna</span>
-                    </label>
-                  </div>
-                </div>
-
-                {/* Housekeeping & Services */}
-                <div className="group bg-gradient-to-br from-white to-indigo-50 rounded-2xl p-6 border-2 border-indigo-100 hover:border-indigo-300 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="p-3 bg-indigo-100 rounded-xl group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                      <WashingMachine className="w-6 h-6 text-indigo-600" />
-                    </div>
-                    <h3 className="text-lg font-bold text-gray-800">Housekeeping</h3>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <label className={`flex items-center justify-center h-11 w-full rounded-xl border-2 text-xs font-semibold transition-all duration-300 cursor-pointer transform hover:scale-105 ${services.laundry ? 'bg-gradient-to-br from-[#02665e] to-[#02665e] border-[#02665e] text-white shadow-lg scale-105' : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300 hover:shadow-md'}`}>
-                      <input type="checkbox" checked={services.laundry} onChange={e => setServices(s => ({ ...s, laundry: e.target.checked }))} className="sr-only" />
-                      <IconOr Icon={WashingMachine} className={`w-3.5 h-3.5 mr-1.5 ${services.laundry ? 'text-white' : 'text-indigo-600'}`} />
-                      <span>Laundry</span>
-                    </label>
-                    <label className={`flex items-center justify-center h-11 w-full rounded-xl border-2 text-xs font-semibold transition-all duration-300 cursor-pointer transform hover:scale-105 ${services.roomService ? 'bg-gradient-to-br from-[#02665e] to-[#02665e] border-[#02665e] text-white shadow-lg scale-105' : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300 hover:shadow-md'}`}>
-                      <input type="checkbox" checked={services.roomService} onChange={e => setServices(s => ({ ...s, roomService: e.target.checked }))} className="sr-only" />
-                      <IconOr Icon={Package} className={`w-3.5 h-3.5 mr-1.5 ${services.roomService ? 'text-white' : 'text-indigo-600'}`} />
-                      <span>Room Service</span>
-                    </label>
-                  </div>
-                </div>
-
-                {/* Safety & First Aid */}
-                <div className="group bg-gradient-to-br from-white to-red-50 rounded-2xl p-6 border-2 border-red-100 hover:border-red-300 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="p-3 bg-red-100 rounded-xl group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                      <Shield className="w-6 h-6 text-red-600" />
-                    </div>
-                    <h3 className="text-lg font-bold text-gray-800">Safety & First Aid</h3>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <label className={`flex flex-col items-center justify-center h-16 w-full rounded-xl border-2 text-[10px] font-semibold transition-all duration-300 cursor-pointer transform hover:scale-105 ${services.security24 ? 'bg-gradient-to-br from-[#02665e] to-[#02665e] border-[#02665e] text-white shadow-lg scale-105' : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300 hover:shadow-md'}`}>
-                      <input type="checkbox" checked={services.security24} onChange={e => setServices(s => ({ ...s, security24: e.target.checked }))} className="sr-only" />
-                      <IconOr Icon={Shield} className={`w-4 h-4 mb-1 ${services.security24 ? 'text-white' : 'text-red-600'}`} />
-                      <span className="text-center leading-tight">Security</span>
-                    </label>
-                    <label className={`flex flex-col items-center justify-center h-16 w-full rounded-xl border-2 text-[10px] font-semibold transition-all duration-300 cursor-pointer transform hover:scale-105 ${services.firstAid ? 'bg-gradient-to-br from-[#02665e] to-[#02665e] border-[#02665e] text-white shadow-lg scale-105' : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300 hover:shadow-md'}`}>
-                      <input type="checkbox" checked={services.firstAid} onChange={e => setServices(s => ({ ...s, firstAid: e.target.checked }))} className="sr-only" />
-                      <IconOr Icon={Bandage} className={`w-4 h-4 mb-1 ${services.firstAid ? 'text-white' : 'text-red-600'}`} />
-                      <span className="text-center leading-tight">First Aid</span>
-                    </label>
-                    <label className={`flex flex-col items-center justify-center h-16 w-full rounded-xl border-2 text-[10px] font-semibold transition-all duration-300 cursor-pointer transform hover:scale-105 ${services.fireExtinguisher ? 'bg-gradient-to-br from-[#02665e] to-[#02665e] border-[#02665e] text-white shadow-lg scale-105' : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300 hover:shadow-md'}`}>
-                      <input type="checkbox" checked={services.fireExtinguisher} onChange={e => setServices(s => ({ ...s, fireExtinguisher: e.target.checked }))} className="sr-only" />
-                      <IconOr Icon={FireExtinguisher} className={`w-4 h-4 mb-1 ${services.fireExtinguisher ? 'text-white' : 'text-red-600'}`} />
-                      <span className="text-center leading-tight">Fire Ext.</span>
-                    </label>
-                  </div>
-                </div>
-
-                {/* Shops & Nearby Facilities */}
-                <div className="group bg-gradient-to-br from-white to-pink-50 rounded-2xl p-6 border-2 border-pink-100 hover:border-pink-300 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="p-3 bg-pink-100 rounded-xl group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                      <ShoppingBag className="w-6 h-6 text-pink-600" />
-                    </div>
-                    <h3 className="text-lg font-bold text-gray-800">Shopping</h3>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <label className={`flex items-center justify-center h-11 w-full rounded-xl border-2 text-xs font-semibold transition-all duration-300 cursor-pointer transform hover:scale-105 ${services.onSiteShop ? 'bg-gradient-to-br from-[#02665e] to-[#02665e] border-[#02665e] text-white shadow-lg scale-105' : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300 hover:shadow-md'}`}>
-                      <input type="checkbox" checked={services.onSiteShop} onChange={e => setServices(s => ({ ...s, onSiteShop: e.target.checked }))} className="sr-only" />
-                      <IconOr Icon={ShoppingBag} className={`w-3.5 h-3.5 mr-1.5 ${services.onSiteShop ? 'text-white' : 'text-pink-600'}`} />
-                      <span>On-site</span>
-                    </label>
-                    <label className={`flex items-center justify-center h-11 w-full rounded-xl border-2 text-xs font-semibold transition-all duration-300 cursor-pointer transform hover:scale-105 ${services.nearbyMall ? 'bg-gradient-to-br from-[#02665e] to-[#02665e] border-[#02665e] text-white shadow-lg scale-105' : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300 hover:shadow-md'}`}>
-                      <input type="checkbox" checked={services.nearbyMall} onChange={e => setServices(s => ({ ...s, nearbyMall: e.target.checked }))} className="sr-only" />
-                      <IconOr Icon={Store} className={`w-3.5 h-3.5 mr-1.5 ${services.nearbyMall ? 'text-white' : 'text-pink-600'}`} />
-                      <span>Mall</span>
-                    </label>
-                  </div>
-                </div>
-
-                {/* Events & Community */}
-                <div className="group bg-gradient-to-br from-white to-yellow-50 rounded-2xl p-6 border-2 border-yellow-100 hover:border-yellow-300 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="p-3 bg-yellow-100 rounded-xl group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                      <PartyPopper className="w-6 h-6 text-yellow-600" />
-                    </div>
-                    <h3 className="text-lg font-bold text-gray-800">Events</h3>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <label className={`flex items-center justify-center h-11 w-full rounded-xl border-2 text-xs font-semibold transition-all duration-300 cursor-pointer transform hover:scale-105 ${services.socialHall ? 'bg-gradient-to-br from-[#02665e] to-[#02665e] border-[#02665e] text-white shadow-lg scale-105' : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300 hover:shadow-md'}`}>
-                      <input type="checkbox" checked={services.socialHall} onChange={e => setServices(s => ({ ...s, socialHall: e.target.checked }))} className="sr-only" />
-                      <IconOr Icon={PartyPopper} className={`w-3.5 h-3.5 mr-1.5 ${services.socialHall ? 'text-white' : 'text-yellow-600'}`} />
-                      <span>Social Hall</span>
-                    </label>
-                    <label className={`flex items-center justify-center h-11 w-full rounded-xl border-2 text-xs font-semibold transition-all duration-300 cursor-pointer transform hover:scale-105 ${services.sportsGames ? 'bg-gradient-to-br from-[#02665e] to-[#02665e] border-[#02665e] text-white shadow-lg scale-105' : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300 hover:shadow-md'}`}>
-                      <input type="checkbox" checked={services.sportsGames} onChange={e => setServices(s => ({ ...s, sportsGames: e.target.checked }))} className="sr-only" />
-                      <IconOr Icon={Gamepad} className={`w-3.5 h-3.5 mr-1.5 ${services.sportsGames ? 'text-white' : 'text-yellow-600'}`} />
-                      <span>Sports</span>
-                    </label>
-                  </div>
-                </div>
-
-                {/* Fitness */}
-                <div className="group bg-gradient-to-br from-white to-green-50 rounded-2xl p-6 border-2 border-green-100 hover:border-green-300 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="p-3 bg-green-100 rounded-xl group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                      <Dumbbell className="w-6 h-6 text-green-600" />
-                    </div>
-                    <h3 className="text-lg font-bold text-gray-800">Fitness</h3>
-                  </div>
-                  <div className="grid grid-cols-1 gap-2">
-                    <label className={`flex items-center justify-center h-11 w-full rounded-xl border-2 text-xs font-semibold transition-all duration-300 cursor-pointer transform hover:scale-105 ${services.gym ? 'bg-gradient-to-br from-[#02665e] to-[#02665e] border-[#02665e] text-white shadow-lg scale-105' : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300 hover:shadow-md'}`}>
-                      <input type="checkbox" checked={services.gym} onChange={e => setServices(s => ({ ...s, gym: e.target.checked }))} className="sr-only" />
-                      <IconOr Icon={Dumbbell} className={`w-3.5 h-3.5 mr-1.5 ${services.gym ? 'text-white' : 'text-green-600'}`} />
-                      <span>Gym / Fitness Center</span>
-                    </label>
-                  </div>
-                </div>
-
-                {/* Nearby services — Enhanced Facilities - Full Width */}
-                <div className="lg:col-span-2 group bg-gradient-to-br from-white to-slate-50 rounded-2xl p-6 border-2 border-slate-100 hover:border-slate-300 hover:shadow-xl transition-all duration-300">
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="p-3 bg-slate-100 rounded-xl group-hover:scale-110 transition-all duration-300">
-                      <Building2 className="w-6 h-6 text-slate-600" />
-                    </div>
-                    <h3 className="text-lg font-bold text-gray-800">Nearby Services</h3>
-                  </div>
-
-
-                  {/* Inline add form */}
-                  <AddFacilityInline onAdd={(f) => setNearbyFacilities(list => [...list, f])} />
-
-                  {/* List */}
-                  <div className="mt-6 space-y-4">
-                    {nearbyFacilities.length === 0 && (
-                      <div className="text-sm text-gray-500 py-8 text-center bg-white rounded-xl border-2 border-dashed border-gray-200">No facilities added yet.</div>
-                    )}
-
-                    {nearbyFacilities.map((f: NearbyFacility, idx: number) => (
-                      <FacilityRow
-                        key={f.id}
-                        facility={f}
-                        onChange={(updated: NearbyFacility) =>
-                          setNearbyFacilities((list: NearbyFacility[]) =>
-                            list.map((x: NearbyFacility, i: number) => (i === idx ? updated : x))
-                          )
-                        }
-                        onRemove={() =>
-                          setNearbyFacilities((list: NearbyFacility[]) =>
-                            list.filter((_: NearbyFacility, i: number) => i !== idx)
-                          )
-                        }
-                      />
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-          
-          {/* Pagination for Services */}
-          {showServices && (
-            <div className="mt-6 flex items-center justify-between pt-4 border-t border-gray-200">
-              <button
-                type="button"
-                onClick={goToPreviousStep}
-                disabled={currentStep <= 0}
-                className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                <ChevronLeft className="h-4 w-4" />
-                Previous
-              </button>
-              <button
-                type="button"
-                onClick={goToNextStep}
-                disabled={currentStep >= 5}
-                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                Next
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
-          )}
-        </section>
-
-        {/* totals + description */}
-        <section ref={el => { sectionRefs.current[3] = el }} className={`bg-white rounded-lg pl-4 pr-6 py-6 border-l-4 border-primary-600 shadow-sm ${showTotals ? 'block' : 'hidden'}`}>
-          {showTotals && (
-            <div className="w-full">
-              <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Num label="Total Bedrooms" v={totalBedrooms} set={setTotalBedrooms}/>
-                <Num label="Total Bathrooms" v={totalBathrooms} set={setTotalBathrooms}/>
-                <Num label="Max Guests" v={maxGuests} set={setMaxGuests}/>
-              </div>
-              <div className="mt-3">
-                <label className="block text-xs font-semibold text-gray-700 mb-1.5">Description</label>
-                <textarea rows={3} className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-primary-500 focus:border-transparent" placeholder="Enter property description" value={desc} onChange={e=>setDesc(e.target.value)} />
-              </div>
-              
-              <div className="mt-4">
-                <label className="block text-xs font-semibold text-gray-700 mb-2">Are you accepting Group Booking?</label>
-                <div className="p-3 bg-gray-50 border border-gray-100 rounded-lg">
-                  <div className="flex items-center space-x-4">
-                    <label className="inline-flex items-center">
-                      <input type="radio" checked={acceptGroupBooking === true} onChange={() => setAcceptGroupBooking(true)} className="mr-2" />
-                      Yes
-                    </label>
-                    <label className="inline-flex items-center">
-                      <input type="radio" checked={acceptGroupBooking === false} onChange={() => setAcceptGroupBooking(false)} className="mr-2" />
-                      No
-                    </label>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-          
-          {/* Pagination for Totals */}
-          {showTotals && (
-            <div className="mt-6 flex items-center justify-between pt-4 border-t border-gray-200">
-              <button
-                type="button"
-                onClick={goToPreviousStep}
-                disabled={currentStep <= 0}
-                className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                <ChevronLeft className="h-4 w-4" />
-                Previous
-              </button>
-              <button
-                type="button"
-                onClick={goToNextStep}
-                disabled={currentStep >= 5}
-                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                Next
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
-          )}
-        </section>
-
-        {/* PROPERTY PHOTOS */}
-        <section ref={el => { sectionRefs.current[4] = el }} className={`bg-white rounded-lg pl-4 pr-6 py-6 border-l-4 border-primary-600 shadow-sm ${showPhotos ? 'block' : 'hidden'}`}>
-          {showPhotos && (
-            <div className="w-full">
-            <div className="grid gap-3">
-              <div>
-                <PicturesUploader
-                  title="Property Photos"
-                  minRequired={3}
-                  images={photos}
-                  onUpload={pickPropertyPhotos}
-                  onRemove={(index)=>{
-                    setPhotos(prev=>prev.filter((_,i)=>i!==index));
-                    setPhotosSaved(prev=>prev.filter((_,i)=>i!==index));
-                    setPhotosUploading(prev=>prev.filter((_,i)=>i!==index));
-                  }}
-                  saved={photosSaved}
-                  onSave={(index)=>setPhotosSaved(prev=>prev.map((v,i)=>i===index?true:v))}
-                  inputId="propertyPhotosInput"
-                  uploading={photosUploading}
-                />
-              </div>
-            </div>
-            </div>
-          )}
-          
-          {/* Pagination for Photos */}
-          {showPhotos && (
-            <div className="mt-6 flex items-center justify-between pt-4 border-t border-gray-200">
-              <button
-                type="button"
-                onClick={goToPreviousStep}
-                disabled={currentStep <= 0}
-                className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                <ChevronLeft className="h-4 w-4" />
-                Previous
-              </button>
-              <button
-                type="button"
-                onClick={goToNextStep}
-                disabled={currentStep >= 5}
-                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                Next
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
-          )}
-        </section>
-
-        {/* REVIEW */}
-        <section ref={el => { sectionRefs.current[5] = el }} className={`bg-white rounded-lg pl-4 pr-6 py-6 border-l-4 border-emerald-600 shadow-sm ${showReview ? 'block' : 'hidden'}`}>
-          {showReview && (
-            <div className="w-full">
-            <div className="space-y-6">
-              <div className="animate-in fade-in slide-in-from-top-4 duration-500">
-                <h3 className="text-lg font-semibold text-gray-800 mb-4">Review Your Property Listing</h3>
-                <p className="text-base text-gray-600 mb-4">Please review all the information below before submitting your property for review.</p>
-              </div>
-
-              {/* Basics */}
-              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 transition-all hover:shadow-md hover:border-gray-300 animate-in fade-in slide-in-from-left-4 duration-500 delay-75">
-                <h4 className="font-semibold text-base text-gray-800 mb-3 flex items-center gap-2">
-                  {title.trim().length >= 3 && !!regionId && !!district ? (
-                    <CheckCircle2 className="w-5 h-5 text-green-600 transition-transform duration-300 hover:scale-110" />
-                  ) : (
-                    <XCircle className="w-5 h-5 text-red-500 transition-transform duration-300 hover:scale-110" />
-                  )}
-                  <span>Property Basics</span>
-                </h4>
-                <div className="space-y-2 text-base text-gray-700">
-                  <div className="flex justify-between items-center transition-all duration-200 hover:translate-x-1">
-                    <span className="font-medium">Name:</span>
-                    <span className={`transition-colors duration-200 ${title.trim().length >= 3 ? 'text-green-700' : 'text-red-600'}`}>
-                      {title || '(Not provided)'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center transition-all duration-200 hover:translate-x-1">
-                    <span className="font-medium">Type:</span>
-                    <span>{type || '(Not selected)'}</span>
-                  </div>
-                  <div className="flex justify-between items-center transition-all duration-200 hover:translate-x-1">
-                    <span className="font-medium">Location:</span>
-                    <span className={`transition-colors duration-200 ${!!regionId && !!district ? 'text-green-700' : 'text-red-600'}`}>
-                      {regionId && district ? `${district}, ${REGION_BY_ID[regionId]?.name || regionId}` : '(Not provided)'}
-                    </span>
-                  </div>
-                  {street && (
-                    <div className="flex justify-between items-center transition-all duration-200 hover:translate-x-1">
-                      <span className="font-medium">Street:</span>
-                      <span>{street}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Room Types */}
-              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 transition-all hover:shadow-md hover:border-gray-300 animate-in fade-in slide-in-from-left-4 duration-500 delay-150">
-                <h4 className="font-semibold text-base text-gray-800 mb-3 flex items-center gap-2">
-                  {definedRooms.length >= 1 ? (
-                    <CheckCircle2 className="w-5 h-5 text-green-600 transition-transform duration-300 hover:scale-110" />
-                  ) : (
-                    <XCircle className="w-5 h-5 text-red-500 transition-transform duration-300 hover:scale-110" />
-                  )}
-                  <span>Room Types</span>
-                </h4>
-                <div className="text-base text-gray-700">
-                  {definedRooms.length > 0 ? (
-                    <div className="space-y-2">
-                      {definedRooms.map((room, idx) => (
-                        <div key={idx} className="flex justify-between items-center transition-all duration-200 hover:translate-x-1 hover:bg-white/50 rounded px-2 py-1">
-                          <span className="font-medium">{room.roomType}</span>
-                          <span className="text-gray-600">{room.roomsCount} room(s) • ${room.pricePerNight}/night</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <span className="text-red-600 transition-colors duration-200">No room types added yet</span>
-                  )}
-                </div>
-              </div>
-
-              {/* Services & Facilities Available */}
-              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 transition-all hover:shadow-md hover:border-gray-300 animate-in fade-in slide-in-from-left-4 duration-500 delay-200">
-                <h4 className="font-semibold text-base text-gray-800 mb-3 flex items-center gap-2">
-                  <CheckCircle2 className="w-5 h-5 text-green-600 transition-transform duration-300 hover:scale-110" />
-                  <span>Services & Facilities Available</span>
-                </h4>
-                <div className="grid grid-cols-2 gap-2 text-base text-gray-700">
-                  {services.parking !== 'no' && (
-                    <div className="flex items-center gap-1.5 transition-all duration-200 hover:translate-x-1">
-                      <Car className="w-4 h-4 text-blue-600" />
-                      <span>Parking: {services.parking}</span>
-                    </div>
-                  )}
-                  {services.breakfastIncluded && (
-                    <div className="flex items-center gap-1.5 transition-all duration-200 hover:translate-x-1">
-                      <Coffee className="w-4 h-4 text-amber-600" />
-                      <span>Breakfast Included</span>
-                    </div>
-                  )}
-                  {services.breakfastAvailable && (
-                    <div className="flex items-center gap-1.5 transition-all duration-200 hover:translate-x-1">
-                      <Coffee className="w-4 h-4 text-amber-600" />
-                      <span>Breakfast Available</span>
-                    </div>
-                  )}
-                  {services.restaurant && (
-                    <div className="flex items-center gap-1.5 transition-all duration-200 hover:translate-x-1">
-                      <UtensilsCrossed className="w-4 h-4 text-rose-600" />
-                      <span>Restaurant</span>
-                    </div>
-                  )}
-                  {services.bar && (
-                    <div className="flex items-center gap-1.5 transition-all duration-200 hover:translate-x-1">
-                      <Beer className="w-4 h-4 text-purple-600" />
-                      <span>Bar</span>
-                    </div>
-                  )}
-                  {services.pool && (
-                    <div className="flex items-center gap-1.5 transition-all duration-200 hover:translate-x-1">
-                      <Waves className="w-4 h-4 text-cyan-600" />
-                      <span>Pool</span>
-                    </div>
-                  )}
-                  {services.sauna && (
-                    <div className="flex items-center gap-1.5 transition-all duration-200 hover:translate-x-1">
-                      <Thermometer className="w-4 h-4 text-orange-600" />
-                      <span>Sauna</span>
-                    </div>
-                  )}
-                  {services.laundry && (
-                    <div className="flex items-center gap-1.5 transition-all duration-200 hover:translate-x-1">
-                      <WashingMachine className="w-4 h-4 text-indigo-600" />
-                      <span>Laundry</span>
-                    </div>
-                  )}
-                  {services.roomService && (
-                    <div className="flex items-center gap-1.5 transition-all duration-200 hover:translate-x-1">
-                      <Coffee className="w-4 h-4 text-emerald-600" />
-                      <span>Room Service</span>
-                    </div>
-                  )}
-                  {services.security24 && (
-                    <div className="flex items-center gap-1.5 transition-all duration-200 hover:translate-x-1">
-                      <Shield className="w-4 h-4 text-red-600" />
-                      <span>24/7 Security</span>
-                    </div>
-                  )}
-                  {services.firstAid && (
-                    <div className="flex items-center gap-1.5 transition-all duration-200 hover:translate-x-1">
-                      <Bandage className="w-4 h-4 text-green-600" />
-                      <span>First Aid</span>
-                    </div>
-                  )}
-                  {services.fireExtinguisher && (
-                    <div className="flex items-center gap-1.5 transition-all duration-200 hover:translate-x-1">
-                      <FireExtinguisher className="w-4 h-4 text-red-600" />
-                      <span>Fire Extinguisher</span>
-                    </div>
-                  )}
-                  {services.gym && (
-                    <div className="flex items-center gap-1.5 transition-all duration-200 hover:translate-x-1">
-                      <Dumbbell className="w-4 h-4 text-slate-700" />
-                      <span>Gym</span>
-                    </div>
-                  )}
-                </div>
-                {nearbyFacilities.length > 0 && (
-                  <div className="mt-4 pt-3 border-t border-gray-200">
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <MapPin className="w-4 h-4 text-pink-600" />
-                      <span className="font-semibold">{nearbyFacilities.length} Nearby Services</span>
-                    </div>
-                    <div className="space-y-2">
-                      {nearbyFacilities.map((f, i) => (
-                        <div key={i} className="bg-white rounded-lg p-3 border border-gray-200 hover:border-gray-300 transition-all">
-                          <div className="flex flex-wrap items-start gap-x-4 gap-y-1">
-                            {f.name && (
-                              <div className="flex-shrink-0">
-                                <span className="text-base font-semibold text-gray-800">{f.name}</span>
-                              </div>
-                            )}
-                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-600">
-                              {f.type && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 font-medium">
-                                  {f.type}
-                                </span>
-                              )}
-                              {f.ownership && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gray-100 text-gray-700 font-medium">
-                                  {f.ownership}
-                                </span>
-                              )}
-                              {typeof f.distanceKm === 'number' && (
-                                <span className="inline-flex items-center gap-1 text-gray-600">
-                                  <MapPin className="w-3.5 h-3.5 text-pink-600" />
-                                  <span className="font-medium">{f.distanceKm} km</span>
-                                </span>
-                              )}
-                              {f.url && (
-                                <a href={f.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[#02665e] hover:opacity-80" aria-label="Open link">
-                                  <LinkIcon className="w-3.5 h-3.5" />
-                                  <span className="text-xs font-medium">Link</span>
-                                </a>
-                              )}
-                            </div>
-                          </div>
-                          {Array.isArray(f.reachableBy) && f.reachableBy.length > 0 && (
-                            <div className="mt-2 flex items-center gap-1.5 flex-wrap">
-                              <span className="text-sm text-gray-600 font-medium">Reachable:</span>
-                              {f.reachableBy.map((m, idx) => {
-                                const Icon = REACH_ICONS[m as string];
-                                  return (
-                                  <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gray-100 text-gray-700">
-                                      {Icon ? <Icon className={`h-3.5 w-3.5 ${REACH_ICON_COLORS[m as string] || ''}`} aria-hidden /> : null}
-                                    <span className="text-sm font-medium">{m}</span>
-                                    </span>
-                                  );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Property Details */}
-              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 transition-all hover:shadow-md hover:border-gray-300 animate-in fade-in slide-in-from-left-4 duration-500 delay-300">
-                <h4 className="font-semibold text-base text-gray-800 mb-3 flex items-center gap-2">
-                  <CheckCircle2 className="w-5 h-5 text-green-600 transition-transform duration-300 hover:scale-110" />
-                  <span>Property Details</span>
-                </h4>
-                <div className="space-y-2 text-base text-gray-700">
-                  {totalBedrooms !== '' && (
-                    <div className="flex justify-between items-center transition-all duration-200 hover:translate-x-1">
-                      <span className="font-medium">Total Bedrooms:</span>
-                      <span>{totalBedrooms}</span>
-                    </div>
-                  )}
-                  {totalBathrooms !== '' && (
-                    <div className="flex justify-between items-center transition-all duration-200 hover:translate-x-1">
-                      <span className="font-medium">Total Bathrooms:</span>
-                      <span>{totalBathrooms}</span>
-                    </div>
-                  )}
-                  {maxGuests !== '' && (
-                    <div className="flex justify-between items-center transition-all duration-200 hover:translate-x-1">
-                      <span className="font-medium">Max Guests:</span>
-                      <span>{maxGuests}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between items-center transition-all duration-200 hover:translate-x-1">
-                    <span className="font-medium">Group Booking:</span>
-                    <span>{acceptGroupBooking ? 'Accepted' : 'Not Accepted'}</span>
-                  </div>
-                  {desc && (
-                    <div className="pt-2 transition-all duration-200 hover:translate-x-1">
-                      <span className="font-medium">Description:</span>
-                      <p className="mt-1 text-gray-600">{desc}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Photos */}
-              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 transition-all hover:shadow-md hover:border-gray-300 animate-in fade-in slide-in-from-left-4 duration-500 delay-[350ms]">
-                <h4 className="font-semibold text-base text-gray-800 mb-3 flex items-center gap-2">
-                  {photos.length >= 3 ? (
-                    <CheckCircle2 className="w-5 h-5 text-green-600 transition-transform duration-300 hover:scale-110" />
-                  ) : (
-                    <XCircle className="w-5 h-5 text-red-500 transition-transform duration-300 hover:scale-110" />
-                  )}
-                  <span>Property Photos</span>
-                </h4>
-                <div className="text-base text-gray-700">
-                  <span className={`transition-colors duration-200 ${photos.length >= 3 ? 'text-green-700' : 'text-red-600'}`}>
-                    {photos.length} photo(s) uploaded {photos.length < 3 && `(Need ${3 - photos.length} more)`}
+          {amenityHighlights.length > 0 ? (
+            <div className="mt-5">
+              <p className="text-sm font-semibold text-slate-800">Highlights</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {amenityHighlights.map((tag) => (
+                  <span key={tag} className={SNAPSHOT_HIGHLIGHT_CLASS}>
+                    {tag}
                   </span>
-                </div>
+                ))}
               </div>
+            </div>
+          ) : null}
 
-              {/* Submission Status */}
-              <div className={`rounded-lg p-4 border transition-all duration-500 animate-in fade-in slide-in-from-bottom-4 delay-[400ms] ${
-                completeEnough 
-                  ? 'bg-green-50 border-green-200 hover:shadow-lg hover:shadow-green-100' 
-                  : 'bg-amber-50 border-amber-200 hover:shadow-lg hover:shadow-amber-100'
-              }`}>
-                <div className="flex items-start gap-3">
-                  <div className="text-2xl transition-transform duration-300 hover:scale-110">
-                    {completeEnough ? (
-                      <CheckCircle2 className="w-8 h-8 text-green-600" />
-                    ) : (
-                      <AlertCircle className="w-8 h-8 text-amber-600" />
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="font-semibold text-base text-gray-800 mb-1">
-                      Status: {completeEnough ? (
-                        <span className="text-green-700 transition-colors duration-200">Ready to Submit</span>
-                      ) : (
-                        <span className="text-amber-700 transition-colors duration-200">Incomplete</span>
-                      )}
-                    </h4>
-                    <p className="text-base text-gray-600">
-                      {completeEnough 
-                        ? 'Your property listing meets all requirements and is ready for submission.' 
-                        : 'Please complete all required fields: name, location, at least 3 photos, and at least 1 room type.'}
-                    </p>
-                  </div>
-                </div>
+          <div className="mt-5 space-y-2">
+            <div className="flex items-center gap-2 text-sm text-slate-600">
+              <MapPin className="h-4 w-4 text-emerald-600" />
+              <span>{locationSummary}</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm text-slate-600">
+              <Users className="h-4 w-4 text-sky-600" />
+              <span>{autoMaxGuests} guests capacity</span>
+            </div>
+            {hasHotelStar ? null : (
+              <div className={SNAPSHOT_ALERT_CLASS}>
+                <AlertCircle className="h-4 w-4" />
+                <span>Select hotel star rating to stand out.</span>
               </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-3 animate-in fade-in slide-in-from-bottom-4 duration-500 delay-[450ms]">
-                <button className="px-4 py-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 text-sm font-medium" onClick={saveDraft}>
-                  Save Draft
-                </button>
-                <button 
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                    completeEnough 
-                      ? "bg-emerald-600 text-white hover:bg-emerald-700 hover:shadow-lg hover:-translate-y-0.5" 
-                      : "border border-gray-300 bg-gray-100 text-gray-400 cursor-not-allowed"
-                  }`} 
-                  disabled={!completeEnough} 
-                  onClick={submitForReview}
-                >
-                  Submit for Review
-                </button>
+            )}
+            {nextStepTitle ? (
+              <div className="flex items-center gap-2 text-sm text-emerald-700">
+                <CheckCircle2 className="h-4 w-4" />
+                <span>Next: {nextStepTitle}</span>
               </div>
-            </div>
-            </div>
-          )}
-          
-          {/* Pagination for Review */}
-          {showReview && (
-            <div className="mt-6 flex items-center justify-start pt-4 border-t border-gray-200">
-              <button
-                type="button"
-                onClick={goToPreviousStep}
-                disabled={currentStep <= 0}
-                className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                <ChevronLeft className="h-4 w-4" />
-                Previous
-              </button>
-            </div>
-          )}
-        </section>
-            </div>
-          </main>
+            ) : null}
+          </div>
         </div>
       </div>
-      
-      {/* Live Preview Modal */}
-      {showLivePreview && (() => {
-        // Prepare services data for preview components
-        const previewServices = (() => {
-          const servicesObj: any = {
-            ...(services.parking && services.parking !== 'no' ? { parking: services.parking } : {}),
-            ...(services.parking === 'paid' && services.parkingPrice ? { parkingPrice: services.parkingPrice } : {}),
-            ...(services.breakfastIncluded ? { breakfastIncluded: true } : {}),
-            ...(services.breakfastAvailable ? { breakfastAvailable: true } : {}),
-            ...(services.restaurant ? { restaurant: true } : {}),
-            ...(services.bar ? { bar: true } : {}),
-            ...(services.pool ? { pool: true } : {}),
-            ...(services.sauna ? { sauna: true } : {}),
-            ...(services.laundry ? { laundry: true } : {}),
-            ...(services.roomService ? { roomService: true } : {}),
-            ...(services.security24 ? { security24: true } : {}),
-            ...(services.firstAid ? { firstAid: true } : {}),
-            ...(services.fireExtinguisher ? { fireExtinguisher: true } : {}),
-            ...(services.onSiteShop ? { onSiteShop: true } : {}),
-            ...(services.nearbyMall ? { nearbyMall: true } : {}),
-            ...(services.socialHall ? { socialHall: true } : {}),
-            ...(services.sportsGames ? { sportsGames: true } : {}),
-            ...(services.gym ? { gym: true } : {}),
-            tags: Array.from(
-              new Set<string>([
-                ...servicesToArray(services),
-                ...nearbyFacilitiesToServiceTags(nearbyFacilities),
-                ...(freeCancellation ? ["Free cancellation"] : []),
-                ...(acceptGroupBooking ? ["Group stay"] : []),
-                ...paymentModes.map((m) => `Payment: ${m}`),
-              ])
-            ),
-          };
-          if (nearbyFacilities.length > 0) {
-            servicesObj.nearbyFacilities = nearbyFacilities;
-          }
-          return servicesObj;
-        })();
-        
-        // Normalize services for preview
-        const normalizeBoolean = (value: any): boolean => {
-          if (value === undefined || value === null) return false;
-          if (typeof value === 'boolean') return value;
-          if (typeof value === 'string') return value.toLowerCase() === 'true';
-          return false;
-        };
-        
-        const normalizedServicesObj = {
-          parking: previewServices.parking || 'no',
-          parkingPrice: previewServices.parkingPrice || '',
-          breakfastIncluded: normalizeBoolean(previewServices.breakfastIncluded),
-          breakfastAvailable: normalizeBoolean(previewServices.breakfastAvailable),
-          restaurant: normalizeBoolean(previewServices.restaurant),
-          bar: normalizeBoolean(previewServices.bar),
-          pool: normalizeBoolean(previewServices.pool),
-          sauna: normalizeBoolean(previewServices.sauna),
-          laundry: normalizeBoolean(previewServices.laundry),
-          roomService: normalizeBoolean(previewServices.roomService),
-          security24: normalizeBoolean(previewServices.security24),
-          firstAid: normalizeBoolean(previewServices.firstAid),
-          fireExtinguisher: normalizeBoolean(previewServices.fireExtinguisher),
-          onSiteShop: normalizeBoolean(previewServices.onSiteShop),
-          nearbyMall: normalizeBoolean(previewServices.nearbyMall),
-          socialHall: normalizeBoolean(previewServices.socialHall),
-          sportsGames: normalizeBoolean(previewServices.sportsGames),
-          gym: normalizeBoolean(previewServices.gym),
-          nearbyFacilities: previewServices.nearbyFacilities || [],
-          tags: previewServices.tags || [],
-        };
-        
-        const effectiveServicesArray = Array.isArray(previewServices.tags) ? previewServices.tags : [];
-        const servicesArray = effectiveServicesArray;
-        
-        return (
-          <div
-            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
-            onClick={(e) => {
-              if (e.target === e.currentTarget) setShowLivePreview(false);
-            }}
-          >
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
-              {/* Modal Header */}
-              <div className="flex items-center justify-between p-4 sm:p-6 border-b border-slate-200 bg-gradient-to-r from-[#02665e] to-[#014e47]">
-                <div className="flex items-center gap-3">
-                  <Eye className="w-5 h-5 text-white" />
-                  <h2 className="text-xl sm:text-2xl font-bold text-white">Live Preview</h2>
-                  <span className="hidden sm:inline text-sm text-white/80">See how your property will look</span>
+    </section>
+  );
+
+
+  return (
+    <div id="addPropertyView" className={PAGE_WRAPPER_CLASS}>
+      <div className={PAGE_BACKGROUND_CLASS} aria-hidden>
+        <div className="absolute -top-24 left-1/2 h-[440px] w-[440px] -translate-x-1/2 rounded-full bg-emerald-200/30 blur-3xl" />
+        <div className="absolute top-0 right-0 h-[360px] w-[360px] translate-x-1/3 rounded-full bg-sky-200/25 blur-3xl" />
+        <div className="absolute bottom-0 left-0 h-[320px] w-[320px] -translate-x-1/4 translate-y-1/3 rounded-full bg-emerald-100/20 blur-3xl" />
+      </div>
+      <div aria-live="polite" className="sr-only" role="status">{announcement}</div>
+      <div className={PAGE_LAYOUT_CLASS}>
+        <div className={PAGE_SHELL_CLASS}>
+          <section className={STEPPER_WRAPPER_CLASS}>
+            <div className="w-full relative" ref={stepperContainerRef} data-progress={progressHeight}>
+              <header className="relative overflow-hidden border-b border-slate-200/70 bg-gradient-to-br from-emerald-50 via-white to-sky-50 px-4 sm:px-6 py-6 sm:py-8">
+                <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+                  <div className="absolute -top-12 right-0 h-40 w-40 translate-x-1/3 rounded-full bg-emerald-200/35 blur-2xl" />
+                  <div className="absolute bottom-0 left-0 h-32 w-32 -translate-x-1/4 translate-y-1/4 rounded-full bg-sky-200/30 blur-2xl" />
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowLivePreview(false)}
-                  className="h-10 w-10 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors"
-                  aria-label="Close preview"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              
-              {/* Preview Content */}
-              <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-gray-50">
-                <div className="max-w-4xl mx-auto space-y-6">
-                  {/* Property Header */}
-                  <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
-                    <h1 className="text-3xl font-bold text-gray-900 mb-2">{title || "Property Name"}</h1>
-                    <div className="flex items-center gap-2 text-gray-600">
-                      <MapPin className="w-4 h-4" />
-                      <span>
-                        {street && `${street}, `}
-                        {ward && `${ward}, `}
-                        {district && `${district}, `}
-                        {regionName || regionId || "Location"}
-                      </span>
-                    </div>
-                    {inferBasePrice(definedRooms) && (
-                      <div className="mt-4 text-2xl font-bold text-[#02665e]">
-                        TSh {inferBasePrice(definedRooms)?.toLocaleString()} / night
-                      </div>
-                    )}
-                  </div>
-                  
-                  {/* Photos Preview */}
-                  {photos.length > 0 && (
-                    <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
-                      <h2 className="text-xl font-semibold text-gray-900 mb-4">Photos</h2>
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                        {photos.slice(0, 6).map((photo, idx) => (
-                          <div key={idx} className="relative aspect-square rounded-lg overflow-hidden border border-slate-200">
-                            {/^https?:\/\//i.test(photo) ? (
-                              <Image src={photo} alt={`Property photo ${idx + 1}`} fill className="object-cover" />
+                <div className="relative z-10 flex flex-col gap-6">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div className="min-w-0 space-y-4">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200/70 bg-emerald-50 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                          <Plus className="h-4 w-4" />
+                          Listing builder
+                        </span>
+                        {autoSaveStatus !== "idle" ? (
+                          <span
+                            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium ${
+                              autoSaveStatus === "saving"
+                                ? "border-sky-200 bg-sky-50 text-sky-700"
+                                : autoSaveStatus === "saved"
+                                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                  : "border-rose-200 bg-rose-50 text-rose-700"
+                            }`}
+                          >
+                            {autoSaveStatus === "saving" ? (
+                              <>
+                                <span className="h-3 w-3 border-2 border-sky-600 border-t-transparent rounded-full animate-spin" />
+                                Saving
+                              </>
+                            ) : autoSaveStatus === "saved" ? (
+                              <>
+                                <CheckCircle2 className="h-3.5 w-3.5" />
+                                Saved
+                              </>
                             ) : (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img src={photo} alt={`Property photo ${idx + 1}`} className="w-full h-full object-cover" />
+                              <>
+                                <AlertCircle className="h-3.5 w-3.5" />
+                                Save failed
+                              </>
                             )}
-                          </div>
-                        ))}
+                          </span>
+                        ) : null}
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Add property</p>
+                        <h1 className="mt-1 text-2xl font-semibold text-slate-900 sm:text-3xl">{currentStepTitle}</h1>
+                        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-600">
+                          <span>
+                            Step <span className="font-semibold text-slate-800">{currentStep + 1}</span> of <span className="font-semibold text-slate-800">{stepTitles.length}</span>
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                            {completedStepsCount} completed
+                          </span>
+                          <span className="flex items-center gap-1">
+                            {visitedSteps.size} visited
+                          </span>
+                          {nextStepTitle ? (
+                            <span className="flex items-center gap-1 text-emerald-700">
+                              <ArrowRight className="h-3.5 w-3.5" />
+                              Next: {nextStepTitle}
+                            </span>
+                          ) : null}
+                          <span className="flex items-center gap-1 text-slate-600">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            {stepProgressPct}% journey
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  )}
-                  
-                  {/* Services & Facilities Preview */}
-                  <ServicesAndFacilities
-                    normalizedServicesObj={normalizedServicesObj}
-                    effectiveServicesArray={effectiveServicesArray}
-                    servicesArray={servicesArray}
-                  />
-                  
-                  {/* Nearby Services Preview */}
-                  {nearbyFacilities.length > 0 && (
-                    <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
-                      <NearbyServices
-                        facilities={nearbyFacilities}
-                        defaultExpanded={false}
-                        showExpandButton={nearbyFacilities.length > 2}
-                        maxInitialDisplay={2}
+                    <div className="flex items-center gap-3">
+                    </div>
+                  </div>
+                  <div>
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-white/60 shadow-inner">
+                      <div
+                        ref={stepProgressBarRef}
+                        className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-emerald-400 to-sky-500"
                       />
                     </div>
-                  )}
-                  
-                  {/* Description */}
-                  {desc && (
-                    <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
-                      <h2 className="text-xl font-semibold text-gray-900 mb-3">About this place</h2>
-                      <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{desc}</p>
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-medium text-slate-600">
+                      <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white/70 px-3 py-1">
+                        <Home className="h-3.5 w-3.5 text-emerald-600" />
+                        {totalDefinedRooms} rooms set
+                      </span>
+                      <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white/70 px-3 py-1">
+                        <Bed className="h-3.5 w-3.5 text-sky-600" />
+                        {totalBedsAcrossRooms} beds mapped
+                      </span>
+                      <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white/70 px-3 py-1">
+                        <ImageIcon className="h-3.5 w-3.5 text-amber-600" />
+                        {photos.length} photos added
+                      </span>
                     </div>
-                  )}
-                  
-                  {/* Room Types */}
-                  {definedRooms.length > 0 && (
-                    <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
-                      <h2 className="text-xl font-semibold text-gray-900 mb-4">Room Types</h2>
-                      <div className="space-y-4">
-                        {definedRooms.map((room, idx) => (
-                          <div key={idx} className="border border-slate-200 rounded-lg p-4">
-                            <div className="flex items-center justify-between mb-2">
-                              <h3 className="font-semibold text-lg text-gray-900">{room.roomType}</h3>
-                              {room.pricePerNight > 0 && (
-                                <span className="text-lg font-bold text-[#02665e]">
-                                  TSh {room.pricePerNight.toLocaleString()} / night
+                  </div>
+                  <nav className="mt-2 overflow-x-auto pt-1" aria-label="Steps">
+                    <ol className="flex min-w-full items-stretch gap-2 pb-1">
+                      {stepsMeta.map((s, idx) => {
+                        const isActive = currentStep === s.index;
+                        const isPast = currentStep > s.index;
+                        const isVisited = visitedSteps.has(s.index);
+                        const isCompleted = s.completed && isPast;
+                        const canJump = isVisited || s.index === currentStep;
+                        return (
+                          <li key={s.index} className="flex items-center">
+                            <button
+                              type="button"
+                              disabled={!canJump}
+                              onClick={() => scrollToStep(s.index)}
+                              className={`group flex min-w-[180px] items-center gap-3 rounded-2xl border px-3 py-2 text-left transition ${
+                                isActive
+                                  ? "border-emerald-400 bg-white shadow-md shadow-emerald-100/40"
+                                  : canJump
+                                    ? "border-slate-200 bg-white/80 hover:border-emerald-300 hover:bg-white"
+                                    : "cursor-not-allowed border-slate-200 bg-white/60 opacity-50"
+                              }`}
+                              aria-current={isActive ? "step" : undefined}
+                            >
+                              <span
+                                className={`flex h-9 w-9 items-center justify-center rounded-full border text-sm font-semibold ${
+                                  isActive
+                                    ? "border-emerald-500 bg-emerald-500 text-white"
+                                    : isCompleted
+                                      ? "border-emerald-200 bg-emerald-100 text-emerald-700"
+                                      : isPast
+                                        ? "border-slate-200 bg-slate-100 text-slate-700"
+                                        : "border-slate-200 bg-white text-slate-600"
+                                }`}
+                              >
+                                {isCompleted ? "✓" : s.index + 1}
+                              </span>
+                              <span className="min-w-0 flex-1">
+                                <span className="block text-sm font-semibold text-slate-900 truncate">{s.title}</span>
+                                <span className="block text-xs text-slate-600">
+                                  {isCompleted ? "Completed" : isActive ? "In progress" : isVisited ? "Visited" : "Pending"}
                                 </span>
-                              )}
-                            </div>
-                            <div className="text-sm text-gray-600 space-y-1">
-                              <div>{room.roomsCount} room(s) available</div>
-                              <div>Beds: {Object.entries(room.beds).filter(([_, count]) => count > 0).map(([type, count]) => `${type} (${count})`).join(', ') || 'None'}</div>
-                              {room.roomDescription && (
-                                <p className="mt-2 text-gray-700">{room.roomDescription}</p>
-                              )}
-                            </div>
-                            {room.roomImages.length > 0 && (
-                              <div className="mt-3 grid grid-cols-3 gap-2">
-                                {room.roomImages.slice(0, 3).map((img, i) => (
-                                  <div key={i} className="relative aspect-square rounded overflow-hidden border border-slate-200">
-                                    {/^https?:\/\//i.test(img) ? (
-                                      <Image src={img} alt={`${room.roomType} image ${i + 1}`} fill className="object-cover" />
-                                    ) : (
-                                      // eslint-disable-next-line @next/next/no-img-element
-                                      <img src={img} alt={`${room.roomType} image ${i + 1}`} className="w-full h-full object-cover" />
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Property Details */}
-                  {(totalBedrooms || totalBathrooms || maxGuests) && (
-                    <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
-                      <h2 className="text-xl font-semibold text-gray-900 mb-4">Property Details</h2>
-                      <div className="grid grid-cols-3 gap-4">
-                        {totalBedrooms && (
-                          <div className="text-center">
-                            <BedDouble className="w-8 h-8 mx-auto mb-2 text-[#02665e]" />
-                            <div className="text-2xl font-bold text-gray-900">{totalBedrooms}</div>
-                            <div className="text-sm text-gray-600">Bedrooms</div>
-                          </div>
-                        )}
-                        {totalBathrooms && (
-                          <div className="text-center">
-                            <Bath className="w-8 h-8 mx-auto mb-2 text-[#02665e]" />
-                            <div className="text-2xl font-bold text-gray-900">{totalBathrooms}</div>
-                            <div className="text-sm text-gray-600">Bathrooms</div>
-                          </div>
-                        )}
-                        {maxGuests && (
-                          <div className="text-center">
-                            <Users className="w-8 h-8 mx-auto mb-2 text-[#02665e]" />
-                            <div className="text-2xl font-bold text-gray-900">{maxGuests}</div>
-                            <div className="text-sm text-gray-600">Max Guests</div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
+                              </span>
+                            </button>
+                            {idx < stepsMeta.length - 1 ? (
+                              <span className="mx-2 hidden h-px w-8 bg-slate-200 sm:inline-block" aria-hidden />
+                            ) : null}
+                          </li>
+                        );
+                      })}
+                    </ol>
+                  </nav>
                 </div>
+              </header>
+              <div className="p-4 sm:p-6 md:p-8">
+                <div className="mb-6 lg:hidden">{renderListingSnapshot("mobile")}</div>
+                {showReview && (
+                  <div className="rounded-xl border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 to-white px-5 py-4 shadow-sm mb-6">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
+                        <CheckCircle2 className="w-5 h-5 text-emerald-700" />
+                </div>
+                      <div className="flex-1">
+                        <h3 className="text-sm font-semibold text-gray-900 mb-1">Ready to submit?</h3>
+                        <p className="text-xs text-gray-600 leading-relaxed">
+                          Please review all sections carefully. Once submitted, your property will be reviewed by our team. You&apos;ll be notified once the review is complete.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <main className="relative mt-6">
+                  <div className="relative w-full space-y-4">
+        {/* BASICS */}
+        <BasicsStep
+          isVisible={showBasics}
+          ref={(el) => {
+            sectionRefs.current[0] = el;
+          }}
+          currentStep={currentStep}
+          goToPreviousStep={goToPreviousStep}
+          goToNextStep={goToNextStep}
+          title={title}
+          setTitle={setTitle}
+          type={type}
+          setType={setType}
+          otherType={otherType}
+          setOtherType={setOtherType}
+          hotelStar={hotelStar}
+          setHotelStar={setHotelStar}
+          buildingType={buildingType}
+          setBuildingType={setBuildingType}
+          totalFloors={totalFloors}
+          setTotalFloors={setTotalFloors}
+          touchedBasics={touchedBasics}
+          setTouchedBasics={setTouchedBasics}
+          PROPERTY_TYPES={PROPERTY_TYPES}
+          PROPERTY_TYPE_ICONS={PROPERTY_TYPE_ICONS}
+          PROPERTY_TYPE_STYLES={PROPERTY_TYPE_STYLES}
+          HOTEL_STAR_OPTIONS={HOTEL_STAR_OPTIONS}
+          regionId={regionId}
+          setRegionId={setRegionId}
+          district={district}
+          setDistrict={setDistrict}
+          ward={ward}
+          setWard={setWard}
+          street={street}
+          setStreet={setStreet}
+          city={city}
+          setCity={setCity}
+          zip={zip}
+          setZip={setZip}
+          selectedWardPostcode={selectedWardPostcode}
+          latitude={latitude}
+          setLatitude={setLatitude}
+          longitude={longitude}
+          setLongitude={setLongitude}
+          districts={districts}
+          wards={wards}
+          streets={streets}
+          REGIONS={REGIONS}
+          locationTrackingEnabled={locationTrackingEnabled}
+          locationLoading={locationLoading}
+          handleLocationToggle={handleLocationToggle}
+          PropertyLocationMap={PropertyLocationMap}
+        />
+
+        {/* ROOM TYPES */}
+        <RoomsStep
+          isVisible={showRooms}
+          sectionRef={(el) => {
+            sectionRefs.current[1] = el;
+          }}
+          currentStep={currentStep}
+          goToPreviousStep={goToPreviousStep}
+          goToNextStep={goToNextStep}
+          buildingType={buildingType}
+          totalFloors={totalFloors}
+          roomType={roomType}
+          setRoomType={setRoomType}
+          beds={beds as any}
+          changeBed={changeBed as any}
+          roomsCount={roomsCount}
+          setRoomsCount={setRoomsCount}
+          roomFloors={roomFloors}
+          setRoomFloors={setRoomFloors}
+          roomFloorDistribution={roomFloorDistribution}
+          setRoomFloorDistribution={setRoomFloorDistribution}
+          smoking={smoking}
+          setSmoking={setSmoking}
+          bathPrivate={bathPrivate}
+          setBathPrivate={setBathPrivate}
+          bathItems={bathItems}
+          setBathItems={setBathItems}
+          towelColor={towelColor}
+          setTowelColor={setTowelColor}
+          otherAmenities={otherAmenities}
+          setOtherAmenities={setOtherAmenities}
+          otherAmenitiesText={otherAmenitiesText}
+          setOtherAmenitiesText={setOtherAmenitiesText}
+          roomDescription={roomDescription}
+          setRoomDescription={setRoomDescription}
+          roomImages={roomImages}
+          onPickRoomImages={onPickRoomImages}
+          setRoomImages={setRoomImages}
+          roomImageSaved={roomImageSaved}
+          setRoomImageSaved={setRoomImageSaved}
+          roomImageUploading={roomImageUploading}
+          setRoomImageUploading={setRoomImageUploading}
+          pricePerNight={pricePerNight}
+          setPricePerNight={setPricePerNight}
+          addRoomType={addRoomType}
+          definedRooms={definedRooms}
+          setDefinedRooms={setDefinedRooms}
+          numOrEmpty={numOrEmpty}
+          toggleStr={toggleStr as any}
+          BED_ICONS={BED_ICONS as any}
+        />
+
+        {/* SERVICES */}
+        <ServicesStep
+          isVisible={showServices}
+          sectionRef={(el) => {
+            sectionRefs.current[2] = el;
+          }}
+          currentStep={currentStep}
+          goToPreviousStep={goToPreviousStep}
+          goToNextStep={goToNextStep}
+          services={services as any}
+          setServices={setServices as any}
+          numOrEmpty={numOrEmpty}
+          nearbyFacilities={nearbyFacilities as any}
+          setNearbyFacilities={setNearbyFacilities as any}
+          AddFacilityInline={AddFacilityInline as any}
+          FacilityRow={FacilityRow as any}
+          servicesCompleted={servicesCompleted}
+        />
+
+        {/* totals + description */}
+        <TotalsStep
+          isVisible={showTotals}
+          sectionRef={(el) => {
+            sectionRefs.current[3] = el;
+          }}
+          totalBedrooms={totalBedrooms}
+          totalBathrooms={totalBathrooms}
+          setTotalBathrooms={setTotalBathrooms}
+          maxGuests={maxGuests}
+          setMaxGuests={setMaxGuests}
+          desc={desc}
+          setDesc={setDesc}
+          acceptGroupBooking={acceptGroupBooking}
+          setAcceptGroupBooking={setAcceptGroupBooking}
+          houseRules={houseRules as any}
+          setHouseRules={setHouseRules as any}
+          goToPreviousStep={goToPreviousStep}
+          goToNextStep={goToNextStep}
+          currentStep={currentStep}
+        />
+
+        {/* PROPERTY PHOTOS */}
+        <PhotosStep
+          isVisible={showPhotos}
+          photos={photos}
+          photosSaved={photosSaved}
+          photosUploading={photosUploading}
+          setPhotos={setPhotos}
+          setPhotosSaved={setPhotosSaved}
+          setPhotosUploading={setPhotosUploading}
+          goToPreviousStep={goToPreviousStep}
+          goToNextStep={goToNextStep}
+          currentStep={currentStep}
+        />
+
+        {/* REVIEW */}
+        <ReviewStep
+          isVisible={showReview}
+          sectionRef={(el) => {
+            sectionRefs.current[5] = el;
+          }}
+          goToPreviousStep={goToPreviousStep}
+          submitForReview={submitForReview}
+          submitDisabled={!completeEnough}
+          stepsMeta={stepsMeta}
+          completeEnough={completeEnough}
+          onStepClick={(stepIndex) => {
+            scrollToStep(stepIndex, true);
+          }}
+          reviewData={{
+            title: title || "",
+            type: type || "",
+            location: {
+              district: district || undefined,
+              regionName: regionName || undefined,
+              street: street || undefined,
+              city: city || undefined,
+            },
+            rooms: definedRooms.map((r) => ({
+              roomType: r.roomType,
+              roomsCount: r.roomsCount,
+              pricePerNight: r.pricePerNight,
+              floorDistribution: r.floorDistribution || undefined,
+            })),
+            buildingType: buildingType || "",
+            totalFloors: totalFloors || "",
+            currency: "TZS",
+          }}
+        />
+                  </div>
+                </main>
               </div>
             </div>
+          </section>
+
+          <aside className="hidden lg:block">
+            <div className="sticky top-24 space-y-6">
+              {renderListingSnapshot("desktop")}
+              <section className={SIDEBAR_CARD_CLASS}>
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Helpful reminders</h3>
+                <ul className="mt-4 space-y-3 text-sm text-slate-600">
+                  {helpfulReminders.map((tip) => (
+                    <li key={tip} className="flex items-start gap-2 rounded-2xl border border-slate-200/70 bg-white/80 px-3 py-2 shadow-sm shadow-emerald-100/30">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-600" />
+                      <span>{tip}</span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-5 rounded-2xl border border-slate-200/70 bg-gradient-to-br from-emerald-50 to-sky-50 px-4 py-3 text-sm text-slate-700">
+                  Review all sections carefully before submitting for approval.
+                </div>
+              </section>
+              <section className={SIDEBAR_CARD_CLASS}>
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Make it memorable</h3>
+                <p className="mt-2 text-sm text-slate-600">
+                  Add nearby experiences, highlight check-in guidance, and mention perks like free breakfast or transport to delight future guests.
+                </p>
+              </section>
+            </div>
+          </aside>
+        </div>
+      </div>
+
+      {/* Submission Success Modal */}
+      {showSubmissionSuccess && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowSubmissionSuccess(false);
+              // Add a small delay to ensure the database update is complete, then navigate with cache-busting
+              setTimeout(() => {
+                window.location.href = `/owner/properties/pending?refresh=${Date.now()}`;
+              }, 300);
+            }
+          }}
+        >
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 sm:p-8 animate-in fade-in zoom-in-95 duration-300">
+            {/* Success Icon */}
+            <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 rounded-full bg-emerald-100">
+              <CheckCircle2 className="w-10 h-10 text-emerald-600" />
+            </div>
+
+            {/* Title */}
+            <h2 className="text-2xl font-bold text-gray-900 text-center mb-2">
+              Submitted for Review!
+            </h2>
+
+            {/* Message */}
+            <div className="space-y-4 mt-6">
+              <div className="flex items-start gap-3 p-4 rounded-xl bg-emerald-50 border border-emerald-200">
+                <Clock className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-emerald-900 mb-1">Review Timeline</p>
+                  <p className="text-sm text-emerald-700">
+                    Your property will be reviewed by our team within <strong>3-5 business days</strong>. You&apos;ll receive a notification once the review is complete.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 p-4 rounded-xl bg-blue-50 border border-blue-200">
+                <Bell className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-blue-900 mb-1">What Happens Next?</p>
+                  <ul className="text-sm text-blue-700 space-y-1 list-disc list-inside">
+                    <li>Our team will verify all property details</li>
+                    <li>We&apos;ll check photos and room specifications</li>
+                    <li>You&apos;ll be notified via email when approved</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-xl bg-gray-50 border border-gray-200">
+                <p className="text-xs text-gray-600 text-center">
+                  You can view your property status in the <strong>Pending Properties</strong> section.
+                </p>
+              </div>
+            </div>
+
+            {/* Action Button */}
+            <button
+              onClick={() => {
+                setShowSubmissionSuccess(false);
+                // Add a small delay to ensure the database update is complete, then navigate with cache-busting
+                setTimeout(() => {
+                  window.location.href = `/owner/properties/pending?refresh=${Date.now()}`;
+                }, 300);
+              }}
+              className="w-full mt-6 px-6 py-3 bg-[#02665e] text-white font-semibold rounded-xl hover:bg-[#014e47] transition-colors shadow-sm hover:shadow-md"
+            >
+              View Pending Properties
+            </button>
           </div>
-        );
-      })()}
+        </div>
+      )}
     </div>
-  </div>
   );
 }
 
-/* Small pieces */
-function Num({label,v,set}:{label:string; v:number|""; set:(v:number|"")=>void}) {
-  return (
-    <div>
-      <label className="block text-xs font-semibold text-gray-700 mb-1.5">{label}</label>
-      <input type="number" value={v} onChange={e=>set(numOrEmpty(e.target.value))} className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-primary-500 focus:border-transparent" placeholder="0" />
-    </div>
-  );
-}
 
 
 /** Facilities mini-components */
-function AddFacilityInline({ onAdd }:{ onAdd:(f:NearbyFacility)=>void }) {
-  const [type, setType] = useState<FacilityType>("Hospital");
+function AddFacilityInline({ onAdd, existingFacilities = [] }:{ onAdd:(f:NearbyFacility)=>void; existingFacilities?: NearbyFacility[] }) {
+  const [type, setType] = useState<FacilityType | "">("");
   const [name, setName] = useState("");
   const [ownership, setOwnership] = useState<"Public/Government"|"Private"|"">("");
-  const [distanceKm, setDistanceKm] = useState<number| "">("");
+  const [distanceKm, setDistanceKm] = useState<number | "">("");
   const [reachableBy, setReachableBy] = useState<ReachMode[]>([]);
   const [url, setUrl] = useState("");
+
+  // Track which facility types are already added
+  const addedTypes = new Set(existingFacilities.map(f => f.type));
+  const isTypeLocked = (t: FacilityType) => addedTypes.has(t);
+  const hasSelection = type !== "";
 
   // allow multiple selection: toggle presence in array
   const toggleMode = (m: ReachMode) =>
     setReachableBy(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
 
-  const canAdd = name.trim().length >= 2;
+  const canAdd = name.trim().length >= 2 && type !== "";
+  
+  // Validation states
+  const [touched, setTouched] = useState<{ name?: boolean; url?: boolean; distance?: boolean }>({});
+  const nameError = touched.name && (!name || name.trim().length < 2) ? "Name must be at least 2 characters" : "";
+  const urlError = touched.url && url && !/^https?:\/\/.+/.test(url) ? "Please enter a valid URL (starting with http:// or https://)" : "";
+  const distanceError = touched.distance && typeof distanceKm === 'number' && distanceKm < 0 ? "Distance cannot be negative" : "";
 
   const add = () => {
-    if (!canAdd) return;
+    if (!canAdd || !type) {
+      setTouched({ name: true, url: !!url, distance: typeof distanceKm === 'number' });
+      return;
+    }
     onAdd({
       id: cryptoId(),
-      type, name, ownership,
+      type: type as FacilityType, name, ownership,
       distanceKm,
       reachableBy,
       url: url || undefined,
     });
     // reset
-    setName(""); setOwnership(""); setDistanceKm(""); setReachableBy([]); setUrl("");
+    setType("" as FacilityType | ""); setName(""); setOwnership(""); setDistanceKm(""); setReachableBy([]); setUrl("");
+    setTouched({});
+  };
+
+  const cancel = () => {
+    setType("" as FacilityType | ""); setName(""); setOwnership(""); setDistanceKm(""); setReachableBy([]); setUrl("");
   };
 
   // Get context-aware placeholder based on selected type
-  const namePlaceholder = FACILITY_PLACEHOLDERS[type] || "e.g. Facility name";
+  const namePlaceholder = type ? (FACILITY_PLACEHOLDERS[type as FacilityType] || "e.g. Facility name") : "e.g. Facility name";
 
   return (
-    <div className="bg-white rounded-xl p-6 border border-gray-200 hover:border-gray-300 hover:shadow-lg transition-all duration-300">
+    <div className="bg-white rounded-xl p-5 sm:p-6 border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
       <div className="space-y-5">
-        {/* Type section - Full width with distinct styling */}
-        <div className="bg-gradient-to-br from-slate-50 to-white rounded-xl p-4 sm:p-5 border-2 border-slate-200">
-          <div className="flex items-center gap-2.5 mb-3.5">
-            <div className="p-1.5 bg-[#02665e]/10 rounded-lg">
-              <Building2 className="w-4 h-4 text-[#02665e]" />
+        {/* Type section - Modern Card Design with Categories */}
+        <div className="bg-gradient-to-br from-gray-50 to-white rounded-xl p-5 sm:p-6 border-2 border-gray-200 shadow-sm">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-10 h-10 rounded-lg bg-teal-100 flex items-center justify-center">
+              <Building2 className="w-5 h-5 text-teal-600" />
             </div>
-            <LabelSmall className="font-bold text-gray-800 text-sm">Facility Type</LabelSmall>
+            <LabelSmall className="font-semibold text-gray-900 text-sm">Facility Type</LabelSmall>
           </div>
-          <div role="radiogroup" aria-label="Facility type" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
-            {FACILITY_TYPES.map(t => {
+          
+          {/* Organized by Categories */}
+          <div className="space-y-5">
+            {/* Medical Facilities */}
+            {(!hasSelection || (hasSelection && ["Hospital", "Pharmacy", "Polyclinic", "Clinic"].includes(type as FacilityType))) && (
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-8 h-8 rounded-lg bg-rose-100 flex items-center justify-center">
+                    <Hospital className="w-4 h-4 text-rose-600" />
+                  </div>
+                  <span className="text-xs font-bold text-gray-700 uppercase tracking-wide">Medical</span>
+                </div>
+                <div role="radiogroup" aria-label="Medical facilities" className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  {["Hospital", "Pharmacy", "Polyclinic", "Clinic"].map(t => {
               const sel = type === t;
+                    const locked = isTypeLocked(t as FacilityType);
+                    const icons: Record<string, React.ComponentType<{ className?: string }>> = {
+                      "Hospital": Hospital,
+                      "Pharmacy": Pill,
+                      "Polyclinic": Hospital,
+                      "Clinic": Hospital,
+                    };
+                    const Icon = icons[t] || Building2;
               return (
                 <button
                   key={t}
                   type="button"
                   role="radio"
                   aria-checked={sel}
+                        disabled={locked && !sel}
                   onClick={() => {
-                    setType(t);
-                    // Reset fields when type changes to show new context
+                          if (locked && !sel) return;
+                          setType(t as FacilityType);
                     setName("");
                     setOwnership("");
                   }}
-                  className={`text-xs font-medium px-3 py-2.5 rounded-lg border transition-all duration-300 ease-out text-center motion-safe:hover:scale-[1.02] motion-safe:active:scale-[0.98] ${
-                    sel
-                      ? 'bg-[#02665e] text-white border-[#02665e] shadow-md shadow-[#02665e]/20'
-                      : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400 hover:bg-gray-50'
-                  }`}
-                >
-                  {t}
+                        className={`group relative flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 transition-all duration-300 ease-out ${
+                          locked && !sel
+                            ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed opacity-60'
+                            : sel
+                            ? 'bg-gradient-to-br from-emerald-50 to-emerald-100/50 text-emerald-700 border-emerald-500 shadow-md shadow-emerald-500/20 scale-105'
+                            : 'bg-white text-gray-700 border-gray-200 hover:border-emerald-300 hover:bg-emerald-50/30 hover:shadow-sm'
+                        }`}
+                      >
+                        <Icon className={`w-3.5 h-3.5 transition-colors duration-300 ${sel ? 'text-emerald-600' : locked && !sel ? 'text-gray-400' : 'text-gray-500'}`} />
+                        <span className="text-xs font-semibold">{t}</span>
+                        {sel && (
+                          <div className="absolute top-1 right-1 w-2 h-2 bg-emerald-500 rounded-full animate-pulse border border-white" />
+                        )}
+                        {locked && !sel && (
+                          <div className="absolute top-1 right-1 flex items-center gap-0.5">
+                            <Lock className="w-3 h-3 text-amber-500" />
+                          </div>
+                        )}
                 </button>
               );
             })}
           </div>
         </div>
-        
-        {/* Ownership section - Distinct card styling - Only show for Hospital, Pharmacy, Polyclinic, and Clinic */}
-        {requiresOwnership(type) && (
-          <div className="bg-gradient-to-br from-blue-50/50 to-white rounded-xl p-4 sm:p-5 border-2 border-blue-100">
-            <div className="flex items-center gap-2.5 mb-3.5">
-              <div className="p-1.5 bg-blue-100 rounded-lg">
-                <Shield className="w-4 h-4 text-blue-700" />
+            )}
+
+            {/* Transportation */}
+            {(!hasSelection || (hasSelection && ["Airport", "Bus station", "Petrol station", "Main road"].includes(type as FacilityType))) && (
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                    <Car className="w-4 h-4 text-blue-600" />
               </div>
-              <LabelSmall className="font-bold text-gray-800 text-sm">Ownership Type</LabelSmall>
+                  <span className="text-xs font-bold text-gray-700 uppercase tracking-wide">Transportation</span>
+            </div>
+                <div role="radiogroup" aria-label="Transportation facilities" className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  {["Airport", "Bus station", "Petrol station", "Main road"].map(t => {
+                    const sel = type === t;
+                    const locked = isTypeLocked(t as FacilityType);
+                    const icons: Record<string, React.ComponentType<{ className?: string }>> = {
+                      "Airport": Plane,
+                      "Bus station": Bus,
+                      "Petrol station": Fuel,
+                      "Main road": Route,
+                    };
+                    const Icon = icons[t] || MapPin;
+                return (
+                  <button
+                        key={t}
+                    type="button"
+                    role="radio"
+                    aria-checked={sel}
+                        disabled={locked && !sel}
+                        onClick={() => {
+                          if (locked && !sel) return;
+                          setType(t as FacilityType);
+                          setName("");
+                          setOwnership("");
+                        }}
+                        className={`group relative flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 transition-all duration-300 ease-out ${
+                          locked && !sel
+                            ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed opacity-60'
+                            : sel
+                            ? 'bg-gradient-to-br from-emerald-50 to-emerald-100/50 text-emerald-700 border-emerald-500 shadow-md shadow-emerald-500/20 scale-105'
+                            : 'bg-white text-gray-700 border-gray-200 hover:border-emerald-300 hover:bg-emerald-50/30 hover:shadow-sm'
+                        }`}
+                      >
+                        <Icon className={`w-3.5 h-3.5 transition-colors duration-300 ${sel ? 'text-emerald-600' : locked && !sel ? 'text-gray-400' : 'text-gray-500'}`} />
+                        <span className="text-xs font-semibold">{t}</span>
+                        {sel && (
+                          <div className="absolute top-1 right-1 w-2 h-2 bg-emerald-500 rounded-full animate-pulse border border-white" />
+                        )}
+                        {locked && !sel && (
+                          <div className="absolute top-1 right-1 flex items-center gap-0.5">
+                            <Lock className="w-3 h-3 text-amber-500" />
+                          </div>
+                        )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+            {/* Public Services & Venues */}
+            {(!hasSelection || (hasSelection && ["Police station", "Conference center", "Stadium"].includes(type as FacilityType))) && (
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
+                    <Shield className="w-4 h-4 text-indigo-600" />
+          </div>
+                  <span className="text-xs font-bold text-gray-700 uppercase tracking-wide">Public Services & Venues</span>
+          </div>
+                <div role="radiogroup" aria-label="Public services and venues" className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                  {["Police station", "Conference center", "Stadium"].map(t => {
+                    const sel = type === t;
+                    const locked = isTypeLocked(t as FacilityType);
+                    const icons: Record<string, React.ComponentType<{ className?: string }>> = {
+                      "Police station": Shield,
+                      "Conference center": BuildingIcon,
+                      "Stadium": Building2,
+                    };
+                    const Icon = icons[t] || MapPin;
+            return (
+              <button
+                        key={t}
+                type="button"
+                        role="radio"
+                aria-checked={sel}
+                        disabled={locked && !sel}
+                        onClick={() => {
+                          if (locked && !sel) return;
+                          setType(t as FacilityType);
+                          setName("");
+                          setOwnership("");
+                        }}
+                        className={`group relative flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 transition-all duration-300 ease-out ${
+                          locked && !sel
+                            ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed opacity-60'
+                            : sel
+                            ? 'bg-gradient-to-br from-emerald-50 to-emerald-100/50 text-emerald-700 border-emerald-500 shadow-md shadow-emerald-500/20 scale-105'
+                            : 'bg-white text-gray-700 border-gray-200 hover:border-emerald-300 hover:bg-emerald-50/30 hover:shadow-sm'
+                        }`}
+                      >
+                        <Icon className={`w-3.5 h-3.5 transition-colors duration-300 ${sel ? 'text-emerald-600' : locked && !sel ? 'text-gray-400' : 'text-gray-500'}`} />
+                        <span className="text-xs font-semibold">{t}</span>
+                        {sel && (
+                          <div className="absolute top-1 right-1 w-2 h-2 bg-emerald-500 rounded-full animate-pulse border border-white" />
+                        )}
+                        {locked && !sel && (
+                          <div className="absolute top-1 right-1 flex items-center gap-0.5">
+                            <Lock className="w-3 h-3 text-amber-500" />
+                          </div>
+                        )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+            )}
+      </div>
+          
+          {/* Cancel button when type is selected */}
+          {hasSelection && (
+            <div className="mt-4 flex items-center justify-end">
+                <button
+                  type="button"
+                onClick={cancel}
+                className="px-4 py-2 text-sm font-semibold text-gray-700 bg-white border-2 border-gray-300 rounded-xl hover:bg-gray-50 hover:border-gray-400 transition-all duration-200"
+              >
+                Cancel Selection
+                </button>
+          </div>
+          )}
+        </div>
+        
+        {/* Ownership section - Modern Card Design - Only show for Hospital, Pharmacy, Polyclinic, and Clinic */}
+        {hasSelection && requiresOwnership(type as FacilityType) && (
+          <div className="bg-gradient-to-br from-blue-50/50 to-white rounded-xl p-5 sm:p-6 border-2 border-blue-200 shadow-sm">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+                <Shield className="w-5 h-5 text-blue-600" />
+              </div>
+              <LabelSmall className="font-semibold text-gray-900 text-sm">Ownership Type</LabelSmall>
             </div>
             <div role="radiogroup" aria-label="Ownership" className="grid grid-cols-2 gap-2.5 max-w-md">
               {["Public/Government", "Private"].map(o => {
@@ -3731,13 +3337,16 @@ function AddFacilityInline({ onAdd }:{ onAdd:(f:NearbyFacility)=>void }) {
                     role="radio"
                     aria-checked={sel}
                     onClick={() => setOwnership(o as any)}
-                    className={`text-xs font-medium px-4 py-2.5 rounded-lg border transition-all duration-300 ease-out text-center motion-safe:hover:scale-[1.02] motion-safe:active:scale-[0.98] ${
+                    className={`group relative text-xs font-semibold px-4 py-2.5 rounded-xl border-2 transition-all duration-300 ease-out text-center ${
                       sel
-                        ? 'bg-[#02665e] text-white border-[#02665e] shadow-md shadow-[#02665e]/20'
-                        : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400 hover:bg-gray-50'
+                        ? 'bg-gradient-to-br from-emerald-50 to-emerald-100/50 text-emerald-700 border-emerald-500 shadow-md shadow-emerald-500/20 scale-105'
+                        : 'bg-white text-gray-700 border-gray-200 hover:border-emerald-300 hover:bg-emerald-50/30 hover:shadow-sm'
                     }`}
                   >
                     {o}
+                    {sel && (
+                      <div className="absolute top-1 right-1 w-2 h-2 bg-emerald-500 rounded-full animate-pulse border border-white" />
+                    )}
                   </button>
                 );
               })}
@@ -3745,50 +3354,100 @@ function AddFacilityInline({ onAdd }:{ onAdd:(f:NearbyFacility)=>void }) {
           </div>
         )}
 
-        {/* Name, Distance, and More info row */}
+        {/* Name, Distance, and More info row - Modern Design - Only show when type is selected */}
+        {hasSelection && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {/* Name field */}
-          <div className="space-y-1.5">
-            <LabelSmall className="font-semibold text-gray-700 text-xs">Name</LabelSmall>
+          <div className="space-y-2">
+            <LabelSmall className="font-semibold text-gray-900 text-xs">Name <span className="text-red-500">*</span></LabelSmall>
             <input
               value={name}
-              onChange={e => setName(e.target.value)}
-              className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs font-medium text-gray-900 placeholder-gray-400 bg-white hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-200 focus:border-gray-500 transition-all duration-200"
+              onChange={e => {
+                setName(e.target.value);
+                setTouched(prev => ({ ...prev, name: true }));
+              }}
+              onBlur={() => setTouched(prev => ({ ...prev, name: true }))}
+              className={`w-full h-11 px-4 border-2 rounded-xl text-sm font-medium text-gray-900 placeholder-gray-400 bg-white hover:border-gray-400 focus:outline-none focus:ring-2 transition-all duration-200 ${
+                nameError 
+                  ? 'border-red-300 focus:border-red-500 focus:ring-red-500/20' 
+                  : 'border-gray-300 focus:ring-emerald-500/20 focus:border-emerald-500'
+              }`}
               placeholder={namePlaceholder}
             />
+            {nameError && (
+              <p className="text-xs text-red-600 flex items-center gap-1 mt-1">
+                <AlertCircle className="h-3 w-3" />
+                {nameError}
+              </p>
+            )}
           </div>
           
           {/* Distance field */}
-          <div className="space-y-1.5">
-            <LabelSmall className="font-semibold text-gray-700 text-xs">Distance (km)</LabelSmall>
+          <div className="space-y-2">
+            <LabelSmall className="font-semibold text-gray-900 text-xs">Distance (km)</LabelSmall>
             <input
               value={distanceKm as any}
-              onChange={e => setDistanceKm(numOrEmpty(e.target.value))}
+              onChange={e => {
+                setDistanceKm(numOrEmpty(e.target.value));
+                setTouched(prev => ({ ...prev, distance: true }));
+              }}
+              onBlur={() => setTouched(prev => ({ ...prev, distance: true }))}
               type="number" 
               step="0.1"
               min="0"
-              className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs font-medium text-gray-900 placeholder-gray-400 bg-white hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-200 focus:border-gray-500 transition-all duration-200"
+              className={`w-full h-11 px-4 border-2 rounded-xl text-sm font-medium text-gray-900 placeholder-gray-400 bg-white hover:border-gray-400 focus:outline-none focus:ring-2 transition-all duration-200 ${
+                distanceError 
+                  ? 'border-red-300 focus:border-red-500 focus:ring-red-500/20' 
+                  : 'border-gray-300 focus:ring-emerald-500/20 focus:border-emerald-500'
+              }`}
               placeholder="2.5"
             />
+            {distanceError && (
+              <p className="text-xs text-red-600 flex items-center gap-1 mt-1">
+                <AlertCircle className="h-3 w-3" />
+                {distanceError}
+              </p>
+            )}
           </div>
           
           {/* More info field */}
-          <div className="space-y-1.5">
-            <LabelSmall className="font-semibold text-gray-700 text-xs">More info (URL)</LabelSmall>
+          <div className="space-y-2">
+            <LabelSmall className="font-semibold text-gray-900 text-xs">More info (URL)</LabelSmall>
             <input
               value={url}
-              onChange={e => setUrl(e.target.value)}
+              onChange={e => {
+                setUrl(e.target.value);
+                setTouched(prev => ({ ...prev, url: true }));
+              }}
+              onBlur={() => setTouched(prev => ({ ...prev, url: true }))}
               type="url"
-              className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs font-medium text-gray-900 placeholder-gray-400 bg-white hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-200 focus:border-gray-500 transition-all duration-200"
+              className={`w-full h-11 px-4 border-2 rounded-xl text-sm font-medium text-gray-900 placeholder-gray-400 bg-white hover:border-gray-400 focus:outline-none focus:ring-2 transition-all duration-200 ${
+                urlError 
+                  ? 'border-red-300 focus:border-red-500 focus:ring-red-500/20' 
+                  : 'border-gray-300 focus:ring-emerald-500/20 focus:border-emerald-500'
+              }`}
               placeholder="https://example.com"
             />
+            {urlError && (
+              <p className="text-xs text-red-600 flex items-center gap-1 mt-1">
+                <AlertCircle className="h-3 w-3" />
+                {urlError}
+              </p>
+            )}
+            {!urlError && url && (
+              <p className="text-xs text-emerald-600 flex items-center gap-1 mt-1">
+                <CheckCircle2 className="h-3 w-3" />
+                Valid URL format
+              </p>
+            )}
           </div>
         </div>
-      </div>
+        )}
 
+      {hasSelection && (
       <div className="mt-6 pt-6 border-t border-gray-200">
-        <LabelSmall className="font-semibold text-gray-700 text-sm mb-3">Reachable by</LabelSmall>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5" role="group" aria-label="Reachable by">
+        <LabelSmall className="font-semibold text-gray-900 text-sm mb-3">Reachable by</LabelSmall>
+        <div className="grid grid-cols-2 gap-2.5" role="group" aria-label="Reachable by">
           {REACH_MODES.map(m => {
             const sel = reachableBy.includes(m);
             const Icon = REACH_ICONS[m as string];
@@ -3799,241 +3458,54 @@ function AddFacilityInline({ onAdd }:{ onAdd:(f:NearbyFacility)=>void }) {
                 role="checkbox"
                 aria-checked={sel}
                 onClick={() => toggleMode(m)}
-                className={`text-sm font-medium px-3 py-2.5 rounded-lg border flex items-center justify-center gap-2 transition-all duration-200 ${
+                className={`group relative w-full text-xs font-semibold px-3 py-2.5 rounded-xl border-2 flex items-center justify-center gap-2 transition-all duration-300 ${
                   sel 
-                    ? 'bg-[#02665e] text-white border-[#02665e] shadow-sm hover:bg-[#02665e]' 
-                    : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400 hover:bg-gray-50'
+                    ? 'bg-gradient-to-br from-emerald-50 to-emerald-100/50 text-emerald-700 border-emerald-500 shadow-md shadow-emerald-500/20' 
+                    : 'bg-white text-gray-700 border-gray-200 hover:border-emerald-300 hover:bg-emerald-50/30 hover:shadow-sm'
                 }`}
               >
-                {Icon ? <Icon className={`h-4 w-4 flex-shrink-0 ${sel ? 'text-white' : 'text-gray-600'}`} aria-hidden /> : null}
+                {Icon ? <Icon className={`h-4 w-4 flex-shrink-0 transition-colors duration-300 ${sel ? 'text-emerald-600' : 'text-gray-500'}`} aria-hidden /> : null}
                 <span className="truncate">{m}</span>
+                {sel && (
+                  <div className="absolute top-1 right-1 w-2 h-2 bg-emerald-500 rounded-full animate-pulse border border-white" />
+                )}
               </button>
             );
           })}
         </div>
       </div>
+      )}
 
-      <div className="mt-6 pt-6 border-t border-gray-200 flex justify-end">
+      {hasSelection && (
+      <div className="mt-6 pt-6 border-t border-gray-200 flex justify-end gap-3">
+        <button 
+          type="button" 
+          onClick={cancel}
+          className="px-6 py-3 rounded-xl text-sm font-semibold bg-white text-gray-700 border-2 border-gray-300 hover:bg-gray-50 hover:border-gray-400 transition-all duration-200"
+        >
+          Cancel
+        </button>
         <button
           type="button"
           onClick={add}
           disabled={!canAdd}
-          className={`px-6 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 ${
+          className={`px-6 py-3 rounded-xl text-sm font-semibold transition-all duration-200 ${
             canAdd 
-              ? "bg-[#02665e] text-white hover:bg-[#02665e] hover:shadow-md active:scale-95" 
+              ? "bg-emerald-600 text-white hover:bg-emerald-700 hover:shadow-lg active:scale-95" 
               : "bg-gray-200 text-gray-400 cursor-not-allowed border border-gray-300"
           }`}
         >
           Add facility
         </button>
-      </div>
-    </div>
-  );
-}
-
-function FacilityRow({
-  facility, onChange, onRemove
-}:{ facility: NearbyFacility; onChange:(f:NearbyFacility)=>void; onRemove:()=>void }) {
-
-  // allow multiple selection: toggle presence in array
-  const toggleMode = (m: ReachMode) => {
-    const current = facility.reachableBy || [];
-    const next = current.includes(m) ? current.filter(x => x !== m) : [...current, m];
-    onChange({ ...facility, reachableBy: next });
-  };
-
-  // Get context-aware placeholder based on selected type
-  const namePlaceholder = FACILITY_PLACEHOLDERS[facility.type] || "e.g. Facility name";
-
-  return (
-    <div className="bg-white rounded-xl p-6 border border-gray-200 hover:border-gray-300 hover:shadow-lg transition-all duration-300">
-      <div className="space-y-5">
-        {/* Type section - Full width with distinct styling */}
-        <div className="bg-gradient-to-br from-slate-50 to-white rounded-xl p-4 sm:p-5 border-2 border-slate-200">
-          <div className="flex items-center gap-2.5 mb-3.5">
-            <div className="p-1.5 bg-[#02665e]/10 rounded-lg">
-              <Building2 className="w-4 h-4 text-[#02665e]" />
-            </div>
-            <LabelSmall className="font-bold text-gray-800 text-sm">Facility Type</LabelSmall>
-          </div>
-          <div role="radiogroup" aria-label={`Facility type for ${facility.name || 'facility'}`} className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
-            {FACILITY_TYPES.map(t => {
-              const sel = facility.type === t;
-              return (
-                <button
-                  key={t}
-                  type="button"
-                  role="radio"
-                  aria-checked={sel}
-                  onClick={() => {
-                    const updatedFacility: NearbyFacility = { 
-                      ...facility, 
-                      type: t as FacilityType,
-                      ownership: requiresOwnership(t as FacilityType) ? facility.ownership : ""
-                    };
-                    onChange(updatedFacility);
-                  }}
-                  className={`text-xs font-medium px-3 py-2.5 rounded-lg border transition-all duration-300 ease-out text-center motion-safe:hover:scale-[1.02] motion-safe:active:scale-[0.98] ${
-                    sel
-                      ? 'bg-[#02665e] text-white border-[#02665e] shadow-md shadow-[#02665e]/20'
-                      : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400 hover:bg-gray-50'
-                  }`}
-                >
-                  {t}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-        
-        {/* Ownership section - Distinct card styling - Only show for Hospital, Pharmacy, Polyclinic, and Clinic */}
-        {requiresOwnership(facility.type) && (
-          <div className="bg-gradient-to-br from-blue-50/50 to-white rounded-xl p-4 sm:p-5 border-2 border-blue-100">
-            <div className="flex items-center gap-2.5 mb-3.5">
-              <div className="p-1.5 bg-blue-100 rounded-lg">
-                <Shield className="w-4 h-4 text-blue-700" />
-              </div>
-              <LabelSmall className="font-bold text-gray-800 text-sm">Ownership Type</LabelSmall>
-            </div>
-            <div role="radiogroup" aria-label="Ownership" className="grid grid-cols-2 gap-2.5 max-w-md">
-              {["Public/Government", "Private"].map(o => {
-                const sel = facility.ownership === o;
-                return (
-                  <button
-                    key={o}
-                    type="button"
-                    role="radio"
-                    aria-checked={sel}
-                    onClick={() => onChange({ ...facility, ownership: o as any })}
-                    className={`text-xs font-medium px-4 py-2.5 rounded-lg border transition-all duration-300 ease-out text-center motion-safe:hover:scale-[1.02] motion-safe:active:scale-[0.98] ${
-                      sel
-                        ? 'bg-[#02665e] text-white border-[#02665e] shadow-md shadow-[#02665e]/20'
-                        : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400 hover:bg-gray-50'
-                    }`}
-                  >
-                    {o}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+        {!canAdd && touched.name && (
+          <p className="text-xs text-red-600 flex items-center gap-1 mt-2">
+            <AlertCircle className="h-3 w-3" />
+            Please fill in all required fields correctly
+          </p>
         )}
-
-        {/* Name, Distance, and More info row */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {/* Name field */}
-          <div className="space-y-1.5">
-            <LabelSmall className="font-semibold text-gray-700 text-xs">Name</LabelSmall>
-            <input
-              title="Facility name"
-              placeholder={namePlaceholder}
-              value={facility.name}
-              onChange={e => onChange({ ...facility, name: e.target.value })}
-              className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs font-medium text-gray-900 placeholder-gray-400 bg-white hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-200 focus:border-gray-500 transition-all duration-200"
-            />
-          </div>
-          
-          {/* Distance field */}
-          <div className="space-y-1.5">
-            <LabelSmall className="font-semibold text-gray-700 text-xs">Distance (km)</LabelSmall>
-            <input
-              title="Distance (km)"
-              placeholder="2.5"
-              value={facility.distanceKm as any}
-              onChange={e => onChange({ ...facility, distanceKm: numOrEmpty(e.target.value) })}
-              type="number" 
-              step="0.1"
-              min="0"
-              className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs font-medium text-gray-900 placeholder-gray-400 bg-white hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-200 focus:border-gray-500 transition-all duration-200"
-            />
-          </div>
-          
-          {/* More info field */}
-          <div className="space-y-1.5">
-            <LabelSmall className="font-semibold text-gray-700 text-xs">More info (URL)</LabelSmall>
-            <input
-              title="More info (URL)"
-              placeholder="https://example.com"
-              value={facility.url ?? ""}
-              onChange={e => onChange({ ...facility, url: e.target.value })}
-              type="url"
-              className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs font-medium text-gray-900 placeholder-gray-400 bg-white hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-200 focus:border-gray-500 transition-all duration-200"
-            />
-          </div>
-        </div>
       </div>
-
-      <div className="mt-6 pt-6 border-t border-gray-200">
-        <LabelSmall className="font-semibold text-gray-700 text-sm mb-3">Reachable by</LabelSmall>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5" role="group" aria-label={`Reachable by for ${facility.name || 'facility'}`}> 
-          {REACH_MODES.map(m => {
-            const sel = facility.reachableBy.includes(m as ReachMode);
-            const Icon = REACH_ICONS[m as string];
-            return (
-              <button
-                key={m}
-                type="button"
-                role="checkbox"
-                aria-checked={sel}
-                onClick={() => toggleMode(m as ReachMode)}
-                className={`text-sm font-medium px-3 py-2.5 rounded-lg border flex items-center justify-center gap-2 transition-all duration-200 ${
-                  sel 
-                    ? 'bg-[#02665e] text-white border-[#02665e] shadow-sm hover:bg-[#02665e]' 
-                    : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400 hover:bg-gray-50'
-                }`}
-              >
-                {Icon ? <Icon className={`h-4 w-4 flex-shrink-0 ${sel ? 'text-white' : 'text-gray-600'}`} aria-hidden /> : null}
-                <span className="truncate">{m}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="mt-6 pt-6 border-t border-gray-200 flex justify-end">
-        <button 
-          type="button" 
-          onClick={onRemove} 
-          className="px-6 py-2.5 rounded-lg border border-gray-300 text-gray-700 font-semibold hover:bg-gray-100 hover:border-gray-400 active:scale-95 transition-all duration-200"
-        >
-          Remove
-        </button>
+      )}
       </div>
     </div>
   );
-}
-
-function LabelSmall({children, className=""}:{children:ReactNode; className?:string}) {
-  return <label className={`block text-xs text-gray-600 ${className}`}>{children}</label>;
-}
-
-/* utils */
-function numOrEmpty(v: string|number){ if (v === "" || v == null) return ""; const n = Number(v); return Number.isFinite(n) ? n : ""; }
-function numOrNull(v: any){ return v==="" || v==null ? null : Number(v); }
-function splitComma(s:string){ return s.split(",").map(x=>x.trim()).filter(Boolean); }
-function inferBasePrice(rooms: any[]){ 
-  const prices = rooms.map(r => {
-    // Try multiple possible field names for price
-    const price = r.pricePerNight || r.price || 0;
-    const numPrice = Number(price);
-    return numPrice > 0 ? numPrice : 0;
-  }).filter(n => n > 0); 
-  const result = prices.length ? Math.min(...prices) : null;
-  // Debug logging
-  console.log('[inferBasePrice]', { 
-    roomsCount: rooms.length, 
-    rooms: rooms.map(r => ({ pricePerNight: r.pricePerNight, price: r.price })), 
-    prices, 
-    result 
-  });
-  return result;
-}
-function toServerType(t: string){
-  const map: Record<string,string> = { "Guest House":"GUEST_HOUSE", "Townhouse":"TOWNHOUSE", "Other":"OTHER" };
-  const up = t.toUpperCase().replace(/\s+/g,"_");
-  return (map[t] ?? up);
-}
-function cryptoId() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
-  return Math.random().toString(36).slice(2);
 }

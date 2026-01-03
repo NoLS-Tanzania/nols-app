@@ -167,8 +167,10 @@ router.post("/from-booking", async (req: Request, res: Response) => {
       let code: string;
       let attempts = 0;
       const maxAttempts = 10;
+      let codeGenerated = false;
+      let generatedCodeId: number | undefined;
 
-      while (attempts < maxAttempts) {
+      while (attempts < maxAttempts && !codeGenerated) {
         code = "";
         for (let i = 0; i < 8; i++) {
           code += alphabet[crypto.randomInt(0, alphabet.length)];
@@ -186,8 +188,8 @@ router.post("/from-booking", async (req: Request, res: Response) => {
               generatedAt: new Date(),
             },
           });
-          codeId = codeRecord.id;
-          break;
+          generatedCodeId = codeRecord.id;
+          codeGenerated = true;
         } catch (error: any) {
           if (error?.code === "P2002") {
             attempts++;
@@ -197,9 +199,10 @@ router.post("/from-booking", async (req: Request, res: Response) => {
         }
       }
 
-      if (!codeId!) {
-        throw new Error("Failed to generate booking code");
+      if (!codeGenerated || !generatedCodeId) {
+        throw new Error("Failed to generate booking code after multiple attempts");
       }
+      codeId = generatedCodeId;
     } else {
       codeId = booking.code.id;
     }
@@ -214,32 +217,30 @@ router.post("/from-booking", async (req: Request, res: Response) => {
         return { duplicate: duplicate.id };
       }
 
-      // Create invoice
+      // Create invoice (only using fields that exist in the Invoice model)
+      // Format notes safely
+      const accommodationStr = Number(accommodationSubtotal).toLocaleString();
+      const transportStr = Number(transportFare).toLocaleString();
+      const totalStr = Number(totalAmount).toLocaleString();
+      
+      const notes = transportFare > 0 
+        ? `Accommodation: ${accommodationStr} TZS. Transportation: ${transportStr} TZS. Total: ${totalStr} TZS.`
+        : `Accommodation for ${nights} night${nights !== 1 ? 's' : ''} at ${booking.property.title}. Total: ${totalStr} TZS.`;
+
       const invoice = await tx.invoice.create({
         data: {
           invoiceNumber: makeInvoiceNumber(booking.id, codeId),
           ownerId: booking.property.ownerId,
           bookingId: booking.id,
-          checkinCodeId: codeId,
-          title: `${booking.property.title} — Accommodation Invoice`,
-          currency: booking.property.currency || "TZS",
-          senderName: booking.property.owner.name || `Owner #${booking.property.ownerId}`,
-          senderPhone: booking.property.owner.phone || null,
-          receiverName: "NoLSAF",
-          receiverAddress: "Dar es Salaam, Tanzania",
-          receiverPhone: "+255",
-          subtotal: accommodationSubtotal,
-          taxPercent: 0,
-          taxAmount: 0,
           total: totalAmount,
           netPayable: totalAmount, // Amount to be paid (includes transport if applicable)
+          commissionPercent: commissionPercent > 0 ? commissionPercent : null,
+          commissionAmount: commission > 0 ? commission : null,
+          taxPercent: 0,
           status: "APPROVED", // Auto-approve for public bookings
           paymentRef: `INVREF-${booking.id}-${Date.now()}`,
-          notes: transportFare > 0 
-            ? `Includes transportation fare: ${transportFare.toLocaleString()} TZS`
-            : null,
-          // Note: Invoice model doesn't have currency field, it's stored on property
-        } as any,
+          notes: notes,
+        },
       });
 
       // Note: Invoice items are not stored separately in this schema
@@ -285,9 +286,30 @@ router.post("/from-booking", async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error("POST /api/public/invoices/from-booking error:", error);
+    console.error("Error details:", {
+      message: error?.message,
+      code: error?.code,
+      stack: error?.stack,
+    });
+
+    // Handle Prisma errors
+    if (error?.code === "P2002") {
+      return res.status(409).json({ 
+        error: "Invoice conflict detected",
+        message: "An invoice with similar details already exists",
+      });
+    }
+
+    // Generic error response (include message in development for debugging)
     return res.status(500).json({
       error: "Failed to create invoice",
-      message: process.env.NODE_ENV === "development" ? error?.message : undefined,
+      message: process.env.NODE_ENV === "development" ? error?.message : "An unexpected error occurred. Please try again.",
+      ...(process.env.NODE_ENV === "development" && { 
+        details: {
+          code: error?.code,
+          name: error?.name,
+        }
+      }),
     });
   }
 });
@@ -315,6 +337,7 @@ router.get("/:id", async (req: Request, res: Response) => {
                 photos: true,
                 type: true,
                 currency: true,
+                basePrice: true,
               },
             },
             code: {
@@ -338,12 +361,28 @@ router.get("/:id", async (req: Request, res: Response) => {
         (1000 * 60 * 60 * 24)
     );
 
+    // Calculate price breakdown
+    const basePrice = invoice.booking.property.basePrice ? Number(invoice.booking.property.basePrice) : 0;
+    const accommodationSubtotal = basePrice * nights;
+    const totalAmount = Number(invoice.total || 0);
+    const taxPercent = invoice.taxPercent ? Number(invoice.taxPercent) : 0;
+    const taxAmount = taxPercent > 0 ? (accommodationSubtotal * taxPercent) / 100 : 0;
+    const commission = invoice.commissionAmount ? Number(invoice.commissionAmount) : 0;
+    
+    // Calculate subtotal (accommodation + tax + commission)
+    const subtotalBeforeTransport = accommodationSubtotal + taxAmount + commission;
+    const transportFare = totalAmount > subtotalBeforeTransport ? totalAmount - subtotalBeforeTransport : 0;
+    
+    // Calculate discount if total is less than expected
+    const expectedTotal = accommodationSubtotal + taxAmount + commission + transportFare;
+    const discount = expectedTotal > totalAmount ? expectedTotal - totalAmount : 0;
+
     return res.json({
       id: invoice.id,
       invoiceNumber: invoice.invoiceNumber,
       paymentRef: invoice.paymentRef,
       status: invoice.status,
-      totalAmount: Number(invoice.total || 0),
+      totalAmount: totalAmount,
       currency: invoice.booking.property.currency || "TZS",
       booking: {
         id: invoice.booking.id,
@@ -351,13 +390,29 @@ router.get("/:id", async (req: Request, res: Response) => {
         checkIn: invoice.booking.checkIn,
         checkOut: invoice.booking.checkOut,
         nights: nights,
+        guestName: invoice.booking.guestName || null,
+        guestPhone: invoice.booking.guestPhone || null,
+        roomCode: invoice.booking.roomCode || null,
+        totalAmount: Number(invoice.booking.totalAmount || 0),
       },
       property: {
         id: invoice.booking.property.id,
         title: invoice.booking.property.title,
+        type: invoice.booking.property.type,
         primaryImage: Array.isArray(invoice.booking.property.photos) && invoice.booking.property.photos.length > 0
           ? invoice.booking.property.photos[0]
           : null,
+        basePrice: basePrice,
+      },
+      priceBreakdown: {
+        accommodationSubtotal: accommodationSubtotal,
+        taxPercent: taxPercent,
+        taxAmount: taxAmount,
+        discount: discount,
+        transportFare: transportFare > 0 ? transportFare : 0,
+        commission: commission,
+        subtotal: subtotalBeforeTransport + transportFare,
+        total: totalAmount,
       },
     });
   } catch (error: any) {

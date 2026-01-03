@@ -9,7 +9,15 @@ import { io, Socket } from "socket.io-client";
 import Link from "next/link";
 
 // Use same-origin calls + secure httpOnly cookie session.
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = axios.create({ 
+  baseURL: "", 
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  },
+  responseType: 'json',
+});
 
 type InvoiceRow = {
   id: number;
@@ -85,8 +93,20 @@ export default function AdminRevenue() {
       try {
         // Try to load owners and properties, but don't fail if endpoints don't exist
         const [ownersRes, propertiesRes] = await Promise.all([
-          api.get("/api/admin/users", { params: { role: "OWNER", page: 1, pageSize: 100 } }).catch(() => ({ data: { data: [] } })),
-          api.get("/api/admin/properties", { params: { status: "APPROVED", page: 1, pageSize: 100 } }).catch(() => ({ data: { items: [] } })),
+          api.get("/api/admin/users", { 
+            params: { role: "OWNER", page: 1, pageSize: 100 },
+            headers: { 'Accept': 'application/json' },
+          }).catch((err: any) => {
+            console.warn("Failed to load owners for filter:", err?.response?.status || err?.message);
+            return { data: { data: [] } };
+          }),
+          api.get("/api/admin/properties", { 
+            params: { status: "APPROVED", page: 1, pageSize: 100 },
+            headers: { 'Accept': 'application/json' },
+          }).catch((err: any) => {
+            console.warn("Failed to load properties for filter:", err?.response?.status || err?.message);
+            return { data: { items: [] } };
+          }),
         ]);
         const ownersData = (ownersRes.data as any)?.data || [];
         const propertiesData = (propertiesRes.data as any)?.items || [];
@@ -94,6 +114,7 @@ export default function AdminRevenue() {
         setProperties(propertiesData.map((p: any) => ({ id: p.id, title: p.title || "" })));
       } catch (e) {
         // ignore - filters will still work with manual entry
+        console.warn("Error loading filter data:", e);
       }
     })();
   }, []);
@@ -178,10 +199,16 @@ export default function AdminRevenue() {
         setItems(r.data.items || []);
         setTotal(r.data.total || 0);
       }
-    } catch (e) {
-      // ignore fetch errors for now
+    } catch (e: any) {
+      // Handle errors gracefully - log but don't crash
+      console.error("Error loading invoices:", e?.response?.data || e?.message || e);
       setItems([]);
       setTotal(0);
+      
+      // If it's a network error or non-JSON response, show a user-friendly message
+      if (e?.response?.status === 0 || !e?.response?.data) {
+        console.warn("Network error or non-JSON response received");
+      }
     } finally {
       setLoading(false);
     }
@@ -197,22 +224,22 @@ export default function AdminRevenue() {
         // helper to fetch total for a given status
         const getTotal = async (s: string) => {
           if (s === "") {
-            const r = await api.get("/admin/invoices", { params: { from: from || undefined, to: to || undefined, page: 1, pageSize: 1 } });
+            const r = await api.get("/api/admin/revenue/invoices", { params: { from: from || undefined, to: to || undefined, page: 1, pageSize: 1 } });
             return (r?.data?.total ?? (Array.isArray(r?.data?.items) ? r.data.items.length : 0)) as number;
           }
 
           if (s === "REQUESTED") {
             // New = REQUESTED + VERIFIED
             const [a, b] = await Promise.all([
-              api.get("/admin/invoices", { params: { status: "REQUESTED", from: from || undefined, to: to || undefined, page: 1, pageSize: 1 } }),
-              api.get("/admin/invoices", { params: { status: "VERIFIED", from: from || undefined, to: to || undefined, page: 1, pageSize: 1 } }),
+              api.get("/api/admin/revenue/invoices", { params: { status: "REQUESTED", from: from || undefined, to: to || undefined, page: 1, pageSize: 1 } }),
+              api.get("/api/admin/revenue/invoices", { params: { status: "VERIFIED", from: from || undefined, to: to || undefined, page: 1, pageSize: 1 } }),
             ]);
             const ta = (a?.data?.total ?? (Array.isArray(a?.data?.items) ? a.data.items.length : 0)) as number;
             const tb = (b?.data?.total ?? (Array.isArray(b?.data?.items) ? b.data.items.length : 0)) as number;
             return ta + tb;
           }
 
-          const r = await api.get("/admin/invoices", { params: { status: s || undefined, from: from || undefined, to: to || undefined, page: 1, pageSize: 1 } });
+          const r = await api.get("/api/admin/revenue/invoices", { params: { status: s || undefined, from: from || undefined, to: to || undefined, page: 1, pageSize: 1 } });
           return (r?.data?.total ?? (Array.isArray(r?.data?.items) ? r.data.items.length : 0)) as number;
         };
 
@@ -258,17 +285,21 @@ export default function AdminRevenue() {
     if (typeof window === 'undefined') return;
     
     // Use direct API URL for Socket.IO in browser to ensure WebSocket works in dev
-    const url = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+    // Convert http:// to ws:// for WebSocket connections
+    const apiUrl = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+    const wsUrl = apiUrl.replace(/^http/, 'ws');
     
     let s: Socket | null = null;
     try {
-      s = io(url, { 
+      s = io(apiUrl, { 
         transports: ['websocket', 'polling'],
         reconnection: true,
-        reconnectionAttempts: 3,
+        reconnectionAttempts: 5,
         reconnectionDelay: 2000,
-        timeout: 10000,
+        reconnectionDelayMax: 10000,
+        timeout: 20000,
         autoConnect: true,
+        forceNew: false,
       });
 
       const refresh = () => {
@@ -278,7 +309,11 @@ export default function AdminRevenue() {
 
       s.on("admin:invoice:paid", refresh);
       s.on("admin:invoice:status", refresh);
+      s.on("connect", () => {
+        console.debug("Socket.IO connected successfully");
+      });
       s.on("connect_error", (err) => {
+        // Only log as warning, don't throw - Socket.IO will retry
         console.warn("Socket.IO connection error:", err.message);
       });
       s.on("disconnect", (reason) => {
@@ -293,6 +328,9 @@ export default function AdminRevenue() {
         try {
           s.off("admin:invoice:paid");
           s.off("admin:invoice:status");
+          s.off("connect");
+          s.off("connect_error");
+          s.off("disconnect");
           s.disconnect();
         } catch (err) {
           console.warn("Error cleaning up Socket.IO:", err);

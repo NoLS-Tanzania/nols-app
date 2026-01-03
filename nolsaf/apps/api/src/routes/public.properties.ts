@@ -134,9 +134,11 @@ const listPublicProperties: RequestHandler = async (req, res) => {
         );
       }
 
-      const servicesWhere = Prisma.join(clauses, Prisma.sql` AND `);
-      const idsRows = await prisma.$queryRaw<{ id: number }[]>(Prisma.sql`SELECT id FROM \`Property\` WHERE ${servicesWhere}`);
-      const ids = (idsRows || []).map((r) => Number(r.id)).filter((n) => Number.isFinite(n));
+      const servicesWhere = Prisma.join(clauses, " AND ");
+      const idsRows = (await prisma.$queryRaw(
+        Prisma.sql`SELECT id FROM \`Property\` WHERE ${servicesWhere}`
+      )) as Array<{ id: number }>;
+      const ids = (idsRows || []).map((r: { id: number }) => Number(r.id)).filter((n: number) => Number.isFinite(n));
       // If no ids match, we can return early.
       if (ids.length === 0) return res.json({ items: [], total: 0, page, pageSize });
       where.id = { in: ids };
@@ -171,9 +173,11 @@ const listPublicProperties: RequestHandler = async (req, res) => {
   }
 
   const orderBy: any[] = [];
-  if (sort === "price_asc") orderBy.push({ basePrice: "asc" }, { updatedAt: "desc" });
-  else if (sort === "price_desc") orderBy.push({ basePrice: "desc" }, { updatedAt: "desc" });
-  else orderBy.push({ updatedAt: "desc" });
+  // NOTE: Avoid MySQL "Out of sort memory" errors on large tables by sorting on indexed PK.
+  // "newest" is approximated by highest id (monotonic in our schema).
+  if (sort === "price_asc") orderBy.push({ basePrice: "asc" }, { id: "desc" });
+  else if (sort === "price_desc") orderBy.push({ basePrice: "desc" }, { id: "desc" });
+  else orderBy.push({ id: "desc" });
 
   try {
     const [items, total] = await Promise.all([
@@ -210,6 +214,7 @@ const listPublicProperties: RequestHandler = async (req, res) => {
     ]);
 
     const dto = (items || []).map(toPublicCard);
+
     return res.json({ items: dto, total, page, pageSize });
   } catch (err: any) {
     console.error("public.properties.list failed", err);
@@ -235,6 +240,8 @@ const getPublicProperty: RequestHandler = async (req, res) => {
         type: true,
         status: true,
         description: true,
+        buildingType: true,
+        totalFloors: true,
         regionName: true,
         district: true,
         ward: true,
@@ -261,7 +268,10 @@ const getPublicProperty: RequestHandler = async (req, res) => {
     });
 
     if (!p) return res.status(404).json({ error: "not_found" });
-    return res.json({ property: toPublicDetail(p) });
+
+    const dto = toPublicDetail(p);
+
+    return res.json({ property: dto });
   } catch (err: any) {
     console.error("public.properties.get failed", err);
     return res.status(500).json({ error: "failed", message: err?.message || String(err) });
@@ -289,14 +299,15 @@ const topCities: RequestHandler = async (req, res) => {
 
     const cleaned = grouped
       .map((g: any) => ({ city: String(g.city || "").trim(), count: Number(g._count?.city ?? 0) }))
-      .filter((g) => Boolean(g.city) && Number.isFinite(g.count) && g.count > 0)
+      .filter((g: { city: string; count: number }) => Boolean(g.city) && Number.isFinite(g.count) && g.count > 0)
       .slice(0, take);
 
     const items = await Promise.all(
-      cleaned.map(async (g) => {
+      cleaned.map(async (g: { city: string; count: number }) => {
         const sample = await prisma.property.findFirst({
           where: { status: "APPROVED", city: g.city },
-          orderBy: { updatedAt: "desc" },
+          // Avoid MySQL sort memory on updatedAt; id is indexed and stable for "newest".
+          orderBy: { id: "desc" },
           select: {
             id: true,
             title: true,

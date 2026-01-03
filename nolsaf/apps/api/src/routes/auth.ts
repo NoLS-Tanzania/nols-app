@@ -10,6 +10,8 @@ import { validatePasswordWithSettings } from '../lib/securitySettings.js';
 import { signUserJwt, setAuthCookie, clearAuthCookie } from '../lib/sessionManager.js';
 import { limitOtpSend, limitOtpVerify, limitLoginAttempts } from '../middleware/rateLimit.js';
 import { isEmailLocked, recordFailedAttempt, clearFailedAttempts, getRemainingAttempts, getLockoutStatus } from '../lib/loginAttemptTracker.js';
+import { debugLog } from "../lib/debugLog.js";
+const log = (data: any) => void debugLog(data);
 
 const router = Router();
 

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 
 // Use same-origin calls + secure httpOnly cookie session.
@@ -58,16 +58,19 @@ export default function OwnerPropertyLayoutPage({ params }:{ params:{ id:string 
     })();
   },[propertyId]);
 
-  async function fetchAvailability() {
+  const fetchAvailability = useCallback(async () => {
     if (!from || !to) return;
     const r = await api.get<Availability>(`/owner/properties/${propertyId}/availability`, { params: { from, to }});
     const map: Record<string, AvItem> = {};
     for (const it of r.data.rooms) map[it.code] = it;
     setAvailability(map);
-  }
+  }, [from, to, propertyId]);
 
-  useEffect(()=>{ if (layout) fetchAvailability(); }, [layout]);
-  useEffect(()=>{ if (layout) fetchAvailability(); }, [from, to]);
+  useEffect(() => {
+    if (layout) {
+      fetchAvailability();
+    }
+  }, [layout, fetchAvailability]);
 
   const floor = useMemo(()=> layout?.floors.find(f=>f.id===activeFloor) ?? layout?.floors[0], [layout, activeFloor]);
 
@@ -79,10 +82,10 @@ export default function OwnerPropertyLayoutPage({ params }:{ params:{ id:string 
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <h1 className="text-xl font-semibold">Floor Plan</h1>
         <div className="flex items-center gap-2">
-          <label className="text-sm">From</label>
-          <input type="date" value={from} onChange={e=>setFrom(e.target.value)} className="border rounded px-2 py-1"/>
-          <label className="text-sm">To</label>
-          <input type="date" value={to} onChange={e=>setTo(e.target.value)} className="border rounded px-2 py-1"/>
+          <label className="text-sm" htmlFor="date-from">From</label>
+          <input id="date-from" type="date" value={from} onChange={e=>setFrom(e.target.value)} className="border rounded px-2 py-1" aria-label="From date"/>
+          <label className="text-sm" htmlFor="date-to">To</label>
+          <input id="date-to" type="date" value={to} onChange={e=>setTo(e.target.value)} className="border rounded px-2 py-1" aria-label="To date"/>
           <button className="px-3 py-1 rounded border" onClick={fetchAvailability}>Refresh</button>
         </div>
         <div className="flex items-center gap-2">
@@ -158,7 +161,15 @@ export default function OwnerPropertyLayoutPage({ params }:{ params:{ id:string 
 
 /* ---- small UI bits ---- */
 function ColorBox({hex}:{hex:string}) {
-  return <span className="w-4 h-4 inline-block rounded" style={{background:hex}}/>;
+  const boxRef = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (boxRef.current) {
+      boxRef.current.style.background = hex;
+    }
+  }, [hex]);
+
+  return <span ref={boxRef} className="w-4 h-4 inline-block rounded"/>;
 }
 
 /* ---- color helpers: 0% => green, 50% => amber, 100% => red ---- */

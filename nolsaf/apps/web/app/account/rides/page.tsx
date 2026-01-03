@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { Car, MapPin, Clock, Star, User, CheckCircle, Calendar, ArrowRight, Phone, Navigation } from "lucide-react";
+import { Car, MapPin, Clock, Star, User, CheckCircle, Calendar, ArrowRight, Phone, Navigation, MessageCircle, Eye } from "lucide-react";
 import Link from "next/link";
 
 const api = axios.create({ baseURL: "", withCredentials: true });
@@ -404,6 +404,17 @@ export default function MyRidesPage() {
                       </div>
                     </div>
                   )}
+
+                  {/* Action Buttons */}
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
+                    <Link
+                      href={`/account/rides/${ride.id}`}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#02665e] text-white text-sm font-semibold hover:bg-[#014e47] transition-colors shadow-sm hover:shadow-md"
+                    >
+                      <Eye className="w-4 h-4" />
+                      View Details
+                    </Link>
+                  </div>
                 </div>
               </div>
             </div>

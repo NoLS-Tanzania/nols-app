@@ -49,10 +49,33 @@
   .nols-pay-tile:focus-visible::before { animation: none !important; }
 }
 
+/* ---------- Subtle entrance animations (shared) ---------- */
+@keyframes nols-fade-up {
+  from { opacity: 0; transform: translate3d(0, 10px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+.nols-entrance {
+  animation: nols-fade-up 420ms cubic-bezier(.2,.8,.2,1) both;
+}
+.nols-delay-1 { animation-delay: 60ms; }
+.nols-delay-2 { animation-delay: 120ms; }
+.nols-delay-3 { animation-delay: 180ms; }
+.nols-delay-4 { animation-delay: 240ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  .nols-entrance,
+  .nols-delay-1,
+  .nols-delay-2,
+  .nols-delay-3,
+  .nols-delay-4 {
+    animation: none !important;
+  }
+}
+
 /* Hide scrollbar but keep functionality */
 .scrollbar-hide {
   -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
 }
 .scrollbar-hide::-webkit-scrollbar {
   display: none;  /* Chrome, Safari and Opera */
@@ -2300,13 +2323,12 @@ a[aria-label="Toggle theme"].mobile {
 
 /* Status filter horizontal scroll - hide scrollbar on small devices */
 .status-filter-scroll { overflow-x: auto; }
-.status-filter-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+.status-filter-scroll { -ms-overflow-style: none; }
 .status-filter-scroll::-webkit-scrollbar { display: none; }
 
 /* Scrollbar hide utility */
 .scrollbar-hide {
   -ms-overflow-style: none;
-  scrollbar-width: none;
 }
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
@@ -2330,6 +2352,33 @@ a[aria-label="Toggle theme"].mobile {
 
 @media (prefers-reduced-motion: reduce) {
   .nls-blink { animation: none !important; }
+}
+
+/* ---------- Add Property flip-book transition ---------- */
+@keyframes nls-flipbook-in {
+  0% {
+    opacity: 0;
+    transform: perspective(1200px) rotateY(-10deg) translateX(14px) scale(0.985);
+  }
+  60% {
+    opacity: 1;
+    transform: perspective(1200px) rotateY(-2deg) translateX(3px) scale(0.995);
+  }
+  100% {
+    opacity: 1;
+    transform: perspective(1200px) rotateY(0deg) translateX(0px) scale(1);
+  }
+}
+
+.nls-flipbook {
+  transform-origin: left center;
+  backface-visibility: hidden;
+  will-change: transform, opacity;
+  animation: nls-flipbook-in 420ms cubic-bezier(0.2, 0.9, 0.2, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nls-flipbook { animation: none !important; }
 }
 
 /* ---------- Owner horizontal stepper (Booking.com style) ---------- */
@@ -2780,7 +2829,6 @@ article[class*="max-w"] span {
 /* Terms content text alignment - justified (block-like) on all screen sizes */
 .terms-content {
   text-align: justify;
-  text-justify: inter-word;
 }
 
 .terms-content p,
@@ -2788,7 +2836,6 @@ article[class*="max-w"] span {
 .terms-content span,
 .terms-content li {
   text-align: justify;
-  text-justify: inter-word;
   word-break: break-word;
   overflow-wrap: break-word;
   hyphens: auto;

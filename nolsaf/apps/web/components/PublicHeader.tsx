@@ -371,6 +371,7 @@ export default function PublicHeader({
                 height={logoDims.height}
                 className="object-contain transition-all duration-300 group-hover:brightness-110 w-auto max-w-[56px] sm:max-w-[64px]"
                 style={{
+                  width: "auto",
                   // Bigger + responsive like footer brand presence, but compact when scrolled.
                   height: compact ? '34px' : (scrolled ? '38px' : '48px'),
                   transform: scrolled ? 'scale(0.98)' : 'scale(1)',

@@ -1,4 +1,6 @@
 import { getMaxLoginAttempts, getAccountLockoutDurationMinutes, shouldLogFailedLoginAttempts } from './securitySettings.js';
+import { debugLog } from "./debugLog.js";
+const log = (data: any) => void debugLog(data);
 
 /**
  * In-memory login attempt tracker

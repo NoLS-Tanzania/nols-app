@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import PropertyPreview from "@/components/PropertyPreview";
-import { Loader2, ScanEye, MapPin, Star, Search, X, Filter, ChevronDown, ChevronUp } from "lucide-react";
+import { Loader2, ScanEye, MapPin, Star, Search, X, Filter } from "lucide-react";
 import axios from "axios";
 import Image from "next/image";
 import { 

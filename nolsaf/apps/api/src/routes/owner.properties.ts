@@ -16,6 +16,10 @@ const baseBodySchema = z.object({
   type: z.string(), // e.g. VILLA | APARTMENT | HOTEL | ...
   description: z.string().max(10_000).optional().nullable(),
 
+  // building / structure
+  buildingType: z.string().optional().nullable(),
+  totalFloors: z.number().int().nonnegative().optional().nullable(),
+
   // location
   // regionId: Accept string (slug like "dar-es-salaam") or number (code like 11)
   // Database stores as VARCHAR(50), so both formats work
@@ -52,6 +56,8 @@ const baseBodySchema = z.object({
       nearbyFacilities: z.array(z.any()).optional(),
     }),
   ]).default([]),
+  // house rules captured in the creation flow (stored into `services.houseRules` for now)
+  houseRules: z.any().optional().nullable(),
 
   // pricing
   basePrice: z.number().nonnegative().optional().nullable(),
@@ -95,7 +101,9 @@ function cleanServices(services: unknown): any {
       'parking', 'parkingPrice', 'breakfastIncluded', 'breakfastAvailable',
       'restaurant', 'bar', 'pool', 'sauna', 'laundry', 'roomService',
       'security24', 'firstAid', 'fireExtinguisher', 'onSiteShop', 'nearbyMall',
-      'socialHall', 'sportsGames', 'gym', 'wifi', 'ac'
+      'socialHall', 'sportsGames', 'gym', 'wifi', 'ac',
+      // Persist house rules inside services JSON for admin/owner previews
+      'houseRules'
     ];
     
     for (const prop of serviceProperties) {
@@ -107,8 +115,8 @@ function cleanServices(services: unknown): any {
     // Clean and add tags if present
     if (Array.isArray(obj.tags)) {
       const cleanTags = obj.tags
-        .filter((s): s is string => typeof s === "string")
-        .map((s) => s.trim())
+        .filter((s: any): s is string => typeof s === "string")
+        .map((s: string) => s.trim())
         .filter(Boolean);
       result.tags = Array.from(new Set(cleanTags)).slice(0, 200);
     }
@@ -130,6 +138,10 @@ function submitGuard(_p: any): boolean {
 }
 
 export const router = Router();
+
+// Note: Body parser middleware with 10mb limit is applied at app level in index.ts
+// before the global 100kb limit, so property routes can handle large payloads
+
 // Cast middlewares so Router.use picks the correct overload
 router.use(
   requireAuth as unknown as import("express").RequestHandler,
@@ -140,66 +152,261 @@ router.use(
 
 // ---------- LIST MINE ----------
 router.get("/mine", (async (req: AuthedRequest, res) => {
-  const ownerId = req.user!.id;
-  const { status, page = "1", pageSize = "20" } = req.query as any;
+  try {
+    const ownerId = req.user!.id;
+    if (!ownerId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
 
-  const where: any = { ownerId };
-  if (status) where.status = status;
+    const { status, page = "1", pageSize = "20" } = req.query as any;
 
-  const skip = (Number(page) - 1) * Number(pageSize);
-  const [items, total] = await Promise.all([
-    prisma.property.findMany({
-      where,
-      orderBy: { updatedAt: "desc" },
-      skip,
-      take: Number(pageSize),
-    }),
-    prisma.property.count({ where }),
-  ]);
+    const where: any = { ownerId };
+    if (status) {
+      where.status = status;
+      console.log(`GET /mine: Filtering by status=${status} for ownerId=${ownerId}`);
+    } else {
+      console.log(`GET /mine: No status filter, fetching all properties for ownerId=${ownerId}`);
+    }
+    
+    // Debug: Check total properties for this owner (any status)
+    try {
+      const totalForOwner = await prisma.property.count({ where: { ownerId } });
+      console.log(`GET /mine: Total properties for owner ${ownerId}: ${totalForOwner}`);
+      if (status) {
+        const totalWithStatus = await prisma.property.count({ where: { ownerId, status } });
+        console.log(`GET /mine: Properties with status ${status} for owner ${ownerId}: ${totalWithStatus}`);
+      }
+    } catch (debugError) {
+      console.error("Debug query failed:", debugError);
+    }
 
-  // For suspended properties, fetch the suspension reason from audit logs
-  const itemsWithSuspensionReason = await Promise.all(
-    items.map(async (item) => {
-      if (item.status === "SUSPENDED" || item.status === "PENDING") {
-        // Check if this PENDING status came from a suspension
-        const lastSuspendAudit = await prisma.auditLog.findFirst({
-          where: {
-            entity: "PROPERTY",
-            entityId: item.id,
-            action: "PROPERTY_SUSPEND",
-          },
-          orderBy: { createdAt: "desc" },
-        });
+    const skip = Math.max(0, (Number(page) - 1) * Number(pageSize));
+    const take = Math.max(1, Math.min(100, Number(pageSize))); // Limit pageSize to prevent abuse
 
-        if (lastSuspendAudit) {
-          // Parse the afterJson to get the reason
-          let suspensionReason = null;
-          try {
-            const afterJson = typeof lastSuspendAudit.afterJson === 'string' 
-              ? JSON.parse(lastSuspendAudit.afterJson) 
-              : lastSuspendAudit.afterJson;
-            suspensionReason = afterJson?.reason || null;
-          } catch {
-            // If parsing fails, try to get reason from afterJson directly
-            suspensionReason = (lastSuspendAudit.afterJson as any)?.reason || null;
+    let items: any[] = [];
+    let total = 0;
+
+    try {
+      [items, total] = await Promise.all([
+        prisma.property.findMany({
+          where,
+          // Avoid MySQL "Out of sort memory" on large tables by ordering on indexed PK
+          orderBy: { id: "desc" },
+          skip,
+          take,
+          // Don't use select - we need all fields, but we'll serialize safely below
+        }),
+        prisma.property.count({ where }),
+      ]);
+      console.log(`GET /mine: Found ${items.length} items (total: ${total}) with status=${status || 'all'} for ownerId=${ownerId}`);
+    } catch (dbError: any) {
+      console.error("Database error in GET /mine:", dbError);
+      console.error("Error details:", {
+        code: dbError?.code,
+        message: dbError?.message,
+        meta: dbError?.meta,
+      });
+      // Return empty result instead of crashing (following admin.properties pattern)
+      return res.json({
+        page: Number(page),
+        pageSize: take,
+        total: 0,
+        items: [],
+      });
+    }
+
+    // Safety check - ensure items is an array
+    if (!Array.isArray(items)) {
+      console.error("Items is not an array:", typeof items, items);
+      items = [];
+    }
+
+    // For suspended properties, fetch the suspension reason from audit logs
+    // Process items sequentially to avoid overwhelming the database and handle errors gracefully
+    const processedItems: any[] = [];
+    
+    // Helper function to safely serialize a Prisma object
+    const serializePrismaObject = (obj: any): any => {
+      if (obj === null || obj === undefined) return obj;
+      if (!obj || typeof obj !== 'object') return obj;
+      
+      const result: any = {};
+      const keys = Object.keys(obj);
+      
+      for (const key of keys) {
+        try {
+          const value = obj[key];
+          
+          // Skip functions and symbols
+          if (typeof value === 'function' || typeof value === 'symbol') {
+            continue;
           }
-
-          return {
-            ...item,
-            suspensionReason,
-          };
+          
+          // Handle Dates
+          if (value instanceof Date) {
+            result[key] = value.toISOString();
+          }
+          // Handle BigInt
+          else if (typeof value === 'bigint') {
+            result[key] = value.toString();
+          }
+          // Handle null/undefined
+          else if (value === null || value === undefined) {
+            result[key] = value;
+          }
+          // Handle arrays
+          else if (Array.isArray(value)) {
+            result[key] = value.map(v => serializePrismaObject(v));
+          }
+          // Handle nested objects (but skip Prisma internal properties)
+          else if (typeof value === 'object') {
+            // Skip Prisma internal properties
+            if (key.startsWith('_') || key === 'toJSON' || key === 'toString') {
+              continue;
+            }
+            try {
+              result[key] = serializePrismaObject(value);
+            } catch {
+              // If nested object can't be serialized, skip it
+              continue;
+            }
+          }
+          // Handle primitives
+          else {
+            result[key] = value;
+          }
+        } catch (fieldError) {
+          // Skip fields that can't be serialized
+          continue;
         }
       }
-      return item;
-    })
-  );
+      
+      return result;
+    };
+    
+    for (const item of items) {
+      try {
+        // Serialize the Prisma object to a plain JavaScript object
+        let processedItem: any;
+        try {
+          processedItem = serializePrismaObject(item);
+          
+          // Ensure essential fields are present
+          if (!processedItem.id) processedItem.id = item?.id;
+          if (!processedItem.status) processedItem.status = item?.status;
+          if (!processedItem.title) processedItem.title = item?.title;
+        } catch (serializeError: any) {
+          console.error("Error serializing property item", item?.id, serializeError);
+          // Fallback to minimal object
+          processedItem = {
+            id: item?.id || null,
+            title: item?.title || null,
+            status: item?.status || null,
+            createdAt: item?.createdAt instanceof Date ? item.createdAt.toISOString() : null,
+            updatedAt: item?.updatedAt instanceof Date ? item.updatedAt.toISOString() : null,
+          };
+        }
 
-  res.json({
-    page: Number(page),
-    pageSize: Number(pageSize),
-    total,
-    items: itemsWithSuspensionReason,
-  });
+        // Only check for suspension reason if status is SUSPENDED
+        if (item.status === "SUSPENDED" && item.id) {
+          try {
+            const lastSuspendAudit = await prisma.auditLog.findFirst({
+              where: {
+                entity: "PROPERTY",
+                entityId: item.id,
+                action: "PROPERTY_SUSPEND",
+              },
+              orderBy: { createdAt: "desc" },
+            });
+
+            if (lastSuspendAudit) {
+              // Parse the afterJson to get the reason
+              let suspensionReason = null;
+              try {
+                const afterJson = typeof lastSuspendAudit.afterJson === 'string' 
+                  ? JSON.parse(lastSuspendAudit.afterJson) 
+                  : lastSuspendAudit.afterJson;
+                suspensionReason = afterJson?.reason || null;
+              } catch {
+                // If parsing fails, try to get reason from afterJson directly
+                suspensionReason = (lastSuspendAudit.afterJson as any)?.reason || null;
+              }
+              processedItem.suspensionReason = suspensionReason;
+            }
+          } catch (err) {
+            // If there's an error fetching suspension reason, just continue without it
+            console.error("Error fetching suspension reason for property", item.id, err);
+          }
+        }
+
+        processedItems.push(processedItem);
+      } catch (itemError: any) {
+        // If processing an individual item fails, log it but continue with other items
+        console.error("Error processing property", item?.id, itemError);
+        // Still add the item but with minimal data
+        try {
+          processedItems.push({
+            id: item?.id || null,
+            title: item?.title || null,
+            status: item?.status || null,
+            createdAt: item?.createdAt instanceof Date ? item.createdAt.toISOString() : null,
+            updatedAt: item?.updatedAt instanceof Date ? item.updatedAt.toISOString() : null,
+          });
+        } catch (minimalError) {
+          // If even minimal serialization fails, skip this item
+          console.error("Failed to create minimal item object", item?.id, minimalError);
+        }
+      }
+    }
+
+    // Final safety check - ensure response is serializable
+    try {
+      const response = {
+        page: Number(page),
+        pageSize: take,
+        total,
+        items: processedItems,
+      };
+      
+      // Test serialization before sending
+      JSON.stringify(response);
+      
+      res.json(response);
+    } catch (jsonError: any) {
+      console.error("JSON serialization error in GET /mine response:", jsonError);
+      // Return minimal safe response
+      res.json({
+        page: Number(page),
+        pageSize: take,
+        total: 0,
+        items: [],
+      });
+    }
+  } catch (error: any) {
+    console.error("Error in GET /mine:", error);
+    console.error("Error stack:", error?.stack);
+    console.error("Error details:", {
+      code: (error as any)?.code,
+      message: error?.message,
+      meta: (error as any)?.meta,
+    });
+    // Return empty result instead of error to prevent breaking the UI
+    try {
+      res.json({
+        page: Number(req.query?.page) || 1,
+        pageSize: Number(req.query?.pageSize) || 20,
+        total: 0,
+        items: [],
+      });
+    } catch (responseError: any) {
+      // If even sending empty response fails, send minimal error
+      console.error("Failed to send error response:", responseError);
+      res.status(500).json({ 
+        error: "Internal Server Error",
+        message: "Failed to fetch properties"
+      });
+    }
+  }
 }) as RequestHandler);
 
 // ---------- GET BY ID ----------
@@ -224,7 +431,54 @@ router.get("/:id", (async (req: AuthedRequest, res) => {
 
   if (!property) return res.status(404).json({ error: "Property not found" });
 
-  res.json(property);
+  // Safely serialize the property object
+  const serializePrismaObject = (obj: any): any => {
+    if (obj === null || obj === undefined) return obj;
+    if (typeof obj !== 'object') return obj;
+    
+    const result: any = {};
+    const keys = Object.keys(obj);
+    
+    for (const key of keys) {
+      try {
+        const value = obj[key];
+        
+        if (typeof value === 'function' || typeof value === 'symbol') continue;
+        
+        if (value instanceof Date) {
+          result[key] = value.toISOString();
+        } else if (typeof value === 'bigint') {
+          result[key] = value.toString();
+        } else if (value === null || value === undefined) {
+          result[key] = value;
+        } else if (Array.isArray(value)) {
+          result[key] = value.map(v => serializePrismaObject(v));
+        } else if (typeof value === 'object') {
+          if (key.startsWith('_') || key === 'toJSON' || key === 'toString') continue;
+          try {
+            result[key] = serializePrismaObject(value);
+          } catch {
+            continue;
+          }
+        } else {
+          result[key] = value;
+        }
+      } catch {
+        continue;
+      }
+    }
+    
+    return result;
+  };
+
+  try {
+    const serialized = serializePrismaObject(property);
+    JSON.stringify(serialized); // Test serialization
+    res.json(serialized);
+  } catch (err: any) {
+    console.error(`Error serializing property ${id}:`, err);
+    res.status(500).json({ error: "Failed to serialize property data" });
+  }
 }) as RequestHandler);
 
 // ---------- CREATE ----------
@@ -233,6 +487,17 @@ router.post("/", (async (req: AuthedRequest, res) => {
     const ownerId = req.user!.id;
     const parsed = baseBodySchema.parse(req.body);
 
+    // Merge house rules into services so they are available in admin/owner previews
+    let servicesForSave: any = cleanServices(parsed.services);
+    if (parsed.houseRules) {
+      if (Array.isArray(servicesForSave)) {
+        servicesForSave = { tags: servicesForSave };
+      }
+      if (servicesForSave && typeof servicesForSave === "object" && !Array.isArray(servicesForSave)) {
+        servicesForSave.houseRules = parsed.houseRules;
+      }
+    }
+
     const created = await prisma.property.create({
       data: {
         ownerId,
@@ -240,6 +505,8 @@ router.post("/", (async (req: AuthedRequest, res) => {
         type: parsed.type,
   description: cleanHtml(parsed.description ?? null),
         status: "DRAFT",
+        buildingType: parsed.buildingType ?? null,
+        totalFloors: parsed.totalFloors ?? null,
         // location …
         // Prisma schema expects String? for regionId, but UI may send numeric codes (e.g. 11)
         regionId: parsed.regionId == null ? null : String(parsed.regionId),
@@ -263,7 +530,7 @@ router.post("/", (async (req: AuthedRequest, res) => {
         hotelStar: normalizeHotelStar(parsed.hotelStar),
         // room & services …
         roomsSpec: parsed.roomsSpec,
-        services: cleanServices(parsed.services),
+        services: servicesForSave,
         // pricing …
         basePrice: parsed.basePrice ?? null,
         currency: parsed.currency,
@@ -310,12 +577,25 @@ router.put("/:id", (async (req: AuthedRequest, res) => {
 
     const parsed = baseBodySchema.parse(req.body);
 
+    // Merge house rules into services so they are available in admin/owner previews
+    let servicesForSave: any = cleanServices(parsed.services);
+    if (parsed.houseRules) {
+      if (Array.isArray(servicesForSave)) {
+        servicesForSave = { tags: servicesForSave };
+      }
+      if (servicesForSave && typeof servicesForSave === "object" && !Array.isArray(servicesForSave)) {
+        servicesForSave.houseRules = parsed.houseRules;
+      }
+    }
+
     const updated = await prisma.property.update({
       where: { id },
       data: {
         title: parsed.title,
         type: parsed.type,
   description: cleanHtml(parsed.description ?? null),
+        buildingType: parsed.buildingType ?? null,
+        totalFloors: parsed.totalFloors ?? null,
         // location …
         // Keep existing value if field omitted; coerce number -> string when provided
         regionId: typeof parsed.regionId === "undefined" ? undefined : (parsed.regionId == null ? null : String(parsed.regionId)),
@@ -339,7 +619,7 @@ router.put("/:id", (async (req: AuthedRequest, res) => {
         hotelStar: typeof parsed.hotelStar === "undefined" ? undefined : normalizeHotelStar(parsed.hotelStar),
         // room & services …
         roomsSpec: parsed.roomsSpec,
-        services: cleanServices(parsed.services),
+        services: servicesForSave,
         // pricing …
         basePrice: parsed.basePrice ?? null,
         currency: parsed.currency,
@@ -376,44 +656,80 @@ router.put("/:id", (async (req: AuthedRequest, res) => {
 
 // ---------- SUBMIT ----------
 router.post("/:id/submit", (async (req: AuthedRequest, res) => {
-  const ownerId = req.user!.id;
-  const id = Number(req.params.id);
-  if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid id" });
+  try {
+    const ownerId = req.user!.id;
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid id" });
 
-  const p = await prisma.property.findFirst({ where: { id, ownerId } });
-  if (!p) return res.status(404).json({ error: "Property not found" });
+    const p = await prisma.property.findFirst({ where: { id, ownerId } });
+    if (!p) {
+      console.error(`Property ${id} not found for owner ${ownerId}`);
+      return res.status(404).json({ error: "Property not found" });
+    }
 
-  const complete =
-    (p.title?.trim()?.length ?? 0) >= 3 &&
-    !!p.regionId &&
-    !!p.district &&
-    (Array.isArray(p.photos) ? p.photos.length : 0) >= 3 &&
-    Array.isArray(p.roomsSpec) && p.roomsSpec.length >= 1 &&
-    submitGuard(p);
+    const complete =
+      (p.title?.trim()?.length ?? 0) >= 3 &&
+      !!p.regionId &&
+      !!p.district &&
+      (Array.isArray(p.photos) ? p.photos.length : 0) >= 3 &&
+      Array.isArray(p.roomsSpec) && p.roomsSpec.length >= 1 &&
+      submitGuard(p);
 
-  if (!complete) {
-    return res.status(400).json({ error: "Incomplete property. Please complete required fields (name, location, ≥3 photos, ≥1 room type)." });
+    if (!complete) {
+      console.error(`Property ${id} incomplete. Title: ${p.title?.length}, regionId: ${!!p.regionId}, district: ${!!p.district}, photos: ${Array.isArray(p.photos) ? p.photos.length : 0}, rooms: ${Array.isArray(p.roomsSpec) ? p.roomsSpec.length : 0}`);
+      return res.status(400).json({ error: "Incomplete property. Please complete required fields (name, location, ≥3 photos, ≥1 room type)." });
+    }
+
+    const updated = await prisma.property.update({
+      where: { id },
+      data: { status: "PENDING" },
+    });
+
+    // Verify the update worked
+    const verified = await prisma.property.findFirst({
+      where: { id, ownerId },
+      select: { id: true, status: true, title: true },
+    });
+
+    console.log(`Property ${id} submitted successfully. Status: ${updated.status}, Verified status: ${verified?.status}, Owner: ${ownerId}`);
+    
+    if (verified?.status !== "PENDING") {
+      console.error(`WARNING: Property ${id} status update may have failed. Expected PENDING, got ${verified?.status}`);
+    }
+
+    // ✅ BEFORE RETURN — ENSURE LAYOUT IS FRESH
+    try { await regenerateAndSaveLayout(id); } catch (err) {
+      console.error(`Failed to regenerate layout for property ${id}:`, err);
+    }
+
+    // Notify owner and admins that property has been submitted
+    try {
+      const { notifyOwner, notifyAdmins } = await import("../lib/notifications.js");
+      const propertyData = { 
+        propertyId: id, 
+        propertyTitle: p.title,
+        ownerId: ownerId,
+      };
+      await Promise.all([
+        notifyOwner(ownerId, "property_submitted", propertyData),
+        notifyAdmins("property_submitted", propertyData),
+      ]);
+    } catch (notifyError) {
+      // Don't fail the request if notifications fail
+      console.error(`Failed to send notifications for property ${id}:`, notifyError);
+    }
+
+    res.json({ ok: true, id: updated.id, status: updated.status });
+  } catch (error: any) {
+    console.error("Error in POST /:id/submit:", error);
+    console.error("Error details:", {
+      message: error?.message,
+      stack: error?.stack,
+      code: error?.code,
+    });
+    res.status(500).json({ 
+      error: "Internal Server Error",
+      message: error?.message || "Failed to submit property"
+    });
   }
-
-  const updated = await prisma.property.update({
-    where: { id },
-    data: { status: "PENDING" },
-  });
-
-  // ✅ BEFORE RETURN — ENSURE LAYOUT IS FRESH
-  try { await regenerateAndSaveLayout(id); } catch {}
-
-  // Notify owner and admins that property has been submitted
-  const { notifyOwner, notifyAdmins } = await import("../lib/notifications.js");
-  const propertyData = { 
-    propertyId: id, 
-    propertyTitle: p.title,
-    ownerId: ownerId,
-  };
-  await Promise.all([
-    notifyOwner(ownerId, "property_submitted", propertyData),
-    notifyAdmins("property_submitted", propertyData),
-  ]);
-
-  res.json({ ok: true, id: updated.id, status: updated.status });
 }) as RequestHandler);

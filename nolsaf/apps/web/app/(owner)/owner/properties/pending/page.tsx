@@ -26,6 +26,7 @@ export default function PendingProps() {
   const [loading, setLoading] = useState(true);
   const [minWaitElapsed, setMinWaitElapsed] = useState(false);
   const [selectedPropertyId, setSelectedPropertyId] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -42,12 +43,27 @@ export default function PendingProps() {
         const pendingItems = Array.isArray((pending.data as any)?.items) ? (pending.data as any).items : [];
         const suspendedItems = Array.isArray((suspended.data as any)?.items) ? (suspended.data as any).items : [];
         const draftItems = Array.isArray((draft.data as any)?.items) ? (draft.data as any).items : [];
+        
+        console.log("Pending properties loaded:", {
+          pending: pendingItems.length,
+          suspended: suspendedItems.length,
+          draft: draftItems.length,
+          total: pendingItems.length + suspendedItems.length + draftItems.length,
+        });
+        
         setList([...pendingItems, ...suspendedItems, ...draftItems]);
       })
       .catch((err) => {
         if (!mounted) return;
         // Gracefully handle non-JSON or network errors
-        console.error("Failed to load owner properties:", err?.message || err);
+        const errorMessage = err?.response?.data?.error || err?.response?.data?.message || err?.message || "Failed to load properties";
+        const status = err?.response?.status;
+        console.error("Failed to load owner properties:", {
+          message: errorMessage,
+          status,
+          fullError: err
+        });
+        setError(errorMessage);
         setList([]);
       })
       .finally(() => { if (!mounted) return; setLoading(false); });
@@ -67,6 +83,26 @@ export default function PendingProps() {
         </span>
         <h1 className="text-2xl font-semibold">Pending</h1>
         <div className="text-sm opacity-60 mt-2">Checking for pending properties…</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-[260px] flex flex-col items-center justify-center text-center">
+        <AlertCircle className="h-12 w-12 text-red-500 mb-2" />
+        <h1 className="text-2xl font-semibold">Error Loading Properties</h1>
+        <div className="text-sm opacity-90 mt-2 text-red-600">{error}</div>
+        <button
+          onClick={() => {
+            setError(null);
+            setLoading(true);
+            window.location.reload();
+          }}
+          className="mt-4 px-4 py-2 bg-[#02665e] text-white rounded-lg hover:bg-[#014e47] transition-colors"
+        >
+          Retry
+        </button>
       </div>
     );
   }

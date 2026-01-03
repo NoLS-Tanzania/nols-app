@@ -42,7 +42,7 @@ interface OtpVerificationAttempt {
 }
 
 // ============================================================
-// Brute Force Protection (In-Memory)
+// Brute Force Protection (In-Memory) Itakuja kuwekwa wakati wa deployments
 // ============================================================
 const verificationAttempts = new Map<string, OtpVerificationAttempt>();
 
@@ -268,7 +268,7 @@ router.post("/otp/send", limitOtpSend, validate(sendOtpSchema), async (req: any,
     const code = generate6();
     const expiresAt = new Date(Date.now() + OTP_EXPIRY_MS);
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: typeof prisma) => {
       await tx.adminOtp.create({
         data: {
           adminId,
@@ -331,7 +331,7 @@ router.post("/otp/verify", limitOtpVerify, validate(verifyOtpSchema), async (req
     }
 
     // Mark OTP as used and grant finance access
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: typeof prisma) => {
       await tx.adminOtp.update({
         where: { id: otp.id },
         data: { usedAt: new Date() },

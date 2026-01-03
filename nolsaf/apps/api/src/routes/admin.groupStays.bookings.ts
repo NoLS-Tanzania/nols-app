@@ -2,7 +2,7 @@ import { Router } from "express";
 import type { RequestHandler } from "express";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { prisma } from "@nolsaf/prisma";
-import { Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 
 export const router = Router();
 router.use(requireAuth as unknown as RequestHandler, requireRole("ADMIN") as unknown as RequestHandler);
@@ -10,6 +10,9 @@ router.use(requireAuth as unknown as RequestHandler, requireRole("ADMIN") as unk
 /** GET /admin/group-stays/bookings?status=&groupType=&region=&date=&start=&end=&page=&pageSize=&q= */
 router.get("/", async (req, res) => {
   try {
+    // Explicitly set Content-Type to JSON
+    res.setHeader('Content-Type', 'application/json');
+    
     const { status, groupType, region, date, start, end, page = "1", pageSize = "50", q = "" } = req.query as any;
 
     const where: any = {};
@@ -115,6 +118,9 @@ router.get("/", async (req, res) => {
 
     return res.json({ total, page: Number(page), pageSize: take, items: mapped });
   } catch (err: any) {
+    // Ensure error responses are JSON
+    res.setHeader('Content-Type', 'application/json');
+    
     if (err instanceof Prisma.PrismaClientKnownRequestError && (err.code === 'P2021' || err.code === 'P2022')) {
       console.warn('Prisma schema mismatch when querying group bookings:', err.message);
       const page = Number((req.query as any).page ?? 1);
@@ -122,13 +128,17 @@ router.get("/", async (req, res) => {
       return res.json({ total: 0, page, pageSize, items: [] });
     }
     console.error('Unhandled error in GET /admin/group-stays/bookings:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    console.error('Error stack:', err?.stack);
+    return res.status(500).json({ error: 'Internal server error', message: err?.message || 'Unknown error' });
   }
 });
 
 /** GET /admin/group-stays/bookings/stats?period=7d|30d|month|year */
 router.get("/stats", async (req, res) => {
   try {
+    // Explicitly set Content-Type to JSON
+    res.setHeader('Content-Type', 'application/json');
+    
     const { period = "30d" } = req.query as any;
 
     let startDate: Date;
@@ -209,15 +219,20 @@ router.get("/stats", async (req, res) => {
       startDate: startDate.toISOString(),
       endDate: endDate.toISOString(),
     });
-  } catch (err) {
+  } catch (err: any) {
     console.error('Error in GET /admin/group-stays/bookings/stats:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    console.error('Error stack:', err?.stack);
+    res.setHeader('Content-Type', 'application/json');
+    return res.status(500).json({ error: 'Internal server error', message: err?.message || 'Unknown error' });
   }
 });
 
 /** GET /admin/group-stays/bookings/:id - Get single booking details */
 router.get("/:id", async (req, res) => {
   try {
+    // Explicitly set Content-Type to JSON
+    res.setHeader('Content-Type', 'application/json');
+    
     const id = Number(req.params.id);
     if (!id || isNaN(id)) {
       return res.status(400).json({ error: "Invalid booking ID" });
@@ -233,6 +248,7 @@ router.get("/:id", async (req, res) => {
     });
 
     if (!booking) {
+      res.setHeader('Content-Type', 'application/json');
       return res.status(404).json({ error: "Booking not found" });
     }
 
@@ -283,12 +299,16 @@ router.get("/:id", async (req, res) => {
 
     return res.json(mapped);
   } catch (err: any) {
+    // Ensure error responses are JSON
+    res.setHeader('Content-Type', 'application/json');
+    
     if (err instanceof Prisma.PrismaClientKnownRequestError && (err.code === 'P2021' || err.code === 'P2022')) {
       console.warn('Prisma schema mismatch when querying group booking:', err.message);
-      return res.status(404).json({ error: "Booking not found" });
+      return res.status(404).json({ error: "Booking not found", message: err.message });
     }
     console.error('Error in GET /admin/group-stays/bookings/:id:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    console.error('Error stack:', err?.stack);
+    return res.status(500).json({ error: 'Internal server error', message: err?.message || 'Unknown error' });
   }
 });
 
@@ -457,7 +477,9 @@ router.patch("/:id", async (req: any, res) => {
     });
   } catch (err: any) {
     console.error("Error in PATCH /admin/group-stays/bookings/:id:", err);
-    return res.status(500).json({ error: "Failed to update booking" });
+    console.error('Error stack:', err?.stack);
+    res.setHeader('Content-Type', 'application/json');
+    return res.status(500).json({ error: "Failed to update booking", message: err?.message || 'Unknown error' });
   }
 });
 

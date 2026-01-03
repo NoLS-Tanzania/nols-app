@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   MessageSquare,
   User,
@@ -10,17 +10,13 @@ import {
   CheckCircle,
   Eye,
   Search,
-  Filter,
   X,
   TrendingUp,
   AlertCircle,
-  Users,
   Calendar,
   Globe,
-  BarChart3,
   Activity,
   ArrowUpRight,
-  ArrowDownRight,
 } from "lucide-react";
 import axios from "axios";
 import {
@@ -87,19 +83,13 @@ export default function AIAgentsPage() {
   const [total, setTotal] = useState(0);
   const pageSize = 10;
   const [viewingConversation, setViewingConversation] = useState<FullConversation | null>(null);
-  const [loadingConversation, setLoadingConversation] = useState(false);
   const [filter, setFilter] = useState<"all" | "needsFollowUp" | "followedUp">("needsFollowUp");
   const [searchQuery, setSearchQuery] = useState("");
   const [followUpNotes, setFollowUpNotes] = useState("");
   const [markingFollowUp, setMarkingFollowUp] = useState(false);
   const [timeRange, setTimeRange] = useState<"7" | "30" | "90">("7");
 
-  useEffect(() => {
-    loadStats();
-    loadConversations();
-  }, [page, filter, timeRange]);
-
-  async function loadStats() {
+  const loadStats = useCallback(async () => {
     setLoadingStats(true);
     try {
       const response = await api.get<{ success: boolean; stats: Stats }>("/api/admin/chatbot/stats", {
@@ -113,9 +103,9 @@ export default function AIAgentsPage() {
     } finally {
       setLoadingStats(false);
     }
-  }
+  }, [timeRange]);
 
-  async function loadConversations() {
+  const loadConversations = useCallback(async () => {
     setLoading(true);
     try {
       const params: any = {
@@ -147,10 +137,14 @@ export default function AIAgentsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [page, filter]);
+
+  useEffect(() => {
+    loadStats();
+    loadConversations();
+  }, [loadStats, loadConversations]);
 
   async function loadConversationDetails(id: number) {
-    setLoadingConversation(true);
     try {
       const response = await api.get<{
         success: boolean;
@@ -162,8 +156,6 @@ export default function AIAgentsPage() {
       }
     } catch (err: any) {
       console.error("Failed to load conversation details", err);
-    } finally {
-      setLoadingConversation(false);
     }
   }
 
@@ -235,13 +227,8 @@ export default function AIAgentsPage() {
               setTimeRange(e.target.value as "7" | "30" | "90");
               setPage(1);
             }}
-            className="px-3 py-2 bg-transparent border-0 text-gray-700 text-sm font-medium focus:outline-none focus:ring-0 cursor-pointer appearance-none pr-8"
-            style={{
-              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236b7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`,
-              backgroundRepeat: 'no-repeat',
-              backgroundPosition: 'right 0.5rem center',
-              backgroundSize: '1.25em 1.25em'
-            }}
+            aria-label="Select time range for conversations"
+            className="px-3 py-2 bg-transparent border-0 text-gray-700 text-sm font-medium focus:outline-none focus:ring-0 cursor-pointer appearance-none pr-8 bg-no-repeat bg-[right_0.5rem_center] bg-[length:1.25em_1.25em] bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20fill%3D%22none%22%20viewBox%3D%220%200%2024%2024%22%20stroke%3D%22%236b7280%22%3E%3Cpath%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20stroke-width%3D%222%22%20d%3D%22M19%209l-7%207-7-7%22%3E%3C%2Fpath%3E%3C%2Fsvg%3E')]"
           >
             <option value="7">Last 7 days</option>
             <option value="30">Last 30 days</option>
@@ -688,6 +675,7 @@ export default function AIAgentsPage() {
                   setViewingConversation(null);
                   setFollowUpNotes("");
                 }}
+                aria-label="Close conversation details"
                 className="p-2 bg-white/10 hover:bg-white/20 border border-white/20 hover:border-white/30 rounded-lg transition-all duration-200 text-white flex-shrink-0"
               >
                 <X size={18} />

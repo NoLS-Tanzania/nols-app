@@ -131,6 +131,9 @@ model User {
   // Group booking messages sent by this user/admin
   groupBookingMessages GroupBookingMessage[] @relation("GroupBookingMessages")
 
+  // Property availability blocks created by this owner
+  propertyAvailabilityBlocks PropertyAvailabilityBlock[] @relation("PropertyAvailabilityBlocks")
+
   // User sessions
   sessions Session[] @relation("UserSessions")
 
@@ -215,7 +218,9 @@ model Property {
   description String? @db.Text
   photos      Json? // Array of URLs (legacy, use PropertyImage now)
   hotelStar   String? // basic, simple, moderate, high, luxury
-  roomsSpec   Json? // Room types, beds, price/night, images...
+  buildingType String? // SINGLE_STORY, LOW_RISE, MID_RISE, HIGH_RISE, VILLA_COMPLEX, LODGE_CAMPUS
+  totalFloors  Int? // Total number of floors (auto-calculated or manual)
+  roomsSpec   Json? // Room types, beds, price/night, images... (includes floor info)
   services    Json? // Parking/breakfast/etc + nearbyFacilities[]
   layout      Json? // Auto-generated SVG/plan metadata
 
@@ -234,12 +239,13 @@ model Property {
   updatedAt DateTime @updatedAt
 
   // Relations
-  owner             User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  owner             User                        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   bookings          Booking[]
   transportBookings TransportBooking[]
   images            PropertyImage[]
   reviews           PropertyReview[]
   savedBy           SavedProperty[]
+  availabilityBlocks PropertyAvailabilityBlock[]
 
   @@index([ownerId])
   @@index([status])
@@ -871,6 +877,9 @@ model TransportBooking {
   toLongitude Decimal? @db.Decimal(10, 6)
 
   // ==================== Ride Details ====================
+  /// Vehicle type: BODA, BAJAJI, CAR, XL
+  vehicleType String? @db.VarChar(20)
+
   /// Total amount for the ride
   amount   Decimal? @db.Decimal(12, 2)
   /// Currency (default: TZS)
@@ -882,9 +891,31 @@ model TransportBooking {
   /// Special instructions or notes
   notes String? @db.Text
 
-  /// Customer rating for the ride (1-5)
+  // ==================== Arrival Information (for airport, bus station, etc.) ====================
+  /// Arrival type: FLIGHT, BUS, TRAIN, FERRY, OTHER
+  arrivalType   String? @db.VarChar(20)
+  /// Transport number (flight number, bus number, train number, etc.)
+  arrivalNumber String? @db.VarChar(40)
+  /// Transport company/operator (airline, bus company, train operator, etc.)
+  transportCompany String? @db.VarChar(100)
+  /// Expected arrival time
+  arrivalTime   DateTime?
+  /// Pickup location description (e.g., "Julius Nyerere International Airport - Terminal 1", "Ubungo Bus Terminal")
+  pickupLocation String? @db.VarChar(255)
+
+  // ==================== Ratings & Reviews ====================
+  /// Customer rating for the driver (1-5)
+  userRating   Decimal? @db.Decimal(3, 2)
+  /// Customer review comment
+  userReview   String?  @db.Text
+  /// Driver rating for the passenger (1-5)
+  driverRating Decimal? @db.Decimal(3, 2)
+  /// Driver review comment
+  driverReview String?  @db.Text
+
+  /// Legacy: Customer rating for the ride (1-5) - kept for backward compatibility
   rating        Decimal? @db.Decimal(3, 2)
-  /// Rating comment/review
+  /// Legacy: Rating comment/review - kept for backward compatibility
   ratingComment String?  @db.Text
 
   /// Payment status: PENDING, PAID, REFUNDED
@@ -907,12 +938,16 @@ model TransportBooking {
   // Optional: GPS pings linked to this booking (for replay/analytics)
   driverLocationPings DriverLocationPing[]
 
+  // Messages between driver, passenger, and admin
+  messages TransportMessage[]
+
   @@index([userId])
   @@index([driverId])
   @@index([propertyId])
   @@index([status])
   @@index([scheduledDate])
   @@index([paymentStatus])
+  @@index([vehicleType])
   @@map("TransportBooking")
 }
 
@@ -958,6 +993,40 @@ model DriverLocationPing {
   @@index([driverId, createdAt])
   @@index([transportBookingId, createdAt])
   @@map("driver_location_pings")
+}
+
+// =========================================================
+//  TRANSPORT MESSAGE - Communication between driver, passenger, and admin
+// =========================================================
+model TransportMessage {
+  id              Int       @id @default(autoincrement())
+  transportBookingId Int
+
+  /// Sender user ID (driver, passenger, or admin)
+  senderId        Int
+
+  /// Sender type: DRIVER, PASSENGER, ADMIN
+  senderType      String    @db.VarChar(20)
+
+  /// Message content
+  message         String    @db.Text
+
+  /// Message type: TEXT, IMAGE, LOCATION, SYSTEM
+  messageType     String    @default("TEXT") @db.VarChar(20)
+
+  /// When the message was read (null = unread)
+  readAt          DateTime?
+
+  /// Record creation timestamp
+  createdAt       DateTime  @default(now())
+
+  // Relations
+  transportBooking TransportBooking @relation(fields: [transportBookingId], references: [id], onDelete: Cascade)
+
+  @@index([transportBookingId, createdAt])
+  @@index([senderId])
+  @@index([readAt])
+  @@map("TransportMessage")
 }
 
 // =========================================================
@@ -1980,4 +2049,46 @@ model SavedProperty {
   @@index([savedAt])
   @@index([sharedAt])
   @@map("SavedProperty")
+}
+
+// =========================================================
+//  PROPERTY AVAILABILITY BLOCK MODEL
+//  Tracks manual availability blocks for external bookings
+//  (Airbnb, Booking.com, walk-ins, etc.)
+// =========================================================
+model PropertyAvailabilityBlock {
+  id         Int      @id @default(autoincrement())
+  propertyId Int
+  ownerId    Int // Owner who created the block
+
+  /// Start date of the block
+  startDate DateTime
+  /// End date of the block (exclusive, like checkout)
+  endDate   DateTime
+
+  /// Optional room code if blocking specific room
+  roomCode String? @db.VarChar(60)
+
+  /// Source of the booking (e.g., "AIRBNB", "BOOKING_COM", "WALK_IN", "OTHER")
+  source String? @db.VarChar(50)
+
+  /// Optional notes about the block
+  notes String? @db.Text
+
+  /// Number of beds/rooms blocked (for room-type level tracking)
+  bedsBlocked Int? @default(1)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  owner    User    @relation("PropertyAvailabilityBlocks", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId])
+  @@index([ownerId])
+  @@index([startDate, endDate])
+  @@index([propertyId, startDate, endDate])
+  @@index([roomCode])
+  @@map("PropertyAvailabilityBlock")
 }

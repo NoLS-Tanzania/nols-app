@@ -10,10 +10,9 @@ import { router as ownerPropsRoutes } from "./routes/owner.properties";
 import { router as adminPropsRoutes } from './routes/admin.properties';
 import conversationsRoutes from './routes/conversations';
 import bookingsRoutes from './routes/bookings';
-import requireRole from './middleware/auth';
+import requireRole, { requireAuth } from './middleware/auth';
 import { router as ownerRevenue } from "./routes/owner.revenue";
 import { router as ownerReports } from "./routes/owner.reports";
-import rateLimit from "express-rate-limit";
 import { configureSecurity } from "./security";
 import { router as account } from "./routes/account";
 import { router as adminEmail } from "./routes/admin.auth.email";
@@ -74,6 +73,7 @@ import publicCareersApplyRouter from "./routes/public.careers.apply";
 import publicCareersRouter from "./routes/public.careers";
 import ownerMessagesRouter from './routes/owner.messages';
 import ownerNotificationsRouter from './routes/owner.notifications';
+import ownerAvailabilityRouter from './routes/owner.availability';
 import { router as ownerBookingsRouter } from "./routes/owner.booking";
 import admin2faRouter from "./routes/admin.2fa.js";
 import driverRouter from "./routes/driver.stats";
@@ -94,6 +94,11 @@ import propertyReviewsRouter from './routes/property.reviews';
 import customerBookingsRouter from './routes/customer.bookings';
 import customerRidesRouter from './routes/customer.rides';
 import customerGroupStaysRouter from './routes/customer.groupStays';
+import transportMessagesRouter from './routes/transport.messages';
+import transportBookingsRouter from './routes/transport.bookings';
+import driverScheduledRouter from './routes/driver.scheduled';
+import geocodingRouter from './routes/geocoding';
+import publicAvailabilityRouter from './routes/public.availability';
 import customerSavedPropertiesRouter from './routes/customer.savedProperties';
 import customerCancellationsRouter from "./routes/customer.cancellations";
 import customerPlanRequestsRouter from "./routes/customer.planRequests";
@@ -360,8 +365,23 @@ export function emitReferralNotification(driverId: string | number, notification
 // configureSecurity already handles CORS with regex allowing localhost on any port
 configureSecurity(app);
 
-// JSON parser (keep small limit); note: raw body handled below for webhooks
-app.use(express.json({ limit: "1mb" }));
+// Apply larger body size limit for property routes BEFORE global middleware
+// This allows property submissions with multiple images and room specs
+app.use("/owner/properties", express.json({ limit: "10mb", strict: true }));
+app.use("/owner/properties", express.urlencoded({ extended: true, limit: "10mb", parameterLimit: 200 }));
+app.use("/api/owner/properties", express.json({ limit: "10mb", strict: true }));
+app.use("/api/owner/properties", express.urlencoded({ extended: true, limit: "10mb", parameterLimit: 200 }));
+
+// JSON parser with size limits for security (applied after route-specific limits)
+app.use(express.json({ 
+  limit: "100kb", // Reduced from 1mb for better security
+  strict: true,
+}));
+app.use(express.urlencoded({ 
+  extended: true, 
+  limit: "100kb",
+  parameterLimit: 50,
+}));
 app.use(morgan('dev'));
 // generic rate limit already applied via configureSecurity; keep specific route limits where needed
 app.use("/uploads/cloudinary", upCld);
@@ -465,6 +485,8 @@ app.use('/api/owner/revenue', requireRole('OWNER') as express.RequestHandler, ow
 // Owner-scoped messages & notifications (demo implementations)
 app.use('/api/owner/messages', requireRole('OWNER') as express.RequestHandler, ownerMessagesRouter as express.RequestHandler);
 app.use('/api/owner/notifications', requireRole('OWNER') as express.RequestHandler, ownerNotificationsRouter as express.RequestHandler);
+// Owner availability management (for external bookings)
+app.use('/api/owner/availability', ownerAvailabilityRouter as express.RequestHandler);
 app.use('/api/admin/email', adminAllowlist, adminEmail);
 // Driver-scoped endpoints (stats + map)
 app.use('/api/driver', requireRole('DRIVER') as express.RequestHandler, driverRouter as express.RequestHandler);
@@ -490,6 +512,8 @@ app.use('/api/driver/performance', requireRole('DRIVER') as express.RequestHandl
 app.use('/api/driver/notifications', requireRole('DRIVER') as express.RequestHandler, driverNotificationsRouter as express.RequestHandler);
 // Driver license
 app.use('/api/driver/license', requireRole('DRIVER') as express.RequestHandler, driverLicenseRouter as express.RequestHandler);
+// Driver scheduled trips (claim system)
+app.use('/api/driver/trips', driverScheduledRouter as express.RequestHandler);
 // app.use('/api/owner/phone', ownerPhone);
 app.use("/admin/2fa", admin2faRouter);
 app.use("/owner/bookings", ownerBookingsRouter);
@@ -515,6 +539,15 @@ app.use('/api/customer/rides', customerRidesRouter as express.RequestHandler);
 app.use('/api/customer/group-stays', customerGroupStaysRouter as express.RequestHandler);
 app.use('/api/customer/saved-properties', customerSavedPropertiesRouter as express.RequestHandler);
 app.use('/api/customer/plan-requests', customerPlanRequestsRouter as express.RequestHandler);
+// Transport booking messages (driver, passenger, admin communication)
+app.use('/api/transport-bookings', transportMessagesRouter as express.RequestHandler);
+// Transport bookings (create, get details)
+app.use('/api/public/transport-bookings', transportBookingsRouter as express.RequestHandler);
+app.use('/api/transport-bookings', requireAuth as express.RequestHandler, transportBookingsRouter as express.RequestHandler);
+// Geocoding endpoints (forward/reverse geocoding, directions with traffic-aware routing)
+app.use('/api/geocoding', geocodingRouter as express.RequestHandler);
+// Public availability checking (for property/room availability)
+app.use('/api/public/availability', publicAvailabilityRouter as express.RequestHandler);
 // Chatbot endpoints (public, supports authenticated and anonymous users)
 app.use('/api/chatbot', chatbotRouter as express.RequestHandler);
 // Admin chatbot endpoints (for tracking and follow-up)

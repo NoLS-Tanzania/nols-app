@@ -11,6 +11,9 @@ router.use(requireAuth as RequestHandler, requireRole('ADMIN') as RequestHandler
  */
 router.get('/', async (req, res) => {
   try {
+    // Explicitly set Content-Type to JSON
+    res.setHeader('Content-Type', 'application/json');
+    
     const { page = '1', perPage = '25', q, role } = req.query as any;
     const p = Math.max(1, Number(page) || 1);
     const pp = Math.max(1, Math.min(200, Number(perPage) || 25));
@@ -84,10 +87,11 @@ router.get('/', async (req, res) => {
       };
     }));
 
-    res.json({ meta: { page: p, perPage: pp, total }, data: usersWithStats });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'failed' });
+    return res.json({ meta: { page: p, perPage: pp, total }, data: usersWithStats });
+  } catch (err: any) {
+    console.error('Error in GET /admin/users:', err);
+    res.setHeader('Content-Type', 'application/json');
+    return res.status(500).json({ error: 'Internal server error', message: err?.message || 'Unknown error' });
   }
 });
 

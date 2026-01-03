@@ -33,8 +33,8 @@ export function configureSecurity(app: Express) {
           defaultSrc: ["'self'"],
           baseUri: ["'self'"],
           formAction: ["'self'"],
-          // Allow images from self, data, https and local dev API/Web origins
-          imgSrc: ["'self'", "data:", "https:", ...allowOrigins],
+          // Allow images from self, data, blob (for file uploads), https and local dev API/Web origins
+          imgSrc: ["'self'", "data:", "blob:", "https:", ...allowOrigins],
           connectSrc: (
             [
               "'self'",
@@ -48,6 +48,16 @@ export function configureSecurity(app: Express) {
           upgradeInsecureRequests: [],
         },
       },
+      // Additional security headers
+      hsts: {
+        maxAge: 31536000, // 1 year
+        includeSubDomains: true,
+        preload: true,
+      },
+      noSniff: true,
+      xssFilter: true,
+      referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+      permittedCrossDomainPolicies: false,
     })
   );
 

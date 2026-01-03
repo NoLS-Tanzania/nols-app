@@ -3,7 +3,7 @@
 import "mapbox-gl/dist/mapbox-gl.css";
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import type { ReactNode, ComponentType } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -46,7 +46,6 @@ import {
   ExternalLink,
   Plane,
   Tags,
-  Wifi,
   DoorClosed,
   X,
   ChevronRight,
@@ -69,12 +68,15 @@ import {
   Mail,
   Facebook,
   Twitter,
-  HelpCircle,
   Home,
   Loader2,
+  Calendar,
+  Plus,
+  Minus,
 } from "lucide-react";
 import VerifiedIcon from "../../../../components/VerifiedIcon";
-import TableRow from "../../../../components/TableRow";
+import DatePicker from "../../../../components/ui/DatePicker";
+import { PropertyVisualizationPreview } from "@/app/(owner)/owner/properties/add/_components/PropertyVisualizationPreview";
 import { 
   getPropertyCommission, 
   calculatePriceWithCommission
@@ -100,6 +102,8 @@ type PublicPropertyDetail = {
   maxGuests: number | null;
   totalBedrooms: number | null;
   totalBathrooms: number | null;
+  buildingType: string | null;
+  totalFloors: number | null;
   services: string[];
   roomsSpec: any[];
   ownerId?: number;
@@ -148,6 +152,7 @@ type PolicyItem = {
 
 type RoomSpecRow = {
   roomType: string;
+  roomCode?: string; // Room code from roomsSpec
   roomsCount: number | null;
   bedsSummary: string;
   description: string;
@@ -279,6 +284,7 @@ function PropertyMap({ latitude, longitude, propertyTitle }: { latitude: number;
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any | null>(null);
   const markerRef = useRef<any | null>(null);
+  const [mapFailed, setMapFailed] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -338,8 +344,9 @@ function PropertyMap({ latitude, longitude, propertyTitle }: { latitude: number;
             mapRef.current.remove();
           }
         };
-      } catch (e) {
-        console.error('Failed to load mapbox:', e);
+      } catch {
+        // Avoid noisy console errors in production/dev; fall back to static coordinates panel.
+        setMapFailed(true);
       }
     })();
 
@@ -356,7 +363,7 @@ function PropertyMap({ latitude, longitude, propertyTitle }: { latitude: number;
   return (
     <div className="relative w-full h-[400px] bg-slate-100">
       <div ref={containerRef} className="absolute inset-0 w-full h-full" />
-      {!process.env.NEXT_PUBLIC_MAPBOX_TOKEN && !process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN && (
+      {(mapFailed || (!process.env.NEXT_PUBLIC_MAPBOX_TOKEN && !process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN)) && (
         <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200">
           <div className="text-center">
             <MapIcon className="h-8 w-8 text-slate-400 mx-auto mb-2" />
@@ -579,6 +586,7 @@ function normalizeRoomSpec(
 
   return {
     roomType,
+    roomCode: r?.code || r?.roomCode || undefined, // Extract room code
     roomsCount,
     bedsSummary,
     description,
@@ -607,10 +615,389 @@ function joinLocation(p: Pick<PublicPropertyDetail, "city" | "district" | "regio
   return [p.city, p.district, p.regionName, p.country].filter(Boolean).join(", ");
 }
 
+function getOrdinal(n: number): string {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return s[(v - 20) % 10] || s[v] || s[0];
+}
+
+function getFloorName(floorNum: number): string {
+  if (floorNum === 0) return "Ground";
+  return `${floorNum}${getOrdinal(floorNum)}`;
+}
+
+function formatDateLabel(dateString: string) {
+  const d = new Date(dateString);
+  if (isNaN(d.getTime())) return dateString;
+  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+// Availability Checker Component
+function PropertyAvailabilityChecker({
+  propertyId,
+  onAvailability,
+  onDatesChange,
+}: {
+  propertyId: number;
+  onAvailability?: (data: any | null) => void;
+  onDatesChange?: (checkIn: string, checkOut: string) => void;
+}) {
+  const [checkIn, setCheckIn] = useState<string>("");
+  const [checkOut, setCheckOut] = useState<string>("");
+  const [loading, setLoading] = useState(false);
+  const [availability, setAvailability] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [checkInPickerOpen, setCheckInPickerOpen] = useState(false);
+  const [checkOutPickerOpen, setCheckOutPickerOpen] = useState(false);
+
+  const checkAvailability = async () => {
+    if (!checkIn || !checkOut) {
+      setError("Please select both check-in and check-out dates");
+      return;
+    }
+
+    const checkInDate = new Date(checkIn);
+    const checkOutDate = new Date(checkOut);
+    const now = new Date();
+
+    if (checkInDate < now) {
+      setError("Check-in date cannot be in the past");
+      return;
+    }
+
+    if (checkOutDate <= checkInDate) {
+      setError("Check-out date must be after check-in date");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const API = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000").replace(/\/$/, "");
+      const response = await fetch(`${API}/api/public/availability/check`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          propertyId,
+          checkIn: checkInDate.toISOString(),
+          checkOut: checkOutDate.toISOString(),
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to check availability");
+      }
+
+      setAvailability(data);
+      onAvailability?.(data);
+    } catch (err: any) {
+      setError(err?.message || "Failed to check availability");
+      setAvailability(null);
+      onAvailability?.(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  };
+
+  return (
+    <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex items-center gap-2 mb-4">
+        <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#02665e]/10 text-[#02665e]">
+          <Calendar className="w-5 h-5" aria-hidden />
+        </span>
+        <h2 className="text-lg font-semibold text-slate-900">Check Availability</h2>
+      </div>
+
+      <div className="space-y-4">
+        {/* Date Pickers */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <label className="block text-sm font-semibold text-slate-700">
+              Check-in Date
+            </label>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => {
+                  setCheckInPickerOpen(true);
+                  setCheckOutPickerOpen(false);
+                }}
+                className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm flex items-center justify-between"
+              >
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-[#02665e]" />
+                  <span className="text-slate-900">
+                    {checkIn ? formatDate(checkIn) : "Select date"}
+                  </span>
+                </div>
+                <ChevronDown className="w-4 h-4 text-slate-400" />
+              </button>
+              {checkInPickerOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setCheckInPickerOpen(false)} />
+                  <div className="absolute z-50 top-full left-0 mt-2 bg-white rounded-xl border-2 border-slate-200 shadow-xl">
+                    <DatePicker
+                      selected={checkIn}
+                      onSelect={(s) => {
+                        const date = Array.isArray(s) ? s[0] : s;
+                        setCheckIn(date);
+                        onDatesChange?.(date, checkOut);
+                        setCheckInPickerOpen(false);
+                        // Reset check-out if it's before new check-in
+                        if (checkOut && date && new Date(checkOut) <= new Date(date)) {
+                          setCheckOut("");
+                          onDatesChange?.(date, "");
+                        }
+                      }}
+                      onClose={() => setCheckInPickerOpen(false)}
+                      minDate={new Date().toISOString().split("T")[0]}
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-semibold text-slate-700">
+              Check-out Date
+            </label>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => {
+                  setCheckOutPickerOpen(true);
+                  setCheckInPickerOpen(false);
+                }}
+                disabled={!checkIn}
+                className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm flex items-center justify-between disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-[#02665e]" />
+                  <span className="text-slate-900">
+                    {checkOut ? formatDate(checkOut) : "Select date"}
+                  </span>
+                </div>
+                <ChevronDown className="w-4 h-4 text-slate-400" />
+              </button>
+              {checkOutPickerOpen && checkIn && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setCheckOutPickerOpen(false)} />
+                  <div className="absolute z-50 top-full left-0 mt-2 bg-white rounded-xl border-2 border-slate-200 shadow-xl">
+                    <DatePicker
+                      selected={checkOut}
+                      onSelect={(s) => {
+                        const date = Array.isArray(s) ? s[0] : s;
+                        setCheckOut(date);
+                        onDatesChange?.(checkIn, date);
+                        setCheckOutPickerOpen(false);
+                      }}
+                      onClose={() => setCheckOutPickerOpen(false)}
+                      minDate={checkIn || new Date().toISOString().split("T")[0]}
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Check Button */}
+        <button
+          type="button"
+          onClick={checkAvailability}
+          disabled={loading || !checkIn || !checkOut}
+          className="w-full px-4 py-3 rounded-xl bg-[#02665e] text-white font-semibold hover:bg-[#014e47] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm hover:shadow-md"
+        >
+          {loading ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>Checking...</span>
+            </>
+          ) : (
+            <>
+              <Info className="w-4 h-4" />
+              <span>Check Availability</span>
+            </>
+          )}
+        </button>
+
+        {/* Error Message */}
+        {error && (
+          <div className="p-3 rounded-lg bg-red-50 border border-red-200 flex items-start gap-2">
+            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-red-700">{error}</p>
+          </div>
+        )}
+
+        {/* Availability Results */}
+        {availability && !error && (
+          <div className="mt-4 p-4 rounded-xl bg-gradient-to-br from-emerald-50 to-slate-50 border-2 border-emerald-200/60 shadow-sm">
+            <div className="flex items-center gap-2 mb-3">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+              <h3 className="text-base font-bold text-slate-900">Availability Results</h3>
+            </div>
+
+            {availability.available ? (
+              <div className="space-y-3">
+                {/* Summary */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3 rounded-lg bg-white border border-emerald-200">
+                    <div className="text-xs text-slate-600 mb-1">Available Rooms</div>
+                    <div className="text-2xl font-bold text-emerald-700">
+                      {availability.summary.totalAvailableRooms}
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-lg bg-white border border-emerald-200">
+                    <div className="text-xs text-slate-600 mb-1">Available Beds</div>
+                    <div className="text-2xl font-bold text-emerald-700">
+                      {availability.summary.totalAvailableBeds}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Details by Room Type */}
+                {availability.byRoomType && Object.keys(availability.byRoomType).length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    <div className="text-sm font-semibold text-slate-700">By Room Type:</div>
+                    {Object.entries(availability.byRoomType).map(([roomCode, data]: [string, any]) => (
+                      <div key={roomCode} className="p-3 rounded-lg bg-white border border-slate-200">
+                        <div className="text-sm font-semibold text-slate-900 mb-2">
+                          {roomCode === "default" ? "All Rooms" : roomCode}
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div>
+                            <span className="text-slate-600">Rooms: </span>
+                            <span className="font-semibold text-slate-900">
+                              {data.availableRooms} / {data.totalRooms}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-slate-600">Beds: </span>
+                            <span className="font-semibold text-slate-900">
+                              {data.availableBeds} / {data.totalBeds}
+                            </span>
+                          </div>
+                        </div>
+                        {data.bookedRooms > 0 && (
+                          <div className="mt-2 text-xs text-amber-600">
+                            {data.bookedRooms} room(s) booked
+                          </div>
+                        )}
+                        {data.blockedRooms > 0 && (
+                          <div className="mt-1 text-xs text-slate-500">
+                            {data.blockedRooms} room(s) blocked (external bookings)
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="mt-3 pt-3 border-t border-emerald-200">
+                  <div className="text-xs text-slate-600">
+                    Dates: {formatDate(checkIn)} - {formatDate(checkOut)}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="p-3 rounded-lg bg-amber-50 border border-amber-200">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-5 h-5 text-amber-600" />
+                  <div>
+                    <div className="text-sm font-semibold text-amber-900">Not Available</div>
+                    <div className="text-xs text-amber-700 mt-1">
+                      No rooms or beds available for the selected dates.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function PublicPropertyDetailPage() {
   const params = useParams();
   const router = useRouter();
   const slug = String((params as any)?.slug ?? "");
+
+  // Debug-mode client capture for "minor errors" (console warnings/errors, runtime exceptions)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const endpoint = "http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191";
+    const runId = "minor-errors-run1";
+
+    const safe = (v: any) => {
+      try {
+        if (typeof v === "string") return v.slice(0, 400);
+        if (v instanceof Error) return { name: v.name, message: String(v.message || "").slice(0, 400) };
+        return JSON.parse(JSON.stringify(v));
+      } catch {
+        return String(v).slice(0, 400);
+      }
+    };
+
+    const send = (hypothesisId: string, location: string, message: string, data: any) => {
+      // #region agent log
+      fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: "debug-session", runId, hypothesisId, location, message, data, timestamp: Date.now() }),
+      }).catch(() => {});
+      // #endregion
+    };
+
+    const onErr = (ev: any) => {
+      send("E1", "public/properties/[slug]/page.tsx:window.error", "window.error", {
+        message: String(ev?.message || ""),
+        filename: String(ev?.filename || ""),
+        lineno: ev?.lineno ?? null,
+        colno: ev?.colno ?? null,
+      });
+    };
+    const onRej = (ev: any) => {
+      send("E2", "public/properties/[slug]/page.tsx:window.unhandledrejection", "window.unhandledrejection", {
+        reason: safe(ev?.reason),
+      });
+    };
+
+    const origErr = console.error;
+    const origWarn = console.warn;
+    console.error = (...args: any[]) => {
+      send("E3", "public/properties/[slug]/page.tsx:console.error", "console.error", { args: args.map(safe) });
+      origErr(...args);
+    };
+    console.warn = (...args: any[]) => {
+      send("E4", "public/properties/[slug]/page.tsx:console.warn", "console.warn", { args: args.map(safe) });
+      origWarn(...args);
+    };
+
+    window.addEventListener("error", onErr);
+    window.addEventListener("unhandledrejection", onRej);
+    send("E0", "public/properties/[slug]/page.tsx:debug", "minor error capture enabled", { href: window.location.href });
+
+    return () => {
+      window.removeEventListener("error", onErr);
+      window.removeEventListener("unhandledrejection", onRej);
+      console.error = origErr;
+      console.warn = origWarn;
+    };
+  }, []);
 
   const [property, setProperty] = useState<PublicPropertyDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -644,6 +1031,82 @@ export default function PublicPropertyDetailPage() {
   const [favoriteLoading, setFavoriteLoading] = useState(false);
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [copyLinkSuccess, setCopyLinkSuccess] = useState(false);
+
+  // Availability + booking shortcut state for visualization tiles
+  const [selectedDates, setSelectedDates] = useState<{ checkIn: string; checkOut: string }>({ checkIn: "", checkOut: "" });
+  const [availabilityData, setAvailabilityData] = useState<any | null>(null);
+  const [roomQuickView, setRoomQuickView] = useState<null | { roomType: string; floor: number }>(null);
+  const [modalDates, setModalDates] = useState<{ checkIn: string; checkOut: string }>({ checkIn: "", checkOut: "" });
+  const [modalAvailLoading, setModalAvailLoading] = useState(false);
+  const [modalAvailError, setModalAvailError] = useState<string | null>(null);
+  const lastQuickViewKeyRef = useRef<string>("");
+  const [modalCheckInPickerOpen, setModalCheckInPickerOpen] = useState(false);
+  const [modalCheckOutPickerOpen, setModalCheckOutPickerOpen] = useState(false);
+  const [modalRoomsQty, setModalRoomsQty] = useState(1);
+  const [modalGuests, setModalGuests] = useState<{ adults: number; children: number; pets: number }>({ adults: 1, children: 0, pets: 0 });
+  const [quickBookingPage, setQuickBookingPage] = useState<"details" | "availability">("details");
+
+  const runAvailabilityCheck = useCallback(
+    async (propertyId: number, checkInStr: string, checkOutStr: string) => {
+      if (!checkInStr || !checkOutStr) {
+        setModalAvailError("Select both check-in and check-out dates");
+        return;
+      }
+      const checkInDate = new Date(checkInStr);
+      const checkOutDate = new Date(checkOutStr);
+      if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime())) {
+        setModalAvailError("Please enter valid dates");
+        return;
+      }
+      if (checkOutDate <= checkInDate) {
+        setModalAvailError("Check-out must be after check-in");
+        return;
+      }
+
+      setModalAvailLoading(true);
+      setModalAvailError(null);
+      try {
+        const API = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000").replace(/\/$/, "");
+        const response = await fetch(`${API}/api/public/availability/check`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            propertyId,
+            checkIn: checkInDate.toISOString(),
+            checkOut: checkOutDate.toISOString(),
+          }),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to check availability");
+        }
+        setAvailabilityData(data);
+        setSelectedDates({ checkIn: checkInStr, checkOut: checkOutStr });
+      } catch (e: any) {
+        setAvailabilityData(null);
+        setModalAvailError(e?.message || "Failed to check availability");
+      } finally {
+        setModalAvailLoading(false);
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    const key = roomQuickView ? `${roomQuickView.roomType}|${roomQuickView.floor}` : "";
+    if (roomQuickView && key !== lastQuickViewKeyRef.current) {
+      lastQuickViewKeyRef.current = key;
+      setModalDates({ checkIn: selectedDates.checkIn, checkOut: selectedDates.checkOut });
+      setModalAvailError(null);
+      setModalRoomsQty(1);
+      setModalGuests((g) => ({ adults: Math.max(1, g.adults || 1), children: 0, pets: 0 }));
+      setQuickBookingPage("details");
+    }
+  }, [roomQuickView, selectedDates.checkIn, selectedDates.checkOut]);
+
+  useEffect(() => {
+    if (!roomQuickView) return;
+  }, [quickBookingPage, roomQuickView]);
 
   // Load system commission settings
   useEffect(() => {
@@ -875,9 +1338,71 @@ export default function PublicPropertyDetailPage() {
     } catch {}
     return facilities;
   }, [servicesObj, servicesArray]);
-  
-  const services = servicesArray;
 
+  // Parse houseRules - can be a JSON string or object
+  const houseRules = useMemo(() => {
+    const parseHouseRulesValue = (v: any) => {
+      if (!v) return null;
+      if (typeof v === "string") {
+        try {
+          const parsed = JSON.parse(v);
+          return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed) ? parsed : null;
+        } catch {
+          return null;
+        }
+      }
+      if (typeof v === "object" && v !== null && !Array.isArray(v)) return v;
+      return null;
+    };
+
+    const normalize = (hr: any) => {
+      if (!hr || typeof hr !== "object") return null;
+
+      // Already-normalized shape used by the owner submit payload:
+      // { checkIn, checkOut, pets, petsNote, smoking, other, safetyMeasures? }
+      const out: any = {};
+      if (typeof hr.checkIn === "string" && hr.checkIn.trim()) out.checkIn = hr.checkIn.trim();
+      if (typeof hr.checkOut === "string" && hr.checkOut.trim()) out.checkOut = hr.checkOut.trim();
+
+      // Support legacy/un-normalized shape (from TotalsStep state)
+      const fmtWindow = (from: string, to: string) => {
+        const f = String(from || "").trim();
+        const t = String(to || "").trim();
+        if (f && t) return `${f} – ${t}`;
+        if (f) return `From ${f}`;
+        if (t) return `Until ${t}`;
+        return "";
+      };
+      if (!out.checkIn) {
+        const v = fmtWindow(hr.checkInFrom, hr.checkInTo);
+        if (v) out.checkIn = v;
+      }
+      if (!out.checkOut) {
+        const v = fmtWindow(hr.checkOutFrom, hr.checkOutTo);
+        if (v) out.checkOut = v;
+      }
+
+      if (typeof hr.pets === "boolean") out.pets = hr.pets;
+      if (typeof hr.petsAllowed === "boolean") out.pets = hr.petsAllowed;
+      if (typeof hr.petsNote === "string" && hr.petsNote.trim()) out.petsNote = hr.petsNote.trim();
+
+      // In the public UI, `houseRules.smoking === true` means "Smoking Not Allowed"
+      if (typeof hr.smoking === "boolean") out.smoking = hr.smoking;
+      if (typeof hr.smokingNotAllowed === "boolean") out.smoking = hr.smokingNotAllowed;
+
+      if (Array.isArray(hr.safetyMeasures)) out.safetyMeasures = hr.safetyMeasures;
+      if (typeof hr.other === "string" && hr.other.trim()) out.other = hr.other.trim();
+
+      return Object.keys(out).length ? out : null;
+    };
+
+    // Prefer direct `property.houseRules` if it exists (future-proof), otherwise fallback to `services.houseRules`
+    const direct = parseHouseRulesValue((property as any)?.houseRules);
+    const viaServices = parseHouseRulesValue((servicesObj as any)?.houseRules);
+
+    return normalize(direct) || normalize(viaServices) || null;
+  }, [property, servicesObj]);
+  
   // Default payment methods that should always be displayed
   const servicesByCategory = useMemo(() => {
     const DEFAULT_PAYMENT_METHODS = ["Mobile money", "Cash", "Card", "Bank transfer"];
@@ -1047,7 +1572,6 @@ export default function PublicPropertyDetailPage() {
                         if (json.error?.includes("not found")) {
                           setIsFavorite(false);
                         } else {
-                          console.error("Failed to unsave:", json.error || "Unknown error");
                           alert(json.error || "Failed to remove from saved list. Please try again.");
                         }
                       }
@@ -1073,13 +1597,11 @@ export default function PublicPropertyDetailPage() {
                         alert("Please log in to save properties");
                         router.push(`/login?next=${encodeURIComponent(window.location.pathname)}`);
                       } else {
-                        console.error("Failed to save:", json.error || json.details || "Unknown error");
                         const errorMsg = json.error || json.message || "Failed to save property. Please try again.";
                         alert(errorMsg);
                       }
                     }
                   } catch (e: any) {
-                    console.error("Failed to toggle favorite:", e);
                     alert("Network error. Please check your connection and try again.");
                   } finally {
                     setFavoriteLoading(false);
@@ -1622,8 +2144,867 @@ export default function PublicPropertyDetailPage() {
           </aside>
         </div>
 
+        {/* Availability Checker */}
+        <PropertyAvailabilityChecker
+          propertyId={property.id}
+          onAvailability={(data) => setAvailabilityData(data)}
+          onDatesChange={(checkIn, checkOut) => setSelectedDates({ checkIn, checkOut })}
+        />
+
+        {/* Building visualization (owner-declared) */}
+        {property.roomsSpec && property.roomsSpec.length > 0 && (
+          <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#02665e]/10 text-[#02665e]">
+                <Building2 className="w-5 h-5" aria-hidden />
+              </span>
+              <h2 className="text-lg font-semibold text-slate-900">Building layout</h2>
+            </div>
+            <div className="mt-4">
+              {(() => {
+                const roomsSpec = Array.isArray(property.roomsSpec) ? property.roomsSpec : [];
+                const explicitFloors = typeof property.totalFloors === "number" ? property.totalFloors : null;
+                const derivedFloors = (() => {
+                  let max = 0;
+                  for (const r of roomsSpec) {
+                    const dist = (r as any)?.floorDistribution;
+                    let obj: any = dist;
+                    if (typeof dist === "string") {
+                      try { obj = JSON.parse(dist); } catch { obj = null; }
+                    }
+                    if (obj && typeof obj === "object") {
+                      for (const k of Object.keys(obj)) {
+                        const n = Number(k);
+                        if (Number.isFinite(n)) max = Math.max(max, n);
+                      }
+                    }
+                  }
+                  return max > 0 ? max : 1;
+                })();
+
+                const effectiveTotalFloors = explicitFloors && explicitFloors > 0 ? explicitFloors : derivedFloors;
+                const effectiveBuildingType =
+                  (property.buildingType && String(property.buildingType).trim()) ||
+                  (effectiveTotalFloors > 1 ? "multi_storey" : "single_storey");
+
+                return (
+                  <PropertyVisualizationPreview
+                    title={property.title || "Property"}
+                    buildingType={effectiveBuildingType}
+                    totalFloors={effectiveTotalFloors}
+                    showHeader={false}
+                    rooms={roomsSpec.map((r: any) => {
+                      // floorDistribution may arrive as JSON string or object
+                      let floorDist: Record<number, number> | undefined = undefined;
+                      const dist = r?.floorDistribution;
+                      if (dist) {
+                        if (typeof dist === "string") {
+                          try {
+                            const parsed = JSON.parse(dist);
+                            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+                              floorDist = parsed;
+                            }
+                          } catch {}
+                        } else if (typeof dist === "object" && dist !== null && !Array.isArray(dist)) {
+                          floorDist = dist;
+                        }
+                      }
+                      return {
+                        roomType: String(r?.roomType || r?.name || r?.label || "Room"),
+                        roomsCount: Number(r?.roomsCount ?? r?.count ?? r?.quantity ?? 0) || 0,
+                        floorDistribution: floorDist,
+                      };
+                    })}
+                    onRoomTypeClick={({ roomType, floor }) => setRoomQuickView({ roomType, floor })}
+                  />
+                );
+              })()}
+            </div>
+          </div>
+        )}
+
+        {/* Room quick view modal (booking shortcut) */}
+        {roomQuickView ? (
+          <div className="fixed inset-0 z-[80]">
+            <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setRoomQuickView(null)} />
+            <div className="absolute inset-x-0 top-14 sm:top-20 mx-auto w-[min(92vw,640px)] h-[min(78vh,640px)]">
+              <div
+                className="rounded-[28px] border border-slate-200/80 bg-white shadow-2xl overflow-hidden nls-flipbook h-full flex flex-col ring-1 ring-slate-200/40"
+                data-qb-version="flip-v1"
+              >
+                <div className="p-3 sm:p-4 bg-gradient-to-r from-slate-50 via-white to-emerald-50/40 border-b border-slate-200 shrink-0">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Quick booking</div>
+                      <div className="mt-1 text-xl font-bold text-slate-900 truncate">{roomQuickView.roomType}</div>
+                      <div className="mt-1 text-sm text-slate-600">
+                        {getFloorName(roomQuickView.floor)} Floor
+                        {selectedDates.checkIn && selectedDates.checkOut ? (
+                          <span className="text-slate-400"> · dates selected</span>
+                        ) : (
+                          <span className="text-amber-700"> · select dates above to see live availability</span>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setRoomQuickView(null)}
+                      className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white hover:bg-slate-50 w-10 h-10 transition-colors"
+                      aria-label="Close"
+                    >
+                      <X className="w-5 h-5 text-slate-600" aria-hidden />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-3 sm:p-4 flex-1 overflow-y-auto">
+                  {(() => {
+                    const roomsSpec = Array.isArray(property.roomsSpec) ? property.roomsSpec : [];
+                    const normalizedRows = normalizeRoomsSpec(roomsSpec, property.currency, property.basePrice, property, systemCommission);
+                    const row = normalizedRows.find((r) => r.roomType === roomQuickView.roomType) || null;
+
+                    const codesForType = roomsSpec
+                      .filter((r: any) => String(r?.roomType || r?.name || r?.label || "").trim() === roomQuickView.roomType)
+                      .map((r: any) => String(r?.code || r?.roomCode || "").trim())
+                      .filter(Boolean);
+
+                    const byCode = availabilityData?.byRoomType || null;
+                    // Keep original calculation for debug log (do not change previously added log)
+                    const availableCodes = byCode
+                      ? codesForType.filter((c: string) => Number(byCode?.[c]?.availableRooms ?? 0) > 0)
+                      : [];
+
+                    const effectiveDates =
+                      modalDates.checkIn && modalDates.checkOut ? modalDates : selectedDates;
+                    const availabilityMatchesDates =
+                      !!byCode &&
+                      !!availabilityData?.checkIn &&
+                      !!availabilityData?.checkOut &&
+                      !!effectiveDates.checkIn &&
+                      !!effectiveDates.checkOut &&
+                      String(availabilityData.checkIn).startsWith(effectiveDates.checkIn) &&
+                      String(availabilityData.checkOut).startsWith(effectiveDates.checkOut);
+
+                    const roomIndex = roomsSpec.findIndex(
+                      (r: any) => String(r?.roomType || r?.name || r?.label || "").trim() === roomQuickView.roomType
+                    );
+
+                    const defaultAvail = byCode?.default || null;
+                    const availabilityMode: "none" | "per_code" | "default" =
+                      !byCode ? "none" : codesForType.length ? "per_code" : defaultAvail ? "default" : "none";
+
+                    const computedAvailableRooms =
+                      !byCode
+                        ? null
+                        : !availabilityMatchesDates
+                          ? null
+                          : availabilityMode === "per_code"
+                            ? codesForType.reduce((sum: number, c: string) => sum + Number(byCode?.[c]?.availableRooms ?? 0), 0)
+                            : availabilityMode === "default"
+                              ? Number(defaultAvail?.availableRooms ?? 0)
+                              : 0;
+
+                    const canBook =
+                      Boolean(effectiveDates.checkIn && effectiveDates.checkOut) &&
+                      (computedAvailableRooms == null ? false : computedAvailableRooms > 0) &&
+                      (codesForType.length > 0 || roomIndex >= 0);
+
+                    const buildBookingUrl = () => {
+                      const base = `/public/booking/confirm?property=${property.id}&checkIn=${encodeURIComponent(
+                        effectiveDates.checkIn
+                      )}&checkOut=${encodeURIComponent(effectiveDates.checkOut)}&floor=${roomQuickView.floor}&adults=${encodeURIComponent(
+                        String(Math.max(1, Number(modalGuests.adults || 1)))
+                      )}&children=${encodeURIComponent(String(Math.max(0, Number(modalGuests.children || 0))))}&pets=${encodeURIComponent(
+                        String(Math.max(0, Number(modalGuests.pets || 0)))
+                      )}&rooms=${encodeURIComponent(String(Math.max(1, Number(modalRoomsQty || 1))))}`;
+                      if (codesForType.length > 0) {
+                        // Prefer roomCode when the listing provides it
+                        const code = availabilityMode === "per_code"
+                          ? (availableCodes[0] || codesForType[0])
+                          : codesForType[0];
+                        return `${base}&roomCode=${encodeURIComponent(code)}`;
+                      }
+                      if (roomIndex >= 0) {
+                        return `${base}&roomIndex=${roomIndex}`;
+                      }
+                      return base;
+                    };
+
+                    return (
+                      true ? (
+                      <div className="relative [perspective:1200px] [isolation:isolate]">
+                          <div
+                            className={[
+                              "relative min-h-[420px]",
+                              "motion-safe:transition-transform motion-safe:duration-500 motion-safe:ease-in-out",
+                            "[transform-style:preserve-3d]",
+                            "[will-change:transform]",
+                              quickBookingPage === "availability" ? "[transform:rotateY(180deg)]" : "",
+                            ].join(" ")}
+                          >
+                            {/* Front: Details */}
+                          <div
+                            className="absolute inset-0 [backface-visibility:hidden] [-webkit-backface-visibility:hidden]"
+                            data-qb-face="front"
+                          >
+                              {(() => {
+                                const maxGuests = Number(property.maxGuests ?? 0) > 0 ? Number(property.maxGuests) : 100;
+                                const declaredRoomsCount =
+                                  typeof row?.roomsCount === "number" && row.roomsCount > 0
+                                    ? row.roomsCount
+                                    : (() => {
+                                        const rs = Array.isArray(property.roomsSpec) ? property.roomsSpec : [];
+                                        const found = rs.find(
+                                          (x: any) => String(x?.roomType || x?.name || x?.label || "").trim() === roomQuickView.roomType
+                                        );
+                                        const n = Number(found?.roomsCount ?? found?.count ?? found?.quantity ?? 0);
+                                        return Number.isFinite(n) && n > 0 ? n : 1;
+                                      })();
+                                const maxRooms =
+                                  computedAvailableRooms != null && availabilityMatchesDates
+                                    ? Math.max(1, computedAvailableRooms)
+                                    : Math.max(1, declaredRoomsCount);
+
+                                const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
+                                const setRooms = (next: number) => setModalRoomsQty(clamp(next, 1, maxRooms));
+                                const setAdults = (next: number) =>
+                                  setModalGuests((g) => ({ ...g, adults: clamp(next, 1, maxGuests) }));
+
+                                const Stepper = ({
+                                  value,
+                                  min,
+                                  max,
+                                  onChange,
+                                  label,
+                                }: {
+                                  value: number;
+                                  min: number;
+                                  max: number;
+                                  onChange: (n: number) => void;
+                                  label: string;
+                                }) => (
+                                  <div className="inline-flex items-center rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+                                    <button
+                                      type="button"
+                                      onClick={() => onChange(value - 1)}
+                                      disabled={value <= min}
+                                      className="w-10 h-10 inline-flex items-center justify-center hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                      aria-label={`Decrease ${label}`}
+                                    >
+                                      <Minus className="w-4 h-4 text-slate-700" aria-hidden />
+                                    </button>
+                                    <div className="w-10 h-10 inline-flex items-center justify-center text-sm font-extrabold text-slate-900">
+                                      {value}
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => onChange(value + 1)}
+                                      disabled={value >= max}
+                                      className="w-10 h-10 inline-flex items-center justify-center hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                      aria-label={`Increase ${label}`}
+                                    >
+                                      <Plus className="w-4 h-4 text-slate-700" aria-hidden />
+                                    </button>
+                                  </div>
+                                );
+
+                                const canFlip = Boolean(modalDates.checkIn && modalDates.checkOut);
+
+                                return (
+                                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                                    <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4">
+                                      <div className="flex items-start justify-between gap-4">
+                                        <div className="min-w-0">
+                                          <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Beds</div>
+                                          <div className="mt-1 text-sm font-semibold text-slate-900">{row?.bedsSummary || "—"}</div>
+                                        </div>
+                                        <div className="text-right">
+                                          <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Price / night</div>
+                                          <div className="mt-1 text-base font-extrabold text-slate-900">
+                                            {fmtMoney(row?.pricePerNight ?? null, property.currency)}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                      <div className="space-y-1">
+                                        <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">Check-in</label>
+                                        <div className="relative">
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setModalCheckInPickerOpen(true);
+                                              setModalCheckOutPickerOpen(false);
+                                            }}
+                                            className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-300 bg-white flex items-center justify-between"
+                                            aria-label="Select check-in date"
+                                          >
+                                            <span className="inline-flex items-center gap-2 min-w-0">
+                                              <Calendar className="w-4 h-4 text-[#02665e]" aria-hidden />
+                                              <span className="text-slate-900 truncate">
+                                                {modalDates.checkIn ? formatDateLabel(modalDates.checkIn) : "Select date"}
+                                              </span>
+                                            </span>
+                                            <ChevronDown className="w-4 h-4 text-slate-400" aria-hidden />
+                                          </button>
+                                          {modalCheckInPickerOpen && (
+                                            <div className="fixed inset-0 z-[95] flex items-start justify-center p-4 sm:p-6">
+                                              <div
+                                                className="absolute inset-0 bg-black/15 backdrop-blur-[1px]"
+                                                onClick={() => setModalCheckInPickerOpen(false)}
+                                              />
+                                              <div className="relative mt-24 sm:mt-28 bg-white rounded-2xl border-2 border-slate-200 shadow-2xl p-3 transition-all duration-200">
+                                                <DatePicker
+                                                  selected={modalDates.checkIn}
+                                                  onSelect={(s) => {
+                                                    const date = Array.isArray(s) ? s[0] : s;
+                                                    setModalDates((st) => ({ ...st, checkIn: date }));
+                                                    setModalAvailError(null);
+                                                    setModalCheckInPickerOpen(false);
+                                                    // Reset check-out if it is before/equals new check-in
+                                                    if (modalDates.checkOut && date && new Date(modalDates.checkOut) <= new Date(date)) {
+                                                      setModalDates((st) => ({ ...st, checkOut: "" }));
+                                                    }
+                                                  }}
+                                                  onClose={() => setModalCheckInPickerOpen(false)}
+                                                  minDate={new Date().toISOString().split("T")[0]}
+                                                />
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      <div className="space-y-1">
+                                        <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">Check-out</label>
+                                        <div className="relative">
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setModalCheckOutPickerOpen(true);
+                                              setModalCheckInPickerOpen(false);
+                                            }}
+                                            className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-300 bg-white flex items-center justify-between"
+                                            aria-label="Select check-out date"
+                                          >
+                                            <span className="inline-flex items-center gap-2 min-w-0">
+                                              <Calendar className="w-4 h-4 text-[#02665e]" aria-hidden />
+                                              <span className="text-slate-900 truncate">
+                                                {modalDates.checkOut ? formatDateLabel(modalDates.checkOut) : "Select date"}
+                                              </span>
+                                            </span>
+                                            <ChevronDown className="w-4 h-4 text-slate-400" aria-hidden />
+                                          </button>
+                                          {modalCheckOutPickerOpen && (
+                                            <div className="fixed inset-0 z-[95] flex items-start justify-center p-4 sm:p-6">
+                                              <div
+                                                className="absolute inset-0 bg-black/15 backdrop-blur-[1px]"
+                                                onClick={() => setModalCheckOutPickerOpen(false)}
+                                              />
+                                              <div className="relative mt-24 sm:mt-28 bg-white rounded-2xl border-2 border-slate-200 shadow-2xl p-3 transition-all duration-200">
+                                                <DatePicker
+                                                  selected={modalDates.checkOut}
+                                                  onSelect={(s) => {
+                                                    const date = Array.isArray(s) ? s[0] : s;
+                                                    setModalDates((st) => ({ ...st, checkOut: date }));
+                                                    setModalAvailError(null);
+                                                    setModalCheckOutPickerOpen(false);
+                                                  }}
+                                                  onClose={() => setModalCheckOutPickerOpen(false)}
+                                                  minDate={modalDates.checkIn || new Date().toISOString().split("T")[0]}
+                                                />
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                      <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+                                        <div className="text-[11px] font-semibold text-slate-600 uppercase tracking-wide">Rooms</div>
+                                        <div className="mt-2 flex items-center justify-between gap-3">
+                                          <div className="text-sm font-semibold text-slate-900">{modalRoomsQty}</div>
+                                          <Stepper value={modalRoomsQty} min={1} max={maxRooms} onChange={setRooms} label="rooms" />
+                                        </div>
+                                        <div className="mt-1 text-[11px] text-slate-500">Max {maxRooms}.</div>
+                                      </div>
+                                      <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+                                        <div className="text-[11px] font-semibold text-slate-600 uppercase tracking-wide">Adults</div>
+                                        <div className="mt-2 flex items-center justify-between gap-3">
+                                          <div className="text-sm font-semibold text-slate-900">{modalGuests.adults}</div>
+                                          <Stepper value={modalGuests.adults} min={1} max={maxGuests} onChange={setAdults} label="adults" />
+                                        </div>
+                                        <div className="mt-1 text-[11px] text-slate-500">Max {maxGuests}.</div>
+                                      </div>
+                                    </div>
+
+                                    <div className="mt-4 flex gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setQuickBookingPage("availability");
+                                        }}
+                                        disabled={!canFlip}
+                                        className="flex-1 rounded-xl bg-slate-900 text-white py-2.5 text-sm font-semibold hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                      >
+                                        Next: check availability
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          document.getElementById("roomsSection")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                                          setRoomQuickView(null);
+                                        }}
+                                        className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 hover:bg-slate-50 transition-colors"
+                                      >
+                                        View rooms
+                                      </button>
+                                    </div>
+
+                                    {!canFlip ? (
+                                      <div className="mt-2 text-xs text-amber-700">Select both dates to continue.</div>
+                                    ) : null}
+                                  </div>
+                                );
+                              })()}
+                            </div>
+
+                            {/* Back: Availability */}
+                          <div
+                            className="absolute inset-0 [backface-visibility:hidden] [-webkit-backface-visibility:hidden] [transform:rotateY(180deg)]"
+                            data-qb-face="back"
+                          >
+                              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <div className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Availability</div>
+                                    <div className="mt-1 text-sm text-slate-700">
+                                      {effectiveDates.checkIn && effectiveDates.checkOut
+                                        ? `${formatDateLabel(effectiveDates.checkIn)} → ${formatDateLabel(effectiveDates.checkOut)}`
+                                        : "Select dates first"}
+                                    </div>
+                                    <div className="mt-1 text-[11px] text-slate-500">
+                                      Rooms: {modalRoomsQty} · Adults: {modalGuests.adults}
+                                    </div>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setQuickBookingPage("details");
+                                    }}
+                                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50 transition-colors"
+                                  >
+                                    Back
+                                  </button>
+                                </div>
+
+                                <div className="mt-4 flex items-center justify-between gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      runAvailabilityCheck(property.id, modalDates.checkIn, modalDates.checkOut);
+                                    }}
+                                    disabled={modalAvailLoading}
+                                    className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    {modalAvailLoading ? (
+                                      <span className="inline-flex items-center gap-2">
+                                        <Loader2 className="w-4 h-4 animate-spin" aria-hidden />
+                                        Checking...
+                                      </span>
+                                    ) : (
+                                      "Check availability"
+                                    )}
+                                  </button>
+                                  {modalAvailError ? (
+                                    <div className="text-xs font-semibold text-rose-700">{modalAvailError}</div>
+                                  ) : null}
+                                </div>
+
+                                <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                                  <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Result</div>
+                                  <div className="mt-1 text-sm font-semibold text-slate-900">
+                                    {computedAvailableRooms == null
+                                      ? "Select dates and check availability"
+                                      : computedAvailableRooms > 0
+                                        ? availabilityMode === "default"
+                                          ? `${computedAvailableRooms} available (overall)`
+                                          : `${computedAvailableRooms} available`
+                                        : "No availability for selected dates"}
+                                  </div>
+                                  {availabilityMode === "default" ? (
+                                    <div className="mt-1 text-[11px] text-slate-500">
+                                      This listing tracks availability at the property level (no per-room codes yet).
+                                    </div>
+                                  ) : null}
+                                  {byCode && !availabilityMatchesDates && (modalDates.checkIn && modalDates.checkOut) ? (
+                                    <div className="mt-1 text-[11px] text-amber-700">
+                                      Availability shown may be for different dates — tap “Check availability”.
+                                    </div>
+                                  ) : null}
+                                </div>
+
+                                <div className="mt-4 flex gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      router.push(buildBookingUrl());
+                                    }}
+                                    disabled={!canBook}
+                                    className="flex-1 inline-flex items-center justify-center rounded-xl bg-[#02665e] text-white py-2.5 text-sm font-semibold hover:bg-[#014e47] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    Book this room type
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      document.getElementById("roomsSection")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                                      setRoomQuickView(null);
+                                    }}
+                                    className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 hover:bg-slate-50 transition-colors"
+                                  >
+                                    View rooms
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+                        {/* Left: compact premium summary + rooms/guests */}
+                        <div className="rounded-2xl border border-slate-200 bg-white p-4 nols-entrance">
+                          <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="min-w-0">
+                                <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Beds</div>
+                                <div className="mt-1 text-sm font-semibold text-slate-900">{row?.bedsSummary || "—"}</div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Price / night</div>
+                                <div className="mt-1 text-base font-extrabold text-slate-900">
+                                  {fmtMoney(row?.pricePerNight ?? null, property!.currency)}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {(() => {
+                            const maxGuests = Number(property!.maxGuests ?? 0) > 0 ? Number(property!.maxGuests) : 100;
+                            const petsAllowed = houseRules?.pets === false ? false : true;
+                            const declaredRoomsCount =
+                              typeof row?.roomsCount === "number" && (row?.roomsCount ?? 0) > 0
+                                ? (row?.roomsCount ?? 0)
+                                : (() => {
+                                    const rs = Array.isArray(property!.roomsSpec) ? property!.roomsSpec : [];
+                                    const found = rs.find(
+                                      (x: any) => String(x?.roomType || x?.name || x?.label || "").trim() === roomQuickView!.roomType
+                                    );
+                                    const n = Number(found?.roomsCount ?? found?.count ?? found?.quantity ?? 0);
+                                    return Number.isFinite(n) && n > 0 ? n : 1;
+                                  })();
+                            const maxRooms =
+                              computedAvailableRooms != null ? Math.max(1, Number(computedAvailableRooms)) : Math.max(1, declaredRoomsCount);
+
+                            const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
+                            const setRooms = (next: number) => setModalRoomsQty(clamp(next, 1, maxRooms));
+                            const setAdults = (next: number) =>
+                              setModalGuests((g) => ({ ...g, adults: clamp(next, 1, maxGuests) }));
+                            const setChildren = (next: number) =>
+                              setModalGuests((g) => ({ ...g, children: clamp(next, 0, maxGuests) }));
+                            const setPets = (next: number) =>
+                              setModalGuests((g) => ({ ...g, pets: petsAllowed ? clamp(next, 0, 10) : 0 }));
+
+                            const Stepper = ({
+                              value,
+                              min,
+                              max,
+                              onChange,
+                              label,
+                              disabled,
+                            }: {
+                              value: number;
+                              min: number;
+                              max: number;
+                              onChange: (n: number) => void;
+                              label: string;
+                              disabled?: boolean;
+                            }) => (
+                              <div className="inline-flex items-center rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+                                <button
+                                  type="button"
+                                  onClick={() => onChange(value - 1)}
+                                  disabled={disabled || value <= min}
+                                  className="w-10 h-10 inline-flex items-center justify-center hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                  aria-label={`Decrease ${label}`}
+                                >
+                                  <Minus className="w-4 h-4 text-slate-700" aria-hidden />
+                                </button>
+                                <div className="w-10 h-10 inline-flex items-center justify-center text-sm font-extrabold text-slate-900">
+                                  {disabled ? 0 : value}
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => onChange(value + 1)}
+                                  disabled={disabled || value >= max}
+                                  className="w-10 h-10 inline-flex items-center justify-center hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                  aria-label={`Increase ${label}`}
+                                >
+                                  <Plus className="w-4 h-4 text-slate-700" aria-hidden />
+                                </button>
+                              </div>
+                            );
+
+                            return (
+                              <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4 nols-entrance nols-delay-1">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="text-[11px] font-semibold text-slate-600 uppercase tracking-wide">
+                                    Customize
+                                  </div>
+                                  <div className="text-[11px] text-slate-500">Max guests: {maxGuests}</div>
+                                </div>
+
+                                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                  {/* Rooms tile */}
+                                  <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 hover:bg-white transition-colors">
+                                    <div className="flex items-center justify-between gap-3">
+                                      <div className="min-w-0">
+                                        <div className="text-[11px] font-semibold text-slate-600 uppercase tracking-wide">Rooms</div>
+                                        <div className="mt-1 text-sm font-semibold text-slate-900">{modalRoomsQty}</div>
+                                        <div className="mt-1 text-[11px] text-slate-500">Max {maxRooms} for this type</div>
+                                      </div>
+                                      <Stepper value={modalRoomsQty} min={1} max={maxRooms} onChange={setRooms} label="rooms" />
+                                    </div>
+                                  </div>
+
+                                  {/* Adults tile */}
+                                  <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 hover:bg-white transition-colors">
+                                    <div className="flex items-center justify-between gap-3">
+                                      <div className="min-w-0">
+                                        <div className="text-[11px] font-semibold text-slate-600 uppercase tracking-wide">Adults</div>
+                                        <div className="mt-1 text-sm font-semibold text-slate-900">{modalGuests.adults}</div>
+                                      </div>
+                                      <Stepper value={modalGuests.adults} min={1} max={maxGuests} onChange={setAdults} label="adults" />
+                                    </div>
+                                  </div>
+
+                                  {/* Children tile */}
+                                  <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 hover:bg-white transition-colors">
+                                    <div className="flex items-center justify-between gap-3">
+                                      <div className="min-w-0">
+                                        <div className="text-[11px] font-semibold text-slate-600 uppercase tracking-wide">Children</div>
+                                        <div className="mt-1 text-sm font-semibold text-slate-900">{modalGuests.children}</div>
+                                      </div>
+                                      <Stepper value={modalGuests.children} min={0} max={maxGuests} onChange={setChildren} label="children" />
+                                    </div>
+                                  </div>
+
+                                  {/* Pets tile */}
+                                  <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 hover:bg-white transition-colors">
+                                    <div className="flex items-center justify-between gap-3">
+                                      <div className="min-w-0">
+                                        <div className="text-[11px] font-semibold text-slate-600 uppercase tracking-wide">
+                                          Pets {petsAllowed ? "" : <span className="text-slate-500 font-medium">(not allowed)</span>}
+                                        </div>
+                                        <div className="mt-1 text-sm font-semibold text-slate-900">{petsAllowed ? modalGuests.pets : 0}</div>
+                                      </div>
+                                      <Stepper
+                                        value={modalGuests.pets}
+                                        min={0}
+                                        max={10}
+                                        onChange={setPets}
+                                        label="pets"
+                                        disabled={!petsAllowed}
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
+
+                        {/* Right: dates + availability + actions (premium compact) */}
+                        <div className="rounded-2xl border border-slate-200 bg-white p-4 nols-entrance nols-delay-2">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">Check-in</label>
+                              <div className="relative">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setModalCheckInPickerOpen(true);
+                                    setModalCheckOutPickerOpen(false);
+                                  }}
+                                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-300 bg-white flex items-center justify-between"
+                                  aria-label="Select check-in date"
+                                >
+                                  <span className="inline-flex items-center gap-2 min-w-0">
+                                    <Calendar className="w-4 h-4 text-[#02665e]" aria-hidden />
+                                    <span className="text-slate-900 truncate">
+                                      {modalDates.checkIn ? formatDateLabel(modalDates.checkIn) : "Select date"}
+                                    </span>
+                                  </span>
+                                  <ChevronDown className="w-4 h-4 text-slate-400" aria-hidden />
+                                </button>
+                                {modalCheckInPickerOpen && (
+                                  <div className="fixed inset-0 z-[95] flex items-start justify-center p-4 sm:p-6">
+                                    <div
+                                      className="absolute inset-0 bg-black/15 backdrop-blur-[1px]"
+                                      onClick={() => setModalCheckInPickerOpen(false)}
+                                    />
+                                    <div className="relative mt-24 sm:mt-28 bg-white rounded-2xl border-2 border-slate-200 shadow-2xl p-3 transition-all duration-200">
+                                      <DatePicker
+                                        selected={modalDates.checkIn}
+                                        onSelect={(s) => {
+                                          const date = Array.isArray(s) ? s[0] : s;
+                                          setModalDates((st) => ({ ...st, checkIn: date }));
+                                          setModalAvailError(null);
+                                          setModalCheckInPickerOpen(false);
+                                          // Reset check-out if it is before/equals new check-in
+                                          if (modalDates.checkOut && date && new Date(modalDates.checkOut) <= new Date(date)) {
+                                            setModalDates((st) => ({ ...st, checkOut: "" }));
+                                          }
+                                        }}
+                                        onClose={() => setModalCheckInPickerOpen(false)}
+                                        minDate={new Date().toISOString().split("T")[0]}
+                                      />
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="space-y-1">
+                              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">Check-out</label>
+                              <div className="relative">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setModalCheckOutPickerOpen(true);
+                                    setModalCheckInPickerOpen(false);
+                                  }}
+                                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-300 bg-white flex items-center justify-between"
+                                  aria-label="Select check-out date"
+                                >
+                                  <span className="inline-flex items-center gap-2 min-w-0">
+                                    <Calendar className="w-4 h-4 text-[#02665e]" aria-hidden />
+                                    <span className="text-slate-900 truncate">
+                                      {modalDates.checkOut ? formatDateLabel(modalDates.checkOut) : "Select date"}
+                                    </span>
+                                  </span>
+                                  <ChevronDown className="w-4 h-4 text-slate-400" aria-hidden />
+                                </button>
+                                {modalCheckOutPickerOpen && (
+                                  <div className="fixed inset-0 z-[95] flex items-start justify-center p-4 sm:p-6">
+                                    <div
+                                      className="absolute inset-0 bg-black/15 backdrop-blur-[1px]"
+                                      onClick={() => setModalCheckOutPickerOpen(false)}
+                                    />
+                                    <div className="relative mt-24 sm:mt-28 bg-white rounded-2xl border-2 border-slate-200 shadow-2xl p-3 transition-all duration-200">
+                                      <DatePicker
+                                        selected={modalDates.checkOut}
+                                        onSelect={(s) => {
+                                          const date = Array.isArray(s) ? s[0] : s;
+                                          setModalDates((st) => ({ ...st, checkOut: date }));
+                                          setModalAvailError(null);
+                                          setModalCheckOutPickerOpen(false);
+                                        }}
+                                        onClose={() => setModalCheckOutPickerOpen(false)}
+                                        minDate={modalDates.checkIn || new Date().toISOString().split("T")[0]}
+                                      />
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="mt-3 flex items-center justify-between gap-2">
+                            <button
+                              type="button"
+                              onClick={() => runAvailabilityCheck(property!.id, modalDates.checkIn, modalDates.checkOut)}
+                              disabled={modalAvailLoading}
+                              className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {modalAvailLoading ? (
+                                <span className="inline-flex items-center gap-2">
+                                  <Loader2 className="w-4 h-4 animate-spin" aria-hidden />
+                                  Checking...
+                                </span>
+                              ) : (
+                                "Check availability"
+                              )}
+                            </button>
+                            {modalAvailError ? (
+                              <div className="text-xs font-semibold text-rose-700">{modalAvailError}</div>
+                            ) : null}
+                          </div>
+
+                          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Availability</div>
+                          <div className="mt-1 text-sm font-semibold text-slate-900">
+                            {computedAvailableRooms == null
+                              ? "Select dates and check availability"
+                              : Number(computedAvailableRooms) > 0
+                                ? availabilityMode === "default"
+                                  ? `${computedAvailableRooms} available (overall)`
+                                  : `${computedAvailableRooms} available`
+                                : "No availability for selected dates"}
+                          </div>
+                          {availabilityMode === "default" ? (
+                            <div className="mt-1 text-[11px] text-slate-500">
+                              This listing tracks availability at the property level (no per-room codes yet).
+                            </div>
+                          ) : null}
+                          {byCode && !availabilityMatchesDates && (modalDates.checkIn && modalDates.checkOut) ? (
+                            <div className="mt-1 text-[11px] text-amber-700">
+                              Availability shown may be for different dates — tap “Check availability”.
+                            </div>
+                          ) : null}
+
+                          <div className="mt-4 flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                router.push(buildBookingUrl());
+                              }}
+                              disabled={!canBook}
+                              className="flex-1 inline-flex items-center justify-center rounded-xl bg-[#02665e] text-white py-2.5 text-sm font-semibold hover:bg-[#014e47] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              Book this room type
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                document.getElementById("roomsSection")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                                setRoomQuickView(null);
+                              }}
+                              className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 hover:bg-slate-50 transition-colors"
+                            >
+                              View rooms
+                            </button>
+                          </div>
+
+                          {!selectedDates.checkIn || !selectedDates.checkOut ? (
+                            <div className="mt-2 text-xs text-amber-700">
+                              Tip: select dates in “Check Availability”, then tap “Check Availability”.
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                      )
+                    );
+                  })()}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         {/* Rooms (full-width on large screens; no horizontal scroll) */}
-        <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5">
+        <div id="roomsSection" className="mt-6 rounded-2xl border border-slate-200 bg-white p-5">
           <div className="flex items-center gap-2">
             <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#02665e]/10 text-[#02665e]">
               <DoorClosed className="w-5 h-5" aria-hidden />
@@ -1777,7 +3158,22 @@ export default function PublicPropertyDetailPage() {
 
                       <button
                         type="button"
-                        onClick={() => router.push(`/public/booking/confirm?property=${property.id}`)}
+                        onClick={() => {
+                          const params = new URLSearchParams({
+                            property: String(property.id),
+                          });
+                          // Use roomCode if available, otherwise use index as fallback
+                          if (r.roomCode) {
+                            params.set("roomCode", r.roomCode);
+                          } else {
+                            // Use index as identifier when code is not available
+                            const roomIndex = rows.findIndex((row) => row === r);
+                            if (roomIndex >= 0) {
+                              params.set("roomIndex", String(roomIndex));
+                            }
+                          }
+                          router.push(`/public/booking/confirm?${params.toString()}`);
+                        }}
                         className="mt-4 w-full rounded-lg bg-[#02665e] text-white py-1.5 px-3 text-xs font-medium hover:bg-[#014e47] transition-colors shadow-sm hover:shadow"
                       >
                         Pay now
@@ -1786,198 +3182,180 @@ export default function PublicPropertyDetailPage() {
                   ))}
                 </div>
 
-                {/* Desktop: full-width table (no horizontal scroll) */}
+                {/* Desktop: modern column-aligned "card rows" (clean + transitional) */}
                 <div className="hidden md:block">
-                  <div className="rounded-xl border border-slate-200 overflow-hidden">
-                    <table className="w-full table-fixed border-collapse">
-                      <thead className="bg-slate-50 text-slate-700">
-                        <tr>
-                          <th className="text-left text-sm font-semibold px-3 py-3 border-b border-r border-slate-200 w-[14%]">
-                            Room type
-                          </th>
-                          <th className="text-left text-sm font-semibold px-3 py-3 border-b border-r border-slate-200 w-[13%]">
-                            Bed Type &amp; Size
-                          </th>
-                          <th className="text-left text-sm font-semibold px-3 py-3 border-b border-r border-slate-200 w-[30%]">
-                            Description &amp; Amenities
-                          </th>
-                          <th className="text-left text-sm font-semibold px-3 py-3 border-b border-r border-slate-200 w-[15%]">
-                            Price &amp; Discounts
-                          </th>
-                          <th className="text-left text-sm font-semibold px-3 py-3 border-b border-r border-slate-200 w-[12%]">Pay Now</th>
-                          <th className="text-left text-sm font-semibold px-3 py-3 border-b border-slate-200 w-[16%]">
-                            Policies
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white">
-                        {rows.map((r, idx) => (
-                          <TableRow
-                            key={`${r.roomType}-${idx}`}
-                            className={[
-                              idx % 2 === 0 ? "bg-white" : "bg-slate-50/40",
-                              // Clean, brand‑tinted hover (override TableRow default sky tint)
-                              "hover:bg-emerald-50/30 hover:shadow-none",
-                              "motion-safe:transition-colors motion-safe:duration-200",
-                            ].join(" ")}
-                          >
-                            <td className="align-top px-3 py-4 border-t border-slate-200">
-                              <div className="inline-flex items-start gap-2 text-base font-semibold text-slate-900 break-words">
-                                <DoorClosed className="w-4 h-4 text-slate-500 mt-0.5 flex-shrink-0" aria-hidden />
-                                <span>{r.roomType}</span>
+                  <div className="rounded-2xl border border-slate-200 bg-white/80 backdrop-blur-sm overflow-hidden">
+                    <div className="grid grid-cols-12 gap-3 px-4 py-3 bg-slate-50/70 border-b border-slate-200">
+                      <div className="col-span-2 text-[12px] font-semibold text-slate-600">Room type</div>
+                      <div className="col-span-2 text-[12px] font-semibold text-slate-600">Bed Type &amp; Size</div>
+                      <div className="col-span-4 text-[12px] font-semibold text-slate-600">Description &amp; Amenities</div>
+                      <div className="col-span-2 text-[12px] font-semibold text-slate-600">Price &amp; Discounts</div>
+                      <div className="col-span-1 text-[12px] font-semibold text-slate-600">Pay now</div>
+                      <div className="col-span-1 text-[12px] font-semibold text-slate-600">Policies</div>
+                    </div>
+
+                    <div className="divide-y divide-slate-200">
+                      {rows.map((r, idx) => (
+                        <div
+                          key={`${r.roomType}-${idx}`}
+                          className={[
+                            "grid grid-cols-12 gap-3 px-4 py-4",
+                            "bg-white",
+                            "hover:bg-emerald-50/30",
+                            "motion-safe:transition-colors motion-safe:duration-200",
+                          ].join(" ")}
+                        >
+                          {/* Room type */}
+                          <div className="col-span-2">
+                            <div className="inline-flex items-start gap-2 text-base font-semibold text-slate-900">
+                              <DoorClosed className="w-4 h-4 text-slate-500 mt-0.5 flex-shrink-0" aria-hidden />
+                              <span className="break-words">{r.roomType}</span>
+                            </div>
+                            {typeof r.roomsCount === "number" && r.roomsCount > 0 ? (
+                              <div className="mt-1 inline-flex items-center rounded-full bg-slate-50 border border-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-700">
+                                {r.roomsCount} rooms
                               </div>
-                              {typeof r.roomsCount === "number" && r.roomsCount > 0 ? (
-                                <div className="mt-1 inline-flex items-center rounded-full bg-slate-50 border border-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-700">
-                                  {r.roomsCount} rooms
-                                </div>
-                              ) : null}
-                            </td>
-                            <td className="align-top px-3 py-4 border-t border-slate-200">
-                              <div>
-                                <div className="inline-flex items-start gap-2 text-base text-slate-800 break-words">
-                                  <BedDouble className="w-4 h-4 text-slate-500 mt-0.5 flex-shrink-0" aria-hidden />
-                                  <span>{r.bedsSummary}</span>
-                                </div>
-                                {getBedDimensions(r.bedsSummary) && (
-                                  <div className="mt-1.5 text-xs text-slate-500 leading-tight">
-                                    {getBedDimensions(r.bedsSummary)}
+                            ) : null}
+                          </div>
+
+                          {/* Beds */}
+                          <div className="col-span-2">
+                            <div className="inline-flex items-start gap-2 text-base text-slate-800">
+                              <BedDouble className="w-4 h-4 text-slate-500 mt-0.5 flex-shrink-0" aria-hidden />
+                              <span className="break-words">{r.bedsSummary}</span>
+                            </div>
+                            {getBedDimensions(r.bedsSummary) && (
+                              <div className="mt-1.5 text-xs text-slate-500 leading-tight">
+                                {getBedDimensions(r.bedsSummary)}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Description & Amenities */}
+                          <div className="col-span-4">
+                            {r.description ? (
+                              <div className="p-3 rounded-xl border border-slate-200/70 bg-gradient-to-br from-white via-slate-50 to-emerald-50/20">
+                                <p className="text-sm text-slate-800 leading-relaxed break-words">
+                                  {capWords(r.description, 220)}
+                                </p>
+                              </div>
+                            ) : (
+                              <div className="text-sm text-slate-500">—</div>
+                            )}
+
+                            {r.amenities.length ? (
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {r.amenities.slice(0, 6).map((a) => (
+                                  <RoomAmenityChip
+                                    key={a}
+                                    label={a}
+                                    activeHint={roomAmenityHint}
+                                    onTouchHint={(label) => setRoomAmenityHint(label)}
+                                  />
+                                ))}
+                              </div>
+                            ) : null}
+
+                            {r.bathItems && r.bathItems.length > 0 ? (
+                              <div className="mt-3 pt-3 border-t border-slate-100">
+                                <div className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2 flex-wrap">
+                                  <div className="flex items-center gap-2">
+                                    <Bath className="w-4 h-4 text-slate-600" />
+                                    <span>Bathroom amenities</span>
                                   </div>
-                                )}
-                              </div>
-                            </td>
-                            <td className="align-top px-3 py-4 border-t border-slate-200">
-                              {r.description ? (
-                                <div className="p-3 bg-gradient-to-br from-slate-50 to-slate-100/50 rounded-lg border border-slate-200/60">
-                                  <p className="text-sm text-slate-800 leading-relaxed font-normal break-words">
-                                    {capWords(r.description, 220)}
-                                  </p>
+                                  {r.bathPrivate && (r.bathPrivate === "yes" || r.bathPrivate === "no") && (
+                                    <div
+                                      className={[
+                                        "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium",
+                                        r.bathPrivate === "yes"
+                                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                          : "bg-blue-50 text-blue-700 border border-blue-200",
+                                      ].join(" ")}
+                                    >
+                                      {r.bathPrivate === "yes" ? (
+                                        <>
+                                          <Lock className="w-3 h-3" />
+                                          <span>Private</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Share2 className="w-3 h-3" />
+                                          <span>Shared</span>
+                                        </>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
-                              ) : (
-                                <div className="text-base text-slate-500">—</div>
-                              )}
-                              {r.amenities.length ? (
-                                <div className="mt-2 flex flex-wrap gap-2">
-                                  {r.amenities.slice(0, 6).map((a) => (
+                                <div className="flex flex-wrap gap-2">
+                                  {r.bathItems.map((item) => (
                                     <RoomAmenityChip
-                                      key={a}
-                                      label={a}
+                                      key={item}
+                                      label={item}
                                       activeHint={roomAmenityHint}
                                       onTouchHint={(label) => setRoomAmenityHint(label)}
                                     />
                                   ))}
                                 </div>
-                              ) : null}
-                              {r.bathItems && r.bathItems.length > 0 ? (
-                                <div className="mt-3 pt-3 border-t border-slate-100">
-                                  <div className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2 flex-wrap">
-                                    <div className="flex items-center gap-2">
-                                      <Bath className="w-4 h-4 text-slate-600" />
-                                      <span>Bathroom amenities</span>
-                                    </div>
-                                    {r.bathPrivate && (r.bathPrivate === "yes" || r.bathPrivate === "no") && (
-                                      <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium ${
-                                        r.bathPrivate === "yes" 
-                                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200" 
-                                          : "bg-blue-50 text-blue-700 border border-blue-200"
-                                      }`}>
-                                        {r.bathPrivate === "yes" ? (
-                                          <>
-                                            <Lock className="w-3 h-3" />
-                                            <span>Private</span>
-                                          </>
-                                        ) : (
-                                          <>
-                                            <Share2 className="w-3 h-3" />
-                                            <span>Shared</span>
-                                          </>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-                                  <div className="flex flex-wrap gap-2">
-                                    {r.bathItems.map((item) => (
-                                      <RoomAmenityChip
-                                        key={item}
-                                        label={item}
-                                        activeHint={roomAmenityHint}
-                                        onTouchHint={(label) => setRoomAmenityHint(label)}
-                                      />
-                                    ))}
-                                  </div>
+                              </div>
+                            ) : null}
+                          </div>
+
+                          {/* Price */}
+                          <div className="col-span-2">
+                            <div className="text-base font-bold text-slate-900">{fmtMoney(r.pricePerNight, property.currency)}</div>
+                            <div className="text-xs text-slate-500">per night</div>
+                            {r.discountLabel ? (
+                              <div className="mt-1 inline-flex items-center rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-xs font-semibold text-emerald-800">
+                                {r.discountLabel}
+                              </div>
+                            ) : (
+                              <div className="mt-1 text-xs text-slate-500">No discounts</div>
+                            )}
+                          </div>
+
+                          {/* Pay */}
+                          <div className="col-span-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const params = new URLSearchParams({ property: String(property.id) });
+                                if (r.roomCode) {
+                                  params.set("roomCode", r.roomCode);
+                                } else {
+                                  const roomIndex = rows.findIndex((row) => row === r);
+                                  if (roomIndex >= 0) params.set("roomIndex", String(roomIndex));
+                                }
+                                router.push(`/public/booking/confirm?${params.toString()}`);
+                              }}
+                              className={[
+                                "w-full rounded-xl bg-[#02665e] text-white px-3 py-2 text-sm font-semibold",
+                                "hover:bg-[#014e47]",
+                                "motion-safe:transition-all motion-safe:duration-200",
+                                "shadow-sm hover:shadow",
+                                "active:scale-[0.98]",
+                              ].join(" ")}
+                            >
+                              Pay now
+                            </button>
+                            <div className="mt-2 text-[11px] text-slate-500">Secure checkout</div>
+                          </div>
+
+                          {/* Policies */}
+                          <div className="col-span-1">
+                            <div className="flex flex-col gap-1.5">
+                              {r.policies.slice(0, 3).map((p, i) => (
+                                <div key={i} className="inline-flex items-center gap-1.5 text-xs text-slate-700">
+                                  {p.Icon ? (
+                                    <p.Icon className={`w-3.5 h-3.5 flex-shrink-0 ${p.iconColor || "text-slate-600"}`} aria-hidden />
+                                  ) : null}
+                                  <span className="truncate">{p.text}</span>
                                 </div>
-                              ) : r.bathPrivate && (r.bathPrivate === "yes" || r.bathPrivate === "no") ? (
-                                <div className="mt-3 pt-3 border-t border-slate-100">
-                                  <div className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2 flex-wrap">
-                                    <div className="flex items-center gap-2">
-                                      <Bath className="w-4 h-4 text-slate-600" />
-                                      <span>Bathroom</span>
-                                    </div>
-                                    <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold shrink-0 ${
-                                      r.bathPrivate === "yes" 
-                                        ? "bg-emerald-50 text-emerald-700 border border-emerald-200" 
-                                        : "bg-blue-50 text-blue-700 border border-blue-200"
-                                    }`}>
-                                      {r.bathPrivate === "yes" ? (
-                                        <>
-                                          <Lock className="w-3.5 h-3.5 flex-shrink-0" />
-                                          <span>Private</span>
-                                        </>
-                                      ) : (
-                                        <>
-                                          <Share2 className="w-3.5 h-3.5 flex-shrink-0" />
-                                          <span>Shared</span>
-                                        </>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                              ) : null}
-                            </td>
-                            <td className="align-top px-3 py-4 border-t border-slate-200">
-                                <div>
-                                <div className="text-base font-bold text-slate-900">{fmtMoney(r.pricePerNight, property.currency)}</div>
-                                <div className="text-xs text-slate-500">per night</div>
-                                </div>
-                              {r.discountLabel ? (
-                                <div className="mt-1 inline-flex items-center rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-xs font-semibold text-emerald-800">
-                                  {r.discountLabel}
-                                </div>
-                              ) : (
-                                <div className="mt-1 text-xs text-slate-500">No discounts</div>
-                              )}
-                            </td>
-                            <td className="align-top px-3 py-4 border-t border-slate-200">
-                              <button
-                                type="button"
-                                onClick={() => router.push(`/public/booking/confirm?property=${property.id}`)}
-                                className={[
-                                  "w-full rounded-md bg-[#02665e] text-white px-2.5 py-1.5 text-sm font-medium",
-                                  "hover:bg-[#014e47]",
-                                  "motion-safe:transition-all motion-safe:duration-200",
-                                  "shadow-sm hover:shadow",
-                                  "active:scale-[0.98]",
-                                ].join(" ")}
-                              >
-                                Pay now
-                              </button>
-                              <div className="mt-2 text-xs text-slate-500">Secure checkout</div>
-                            </td>
-                            <td className="align-top px-3 py-4 border-t border-slate-200">
-                              <ul className="space-y-1 text-base text-slate-800">
-                                  {r.policies.slice(0, 6).map((p, i) => (
-                                  <li key={i} className="leading-snug break-words flex items-start gap-1.5">
-                                    {p.Icon && (
-                                      <p.Icon className={`w-4 h-4 flex-shrink-0 mt-0.5 ${p.iconColor || "text-slate-600"}`} aria-hidden />
-                                    )}
-                                    <span>{p.text}</span>
-                                    </li>
-                                  ))}
-                                </ul>
-                            </td>
-                          </TableRow>
-                        ))}
-                      </tbody>
-                    </table>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2265,7 +3643,7 @@ export default function PublicPropertyDetailPage() {
         </div>
 
         {/* House Rules Section - Three Column Layout */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm nols-entrance">
           <div className="flex items-center gap-2 mb-6">
             <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#02665e]/10 text-[#02665e]">
               <Home className="w-5 h-5" aria-hidden />
@@ -2273,19 +3651,19 @@ export default function PublicPropertyDetailPage() {
             <h2 className="text-lg sm:text-xl font-semibold text-slate-900">House Rules</h2>
           </div>
           
-          {property?.houseRules && typeof property.houseRules === 'object' && !Array.isArray(property.houseRules) ? (
+          {houseRules ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Column 1: Check-in & Check-out */}
-              <div className="space-y-4">
+              <div className="space-y-4 nols-entrance nols-delay-1">
                 <div className="flex items-center gap-2 mb-3">
                   <Clock className="w-5 h-5 text-[#02665e]" />
                   <h3 className="text-sm font-semibold text-slate-900">Check-in & Check-out</h3>
                 </div>
                 <div className="space-y-3">
-                  {property.houseRules.checkIn ? (
-                    <div className="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3 transition-all duration-200 hover:shadow-sm">
+                  {houseRules.checkIn ? (
+                    <div className="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3 transition-all duration-200 hover:shadow-sm hover:-translate-y-0.5 motion-safe:duration-300">
                       <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Check-in</div>
-                      <div className="text-sm font-medium text-slate-900">{property.houseRules.checkIn}</div>
+                      <div className="text-sm font-medium text-slate-900">{houseRules.checkIn}</div>
                     </div>
                   ) : (
                     <div className="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3 opacity-60">
@@ -2293,10 +3671,10 @@ export default function PublicPropertyDetailPage() {
                       <div className="text-sm text-slate-400">Not specified</div>
                     </div>
                   )}
-                  {property.houseRules.checkOut ? (
-                    <div className="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3 transition-all duration-200 hover:shadow-sm">
+                  {houseRules.checkOut ? (
+                    <div className="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3 transition-all duration-200 hover:shadow-sm hover:-translate-y-0.5 motion-safe:duration-300">
                       <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Check-out</div>
-                      <div className="text-sm font-medium text-slate-900">{property.houseRules.checkOut}</div>
+                      <div className="text-sm font-medium text-slate-900">{houseRules.checkOut}</div>
                     </div>
                   ) : (
                     <div className="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3 opacity-60">
@@ -2308,30 +3686,30 @@ export default function PublicPropertyDetailPage() {
               </div>
 
               {/* Column 2: Pets */}
-              <div className="space-y-4">
+              <div className="space-y-4 nols-entrance nols-delay-2">
                 <div className="flex items-center gap-2 mb-3">
                   <Users className="w-5 h-5 text-[#02665e]" />
                   <h3 className="text-sm font-semibold text-slate-900">Pets</h3>
                 </div>
                 <div className="space-y-3">
-                  {property.houseRules.pets !== undefined ? (
-                    <div className={`rounded-lg border p-3 transition-all duration-200 hover:shadow-sm ${
-                      property.houseRules.pets 
+                  {houseRules.pets !== undefined ? (
+                    <div className={`rounded-lg border p-3 transition-all duration-200 hover:shadow-sm hover:-translate-y-0.5 motion-safe:duration-300 ${
+                      houseRules.pets 
                         ? "border-emerald-200 bg-gradient-to-br from-emerald-50 to-white" 
                         : "border-rose-200 bg-gradient-to-br from-rose-50 to-white"
                     }`}>
                       <div className="flex items-center gap-2 mb-2">
-                        {property.houseRules.pets ? (
+                        {houseRules.pets ? (
                           <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                         ) : (
                           <X className="w-4 h-4 text-rose-600" />
                         )}
                         <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                          {property.houseRules.pets ? "Allowed" : "Not Allowed"}
+                          {houseRules.pets ? "Allowed" : "Not Allowed"}
                         </div>
                       </div>
-                      {property.houseRules.petsNote && (
-                        <div className="text-sm text-slate-700 mt-2">{property.houseRules.petsNote}</div>
+                      {houseRules.petsNote && (
+                        <div className="text-sm text-slate-700 mt-2">{houseRules.petsNote}</div>
                       )}
                     </div>
                   ) : (
@@ -2340,20 +3718,20 @@ export default function PublicPropertyDetailPage() {
                       <div className="text-sm text-slate-400">Not specified</div>
                     </div>
                   )}
-                  {property.houseRules.smoking !== undefined && (
-                    <div className={`rounded-lg border p-3 transition-all duration-200 hover:shadow-sm ${
-                      !property.houseRules.smoking 
+                  {houseRules.smoking !== undefined && (
+                    <div className={`rounded-lg border p-3 transition-all duration-200 hover:shadow-sm hover:-translate-y-0.5 motion-safe:duration-300 ${
+                      !houseRules.smoking 
                         ? "border-emerald-200 bg-gradient-to-br from-emerald-50 to-white" 
                         : "border-rose-200 bg-gradient-to-br from-rose-50 to-white"
                     }`}>
                       <div className="flex items-center gap-2 mb-2">
-                        {property.houseRules.smoking ? (
+                        {houseRules.smoking ? (
                           <CigaretteOff className="w-4 h-4 text-rose-600" />
                         ) : (
                           <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                         )}
                         <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                          Smoking {property.houseRules.smoking ? "Not Allowed" : "Allowed"}
+                          Smoking {houseRules.smoking ? "Not Allowed" : "Allowed"}
                         </div>
                       </div>
                     </div>
@@ -2362,7 +3740,7 @@ export default function PublicPropertyDetailPage() {
               </div>
 
               {/* Column 3: Safety Measures */}
-              <div className="space-y-4">
+              <div className="space-y-4 nols-entrance nols-delay-3">
                 <div className="flex items-center gap-2 mb-3">
                   <ShieldCheck className="w-5 h-5 text-[#02665e]" />
                   <h3 className="text-sm font-semibold text-slate-900">Safety Measures</h3>
@@ -2377,18 +3755,18 @@ export default function PublicPropertyDetailPage() {
                   ].map((measure, idx) => (
                     <div 
                       key={idx}
-                      className="flex items-start gap-2 rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3 transition-all duration-200 hover:shadow-sm hover:border-[#02665e]/30"
+                      className="flex items-start gap-2 rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3 transition-all duration-200 hover:shadow-sm hover:border-[#02665e]/30 hover:-translate-y-0.5 motion-safe:duration-300"
                     >
                       <CheckCircle2 className="w-4 h-4 text-[#02665e] flex-shrink-0 mt-0.5" />
                       <span className="text-sm text-slate-700 leading-relaxed">{measure}</span>
                     </div>
                   ))}
-                  {property.houseRules.safetyMeasures && Array.isArray(property.houseRules.safetyMeasures) && property.houseRules.safetyMeasures.length > 0 && (
+                  {houseRules.safetyMeasures && Array.isArray(houseRules.safetyMeasures) && houseRules.safetyMeasures.length > 0 && (
                     <>
-                      {property.houseRules.safetyMeasures.map((measure: string, idx: number) => (
+                      {houseRules.safetyMeasures.map((measure: string, idx: number) => (
                         <div 
                           key={`custom-${idx}`}
-                          className="flex items-start gap-2 rounded-lg border border-[#02665e]/20 bg-gradient-to-br from-[#02665e]/5 to-white p-3 transition-all duration-200 hover:shadow-sm hover:border-[#02665e]/40"
+                          className="flex items-start gap-2 rounded-lg border border-[#02665e]/20 bg-gradient-to-br from-[#02665e]/5 to-white p-3 transition-all duration-200 hover:shadow-sm hover:border-[#02665e]/40 hover:-translate-y-0.5 motion-safe:duration-300"
                         >
                           <CheckCircle2 className="w-4 h-4 text-[#02665e] flex-shrink-0 mt-0.5" />
                           <span className="text-sm text-slate-700 leading-relaxed font-medium">{measure}</span>

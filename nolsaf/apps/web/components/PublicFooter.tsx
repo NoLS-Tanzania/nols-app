@@ -194,6 +194,7 @@ export default function PublicFooter({ withRail = true }: { withRail?: boolean }
                 width={120} 
                 height={32} 
                 className="object-contain transition-all duration-300 hover:brightness-110" 
+                style={{ width: "auto", height: "auto" }}
               />
             </div>
             <p className="text-sm text-gray-600 leading-relaxed max-w-sm transition-colors duration-300">
@@ -332,6 +333,7 @@ export default function PublicFooter({ withRail = true }: { withRail?: boolean }
               width={120} 
               height={30} 
               className="object-contain transition-all duration-300 hover:brightness-110 drop-shadow-sm" 
+              style={{ width: "auto", height: "auto" }}
             />
           </div>
           <div className="text-sm text-[#02665e] font-semibold transition-colors duration-300">

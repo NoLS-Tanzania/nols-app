@@ -2,32 +2,29 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Image from "next/image";
 import Link from "next/link";
 import {
   MapPin,
   Calendar,
   Users,
-  BedDouble,
-  Bath,
   ChevronLeft,
   Loader2,
   CheckCircle2,
   AlertCircle,
-  CreditCard,
   ShieldCheck,
   Info,
   Car,
   Navigation,
+  Edit2,
+  Plane,
 } from "lucide-react";
-import VerifiedIcon from "../../../../components/VerifiedIcon";
+import DatePicker from "../../../../components/ui/DatePicker";
 import { 
   getPropertyCommission, 
   calculatePriceWithCommission 
 } from "../../../../lib/priceUtils";
 import {
   calculateTransportFare,
-  formatFare,
   getFareBreakdown,
   type Location,
 } from "../../../../lib/transportFareCalculator";
@@ -47,15 +44,17 @@ type Property = {
   totalBathrooms: number | null;
   latitude: number | null;
   longitude: number | null;
+  roomsSpec?: any; // Room specifications array
 };
 
 type BookingData = {
   propertyId: number;
   checkIn: string;
-  checkOut: string;
+  checkOut: string | null;
   adults: number;
   children: number;
   pets: number;
+  rooms: number;
 };
 
 export default function BookingConfirmPage() {
@@ -73,7 +72,7 @@ export default function BookingConfirmPage() {
   const [guestEmail, setGuestEmail] = useState("");
   const [nationality, setNationality] = useState("");
   const [sex, setSex] = useState<"Male" | "Female" | "Other" | "">("");
-  const [ageGroup, setAgeGroup] = useState<"Adult" | "Child" | "">("Adult");
+  const [ageGroup] = useState<"Adult" | "Child" | "">("Adult");
   const [specialRequests, setSpecialRequests] = useState("");
   
   // Transportation
@@ -83,6 +82,21 @@ export default function BookingConfirmPage() {
   const [transportOriginLng, setTransportOriginLng] = useState<number | null>(null);
   const [transportFare, setTransportFare] = useState<number | null>(null);
   const [calculatingFare, setCalculatingFare] = useState(false);
+  // Flexible arrival fields
+  const [arrivalType, setArrivalType] = useState<"FLIGHT" | "BUS" | "TRAIN" | "FERRY" | "OTHER" | "">("");
+  const [arrivalNumber, setArrivalNumber] = useState("");
+  const [transportCompany, setTransportCompany] = useState("");
+  const [pickupLocation, setPickupLocation] = useState("");
+  const [arrivalDate, setArrivalDate] = useState<string>("");
+  const [arrivalTimeHour, setArrivalTimeHour] = useState<string>("");
+  const [arrivalTimeMinute, setArrivalTimeMinute] = useState<string>("");
+  const [arrivalDatePickerOpen, setArrivalDatePickerOpen] = useState(false);
+  const [isGuestSelectorOpen, setIsGuestSelectorOpen] = useState(false);
+  const [checkInPickerOpen, setCheckInPickerOpen] = useState(false);
+  const [checkOutPickerOpen, setCheckOutPickerOpen] = useState(false);
+
+  const [selectedRoomCode, setSelectedRoomCode] = useState<string | null>(null);
+  const [selectedRoomIndex, setSelectedRoomIndex] = useState<number | null>(null);
 
   useEffect(() => {
     // Get booking data from URL params
@@ -92,27 +106,53 @@ export default function BookingConfirmPage() {
     const adults = searchParams.get("adults") || "1";
     const children = searchParams.get("children") || "0";
     const pets = searchParams.get("pets") || "0";
+    const rooms = searchParams.get("rooms") || "1";
+    const roomCode = searchParams.get("roomCode");
+    const roomIndex = searchParams.get("roomIndex");
 
-    if (!propertyId || !checkIn || !checkOut) {
-      setError("Missing required booking information");
+    // Property ID is required and must be a valid number
+    const numericPropertyId = propertyId ? Number(propertyId) : null;
+    if (!propertyId || !numericPropertyId || isNaN(numericPropertyId) || numericPropertyId <= 0) {
+      setError("Missing or invalid property ID");
       setLoading(false);
       return;
     }
 
+    // Set selected room code or index if provided
+    if (roomCode) {
+      setSelectedRoomCode(roomCode);
+      setSelectedRoomIndex(null);
+    } else if (roomIndex) {
+      const index = Number(roomIndex);
+      if (!isNaN(index) && index >= 0) {
+        setSelectedRoomIndex(index);
+        setSelectedRoomCode(null);
+      }
+    }
+
+    // Set booking data - dates can be empty initially, user can select them on this page
     setBookingData({
-      propertyId: Number(propertyId),
-      checkIn,
-      checkOut,
-      adults: Number(adults),
-      children: Number(children),
-      pets: Number(pets),
+      propertyId: numericPropertyId,
+      checkIn: checkIn || "",
+      checkOut: checkOut || "",
+      adults: Number(adults) || 1,
+      children: Number(children) || 0,
+      pets: Number(pets) || 0,
+      rooms: Math.max(1, Number(rooms) || 1),
     });
 
     // Fetch property details
-    fetchProperty(Number(propertyId));
+    fetchProperty(numericPropertyId);
   }, [searchParams]);
 
   async function fetchProperty(propertyId: number) {
+    // Validate propertyId is a valid number
+    if (!propertyId || isNaN(propertyId) || propertyId <= 0) {
+      setError("Invalid property ID");
+      setLoading(false);
+      return;
+    }
+
     try {
       const API = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000").replace(/\/$/, "");
       const response = await fetch(`${API}/api/public/properties/${propertyId}`);
@@ -122,7 +162,24 @@ export default function BookingConfirmPage() {
       }
 
       const data = await response.json();
-      setProperty(data);
+      // API returns { property: {...} } so we need to extract the property object
+      const propertyData = data.property || data;
+      setProperty(propertyData);
+      
+      // Debug: Log property data structure
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Property loaded:', {
+          rawData: data,
+          propertyData,
+          id: propertyData.id,
+          basePrice: propertyData.basePrice,
+          roomsSpec: propertyData.roomsSpec,
+          roomsSpecType: typeof propertyData.roomsSpec,
+          roomsSpecIsArray: Array.isArray(propertyData.roomsSpec),
+          roomsSpecLength: Array.isArray(propertyData.roomsSpec) ? propertyData.roomsSpec.length : 'N/A',
+          firstRoom: Array.isArray(propertyData.roomsSpec) && propertyData.roomsSpec.length > 0 ? propertyData.roomsSpec[0] : null,
+        });
+      }
     } catch (err: any) {
       setError(err?.message || "Failed to load property");
     } finally {
@@ -137,6 +194,35 @@ export default function BookingConfirmPage() {
 
     if (!bookingData || !property) {
       setError("Missing booking information");
+      setSubmitting(false);
+      return;
+    }
+
+    // Validate dates
+    if (!bookingData.checkIn || !bookingData.checkOut) {
+      setError("Please select check-in and check-out dates");
+      setSubmitting(false);
+      return;
+    }
+
+    // Validate dates are valid
+    const checkInDate = new Date(bookingData.checkIn);
+    const checkOutDate = new Date(bookingData.checkOut);
+    if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime())) {
+      setError("Please enter valid dates");
+      setSubmitting(false);
+      return;
+    }
+
+    // Validate check-out is after check-in
+    if (checkOutDate <= checkInDate) {
+      setError("Check-out date must be after check-in date");
+      setSubmitting(false);
+      return;
+    }
+
+    if (checkOutDate <= checkInDate) {
+      setError("Check-out date must be after check-in date");
       setSubmitting(false);
       return;
     }
@@ -157,36 +243,90 @@ export default function BookingConfirmPage() {
     try {
       const API = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000").replace(/\/$/, "");
       
+      // Convert dates to ISO 8601 format (required by API)
+      const checkInISO = checkInDate.toISOString();
+      const checkOutISO = checkOutDate.toISOString();
+      
+      // Prepare request body with proper formatting
+      const requestBody = {
+        propertyId: bookingData.propertyId,
+        checkIn: checkInISO,
+        checkOut: checkOutISO,
+        guestName: guestName.trim(),
+        guestPhone: guestPhone.trim(),
+        guestEmail: guestEmail.trim() || null,
+        nationality: nationality.trim() || null,
+        sex: sex || null,
+        ageGroup: ageGroup || null,
+        adults: bookingData.adults || 1,
+        children: bookingData.children || 0,
+        pets: bookingData.pets || 0,
+        roomCode: selectedRoomCode || (selectedRoomIndex !== null ? String(selectedRoomIndex) : null), // Include selected room code or index
+        specialRequests: specialRequests.trim() || null,
+        includeTransport: includeTransport || false,
+        transportOriginLat: includeTransport && transportOriginLat ? transportOriginLat : null,
+        transportOriginLng: includeTransport && transportOriginLng ? transportOriginLng : null,
+        transportOriginAddress: includeTransport && transportOriginAddress.trim() ? transportOriginAddress.trim() : null,
+        transportFare: includeTransport && transportFare ? transportFare : null,
+        // Flexible arrival fields
+        arrivalType: includeTransport && arrivalType ? arrivalType : null,
+        arrivalNumber: includeTransport && arrivalNumber.trim() ? arrivalNumber.trim() : null,
+        transportCompany: includeTransport && transportCompany.trim() ? transportCompany.trim() : null,
+        arrivalTime: includeTransport && arrivalDate && (arrivalTimeHour || arrivalTimeMinute) 
+          ? (() => {
+              const date = new Date(arrivalDate);
+              if (arrivalTimeHour) date.setHours(parseInt(arrivalTimeHour) || 0);
+              if (arrivalTimeMinute) date.setMinutes(parseInt(arrivalTimeMinute) || 0);
+              return date.toISOString();
+            })()
+          : includeTransport && arrivalDate
+          ? new Date(arrivalDate).toISOString()
+          : null,
+        pickupLocation: includeTransport && pickupLocation.trim() ? pickupLocation.trim() : null,
+      };
+      
       // Create booking
       const bookingResponse = await fetch(`${API}/api/public/bookings`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          propertyId: bookingData.propertyId,
-          checkIn: bookingData.checkIn,
-          checkOut: bookingData.checkOut,
-          guestName: guestName.trim(),
-          guestPhone: guestPhone.trim(),
-          guestEmail: guestEmail.trim() || null,
-          nationality: nationality.trim() || null,
-          sex: sex || null,
-          ageGroup: ageGroup || null,
-          adults: bookingData.adults,
-          children: bookingData.children,
-          pets: bookingData.pets,
-          specialRequests: includeTransport ? specialRequests.trim() || null : specialRequests.trim() || null,
-          includeTransport: includeTransport,
-          transportOriginLat: includeTransport ? transportOriginLat : null,
-          transportOriginLng: includeTransport ? transportOriginLng : null,
-          transportOriginAddress: includeTransport ? transportOriginAddress.trim() : null,
-          transportFare: includeTransport ? transportFare : null,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
-      const bookingResult = await bookingResponse.json();
+      // Check if response is JSON
+      const contentType = bookingResponse.headers.get("content-type");
+      let bookingResult;
+      
+      if (contentType && contentType.includes("application/json")) {
+        bookingResult = await bookingResponse.json();
+      } else {
+        const text = await bookingResponse.text();
+        throw new Error(`Server error: ${text || `HTTP ${bookingResponse.status}`}`);
+      }
 
       if (!bookingResponse.ok) {
-        throw new Error(bookingResult.error || "Failed to create booking");
+        // Show detailed error message if available
+        let errorMessage = bookingResult.error || "Failed to create booking";
+        
+        // Add validation details if available
+        if (bookingResult.details && Array.isArray(bookingResult.details)) {
+          const details = bookingResult.details.map((d: any) => 
+            `${d.path?.join('.') || 'field'}: ${d.message}`
+          ).join(', ');
+          errorMessage = `${errorMessage}. ${details}`;
+        }
+        
+        // Add development message if available
+        if (bookingResult.message) {
+          errorMessage = `${errorMessage}. ${bookingResult.message}`;
+        }
+        
+        console.error("Booking creation failed:", {
+          status: bookingResponse.status,
+          error: bookingResult,
+          requestBody: requestBody,
+        });
+        
+        throw new Error(errorMessage);
       }
 
       // Create invoice from booking
@@ -198,22 +338,74 @@ export default function BookingConfirmPage() {
         }),
       });
 
-      const invoiceResult = await invoiceResponse.json();
+      // Check if response is JSON
+      const invoiceContentType = invoiceResponse.headers.get("content-type");
+      let invoiceResult;
+      
+      if (invoiceContentType && invoiceContentType.includes("application/json")) {
+        invoiceResult = await invoiceResponse.json();
+      } else {
+        const text = await invoiceResponse.text();
+        throw new Error(`Server error: ${text || `HTTP ${invoiceResponse.status}`}`);
+      }
 
       if (!invoiceResponse.ok) {
-        throw new Error(invoiceResult.error || "Failed to create invoice");
+        // Show detailed error message if available
+        let errorMessage = invoiceResult.error || "Failed to create invoice";
+        
+        // Add validation details if available
+        if (invoiceResult.details && Array.isArray(invoiceResult.details)) {
+          const details = invoiceResult.details.map((d: any) => 
+            `${d.path?.join('.') || 'field'}: ${d.message}`
+          ).join(', ');
+          errorMessage = `${errorMessage}. ${details}`;
+        }
+        
+        // Add development message if available
+        if (invoiceResult.message) {
+          errorMessage = `${errorMessage}. ${invoiceResult.message}`;
+        }
+        
+        // Log full error details for debugging
+        console.error("Invoice creation failed:", {
+          status: invoiceResponse.status,
+          statusText: invoiceResponse.statusText,
+          error: invoiceResult,
+          bookingId: bookingResult.bookingId,
+          fullResponse: invoiceResult,
+        });
+        
+        throw new Error(errorMessage);
       }
 
       // Redirect to payment page with invoice ID
       router.push(`/public/booking/payment?invoiceId=${invoiceResult.invoiceId}`);
     } catch (err: any) {
-      setError(err?.message || "Failed to create booking. Please try again.");
+      console.error("Booking submission error:", err);
+      
+      // Extract error message
+      let errorMessage = "Failed to create booking. Please try again.";
+      
+      if (err?.message) {
+        errorMessage = err.message;
+      } else if (err instanceof Error) {
+        errorMessage = err.message;
+      } else if (typeof err === 'string') {
+        errorMessage = err;
+      }
+      
+      // Check for network errors
+      if (err?.name === 'TypeError' && err?.message?.includes('fetch')) {
+        errorMessage = "Network error. Please check your connection and try again.";
+      }
+      
+      setError(errorMessage);
       setSubmitting(false);
     }
   }
 
   // Calculate pricing
-  const nights = bookingData
+  const nights = bookingData && bookingData.checkIn && bookingData.checkOut
     ? Math.max(
         1,
         Math.ceil(
@@ -224,8 +416,147 @@ export default function BookingConfirmPage() {
       )
     : 0;
 
-  const basePrice = property?.basePrice ? Number(property.basePrice) : 0;
-  const subtotal = basePrice * nights;
+  // Calculate price based on selected room or base price
+  // Always show the room's price even when nights is 0, so users can see the price while selecting dates
+  let pricePerNight = property?.basePrice ? Number(property.basePrice) : 0;
+  
+  // Debug logging
+  if (process.env.NODE_ENV === 'development') {
+    console.log('Price calculation debug:', {
+      hasProperty: !!property,
+      basePrice: property?.basePrice,
+      selectedRoomCode,
+      selectedRoomIndex,
+      hasRoomsSpec: !!property?.roomsSpec,
+      roomsSpecType: typeof property?.roomsSpec,
+      roomsSpecIsArray: Array.isArray(property?.roomsSpec),
+    });
+  }
+  
+  // If a room is selected, use that room's price (this takes priority over basePrice)
+  if (property?.roomsSpec && (selectedRoomCode !== null || selectedRoomIndex !== null)) {
+    let roomTypes: Array<any> = [];
+    if (typeof property.roomsSpec === "object") {
+      const spec = property.roomsSpec as any;
+      if (Array.isArray(spec)) {
+        roomTypes = spec;
+      } else if (spec.rooms && Array.isArray(spec.rooms)) {
+        roomTypes = spec.rooms;
+      } else if (spec && typeof spec === 'object') {
+        // Try to extract rooms from any object structure
+        roomTypes = Object.values(spec).filter((item: any) => Array.isArray(item) ? item : null).flat();
+      }
+    }
+    
+    // Debug: Log room types found
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Room types extracted:', {
+        roomTypesCount: roomTypes.length,
+        roomTypes: roomTypes.map((rt: any, idx: number) => ({
+          idx,
+          code: rt?.code,
+          roomCode: rt?.roomCode,
+          roomType: rt?.roomType || rt?.name || rt?.label,
+          pricePerNight: rt?.pricePerNight,
+          price: rt?.price,
+          allKeys: Object.keys(rt || {}),
+        })),
+      });
+    }
+    
+    let selectedRoom: any = null;
+    
+    // Try to find room by code first
+    if (selectedRoomCode) {
+      for (let idx = 0; idx < roomTypes.length; idx++) {
+        const rt = roomTypes[idx];
+        const rtCode = rt?.code || rt?.roomCode;
+        if (rtCode === selectedRoomCode) {
+          selectedRoom = rt;
+          if (process.env.NODE_ENV === 'development') {
+            console.log('Room found by code:', { code: selectedRoomCode, room: rt });
+          }
+          break;
+        }
+      }
+    }
+    
+    // If not found by code, try by index
+    if (!selectedRoom && selectedRoomIndex !== null && selectedRoomIndex >= 0 && selectedRoomIndex < roomTypes.length) {
+      selectedRoom = roomTypes[selectedRoomIndex];
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Room found by index:', { index: selectedRoomIndex, room: selectedRoom });
+      }
+    }
+    
+    if (selectedRoom) {
+      // Extract price using same logic as normalizeRoomSpec: r?.pricePerNight ?? r?.price
+      const priceRaw = selectedRoom.pricePerNight ?? selectedRoom.price ?? null;
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Selected room price extraction:', {
+          pricePerNight: selectedRoom.pricePerNight,
+          price: selectedRoom.price,
+          priceRaw,
+          allKeys: Object.keys(selectedRoom),
+        });
+      }
+      
+      if (priceRaw !== null && priceRaw !== undefined) {
+        const numPrice = Number(priceRaw);
+        // Check if price is valid and greater than 0
+        if (Number.isFinite(numPrice) && numPrice > 0) {
+          // Apply commission calculation to match what's displayed on property page
+          const commissionPercent = getPropertyCommission(property.type || "", 0);
+          pricePerNight = calculatePriceWithCommission(numPrice, commissionPercent);
+          if (process.env.NODE_ENV === 'development') {
+            console.log('Price calculated with commission:', { numPrice, commissionPercent, finalPrice: pricePerNight });
+          }
+        } else if (Number.isFinite(numPrice) && numPrice === 0 && property?.basePrice) {
+          // If room price is 0, fall back to basePrice
+          const commissionPercent = getPropertyCommission(property.type || "", 0);
+          pricePerNight = calculatePriceWithCommission(Number(property.basePrice), commissionPercent);
+          if (process.env.NODE_ENV === 'development') {
+            console.log('Room price is 0, using basePrice:', { basePrice: property.basePrice, finalPrice: pricePerNight });
+          }
+        }
+      } else {
+        // If no price found in room, fall back to basePrice
+        if (property?.basePrice) {
+          const commissionPercent = getPropertyCommission(property.type || "", 0);
+          pricePerNight = calculatePriceWithCommission(Number(property.basePrice), commissionPercent);
+          if (process.env.NODE_ENV === 'development') {
+            console.log('No price in room, using basePrice:', { basePrice: property.basePrice, finalPrice: pricePerNight });
+          }
+        }
+      }
+    } else {
+      // Room not found - fallback to basePrice
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('Room not found!', {
+          selectedRoomCode,
+          selectedRoomIndex,
+          roomTypesCount: roomTypes.length,
+        });
+      }
+      if (property?.basePrice) {
+        const commissionPercent = getPropertyCommission(property.type || "", 0);
+        pricePerNight = calculatePriceWithCommission(Number(property.basePrice), commissionPercent);
+      }
+    }
+  } else if (property?.basePrice) {
+    // Apply commission to basePrice as well for consistency
+    const commissionPercent = getPropertyCommission(property.type || "", 0);
+    pricePerNight = calculatePriceWithCommission(Number(property.basePrice), commissionPercent);
+  }
+  
+  // Final debug
+  if (process.env.NODE_ENV === 'development') {
+    console.log('Final pricePerNight:', pricePerNight);
+  }
+  
+  const roomsQty = Math.max(1, Number(bookingData?.rooms ?? 1));
+  const subtotal = pricePerNight * nights * roomsQty;
   const commissionPercent = getPropertyCommission(property?.type || "", 0);
   const totalAmount = calculatePriceWithCommission(
     subtotal,
@@ -268,44 +599,7 @@ export default function BookingConfirmPage() {
   }, [includeTransport, transportOriginLat, transportOriginLng, property?.latitude, property?.longitude, property?.currency, transportOriginAddress]);
   
   // Function to calculate transport fare manually (when user clicks calculate)
-  function handleCalculateFare() {
-    if (!includeTransport) {
-      setTransportFare(null);
-      return;
-    }
-
-    if (!property?.latitude || !property?.longitude) {
-      setError("Property location is required for transport calculation");
-      return;
-    }
-
-    if (!transportOriginLat || !transportOriginLng) {
-      setError("Please provide your location for fare calculation");
-      return;
-    }
-
-    setCalculatingFare(true);
-    try {
-      const origin: Location = {
-        latitude: transportOriginLat,
-        longitude: transportOriginLng,
-        address: transportOriginAddress,
-      };
-
-      const destination: Location = {
-        latitude: property.latitude,
-        longitude: property.longitude,
-      };
-
-      const fare = calculateTransportFare(origin, destination, currency);
-      setTransportFare(fare.total);
-      setError(null);
-    } catch (err: any) {
-      setError(err?.message || "Failed to calculate transport fare");
-    } finally {
-      setCalculatingFare(false);
-    }
-  }
+  // (manual fare calculation removed; fare is auto-calculated when location is available)
 
   // Handle location access
   function handleGetLocation() {
@@ -322,7 +616,7 @@ export default function BookingConfirmPage() {
         setCalculatingFare(false);
         // Auto-calculate fare will be triggered by useEffect
       },
-      (error) => {
+      () => {
         setError("Unable to get your location. Please enter your address manually.");
         setCalculatingFare(false);
       }
@@ -331,10 +625,14 @@ export default function BookingConfirmPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin text-[#02665e] mx-auto mb-4" />
-          <p className="text-slate-600">Loading booking details...</p>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50">
+        <div className="text-center animate-in fade-in duration-300">
+          <div className="relative">
+            <Loader2 className="w-12 h-12 animate-spin text-[#02665e] mx-auto mb-4" />
+            <div className="absolute inset-0 w-12 h-12 mx-auto border-4 border-[#02665e]/20 rounded-full"></div>
+          </div>
+          <p className="text-slate-700 font-medium text-lg">Loading booking details...</p>
+          <p className="text-slate-500 text-sm mt-2">Please wait</p>
         </div>
       </div>
     );
@@ -342,14 +640,16 @@ export default function BookingConfirmPage() {
 
   if (error && !property) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
-        <div className="max-w-md w-full bg-white rounded-xl shadow-sm border border-slate-200 p-6 text-center">
-          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-slate-900 mb-2">Error</h2>
-          <p className="text-slate-600 mb-6">{error}</p>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50 p-6">
+        <div className="max-w-md w-full bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border-2 border-red-200/60 p-8 text-center animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <AlertCircle className="w-8 h-8 text-red-500" />
+          </div>
+          <h2 className="text-2xl font-bold text-slate-900 mb-3">Error</h2>
+          <p className="text-slate-600 mb-6 leading-relaxed">{error}</p>
           <Link
             href="/public/properties"
-            className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-[#02665e] text-white hover:bg-[#014e47] transition-colors"
+            className="inline-flex items-center justify-center px-6 py-3 rounded-xl bg-gradient-to-r from-[#02665e] to-[#014e47] text-white font-semibold hover:from-[#014e47] hover:to-[#02665e] transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95"
           >
             Browse Properties
           </Link>
@@ -359,131 +659,383 @@ export default function BookingConfirmPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50">
       {/* Header */}
-      <div className="bg-white border-b border-slate-200">
+      <div className="bg-white/80 backdrop-blur-sm border-b border-slate-200/60 shadow-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <Link
             href={property ? `/public/properties/${property.id}` : "/public/properties"}
-            className="inline-flex items-center text-slate-600 hover:text-slate-900 transition-colors"
+            className="inline-flex items-center text-slate-600 hover:text-[#02665e] transition-all duration-200 group"
           >
-            <ChevronLeft className="w-5 h-5 mr-1" />
-            Back to property
+            <ChevronLeft className="w-5 h-5 mr-1 group-hover:-translate-x-1 transition-transform duration-200" />
+            <span className="font-medium">Back to property</span>
           </Link>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-12">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
             {/* Booking Summary */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-              <h2 className="text-2xl font-semibold text-slate-900 mb-6">
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-slate-200/60 p-4 sm:p-6 lg:p-8 transition-all duration-300 hover:shadow-xl overflow-hidden">
+              <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 mb-4 sm:mb-6 lg:mb-8">
                 Booking Summary
               </h2>
 
               {property && (
-                <div className="space-y-4">
-                  {/* Property Info */}
-                  <div className="flex gap-4">
-                    {property.primaryImage ? (
-                      <div className="relative w-24 h-24 rounded-lg overflow-hidden flex-shrink-0">
-                        <Image
-                          src={property.primaryImage}
-                          alt={property.title}
-                          fill
-                          className="object-cover"
-                        />
-                      </div>
-                    ) : (
-                      <div className="w-24 h-24 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
-                        <BedDouble className="w-8 h-8 text-slate-400" />
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-lg font-semibold text-slate-900 truncate">
-                        {property.title}
-                      </h3>
-                      <div className="flex items-center text-sm text-slate-600 mt-1">
-                        <MapPin className="w-4 h-4 mr-1 flex-shrink-0" />
-                        <span className="truncate">
-                          {[
-                            property.city,
-                            property.district,
-                            property.regionName,
-                          ]
-                            .filter(Boolean)
-                            .join(", ")}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-4 mt-2 text-sm text-slate-600">
-                        {property.totalBedrooms && (
-                          <div className="flex items-center">
-                            <BedDouble className="w-4 h-4 mr-1" />
-                            {property.totalBedrooms} bedrooms
-                          </div>
-                        )}
-                        {property.totalBathrooms && (
-                          <div className="flex items-center">
-                            <Bath className="w-4 h-4 mr-1" />
-                            {property.totalBathrooms} bathrooms
-                          </div>
-                        )}
-                        {property.maxGuests && (
-                          <div className="flex items-center">
-                            <Users className="w-4 h-4 mr-1" />
-                            Up to {property.maxGuests} guests
-                          </div>
-                        )}
-                      </div>
+                <div className="space-y-4 overflow-x-hidden">
+                  {/* Property Details Card - Name & Location */}
+                  <div className="p-4 bg-white rounded-xl border border-slate-200/60 shadow-sm mb-4">
+                    <h3 className="text-base font-bold text-slate-900 truncate mb-2">
+                      {property.title}
+                    </h3>
+                    {/* Property Location */}
+                    <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                      <MapPin className="w-3.5 h-3.5 flex-shrink-0 text-[#02665e]" />
+                      <span className="truncate">
+                        {[
+                          property.city,
+                          property.district,
+                          property.regionName,
+                        ]
+                          .filter(Boolean)
+                          .join(", ") || "Location not specified"}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Property Label Section */}
+                  <div className="pb-4 border-b border-slate-200/60">
+                    <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+                      PROPERTY
+                    </div>
+                    <h3 className="text-lg font-bold text-slate-900 truncate">
+                      {property.title}
+                    </h3>
+                    <div className="text-sm text-slate-500 mt-1">
+                      {property.type || "Property"}
                     </div>
                   </div>
 
                   {/* Dates & Guests */}
-                  <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-200">
-                    <div>
-                      <div className="text-sm text-slate-600 mb-1">Check-in</div>
-                      <div className="flex items-center text-slate-900 font-medium">
-                        <Calendar className="w-4 h-4 mr-2" />
-                        {bookingData &&
-                          new Date(bookingData.checkIn).toLocaleDateString("en-US", {
-                            weekday: "short",
-                            year: "numeric",
-                            month: "short",
-                            day: "numeric",
-                          })}
+                  <div className="grid grid-cols-2 gap-2 sm:gap-3 md:gap-4 pt-6 border-t border-slate-200/60">
+                    <div className="space-y-1.5 sm:space-y-2 min-w-0 w-full">
+                      <label className="text-xs sm:text-sm font-semibold text-slate-700 flex items-center gap-1 sm:gap-1.5">
+                        <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#02665e] flex-shrink-0" />
+                        <span className="whitespace-nowrap">Check-in</span>
+                      </label>
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setCheckInPickerOpen(true)}
+                          className="w-full min-w-0 px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-3 pl-8 sm:pl-10 md:pl-11 pr-8 sm:pr-10 md:pr-11 border-2 border-slate-300 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-gradient-to-r from-slate-50 to-blue-50/50 shadow-sm max-w-full box-border flex items-center justify-between group"
+                        >
+                          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
+                            <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#02665e] flex-shrink-0" />
+                            <span className="text-slate-900 truncate text-xs sm:text-sm">
+                              {bookingData?.checkIn
+                                ? (() => {
+                                    const date = new Date(bookingData.checkIn);
+                                    const day = String(date.getDate()).padStart(2, "0");
+                                    const month = String(date.getMonth() + 1).padStart(2, "0");
+                                    const year = date.getFullYear();
+                                    return `${day} / ${month} / ${year}`;
+                                  })()
+                                : "Select"}
+                            </span>
+                          </div>
+                          <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 group-hover:text-[#02665e] transition-colors flex-shrink-0" />
+                        </button>
+                        {checkInPickerOpen && (
+                          <>
+                            <div className="fixed inset-0 z-40" onClick={() => setCheckInPickerOpen(false)} />
+                            <div className="absolute z-50 top-full left-0 mt-2">
+                              <DatePicker
+                                selected={bookingData?.checkIn || undefined}
+                                onSelect={(s) => {
+                                  const date = Array.isArray(s) ? s[0] : s;
+                                  if (bookingData && date) {
+                                    const newCheckIn = date;
+                                    // If check-out is before new check-in, reset check-out
+                                    let newCheckOut: string | null = bookingData.checkOut;
+                                    if (newCheckOut && new Date(newCheckOut) <= new Date(newCheckIn)) {
+                                      newCheckOut = null;
+                                    }
+                                    setBookingData({ ...bookingData, checkIn: newCheckIn, checkOut: newCheckOut ?? null });
+                                  }
+                                  setCheckInPickerOpen(false);
+                                }}
+                                onClose={() => setCheckInPickerOpen(false)}
+                                allowRange={false}
+                              />
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
-                    <div>
-                      <div className="text-sm text-slate-600 mb-1">Check-out</div>
-                      <div className="flex items-center text-slate-900 font-medium">
-                        <Calendar className="w-4 h-4 mr-2" />
-                        {bookingData &&
-                          new Date(bookingData.checkOut).toLocaleDateString("en-US", {
-                            weekday: "short",
-                            year: "numeric",
-                            month: "short",
-                            day: "numeric",
-                          })}
+                    <div className="space-y-1.5 sm:space-y-2 min-w-0 w-full">
+                      <label className="text-xs sm:text-sm font-semibold text-slate-700 flex items-center gap-1 sm:gap-1.5">
+                        <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#02665e] flex-shrink-0" />
+                        <span className="whitespace-nowrap">Check-out</span>
+                      </label>
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setCheckOutPickerOpen(true)}
+                          className="w-full min-w-0 px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-3 pl-8 sm:pl-10 md:pl-11 pr-8 sm:pr-10 md:pr-11 border-2 border-slate-300 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-gradient-to-r from-slate-50 to-blue-50/50 shadow-sm max-w-full box-border flex items-center justify-between group"
+                        >
+                          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
+                            <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#02665e] flex-shrink-0" />
+                            <span className="text-slate-900 truncate text-xs sm:text-sm">
+                              {bookingData?.checkOut
+                                ? (() => {
+                                    const date = new Date(bookingData.checkOut);
+                                    const day = String(date.getDate()).padStart(2, "0");
+                                    const month = String(date.getMonth() + 1).padStart(2, "0");
+                                    const year = date.getFullYear();
+                                    return `${day} / ${month} / ${year}`;
+                                  })()
+                                : "Select"}
+                            </span>
+                          </div>
+                          <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 group-hover:text-[#02665e] transition-colors flex-shrink-0" />
+                        </button>
+                        {checkOutPickerOpen && (
+                          <>
+                            <div className="fixed inset-0 z-40" onClick={() => setCheckOutPickerOpen(false)} />
+                            <div className="absolute z-50 top-full left-0 mt-2">
+                              <DatePicker
+                                selected={bookingData?.checkOut || undefined}
+                                onSelect={(s) => {
+                                  const date = Array.isArray(s) ? s[0] : s;
+                                  if (bookingData && date) {
+                                    // Validate that check-out is after check-in
+                                    if (bookingData.checkIn && new Date(date) <= new Date(bookingData.checkIn)) {
+                                      // Show error message
+                                      setError("Check-out date must be after check-in date");
+                                      setCheckOutPickerOpen(false);
+                                      return;
+                                    }
+                                    setError(null); // Clear any previous errors
+                                    setBookingData({ ...bookingData, checkOut: date });
+                                  }
+                                  setCheckOutPickerOpen(false);
+                                }}
+                                onClose={() => setCheckOutPickerOpen(false)}
+                                allowRange={false}
+                                minDate={bookingData?.checkIn ? (() => {
+                                  // Set minimum date to check-in date + 1 day
+                                  const checkInDate = new Date(bookingData.checkIn);
+                                  checkInDate.setDate(checkInDate.getDate() + 1);
+                                  const year = checkInDate.getFullYear();
+                                  const month = String(checkInDate.getMonth() + 1).padStart(2, "0");
+                                  const day = String(checkInDate.getDate()).padStart(2, "0");
+                                  return `${year}-${month}-${day}`;
+                                })() : undefined}
+                              />
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
 
-                  <div className="pt-4 border-t border-slate-200">
-                    <div className="text-sm text-slate-600 mb-1">Guests</div>
-                    <div className="flex items-center text-slate-900 font-medium">
-                      <Users className="w-4 h-4 mr-2" />
-                      {bookingData?.adults || 1} adult{bookingData?.adults !== 1 ? "s" : ""}
-                      {bookingData?.children ? `, ${bookingData.children} child${bookingData.children !== 1 ? "ren" : ""}` : ""}
-                      {bookingData?.pets ? `, ${bookingData.pets} pet${bookingData.pets !== 1 ? "s" : ""}` : ""}
-                    </div>
-                  </div>
+                  {/* Guests & Duration - Two Column Layout */}
+                  <div className="pt-4 sm:pt-6 border-t border-slate-200/60">
+                    <div className="grid grid-cols-2 gap-2 sm:gap-3 md:gap-4 lg:gap-6">
+                      {/* Guests Section - Collapsible Editable */}
+                      <div className="space-y-1.5 sm:space-y-2 min-w-0 w-full">
+                        <label className="text-xs sm:text-sm font-semibold text-slate-700 flex items-center gap-1 sm:gap-1.5">
+                          <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#02665e] flex-shrink-0" />
+                          <span className="whitespace-nowrap">Guests</span>
+                        </label>
+                        
+                        {!isGuestSelectorOpen ? (
+                          // Summary View (Collapsed)
+                          <button
+                            type="button"
+                            onClick={() => setIsGuestSelectorOpen(true)}
+                            className="w-full flex items-center justify-between gap-1.5 sm:gap-2 px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-3 bg-gradient-to-r from-slate-50 to-blue-50/50 rounded-lg sm:rounded-xl border border-slate-200/60 shadow-sm hover:shadow-md transition-all duration-200 hover:border-[#02665e]/40 group"
+                          >
+                            <div className="flex items-center gap-1.5 sm:gap-2 flex-1 min-w-0">
+                              <Users className="w-4 h-4 sm:w-5 sm:h-5 text-[#02665e] flex-shrink-0" />
+                              <span className="text-slate-900 font-semibold text-xs sm:text-sm md:text-base truncate">
+                                {bookingData?.adults || 1} adult{(bookingData?.adults || 1) !== 1 ? "s" : ""}
+                                {bookingData?.children ? `, ${bookingData.children} child${bookingData.children !== 1 ? "ren" : ""}` : ""}
+                                {bookingData?.pets ? `, ${bookingData.pets} pet${bookingData.pets !== 1 ? "s" : ""}` : ""}
+                              </span>
+                            </div>
+                            <Edit2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 group-hover:text-[#02665e] transition-colors flex-shrink-0" />
+                          </button>
+                        ) : (
+                          // Editable View (Expanded)
+                          <div className="space-y-3 sm:space-y-4 p-3 sm:p-4 bg-gradient-to-r from-slate-50 to-blue-50/50 rounded-xl border border-slate-200/60 shadow-sm animate-in fade-in slide-in-from-top-2 duration-300">
+                            <div className="flex items-center justify-between mb-3 sm:mb-4 pb-2 sm:pb-3 border-b border-slate-200/60">
+                              <span className="text-sm sm:text-base font-semibold text-slate-700">Select Guests</span>
+                              <button
+                                type="button"
+                                onClick={() => setIsGuestSelectorOpen(false)}
+                                className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg bg-[#02665e] text-white hover:bg-[#014e47] font-medium transition-all duration-200 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm shadow-sm hover:shadow-md"
+                              >
+                                Done
+                                <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                              </button>
+                            </div>
+                            
+                            <div className="space-y-3 sm:space-y-4">
+                              {/* Adults */}
+                              <div className="flex items-center justify-between gap-2 sm:gap-3">
+                                <label className="text-sm sm:text-base font-medium text-slate-700 min-w-[80px] sm:min-w-[100px]">
+                                  Adults <span className="text-red-500">*</span>
+                                </label>
+                                <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (bookingData) {
+                                        const newAdults = Math.max(1, (bookingData.adults || 1) - 1);
+                                        setBookingData({ ...bookingData, adults: newAdults });
+                                      }
+                                    }}
+                                    className="w-11 h-11 sm:w-9 sm:h-9 rounded-lg border-2 border-slate-300 bg-white hover:bg-slate-50 active:bg-slate-100 hover:border-[#02665e] active:border-[#02665e] transition-all duration-200 flex items-center justify-center text-slate-600 hover:text-[#02665e] active:text-[#02665e] font-bold text-lg sm:text-lg touch-manipulation"
+                                  >
+                                    −
+                                  </button>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    value={bookingData?.adults || 1}
+                                    aria-label="Adults"
+                                    title="Adults"
+                                    onChange={(e) => {
+                                      if (bookingData) {
+                                        const value = Math.max(1, parseInt(e.target.value) || 1);
+                                        setBookingData({ ...bookingData, adults: value });
+                                      }
+                                    }}
+                                    className="w-14 sm:w-16 text-center px-2 py-1.5 sm:py-2 border-2 border-slate-300 rounded-lg text-sm sm:text-base font-semibold focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] bg-white"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (bookingData) {
+                                        const newAdults = (bookingData.adults || 1) + 1;
+                                        setBookingData({ ...bookingData, adults: newAdults });
+                                      }
+                                    }}
+                                    className="w-11 h-11 sm:w-9 sm:h-9 rounded-lg border-2 border-slate-300 bg-white hover:bg-slate-50 active:bg-slate-100 hover:border-[#02665e] active:border-[#02665e] transition-all duration-200 flex items-center justify-center text-slate-600 hover:text-[#02665e] active:text-[#02665e] font-bold text-lg sm:text-lg touch-manipulation"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              </div>
+                              
+                              {/* Child */}
+                              <div className="flex items-center justify-between gap-2 sm:gap-3">
+                                <label className="text-sm sm:text-base font-medium text-slate-700 min-w-[80px] sm:min-w-[100px]">
+                                  Child
+                                </label>
+                                <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (bookingData) {
+                                        const newChildren = Math.max(0, (bookingData.children || 0) - 1);
+                                        setBookingData({ ...bookingData, children: newChildren });
+                                      }
+                                    }}
+                                    className="w-11 h-11 sm:w-9 sm:h-9 rounded-lg border-2 border-slate-300 bg-white hover:bg-slate-50 active:bg-slate-100 hover:border-[#02665e] active:border-[#02665e] transition-all duration-200 flex items-center justify-center text-slate-600 hover:text-[#02665e] active:text-[#02665e] font-bold text-lg sm:text-lg touch-manipulation"
+                                  >
+                                    −
+                                  </button>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={bookingData?.children || 0}
+                                    aria-label="Children"
+                                    title="Children"
+                                    onChange={(e) => {
+                                      if (bookingData) {
+                                        const value = Math.max(0, parseInt(e.target.value) || 0);
+                                        setBookingData({ ...bookingData, children: value });
+                                      }
+                                    }}
+                                    className="w-14 sm:w-16 text-center px-2 py-1.5 sm:py-2 border-2 border-slate-300 rounded-lg text-sm sm:text-base font-semibold focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] bg-white"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (bookingData) {
+                                        const newChildren = (bookingData.children || 0) + 1;
+                                        setBookingData({ ...bookingData, children: newChildren });
+                                      }
+                                    }}
+                                    className="w-11 h-11 sm:w-9 sm:h-9 rounded-lg border-2 border-slate-300 bg-white hover:bg-slate-50 active:bg-slate-100 hover:border-[#02665e] active:border-[#02665e] transition-all duration-200 flex items-center justify-center text-slate-600 hover:text-[#02665e] active:text-[#02665e] font-bold text-lg sm:text-lg touch-manipulation"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              </div>
 
-                  <div className="pt-4 border-t border-slate-200">
-                    <div className="text-sm text-slate-600 mb-1">Duration</div>
-                    <div className="text-slate-900 font-medium">
-                      {nights} night{nights !== 1 ? "s" : ""}
+                              {/* Pets */}
+                              <div className="flex items-center justify-between gap-2 sm:gap-3">
+                                <label className="text-sm sm:text-base font-medium text-slate-700 min-w-[80px] sm:min-w-[100px]">
+                                  Pets
+                                </label>
+                                <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (bookingData) {
+                                        const newPets = Math.max(0, (bookingData.pets || 0) - 1);
+                                        setBookingData({ ...bookingData, pets: newPets });
+                                      }
+                                    }}
+                                    className="w-11 h-11 sm:w-9 sm:h-9 rounded-lg border-2 border-slate-300 bg-white hover:bg-slate-50 active:bg-slate-100 hover:border-[#02665e] active:border-[#02665e] transition-all duration-200 flex items-center justify-center text-slate-600 hover:text-[#02665e] active:text-[#02665e] font-bold text-lg sm:text-lg touch-manipulation"
+                                  >
+                                    −
+                                  </button>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={bookingData?.pets || 0}
+                                    aria-label="Pets"
+                                    title="Pets"
+                                    onChange={(e) => {
+                                      if (bookingData) {
+                                        const value = Math.max(0, parseInt(e.target.value) || 0);
+                                        setBookingData({ ...bookingData, pets: value });
+                                      }
+                                    }}
+                                    className="w-14 sm:w-16 text-center px-2 py-1.5 sm:py-2 border-2 border-slate-300 rounded-lg text-sm sm:text-base font-semibold focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] bg-white"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (bookingData) {
+                                        const newPets = (bookingData.pets || 0) + 1;
+                                        setBookingData({ ...bookingData, pets: newPets });
+                                      }
+                                    }}
+                                    className="w-11 h-11 sm:w-9 sm:h-9 rounded-lg border-2 border-slate-300 bg-white hover:bg-slate-50 active:bg-slate-100 hover:border-[#02665e] active:border-[#02665e] transition-all duration-200 flex items-center justify-center text-slate-600 hover:text-[#02665e] active:text-[#02665e] font-bold text-lg sm:text-lg touch-manipulation"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Duration Section */}
+                      <div className="space-y-1.5 sm:space-y-2 min-w-0 w-full">
+                        <label className="text-xs sm:text-sm font-semibold text-slate-700 mb-1.5 sm:mb-2 block whitespace-nowrap">Duration</label>
+                        <div className="text-slate-900 font-bold text-sm sm:text-base md:text-lg px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-3 bg-gradient-to-r from-[#02665e]/10 to-blue-50/50 rounded-lg sm:rounded-xl border border-[#02665e]/20">
+                          {nights > 0 ? `${nights} night${nights !== 1 ? "s" : ""}` : "Select dates"}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -491,75 +1043,81 @@ export default function BookingConfirmPage() {
             </div>
 
             {/* Guest Information Form */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-              <h2 className="text-2xl font-semibold text-slate-900 mb-6">
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-slate-200/60 p-4 sm:p-6 lg:p-8 transition-all duration-300 hover:shadow-xl overflow-hidden">
+              <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 mb-4 sm:mb-6 lg:mb-8">
                 Guest Information
               </h2>
 
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Full Name <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={guestName}
-                    onChange={(e) => setGuestName(e.target.value)}
-                    required
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent"
-                    placeholder="Enter your full name"
-                  />
+              <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5 lg:space-y-6 overflow-x-hidden">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 lg:gap-5 w-full">
+                  <div className="space-y-2 min-w-0 w-full">
+                    <label className="block text-sm font-semibold text-slate-700">
+                      Full Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={guestName}
+                      onChange={(e) => setGuestName(e.target.value)}
+                      required
+                      className="w-full min-w-0 px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm max-w-full box-border"
+                      placeholder="Enter your full name"
+                    />
+                  </div>
+
+                  <div className="space-y-2 min-w-0 w-full">
+                    <label className="block text-sm font-semibold text-slate-700">
+                      Phone Number <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="tel"
+                      value={guestPhone}
+                      onChange={(e) => setGuestPhone(e.target.value)}
+                      required
+                      className="w-full min-w-0 px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm max-w-full box-border"
+                      placeholder="+255 XXX XXX XXX"
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Phone Number <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="tel"
-                    value={guestPhone}
-                    onChange={(e) => setGuestPhone(e.target.value)}
-                    required
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent"
-                    placeholder="+255 XXX XXX XXX"
-                  />
-                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 lg:gap-5 w-full">
+                  <div className="space-y-2 min-w-0 w-full">
+                    <label className="block text-sm font-semibold text-slate-700">
+                      Email <span className="text-slate-400 text-xs font-normal">(Optional)</span>
+                    </label>
+                    <input
+                      type="email"
+                      value={guestEmail}
+                      onChange={(e) => setGuestEmail(e.target.value)}
+                      className="w-full min-w-0 px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm max-w-full box-border"
+                      placeholder="your.email@example.com"
+                    />
+                  </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Email (Optional)
-                  </label>
-                  <input
-                    type="email"
-                    value={guestEmail}
-                    onChange={(e) => setGuestEmail(e.target.value)}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent"
-                    placeholder="your.email@example.com"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                      Nationality (Optional)
+                  <div className="space-y-2 min-w-0 w-full">
+                    <label className="block text-sm font-semibold text-slate-700">
+                      Nationality <span className="text-slate-400 text-xs font-normal">(Optional)</span>
                     </label>
                     <input
                       type="text"
                       value={nationality}
                       onChange={(e) => setNationality(e.target.value)}
-                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent"
+                      className="w-full min-w-0 px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm max-w-full box-border"
                       placeholder="e.g., Tanzanian"
                     />
                   </div>
+                </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                      Gender (Optional)
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 lg:gap-5 w-full">
+                  <div className="space-y-2 min-w-0 w-full">
+                    <label className="block text-sm font-semibold text-slate-700">
+                      Gender <span className="text-slate-400 text-xs font-normal">(Optional)</span>
                     </label>
                     <select
                       value={sex}
                       onChange={(e) => setSex(e.target.value as any)}
-                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent"
+                      aria-label="Gender"
+                      title="Gender"
+                      className="w-full min-w-0 px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm max-w-full box-border cursor-pointer"
                     >
                       <option value="">Select</option>
                       <option value="Male">Male</option>
@@ -567,28 +1125,34 @@ export default function BookingConfirmPage() {
                       <option value="Other">Other</option>
                     </select>
                   </div>
+                  <div className="space-y-2 min-w-0 w-full">
+                    {/* Empty space to maintain grid alignment */}
+                  </div>
                 </div>
 
                 {/* Transportation Option */}
-                <div className="pt-4 border-t border-slate-200">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                <div className="pt-6 border-t border-slate-200/60">
+                  <div className="flex items-center justify-between mb-4 p-4 bg-gradient-to-r from-slate-50 to-blue-50/30 rounded-xl border border-slate-200/60">
+                    <div className="flex-1">
+                      <label className="text-sm font-semibold text-slate-700 mb-1 flex items-center gap-2">
+                        <Car className="w-4 h-4 text-[#02665e]" />
                         Include Transportation
                       </label>
-                      <p className="text-xs text-slate-500">
+                      <p className="text-xs text-slate-600">
                         Add transport from your location to the property
                       </p>
                     </div>
                     <button
                       type="button"
                       onClick={() => setIncludeTransport(!includeTransport)}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                        includeTransport ? "bg-[#02665e]" : "bg-slate-300"
+                      aria-label={includeTransport ? "Disable transportation" : "Enable transportation"}
+                      title={includeTransport ? "Disable transportation" : "Enable transportation"}
+                      className={`relative inline-flex h-7 w-12 items-center rounded-full transition-all duration-300 shadow-md ${
+                        includeTransport ? "bg-[#02665e] shadow-[#02665e]/30" : "bg-slate-300"
                       }`}
                     >
                       <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-lg transition-all duration-300 ${
                           includeTransport ? "translate-x-6" : "translate-x-1"
                         }`}
                       />
@@ -596,9 +1160,9 @@ export default function BookingConfirmPage() {
                   </div>
 
                   {includeTransport && (
-                    <div className="space-y-3 mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                    <div className="space-y-4 mt-4 p-5 bg-gradient-to-br from-blue-50/50 to-slate-50 rounded-xl border-2 border-[#02665e]/20 shadow-sm animate-in fade-in slide-in-from-top-2 duration-300">
+                      <div className="space-y-2">
+                        <label className="block text-sm font-semibold text-slate-700">
                           Pickup Location <span className="text-red-500">*</span>
                         </label>
                         <div className="flex gap-2">
@@ -607,32 +1171,227 @@ export default function BookingConfirmPage() {
                             value={transportOriginAddress}
                             onChange={(e) => setTransportOriginAddress(e.target.value)}
                             placeholder="Enter your address or location"
-                            className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent"
+                            className="flex-1 px-4 py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm"
                             required={includeTransport}
                           />
                           <button
                             type="button"
                             onClick={handleGetLocation}
                             disabled={calculatingFare}
-                            className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors disabled:opacity-50 flex items-center gap-2"
+                            className="px-4 py-3 bg-gradient-to-r from-[#02665e] to-[#014e47] text-white rounded-xl hover:from-[#014e47] hover:to-[#02665e] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95"
                             title="Use current location"
                           >
                             <Navigation className="w-4 h-4" />
                           </button>
                         </div>
-                        <p className="text-xs text-slate-500 mt-1">
+                        <p className="text-xs text-slate-600 mt-1.5 flex items-center gap-1">
+                          <Info className="w-3.5 h-3.5" />
                           Click the location icon to use your current location
                         </p>
                       </div>
 
-                      {transportFare && (
-                        <div className="p-3 bg-white rounded-lg border border-[#02665e]/20">
-                          <div className="flex items-center justify-between mb-2">
-                            <div>
-                              <span className="text-sm font-medium text-slate-700">Transport Fare</span>
-                              <span className="ml-2 text-xs text-slate-500">(Fixed upfront price)</span>
+                      {/* Arrival Information Section */}
+                      <div className="pt-4 mt-4 border-t border-slate-200/60">
+                        <h3 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
+                          <Plane className="w-4 h-4 text-[#02665e] flex-shrink-0" />
+                          <span>Arrival Information</span>
+                          <span className="text-slate-400 text-xs font-normal">(Optional)</span>
+                        </h3>
+                        <p className="text-xs text-slate-600 mb-4">
+                          Help us coordinate your pickup by providing your arrival details
+                        </p>
+                        
+                        <div className="space-y-4 w-full min-w-0">
+                          {/* Arrival Type */}
+                          <div className="space-y-2 w-full min-w-0">
+                            <label className="block text-sm font-semibold text-slate-700">
+                              How are you arriving?
+                            </label>
+                            <select
+                              value={arrivalType}
+                              onChange={(e) => setArrivalType(e.target.value as any)}
+                              aria-label="Arrival type"
+                              title="Arrival type"
+                              className="w-full min-w-0 px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm cursor-pointer max-w-full box-border"
+                            >
+                              <option value="">Select arrival type</option>
+                              <option value="FLIGHT">Flight</option>
+                              <option value="BUS">Bus</option>
+                              <option value="TRAIN">Train</option>
+                              <option value="FERRY">Ferry</option>
+                              <option value="OTHER">Other</option>
+                            </select>
+                          </div>
+
+                          {/* Arrival Number & Company - shown when arrival type is selected */}
+                          {arrivalType && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 w-full min-w-0">
+                              <div className="space-y-2 min-w-0 w-full">
+                                <label className="block text-sm font-semibold text-slate-700">
+                                  {arrivalType === "FLIGHT" ? "Flight Number" :
+                                   arrivalType === "BUS" ? "Bus Number" :
+                                   arrivalType === "TRAIN" ? "Train Number" :
+                                   arrivalType === "FERRY" ? "Ferry Number" :
+                                   "Transport Number"}
+                                </label>
+                                <input
+                                  type="text"
+                                  value={arrivalNumber}
+                                  onChange={(e) => setArrivalNumber(e.target.value)}
+                                  placeholder={arrivalType === "FLIGHT" ? "e.g., JN123" :
+                                               arrivalType === "BUS" ? "e.g., BUS-456" :
+                                               arrivalType === "TRAIN" ? "e.g., TR-789" :
+                                               arrivalType === "FERRY" ? "e.g., FR-012" :
+                                               "Transport number"}
+                                  className="w-full min-w-0 px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm max-w-full box-border"
+                                />
+                              </div>
+                              <div className="space-y-2 min-w-0 w-full">
+                                <label className="block text-sm font-semibold text-slate-700">
+                                  {arrivalType === "FLIGHT" ? "Airline" :
+                                   arrivalType === "BUS" ? "Bus Company" :
+                                   arrivalType === "TRAIN" ? "Train Operator" :
+                                   arrivalType === "FERRY" ? "Ferry Operator" :
+                                   "Transport Company"}
+                                </label>
+                                <input
+                                  type="text"
+                                  value={transportCompany}
+                                  onChange={(e) => setTransportCompany(e.target.value)}
+                                  placeholder={arrivalType === "FLIGHT" ? "e.g., Precision Air" :
+                                               arrivalType === "BUS" ? "e.g., Scania" :
+                                               arrivalType === "TRAIN" ? "e.g., TAZARA" :
+                                               arrivalType === "FERRY" ? "e.g., Azam Marine" :
+                                               "Company name"}
+                                  className="w-full min-w-0 px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm max-w-full box-border"
+                                />
+                              </div>
                             </div>
-                            <span className="text-lg font-bold text-[#02665e]">
+                          )}
+
+                          {/* Arrival Time and Pickup Location - Two columns on large screens */}
+                          {arrivalType && (
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 lg:gap-5 w-full min-w-0">
+                              {/* Arrival Time */}
+                              <div className="space-y-2 w-full min-w-0">
+                                <label className="block text-sm font-semibold text-slate-700">
+                                  Arrival Time
+                                </label>
+                                <div className="space-y-2 sm:space-y-3">
+                                  {/* Date Picker Button */}
+                                  <div className="relative">
+                                    <button
+                                      type="button"
+                                      onClick={() => setArrivalDatePickerOpen(true)}
+                                      className="w-full min-w-0 px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-3 pl-8 sm:pl-10 md:pl-11 pr-8 sm:pr-10 md:pr-11 border-2 border-slate-300 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-gradient-to-r from-slate-50 to-blue-50/50 shadow-sm max-w-full box-border flex items-center justify-between group"
+                                    >
+                                      <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
+                                        <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#02665e] flex-shrink-0" />
+                                        <span className="text-slate-900 truncate text-xs sm:text-sm">
+                                          {arrivalDate
+                                            ? (() => {
+                                                const date = new Date(arrivalDate);
+                                                const day = String(date.getDate()).padStart(2, "0");
+                                                const month = String(date.getMonth() + 1).padStart(2, "0");
+                                                const year = date.getFullYear();
+                                                return `${day} / ${month} / ${year}`;
+                                              })()
+                                            : "dd / mm / yyyy"}
+                                        </span>
+                                      </div>
+                                      <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 group-hover:text-[#02665e] transition-colors flex-shrink-0" />
+                                    </button>
+                                    {arrivalDatePickerOpen && (
+                                      <>
+                                        <div className="fixed inset-0 z-[100]" onClick={() => setArrivalDatePickerOpen(false)} />
+                                        <div className="absolute z-[101] top-full left-0 mt-2 bg-white rounded-xl border-2 border-slate-200 shadow-2xl max-h-[calc(100vh-200px)] overflow-y-auto">
+                                          <DatePicker
+                                            selected={arrivalDate}
+                                            onSelect={(s) => {
+                                              const date = Array.isArray(s) ? s[0] : s;
+                                              setArrivalDate(date || "");
+                                              setArrivalDatePickerOpen(false);
+                                            }}
+                                            onClose={() => setArrivalDatePickerOpen(false)}
+                                            allowRange={false}
+                                            minDate={new Date().toISOString().split("T")[0]}
+                                          />
+                                        </div>
+                                      </>
+                                    )}
+                                  </div>
+                                  {/* Time Inputs */}
+                                  <div className="flex items-center gap-2 sm:gap-3">
+                                    <div className="flex-1 min-w-0">
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        max="23"
+                                        value={arrivalTimeHour}
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          if (val === "" || (parseInt(val) >= 0 && parseInt(val) <= 23)) {
+                                            setArrivalTimeHour(val);
+                                          }
+                                        }}
+                                        placeholder="--"
+                                        className="w-full min-w-0 px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-3 border-2 border-slate-300 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm text-center max-w-full box-border"
+                                      />
+                                    </div>
+                                    <span className="flex items-center text-slate-600 font-semibold text-sm sm:text-base">:</span>
+                                    <div className="flex-1 min-w-0">
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        max="59"
+                                        value={arrivalTimeMinute}
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          if (val === "" || (parseInt(val) >= 0 && parseInt(val) <= 59)) {
+                                            setArrivalTimeMinute(val);
+                                          }
+                                        }}
+                                        placeholder="--"
+                                        className="w-full min-w-0 px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-3 border-2 border-slate-300 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm text-center max-w-full box-border"
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Pickup Location (specific area/terminal) */}
+                              <div className="space-y-2 w-full min-w-0">
+                                <label className="block text-sm font-semibold text-slate-700">
+                                  Specific Pickup Area/Terminal
+                                </label>
+                                <input
+                                  type="text"
+                                  value={pickupLocation}
+                                  onChange={(e) => setPickupLocation(e.target.value)}
+                                  placeholder={arrivalType === "FLIGHT" ? "e.g., Terminal 1, Gate 3" :
+                                               arrivalType === "BUS" ? "e.g., Ubungo Bus Terminal, Platform 5" :
+                                               arrivalType === "TRAIN" ? "e.g., Central Station, Platform 2" :
+                                               arrivalType === "FERRY" ? "e.g., Ferry Terminal, Dock A" :
+                                               "Specific pickup location"}
+                                  className="w-full min-w-0 px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm max-w-full box-border"
+                                />
+                                <p className="text-xs text-slate-600 mt-1.5">
+                                  Specify the exact pickup point (terminal, gate, platform, etc.)
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {transportFare && (
+                        <div className="p-4 bg-white rounded-xl border-2 border-[#02665e]/30 shadow-md animate-in fade-in slide-in-from-bottom-2 duration-300">
+                          <div className="flex items-center justify-between mb-3">
+                            <div>
+                              <span className="text-sm font-bold text-slate-800">Transport Fare</span>
+                              <span className="ml-2 text-xs text-slate-500 font-medium">(Fixed upfront price)</span>
+                            </div>
+                            <span className="text-xl font-bold text-[#02665e]">
                               {transportFare.toLocaleString()} {currency}
                             </span>
                           </div>
@@ -672,40 +1431,40 @@ export default function BookingConfirmPage() {
                   )}
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Special Requests (Optional)
+                <div className="space-y-2 w-full min-w-0">
+                  <label className="block text-sm font-semibold text-slate-700">
+                    Special Requests <span className="text-slate-400 text-xs font-normal">(Optional)</span>
                   </label>
                   <textarea
                     value={specialRequests}
                     onChange={(e) => setSpecialRequests(e.target.value)}
-                    rows={3}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent"
+                    rows={4}
+                    className="w-full min-w-0 px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm resize-none max-w-full box-border"
                     placeholder="Any special requests or notes for the host..."
                   />
                 </div>
 
                 {error && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
+                  <div className="bg-gradient-to-r from-red-50 to-red-100/50 border-2 border-red-200 rounded-xl p-4 flex items-start gap-3 animate-in fade-in slide-in-from-top-2 duration-300 shadow-sm">
                     <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-                    <p className="text-sm text-red-700">{error}</p>
+                    <p className="text-sm font-medium text-red-700">{error}</p>
                   </div>
                 )}
 
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full py-3 px-6 rounded-lg bg-[#02665e] text-white font-medium hover:bg-[#014e47] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="w-full py-4 px-6 rounded-xl bg-gradient-to-r from-[#02665e] to-[#014e47] text-white font-bold text-base hover:from-[#014e47] hover:to-[#02665e] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98]"
                 >
                   {submitting ? (
                     <>
                       <Loader2 className="w-5 h-5 animate-spin" />
-                      Creating booking...
+                      <span>Creating booking...</span>
                     </>
                   ) : (
                     <>
                       <CheckCircle2 className="w-5 h-5" />
-                      Confirm & Continue to Payment
+                      <span>Confirm & Continue to Payment</span>
                     </>
                   )}
                 </button>
@@ -715,71 +1474,96 @@ export default function BookingConfirmPage() {
 
           {/* Sidebar - Price Summary */}
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 sticky top-8">
-              <h2 className="text-xl font-semibold text-slate-900 mb-6">
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-slate-200/60 p-6 lg:p-8 sticky top-8 transition-all duration-300 hover:shadow-2xl">
+              <h2 className="text-xl lg:text-2xl font-bold text-slate-900 mb-6 lg:mb-8">
                 Price Summary
               </h2>
 
-              <div className="space-y-4">
-                <div className="flex justify-between text-slate-600">
-                  <span>
-                    {basePrice.toLocaleString()} {currency} × {nights} night{nights !== 1 ? "s" : ""}
+              <div className="space-y-4 lg:space-y-5">
+                <div className="flex justify-between items-center p-3 bg-slate-50 rounded-xl border border-slate-200/60">
+                  <span className="text-sm font-medium text-slate-700">
+                    {pricePerNight.toLocaleString()} {currency} × {nights} night{nights !== 1 ? "s" : ""} × {roomsQty} room{roomsQty !== 1 ? "s" : ""}
+                    {(selectedRoomCode || selectedRoomIndex !== null) && (
+                      <span className="block text-xs text-slate-500 mt-0.5">
+                        {(() => {
+                          if (!property?.roomsSpec) return "";
+                          let roomTypes: Array<{ code?: string; roomCode?: string; roomType?: string; name?: string; label?: string }> = [];
+                          if (typeof property.roomsSpec === "object") {
+                            const spec = property.roomsSpec as any;
+                            if (Array.isArray(spec)) {
+                              roomTypes = spec;
+                            } else if (spec.rooms && Array.isArray(spec.rooms)) {
+                              roomTypes = spec.rooms;
+                            }
+                          }
+                          
+                          let room: any = null;
+                          if (selectedRoomCode) {
+                            room = roomTypes.find((rt) => (rt.code || rt.roomCode) === selectedRoomCode);
+                          } else if (selectedRoomIndex !== null && selectedRoomIndex >= 0 && selectedRoomIndex < roomTypes.length) {
+                            room = roomTypes[selectedRoomIndex];
+                          }
+                          
+                          return room ? `(${room.roomType || room.name || room.label || "Selected Room"})` : "";
+                        })()}
+                      </span>
+                    )}
                   </span>
-                  <span className="font-medium text-slate-900">
+                  <span className="font-bold text-slate-900 text-base">
                     {subtotal.toLocaleString()} {currency}
                   </span>
                 </div>
 
                 {commission > 0 && (
-                  <div className="flex justify-between text-slate-600 text-sm">
-                    <span>Service fee</span>
-                    <span>{commission.toLocaleString()} {currency}</span>
+                  <div className="flex justify-between items-center text-slate-600 text-sm p-2">
+                    <span className="font-medium">Service fee</span>
+                    <span className="font-semibold text-slate-800">{commission.toLocaleString()} {currency}</span>
                   </div>
                 )}
 
                 {includeTransport && transportFare && (
-                  <div className="flex justify-between text-slate-600 text-sm pt-2">
-                    <span className="flex items-center gap-1">
-                      <Car className="w-4 h-4" />
+                  <div className="flex justify-between items-center text-slate-600 text-sm pt-2 p-3 bg-blue-50/50 rounded-xl border border-blue-200/60">
+                    <span className="flex items-center gap-2 font-medium">
+                      <Car className="w-4 h-4 text-[#02665e]" />
                       Transportation
                     </span>
-                    <span className="font-medium text-slate-900">
+                    <span className="font-bold text-[#02665e]">
                       {transportFare.toLocaleString()} {currency}
                     </span>
                   </div>
                 )}
 
-                <div className="pt-4 border-t border-slate-200">
-                  <div className="flex justify-between items-center">
-                    <span className="text-lg font-semibold text-slate-900">Total</span>
-                    <span className="text-2xl font-bold text-[#02665e]">
+                <div className="pt-4 border-t-2 border-slate-200">
+                  <div className="flex justify-between items-center p-4 bg-gradient-to-r from-[#02665e]/10 to-blue-50/50 rounded-xl border border-[#02665e]/20">
+                    <span className="text-lg font-bold text-slate-900">Total</span>
+                    <span className="text-2xl lg:text-3xl font-extrabold text-[#02665e]">
                       {finalTotal.toLocaleString()} {currency}
                     </span>
                   </div>
                 </div>
 
-                <div className="pt-4 border-t border-slate-200">
-                  <div className="flex items-start gap-2 text-sm text-slate-600">
+                <div className="pt-4 border-t border-slate-200/60">
+                  <div className="flex items-start gap-3 p-4 bg-gradient-to-br from-emerald-50/50 to-slate-50 rounded-xl border border-emerald-200/40">
                     <ShieldCheck className="w-5 h-5 text-[#02665e] flex-shrink-0 mt-0.5" />
                     <div>
-                      <div className="font-medium text-slate-900 mb-1">
+                      <div className="font-bold text-slate-900 mb-1 text-sm">
                         Secure Payment
                       </div>
-                      <div>
+                      <div className="text-xs text-slate-600 leading-relaxed">
                         Your payment is processed securely through our payment partners.
                       </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="pt-4 border-t border-slate-200">
-                  <div className="flex items-start gap-2 text-sm text-slate-600">
-                    <Info className="w-5 h-5 text-slate-400 flex-shrink-0 mt-0.5" />
+                <div className="pt-2 border-t border-slate-200/60">
+                  <div className="flex items-start gap-3 p-4 bg-gradient-to-br from-blue-50/30 to-slate-50 rounded-xl border border-blue-200/40">
+                    <Info className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
                     <div>
-                      <div className="font-medium text-slate-900 mb-1">
+                      <div className="font-bold text-slate-900 mb-1 text-sm">
                         Cancellation Policy
                       </div>
-                      <div>
+                      <div className="text-xs text-slate-600 leading-relaxed">
                         Free cancellation up to 24 hours before check-in. Review full policy on property page.
                       </div>
                     </div>

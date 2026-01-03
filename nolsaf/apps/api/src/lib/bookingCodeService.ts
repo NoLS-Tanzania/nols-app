@@ -313,7 +313,8 @@ export async function sendBookingCodeNotification(
 
     // Send Email
     if (shouldSendEmail) {
-      const email = booking.user?.email;
+      // Check both user email (for logged-in users) and guestEmail (for public bookings)
+      const email = booking.user?.email || (booking as any).guestEmail;
       if (email) {
         try {
           await sendMail(email, notification.email.subject, notification.email.html);

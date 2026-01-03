@@ -1,7 +1,7 @@
 // apps/api/src/routes/owner.reports.ts
 import { Router } from "express";
 import { prisma } from "@nolsaf/prisma";
-import { Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { AuthedRequest, requireAuth, requireRole } from "../middleware/auth.js";
 import { eachDay, fmtKey, GroupBy, startOfDayTZ } from "../lib/reporting";
 import { withCache, makeKey } from "../lib/cache";

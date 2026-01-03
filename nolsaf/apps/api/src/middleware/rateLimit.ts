@@ -131,3 +131,24 @@ export const limitLoginAttempts = rateLimit({
   message: { error: "Too many login attempts. Please wait 15 minutes before trying again." },
   skipSuccessfulRequests: true, // Don't count successful logins
 });
+
+// Rate limiter for public transport booking creation (prevents spam/abuse)
+export const limitTransportBooking = rateLimit({
+  windowMs: 15 * 60_000, // 15 minutes
+  max: 10, // 10 bookings per IP per 15 minutes
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many booking requests. Please wait 15 minutes before creating another booking." },
+  keyGenerator: (req) => {
+    // Rate limit by IP, but also consider phone/email if provided
+    const phone = req.body?.guestPhone || req.body?.phone;
+    const email = req.body?.guestEmail || req.body?.email;
+    if (phone) {
+      return `transport-booking:${String(phone)}`;
+    }
+    if (email) {
+      return `transport-booking:${String(email)}`;
+    }
+    return req.ip || req.socket.remoteAddress || "unknown";
+  },
+});

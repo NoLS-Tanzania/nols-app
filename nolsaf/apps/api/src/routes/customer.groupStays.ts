@@ -15,6 +15,9 @@ router.use(requireAuth as RequestHandler);
  */
 router.get("/", async (req: AuthedRequest, res) => {
   try {
+    // Explicitly set Content-Type to JSON
+    res.setHeader('Content-Type', 'application/json');
+    
     const userId = req.user!.id;
     const { status, page = "1", pageSize = "20" } = req.query as any;
     
@@ -132,7 +135,8 @@ router.get("/", async (req: AuthedRequest, res) => {
     });
   } catch (error: any) {
     console.error("GET /customer/group-stays error:", error);
-    return res.status(500).json({ error: "Failed to fetch group stays" });
+    res.setHeader('Content-Type', 'application/json');
+    return res.status(500).json({ error: "Failed to fetch group stays", message: error?.message || 'Unknown error' });
   }
 });
 
@@ -143,11 +147,15 @@ router.get("/", async (req: AuthedRequest, res) => {
  */
 router.post("/:id/message", limitPlanRequestMessages, (async (req: AuthedRequest, res) => {
   try {
+    // Explicitly set Content-Type to JSON
+    res.setHeader('Content-Type', 'application/json');
+    
     const userId = req.user!.id;
     const bookingId = parseInt(String(req.params.id), 10);
     const { messageType, message } = req.body || {};
 
     if (!message || typeof message !== 'string' || !message.trim()) {
+      res.setHeader('Content-Type', 'application/json');
       return res.status(400).json({ error: "Message is required" });
     }
 
@@ -158,6 +166,7 @@ router.post("/:id/message", limitPlanRequestMessages, (async (req: AuthedRequest
     });
 
     if (!user) {
+      res.setHeader('Content-Type', 'application/json');
       return res.status(404).json({ error: "User not found" });
     }
 
@@ -255,7 +264,8 @@ router.post("/:id/message", limitPlanRequestMessages, (async (req: AuthedRequest
     });
   } catch (error: any) {
     console.error("POST /customer/group-stays/:id/message error:", error);
-    return res.status(500).json({ error: "Failed to send message" });
+    res.setHeader('Content-Type', 'application/json');
+    return res.status(500).json({ error: "Failed to send message", message: error?.message || 'Unknown error' });
   }
 }) as RequestHandler);
 
@@ -265,6 +275,9 @@ router.post("/:id/message", limitPlanRequestMessages, (async (req: AuthedRequest
  */
 router.get("/:id/messages", (async (req: AuthedRequest, res) => {
   try {
+    // Explicitly set Content-Type to JSON
+    res.setHeader('Content-Type', 'application/json');
+    
     const userId = req.user!.id;
     const bookingId = parseInt(String(req.params.id), 10);
 
@@ -324,7 +337,8 @@ router.get("/:id/messages", (async (req: AuthedRequest, res) => {
     });
   } catch (error: any) {
     console.error("GET /customer/group-stays/:id/messages error:", error);
-    return res.status(500).json({ error: "Failed to load messages" });
+    res.setHeader('Content-Type', 'application/json');
+    return res.status(500).json({ error: "Failed to load messages", message: error?.message || 'Unknown error' });
   }
 }) as RequestHandler);
 

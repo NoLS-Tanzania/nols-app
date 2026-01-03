@@ -1,6 +1,7 @@
 // apps/web/app/layout.tsx
 
 import "@/styles/globals.css";
+import "@/styles/property-visualization.css";
 import type { ReactNode } from "react";
 import ToastContainer from "../components/ToastContainer";
 

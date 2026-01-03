@@ -7,7 +7,7 @@ import { AuthedRequest, requireAuth, requireRole } from "../middleware/auth.js";
 import { audit } from "../lib/audit.js";
 import { sanitizeText } from "../lib/sanitize.js";
 import rateLimit from "express-rate-limit";
-import { Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 
 // ============================================================
 // Constants
