@@ -936,69 +936,6 @@ export default function PublicPropertyDetailPage() {
   const router = useRouter();
   const slug = String((params as any)?.slug ?? "");
 
-  // Debug-mode client capture for "minor errors" (console warnings/errors, runtime exceptions)
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const endpoint = "http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191";
-    const runId = "minor-errors-run1";
-
-    const safe = (v: any) => {
-      try {
-        if (typeof v === "string") return v.slice(0, 400);
-        if (v instanceof Error) return { name: v.name, message: String(v.message || "").slice(0, 400) };
-        return JSON.parse(JSON.stringify(v));
-      } catch {
-        return String(v).slice(0, 400);
-      }
-    };
-
-    const send = (hypothesisId: string, location: string, message: string, data: any) => {
-      // #region agent log
-      fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId: "debug-session", runId, hypothesisId, location, message, data, timestamp: Date.now() }),
-      }).catch(() => {});
-      // #endregion
-    };
-
-    const onErr = (ev: any) => {
-      send("E1", "public/properties/[slug]/page.tsx:window.error", "window.error", {
-        message: String(ev?.message || ""),
-        filename: String(ev?.filename || ""),
-        lineno: ev?.lineno ?? null,
-        colno: ev?.colno ?? null,
-      });
-    };
-    const onRej = (ev: any) => {
-      send("E2", "public/properties/[slug]/page.tsx:window.unhandledrejection", "window.unhandledrejection", {
-        reason: safe(ev?.reason),
-      });
-    };
-
-    const origErr = console.error;
-    const origWarn = console.warn;
-    console.error = (...args: any[]) => {
-      send("E3", "public/properties/[slug]/page.tsx:console.error", "console.error", { args: args.map(safe) });
-      origErr(...args);
-    };
-    console.warn = (...args: any[]) => {
-      send("E4", "public/properties/[slug]/page.tsx:console.warn", "console.warn", { args: args.map(safe) });
-      origWarn(...args);
-    };
-
-    window.addEventListener("error", onErr);
-    window.addEventListener("unhandledrejection", onRej);
-    send("E0", "public/properties/[slug]/page.tsx:debug", "minor error capture enabled", { href: window.location.href });
-
-    return () => {
-      window.removeEventListener("error", onErr);
-      window.removeEventListener("unhandledrejection", onRej);
-      console.error = origErr;
-      console.warn = origWarn;
-    };
-  }, []);
-
   const [property, setProperty] = useState<PublicPropertyDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

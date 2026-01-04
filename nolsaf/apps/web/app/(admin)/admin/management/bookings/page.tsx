@@ -74,6 +74,20 @@ export default function BookingsManagementPage(){
 
   return (
     <div className="space-y-6">
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start justify-between gap-3">
+          <div className="text-sm text-red-700 break-words">{error}</div>
+          <button
+            type="button"
+            onClick={() => setError(null)}
+            className="text-red-400 hover:text-red-600 no-underline"
+            aria-label="Dismiss error"
+            title="Dismiss"
+          >
+            ×
+          </button>
+        </div>
+      )}
       <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
         <div className="flex flex-col items-center text-center mb-4">
           <Calendar className="h-8 w-8 text-gray-400 mb-3" />

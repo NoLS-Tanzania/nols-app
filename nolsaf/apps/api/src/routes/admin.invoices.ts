@@ -218,6 +218,51 @@ router.post("/:id/pay", async (req, res) => {
   
   const io = req.app.get("io");
   io.emit("admin:invoice:paid", { id: updated.id });
+
+  // Owner notification + realtime refresh (no sensitive payload over socket)
+  try {
+    const invoiceFull = await prisma.invoice.findUnique({
+      where: { id: updated.id },
+      include: { booking: { include: { property: true } } } as any,
+    });
+    const propertyTitle = (invoiceFull as any)?.booking?.property?.title ?? null;
+    const title = "New paid booking";
+    const body =
+      `Booking #${(invoiceFull as any)?.bookingId ?? updated.bookingId} has been paid` +
+      (propertyTitle ? ` for ${propertyTitle}` : "") +
+      ((invoiceFull as any)?.receiptNumber ? `. Receipt: ${(invoiceFull as any).receiptNumber}` : ".");
+
+    let createdId: number | null = null;
+    try {
+      const existing = await prisma.notification.findFirst({
+        where: {
+          ownerId: updated.ownerId,
+          type: "invoice",
+          meta: { path: ["invoiceId"], equals: updated.id } as any,
+        } as any,
+        select: { id: true },
+      });
+      if (!existing) {
+        const n = await prisma.notification.create({
+          data: {
+            ownerId: updated.ownerId,
+            userId: updated.ownerId,
+            title,
+            body,
+            type: "invoice",
+            meta: { kind: "invoice_paid", invoiceId: updated.id, bookingId: (invoiceFull as any)?.bookingId ?? updated.bookingId, actionUrl: "/owner/bookings/recent" },
+          },
+          select: { id: true },
+        });
+        createdId = Number(n.id);
+      }
+    } catch {}
+
+    io?.to?.(`owner:${updated.ownerId}`)?.emit?.("owner:bookings:updated", { bookingId: (invoiceFull as any)?.bookingId ?? updated.bookingId, invoiceId: updated.id });
+    io?.to?.(`owner:${updated.ownerId}`)?.emit?.("notification:new", { id: createdId, title, type: "invoice" });
+    io?.emit?.("owner:bookings:updated", { bookingId: (invoiceFull as any)?.bookingId ?? updated.bookingId, invoiceId: updated.id });
+
+  } catch {}
   
   // Create referral earnings and emit updates if booking belongs to a referred user
   try {
@@ -352,6 +397,47 @@ router.post("/:id/mark-paid", async (req, res) => {
         invoiceId: updated.id,
         ownerId: updated.ownerId,
       });
+
+      // Owner notification + realtime refresh (no sensitive payload over socket)
+      try {
+        const propertyTitle = (inv as any).booking?.property?.title ?? null;
+        const title = "New paid booking";
+        const body =
+          `Booking #${updated.bookingId} has been paid` +
+          (propertyTitle ? ` for ${propertyTitle}` : "") +
+          (updated.receiptNumber ? `. Receipt: ${updated.receiptNumber}` : ".");
+
+        let createdId: number | null = null;
+        try {
+          const existing = await prisma.notification.findFirst({
+            where: {
+              ownerId: updated.ownerId,
+              type: "invoice",
+              meta: { path: ["invoiceId"], equals: updated.id } as any,
+            } as any,
+            select: { id: true },
+          });
+          if (!existing) {
+            const n = await prisma.notification.create({
+              data: {
+                ownerId: updated.ownerId,
+                userId: updated.ownerId,
+                title,
+                body,
+                type: "invoice",
+                meta: { kind: "invoice_paid", invoiceId: updated.id, bookingId: updated.bookingId, actionUrl: "/owner/bookings/recent" },
+              },
+              select: { id: true },
+            });
+            createdId = Number(n.id);
+          }
+        } catch {}
+
+        io?.to?.(`owner:${updated.ownerId}`)?.emit?.("owner:bookings:updated", { bookingId: updated.bookingId, invoiceId: updated.id });
+        io?.to?.(`owner:${updated.ownerId}`)?.emit?.("notification:new", { id: createdId, title, type: "invoice" });
+        io?.emit?.("owner:bookings:updated", { bookingId: updated.bookingId, invoiceId: updated.id });
+
+      } catch {}
       
       // Emit referral credit update if booking belongs to a referred user
       try {

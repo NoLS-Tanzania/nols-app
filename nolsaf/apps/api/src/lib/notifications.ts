@@ -30,6 +30,10 @@ export async function notifyAdmins(template: string, data: any) {
         title: "New Plan Request Submitted",
         body: `A new plan request${data.requestId ? ` #${data.requestId}` : ""} has been submitted${data.customerName ? ` by ${data.customerName}` : ""}${data.role ? ` (${data.role})` : ""}.`
       },
+      booking_created: {
+        title: "New Booking Created",
+        body: `A new booking${data.bookingId ? ` #${data.bookingId}` : ""} has been created${data.propertyTitle ? ` for "${data.propertyTitle}"` : ""}${data.checkIn ? ` (check-in: ${data.checkIn})` : ""}.`
+      },
     };
 
     const templateData = notificationTemplates[template] || {
@@ -47,7 +51,11 @@ export async function notifyAdmins(template: string, data: any) {
           body: templateData.body,
           unread: true,
           meta: data,
-          type: template.startsWith("cancellation") ? "cancellation" : "property"
+          type: template.startsWith("cancellation")
+            ? "cancellation"
+            : template.startsWith("booking")
+              ? "booking"
+              : "property"
         }
       });
     } catch (err: any) {
@@ -90,6 +98,10 @@ export async function notifyOwner(ownerId: number, template: string, data: any) 
         title: "New Message on Cancellation Claim",
         body: `You have a new message on your cancellation claim${data.requestId ? ` #${data.requestId}` : ""}${data.bookingCode ? ` (code: ${data.bookingCode})` : ""}.`
       },
+      booking_created: {
+        title: "New Booking Received",
+        body: `You have a new booking${data.bookingId ? ` #${data.bookingId}` : ""}${data.propertyTitle ? ` for "${data.propertyTitle}"` : ""}${data.checkIn ? ` (check-in: ${data.checkIn})` : ""}. Open your bookings to view details and prepare for check-in.`
+      },
     };
 
     const templateData = notificationTemplates[template] || {
@@ -107,7 +119,11 @@ export async function notifyOwner(ownerId: number, template: string, data: any) 
           body: templateData.body,
           unread: true,
           meta: data,
-          type: template.startsWith("cancellation") ? "cancellation" : "property"
+          type: template.startsWith("cancellation")
+            ? "cancellation"
+            : template.startsWith("booking")
+              ? "booking"
+              : "property"
         }
       });
 

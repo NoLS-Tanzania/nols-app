@@ -1,99 +1,202 @@
 "use client";
 import { useEffect, useState } from "react";
-import { CheckCircle } from "lucide-react";
+import { CheckCircle, Loader2, FileText, Receipt } from "lucide-react";
 import axios from "axios";
+import Link from "next/link";
+
 type RevenueFilters = { status?: string; [key: string]: any };
 
-function RevenueFilter({
-  statusFixed,
-  onChange,
-}: {
-  statusFixed?: string;
-  onChange: (f: RevenueFilters) => void;
-}) {
-  // Ensure the fixed status is applied to the parent filter state on mount/change.
-  useEffect(() => {
-    if (statusFixed) onChange({ status: statusFixed });
-  }, [statusFixed, onChange]);
-
-  // Minimal/no-op UI placeholder (original UI can be restored from the real component).
-  return null;
-}
 // Use same-origin calls + secure httpOnly cookie session.
 const api = axios.create({ baseURL: "", withCredentials: true });
 
+type Invoice = {
+  id: number;
+  invoiceNumber: string;
+  status: string;
+  issuedAt: string;
+  paidAt?: string | null;
+  total: number | string;
+  netPayable: number | string;
+  commissionAmount: number | string;
+  commissionPercent?: number | string;
+  receiptNumber?: string | null;
+  booking?: {
+    id: number;
+    property?: {
+      id: number;
+      title: string;
+    };
+  };
+};
+
 export default function Paid() {
-  const [items, setItems] = useState<any[]>([]);
+  const [items, setItems] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
-  const [minWaitElapsed, setMinWaitElapsed] = useState(false);
-  const [filters, setFilters] = useState<RevenueFilters>({ status: "PAID" });
+  const [filters] = useState<RevenueFilters>({ status: "PAID" });
 
   useEffect(() => {
-  let mounted = true;
-  const timer = setTimeout(() => setMinWaitElapsed(true), 3000);
+    let mounted = true;
     setLoading(true);
+    
     api
-      .get<{ items: any[] }>("/api/owner/revenue/invoices", { params: filters })
-      .then((r) => { if (!mounted) return; setItems(r.data.items || []); })
-      .catch((err) => { if (!mounted) return; console.error("Failed to load invoices", err); setItems([]); })
-      .finally(() => { if (!mounted) return; setLoading(false); });
+      .get<{ items: Invoice[] }>("/api/owner/revenue/invoices", { params: filters })
+      .then((r) => { 
+        if (!mounted) return; 
+        setItems(r.data.items || []); 
+      })
+      .catch((err) => { 
+        if (!mounted) return; 
+        console.error("Failed to load invoices", err); 
+        setItems([]); 
+      })
+      .finally(() => { 
+        if (!mounted) return; 
+        setLoading(false); 
+      });
 
-    return () => { mounted = false; clearTimeout(timer); };
+    return () => { mounted = false; };
   }, [filters]);
 
-  return (
-    <div className="space-y-4">
-      <RevenueFilter statusFixed="PAID" onChange={setFilters} />
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-TZ', {
+      style: 'currency',
+      currency: 'TZS',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
 
-      {/* Loading / empty: show icon only (no duplicate blue badge text) */}
-      {loading && !minWaitElapsed ? (
-        <div className="min-h-[180px] flex flex-col items-center justify-center text-center">
-          <span aria-hidden className="dot-spinner mb-2" aria-live="polite">
-            <span className="dot dot-blue" />
-            <span className="dot dot-black" />
-            <span className="dot dot-yellow" />
-            <span className="dot dot-green" />
-          </span>
-          <div className="mb-2">
-            <div className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-blue-50 border border-blue-100">
-              <CheckCircle className="h-6 w-6 text-blue-600" />
-            </div>
-          </div>
-          <div className="text-sm opacity-60 mt-2">Checking for paid invoices…</div>
+  const formatDate = (dateStr: string) => {
+    try {
+      return new Date(dateStr).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center text-center px-4">
+        <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4">
+          <Loader2 className="h-8 w-8 animate-spin text-green-600" />
         </div>
-      ) : (
-        items.length === 0 && (
-          <div className="flex justify-center mb-4">
-            <div className="inline-flex items-center justify-center h-10 w-10 rounded-full bg-blue-50 border border-blue-100">
-              <CheckCircle className="h-5 w-5 text-blue-600" />
+        <h1 className="text-3xl font-bold text-slate-900">Paid Invoices</h1>
+        <p className="text-sm text-slate-600 mt-2 max-w-2xl">Loading your paid invoices…</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 pb-6">
+      {/* Header */}
+      <div className="flex flex-col items-center justify-center text-center px-4">
+        <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4 transition-all duration-300 hover:bg-green-200 hover:scale-105">
+          <CheckCircle className="h-8 w-8 text-green-600" />
+        </div>
+        <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight">Paid Invoices</h1>
+        <p className="text-sm sm:text-base text-slate-600 mt-2 max-w-2xl leading-relaxed">
+          View all invoices that have been paid and processed by NoLSAF.
+        </p>
+      </div>
+
+      {/* Invoices List */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="p-4 sm:p-5 border-b border-slate-200">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-sm sm:text-base font-semibold text-slate-900">Invoices</div>
+            <div className="text-xs text-slate-500 font-medium">
+              {items.length} {items.length === 1 ? 'invoice' : 'invoices'}
             </div>
           </div>
-        )
-      )}
+        </div>
 
-      <h1 className="text-2xl font-semibold text-center mt-3">Paid</h1>
-
-      <div className="grid gap-3">
-        {items.map((inv) => (
-          <div key={inv.id} className="bg-white border rounded-2xl p-3">
-            <div className="flex items-center justify-between">
-              <div className="font-medium">{inv.invoiceNumber} • {inv.booking?.property?.title}</div>
-              <span className="text-xs px-2 py-1 rounded border bg-green-100 text-green-700 border-green-300">PAID</span>
+        {items.length === 0 ? (
+          <div className="p-12 sm:p-16 text-center">
+            <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4">
+              <CheckCircle className="h-8 w-8 text-green-600" />
             </div>
-            <div className="grid grid-cols-4 gap-2 mt-2 text-sm">
-              <div>Gross: <b>TZS {inv.total}</b></div>
-              <div>Commission: <b>{inv.commissionPercent}%</b></div>
-              <div>Net Paid: <b>TZS {inv.netPayable}</b></div>
-              <div>Receipt: <b>{inv.receiptNumber ?? "-"}</b></div>
-            </div>
-            <div className="flex gap-2 mt-3">
-              <a href={`/owner/revenue/receipts/${inv.id}`} className="px-3 py-1 rounded-xl bg-brand-primary text-white">View Receipt</a>
-              <a href={`/owner/invoices/${inv.id}`} className="px-3 py-1 rounded-xl border">View Invoice</a>
-            </div>
+            <h2 className="text-xl sm:text-2xl font-bold text-slate-900 mb-2">Paid</h2>
+            <p className="text-sm sm:text-base text-slate-600 font-medium">No paid invoices yet.</p>
+            <p className="text-xs sm:text-sm text-slate-500 mt-2">Your paid invoices will appear here once payments are processed.</p>
           </div>
-        ))}
-        {items.length===0 && !loading && (
-          <div className="text-xl opacity-70 text-center py-12">No paid invoices yet.</div>
+        ) : (
+          <div className="w-full overflow-x-auto">
+            <table className="min-w-[860px] w-full text-sm">
+              <thead className="bg-slate-50 border-b border-slate-200">
+                <tr className="text-left">
+                  <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">Invoice</th>
+                  <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">Property</th>
+                  <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">Issued</th>
+                  <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">Paid</th>
+                  <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">Status</th>
+                  <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">Receipt</th>
+                  <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600 text-right">Total</th>
+                  <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600 text-right">Net Payable</th>
+                  <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 bg-white">
+                {items.map((invoice) => {
+                  const propertyTitle = invoice.booking?.property?.title || "Property";
+                  const net = invoice.netPayable != null ? formatCurrency(Number(invoice.netPayable)) : "—";
+                  return (
+                    <tr key={invoice.id} className="hover:bg-slate-50/60 transition-colors duration-150">
+                      <td className="px-4 sm:px-6 py-3 sm:py-4">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <FileText className="h-4 w-4 text-slate-400 flex-shrink-0" aria-hidden />
+                          <div className="font-semibold text-slate-900 truncate">{invoice.invoiceNumber}</div>
+                        </div>
+                      </td>
+                      <td className="px-4 sm:px-6 py-3 sm:py-4 text-slate-700 truncate max-w-[260px]">{propertyTitle}</td>
+                      <td className="px-4 sm:px-6 py-3 sm:py-4 text-slate-700 whitespace-nowrap">{formatDate(invoice.issuedAt)}</td>
+                      <td className="px-4 sm:px-6 py-3 sm:py-4 text-slate-700 whitespace-nowrap">
+                        {invoice.paidAt ? formatDate(invoice.paidAt) : "—"}
+                      </td>
+                      <td className="px-4 sm:px-6 py-3 sm:py-4">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-50 text-green-700 border border-green-200">
+                          <CheckCircle className="h-3 w-3" />
+                          PAID
+                        </span>
+                      </td>
+                      <td className="px-4 sm:px-6 py-3 sm:py-4 text-slate-700">
+                        {invoice.receiptNumber ? (
+                          <span className="font-medium">{invoice.receiptNumber}</span>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 sm:px-6 py-3 sm:py-4 text-right font-semibold text-slate-900 whitespace-nowrap">
+                        {formatCurrency(Number(invoice.total))}
+                      </td>
+                      <td className="px-4 sm:px-6 py-3 sm:py-4 text-right font-bold text-emerald-600 whitespace-nowrap">{net}</td>
+                      <td className="px-4 sm:px-6 py-3 sm:py-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <Link
+                            href={`/owner/revenue/receipts/${invoice.id}`}
+                            className="inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-semibold text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 rounded-lg border border-emerald-200 hover:border-emerald-300 transition-all duration-200 no-underline active:scale-95"
+                          >
+                            <Receipt className="h-4 w-4" aria-hidden />
+                            <span className="hidden sm:inline">Receipt</span>
+                          </Link>
+                          <Link
+                            href={`/owner/invoices/${invoice.id}`}
+                            className="inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-semibold text-blue-700 hover:text-blue-800 hover:bg-blue-50 rounded-lg border border-blue-200 hover:border-blue-300 transition-all duration-200 no-underline active:scale-95"
+                          >
+                            <FileText className="h-4 w-4" aria-hidden />
+                            <span className="hidden sm:inline">Invoice</span>
+                          </Link>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>

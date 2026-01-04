@@ -1,184 +1,391 @@
 "use client";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
-import { Calendar, Eye, Send, LogOut } from "lucide-react";
+import { Calendar, Loader2, CheckCircle, User, Phone, FileText, Search, CalendarRange, ArrowUpDown } from "lucide-react";
+import Link from "next/link";
 
 // Use same-origin calls + secure httpOnly cookie session.
 const api = axios.create({ baseURL: "", withCredentials: true });
 
+type CheckedInBooking = {
+  id: number;
+  status: string;
+  guestName?: string | null;
+  customerName?: string | null;
+  guestPhone?: string | null;
+  phone?: string | null;
+  roomType?: string | null;
+  roomCode?: string | null;
+  totalAmount?: number | null;
+  checkIn?: string | null;
+  checkOut?: string | null;
+  validatedAt?: string | null;
+  code?: {
+    codeVisible: string;
+    usedAt?: string | null;
+  };
+  codeVisible?: string;
+  property?: {
+    id: number;
+    title: string;
+  };
+};
+
 export default function CheckedIn() {
-  const [list, setList] = useState<any[]>([]);
-  const [openMenuId, setOpenMenuId] = useState<number | null>(null);
-  const [confirmingCheckout, setConfirmingCheckout] = useState<any | null>(null);
-  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const [list, setList] = useState<CheckedInBooking[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Filters / sorting
+  const [search, setSearch] = useState("");
+  const [nightsFilter, setNightsFilter] = useState<string>("");
+  const [sortKey, setSortKey] = useState<string>("checkIn_desc");
 
   // Load checked-in bookings
   useEffect(() => {
-    api.get<any[]>("/owner/bookings/checked-in").then((r) => setList(r.data));
+    let mounted = true;
+    setLoading(true);
+
+    const url = "/api/owner/bookings/checked-in";
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'checked-in/page.tsx:load',message:'load checked-in (start)',data:{url},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'CHKIN_URL'})}).catch(()=>{});
+    // #endregion
+
+    api.get<CheckedInBooking[] | { data: CheckedInBooking[] } | { items: CheckedInBooking[] }>(url)
+      .then((r) => {
+        if (!mounted) return;
+        // Normalize response: ensure it's always an array
+        const normalized = Array.isArray(r.data) 
+          ? r.data 
+          : (Array.isArray((r.data as any)?.data) 
+            ? (r.data as any).data 
+            : (Array.isArray((r.data as any)?.items) 
+              ? (r.data as any).items 
+              : []));
+        setList(normalized);
+        // #region agent log
+        try {
+          const sample = (normalized as any[]).slice(0, 5).map((x: any) => ({ id: x.id, validatedAt: x?.validatedAt ?? null, codeUsedAt: x?.code?.usedAt ?? null }));
+          fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'checked-in/page.tsx:load',message:'validatedAt sample from API',data:{sample},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'VALAT_UI_1'})}).catch(()=>{});
+        } catch {}
+        // #endregion
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'checked-in/page.tsx:load',message:'checked-in list loaded into state',data:{count:normalized.length},timestamp:Date.now(),sessionId:'debug-session',runId:'filters-pre',hypothesisId:'CHKIN_UI_LOAD'})}).catch(()=>{});
+        // #endregion
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'checked-in/page.tsx:load',message:'load checked-in (done)',data:{status:r.status,contentType:String((r.headers as any)?.['content-type']??''),isArray:Array.isArray(r.data),normalizedLen:normalized.length,dataType:typeof r.data},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'CHKIN_RESPONSE'})}).catch(()=>{});
+        // #endregion
+      })
+      .catch((err: any) => {
+        if (!mounted) return;
+        console.warn('Failed to load checked-in bookings', err);
+        setList([]);
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'checked-in/page.tsx:load',message:'load checked-in (error)',data:{url,error:String(err?.message??err)},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'CHKIN_ERROR'})}).catch(()=>{});
+        // #endregion
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+
+    return () => { mounted = false; };
   }, []);
 
-  const handleSendInvoice = async (b: any) => {
-    setOpenMenuId(null);
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-TZ', {
+      style: 'currency',
+      currency: 'TZS',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
+
+  const formatDate = (v: any) => {
     try {
-      const resp = await api.post(`/owner/bookings/${b.id}/send-invoice`);
-      if (resp?.data?.ok) {
-        alert("Invoice created and sent to NoLSAF.");
-        // optimistic update: mark booking as having an invoice (optional)
-        setList((prev) => prev.map((p) => (p.id === b.id ? { ...p, hasInvoice: true } : p)));
-      } else {
-        alert("Invoice request completed. Admin will be notified.");
-      }
-    } catch (err: any) {
-      console.warn('send-invoice failed', err);
-      alert("Unable to send invoice automatically. Please try again or contact support.");
+      const d = new Date(String(v ?? ""));
+      const t = d.getTime();
+      if (!Number.isFinite(t)) return "—";
+      return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+    } catch {
+      return "—";
     }
   };
 
-  const handleRequestCheckout = (b: any) => {
-    // open confirm modal
-    setConfirmingCheckout(b);
-    setOpenMenuId(null);
-  };
-
-  const confirmCheckout = async (b: any) => {
+  const formatDateTime = (v: any) => {
     try {
-      const resp = await api.post(`/owner/bookings/${b.id}/confirm-checkout`);
-      if (resp?.data?.ok) {
-        alert("Check-out confirmed. Thank you — the booking has been checked out.");
-        setList((prev) => prev.map((p) => (p.id === b.id ? { ...p, status: resp.data.status } : p)));
-      } else {
-        alert("Could not confirm check-out. Please contact support.");
-      }
-    } catch (err: any) {
-      console.warn('confirm-checkout failed', err);
-      alert("Unable to confirm check-out. Please try again or contact support.");
-    } finally {
-      setConfirmingCheckout(null);
+      const d = new Date(String(v ?? ""));
+      const t = d.getTime();
+      if (!Number.isFinite(t)) return "—";
+      return d.toLocaleString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      return "—";
     }
   };
 
-  // close menu when clicking outside the wrapper
-  useEffect(() => {
-    const onDoc = (e: MouseEvent) => {
-      if (!wrapperRef.current) return;
-      const target = e.target as Node;
-      if (!wrapperRef.current.contains(target)) {
-        setOpenMenuId(null);
-      }
+  const nightsFor = (b: any) => {
+    const inT = new Date(String(b?.checkIn ?? "")).getTime();
+    const outT = new Date(String(b?.checkOut ?? "")).getTime();
+    if (!Number.isFinite(inT) || !Number.isFinite(outT)) return null;
+    const n = Math.ceil((outT - inT) / 86400000);
+    return Number.isFinite(n) ? Math.max(1, n) : null;
+  };
+
+  const nightsOptions = useMemo(() => {
+    const set = new Set<number>();
+    for (const b of list) {
+      const n = nightsFor(b);
+      if (typeof n === "number") set.add(n);
+    }
+    return Array.from(set).sort((a, b) => a - b);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [list]);
+
+  const filteredSorted = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    let arr = list.slice();
+
+    if (nightsFilter) {
+      arr = arr.filter((b) => {
+        const n = nightsFor(b);
+        return n != null && String(n) === nightsFilter;
+      });
+    }
+
+    if (q) {
+      arr = arr.filter((b) => {
+        const bookingCode = String(b?.code?.codeVisible ?? b?.codeVisible ?? b?.roomCode ?? b?.id ?? "").toLowerCase();
+        const name = String(b?.guestName ?? b?.customerName ?? "").toLowerCase();
+        const phone = String(b?.guestPhone ?? b?.phone ?? "").toLowerCase();
+        const nights = String(nightsFor(b) ?? "").toLowerCase();
+        return bookingCode.includes(q) || name.includes(q) || phone.includes(q) || nights.includes(q);
+      });
+    }
+
+    const [key, dir] = sortKey.split("_");
+    const mul = dir === "asc" ? 1 : -1;
+    const toTime = (v: any) => {
+      const t = new Date(String(v ?? "")).getTime();
+      return Number.isFinite(t) ? t : 0;
     };
-    document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
-  }, []);
+    const toNum = (v: any) => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : 0;
+    };
+
+    arr.sort((A, B) => {
+      if (key === "name") return mul * String(A.guestName ?? A.customerName ?? "").localeCompare(String(B.guestName ?? B.customerName ?? ""));
+      if (key === "amount") return mul * (toNum(A.totalAmount) - toNum(B.totalAmount));
+      if (key === "checkOut") return mul * (toTime(A.checkOut) - toTime(B.checkOut));
+      if (key === "validatedAt") return mul * (toTime((A as any)?.validatedAt ?? (A as any)?.code?.usedAt) - toTime((B as any)?.validatedAt ?? (B as any)?.code?.usedAt));
+      if (key === "nights") return mul * (toNum(nightsFor(A) ?? 0) - toNum(nightsFor(B) ?? 0));
+      // default: checkIn
+      return mul * (toTime(A.checkIn) - toTime(B.checkIn));
+    });
+
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'checked-in/page.tsx:filteredSorted',message:'filters applied',data:{baseCount:list.length,shown:arr.length,hasQuery:Boolean(q),nightsFilter:nightsFilter||null,sortKey},timestamp:Date.now(),sessionId:'debug-session',runId:'filters-pre',hypothesisId:'CHKIN_UI_FILTERS'})}).catch(()=>{});
+    // #endregion
+
+    return arr;
+  }, [list, search, nightsFilter, sortKey]);
+
+  if (loading) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center text-center px-4">
+        <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4">
+          <Loader2 className="h-8 w-8 animate-spin text-green-600" />
+        </div>
+        <h1 className="text-3xl font-bold text-slate-900">Checked-In</h1>
+        <p className="text-sm text-slate-600 mt-2 max-w-2xl">Loading checked-in guests…</p>
+      </div>
+    );
+  }
 
   return (
     <>
-    <div ref={wrapperRef} className="min-h-[60vh] flex items-start justify-center px-4 py-6">
-      <div className="w-full max-w-2xl">
-        <div className="flex justify-center">
-          <span
-            title="Checked-In"
-            role="img"
-            aria-label="Checked-In bookings"
-            className="inline-flex items-center justify-center rounded-md p-2 hover:bg-white/10 transition-colors"
-          >
-            <Calendar className="h-8 w-8 text-blue-600" aria-hidden="true" />
-          </span>
+      <div className="space-y-6 pb-6">
+        {/* Header */}
+        <div className="flex flex-col items-center justify-center text-center px-4">
+          <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4 transition-all duration-300 hover:bg-green-200 hover:scale-105">
+            <Calendar className="h-8 w-8 text-green-600" />
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight">Checked-In</h1>
+          <p className="text-sm sm:text-base text-slate-600 mt-2 max-w-2xl leading-relaxed">
+            View and manage all guests currently checked into your properties.
+          </p>
         </div>
 
-  <h1 className="text-2xl font-semibold text-center mt-3">Checked-In</h1>
-  {/* Screen-reader only summary of count for accessibility */}
-  <div className="sr-only" aria-live="polite">{`${list.length} guests currently checked-in.`}</div>
+        {/* Bookings Table */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="p-4 sm:p-5 border-b border-slate-200">
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-sm sm:text-base font-semibold text-slate-900">Guests</div>
+                <div className="text-xs text-slate-500 font-medium">
+                  {filteredSorted.length} {filteredSorted.length === 1 ? 'guest' : 'guests'} showing
+                </div>
+              </div>
 
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full text-sm border-collapse table-auto">
-            <thead>
-              <tr className="text-left">
-                <th className="px-3 py-2 border-b">Booking Code</th>
-                <th className="px-3 py-2 border-b">Full Name</th>
-                <th className="px-3 py-2 border-b">Phone No</th>
-                <th className="px-3 py-2 border-b">Room Type</th>
-                <th className="px-3 py-2 border-b">Amount Paid</th>
-                <th className="px-3 py-2 border-b">Status</th>
-                <th className="px-3 py-2 border-b">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {list.length === 0 ? (
-                <tr>
-                  <td className="px-3 py-6 border-b text-center" colSpan={7}>
-                    <div className="flex flex-col items-center justify-center gap-3">
-                      <Calendar className="h-12 w-12 text-slate-400" aria-hidden="true" />
-                      <div className="text-sm opacity-70">No guests currently checked-in.</div>
+              <div className="relative rounded-3xl border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-emerald-50/30 p-4 sm:p-5 shadow-sm ring-1 ring-black/5 overflow-hidden">
+                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-12 gap-3 sm:gap-4">
+                  <div className="lg:col-span-6 min-w-0">
+                    <div className="group flex h-full flex-col gap-3 rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm transition-all duration-200 hover:border-emerald-300 hover:shadow-md overflow-hidden">
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Search</div>
+                      <div className="relative">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-500" />
+                        <input
+                          value={search}
+                          onChange={(e) => setSearch(e.target.value)}
+                          placeholder="Code, name, phone, room…"
+                          className="h-11 w-full min-w-0 rounded-xl border border-slate-200 bg-white/95 pl-10 pr-4 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 transition-all duration-200 md:w-[260px] lg:w-[280px]"
+                          aria-label="Search checked-in guests"
+                        />
+                      </div>
                     </div>
-                  </td>
-                </tr>
-              ) : (
-                list.map((b) => {
-                  const bookingCode = b?.code?.codeVisible ?? b.codeVisible ?? b.roomCode ?? b.id;
-                  const fullName = b?.guestName ?? b?.customerName ?? '-';
-                  const phone = b?.guestPhone ?? b?.phone ?? '-';
-                  const roomType = b?.roomType ?? '-';
-                  const amount = b?.totalAmount != null ? `TZS ${b.totalAmount}` : '-';
-                  return (
-                    <tr key={b.id} className="align-top">
-                      <td className="px-3 py-2 border-b">{bookingCode}</td>
-                      <td className="px-3 py-2 border-b">{fullName}</td>
-                      <td className="px-3 py-2 border-b">{phone}</td>
-                      <td className="px-3 py-2 border-b">{roomType}</td>
-                      <td className="px-3 py-2 border-b">{amount}</td>
-                      <td className="px-3 py-2 border-b">
-                        <span className="text-xs px-2 py-1 rounded bg-green-100 text-green-700 border border-green-300">{b.status}</span>
-                      </td>
-                      <td className="px-3 py-2 border-b">
-                        <div className="relative inline-block">
-                          <button
-                            aria-label="Actions"
-                            title="Actions"
-                            onClick={() => setOpenMenuId(openMenuId === b.id ? null : b.id)}
-                            className="p-2 rounded-md hover:bg-gray-100"
-                          >
-                            <Eye className="h-5 w-5" />
-                          </button>
+                  </div>
 
-                          {openMenuId === b.id && (
-                            <div className="absolute right-0 mt-2 w-48 bg-white border rounded shadow-md z-10">
-                              <button className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2" onClick={() => handleSendInvoice(b)}>
-                                <Send className="h-4 w-4" />
-                                <span>Send Invoice</span>
-                              </button>
-                              <button className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2" onClick={() => handleRequestCheckout(b)}>
-                                <LogOut className="h-4 w-4" />
-                                <span>Confirm Check-out</span>
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
+                  <div className="md:col-span-1 lg:col-span-3 min-w-0">
+                    <div className="group flex h-full flex-col gap-3 rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm transition-all duration-200 hover:border-emerald-300 hover:shadow-md overflow-hidden">
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Nights</div>
+                      <div className="relative">
+                        <CalendarRange className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-500" />
+                        <select
+                          value={nightsFilter}
+                          onChange={(e) => setNightsFilter(e.target.value)}
+                          className="h-11 w-full min-w-0 rounded-xl border border-slate-200 bg-white/95 pl-10 pr-4 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 transition-all duration-200"
+                          aria-label="Filter by nights"
+                        >
+                          <option value="">All nights</option>
+                          {nightsOptions.map((n) => (
+                            <option key={n} value={String(n)}>{n}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
 
-      {/* Confirm Checkout Modal (simple) */}
-      {confirmingCheckout && (
-        <div role="dialog" aria-modal="true" className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded shadow-lg w-full max-w-md p-6">
-            <h3 className="text-lg font-semibold">Confirm Check-out</h3>
-            <p className="mt-3 text-sm">Are you sure you want to confirm check-out for <strong>{confirmingCheckout.guestName ?? confirmingCheckout.customerName ?? 'this guest'}</strong>? This will complete the check-out process.</p>
-            <div className="mt-4 flex justify-end gap-2">
-              <button className="px-3 py-2 rounded border" onClick={() => setConfirmingCheckout(null)}>Cancel</button>
-              <button className="px-3 py-2 rounded bg-blue-600 text-white" onClick={() => confirmCheckout(confirmingCheckout)}>Confirm</button>
+                  <div className="md:col-span-1 lg:col-span-3 min-w-0">
+                    <div className="group flex h-full flex-col gap-3 rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm transition-all duration-200 hover:border-emerald-300 hover:shadow-md overflow-hidden">
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Sort</div>
+                      <div className="relative">
+                        <ArrowUpDown className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-500" />
+                        <select
+                          value={sortKey}
+                          onChange={(e) => setSortKey(e.target.value)}
+                          className="h-11 w-full min-w-0 rounded-xl border border-slate-200 bg-white/95 pl-10 pr-4 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 transition-all duration-200"
+                          aria-label="Sort checked-in guests"
+                        >
+                          <option value="checkIn_desc">Latest check-in</option>
+                          <option value="checkIn_asc">Earliest check-in</option>
+                          <option value="checkOut_asc">Earliest check-out</option>
+                          <option value="checkOut_desc">Latest check-out</option>
+                          <option value="validatedAt_desc">Validated (latest)</option>
+                          <option value="validatedAt_asc">Validated (earliest)</option>
+                          <option value="nights_desc">Nights (high)</option>
+                          <option value="nights_asc">Nights (low)</option>
+                          <option value="name_asc">Name (A→Z)</option>
+                          <option value="name_desc">Name (Z→A)</option>
+                          <option value="amount_desc">Amount (high)</option>
+                          <option value="amount_asc">Amount (low)</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
+
+          {filteredSorted.length === 0 ? (
+            <div className="p-12 sm:p-16 text-center">
+              <Calendar className="h-12 w-12 sm:h-16 sm:w-16 text-slate-400 mx-auto mb-4 opacity-50" />
+              <p className="text-sm sm:text-base text-slate-600 font-medium">No guests currently checked-in.</p>
+              <p className="text-xs sm:text-sm text-slate-500 mt-2">Checked-in guests will appear here once they validate their booking codes.</p>
+            </div>
+          ) : (
+            <div className="w-full overflow-x-auto">
+              <table className="min-w-[980px] w-full text-sm">
+                <thead className="bg-slate-50 border-b border-slate-200">
+                  <tr className="text-left">
+                    <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">Booking Code</th>
+                    <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">Full Name</th>
+                    <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">Phone No</th>
+                    <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600 text-right">NIGHTS</th>
+                    <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600 text-right">Amount Paid</th>
+                    <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">Status</th>
+                    <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">VALIDATED AT</th>
+                    <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600 text-right">CHECK-OUT</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 bg-white">
+                  {filteredSorted.map((b) => {
+                    const bookingCode = b?.code?.codeVisible ?? b.codeVisible ?? b.roomCode ?? `#${b.id}`;
+                    const fullName = b?.guestName ?? b?.customerName ?? '—';
+                    const phone = b?.guestPhone ?? b?.phone ?? '—';
+                    const nights = nightsFor(b);
+                    const amount = b?.totalAmount != null ? formatCurrency(Number(b.totalAmount)) : '—';
+                    const validatedAt = (b as any)?.validatedAt ?? (b as any)?.code?.usedAt ?? null;
+                    
+                    return (
+                      <tr key={b.id} className="hover:bg-slate-50/60 transition-colors duration-150">
+                        <td className="px-4 sm:px-6 py-3 sm:py-4">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <FileText className="h-4 w-4 text-slate-400 flex-shrink-0" aria-hidden />
+                            <Link
+                              href={`/owner/bookings/checked-in/${b.id}`}
+                              className="font-semibold text-slate-900 font-mono no-underline hover:underline underline-offset-2"
+                              aria-label="Open checked-in booking details"
+                              title="Open details"
+                            >
+                              {bookingCode}
+                            </Link>
+                          </div>
+                        </td>
+                        <td className="px-4 sm:px-6 py-3 sm:py-4">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <User className="h-4 w-4 text-slate-400 flex-shrink-0" aria-hidden />
+                            <span className="text-slate-700 truncate">{fullName}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 sm:px-6 py-3 sm:py-4">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Phone className="h-4 w-4 text-slate-400 flex-shrink-0" aria-hidden />
+                            <span className="text-slate-700">{phone}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 sm:px-6 py-3 sm:py-4 text-right font-semibold text-slate-900 whitespace-nowrap">
+                          {nights != null ? nights : <span className="text-slate-400">—</span>}
+                        </td>
+                        <td className="px-4 sm:px-6 py-3 sm:py-4 text-right font-semibold text-slate-900 whitespace-nowrap">
+                          {amount !== '—' ? amount : <span className="text-slate-400">—</span>}
+                        </td>
+                        <td className="px-4 sm:px-6 py-3 sm:py-4">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-50 text-green-700 border border-green-200">
+                            <CheckCircle className="h-3 w-3" />
+                            CHECKED_IN
+                          </span>
+                        </td>
+                        <td className="px-4 sm:px-6 py-3 sm:py-4 text-slate-700 whitespace-nowrap">
+                          {validatedAt ? formatDateTime(validatedAt) : <span className="text-slate-400">—</span>}
+                        </td>
+                        <td className="px-4 sm:px-6 py-3 sm:py-4 text-right text-slate-700 whitespace-nowrap">
+                          {formatDate(b.checkOut)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
-      )}
+      </div>
+
     </>
   );
 }
-
-// Note: previous Cell helper removed — table view is used for Checked-In list

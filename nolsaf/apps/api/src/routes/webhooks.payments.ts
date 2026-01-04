@@ -10,6 +10,80 @@ import { generateBookingCodeForBooking, sendBookingCodeNotification } from "../l
 
 const router = Router();
 
+async function notifyOwnerInvoicePaid(params: {
+  ownerId: number;
+  invoiceId: number;
+  bookingId: number;
+  receiptNumber?: string | null;
+  propertyTitle?: string | null;
+  checkIn?: Date | string | null;
+  checkOut?: Date | string | null;
+  amount?: number | null;
+}) {
+  const { ownerId, invoiceId, bookingId, receiptNumber, propertyTitle, checkIn, checkOut, amount } = params;
+  if (!ownerId) return;
+
+  const title = "New paid booking";
+  const body =
+    `Booking #${bookingId} has been paid` +
+    (propertyTitle ? ` for ${propertyTitle}` : "") +
+    (receiptNumber ? `. Receipt: ${receiptNumber}` : ".") +
+    (checkIn ? ` Check-in: ${new Date(checkIn).toISOString().slice(0, 10)}` : "") +
+    (checkOut ? ` Check-out: ${new Date(checkOut).toISOString().slice(0, 10)}` : "") +
+    (amount ? ` Amount: ${Number(amount).toLocaleString()} TZS` : "");
+
+  let already = false;
+  try {
+    // Best-effort idempotency via JSON path. If DB doesn't support this filter, we'll fallback.
+    const existing = await prisma.notification.findFirst({
+      where: {
+        ownerId,
+        type: "invoice",
+        meta: { path: ["invoiceId"], equals: invoiceId } as any,
+      } as any,
+      select: { id: true },
+    });
+    already = !!existing;
+  } catch {
+    already = false;
+  }
+
+  let createdId: number | null = null;
+  if (!already) {
+    try {
+      const n = await prisma.notification.create({
+        data: {
+          ownerId,
+          userId: ownerId, // also populate userId for future-proofing
+          title,
+          body,
+          type: "invoice",
+          meta: {
+            kind: "invoice_paid",
+            invoiceId,
+            bookingId,
+            actionUrl: "/owner/bookings/recent",
+          },
+        },
+        select: { id: true },
+      });
+      createdId = Number(n.id);
+    } catch {
+      // non-fatal
+    }
+  }
+
+  const io = (global as any).io;
+  if (io) {
+    // Targeted: owners can join owner room; payload has no sensitive data.
+    io.to(`owner:${ownerId}`).emit("owner:bookings:updated", { bookingId, invoiceId });
+    io.to(`owner:${ownerId}`).emit("notification:new", { id: createdId, title, type: "invoice" });
+    // Backward-compat: some owner pages don't join rooms yet; broadcast a lightweight refresh signal.
+    io.emit("owner:bookings:updated", { bookingId, invoiceId });
+  }
+
+}
+
 // raw parser just for webhooks
 router.use(bodyParser.raw({ type: "*/*", limit: "1mb" }));
 
@@ -62,6 +136,19 @@ async function markInvoicePaid(invId: number, method: string, paymentRef: string
   });
 
   await invalidateOwnerReports(updated.ownerId);
+  // Notify owner ASAP (in-app notification + realtime refresh)
+  try {
+    await notifyOwnerInvoicePaid({
+      ownerId: updated.ownerId,
+      invoiceId: updated.id,
+      bookingId: updated.bookingId,
+      receiptNumber: updated.receiptNumber,
+      propertyTitle: (inv as any).booking?.property?.title ?? null,
+      checkIn: (inv as any).booking?.checkIn ?? null,
+      checkOut: (inv as any).booking?.checkOut ?? null,
+      amount: Number((updated as any).total || (updated as any).netPayable || 0),
+    });
+  } catch {}
   // Best-effort: create a payout record so paid invoices show up in payouts views.
   try {
     if ((prisma as any).payout) {

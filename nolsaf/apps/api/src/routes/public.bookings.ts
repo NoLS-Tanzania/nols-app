@@ -7,6 +7,7 @@ import rateLimit from "express-rate-limit";
 import crypto from "crypto";
 import { checkPropertyAvailability, checkGuestCapacity } from "../lib/bookingAvailability.js";
 import { sanitizeText } from "../lib/sanitize.js";
+import { notifyAdmins, notifyOwner } from "../lib/notifications.js";
 
 // Helper function to calculate distance (Haversine formula)
 function calculateDistance(origin: { latitude: number; longitude: number }, destination: { latitude: number; longitude: number }): number {
@@ -775,6 +776,35 @@ router.post("/", bookingLimiter, async (req: Request, res: Response) => {
         checkOut: booking.checkOut,
       };
     });
+
+    // Notify owner + admin ASAP (booking created)
+    try {
+      const ownerId = Number((property as any).owner?.id || (property as any).ownerId || 0);
+      const io = (req.app.get("io") as any) || (global as any).io;
+      const checkInShort = result.checkIn?.toISOString?.().slice(0, 10) || "";
+      const checkOutShort = result.checkOut?.toISOString?.().slice(0, 10) || "";
+      const payload = {
+        bookingId: result.bookingId,
+        propertyId: property.id,
+        propertyTitle: property.title,
+        checkIn: checkInShort,
+        checkOut: checkOutShort,
+        status: "NEW",
+      };
+
+      if (ownerId) {
+        await notifyOwner(ownerId, "booking_created", payload);
+        try {
+          io?.to?.(`owner:${ownerId}`)?.emit?.("owner:bookings:updated", { bookingId: result.bookingId, propertyId: property.id });
+          io?.to?.(`owner:${ownerId}`)?.emit?.("notification:new", { type: "booking" });
+        } catch {}
+      }
+      await notifyAdmins("booking_created", payload);
+      try {
+        io?.emit?.("admin:bookings:updated", { bookingId: result.bookingId, propertyId: property.id });
+      } catch {}
+
+    } catch {}
 
     // Return success response
     return res.status(201).json({

@@ -1,16 +1,11 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState, useRef } from "react";
-import { Building2, Search, X, Eye, Download, ArrowUpDown, ArrowUp, ArrowDown, User, Mail, Phone, Calendar, FileText, Filter } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Building2, Search, X, Eye, Download, ArrowUpDown, ArrowUp, ArrowDown, User, Mail, Phone, Calendar, FileText, Filter, ChevronLeft, ChevronRight } from "lucide-react";
 import DatePicker from "@/components/ui/DatePicker";
 import axios from "axios";
 import { io, Socket } from "socket.io-client";
 import TableRow from "@/components/TableRow";
 import Link from "next/link";
-
-// Use relative paths in browser to leverage Next.js rewrites (avoids CORS issues)
-const API = typeof window === 'undefined' 
-  ? (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000")
-  : '';
 
 // Use same-origin calls (Next rewrites proxy to API in dev). Use secure cookie session.
 const api = axios.create({ baseURL: "", withCredentials: true });
@@ -234,7 +229,7 @@ export default function AdminOwnersPage() {
     return ()=>{ s.off("admin:owner:updated", load); s.off("admin:kyc:updated", load); s.disconnect(); };
   },[load]);
 
-  const pages = useMemo(()=> Math.max(1, Math.ceil(total / pageSize)),[total]);
+  const pages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total]);
 
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 xl:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6 min-w-0">
@@ -305,7 +300,6 @@ export default function AdminOwnersPage() {
                   if (e.key === 'Enter') { e.preventDefault(); setPage(1); load(); }
                 }}
                 aria-label="Search owners"
-                style={{ boxSizing: 'border-box', maxWidth: '100%' }}
               />
               <Search className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 text-gray-400 flex-shrink-0 pointer-events-none" />
               {q && (
@@ -763,8 +757,8 @@ export default function AdminOwnersPage() {
                 <ChevronLeft className="h-5 w-5" />
               </button>
               <div className="flex items-center gap-1">
-                {Array.from({ length: Math.ceil(total / pageSize) }, (_, i) => i + 1).map((pageNum) => {
-                  const totalPages = Math.ceil(total / pageSize);
+                {Array.from({ length: pages }, (_, i) => i + 1).map((pageNum) => {
+                  const totalPages = pages;
                   const showEllipsisBefore = page > 3 && pageNum === 2;
                   const showEllipsisAfter = page < totalPages - 2 && pageNum === totalPages - 1;
 
@@ -827,21 +821,4 @@ function kycLabel(status: string) {
   }
 }
 
-function badgeClasses(v: string) {
-  switch (v) {
-    case "ACTIVE":
-      return "bg-emerald-100 text-emerald-700";
-    case "PENDING_KYC":
-      return "bg-amber-100 text-amber-800";
-    case "APPROVED_KYC":
-      return "bg-emerald-100 text-emerald-700";
-    case "REJECTED_KYC":
-      return "bg-red-100 text-red-700";
-    case "SUSPENDED":
-      return "bg-indigo-100 text-indigo-700";
-    case "":
-    default:
-      return "bg-gray-100 text-gray-700";
-  }
-}
 // apps/api/src/routes/admin.owners.ts

@@ -7,34 +7,42 @@ export const router = Router();
 router.use(requireAuth as RequestHandler, requireRole("OWNER") as RequestHandler);
 
 router.get("/invoices", (async (req: AuthedRequest, res) => {
-  const ownerId = req.user!.id;
-  const status = req.query.status as string | undefined;
-  const propertyId = req.query.propertyId ? Number(req.query.propertyId) : undefined;
-  const date_from = req.query.date_from ? new Date(String(req.query.date_from)) : undefined;
-  const date_to = req.query.date_to ? new Date(String(req.query.date_to)) : undefined;
-  const take = Math.min(Number(req.query.take ?? 100), 500);
+  try {
+    const ownerId = req.user!.id;
+    const status = req.query.status as string | undefined;
+    const propertyId = req.query.propertyId ? Number(req.query.propertyId) : undefined;
+    const date_from = req.query.date_from ? new Date(String(req.query.date_from)) : undefined;
+    const date_to = req.query.date_to ? new Date(String(req.query.date_to)) : undefined;
+    const take = Math.min(Number(req.query.take ?? 100), 500);
 
-  const where: any = { ownerId };
-  if (status) where.status = status as any;
-  if (date_from || date_to) {
-    where.issuedAt = {};
-    if (date_from) where.issuedAt.gte = date_from;
-    if (date_to) where.issuedAt.lte = date_to;
+    const where: any = { ownerId };
+    if (status) {
+      const parts = String(status)
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      where.status = parts.length > 1 ? { in: parts } : (parts[0] as any);
+    }
+    if (date_from || date_to) {
+      where.issuedAt = {};
+      if (date_from) where.issuedAt.gte = date_from;
+      if (date_to) where.issuedAt.lte = date_to;
+    }
+    if (propertyId) where.booking = { propertyId };
+
+    const items = await prisma.invoice.findMany({
+      where,
+      include: {
+        booking: { include: { property: true } },
+      } as any,
+      orderBy: { id: "desc" },
+      take,
+    });
+
+    res.json({ items });
+  } catch (err: any) {
+    return res.status(500).json({ error: "Failed to load invoices", items: [] });
   }
-  if (propertyId) where.booking = { propertyId };
-
-  const items = await prisma.invoice.findMany({
-    where,
-    include: {
-      booking: { include: { property: true } },
-      checkinCode: true,
-      items: true,
-    },
-    orderBy: { id: "desc" },
-    take,
-  });
-
-  res.json({ items });
 }) as RequestHandler);
 
 router.get("/invoices.csv", (async (req: AuthedRequest, res) => {
@@ -55,7 +63,7 @@ router.get("/invoices.csv", (async (req: AuthedRequest, res) => {
 
   const items = await prisma.invoice.findMany({
     where,
-    include: { booking: { include: { property: true } }, checkinCode: true },
+    include: { booking: { include: { property: true, code: true } } } as any,
     orderBy: { id: "desc" },
     take: 1000,
   });
@@ -73,7 +81,7 @@ router.get("/invoices.csv", (async (req: AuthedRequest, res) => {
       inv.issuedAt.toISOString(),
       inv.booking?.property?.title ?? "",
       String(inv.bookingId),
-      inv.checkinCode?.codeVisible ?? "",
+      (inv as any).booking?.code?.codeVisible ?? "",
       String(inv.total),
       String(inv.commissionPercent),
       String(inv.commissionAmount),
@@ -94,7 +102,7 @@ router.get("/invoices/:id", (async (req: AuthedRequest, res) => {
   const id = Number(req.params.id);
   const inv = await prisma.invoice.findFirst({
     where: { id, ownerId: req.user!.id },
-    include: { items: true, booking: { include: { property: true, user: true } }, checkinCode: true },
+    include: { booking: { include: { property: true, user: true, code: true } } } as any,
   });
   if (!inv) return res.status(404).json({ error: "Not found" });
   res.json(inv);
@@ -105,7 +113,7 @@ router.get("/invoices/:id/receipt", (async (req: AuthedRequest, res) => {
   const id = Number(req.params.id);
   const inv = await prisma.invoice.findFirst({
     where: { id, ownerId: req.user!.id, status: "PAID" },
-    include: { booking: { include: { property: true } }, checkinCode: true, items: true },
+    include: { booking: { include: { property: true, code: true } } } as any,
   });
   if (!inv) return res.status(404).json({ error: "Receipt not available" });
 
@@ -125,7 +133,7 @@ router.get("/invoices/:id/receipt/qr.png", (async (req: AuthedRequest, res) => {
   const id = Number(req.params.id);
   const inv = await prisma.invoice.findFirst({
     where: { id, ownerId: req.user!.id, status: "PAID" },
-    include: { checkinCode: true },
+    include: { booking: { include: { code: true } } } as any,
   });
   if (!inv) return res.status(404).json({ error: "Receipt not available" });
 

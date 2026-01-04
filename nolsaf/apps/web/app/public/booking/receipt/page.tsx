@@ -9,12 +9,7 @@ import {
   Loader2,
   CheckCircle2,
   Download,
-  Calendar,
   MapPin,
-  Users,
-  CreditCard,
-  FileText,
-  QrCode,
 } from "lucide-react";
 
 type ReceiptData = {
@@ -57,6 +52,7 @@ export default function ReceiptPage() {
 
   useEffect(() => {
     const invoiceId = searchParams.get("invoiceId");
+
     if (!invoiceId) {
       setError("Missing invoice ID");
       setLoading(false);
@@ -69,13 +65,50 @@ export default function ReceiptPage() {
   async function fetchReceipt(invoiceId: number) {
     try {
       const API = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000").replace(/\/$/, "");
-      const response = await fetch(`${API}/api/public/invoices/${invoiceId}`);
-      
-      if (!response.ok) {
-        throw new Error("Failed to fetch receipt");
+      const candidates = [
+        // Prefer same-origin (works with Next rewrites/proxies and avoids CORS issues)
+        `/api/public/invoices/${invoiceId}`,
+        // Fallback to explicit API base if configured
+        `${API}/api/public/invoices/${invoiceId}`,
+      ];
+
+      let lastErr: any = null;
+      let data: any = null;
+      for (const url of candidates) {
+        try {
+          const response = await fetch(url, { cache: "no-store" });
+          const contentType = response.headers.get("content-type") || "";
+          let bodyText = "";
+          let bodyJson: any = null;
+          try {
+            if (contentType.includes("application/json")) {
+              bodyJson = await response.json();
+            } else {
+              bodyText = await response.text();
+            }
+          } catch {}
+
+          if (!response.ok) {
+            const msg = bodyJson?.error || bodyJson?.message || `Failed to fetch receipt (${response.status})`;
+            lastErr = new Error(String(msg));
+            continue;
+          }
+
+          data = bodyJson ?? null;
+          if (!data) {
+            lastErr = new Error("Invalid receipt response");
+            continue;
+          }
+          break;
+        } catch (e: any) {
+          lastErr = e;
+          continue;
+        }
       }
 
-      const data = await response.json();
+      if (!data) {
+        throw lastErr || new Error("Failed to fetch receipt");
+      }
       
       // Transform to receipt format
       setReceipt({

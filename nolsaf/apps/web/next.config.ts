@@ -29,8 +29,10 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [
       { source: '/api/:path*', destination: 'http://127.0.0.1:4000/api/:path*' },
-      { source: '/admin/:path*', destination: 'http://127.0.0.1:4000/admin/:path*' },
-      { source: '/owner/:path*', destination: 'http://127.0.0.1:4000/owner/:path*' },
+      // Exclude Next page routes under /admin/management/* from being proxied to the API.
+      { source: '/admin/:path((?!management/.*).*)', destination: 'http://127.0.0.1:4000/admin/:path*' },
+      // Exclude known Owner page routes from proxying to API. Keep legacy API paths like `/owner/bookings/:id`.
+      { source: '/owner/:path((?!bookings$|bookings/recent$|bookings/recents$|bookings/validate$|bookings/checked-in$|bookings/checked-in/\\d+$|bookings/check-out$|invoices$|invoices/new$|invoices/\\d+$|revenue$|revenue/.*).*)', destination: 'http://127.0.0.1:4000/owner/:path*' },
       { source: '/uploads/:path*', destination: 'http://127.0.0.1:4000/uploads/:path*' },
       { source: '/webhooks/:path*', destination: 'http://127.0.0.1:4000/webhooks/:path*' },
       { source: '/socket.io', destination: 'http://127.0.0.1:4000/socket.io/' },

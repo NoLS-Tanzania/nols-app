@@ -75,6 +75,7 @@ import ownerMessagesRouter from './routes/owner.messages';
 import ownerNotificationsRouter from './routes/owner.notifications';
 import ownerAvailabilityRouter from './routes/owner.availability';
 import { router as ownerBookingsRouter } from "./routes/owner.booking";
+import ownerInvoicesRouter from "./routes/owner.invoices";
 import admin2faRouter from "./routes/admin.2fa.js";
 import driverRouter from "./routes/driver.stats";
 import driverRemindersRouter from './routes/driver.reminders';
@@ -106,6 +107,7 @@ import chatbotRouter from "./routes/chatbot";
 import adminChatbotRouter from "./routes/admin.chatbot";
 import { socketAuthMiddleware, AuthenticatedSocket } from './middleware/socketAuth.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import { adminOriginGuard } from "./middleware/adminOriginGuard.js";
 
 // moved the POST handler to after the app is created
 // Create app and server before using them
@@ -365,6 +367,9 @@ export function emitReferralNotification(driverId: string | number, notification
 // configureSecurity already handles CORS with regex allowing localhost on any port
 configureSecurity(app);
 
+// Admin CSRF mitigation (production): block cross-site state-changing requests
+app.use(adminOriginGuard as express.RequestHandler);
+
 // Apply larger body size limit for property routes BEFORE global middleware
 // This allows property submissions with multiple images and room specs
 app.use("/owner/properties", express.json({ limit: "10mb", strict: true }));
@@ -518,6 +523,9 @@ app.use('/api/driver/trips', driverScheduledRouter as express.RequestHandler);
 app.use("/admin/2fa", admin2faRouter);
 app.use("/owner/bookings", ownerBookingsRouter);
 app.use("/api/owner/bookings", ownerBookingsRouter);
+// Owner invoices (create from booking, view, submit)
+app.use("/owner/invoices", ownerInvoicesRouter as express.RequestHandler);
+app.use("/api/owner/invoices", ownerInvoicesRouter as express.RequestHandler);
 // Public support contact endpoint
 app.use('/api/public/support', publicSupportRouter);
 // Public updates endpoint

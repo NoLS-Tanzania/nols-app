@@ -1,10 +1,10 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import axios from "axios";
 import { io, Socket } from "socket.io-client";
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowLeft, User, Building2, FileText, DollarSign, Mail, Phone, Calendar, CheckCircle2, XCircle, Clock, Eye, Shield, Ban, Copy, MapPin, ImageIcon, Bell, Send, X, History, Activity, Download, FileCheck, FileX, Home, Search, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { ArrowLeft, User, Building2, FileText, DollarSign, Mail, Phone, Calendar, CheckCircle2, XCircle, Clock, Eye, Shield, Ban, Copy, MapPin, ImageIcon, Bell, Send, X, History, Activity, FileCheck, Home, Search, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import VerifiedIcon from "@/components/VerifiedIcon";
 import TableRow from "@/components/TableRow";
 
@@ -72,7 +72,8 @@ export default function OwnerDetailPage({ params }: { params: { id: string }}) {
   const [bookingsSortBy, setBookingsSortBy] = useState<string | null>(null);
   const [bookingsSortDir, setBookingsSortDir] = useState<"asc" | "desc">("desc");
 
-  async function load() {
+
+  const load = useCallback(async () => {
     try {
       setLoading(true);
       const r = await api.get<{ owner:Owner; snapshot:Snapshot }>(`/api/admin/owners/${ownerId}`);
@@ -89,8 +90,9 @@ export default function OwnerDetailPage({ params }: { params: { id: string }}) {
     } finally {
       setLoading(false);
     }
-  }
-  async function loadDocs(){
+  }, [ownerId]);
+
+  const loadDocs = useCallback(async () => {
     try {
       const r = await api.get<{ items:Doc[] }>(`/api/admin/owners/${ownerId}/documents`);
     setDocs(r.data.items);
@@ -98,20 +100,32 @@ export default function OwnerDetailPage({ params }: { params: { id: string }}) {
       console.error('Failed to load documents:', err);
       setDocs([]);
     }
-  }
+  }, [ownerId]);
 
-  async function loadAuditHistory() {
+  const loadAuditHistory = useCallback(async () => {
     try {
       setAuditLoading(true);
-      const r = await api.get<any[]>(`/api/admin/audits?targetId=${ownerId}`);
-      setAuditHistory(r.data || []);
+      // API shape (admin.audits): { ok: true, data: { page, total, items: [...] } }
+      const r = await api.get<any>(`/api/admin/audits?targetId=${ownerId}`);
+      const raw: any = r.data;
+      const next =
+        Array.isArray(raw)
+          ? raw
+          : (
+              (Array.isArray(raw?.items) && raw.items) ||
+              (Array.isArray(raw?.data) && raw.data) ||
+              (Array.isArray(raw?.data?.items) && raw.data.items) ||
+              []
+            );
+
+      setAuditHistory(next);
     } catch (err: any) {
       console.error("Failed to load audit history:", err);
       setAuditHistory([]);
     } finally {
       setAuditLoading(false);
     }
-  }
+  }, [ownerId]);
 
   async function loadBookings() {
     try {
@@ -173,8 +187,12 @@ export default function OwnerDetailPage({ params }: { params: { id: string }}) {
     }
   }
 
-  useEffect(()=>{ load(); loadDocs(); loadAuditHistory(); },[ownerId]);
-  
+  useEffect(() => {
+    void load();
+    void loadDocs();
+    void loadAuditHistory();
+  }, [load, loadAuditHistory, loadDocs]);
+
   // Load properties when properties tab is active
   useEffect(() => {
     if (tab === "properties" && properties.length === 0 && !propertiesLoading) {
@@ -261,6 +279,8 @@ export default function OwnerDetailPage({ params }: { params: { id: string }}) {
       </span>
     );
   }
+
+  const auditItems = Array.isArray(auditHistory) ? auditHistory : [];
 
   async function handleSuspendSubmit(){
     if (!suspendReason.trim()) {
@@ -869,14 +889,14 @@ export default function OwnerDetailPage({ params }: { params: { id: string }}) {
               <div className="flex items-center justify-center py-8">
                 <div className="animate-spin rounded-full h-6 w-6 border-2 border-gray-300 border-t-purple-600"></div>
               </div>
-            ) : auditHistory.length === 0 ? (
+            ) : auditItems.length === 0 ? (
               <div className="text-center py-6">
                 <Activity className="h-8 w-8 text-gray-300 mx-auto mb-2" />
                 <p className="text-sm text-gray-500">No audit history found</p>
               </div>
             ) : (
               <div className="space-y-3 max-h-[400px] overflow-y-auto">
-                {auditHistory.slice(0, 10).map((audit: any, idx: number) => {
+                {auditItems.slice(0, 10).map((audit: any, idx: number) => {
                   const getActionIcon = () => {
                     const action = audit.action?.toUpperCase() || '';
                     if (action.includes('SUSPEND')) return <Ban className="h-4 w-4 text-red-600" />;
@@ -935,10 +955,10 @@ export default function OwnerDetailPage({ params }: { params: { id: string }}) {
                 })}
               </div>
             )}
-            {auditHistory.length > 10 && (
+            {auditItems.length > 10 && (
               <div className="mt-3 text-center">
                 <p className="text-xs text-gray-500">
-                  Showing 10 of {auditHistory.length} entries
+                  Showing 10 of {auditItems.length} entries
                 </p>
               </div>
             )}
@@ -1364,7 +1384,7 @@ export default function OwnerDetailPage({ params }: { params: { id: string }}) {
                           <td colSpan={8} className="px-3 sm:px-4 py-12 text-center">
                             <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-3" />
                             <p className="text-gray-500 font-medium">No bookings found</p>
-                            <p className="text-sm text-gray-400 mt-1">Bookings for this owner's properties will appear here</p>
+                            <p className="text-sm text-gray-400 mt-1">Bookings for this owner&apos;s properties will appear here</p>
                           </td>
                         </TableRow>
                       ) : (
@@ -1576,6 +1596,8 @@ export default function OwnerDetailPage({ params }: { params: { id: string }}) {
                         onClick={() => setBookingsPage(p => Math.max(1, p - 1))}
                         disabled={bookingsPage === 1 || bookingsLoading}
                         className="p-2 border border-gray-300 rounded-lg hover:border-[#02665e] hover:text-[#02665e] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                        aria-label="Previous bookings page"
+                        title="Previous bookings page"
                       >
                         <ChevronLeft className="h-5 w-5" />
                       </button>
@@ -1603,6 +1625,8 @@ export default function OwnerDetailPage({ params }: { params: { id: string }}) {
                         onClick={() => setBookingsPage(p => Math.min(Math.ceil(bookingsTotal / 25), p + 1))}
                         disabled={bookingsPage >= Math.ceil(bookingsTotal / 25) || bookingsLoading}
                         className="p-2 border border-gray-300 rounded-lg hover:border-[#02665e] hover:text-[#02665e] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                        aria-label="Next bookings page"
+                        title="Next bookings page"
                       >
                         <ChevronRight className="h-5 w-5" />
                       </button>

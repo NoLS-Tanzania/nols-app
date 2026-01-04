@@ -35,10 +35,16 @@ const nextConfig = {
       // Exclude page routes from /admin rewrite - these will be served by Next.js pages
       // The pattern uses negative lookahead to exclude specific routes
       { 
-        source: '/admin/:path((?!cancellations/\\d+$|bookings/\\d+$|owners/\\d+$|properties/\\d+$|revenue/\\d+$).*)', 
+        // NOTE: include /admin/management/* (Next pages) as excluded too.
+        source: '/admin/:path((?!cancellations/\\d+$|bookings/\\d+$|owners/\\d+$|properties/\\d+$|revenue/\\d+$|management/.*).*)', 
         destination: 'http://127.0.0.1:4000/admin/:path*' 
       },
-      { source: '/owner/:path*', destination: 'http://127.0.0.1:4000/owner/:path*' },
+      // Exclude known Owner page routes from proxying to API. Keep legacy API paths like `/owner/bookings/:id`.
+      {
+        // NOTE: exclude owner UI pages so Next.js serves them, not the API proxy.
+        source: '/owner/:path((?!bookings$|bookings/recent$|bookings/recents$|bookings/validate$|bookings/checked-in$|bookings/checked-in/\\d+$|bookings/check-out$|invoices$|invoices/new$|invoices/\\d+$|revenue$|revenue/.*).*)',
+        destination: 'http://127.0.0.1:4000/owner/:path*'
+      },
       { source: '/uploads/:path*', destination: 'http://127.0.0.1:4000/uploads/:path*' },
       { source: '/webhooks/:path*', destination: 'http://127.0.0.1:4000/webhooks/:path*' },
       // Explicit socket.io rewrites to ensure both base and nested paths proxy

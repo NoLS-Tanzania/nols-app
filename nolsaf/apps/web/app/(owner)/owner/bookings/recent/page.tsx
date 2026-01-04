@@ -74,6 +74,19 @@ export default function RecentBookings() {
       reconnection: true,
       reconnectionAttempts: 5,
     });
+    // Join owner room for targeted realtime updates (security).
+    // Best-effort; if it fails we still have polling.
+    (async () => {
+      try {
+        const meRes = await fetch("/api/account/me", { credentials: "include" });
+        const meJson: any = meRes.ok ? await meRes.json() : null;
+        const me = meJson?.data ?? meJson;
+        const ownerId = Number(me?.id || 0);
+        if (ownerId) {
+          socket.emit("join-owner-room", { ownerId });
+        }
+      } catch {}
+    })();
     socket.on('owner:bookings:updated', () => fetchData());
 
     return () => {
@@ -170,10 +183,10 @@ export default function RecentBookings() {
                                 <Check className="h-4 w-4 text-green-600" />
                                 <span className="text-sm">Validate</span>
                               </Link>
-                              <a target="_blank" rel="noreferrer" href={`/owner/bookings/checked-in/${b.id}`} className="flex items-center gap-2 px-3 py-2 hover:bg-slate-50 hover:text-slate-900">
-                                <ExternalLink className="h-4 w-4 text-slate-600" />
+                              <Link href={`/owner/bookings/checked-in/${b.id}`} className="flex items-center gap-2 px-3 py-2 hover:bg-slate-50 hover:text-slate-900 no-underline">
+                                <Eye className="h-4 w-4 text-slate-600" />
                                 <span className="text-sm">View</span>
-                              </a>
+                              </Link>
                             </div>
                           )}
                         </div>

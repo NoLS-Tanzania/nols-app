@@ -237,8 +237,11 @@ router.post("/from-booking", async (req: Request, res: Response) => {
           commissionPercent: commissionPercent > 0 ? commissionPercent : null,
           commissionAmount: commission > 0 ? commission : null,
           taxPercent: 0,
-          status: "APPROVED", // Auto-approve for public bookings
+          // This record represents a customer-paid booking receipt, not an owner-submitted invoice claim.
+          // It must NOT enter the owner-invoice verification pipeline.
+          status: "CUSTOMER_PAID",
           paymentRef: `INVREF-${booking.id}-${Date.now()}`,
+          paidAt: new Date(),
           notes: notes,
         },
       });
@@ -380,8 +383,11 @@ router.get("/:id", async (req: Request, res: Response) => {
     return res.json({
       id: invoice.id,
       invoiceNumber: invoice.invoiceNumber,
+      receiptNumber: invoice.receiptNumber || null,
       paymentRef: invoice.paymentRef,
       status: invoice.status,
+      paidAt: invoice.paidAt || null,
+      paymentMethod: (invoice as any).paymentMethod || null,
       totalAmount: totalAmount,
       currency: invoice.booking.property.currency || "TZS",
       booking: {
@@ -404,6 +410,10 @@ router.get("/:id", async (req: Request, res: Response) => {
           : null,
         basePrice: basePrice,
       },
+      // Provide QR as data URL if present (useful for receipt page)
+      receiptQrPng: invoice.receiptQrPng
+        ? `data:image/png;base64,${Buffer.from(invoice.receiptQrPng as any).toString("base64")}`
+        : null,
       priceBreakdown: {
         accommodationSubtotal: accommodationSubtotal,
         taxPercent: taxPercent,

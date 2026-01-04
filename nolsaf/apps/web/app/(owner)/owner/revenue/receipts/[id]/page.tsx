@@ -7,11 +7,12 @@ const api = axios.create({ baseURL: "", withCredentials: true });
 export default function Receipt({ params }:{ params:{ id:string }}) {
   const [data, setData] = useState<any>(null);
   useEffect(() => {
-    api.get(`/owner/revenue/invoices/${params.id}/receipt`).then(r => setData(r.data));
+    api.get(`/api/owner/revenue/invoices/${params.id}/receipt`).then(r => setData(r.data));
   }, [params.id]);
 
   if (!data) return <div>Loading...</div>;
   const { invoice: inv, qrPayload } = data;
+  const codeVisible = inv?.booking?.code?.codeVisible ?? inv?.booking?.code?.code ?? "-";
 
   return (
     <div className="space-y-4">
@@ -41,7 +42,7 @@ export default function Receipt({ params }:{ params:{ id:string }}) {
           <Row cols={["Net Paid", `TZS ${inv.netPayable}`]} />
           <Row cols={["Payment Ref", inv.paymentRef ?? "-"]} />
           <Row cols={["Paid On", new Date(inv.paidAt).toLocaleString()]} />
-          <Row cols={["NoLSAF Code", inv.checkinCode?.codeVisible ?? "-"]} />
+          <Row cols={["NoLSAF Code", codeVisible]} />
         </div>
 
         <div className="p-3">
@@ -51,7 +52,7 @@ export default function Receipt({ params }:{ params:{ id:string }}) {
         <div className="p-3">
           <div className="text-sm font-semibold mb-2">Receipt QR</div>
           <img
-            src={`/owner/revenue/invoices/${inv.id}/receipt/qr.png`}
+            src={`/api/owner/revenue/invoices/${inv.id}/receipt/qr.png`}
             alt="Receipt QR"
     className="w-40 h-40 border rounded-xl"
   />

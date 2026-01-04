@@ -7,6 +7,7 @@ import { requireAuth, requireRole } from "../middleware/auth.js";
 import { makeQR } from "../lib/qr.js";
 import { toCsv } from "../lib/csv.js";
 import { invalidateOwnerReports } from "../lib/cache.js";
+import { generateBookingPDF } from "../lib/pdfGenerator.js";
 
 export const router = Router();
 router.use(requireAuth as express.RequestHandler, requireRole("ADMIN") as express.RequestHandler);
@@ -170,6 +171,81 @@ router.get("/invoices/:id", async (req, res) => {
   } catch (err: any) {
     console.error("Error in GET /admin/invoices/:id", err);
     res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * GET /admin/revenue/invoices/:id/receipt.html
+ * Admin-only receipt template (matches the legacy "Booking Reservation" PDF layout).
+ *
+ * Returns HTML intended for printing or client-side PDF generation.
+ */
+router.get("/invoices/:id/receipt.html", async (req, res) => {
+  try {
+    const invoiceId = Number(req.params.id);
+    if (!invoiceId || Number.isNaN(invoiceId)) return res.status(400).json({ error: "Invalid invoice ID" });
+
+    const inv = await prisma.invoice.findUnique({
+      where: { id: invoiceId },
+      include: {
+        booking: {
+          include: {
+            property: true,
+            code: true,
+            user: true,
+          } as any,
+        } as any,
+      } as any,
+    });
+
+    if (!inv) return res.status(404).json({ error: "Invoice not found" });
+    const booking: any = (inv as any).booking;
+    if (!booking) return res.status(404).json({ error: "Booking not found" });
+
+    const bookingCode = booking?.code?.codeVisible || booking?.code?.code || booking?.code?.codeHash || "BOOKING";
+
+    const bookingDetails: any = {
+      bookingId: booking.id,
+      bookingCode: String(bookingCode),
+      guestName: booking.guestName || booking.user?.name || "Guest",
+      guestPhone: booking.guestPhone || booking.user?.phone || undefined,
+      nationality: booking.nationality || undefined,
+      property: {
+        title: booking.property?.title || "Property",
+        type: booking.property?.type || "Property",
+        regionName: booking.property?.regionName || undefined,
+        district: booking.property?.district || undefined,
+        city: booking.property?.city || undefined,
+        country: booking.property?.country || "Tanzania",
+      },
+      checkIn: booking.checkIn,
+      checkOut: booking.checkOut,
+      roomType: (booking as any).roomType || booking.roomCode || undefined,
+      rooms: (booking as any).rooms || undefined,
+      totalAmount: Number((inv as any).total || booking.totalAmount || 0),
+      services: (booking as any).services || undefined,
+      invoice: {
+        invoiceNumber: (inv as any).invoiceNumber || undefined,
+        receiptNumber: (inv as any).receiptNumber || undefined,
+        paidAt: (inv as any).paidAt || undefined,
+      },
+      nights: 0,
+    };
+
+    const checkInDate = new Date(booking.checkIn);
+    const checkOutDate = new Date(booking.checkOut);
+    bookingDetails.nights = Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24));
+
+    const { html } = await generateBookingPDF(bookingDetails);
+    const filename = `Booking Reservation - ${String(bookingCode)}.pdf`;
+
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
+    res.setHeader("X-NoLSAF-Filename", filename);
+    return res.send(html);
+  } catch (err: any) {
+    console.error("Error in GET /admin/revenue/invoices/:id/receipt.html", err);
+    return res.status(500).json({ error: "Failed to generate receipt template" });
   }
 });
 
@@ -362,6 +438,47 @@ router.post("/invoices/:id/mark-paid", async (req, res) => {
         invoiceId: updated.id,
         ownerId: updated.ownerId,
       });
+
+      // Owner notification + realtime refresh (no sensitive payload over socket)
+      try {
+        const propertyTitle = (inv as any).booking?.property?.title ?? null;
+        const title = "New paid booking";
+        const body =
+          `Booking #${updated.bookingId} has been paid` +
+          (propertyTitle ? ` for ${propertyTitle}` : "") +
+          (updated.receiptNumber ? `. Receipt: ${updated.receiptNumber}` : ".");
+
+        let createdId: number | null = null;
+        try {
+          const existing = await prisma.notification.findFirst({
+            where: {
+              ownerId: updated.ownerId,
+              type: "invoice",
+              meta: { path: ["invoiceId"], equals: updated.id } as any,
+            } as any,
+            select: { id: true },
+          });
+          if (!existing) {
+            const n = await prisma.notification.create({
+              data: {
+                ownerId: updated.ownerId,
+                userId: updated.ownerId,
+                title,
+                body,
+                type: "invoice",
+                meta: { kind: "invoice_paid", invoiceId: updated.id, bookingId: updated.bookingId, actionUrl: "/owner/bookings/recent" },
+              },
+              select: { id: true },
+            });
+            createdId = Number(n.id);
+          }
+        } catch {}
+
+        io?.to?.(`owner:${updated.ownerId}`)?.emit?.("owner:bookings:updated", { bookingId: updated.bookingId, invoiceId: updated.id });
+        io?.to?.(`owner:${updated.ownerId}`)?.emit?.("notification:new", { id: createdId, title, type: "invoice" });
+        io?.emit?.("owner:bookings:updated", { bookingId: updated.bookingId, invoiceId: updated.id });
+
+      } catch {}
       
       // Emit referral credit update if booking belongs to a referred user
       try {

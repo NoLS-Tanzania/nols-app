@@ -2,7 +2,8 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import Link from "next/link";
-import { ArrowLeft, Mail, Phone, MapPin, Calendar, User, Home, DollarSign, FileText, MessageCircle, Star, Clock, Globe, Users } from "lucide-react";
+import Image from "next/image";
+import { ArrowLeft, Mail, Phone, Calendar, User, Home, DollarSign, FileText, Star } from "lucide-react";
 
 const api = axios.create({ baseURL: "", withCredentials: true });
 
@@ -79,8 +80,12 @@ export default function ManagementBookingDetail({ params }: { params: { id: stri
 
   const load = React.useCallback(async () => {
     try {
-      const r = await api.get<BookingDetail>(`/admin/bookings/${id}`);
-      setBooking(r.data);
+      // IMPORTANT: Use API-prefixed route.
+      // `/admin/bookings/:id` is also a Next.js page route; calling it from the browser can return HTML, not JSON.
+      const url = `/api/admin/bookings/${id}`;
+      const r = await api.get<any>(url);
+
+      setBooking(r.data as BookingDetail);
     } catch (err: any) {
       console.error("Failed to load booking:", err);
       if (err?.response?.status === 404) {
@@ -122,7 +127,7 @@ export default function ManagementBookingDetail({ params }: { params: { id: stri
   }
 
   function getStatusBadgeClass(status: string) {
-    const statusLower = status.toLowerCase();
+    const statusLower = String(status || "").toLowerCase();
     if (statusLower.includes('confirmed') || statusLower.includes('active')) {
       return "inline-flex items-center px-3 py-1 rounded-full bg-green-100 text-green-800 text-sm font-medium";
     }
@@ -339,7 +344,7 @@ export default function ManagementBookingDetail({ params }: { params: { id: stri
                   {booking.user?.email && (
                     <a
                       href={`mailto:${booking.user.email}?subject=Regarding Your Booking #${booking.id}`}
-                      className="flex items-center gap-3 w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                      className="no-underline flex items-center gap-3 w-full px-4 py-3 bg-blue-600 text-white rounded-xl shadow-sm hover:shadow-md hover:bg-blue-700 active:scale-[0.99] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
                     >
                       <Mail className="h-5 w-5" />
                       <span className="font-medium">Email Guest</span>
@@ -348,7 +353,7 @@ export default function ManagementBookingDetail({ params }: { params: { id: stri
                   {(booking.guestPhone || booking.user?.phone) && (
                     <a
                       href={`tel:${booking.guestPhone || booking.user?.phone}`}
-                      className="flex items-center gap-3 w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                      className="no-underline flex items-center gap-3 w-full px-4 py-3 bg-green-600 text-white rounded-xl shadow-sm hover:shadow-md hover:bg-green-700 active:scale-[0.99] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2"
                     >
                       <Phone className="h-5 w-5" />
                       <span className="font-medium">Call Guest</span>
@@ -358,7 +363,7 @@ export default function ManagementBookingDetail({ params }: { params: { id: stri
               )}
               <Link
                 href={`/admin/management/bookings/${booking.id}/recommend`}
-                className="flex items-center gap-3 w-full px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                className="no-underline flex items-center gap-3 w-full px-4 py-3 bg-purple-600 text-white rounded-xl shadow-sm hover:shadow-md hover:bg-purple-700 active:scale-[0.99] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2"
               >
                 <Star className="h-5 w-5" />
                 <span className="font-medium">Recommend Properties/Services</span>
@@ -404,31 +409,101 @@ export default function ManagementBookingDetail({ params }: { params: { id: stri
             {booking.invoices && booking.invoices.length > 0 ? (
               <div className="space-y-2">
                 {booking.invoices.map((invoice) => (
-                  <div key={invoice.id} className="p-3 bg-gray-50 rounded-lg">
+                  <div
+                    key={invoice.id}
+                    className="p-4 bg-gradient-to-b from-slate-50 to-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow"
+                  >
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <div className="text-sm font-medium text-gray-900">
-                          Invoice #{invoice.invoiceNumber || invoice.id}
+                        <div className="min-w-0">
+                          <div className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">Invoice</div>
+                          <div className="text-sm font-semibold text-gray-900 truncate">
+                            {invoice.invoiceNumber ? `#${invoice.invoiceNumber}` : `#${invoice.id}`}
+                          </div>
                         </div>
-                        <span className={getStatusBadgeClass(invoice.status)}>
-                          {invoice.status}
+                        <span className={getStatusBadgeClass(invoice.status || "")}>
+                          {(invoice.status || "—").toUpperCase()}
                         </span>
                       </div>
-                      <div className="text-xs text-gray-600 space-y-1">
-                        <div>Amount: {new Intl.NumberFormat('en-US').format(Number(invoice.total))} TZS</div>
-                        {invoice.issuedAt && (
-                          <div>Issued: {new Date(invoice.issuedAt).toLocaleString()}</div>
-                        )}
-                        {invoice.approvedAt && (
-                          <div>Approved: {new Date(invoice.approvedAt).toLocaleString()}</div>
-                        )}
-                        {invoice.paidAt && (
-                          <div>Paid: {new Date(invoice.paidAt).toLocaleString()}</div>
-                        )}
+                      <div className="grid grid-cols-2 gap-3 text-xs text-gray-700">
+                        <div className="rounded-xl bg-white/70 border border-gray-200 p-3">
+                          <div className="text-[11px] text-gray-500 font-medium uppercase tracking-wide">Amount</div>
+                          <div className="mt-0.5 text-sm font-bold text-gray-900">
+                            {new Intl.NumberFormat("en-US").format(Number(invoice.total))}{" "}
+                            <span className="text-xs font-semibold text-gray-600">TZS</span>
+                          </div>
+                        </div>
+                        <div className="rounded-xl bg-white/70 border border-gray-200 p-3">
+                          <div className="text-[11px] text-gray-500 font-medium uppercase tracking-wide">Issued</div>
+                          <div className="mt-0.5 text-sm font-semibold text-gray-900">
+                            {invoice.issuedAt ? new Date(invoice.issuedAt).toLocaleDateString() : "—"}
+                          </div>
+                          {invoice.issuedAt && (
+                            <div className="text-[11px] text-gray-500 mt-0.5">
+                              {new Date(invoice.issuedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                            </div>
+                          )}
+                        </div>
+                        {invoice.receiptNumber ? (
+                          <div className="col-span-2 rounded-xl bg-white/70 border border-gray-200 p-3">
+                            <div className="text-[11px] text-gray-500 font-medium uppercase tracking-wide">Receipt</div>
+                            <div className="mt-0.5 font-mono text-sm font-semibold text-gray-900 truncate">
+                              {invoice.receiptNumber}
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 pt-1">
+                        <Link
+                          href={`/admin/revenue/${invoice.id}`}
+                          className="no-underline inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-gray-200 text-gray-800 shadow-sm hover:shadow-md hover:bg-gray-50 active:scale-[0.99] transition-all"
+                          title="View invoice in admin"
+                        >
+                          <FileText className="h-4 w-4" />
+                          Invoice
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const url = `/admin/management/invoices/${invoice.id}/receipt`;
+                            window.open(url, "_blank", "noopener,noreferrer");
+                          }}
+                          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#02665e] text-white shadow-sm hover:shadow-md hover:bg-[#014e47] active:scale-[0.99] transition-all"
+                          title="Open the same receipt the customer sees"
+                        >
+                          <DollarSign className="h-4 w-4" />
+                          Receipt
+                        </button>
                         {invoice.receiptNumber && (
-                          <div>Receipt: {invoice.receiptNumber}</div>
+                          <Link
+                            href={`/api/admin/invoices/${invoice.id}/receipt.png`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="no-underline inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-gray-200 text-gray-800 shadow-sm hover:shadow-md hover:bg-gray-50 active:scale-[0.99] transition-all"
+                            title="Open receipt QR (PNG)"
+                          >
+                            <span className="text-xs font-semibold">QR</span>
+                          </Link>
                         )}
                       </div>
+
+                      {invoice.receiptNumber && (
+                        <div className="pt-2">
+                          <div className="text-[11px] font-medium text-gray-500 uppercase tracking-wide mb-1">
+                            Receipt QR
+                          </div>
+                          <div className="inline-flex rounded-2xl bg-white border border-gray-200 p-3 shadow-sm">
+                            <Image
+                              src={`/api/admin/invoices/${invoice.id}/receipt.png`}
+                              alt="Receipt QR"
+                              width={160}
+                              height={160}
+                              unoptimized
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}

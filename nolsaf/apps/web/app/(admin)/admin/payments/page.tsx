@@ -1,8 +1,9 @@
 "use client";
 
-import { Wallet, CreditCard, Eye, Smartphone, Search, X, Clock, CheckCircle, User, Building, FileText, Download, CheckSquare, Square, AlertCircle } from "lucide-react";
+import { Wallet, CreditCard, Eye, Smartphone, Search, X, Clock, CheckCircle, User, Building, Download, CheckSquare, Square, AlertCircle } from "lucide-react";
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import axios from 'axios';
+import Image from "next/image";
 
 interface InvoicePayment {
   id: number;
@@ -60,7 +61,6 @@ export default function Page() {
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<InvoicePayment | null>(null);
-  const [modalLoading, setModalLoading] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
 
   // Bulk selection
@@ -766,6 +766,26 @@ export default function Page() {
         </button>
       </div>
 
+      {/* Page Error */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
+          <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" aria-hidden="true" />
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-semibold text-red-800">Something went wrong</div>
+            <div className="text-sm text-red-700 break-words">{error}</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setError(null)}
+            className="text-red-400 hover:text-red-600"
+            aria-label="Dismiss error"
+            title="Dismiss"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+      )}
+
       {/* Table */}
       <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
         {/* Bulk Actions Bar */}
@@ -795,10 +815,10 @@ export default function Page() {
             </div>
           </div>
         )}
-        {/* Search */}
+        {/* Search + Export */}
         <div className="p-3 sm:p-4 border-b border-gray-200">
-          <div className="flex justify-center w-full">
-            <div className="relative w-full max-w-[280px] sm:max-w-sm md:max-w-md lg:max-w-lg">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full">
+            <div className="relative w-full sm:flex-1 sm:max-w-xl mx-auto">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               <input
                 type="text"
@@ -825,6 +845,18 @@ export default function Page() {
                   <X className="h-4 w-4" />
                 </button>
               )}
+            </div>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={handleExportCSV}
+                disabled={exportLoading}
+                className="px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-800 shadow-sm hover:shadow-md hover:bg-gray-50 active:scale-[0.99] transition-all disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+                title="Export CSV"
+              >
+                <Download className="h-4 w-4" aria-hidden="true" />
+                <span className="text-sm font-medium">{exportLoading ? "Exporting..." : "Export CSV"}</span>
+              </button>
             </div>
           </div>
         </div>
@@ -1129,6 +1161,8 @@ export default function Page() {
                   <button
                     onClick={() => setModalError(null)}
                     className="text-red-400 hover:text-red-600"
+                    aria-label="Dismiss modal error"
+                    title="Dismiss"
                   >
                     <X className="h-3 w-3" />
                   </button>
@@ -1227,13 +1261,16 @@ export default function Page() {
                   <div className="text-xs text-gray-500 uppercase tracking-wide mb-3">Receipt QR Code</div>
                   <div className="bg-gradient-to-br from-teal-50 to-teal-100 rounded-lg p-6 flex flex-col items-center justify-center">
                     <div className="bg-white rounded-lg p-4 shadow-md border-2 border-teal-200">
-                      <img
+                      <Image
                         src={`/api/admin/invoices/${selectedPayment.invoiceId}/receipt.png`}
                         alt="Receipt QR Code"
+                        width={224}
+                        height={224}
+                        unoptimized
                         className="w-48 h-48 sm:w-56 sm:h-56 object-contain"
                         onError={(e) => {
                           // Hide QR code if image fails to load
-                          (e.target as HTMLImageElement).style.display = 'none';
+                          (e.currentTarget as any).style.display = 'none';
                         }}
                       />
                     </div>

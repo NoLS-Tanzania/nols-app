@@ -4,7 +4,17 @@ import axios from "axios";
 type ReportsFilters = { [key: string]: any };
 function ReportsFilter({ onChange }: { onChange: (f: ReportsFilters | null) => void }) {
   // Minimal stub: invoke onChange once on mount; replace with real UI when available.
-  useEffect(() => { onChange(null); }, [onChange]);
+  useEffect(() => {
+    const now = new Date();
+    const from = new Date(now);
+    from.setFullYear(from.getFullYear() - 2);
+    const to = new Date(now);
+    to.setFullYear(to.getFullYear() + 2);
+    onChange({
+      from: from.toISOString().split("T")[0],
+      to: to.toISOString().split("T")[0],
+    });
+  }, [onChange]);
   return null;
 }
 import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, CartesianGrid, ResponsiveContainer, BarChart, Bar } from "recharts";
@@ -14,7 +24,10 @@ const api = axios.create({ baseURL: "", withCredentials: true });
 export default function Bookings() {
   const [filters, setFilters] = useState<ReportsFilters | null>(null);
   const [data, setData] = useState<any>(null);
-  useEffect(()=>{ if(!filters) return; api.get("/owner/reports/bookings",{params:filters}).then(r=>setData(r.data));},[filters]);
+  useEffect(() => {
+    if (!filters) return;
+    api.get("/api/owner/reports/bookings", { params: filters }).then((r) => setData(r.data));
+  }, [filters]);
 
   return (
     <div className="space-y-4">

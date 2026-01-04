@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { FileCheck2 } from "lucide-react";
+import { Camera, FileCheck2, X } from "lucide-react";
 import Support from "@/components/Support";
 import axios from "axios";
 import { useRouter } from "next/navigation";
@@ -99,12 +99,21 @@ export default function CheckinValidation() {
 
   // Confirmation modal state
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [agree, setAgree] = useState(false);
+  const [agreeTerms, setAgreeTerms] = useState(false);
+  const [agreeDisbursement, setAgreeDisbursement] = useState(false);
   const [confirmLoading, setConfirmLoading] = useState(false);
+
+  // QR scan modal
+  const [scanOpen, setScanOpen] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [scanActive, setScanActive] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const rafRef = useRef<number | null>(null);
 
   async function handleConfirmWithConsent() {
     if (!preview) return;
-    if (!agree) return setResultMsg('Please accept the Terms & Conditions to continue.');
+    if (!agreeTerms || !agreeDisbursement) return setResultMsg("Please accept the Terms & Conditions and the Disbursement Policy to continue.");
     setConfirmLoading(true);
     setResultMsg(null);
     try {
@@ -113,7 +122,8 @@ export default function CheckinValidation() {
         consent: {
           accepted: true,
           method: 'checkbox',
-          termsVersion: process.env.NEXT_PUBLIC_TERMS_VERSION ?? 'v1'
+          termsVersion: process.env.NEXT_PUBLIC_TERMS_VERSION ?? 'v1',
+          disbursementVersion: process.env.NEXT_PUBLIC_DISBURSEMENT_POLICY_VERSION ?? 'v1'
         },
         clientSnapshot: {
           fullName: preview.personal.fullName,
@@ -127,16 +137,115 @@ export default function CheckinValidation() {
         }
       };
 
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'validate/page.tsx:handleConfirmWithConsent',message:'confirm-checkin (start)',data:{bookingId:payload.bookingId},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'VAL_CONFIRM'})}).catch(()=>{});
+      // #endregion
       await api.post('/api/owner/bookings/confirm-checkin', payload);
       setConfirmOpen(false);
+
+      // notify sidebar (and any listeners) to refresh checked-in counts immediately
+      window.dispatchEvent(new Event("nols:checkedin-changed"));
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'validate/page.tsx:handleConfirmWithConsent',message:'confirm-checkin (done) + event dispatched',data:{bookingId:payload.bookingId,event:'nols:checkedin-changed'},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'VAL_EVENT'})}).catch(()=>{});
+      // #endregion
       // redirect to checked-in list
       router.push('/owner/bookings/checked-in');
     } catch (err: any) {
       setResultMsg(err?.response?.data?.error ?? 'Could not confirm check-in');
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'validate/page.tsx:handleConfirmWithConsent',message:'confirm-checkin (error)',data:{error:String(err?.message??err)},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'VAL_ERROR'})}).catch(()=>{});
+      // #endregion
     } finally {
       setConfirmLoading(false);
     }
   }
+
+  const stopScanner = useCallback(() => {
+    setScanActive(false);
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    if (streamRef.current) {
+      for (const t of streamRef.current.getTracks()) t.stop();
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      try { videoRef.current.srcObject = null; } catch {}
+    }
+  }, []);
+
+  const normalizeScanValue = (rawVal: string) => {
+    const v = String(rawVal || "").trim();
+    // If the QR encodes JSON, send it as-is (API will parse bookingId).
+    if (v.startsWith("{") && v.includes("bookingId")) return v;
+    // If it looks like a URL, try to extract a plausible code token.
+    // Otherwise pass through (server validation will reject invalid input).
+    try {
+      const u = new URL(v);
+      const qp = u.searchParams.get("code") || u.searchParams.get("bookingCode") || u.searchParams.get("checkinCode");
+      if (qp) return String(qp).trim();
+    } catch {}
+    return v;
+  };
+
+  const startScanner = useCallback(async () => {
+    setScanError(null);
+    if (!scanOpen) return;
+    if (!videoRef.current) return;
+
+    // Prefer built-in BarcodeDetector when available (no extra deps).
+    const DetectorCtor = (globalThis as any).BarcodeDetector;
+    if (!DetectorCtor) {
+      setScanError("QR scanning is not supported on this browser. Please type the code manually.");
+      return;
+    }
+
+    try {
+      const supported: string[] = await DetectorCtor.getSupportedFormats?.();
+      if (Array.isArray(supported) && supported.length && !supported.includes("qr_code")) {
+        setScanError("QR scanning is not supported on this device. Please type the code manually.");
+        return;
+      }
+    } catch {
+      // ignore
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" },
+        audio: false,
+      });
+      streamRef.current = stream;
+      videoRef.current.srcObject = stream;
+      await videoRef.current.play();
+
+      const detector = new DetectorCtor({ formats: ["qr_code"] });
+      setScanActive(true);
+
+      const loop = async () => {
+        if (!videoRef.current || !scanOpen) return;
+        try {
+          const results = await detector.detect(videoRef.current);
+          if (Array.isArray(results) && results[0]?.rawValue) {
+            const normalized = normalizeScanValue(String(results[0].rawValue));
+            setCode(normalized);
+            setScanOpen(false);
+            stopScanner();
+            validate(normalized);
+            return;
+          }
+        } catch {
+          // ignore frame errors
+        }
+        rafRef.current = requestAnimationFrame(loop);
+      };
+      rafRef.current = requestAnimationFrame(loop);
+    } catch (e: any) {
+      setScanError(e?.message || "Could not access the camera. Please allow camera access and try again.");
+      stopScanner();
+    }
+  }, [scanOpen, stopScanner, validate]);
 
   // Auto-validate when the code changes (debounced)
   useEffect(() => {
@@ -176,8 +285,16 @@ export default function CheckinValidation() {
       if (debounceRef.current) window.clearTimeout(debounceRef.current as number);
       if (searchingRef.current) window.clearTimeout(searchingRef.current as number);
       if (contactRef.current) window.clearTimeout(contactRef.current as number);
+      stopScanner();
     };
-  }, []);
+  }, [stopScanner]);
+
+  // start/stop scanner when modal toggles
+  useEffect(() => {
+    if (scanOpen) startScanner();
+    else stopScanner();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scanOpen]);
 
   // Fetch public support contact (admin-editable) on mount
   useEffect(() => {
@@ -201,44 +318,65 @@ export default function CheckinValidation() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50 flex items-center justify-center px-4 py-8">
-      <div className="w-full max-w-md space-y-6">
-        {/* Simple header */}
-        <div className="text-center space-y-2">
-          <h1 className="text-3xl font-semibold text-slate-800">
+    <div className="w-full overflow-x-hidden">
+      <div className="relative w-full rounded-[28px] border border-slate-200/70 bg-gradient-to-br from-white via-emerald-50/30 to-slate-50 p-3 sm:p-6 lg:p-8 shadow-sm ring-1 ring-black/5 nols-entrance">
+      <div className="w-full max-w-5xl mx-auto space-y-5 sm:space-y-6">
+        {/* Header */}
+        <div className="text-center space-y-2 nols-entrance nols-delay-1">
+          <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight text-slate-900">
             Check-in Validation
           </h1>
-          <p className="text-slate-600 text-sm">Enter the booking code to validate guest check-in</p>
+          <p className="text-slate-600 text-sm sm:text-base">
+            Scan the receipt QR or enter the booking code to validate a guest check-in.
+          </p>
         </div>
 
-        {/* Simple validation card */}
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 w-full space-y-4">
-          {/* Success message */}
-          {preview && (
-            <div className="rounded-lg bg-green-50 border border-green-200 p-3 text-sm text-green-800">
-              Code valid — booking found for <strong>{preview.personal.fullName}</strong>.
+        {/* Validation card */}
+        <div className="bg-white/90 backdrop-blur border border-slate-200 rounded-3xl shadow-sm p-5 sm:p-6 w-full space-y-4 transition-all duration-300 hover:shadow-md nols-entrance nols-delay-2">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-sm font-semibold text-slate-900">Validate guest</div>
+                <div className="text-xs text-slate-500 mt-0.5">Paste code, type it, or scan QR</div>
+              </div>
+              <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-700">
+                Secure
+              </span>
             </div>
-          )}
 
-          {/* Code input - centered and smaller */}
-          <div className="w-full flex flex-col items-center space-y-2">
-            <label className="block text-sm font-medium text-slate-700">
+          {/* Code input */}
+          <div className="w-full space-y-2 max-w-xl mx-auto">
+            <label className="block text-sm font-semibold text-slate-800">
               Check-in Code
             </label>
-            <input
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              onPaste={(e) => {
-                const pasted = e.clipboardData?.getData("text") ?? "";
-                if (pasted) {
-                  setCode(pasted);
-                  validate(pasted);
-                }
-              }}
-              className="w-full max-w-xs px-4 py-3 text-base font-mono tracking-wider border border-slate-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all duration-200 placeholder:text-slate-400 bg-white text-center"
-              placeholder="Enter check-in code"
-              autoFocus
-            />
+            <div className="w-full flex items-stretch gap-2">
+              <input
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                onPaste={(e) => {
+                  const pasted = e.clipboardData?.getData("text") ?? "";
+                  if (pasted) {
+                    const normalized = normalizeScanValue(pasted);
+                    setCode(normalized);
+                    validate(normalized);
+                  }
+                }}
+                className="flex-1 px-4 py-3 text-base font-mono tracking-wider border border-slate-300 rounded-2xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all duration-200 placeholder:text-slate-400 bg-white text-center shadow-sm"
+                placeholder="Enter check-in code"
+                autoFocus
+              />
+              <button
+                type="button"
+                onClick={() => { setScanOpen(true); setScanError(null); }}
+                className="shrink-0 inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-3 hover:bg-slate-50 transition-colors shadow-sm"
+                aria-label="Scan QR code"
+                title="Scan QR code"
+              >
+                <Camera className="h-5 w-5 text-slate-700" aria-hidden />
+              </button>
+            </div>
+            <div className="text-[12px] text-slate-500 text-center">
+              Tip: QR scanning may require a supported browser (Chrome/Edge mobile).
+            </div>
           </div>
 
           {/* Loading and status indicators */}
@@ -316,69 +454,81 @@ export default function CheckinValidation() {
               </button>
             </div>
           )}
+        </div>
 
-          {/* Preview content inside the same card */}
-          {preview && (
-            <div className="pt-4 border-t border-slate-200 space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-              <div className="flex items-center gap-3 pb-3 border-b border-slate-200">
-                <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center">
-                  <FileCheck2 className="h-4 w-4 text-white" />
+        {/* Preview (below validation card) */}
+        {preview ? (
+          <div className="bg-white/90 backdrop-blur border border-slate-200 rounded-3xl shadow-sm p-5 sm:p-6 w-full transition-all duration-300 hover:shadow-md nols-entrance nols-delay-3">
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+              <div className="flex items-start gap-3 min-w-0">
+                <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center shadow-sm">
+                  <FileCheck2 className="h-5 w-5 text-white" aria-hidden />
                 </div>
-                <div>
-                  <h2 className="text-lg font-bold text-slate-800">Booking Confirmation</h2>
-                  <p className="text-xs text-slate-500">NoLSAF Booking Details</p>
+                <div className="min-w-0">
+                  <div className="text-xs text-slate-500">Booking preview</div>
+                  <div className="text-2xl font-bold text-slate-900 truncate">{preview.personal.fullName}</div>
+                  <div className="text-sm text-slate-600 truncate">{preview.property.title} • {preview.property.type}</div>
                 </div>
               </div>
+              <span className="inline-flex w-fit items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                {preview.booking.status}
+              </span>
+            </div>
 
-              {/* Grid with compact design */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* Personal Details */}
-                <div className="rounded-lg overflow-hidden border border-blue-200 bg-blue-50/30">
-                  <div className="bg-blue-600 text-white px-3 py-2 text-xs font-semibold">
-                    Personal Details
-                  </div>
-                  <div className="divide-y divide-slate-100">
-                    <Row label="Full name" value={preview.personal.fullName} />
-                    <Row label="Phone" value={preview.personal.phone} />
-                    <Row label="Nationality" value={preview.personal.nationality} />
-                    <Row label="Sex" value={preview.personal.sex} />
-                    <Row label="Age Group" value={preview.personal.ageGroup} />
-                  </div>
+            <div className="mt-5 grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-sm transition-all duration-300 hover:shadow-md hover:-translate-y-0.5">
+                <div className="px-4 py-3 bg-gradient-to-r from-slate-50 to-white border-b border-slate-200">
+                  <div className="text-xs font-bold tracking-wide text-slate-700 uppercase">Personal details</div>
                 </div>
+                <div className="p-3 sm:p-4">
+                  {/* Mobile: 2-column tiles (Name + Phone first row). Desktop: 2-column as well. */}
+                  <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2 sm:gap-3">
+                    <InfoTile label="Full name" value={preview.personal.fullName} />
+                    <InfoTile label="Phone" value={preview.personal.phone} />
 
-                {/* Booking Details */}
-                <div className="rounded-lg overflow-hidden border border-emerald-200 bg-emerald-50/30">
-                  <div className="bg-emerald-600 text-white px-3 py-2 text-xs font-semibold">
-                    Booking Details
-                  </div>
-                  <div className="divide-y divide-slate-100">
-                    <Row label="Property" value={`${preview.property.title} • ${preview.property.type}`} />
-                    <Row label="Room type" value={preview.booking.roomType} />
-                    <Row label="Rooms" value={String(preview.booking.rooms)} />
-                    <Row label="Nights" value={String(preview.booking.nights)} />
-                    <Row label="Check-in" value={new Date(preview.booking.checkIn).toLocaleString()} />
-                    <Row label="Check-out" value={new Date(preview.booking.checkOut).toLocaleString()} />
-                    <Row label="Amount paid" value={`TZS ${preview.booking.totalAmount}`} />
-                    <Row label="Status" value={preview.booking.status} />
+                    {/* Keep these as 2-col on small screens for a premium compact look */}
+                    <InfoTile label="Nationality" value={preview.personal.nationality} />
+                    <InfoTile label="Sex" value={preview.personal.sex} />
+
+                    {/* Last item spans full width to avoid awkward gaps */}
+                    <div className="min-[420px]:col-span-2">
+                      <InfoTile label="Age group" value={preview.personal.ageGroup} />
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Action buttons */}
-              <div className="flex gap-2 pt-3 border-t border-slate-200">
+              <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-sm transition-all duration-300 hover:shadow-md hover:-translate-y-0.5">
+                <div className="px-4 py-3 bg-gradient-to-r from-slate-50 to-white border-b border-slate-200">
+                  <div className="text-xs font-bold tracking-wide text-slate-700 uppercase">Booking details</div>
+                </div>
+                <div className="p-3 sm:p-4">
+                  <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2 sm:gap-3">
+                    <InfoTile label="Room type" value={preview.booking.roomType} />
+                    <InfoTile label="Rooms" value={String(preview.booking.rooms)} />
+                    <InfoTile label="Nights" value={String(preview.booking.nights)} />
+                    <InfoTile label="Amount paid" value={`TZS ${preview.booking.totalAmount}`} />
+
+                    {/* Dates are long: span full width on small screens */}
+                    <div className="min-[420px]:col-span-2">
+                      <InfoTile label="Check-in" value={new Date(preview.booking.checkIn).toLocaleString()} />
+                    </div>
+                    <div className="min-[420px]:col-span-2">
+                      <InfoTile label="Check-out" value={new Date(preview.booking.checkOut).toLocaleString()} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 rounded-2xl border border-slate-200 bg-gradient-to-r from-white to-emerald-50/40 p-3 sm:p-4 shadow-sm">
+              <div className="flex flex-col sm:flex-row gap-3">
                 <button
-                  onClick={() => { setConfirmOpen(true); setAgree(false); }}
+                  onClick={() => { setConfirmOpen(true); setAgreeTerms(false); setAgreeDisbursement(false); }}
                   disabled={loading}
-                  className="flex-1 px-4 py-2.5 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                  className="flex-1 px-4 py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-green-600 text-white text-sm font-semibold shadow-lg shadow-emerald-500/20 hover:shadow-xl hover:shadow-emerald-500/25 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 hover:scale-[1.01] active:scale-[0.98]"
                 >
-                  {loading ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Confirming...
-                    </span>
-                  ) : (
-                    "Confirm Check-in"
-                  )}
+                  Confirm Check-in
                 </button>
                 <button
                   onClick={() => {
@@ -386,28 +536,87 @@ export default function CheckinValidation() {
                     setCode("");
                     setResultMsg(null);
                   }}
-                  className="px-4 py-2.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-colors"
+                  className="px-4 py-3 rounded-2xl border border-slate-300 bg-white text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-all duration-200 active:scale-[0.98]"
                 >
-                  Cancel
+                  Clear
+                </button>
+              </div>
+              <div className="mt-3 text-[12px] text-slate-600 text-center">
+                Confirming will mark the booking code as <strong>USED</strong> and move this guest to <strong>Checked‑In</strong>.
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-white/70 backdrop-blur border border-slate-200 rounded-3xl shadow-sm p-5 sm:p-6 w-full transition-all duration-300 hover:shadow-md nols-entrance nols-delay-3">
+            <div className="text-center py-8 sm:py-10">
+              <div className="mx-auto h-12 w-12 rounded-2xl bg-slate-100 flex items-center justify-center">
+                <FileCheck2 className="h-6 w-6 text-slate-600" aria-hidden />
+              </div>
+              <div className="mt-4 text-lg font-semibold text-slate-900">Preview will appear here</div>
+              <div className="mt-1 text-sm text-slate-600 max-w-2xl mx-auto">
+                After a valid code/QR scan, you’ll see the guest details below, then you can confirm to move them to <strong>Checked-In</strong>.
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* QR Scan Modal */}
+        {scanOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+            <div
+              className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+              onClick={() => setScanOpen(false)}
+            />
+            <div className="relative bg-white rounded-3xl shadow-2xl max-w-md w-full p-5 sm:p-6 z-10 animate-in zoom-in-95 duration-300 space-y-4 border border-slate-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-lg font-bold text-slate-900">Scan Receipt QR</div>
+                  <div className="text-xs text-slate-500">Point your camera at the QR code on the guest’s receipt</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setScanOpen(false)}
+                  className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-colors"
+                  aria-label="Close scanner"
+                  title="Close"
+                >
+                  <X className="h-4 w-4 text-slate-700" aria-hidden />
+                </button>
+              </div>
+
+              {scanError && (
+                <div className="rounded-xl bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+                  {scanError}
+                </div>
+              )}
+
+              <div className="rounded-2xl overflow-hidden border border-slate-200 bg-black/5">
+                <div className="relative aspect-video bg-black">
+                  <video
+                    ref={videoRef}
+                    playsInline
+                    muted
+                    className="absolute inset-0 h-full w-full object-cover"
+                  />
+                  <div className="absolute inset-0 pointer-events-none">
+                    <div className="absolute inset-6 rounded-2xl border-2 border-white/70 shadow-[0_0_0_2000px_rgba(0,0,0,0.15)]" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between text-xs text-slate-600">
+                <span>{scanActive ? "Scanning…" : "Camera stopped"}</span>
+                <button
+                  type="button"
+                  onClick={() => { stopScanner(); startScanner(); }}
+                  className="px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-colors text-xs font-semibold"
+                >
+                  Restart
                 </button>
               </div>
             </div>
-          )}
-
-          {/* Simple tip */}
-          {!preview && (
-            <div className="pt-4 border-t border-slate-200">
-              <p className="text-xs text-slate-500 text-center">
-                <span className="inline-flex items-center gap-1.5">
-                  <svg className="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span>Tip: After confirmation, the guest will appear under <strong>Checked-In</strong>.</span>
-                </span>
-              </p>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Confirmation modal with backdrop blur */}
         {confirmOpen && (
@@ -432,8 +641,8 @@ export default function CheckinValidation() {
                 <label className="flex items-start gap-3 cursor-pointer group">
                   <input 
                     type="checkbox" 
-                    checked={agree} 
-                    onChange={(e) => setAgree(e.target.checked)} 
+                    checked={agreeTerms} 
+                    onChange={(e) => setAgreeTerms(e.target.checked)} 
                     className="mt-0.5 h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-2 focus:ring-emerald-500/20 transition-colors"
                   />
                   <span className="text-sm text-slate-700 group-hover:text-slate-900 transition-colors">
@@ -445,6 +654,25 @@ export default function CheckinValidation() {
                       rel="noreferrer"
                     >
                       Terms &amp; Conditions
+                    </a>.
+                  </span>
+                </label>
+                <label className="mt-3 flex items-start gap-3 cursor-pointer group">
+                  <input
+                    type="checkbox"
+                    checked={agreeDisbursement}
+                    onChange={(e) => setAgreeDisbursement(e.target.checked)}
+                    className="mt-0.5 h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-2 focus:ring-emerald-500/20 transition-colors"
+                  />
+                  <span className="text-sm text-slate-700 group-hover:text-slate-900 transition-colors">
+                    I have read and agree to the{" "}
+                    <a
+                      className="text-emerald-600 hover:text-emerald-700 font-medium underline underline-offset-2"
+                      href={(process.env.NEXT_PUBLIC_DISBURSEMENT_POLICY_URL ?? process.env.NEXT_PUBLIC_PAYOUT_POLICY_URL ?? "#")}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Disbursement Policy
                     </a>.
                   </span>
                 </label>
@@ -467,7 +695,7 @@ export default function CheckinValidation() {
                 <button 
                   className="flex-1 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-green-600 text-white font-semibold shadow-lg shadow-emerald-500/25 hover:shadow-xl hover:shadow-emerald-500/30 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]" 
                   onClick={handleConfirmWithConsent} 
-                  disabled={confirmLoading || !agree}
+                  disabled={confirmLoading || !agreeTerms || !agreeDisbursement}
                 >
                   {confirmLoading ? (
                     <span className="flex items-center justify-center gap-2">
@@ -483,19 +711,32 @@ export default function CheckinValidation() {
           </div>
         )}
       </div>
+      </div>
     </div>
   );
 }
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="grid grid-cols-2 hover:bg-slate-50/50 transition-colors duration-150">
-      <div className="px-4 py-3 text-sm font-medium text-slate-600 bg-slate-50/50 border-r border-slate-100">
-        {label}
-      </div>
-      <div className="px-4 py-3 text-sm text-slate-800 font-medium">
-        {value}
+    <div className="px-4 py-3 hover:bg-slate-50/60 transition-colors duration-150">
+      <div className="grid grid-cols-1 sm:grid-cols-[160px_1fr] gap-1 sm:gap-3 items-start">
+        <div className="text-[12px] sm:text-[13px] font-semibold text-slate-500 sm:text-slate-600">
+          {label}
+        </div>
+        <div className="text-[13px] sm:text-[13px] text-slate-900 font-semibold break-words">
+          {value || "—"}
+        </div>
       </div>
     </div>
   );
 }
+
+function InfoTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 rounded-2xl border border-slate-200 bg-white px-3.5 py-3 shadow-sm transition-all duration-200 hover:shadow-md hover:border-slate-300">
+      <div className="text-[11px] font-bold tracking-wide text-slate-500 uppercase">{label}</div>
+      <div className="mt-1 text-[13px] sm:text-[14px] font-semibold text-slate-900 leading-snug break-words">{value || "—"}</div>
+    </div>
+  );
+}
+

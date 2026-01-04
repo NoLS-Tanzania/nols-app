@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import axios from "axios";
 import { Calendar, Loader2, Building2, User, DollarSign, Eye, Clock, CheckCircle, LogOut, XCircle } from "lucide-react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 
 // Use same-origin calls + secure httpOnly cookie session.
 const api = axios.create({ baseURL: "", withCredentials: true });
@@ -24,6 +25,22 @@ export default function OwnerBookingsPage() {
   const [list, setList] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<FilterTab>('all');
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const isValidTab = (v: string | null): v is FilterTab =>
+    v === 'all' || v === 'recent' || v === 'waiting' || v === 'checked-in' || v === 'checked-out' || v === 'cancelled';
+
+  // Allow deep-linking from sidebar: /owner/bookings?tab=checked-out
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (isValidTab(tab) && tab !== activeTab) {
+      setActiveTab(tab);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner/bookings/page.tsx:tab',message:'activeTab set from query',data:{tab},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'BOOK_TAB_1'})}).catch(()=>{});
+      // #endregion
+    }
+  }, [searchParams, activeTab]);
 
   useEffect(() => {
     let mounted = true;
@@ -198,7 +215,15 @@ export default function OwnerBookingsPage() {
           return (
             <button
               key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
+              onClick={() => {
+                setActiveTab(tab.key);
+                try {
+                  const next = new URLSearchParams(searchParams.toString());
+                  if (tab.key === 'all') next.delete('tab');
+                  else next.set('tab', tab.key);
+                  router.replace(`/owner/bookings${next.toString() ? `?${next.toString()}` : ''}`);
+                } catch {}
+              }}
               className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg border transition-all duration-200 font-medium text-sm ${
                 isActive
                   ? 'bg-blue-600 text-white border-blue-600 shadow-md'

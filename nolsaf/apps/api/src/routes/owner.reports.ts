@@ -1,7 +1,7 @@
 // apps/api/src/routes/owner.reports.ts
 import { Router } from "express";
 import { prisma } from "@nolsaf/prisma";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { AuthedRequest, requireAuth, requireRole } from "../middleware/auth.js";
 import { eachDay, fmtKey, GroupBy, startOfDayTZ } from "../lib/reporting";
 import { withCache, makeKey } from "../lib/cache";
@@ -184,8 +184,20 @@ router.get("/revenue", revenueHandler);
 const bookingsHandler: RequestHandler = async (req, res) => {
   try {
     const r = req as AuthedRequest;
-    const ownerId = r.user!.id;
+    const ownerId = r.user?.id;
     const { from, to, groupBy, propertyId } = parseQuery(req.query);
+
+    // #region agent log
+    globalThis.fetch?.('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.reports.ts:bookingsHandler',message:'GET reports/bookings (entry)',data:{path:req.path,baseUrl:(req as any).baseUrl,hasUser:Boolean(r.user),ownerId:ownerId??null,from:String(from),to:String(to),groupBy,propertyId:propertyId??null},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'ORPT_500A'})}).catch(()=>{});
+    // #endregion
+
+    if (!ownerId) {
+      // #region agent log
+      globalThis.fetch?.('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.reports.ts:bookingsHandler',message:'GET reports/bookings (no owner)',data:{hasUser:Boolean(r.user)},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'ORPT_500B'})}).catch(()=>{});
+      // #endregion
+      res.setHeader('Content-Type', 'application/json');
+      return res.status(401).json({ error: "Unauthorized", series: [], stacked: [], table: [] });
+    }
 
     const key = makeKey(ownerId, "bookings", {
       from: from.toISOString(),
@@ -195,6 +207,7 @@ const bookingsHandler: RequestHandler = async (req, res) => {
     });
 
     const data = await withCache(key, async () => {
+      const t0 = Date.now();
       const bs: Booking[] = await prisma.booking.findMany({
         where: {
           property: { ownerId },
@@ -203,6 +216,10 @@ const bookingsHandler: RequestHandler = async (req, res) => {
         },
         include: { property: true },
       });
+
+      // #region agent log
+      globalThis.fetch?.('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.reports.ts:bookingsHandler',message:'GET reports/bookings (query ok)',data:{count:bs.length,durationMs:Date.now()-t0},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'ORPT_500C'})}).catch(()=>{});
+      // #endregion
 
       const series: Record<string, { count: number }> = {};
       const stack: Record<string, Record<string, number>> = {};
@@ -213,6 +230,8 @@ const bookingsHandler: RequestHandler = async (req, res) => {
       }
       for (const b of bs) {
         const k = fmtKey(startOfDayTZ(b.checkIn), groupBy);
+        // Defensive: if timezone edge cases produce a key not in range, initialize it.
+        if (!series[k]) { series[k] = { count: 0 }; stack[k] = stack[k] ?? {}; }
         series[k].count += 1;
         stack[k][b.status] = (stack[k][b.status] ?? 0) + 1;
       }
@@ -237,6 +256,10 @@ const bookingsHandler: RequestHandler = async (req, res) => {
     res.json(data);
   } catch (err: any) {
     console.error('Error in GET /owner/reports/bookings:', err);
+
+    // #region agent log
+    globalThis.fetch?.('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.reports.ts:bookingsHandler',message:'GET reports/bookings (error)',data:{name:String(err?.name??''),message:String(err?.message??err),code:String(err?.code??''),prismaCode:String(err?.meta?.code??''),metaKeys:err?.meta?Object.keys(err.meta):[]},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'ORPT_500D'})}).catch(()=>{});
+    // #endregion
     
     // Handle Prisma schema mismatch errors (table/column not found)
     if (err instanceof Prisma.PrismaClientKnownRequestError && (err.code === 'P2021' || err.code === 'P2022')) {
