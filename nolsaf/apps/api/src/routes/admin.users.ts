@@ -56,7 +56,7 @@ router.get('/', async (req, res) => {
     ]);
 
     // For customers, get booking stats
-    const usersWithStats = await Promise.all(users.map(async (user) => {
+    const usersWithStats = await Promise.all(users.map(async (user: typeof users[0]) => {
       if (user.role !== 'CUSTOMER') {
         return { ...user, bookingCount: 0, totalSpent: 0, lastBookingDate: null };
       }
@@ -290,10 +290,10 @@ router.get('/:id', async (req, res) => {
     // Get booking stats
     const bookingStats = {
       total: bookings.length,
-      confirmed: bookings.filter(b => b.status === 'CONFIRMED').length,
-      checkedIn: bookings.filter(b => b.status === 'CHECKED_IN').length,
-      checkedOut: bookings.filter(b => b.status === 'CHECKED_OUT').length,
-      canceled: bookings.filter(b => b.status === 'CANCELED').length,
+      confirmed: bookings.filter((b: typeof bookings[0]) => b.status === 'CONFIRMED').length,
+      checkedIn: bookings.filter((b: typeof bookings[0]) => b.status === 'CHECKED_IN').length,
+      checkedOut: bookings.filter((b: typeof bookings[0]) => b.status === 'CHECKED_OUT').length,
+      canceled: bookings.filter((b: typeof bookings[0]) => b.status === 'CANCELED').length,
     };
 
     // Get revenue stats from invoices
@@ -338,6 +338,8 @@ router.post('/:id/suspend', async (req, res) => {
   try {
     const id = Number(req.params.id);
     if (!id) return res.status(400).json({ error: 'invalid id' });
+    const reason = String(req.body?.reason ?? "");
+    const me = (req.user as any)?.id;
 
     const user = await prisma.user.update({
       where: { id },
@@ -345,7 +347,14 @@ router.post('/:id/suspend', async (req, res) => {
       select: { id: true, name: true, email: true, suspendedAt: true }
     });
 
-    res.json({ user });
+    // Create audit log
+    if (me) {
+      await prisma.adminAudit.create({
+        data: { adminId: me, targetUserId: id, action: "SUSPEND_USER", details: reason },
+      });
+    }
+
+    res.json({ ok: true, user });
   } catch (err) {
     console.error('POST /admin/users/:id/suspend error:', err);
     res.status(500).json({ error: 'failed' });
@@ -354,11 +363,14 @@ router.post('/:id/suspend', async (req, res) => {
 
 /**
  * POST /admin/users/:id/unsuspend
+ * Body: { notification?: string }
  */
 router.post('/:id/unsuspend', async (req, res) => {
   try {
     const id = Number(req.params.id);
     if (!id) return res.status(400).json({ error: 'invalid id' });
+    const notification = String(req.body?.notification ?? "");
+    const me = (req.user as any)?.id;
 
     const user = await prisma.user.update({
       where: { id },
@@ -366,7 +378,14 @@ router.post('/:id/unsuspend', async (req, res) => {
       select: { id: true, name: true, email: true, suspendedAt: true }
     });
 
-    res.json({ user });
+    // Create audit log with notification
+    if (me) {
+      await prisma.adminAudit.create({
+        data: { adminId: me, targetUserId: id, action: "UNSUSPEND_USER", details: notification },
+      });
+    }
+
+    res.json({ ok: true, user });
   } catch (err) {
     console.error('POST /admin/users/:id/unsuspend error:', err);
     res.status(500).json({ error: 'failed' });

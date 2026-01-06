@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { Users, UserCheck, Mail, Phone, Lock, TrendingUp, Calendar, DollarSign, ShoppingCart, Car, CheckCircle, Clock, Eye } from "lucide-react";
+import { Users, UserCheck, Mail, Phone, Lock, TrendingUp, DollarSign, ShoppingCart, Car, CheckCircle, Clock, Eye } from "lucide-react";
 import Link from "next/link";
 import axios from "axios";
 import Chart from "@/components/Chart";
@@ -86,7 +86,6 @@ export default function UsersDashboardPage() {
 
   // Prepare chart data for Verification Status
   const verificationChartData = useMemo<ChartData<"bar">>(() => {
-    const total = summary.totalCustomers || 0;
     const emailVerified = summary.verifiedEmailCount || 0;
     const phoneVerified = summary.verifiedPhoneCount || 0;
     const twoFactorEnabled = summary.twoFactorEnabledCount || 0;
@@ -330,9 +329,10 @@ export default function UsersDashboardPage() {
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <Link
                         href={`/admin/users/${customer.id}`}
-                        className="text-emerald-600 hover:text-emerald-900 transition-colors underline"
+                        className="inline-flex items-center justify-center text-emerald-600 hover:text-emerald-900 transition-colors no-underline"
+                        title="View user details"
                       >
-                        View
+                        <Eye className="h-5 w-5" />
                       </Link>
                     </td>
                   </tr>

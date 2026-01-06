@@ -59,10 +59,15 @@ async function verifyToken(token: string): Promise<AuthedUser | null> {
     const userId = Number(decoded.sub);
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, role: true, email: true },
+      select: { id: true, role: true, email: true, suspendedAt: true },
     });
 
     if (!user) return null;
+
+    // Check if account is suspended - suspended users cannot access their account
+    if (user.suspendedAt) {
+      return null; // Return null to deny access
+    }
 
     // Map database role to Role type (handle case where role might be different format)
     // Check raw database value before casting to handle CUSTOMER -> USER mapping
@@ -90,6 +95,25 @@ export async function requireAuth(req: AuthedRequest, res: Response, next: NextF
       req.user = user;
       return next();
     }
+    // Check if token is valid but user is suspended
+    try {
+      const secret = process.env.JWT_SECRET || (process.env.NODE_ENV !== "production" ? (process.env.DEV_JWT_SECRET || "dev_jwt_secret") : "");
+      if (secret) {
+        const decoded = jwt.verify(token, secret) as any;
+        if (decoded?.sub) {
+          const userId = Number(decoded.sub);
+          const dbUser = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { suspendedAt: true },
+          });
+          if (dbUser?.suspendedAt) {
+            return res.status(403).json({ error: "Account suspended", code: "ACCOUNT_SUSPENDED" });
+          }
+        }
+      }
+    } catch (e) {
+      // Token invalid or other error - continue to unauthorized
+    }
   }
 
   // DEV behavior: keep current dev-bypass so the app keeps working locally.
@@ -108,7 +132,32 @@ export function requireRole(required?: Role) {
     // Ensure req.user exists (supports Bearer or httpOnly cookie).
     if (!req.user) {
       const token = getTokenFromRequest(req);
-      if (token) req.user = await verifyToken(token) ?? undefined;
+      if (token) {
+        const verified = await verifyToken(token);
+        if (verified) {
+          req.user = verified;
+        } else {
+          // Check if token is valid but user is suspended
+          try {
+            const secret = process.env.JWT_SECRET || (process.env.NODE_ENV !== "production" ? (process.env.DEV_JWT_SECRET || "dev_jwt_secret") : "");
+            if (secret) {
+              const decoded = jwt.verify(token, secret) as any;
+              if (decoded?.sub) {
+                const userId = Number(decoded.sub);
+                const dbUser = await prisma.user.findUnique({
+                  where: { id: userId },
+                  select: { suspendedAt: true },
+                });
+                if (dbUser?.suspendedAt) {
+                  return res.status(403).json({ error: "Account suspended", code: "ACCOUNT_SUSPENDED" });
+                }
+              }
+            }
+          } catch (e) {
+            // Token invalid or other error - continue to unauthorized
+          }
+        }
+      }
     }
 
     // Dev bypass: keep local development productive.
