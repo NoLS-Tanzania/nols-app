@@ -341,7 +341,7 @@ export default function AdminHomePage() {
             >
               <BarChart2 className="h-7 w-7 text-sky-600 mt-1" />
               <div>
-                <div className="font-semibold text-gray-900">NoLS Revenue</div>
+                <div className="font-semibold text-gray-900">NoLSAF Revenue</div>
                 <div className="text-sm text-gray-600">Today vs yesterday • <span className="text-red-600 font-medium">{revenueDelta ?? '0%'}</span></div>
               </div>
             </div>

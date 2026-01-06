@@ -1,0 +1,14 @@
+import 'dotenv/config'
+import { defineConfig } from 'prisma/config'
+
+export default defineConfig({
+  schema: 'prisma/schema.prisma',
+  migrations: {
+    path: 'prisma/migrations',
+  },
+  datasource: {
+    // Prisma CLI loads this config file for every command.
+    // Use a fallback so commands like `prisma generate` can run in CI without DATABASE_URL.
+    url: process.env.DATABASE_URL ?? '',
+  },
+})

@@ -149,8 +149,8 @@ export default function LoginPage() {
 
       // Redirect based on role
       if (originalRole === "ADMIN") {
-        // Force redirect to admin page
-        window.location.href = "/admin";
+        // Force redirect to admin home page
+        window.location.href = "/admin/home";
       } else if (originalRole === "OWNER") {
         window.location.href = "/owner";
       } else if (originalRole === "DRIVER") {

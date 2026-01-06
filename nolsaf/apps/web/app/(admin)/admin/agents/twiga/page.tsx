@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   MessageSquare,
   User,
@@ -10,17 +10,14 @@ import {
   CheckCircle,
   Eye,
   Search,
-  Filter,
   X,
   TrendingUp,
   AlertCircle,
-  Users,
   Calendar,
   Globe,
   BarChart3,
   Activity,
   ArrowUpRight,
-  ArrowDownRight,
 } from "lucide-react";
 import axios from "axios";
 
@@ -72,19 +69,13 @@ export default function TwigaDashboardPage() {
   const [total, setTotal] = useState(0);
   const pageSize = 10;
   const [viewingConversation, setViewingConversation] = useState<FullConversation | null>(null);
-  const [loadingConversation, setLoadingConversation] = useState(false);
   const [filter, setFilter] = useState<"all" | "needsFollowUp" | "followedUp">("needsFollowUp");
   const [searchQuery, setSearchQuery] = useState("");
   const [followUpNotes, setFollowUpNotes] = useState("");
   const [markingFollowUp, setMarkingFollowUp] = useState(false);
   const [timeRange, setTimeRange] = useState<"7" | "30" | "90">("7");
 
-  useEffect(() => {
-    loadStats();
-    loadConversations();
-  }, [page, filter, timeRange]);
-
-  async function loadStats() {
+  const loadStats = useCallback(async () => {
     setLoadingStats(true);
     try {
       const response = await api.get<{ success: boolean; stats: Stats }>("/api/admin/chatbot/stats", {
@@ -98,9 +89,9 @@ export default function TwigaDashboardPage() {
     } finally {
       setLoadingStats(false);
     }
-  }
+  }, [timeRange]);
 
-  async function loadConversations() {
+  const loadConversations = useCallback(async () => {
     setLoading(true);
     try {
       const params: any = {
@@ -132,10 +123,14 @@ export default function TwigaDashboardPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [filter, page, pageSize]);
+
+  useEffect(() => {
+    loadStats();
+    loadConversations();
+  }, [loadStats, loadConversations]);
 
   async function loadConversationDetails(id: number) {
-    setLoadingConversation(true);
     try {
       const response = await api.get<{
         success: boolean;
@@ -147,8 +142,6 @@ export default function TwigaDashboardPage() {
       }
     } catch (err: any) {
       console.error("Failed to load conversation details", err);
-    } finally {
-      setLoadingConversation(false);
     }
   }
 

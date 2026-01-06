@@ -3,6 +3,7 @@ import type { RequestHandler } from "express";
 import { prisma } from "@nolsaf/prisma";
 import { toPublicCard, toPublicDetail } from "../lib/publicPropertyDto.js";
 import { Prisma } from "@prisma/client";
+import { withCache, cacheKeys, cacheTags, measureTime } from "../lib/performance.js";
 
 const router = Router();
 
@@ -180,42 +181,68 @@ const listPublicProperties: RequestHandler = async (req, res) => {
   else orderBy.push({ id: "desc" });
 
   try {
-    const [items, total] = await Promise.all([
-      prisma.property.findMany({
-        where,
-        skip,
-        take: pageSize,
-        orderBy,
-        select: {
-          id: true,
-          title: true,
-          type: true,
-          regionName: true,
-          district: true,
-          ward: true,
-          street: true,
-          city: true,
-          country: true,
-          services: true,
-          basePrice: true,
-          currency: true,
-          maxGuests: true,
-          totalBedrooms: true,
-          totalBathrooms: true,
-          photos: true,
-          images: {
-            select: { url: true, thumbnailUrl: true, status: true },
-            orderBy: { createdAt: "asc" },
-            take: 6,
-          },
+    // Generate cache key from query parameters
+    const cacheKey = cacheKeys.propertyList({
+      q, region, district, ward, city, street,
+      types, amenities, nearbyServices, paymentModes,
+      freeCancellation, groupStay,
+      minPrice, maxPrice, guests,
+      nearLat, nearLng, radiusKm,
+      page, pageSize, sort,
+    });
+
+    const { result, duration } = await measureTime('public.properties.list', async () => {
+      return await withCache(
+        cacheKey,
+        async () => {
+          const [items, total] = await Promise.all([
+            prisma.property.findMany({
+              where,
+              skip,
+              take: pageSize,
+              orderBy,
+              select: {
+                id: true,
+                title: true,
+                type: true,
+                regionName: true,
+                district: true,
+                ward: true,
+                street: true,
+                city: true,
+                country: true,
+                services: true,
+                basePrice: true,
+                currency: true,
+                maxGuests: true,
+                totalBedrooms: true,
+                totalBathrooms: true,
+                photos: true,
+                images: {
+                  select: { url: true, thumbnailUrl: true, status: true },
+                  orderBy: { createdAt: "asc" },
+                  take: 6,
+                },
+              },
+            }),
+            prisma.property.count({ where }),
+          ]);
+
+          const dto = (items || []).map(toPublicCard);
+          return { items: dto, total, page, pageSize };
         },
-      }),
-      prisma.property.count({ where }),
-    ]);
+        {
+          ttl: 300, // Cache for 5 minutes (property listings don't change frequently)
+          tags: [cacheTags.propertyList],
+        }
+      );
+    });
 
-    const dto = (items || []).map(toPublicCard);
-
-    return res.json({ items: dto, total, page, pageSize });
+    // Add performance headers
+    res.set('X-Response-Time', `${duration.toFixed(2)}ms`);
+    res.set('Cache-Control', 'public, max-age=300'); // HTTP cache for 5 minutes
+    
+    return res.json(result);
   } catch (err: any) {
     console.error("public.properties.list failed", err);
     return res.status(500).json({ error: "failed", message: err?.message || String(err) });
@@ -232,46 +259,66 @@ const getPublicProperty: RequestHandler = async (req, res) => {
   if (!id) return res.status(400).json({ error: "invalid_id" });
 
   try {
-    const p = await prisma.property.findFirst({
-      where: { id, status: "APPROVED" },
-      select: {
-        id: true,
-        title: true,
-        type: true,
-        status: true,
-        description: true,
-        buildingType: true,
-        totalFloors: true,
-        regionName: true,
-        district: true,
-        ward: true,
-        city: true,
-        street: true,
-        country: true,
-        latitude: true,
-        longitude: true,
-        basePrice: true,
-        currency: true,
-        maxGuests: true,
-        totalBedrooms: true,
-        totalBathrooms: true,
-        services: true,
-        roomsSpec: true,
-        photos: true,
-        ownerId: true, // Include ownerId to check ownership on frontend
-        images: {
-          select: { url: true, thumbnailUrl: true, status: true },
-          orderBy: { createdAt: "asc" },
-          take: 48,
+    const { result, duration } = await measureTime(`public.properties.get:${id}`, async () => {
+      return await withCache(
+        cacheKeys.property(id),
+        async () => {
+          const p = await prisma.property.findFirst({
+            where: { id, status: "APPROVED" },
+            select: {
+              id: true,
+              title: true,
+              type: true,
+              status: true,
+              description: true,
+              buildingType: true,
+              totalFloors: true,
+              regionName: true,
+              district: true,
+              ward: true,
+              city: true,
+              street: true,
+              country: true,
+              latitude: true,
+              longitude: true,
+              basePrice: true,
+              currency: true,
+              maxGuests: true,
+              totalBedrooms: true,
+              totalBathrooms: true,
+              services: true,
+              roomsSpec: true,
+              photos: true,
+              ownerId: true, // Include ownerId to check ownership on frontend
+              images: {
+                select: { url: true, thumbnailUrl: true, status: true },
+                orderBy: { createdAt: "asc" },
+                take: 48,
+              },
+            },
+          });
+
+          if (!p) return null;
+
+          const dto = toPublicDetail(p);
+          return { property: dto };
         },
-      },
+        {
+          ttl: 600, // Cache for 10 minutes (property details change less frequently)
+          tags: [cacheTags.property(id), cacheTags.propertyList],
+        }
+      );
     });
 
-    if (!p) return res.status(404).json({ error: "not_found" });
+    if (!result || !result.property) {
+      return res.status(404).json({ error: "not_found" });
+    }
 
-    const dto = toPublicDetail(p);
-
-    return res.json({ property: dto });
+    // Add performance headers
+    res.set('X-Response-Time', `${duration.toFixed(2)}ms`);
+    res.set('Cache-Control', 'public, max-age=600'); // HTTP cache for 10 minutes
+    
+    return res.json(result);
   } catch (err: any) {
     console.error("public.properties.get failed", err);
     return res.status(500).json({ error: "failed", message: err?.message || String(err) });

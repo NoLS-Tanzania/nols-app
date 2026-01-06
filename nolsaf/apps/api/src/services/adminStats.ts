@@ -46,65 +46,27 @@ export async function getActivePropertiesSeries(from?: string, to?: string, regi
   const toDate = to ? new Date(String(to)) : new Date();
   const fromDate = from ? new Date(String(from)) : new Date(Date.now() - 30 * 24 * 3600 * 1000);
 
-  const startUtc = toLocalStartUtc(fromDate);
-  const endLocalStartUtc = toLocalStartUtc(toDate);
-  const sqlFromIso = startUtc.toISOString();
-  const sqlToIso = new Date(endLocalStartUtc.getTime() + 24 * 3600 * 1000 - 1).toISOString();
-
-  let dailyRows: Array<any> = [];
-  let beforeRows: Array<any> = [];
+  // Count all APPROVED properties (active properties)
+  const where: any = { status: 'APPROVED' };
   if (region && region !== 'ALL') {
-    const regionId = String(region);
-    dailyRows = await prisma.$queryRaw`
-      SELECT DATE(CONVERT_TZ(createdAt, '+00:00', '+03:00')) AS day, COUNT(*) AS cnt
-      FROM Property
-      WHERE status = 'APPROVED' AND createdAt BETWEEN ${sqlFromIso} AND ${sqlToIso} AND regionId = ${regionId}
-      GROUP BY day
-      ORDER BY day
-    `;
-    beforeRows = await prisma.$queryRaw`
-      SELECT COUNT(*) AS cnt
-      FROM Property
-      WHERE status = 'APPROVED' AND createdAt < ${sqlFromIso} AND regionId = ${regionId}
-    `;
-  } else {
-    dailyRows = await prisma.$queryRaw`
-      SELECT DATE(CONVERT_TZ(createdAt, '+00:00', '+03:00')) AS day, COUNT(*) AS cnt
-      FROM Property
-      WHERE status = 'APPROVED' AND createdAt BETWEEN ${sqlFromIso} AND ${sqlToIso}
-      GROUP BY day
-      ORDER BY day
-    `;
-    beforeRows = await prisma.$queryRaw`
-      SELECT COUNT(*) AS cnt
-      FROM Property
-      WHERE status = 'APPROVED' AND createdAt < ${sqlFromIso}
-    `;
+    where.regionId = String(region);
   }
+  const totalApprovedCount = await prisma.property.count({ where });
 
-  const base = Number(beforeRows && beforeRows[0] && (beforeRows[0].cnt ?? 0)) || 0;
-
-  // build labels for local days
+  // Build labels for the date range
   const labels: string[] = [];
-  let localCur = new Date(startUtc.getTime() + TZ_OFFSET_MS);
-  const localEnd = new Date(endLocalStartUtc.getTime() + TZ_OFFSET_MS);
-  while (localCur <= localEnd) {
-    labels.push(localCur.toISOString().slice(0, 10));
-    localCur = new Date(localCur.getTime() + 24 * 3600 * 1000);
+  let cur = new Date(fromDate);
+  cur.setHours(0, 0, 0, 0);
+  const end = new Date(toDate);
+  end.setHours(0, 0, 0, 0);
+  while (cur <= end) {
+    labels.push(cur.toISOString().slice(0, 10));
+    cur.setDate(cur.getDate() + 1);
   }
 
-  const dailyMap: Record<string, number> = {};
-  for (const r of dailyRows) {
-    const k = String(r.day);
-    dailyMap[k] = Number(r.cnt || 0);
-  }
+  // Return the same count for all days (all APPROVED properties are "active" throughout the period)
+  const data = labels.map(() => totalApprovedCount);
 
-  const data: number[] = [];
-  let acc = base;
-  for (const d of labels) {
-    acc += Number(dailyMap[d] || 0);
-    data.push(acc);
-  }
   return { labels, data };
 }
 
@@ -150,24 +112,46 @@ export async function getInvoiceStatus(from?: string, to?: string): Promise<Reco
 }
 
 export async function getOverview() {
-  const [invoiceAgg, paidAgg, propertiesCount, ownersWithProps] = await Promise.all([
-    prisma.invoice.aggregate({
-      _sum: { total: true },
-      where: { status: { in: ['APPROVED', 'PAID'] } },
-    }),
-    prisma.invoice.aggregate({
-      _sum: { commissionAmount: true },
-      where: { status: 'PAID' },
-    }),
-    prisma.property.count({ where: { status: 'APPROVED' } }),
-    prisma.property.groupBy({ by: ['ownerId'], _count: { ownerId: true }, where: { status: 'APPROVED' } }),
-  ]);
+  // 1. Active & approved owners (role=OWNER, suspendedAt IS NULL, has at least 1 APPROVED property)
+  const ownersWithApprovedProps = await prisma.property.groupBy({
+    by: ['ownerId'],
+    where: { status: 'APPROVED' },
+  });
+  const approvedOwnerIds = ownersWithApprovedProps.map((p: { ownerId: number }) => p.ownerId);
+  const activeApprovedOwnersCount = approvedOwnerIds.length > 0
+    ? await prisma.user.count({
+        where: {
+          role: 'OWNER',
+          suspendedAt: null,
+          id: { in: approvedOwnerIds },
+        },
+      })
+    : 0;
+
+  // 2. Active & approved properties (status=APPROVED)
+  const approvedPropertiesCount = await prisma.property.count({
+    where: { status: 'APPROVED' },
+  });
+
+  // 3. Net Payable: Sum of netPayable from PAID invoices (owner disbursements)
+  const ownerNetPayableAgg = await prisma.invoice.aggregate({
+    _sum: { netPayable: true },
+    where: { status: 'PAID' },
+  });
+  const netPayable = Number(ownerNetPayableAgg._sum.netPayable ?? 0);
+
+  // 4. NoLSAF Revenue: Sum of commissionAmount from PAID invoices (commission revenue)
+  const revenueAgg = await prisma.invoice.aggregate({
+    _sum: { commissionAmount: true },
+    where: { status: 'PAID' },
+  });
+  const nolsRevenue = Number(revenueAgg._sum.commissionAmount ?? 0);
 
   return {
-    grossAmount: Number(invoiceAgg._sum.total ?? 0),
-    companyRevenue: Number(paidAgg._sum.commissionAmount ?? 0),
-    propertiesCount,
-    ownersCount: ownersWithProps.length,
+    ownerCount: activeApprovedOwnersCount,
+    propertyCount: approvedPropertiesCount,
+    netPayable,
+    nolsRevenue,
     lastUpdated: new Date().toISOString(),
   };
 }

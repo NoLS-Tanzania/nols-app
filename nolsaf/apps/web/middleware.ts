@@ -35,7 +35,7 @@ export function middleware(req: NextRequest) {
 
   // If logged in and on /login, bounce to role home
   if (path === "/login" && role) {
-    if (role === "ADMIN") url.pathname = "/admin";
+    if (role === "ADMIN") url.pathname = "/admin/home";
     else if (role === "OWNER") url.pathname = "/owner";
     else if (role === "DRIVER") url.pathname = "/driver";
     else url.pathname = "/public";

@@ -1,7 +1,5 @@
 // Script to verify the property_reviews migration
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import prisma from '@nolsaf/prisma';
 
 async function verifyMigration() {
   try {

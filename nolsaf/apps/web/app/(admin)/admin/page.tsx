@@ -81,7 +81,11 @@ export default function AdminHome() {
   // KPI and widget state
   const [overview, setOverview] = useState<any>(null);
   const [loadingKpis, setLoadingKpis] = useState<boolean>(true);
-  const [approvals, setApprovals] = useState<any>({ items: [] });
+  // Properties (Approvals widget)
+  const [propNew, setPropNew] = useState<any>({ items: [], total: 0 }); // NEW = PENDING (submitted, not yet handled)
+  const [propPending, setPropPending] = useState<any>({ items: [], total: 0 }); // PENDING bucket = SUSPENDED
+  const [propApproved, setPropApproved] = useState<any>({ items: [] }); // APPROVED
+  const [propRejected, setPropRejected] = useState<any>({ items: [] }); // REJECTED
   const [loadingApprovals, setLoadingApprovals] = useState<boolean>(true);
   const [invNew, setInvNew] = useState<any>({ items: [] });
   const [invApproved, setInvApproved] = useState<any>({ items: [] });
@@ -130,34 +134,47 @@ export default function AdminHome() {
   // confirmation modal state
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmPayload, setConfirmPayload] = useState<{ action: 'verify' | 'validate'; invId?: number | string } | null>(null);
+  // property filter state (Approvals widget)
+  const [propertyFilter, setPropertyFilter] = useState<'new' | 'pending' | 'approved' | 'rejected'>('pending');
   // invoice filter state (clickable cards) — only status-specific filters (no 'all')
   const [invoiceFilter, setInvoiceFilter] = useState<'new' | 'approved' | 'paid' | 'rejected'>('new');
-  // refs for invoice sections so buttons can open/scroll to them
-  const newRef = useRef<HTMLDivElement | null>(null);
-  const approvedRef = useRef<HTMLDivElement | null>(null);
-  const paidRef = useRef<HTMLDivElement | null>(null);
-  const rejectedRef = useRef<HTMLDivElement | null>(null);
 
   function openSection(status: 'new' | 'approved' | 'paid' | 'rejected') {
     setInvoiceFilter(status);
-    // small delay to ensure DOM updates if necessary, then scroll
-    setTimeout(() => {
-      const ref = status === 'new' ? newRef : status === 'approved' ? approvedRef : status === 'paid' ? paidRef : rejectedRef;
-      try { ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch {};
-    }, 80);
   }
 
   const loadApprovals = useCallback(async () => {
     setLoadingApprovals(true);
     try {
-      const res = await fetch(
-        `${API}/admin/properties?status=PENDING&page=1&pageSize=${Number(limits.approvals) || 6}`,
-        { credentials: "include" }
-      );
-      const json = await res.json();
-      setApprovals(json ?? { items: [] });
-    } catch {
-      setApprovals({ items: [] });
+      const pageSize = Number(limits.approvals) || 6;
+      const urls = {
+        new: `${API}/api/admin/properties?status=PENDING&page=1&pageSize=${pageSize}`,
+        pending: `${API}/api/admin/properties?status=SUSPENDED&page=1&pageSize=${pageSize}`,
+        approved: `${API}/api/admin/properties?status=APPROVED&page=1&pageSize=${pageSize}`,
+        rejected: `${API}/api/admin/properties?status=REJECTED&page=1&pageSize=${pageSize}`,
+      } as const;
+
+      const [rNew, rPending, rApproved, rRejected] = await Promise.all([
+        fetch(urls.new, { credentials: "include" }),
+        fetch(urls.pending, { credentials: "include" }),
+        fetch(urls.approved, { credentials: "include" }),
+        fetch(urls.rejected, { credentials: "include" }),
+      ]);
+
+      const jDraft = await rNew.json(); // actually PENDING (NEW)
+      const jPending = await rPending.json();
+      const jApproved = await rApproved.json();
+      const jRejected = await rRejected.json();
+
+      setPropNew(jDraft ?? { items: [], total: 0 });
+      setPropPending(jPending ?? { items: [], total: 0 });
+      setPropApproved(jApproved ?? { items: [], total: 0 });
+      setPropRejected(jRejected ?? { items: [], total: 0 });
+    } catch (e: any) {
+      setPropNew({ items: [], total: 0 });
+      setPropPending({ items: [], total: 0 });
+      setPropApproved({ items: [] });
+      setPropRejected({ items: [] });
     } finally {
       setLoadingApprovals(false);
     }
@@ -338,7 +355,7 @@ export default function AdminHome() {
             <StatCard label="No. Owners" value={String(overview?.ownerCount ?? overview?.owners ?? 0)} rail="rail-brand" />
             <StatCard label="No. Properties" value={String(overview?.propertyCount ?? overview?.properties ?? 0)} rail="rail-success" />
             <StatCard label="Net Payable" value={fmt(overview?.netPayable ?? 0)} rail="rail-danger" />
-            <StatCard label="NoLS Revenue" value={fmt(overview?.nolsRevenue ?? overview?.revenue ?? 0)} rail="rail-info" />
+            <StatCard label="NoLSAF Revenue" value={fmt(overview?.nolsRevenue ?? overview?.revenue ?? 0)} rail="rail-info" />
           </>
         )}
       </div>
@@ -359,23 +376,51 @@ export default function AdminHome() {
                     <FileBadge className="h-4 w-4" /> Approvals
                   </div>
                 </div>
-                {loadingApprovals ? (
-                  <div className="space-y-2">{Array.from({ length: 4 }).map((_,i) => <div key={i} className="skeleton h-8" />)}</div>
-                ) : approvals?.items?.length ? (
-                  <ul className="space-y-2">
-                    {approvals.items.map((p: any) => (
-                      <li key={p.id} className="rounded border p-2 flex items-center justify-between">
-                        <div>
-                          <div className="text-sm font-medium">{p.title}</div>
-                          <div className="text-[11px] text-gray-500">Owner: {p.owner?.name ?? `#${p.ownerId}`}</div>
-                        </div>
-                        <Link href={`/admin/properties?previewId=${p.id}`} className="btn btn-ghost text-xs">Open</Link>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <div className="text-sm text-gray-600">No pending approvals.</div>
-                )}
+                <div className="flex">
+                  {/* Vertical status controls, confined to the approvals box */}
+                  <div className="w-28 pr-3 hidden md:flex flex-col items-start gap-3 border-r border-gray-100">
+                    <div className="pt-0.5" />
+                    <div className="flex flex-col items-start gap-2 mt-1">
+                      <button
+                        onClick={() => setPropertyFilter('new')}
+                        className={`w-full px-2 py-1 rounded text-xs flex items-center justify-between ${propertyFilter==='new' ? 'bg-gray-100 text-gray-800' : 'hover:bg-gray-50'}`}
+                      >
+                        <span className="truncate">New</span>
+                        <span className="ml-2 text-[11px] text-gray-500">{propNew?.total ?? (propNew?.items?.length ?? 0)}</span>
+                      </button>
+                      <button
+                        onClick={() => setPropertyFilter('pending')}
+                        className={`w-full px-2 py-1 rounded text-xs flex items-center justify-between ${propertyFilter==='pending' ? 'bg-yellow-100 text-yellow-800' : 'hover:bg-gray-50'}`}
+                      >
+                        <span className="truncate">Pending</span>
+                        <span className="ml-2 text-[11px] text-gray-500">{propPending?.total ?? (propPending?.items?.length ?? 0)}</span>
+                      </button>
+                      <button
+                        onClick={() => setPropertyFilter('approved')}
+                        className={`w-full px-2 py-1 rounded text-xs flex items-center justify-between ${propertyFilter==='approved' ? 'bg-green-100 text-green-800' : 'hover:bg-gray-50'}`}
+                      >
+                        <span className="truncate">Approved</span>
+                        <span className="ml-2 text-[11px] text-gray-500">{propApproved?.total ?? (propApproved?.items?.length ?? 0)}</span>
+                      </button>
+                      <button
+                        onClick={() => setPropertyFilter('rejected')}
+                        className={`w-full px-2 py-1 rounded text-xs flex items-center justify-between ${propertyFilter==='rejected' ? 'bg-red-100 text-red-800' : 'hover:bg-gray-50'}`}
+                      >
+                        <span className="truncate">Rejected</span>
+                        <span className="ml-2 text-[11px] text-gray-500">{propRejected?.total ?? (propRejected?.items?.length ?? 0)}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex-1 pl-3">
+                    <div className="mb-3" />
+                    {loadingApprovals ? (
+                      <div className="space-y-2">{Array.from({ length: 4 }).map((_,i) => <div key={i} className="skeleton h-8" />)}</div>
+                    ) : (
+                      <div className="min-w-0" />
+                    )}
+                  </div>
+                </div>
               </div>
 
               {/* Invoices grouped by status */}
@@ -417,91 +462,7 @@ export default function AdminHome() {
                     {loadingInv ? (
                       <div className="space-y-2">{Array.from({ length: 4 }).map((_,i) => <div key={i} className="skeleton h-8" />)}</div>
                     ) : (
-                      <div className="space-y-3">
-                        {invoiceFilter === 'new' ? (
-                          <div ref={newRef} className="min-w-0">
-                            <div className="sr-only">New</div>
-                            {invNew?.items?.length ? (
-                              <ul className="space-y-1">
-                                {invNew.items.map((inv: any) => (
-                                  <li key={inv.id} className="rounded border p-2 flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
-                                    <div className="text-sm">{inv.invoiceNumber ?? `#${inv.id}`}</div>
-                                    <div className="flex items-center gap-2">
-                                      <button
-                                        className="btn btn-outline text-xs"
-                                        onClick={() => { setConfirmPayload({ action: 'verify', invId: inv.id }); setConfirmOpen(true); }}
-                                      >
-                                        Mark Verified
-                                      </button>
-                                      <button
-                                        className="btn btn-outline text-xs"
-                                        onClick={() => { setConfirmPayload({ action: 'validate', invId: inv.id }); setConfirmOpen(true); }}
-                                      >
-                                        Mark Validated
-                                      </button>
-                                      <Link href={`/admin/revenue`} className="btn btn-ghost text-xs">Review</Link>
-                                    </div>
-                                  </li>
-                                ))}
-                              </ul>
-                            ) : null}
-                          </div>
-                        ) : null}
-
-                        {invoiceFilter === 'approved' ? (
-                          <div ref={approvedRef}>
-                            <div className="sr-only">Approved</div>
-                            {invApproved?.items?.length ? (
-                              <ul className="space-y-1">
-                                {invApproved.items.map((inv: any) => (
-                                  <li key={inv.id} className="rounded border p-2 flex items-center justify-between">
-                                    <div className="text-sm">{inv.invoiceNumber ?? `#${inv.id}`}</div>
-                                    <div className="flex items-center gap-2">
-                                      <Link href={`/admin/revenue`} className="btn btn-ghost text-xs">Open</Link>
-                                    </div>
-                                  </li>
-                                ))}
-                              </ul>
-                            ) : null}
-                          </div>
-                        ) : null}
-
-                        {invoiceFilter === 'paid' ? (
-                          <div ref={paidRef}>
-                            <div className="sr-only">Paid</div>
-                            {invPaid?.items?.length ? (
-                              <ul className="space-y-1">
-                                {invPaid.items.map((inv: any) => (
-                                  <li key={inv.id} className="rounded border p-2 flex items-center justify-between">
-                                    <div className="text-sm">{inv.invoiceNumber ?? `#${inv.id}`}</div>
-                                    <div className="flex items-center gap-2">
-                                      <Link href={`/admin/revenue`} className="btn btn-ghost text-xs">Open</Link>
-                                    </div>
-                                  </li>
-                                ))}
-                              </ul>
-                            ) : null}
-                          </div>
-                        ) : null}
-
-                        {invoiceFilter === 'rejected' ? (
-                          <div ref={rejectedRef}>
-                            <div className="sr-only">Rejected</div>
-                            {invRejected?.items?.length ? (
-                              <ul className="space-y-1">
-                                {invRejected.items.map((inv: any) => (
-                                  <li key={inv.id} className="rounded border p-2 flex items-center justify-between">
-                                    <div className="text-sm">{inv.invoiceNumber ?? `#${inv.id}`}</div>
-                                    <div className="flex items-center gap-2">
-                                      <Link href={`/admin/revenue`} className="btn btn-ghost text-xs">Open</Link>
-                                    </div>
-                                  </li>
-                                ))}
-                              </ul>
-                            ) : null}
-                          </div>
-                        ) : null}
-                      </div>
+                      <div className="min-w-0" />
                     )}
                   </div>
                 </div>

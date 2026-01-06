@@ -57,17 +57,17 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           {/* Content frame/markers */}
           <LayoutFrame heightVariant="sm" topVariant="sm" colorVariant="muted" variant="solid" box />
 
-          {/* Sidebar inside the frame container on md+; hide/show via header toggle */}
-          <aside ref={sidebarRef} className={`absolute left-0 top-16 w-56 p-4 shadow-sm text-[#02665e] bg-white border-r border-gray-200 ${sidebarOpen ? 'hidden md:block' : 'hidden md:hidden'} h-[calc(100vh-4rem)] overflow-y-auto`}>
+          {/* Sidebar inside the frame container on md+; collapsed shows icons only */}
+          <aside ref={sidebarRef} className={`absolute left-0 top-16 shadow-sm text-[#02665e] bg-white border-r border-gray-200 transition-all duration-300 ease-in-out hidden md:block ${sidebarOpen ? 'w-56 p-4' : 'w-16 p-2'} h-[calc(100vh-4rem)] overflow-y-auto`}>
             <div className="sidebar-scroll">
-              <AdminNav variant="light" />
+              <AdminNav variant="light" collapsed={!sidebarOpen} />
             </div>
           </aside>
 
           {/* Main content: match Owner spacing and styling (no extra border/bg) */}
           <div
             ref={mainRef}
-            className={`pt-16 pb-6 ${sidebarOpen ? 'owner-content-gap' : ''} h-[calc(100vh-4rem)] overflow-y-auto`}
+            className={`pt-16 pb-6 transition-all duration-300 ease-in-out ${sidebarOpen ? 'owner-content-gap' : 'md:ml-16'} h-[calc(100vh-4rem)] overflow-y-auto`}
           >
             <main>
               <div className="w-full">

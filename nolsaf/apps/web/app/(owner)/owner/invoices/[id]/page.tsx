@@ -35,14 +35,6 @@ export default function InvoiceView({ params }: { params: { id: string } }) {
 
       // Ensure UI hides the submit panel immediately after submit (no refresh needed)
       setInv((prev: any) => ({ ...(prev ?? {}), status: nextStatus }));
-
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner/invoices/[id]/page.tsx:submit',message:'invoice submit success message shown',data:{invoiceId:params.id,alreadySubmitted,nextStatus},timestamp:Date.now(),sessionId:'debug-session',runId:'idempotency-post',hypothesisId:'SUBMIT_MSG'})}).catch(()=>{});
-      // #endregion
-
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner/invoices/[id]/page.tsx:submit',message:'submit panel should now be hidden (status updated)',data:{invoiceId:params.id,uiStatusAfter:nextStatus},timestamp:Date.now(),sessionId:'debug-session',runId:'idempotency-post',hypothesisId:'SUBMIT_HIDE'})}).catch(()=>{});
-      // #endregion
     } catch (e: any) {
       const msg = e?.response?.data?.error || e?.message || "Could not submit invoice";
       setErr(String(msg));

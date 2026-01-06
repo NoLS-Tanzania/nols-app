@@ -36,9 +36,6 @@ export default function OwnerBookingsPage() {
     const tab = searchParams.get('tab');
     if (isValidTab(tab) && tab !== activeTab) {
       setActiveTab(tab);
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner/bookings/page.tsx:tab',message:'activeTab set from query',data:{tab},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'BOOK_TAB_1'})}).catch(()=>{});
-      // #endregion
     }
   }, [searchParams, activeTab]);
 

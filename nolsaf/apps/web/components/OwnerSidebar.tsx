@@ -58,9 +58,6 @@ export default function OwnerSidebar() {
             : []));
 
     const fetchCheckedInCount = async () => {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'OwnerSidebar.tsx:fetchCheckedInCount',message:'fetch checked-in count (start)',data:{url},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'SIDEBAR_URL'})}).catch(()=>{});
-      // #endregion
       try {
         const response = await api.get<unknown>(url);
         if (!mounted) return;
@@ -70,39 +67,24 @@ export default function OwnerSidebar() {
         const normalized = normalizeArray(raw);
         
         setCheckedInCount(normalized.length);
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'OwnerSidebar.tsx:fetchCheckedInCount',message:'fetch checked-in count (done)',data:{status:(response as any).status,contentType:String(((response as any).headers as any)?.['content-type']??''),rawIsArray:Array.isArray(raw),normalizedLen:normalized.length,rawType:typeof raw},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'SIDEBAR_RESPONSE'})}).catch(()=>{});
-        // #endregion
       } catch (err: any) {
         if (!mounted) return;
         console.warn('Failed to load checked-in count', err);
         setCheckedInCount(0);
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'OwnerSidebar.tsx:fetchCheckedInCount',message:'fetch checked-in count (error)',data:{url,error:String(err?.message??err)},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'SIDEBAR_ERROR'})}).catch(()=>{});
-        // #endregion
       }
     };
 
     const fetchCheckoutDueCount = async () => {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'OwnerSidebar.tsx:fetchCheckoutDueCount',message:'fetch checkout-due count (start)',data:{url:urlOut},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'SIDEBAR_CHKOUT_URL'})}).catch(()=>{});
-      // #endregion
       try {
         const response = await api.get<unknown>(urlOut);
         if (!mounted) return;
         const raw: any = (response as any).data;
         const normalized = normalizeArray(raw);
         setCheckoutDueCount(normalized.length);
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'OwnerSidebar.tsx:fetchCheckoutDueCount',message:'fetch checkout-due count (done)',data:{status:(response as any).status,contentType:String(((response as any).headers as any)?.['content-type']??''),rawIsArray:Array.isArray(raw),normalizedLen:normalized.length,rawType:typeof raw},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'SIDEBAR_CHKOUT_RESPONSE'})}).catch(()=>{});
-        // #endregion
       } catch (err: any) {
         if (!mounted) return;
         console.warn('Failed to load checked-out count', err);
         setCheckoutDueCount(0);
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'OwnerSidebar.tsx:fetchCheckoutDueCount',message:'fetch checkout-due count (error)',data:{url:urlOut,error:String(err?.message??err)},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'SIDEBAR_CHKOUT_ERROR'})}).catch(()=>{});
-        // #endregion
       }
     };
 
@@ -115,18 +97,12 @@ export default function OwnerSidebar() {
 
     // Also refresh immediately after a successful validation/check-in (no wait for polling)
     const onCheckedInChanged = () => {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'OwnerSidebar.tsx:onCheckedInChanged',message:'checked-in event received',data:{event:'nols:checkedin-changed'},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'SIDEBAR_EVENT'})}).catch(()=>{});
-      // #endregion
       fetchCheckedInCount();
       fetchCheckoutDueCount();
     };
     window.addEventListener("nols:checkedin-changed", onCheckedInChanged);
 
     const onCheckoutChanged = () => {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'OwnerSidebar.tsx:onCheckoutChanged',message:'checkout event received',data:{event:'nols:checkout-changed'},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'SIDEBAR_EVENT2'})}).catch(()=>{});
-      // #endregion
       fetchCheckoutDueCount();
     };
     window.addEventListener("nols:checkout-changed", onCheckoutChanged);

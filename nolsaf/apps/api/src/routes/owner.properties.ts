@@ -7,6 +7,7 @@ import { z } from "zod";
 
 // ✅ ADD THIS IMPORT NEAR THE TOP
 import { regenerateAndSaveLayout } from "../lib/autoLayout.js";
+import { invalidateCache, cacheKeys } from "../lib/performance.js";
 
 // ---------- Schemas & Helpers ----------
 // Minimal Zod schema for property body used by create/update
@@ -559,6 +560,9 @@ router.post("/", (async (req: AuthedRequest, res) => {
       try { await regenerateAndSaveLayout(created.id); } catch {}
     }
 
+    // Invalidate cache for property lists (new property created)
+    await invalidateCache('properties:list:*').catch(() => {});
+
     res.status(201).json({ id: created.id });
   } catch (e: any) {
     res.status(400).json({ error: e?.errors ?? e?.message ?? "Invalid payload" });
@@ -648,6 +652,12 @@ router.put("/:id", (async (req: AuthedRequest, res) => {
       try { await regenerateAndSaveLayout(id); } catch {}
     }
 
+    // Invalidate cache for this property and property lists
+    await Promise.all([
+      invalidateCache(cacheKeys.property(id)),
+      invalidateCache('properties:list:*'),
+    ]).catch(() => {}); // Don't fail the request if cache invalidation fails
+
     res.json({ id: updated.id });
   } catch (e: any) {
     res.status(400).json({ error: e?.errors ?? e?.message ?? "Update failed" });
@@ -684,6 +694,13 @@ router.post("/:id/submit", (async (req: AuthedRequest, res) => {
       where: { id },
       data: { status: "PENDING" },
     });
+
+    // Invalidate cache for this property and property lists
+    await Promise.all([
+      invalidateCache(cacheKeys.property(id)),
+      invalidateCache('properties:list:*'),
+      invalidateCache(cacheKeys.adminSummary()),
+    ]).catch(() => {}); // Don't fail the request if cache invalidation fails
 
     // Verify the update worked
     const verified = await prisma.property.findFirst({

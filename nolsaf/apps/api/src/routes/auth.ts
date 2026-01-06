@@ -10,8 +10,7 @@ import { validatePasswordWithSettings } from '../lib/securitySettings.js';
 import { signUserJwt, setAuthCookie, clearAuthCookie } from '../lib/sessionManager.js';
 import { limitOtpSend, limitOtpVerify, limitLoginAttempts } from '../middleware/rateLimit.js';
 import { isEmailLocked, recordFailedAttempt, clearFailedAttempts, getRemainingAttempts, getLockoutStatus } from '../lib/loginAttemptTracker.js';
-import { debugLog } from "../lib/debugLog.js";
-const log = (data: any) => void debugLog(data);
+import { asyncHandler } from '../middleware/errorHandler.js';
 
 const router = Router();
 
@@ -178,10 +177,13 @@ router.post('/login', (req, res) => {
 // POST /api/auth/login-password
 // Body: { email, password }
 // Rate limited: 10 login attempts per IP per 15 minutes
-router.post("/login-password", limitLoginAttempts, async (req, res) => {
+
+// Register the route with rate limiting and async error handling
+router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res, next) => {
+  // Ensure we always return JSON, even on errors
+  res.setHeader('Content-Type', 'application/json');
+  
   try {
-    // Ensure we always return JSON, even on errors
-    res.setHeader('Content-Type', 'application/json');
     
     const { email, password } = req.body || {};
     if (!email || !password) {
@@ -189,7 +191,14 @@ router.post("/login-password", limitLoginAttempts, async (req, res) => {
     }
     
     // Check if account is locked
-    const lockoutStatus = await isEmailLocked(String(email));
+    let lockoutStatus;
+    try {
+      lockoutStatus = await isEmailLocked(String(email));
+    } catch (lockoutError: any) {
+      console.error('[LOGIN] Error checking lockout status:', lockoutError);
+      // Default to not locked on error
+      lockoutStatus = { locked: false, lockedUntil: null };
+    }
     if (lockoutStatus.locked) {
       const timeRemaining = Math.ceil((lockoutStatus.lockedUntil! - Date.now()) / 1000 / 60); // minutes
       return res.status(423).json({ 
@@ -210,6 +219,7 @@ router.post("/login-password", limitLoginAttempts, async (req, res) => {
       select: { id: true, role: true, email: true, passwordHash: true },
     });
     } catch (dbError: any) {
+      console.error('[LOGIN] Database query error:', dbError);
       // Check if it's a database connection error
       const isConnectionError = 
         dbError?.code === 'P1001' || // Can't reach database server
@@ -217,8 +227,6 @@ router.post("/login-password", limitLoginAttempts, async (req, res) => {
         dbError?.message?.includes("Can't reach database server") ||
         dbError?.message?.includes("connect ECONNREFUSED") ||
         dbError?.message?.includes("Connection refused");
-      
-      console.error("Database connection error:", dbError);
       
       if (isConnectionError) {
         return res.status(503).json({ 
@@ -233,8 +241,17 @@ router.post("/login-password", limitLoginAttempts, async (req, res) => {
     
     if (!user || !user.passwordHash) {
       // Record failed attempt even if user doesn't exist (prevents email enumeration)
-      await recordFailedAttempt(String(email), clientIp);
-      const remaining = await getRemainingAttempts(String(email));
+      try {
+        await recordFailedAttempt(String(email), clientIp);
+      } catch (err) {
+        console.error('[LOGIN] Failed to record failed attempt:', err);
+      }
+      let remaining = 5; // Default
+      try {
+        remaining = await getRemainingAttempts(String(email));
+      } catch (err) {
+        console.error('[LOGIN] Failed to get remaining attempts:', err);
+      }
       return res.status(401).json({ 
         error: "invalid_credentials",
         remainingAttempts: remaining
@@ -247,8 +264,17 @@ router.post("/login-password", limitLoginAttempts, async (req, res) => {
       ok = await verifyPassword(String(user.passwordHash), String(password));
     } catch (verifyError: any) {
       console.error("Password verification error:", verifyError);
-      await recordFailedAttempt(String(email), clientIp);
-      const remaining = await getRemainingAttempts(String(email));
+      try {
+        await recordFailedAttempt(String(email), clientIp);
+      } catch (err) {
+        console.error('[LOGIN] Failed to record failed attempt:', err);
+      }
+      let remaining = 5; // Default
+      try {
+        remaining = await getRemainingAttempts(String(email));
+      } catch (err) {
+        console.error('[LOGIN] Failed to get remaining attempts:', err);
+      }
       return res.status(401).json({ 
         error: "invalid_credentials",
         remainingAttempts: remaining
@@ -257,11 +283,26 @@ router.post("/login-password", limitLoginAttempts, async (req, res) => {
     
     if (!ok) {
       // Record failed attempt
-      await recordFailedAttempt(String(email), clientIp);
-      const remaining = await getRemainingAttempts(String(email));
+      try {
+        await recordFailedAttempt(String(email), clientIp);
+      } catch (err) {
+        console.error('[LOGIN] Failed to record failed attempt:', err);
+      }
+      let remaining = 5; // Default
+      try {
+        remaining = await getRemainingAttempts(String(email));
+      } catch (err) {
+        console.error('[LOGIN] Failed to get remaining attempts:', err);
+      }
       
       // Check if account is now locked
-      const newLockoutStatus = await isEmailLocked(String(email));
+      let newLockoutStatus;
+      try {
+        newLockoutStatus = await isEmailLocked(String(email));
+      } catch (err) {
+        console.error('[LOGIN] Failed to check lockout status:', err);
+        newLockoutStatus = { locked: false, lockedUntil: null };
+      }
       if (newLockoutStatus.locked) {
         const timeRemaining = Math.ceil((newLockoutStatus.lockedUntil! - Date.now()) / 1000 / 60);
         return res.status(423).json({ 
@@ -279,7 +320,12 @@ router.post("/login-password", limitLoginAttempts, async (req, res) => {
     }
 
     // Successful login - clear failed attempts
-    await clearFailedAttempts(String(email));
+    try {
+      await clearFailedAttempts(String(email));
+    } catch (err) {
+      console.error('[LOGIN] Failed to clear failed attempts:', err);
+      // Continue - don't block successful login
+    }
 
     // Generate JWT token with error handling
     let token: string;
@@ -301,13 +347,7 @@ router.post("/login-password", limitLoginAttempts, async (req, res) => {
 
     return res.status(200).json({ ok: true, user: { id: user.id, role: user.role, email: user.email } });
   } catch (e: any) {
-    console.error("login-password failed", e);
-    console.error("Error details:", {
-      message: e?.message,
-      stack: e?.stack,
-      code: e?.code,
-      name: e?.name,
-    });
+    console.error("[LOGIN] login-password failed", e);
     
     // Ensure JSON response header is set
     res.setHeader('Content-Type', 'application/json');
@@ -330,9 +370,31 @@ router.post("/login-password", limitLoginAttempts, async (req, res) => {
     const errorMessage = process.env.NODE_ENV === 'production' 
       ? "Login failed. Please try again." 
       : (e?.message || String(e) || "Login failed");
-    return res.status(500).json({ error: errorMessage });
+    
+    // Return detailed error in development
+    const errorResponse: any = { error: errorMessage };
+    if (process.env.NODE_ENV !== 'production') {
+      errorResponse.details = {
+        message: e?.message,
+        name: e?.name,
+        code: e?.code,
+      };
+    }
+    
+    // Check if response already sent
+    if (res.headersSent) {
+      return;
+    }
+    
+    try {
+      return res.status(500).json(errorResponse);
+    } catch (sendError: any) {
+      console.error("[LOGIN] Failed to send error response:", sendError);
+      // If we can't send response, pass to Express error handler
+      next(e);
+    }
   }
-});
+}));
 
 // POST /api/auth/logout
 router.post("/logout", async (_req, res) => {

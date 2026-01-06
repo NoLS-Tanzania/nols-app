@@ -79,7 +79,7 @@ export default function Page() {
       setContactName(''); setContactEmail(''); setContactMessage('');
     } catch (err: any) {
       console.error('contact submit failed', err);
-      setError('Failed to send via API. You can email support@nolsapp.com directly or try again later.');
+      setError('Failed to send via API. You can email support@nolsaf.com directly or try again later.');
     } finally {
       setSending(false);
     }
@@ -173,13 +173,13 @@ export default function Page() {
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-semibold text-gray-900 mb-1 transition-colors duration-300 ease-in-out group-hover:text-gray-800">Email</div>
                   <a
-                    href="mailto:support@nolsapp.com"
+                    href="mailto:support@nolsaf.com"
                     className="text-sm transition-all duration-300 ease-in-out break-all no-underline hover:tracking-wide"
                     style={{ color: '#02665e' }}
                     onMouseEnter={(e) => e.currentTarget.style.color = '#024a44'}
                     onMouseLeave={(e) => e.currentTarget.style.color = '#02665e'}
                   >
-                    support@nolsapp.com
+                    support@nolsaf.com
                   </a>
                 </div>
               </div>
@@ -286,7 +286,7 @@ export default function Page() {
                     )}
                   </button>
                   <a
-                    href={`mailto:support@nolsapp.com?subject=${encodeURIComponent('Support request')}`}
+                    href={`mailto:support@nolsaf.com?subject=${encodeURIComponent('Support request')}`}
                     className="w-full box-border inline-flex items-center justify-center gap-2 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 transform hover:-translate-y-0.5 no-underline"
                     style={{ 
                       background: 'linear-gradient(to right, #02665e, #024a44)',

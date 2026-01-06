@@ -55,7 +55,14 @@ router.get("/", async (req, res) => {
   const { date, status, propertyId, ownerId, userId, q, page = "1", pageSize = "30" } = req.query as any;
 
   const where: any = {};
-  if (status) where.status = status;
+  if (status) {
+    // When filtering by CHECKED_IN, include PENDING_CHECKIN as well (matches frontend count display)
+    if (status === 'CHECKED_IN') {
+      where.status = { in: ['CHECKED_IN', 'PENDING_CHECKIN'] };
+    } else {
+      where.status = status;
+    }
+  }
   if (propertyId) where.propertyId = Number(propertyId);
   if (ownerId) where.property = { ownerId: Number(ownerId) };
   if (userId) where.userId = Number(userId);
@@ -122,7 +129,7 @@ router.get("/", async (req, res) => {
     prisma.booking.count({ where }),
   ]);
 
-  res.json({
+  const response = {
     total,
     page: Number(page),
     pageSize: take,
@@ -153,7 +160,9 @@ router.get("/", async (req, res) => {
         user: b.user,
       };
     }),
-  });
+  };
+  
+  res.json(response);
 });
 
 /**
@@ -710,7 +719,7 @@ router.get("/export.csv", async (req, res) => {
       'Created At',
     ];
 
-    const rows = bookings.map(b => {
+    const rows = bookings.map((b: any) => {
       const nights = Math.ceil((new Date(b.checkOut).getTime() - new Date(b.checkIn).getTime()) / (1000 * 60 * 60 * 24));
       const latestCancel = b.cancellationRequests && b.cancellationRequests.length > 0 ? b.cancellationRequests[0] : null;
       const validationMethod = b.code?.usedByOwner ? 'Booking Code' : (b.code?.usedAt ? 'QR Code' : 'N/A');
@@ -741,7 +750,7 @@ router.get("/export.csv", async (req, res) => {
 
     const csvContent = [
       headers.join(','),
-      ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      ...rows.map((row: any[]) => row.map((cell: any) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
     ].join('\n');
 
     res.setHeader('Content-Type', 'text/csv');

@@ -58,7 +58,7 @@ export async function getSessionIdleMinutes(): Promise<number> {
   try {
     const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
     return settings?.sessionIdleMinutes ?? 30;
-  } catch (err) {
+  } catch (err: any) {
     console.error('Failed to fetch session idle minutes from SystemSetting:', err);
     return 30; // Default fallback
   }
@@ -110,7 +110,7 @@ export async function getMaxLoginAttempts(): Promise<number> {
   try {
     const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
     return settings?.maxLoginAttempts ?? 5;
-  } catch (err) {
+  } catch (err: any) {
     console.error('Failed to fetch max login attempts from SystemSetting:', err);
     return 5; // Default fallback
   }

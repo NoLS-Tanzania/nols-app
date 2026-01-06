@@ -187,14 +187,7 @@ const bookingsHandler: RequestHandler = async (req, res) => {
     const ownerId = r.user?.id;
     const { from, to, groupBy, propertyId } = parseQuery(req.query);
 
-    // #region agent log
-    globalThis.fetch?.('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.reports.ts:bookingsHandler',message:'GET reports/bookings (entry)',data:{path:req.path,baseUrl:(req as any).baseUrl,hasUser:Boolean(r.user),ownerId:ownerId??null,from:String(from),to:String(to),groupBy,propertyId:propertyId??null},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'ORPT_500A'})}).catch(()=>{});
-    // #endregion
-
     if (!ownerId) {
-      // #region agent log
-      globalThis.fetch?.('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.reports.ts:bookingsHandler',message:'GET reports/bookings (no owner)',data:{hasUser:Boolean(r.user)},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'ORPT_500B'})}).catch(()=>{});
-      // #endregion
       res.setHeader('Content-Type', 'application/json');
       return res.status(401).json({ error: "Unauthorized", series: [], stacked: [], table: [] });
     }
@@ -216,10 +209,6 @@ const bookingsHandler: RequestHandler = async (req, res) => {
         },
         include: { property: true },
       });
-
-      // #region agent log
-      globalThis.fetch?.('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.reports.ts:bookingsHandler',message:'GET reports/bookings (query ok)',data:{count:bs.length,durationMs:Date.now()-t0},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'ORPT_500C'})}).catch(()=>{});
-      // #endregion
 
       const series: Record<string, { count: number }> = {};
       const stack: Record<string, Record<string, number>> = {};
@@ -256,10 +245,6 @@ const bookingsHandler: RequestHandler = async (req, res) => {
     res.json(data);
   } catch (err: any) {
     console.error('Error in GET /owner/reports/bookings:', err);
-
-    // #region agent log
-    globalThis.fetch?.('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.reports.ts:bookingsHandler',message:'GET reports/bookings (error)',data:{name:String(err?.name??''),message:String(err?.message??err),code:String(err?.code??''),prismaCode:String(err?.meta?.code??''),metaKeys:err?.meta?Object.keys(err.meta):[]},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'ORPT_500D'})}).catch(()=>{});
-    // #endregion
     
     // Handle Prisma schema mismatch errors (table/column not found)
     if (err instanceof Prisma.PrismaClientKnownRequestError && (err.code === 'P2021' || err.code === 'P2022')) {

@@ -6,8 +6,6 @@ import cors from 'cors';
 import morgan from 'morgan';
 import { Server } from 'socket.io';
 import authRoutes from './routes/auth';
-import { router as ownerPropsRoutes } from "./routes/owner.properties";
-import { router as adminPropsRoutes } from './routes/admin.properties';
 import conversationsRoutes from './routes/conversations';
 import bookingsRoutes from './routes/bookings';
 import requireRole, { requireAuth } from './middleware/auth';
@@ -64,6 +62,7 @@ import adminPropertiesRouter from "./routes/admin.properties.js";
 import adminAuditsRouter from "./routes/admin.audits";
 import adminSummaryRouter from './routes/admin.summary';
 import adminNotificationsRouter from "./routes/admin.notifications";
+import adminIntegrationsRouter from "./routes/admin.integrations";
 import adminUpdatesRouter from "./routes/admin.updates";
 import adminCancellationsRouter from "./routes/admin.cancellations";
 import { router as adminCareersRouter } from "./routes/admin.careers";
@@ -108,6 +107,7 @@ import adminChatbotRouter from "./routes/admin.chatbot";
 import { socketAuthMiddleware, AuthenticatedSocket } from './middleware/socketAuth.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { adminOriginGuard } from "./middleware/adminOriginGuard.js";
+import { performanceMiddleware } from './middleware/performance.js';
 
 // moved the POST handler to after the app is created
 // Create app and server before using them
@@ -388,6 +388,8 @@ app.use(express.urlencoded({
   parameterLimit: 50,
 }));
 app.use(morgan('dev'));
+// Performance monitoring middleware (should be early to capture all requests)
+app.use(performanceMiddleware);
 // generic rate limit already applied via configureSecurity; keep specific route limits where needed
 app.use("/uploads/cloudinary", upCld);
 app.use("/uploads/s3", upS3);
@@ -472,6 +474,7 @@ app.use('/api/admin/properties', adminPropertiesRouter as express.RequestHandler
 // also expose non-api-prefixed route so Next rewrites `/admin/*` works
 app.use('/admin/summary', requireRole('ADMIN') as express.RequestHandler, adminSummaryRouter as express.RequestHandler);
 app.use('/api/admin/summary', requireRole('ADMIN') as express.RequestHandler, adminSummaryRouter as express.RequestHandler);
+app.use('/api/admin/integrations', adminIntegrationsRouter as express.RequestHandler);
 app.use('/api/admin/audits', requireRole('ADMIN') as express.RequestHandler, adminAuditsRouter as express.RequestHandler);
 app.use('/api/admin/notifications', requireRole('ADMIN') as express.RequestHandler, adminNotificationsRouter as express.RequestHandler);
 app.use('/api/admin/cancellations', requireRole('ADMIN') as express.RequestHandler, adminCancellationsRouter as express.RequestHandler);

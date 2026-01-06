@@ -46,9 +46,6 @@ export default function CheckedIn() {
     setLoading(true);
 
     const url = "/api/owner/bookings/checked-in";
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'checked-in/page.tsx:load',message:'load checked-in (start)',data:{url},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'CHKIN_URL'})}).catch(()=>{});
-    // #endregion
 
     api.get<CheckedInBooking[] | { data: CheckedInBooking[] } | { items: CheckedInBooking[] }>(url)
       .then((r) => {
@@ -62,26 +59,11 @@ export default function CheckedIn() {
               ? (r.data as any).items 
               : []));
         setList(normalized);
-        // #region agent log
-        try {
-          const sample = (normalized as any[]).slice(0, 5).map((x: any) => ({ id: x.id, validatedAt: x?.validatedAt ?? null, codeUsedAt: x?.code?.usedAt ?? null }));
-          fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'checked-in/page.tsx:load',message:'validatedAt sample from API',data:{sample},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'VALAT_UI_1'})}).catch(()=>{});
-        } catch {}
-        // #endregion
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'checked-in/page.tsx:load',message:'checked-in list loaded into state',data:{count:normalized.length},timestamp:Date.now(),sessionId:'debug-session',runId:'filters-pre',hypothesisId:'CHKIN_UI_LOAD'})}).catch(()=>{});
-        // #endregion
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'checked-in/page.tsx:load',message:'load checked-in (done)',data:{status:r.status,contentType:String((r.headers as any)?.['content-type']??''),isArray:Array.isArray(r.data),normalizedLen:normalized.length,dataType:typeof r.data},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'CHKIN_RESPONSE'})}).catch(()=>{});
-        // #endregion
       })
       .catch((err: any) => {
         if (!mounted) return;
         console.warn('Failed to load checked-in bookings', err);
         setList([]);
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'checked-in/page.tsx:load',message:'load checked-in (error)',data:{url,error:String(err?.message??err)},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'CHKIN_ERROR'})}).catch(()=>{});
-        // #endregion
       })
       .finally(() => {
         if (mounted) setLoading(false);
@@ -186,10 +168,6 @@ export default function CheckedIn() {
       // default: checkIn
       return mul * (toTime(A.checkIn) - toTime(B.checkIn));
     });
-
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'checked-in/page.tsx:filteredSorted',message:'filters applied',data:{baseCount:list.length,shown:arr.length,hasQuery:Boolean(q),nightsFilter:nightsFilter||null,sortKey},timestamp:Date.now(),sessionId:'debug-session',runId:'filters-pre',hypothesisId:'CHKIN_UI_FILTERS'})}).catch(()=>{});
-    // #endregion
 
     return arr;
   }, [list, search, nightsFilter, sortKey]);

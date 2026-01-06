@@ -56,7 +56,7 @@ export default function OwnerSupportPage() {
                 ],
                 contact: {
                   name: "NoLSAF Owner Support",
-                  email: process.env.NEXT_PUBLIC_SUPPORT_EMAIL || "support@nolsapp.com",
+                  email: process.env.NEXT_PUBLIC_SUPPORT_EMAIL || "support@nolsaf.com",
                   phone: process.env.NEXT_PUBLIC_SUPPORT_PHONE || "+255 736 766 726",
                   whatsapp: "https://wa.me/255736766726",
                   hours: "24/7"

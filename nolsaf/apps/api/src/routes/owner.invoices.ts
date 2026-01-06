@@ -50,10 +50,6 @@ router.post("/from-booking", async (req, res) => {
 
     if (!bookingId) return res.status(400).json({ error: "bookingId is required" });
 
-    // #region agent log
-    globalThis.fetch?.('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.invoices.ts:from-booking',message:'from-booking (entry)',data:{ownerId,bookingId},timestamp:Date.now(),sessionId:'debug-session',runId:'idempotency-pre',hypothesisId:'INV_CREATE_1'})}).catch(()=>{});
-    // #endregion
-
     const booking = await prisma.booking.findFirst({
       where: { id: bookingId, property: { ownerId } },
       include: { property: true, code: true }
@@ -72,9 +68,7 @@ router.post("/from-booking", async (req, res) => {
   const amount = booking.totalAmount ?? (pricePerNight ? (pricePerNight as any) * nights : 0);
 
   // Create invoice + item atomically
-  interface MinimalInvoice {
-    id: number;
-  }
+  type MinimalInvoice = Prisma.InvoiceGetPayload<{ select: { id: true } }>;
 
   interface InvoiceCreationDuplicate {
     duplicate: number;
@@ -88,16 +82,12 @@ router.post("/from-booking", async (req, res) => {
 
     const invoiceNumber = makeInvoiceNumber(booking.id, booking.code!.id);
 
-    // #region agent log
-    globalThis.fetch?.('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.invoices.ts:from-booking',message:'from-booking (invoiceNumber)',data:{invoiceNumber},timestamp:Date.now(),sessionId:'debug-session',runId:'idempotency-pre',hypothesisId:'INV_CREATE_2'})}).catch(()=>{});
-    // #endregion
-
     const created: InvoiceCreationResult = await prisma.$transaction(
-      async (tx): Promise<InvoiceCreationResult> => {
+      async (tx: Prisma.TransactionClient): Promise<InvoiceCreationResult> => {
       // prevent duplicates using the unique invoiceNumber (safe for retries/double-click)
       const exists: MinimalInvoice | null = await tx.invoice.findFirst({
         where: { invoiceNumber, ownerId } as any,
-        select: { id: true } as any,
+        select: { id: true },
       });
       if (exists) {
         return { duplicate: exists.id };
@@ -120,6 +110,7 @@ router.post("/from-booking", async (req, res) => {
             commissionAmount: null,
             netPayable: null,
           } as any,
+          select: { id: true },
         });
 
         return { invoiceId: invoice.id };
@@ -128,15 +119,8 @@ router.post("/from-booking", async (req, res) => {
 
     if ("duplicate" in created) {
       // Idempotent: return existing invoice as success (avoid "error" UX and prevent retries creating duplicates).
-      // #region agent log
-      globalThis.fetch?.('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.invoices.ts:from-booking',message:'from-booking (duplicate)',data:{invoiceId:created.duplicate,invoiceNumber},timestamp:Date.now(),sessionId:'debug-session',runId:'idempotency-pre',hypothesisId:'INV_CREATE_3'})}).catch(()=>{});
-      // #endregion
       return res.status(200).json({ ok: true, existed: true, invoiceId: created.duplicate, status: "DRAFT" });
     }
-
-    // #region agent log
-    globalThis.fetch?.('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.invoices.ts:from-booking',message:'from-booking (created)',data:{invoiceId:created.invoiceId,invoiceNumber},timestamp:Date.now(),sessionId:'debug-session',runId:'idempotency-pre',hypothesisId:'INV_CREATE_4'})}).catch(()=>{});
-    // #endregion
 
     return res.status(201).json({ ok: true, existed: false, invoiceId: created.invoiceId, status: "DRAFT" });
   } catch (err: any) {
@@ -156,9 +140,6 @@ router.post("/from-booking", async (req, res) => {
             const invoiceNumber = makeInvoiceNumber(booking.id, booking.code.id);
             const existing = await prisma.invoice.findFirst({ where: { ownerId, invoiceNumber } as any, select: { id: true } as any });
             if (existing?.id) {
-              // #region agent log
-              globalThis.fetch?.('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.invoices.ts:from-booking',message:'from-booking (p2002 -> existing)',data:{invoiceId:existing.id,invoiceNumber},timestamp:Date.now(),sessionId:'debug-session',runId:'idempotency-pre',hypothesisId:'INV_CREATE_5'})}).catch(()=>{});
-              // #endregion
               return res.status(200).json({ ok: true, existed: true, invoiceId: existing.id, status: "DRAFT" });
             }
           }
@@ -167,9 +148,6 @@ router.post("/from-booking", async (req, res) => {
     } catch {
       // fall through to 500
     }
-    // #region agent log
-    globalThis.fetch?.('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.invoices.ts:from-booking',message:'from-booking (error)',data:{error:String(err?.message??err),code:String(err?.code??''),name:String(err?.name??'')},timestamp:Date.now(),sessionId:'debug-session',runId:'idempotency-pre',hypothesisId:'INV_CREATE_ERR'})}).catch(()=>{});
-    // #endregion
     return res.status(500).json({ error: "Failed to create invoice", detail: err?.message || String(err) });
   }
 });
@@ -223,18 +201,11 @@ router.post("/:id/submit", async (req, res) => {
   const id = Number(authReq.params.id);
   const ownerId = authReq.user!.id;
 
-  // #region agent log
-  globalThis.fetch?.('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.invoices.ts:submit',message:'submit (entry)',data:{ownerId,invoiceId:id},timestamp:Date.now(),sessionId:'debug-session',runId:'idempotency-pre',hypothesisId:'INV_SUBMIT_1'})}).catch(()=>{});
-  // #endregion
-
   const inv = await prisma.invoice.findFirst({ where: { id, ownerId } });
   if (!inv) return res.status(404).json({ error: "Not found" });
 
   // Idempotent: if already submitted/processed, do nothing (prevents repeats + duplicate admin events).
   if (inv.status !== "DRAFT") {
-    // #region agent log
-    globalThis.fetch?.('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.invoices.ts:submit',message:'submit (noop already not DRAFT)',data:{invoiceId:id,status:inv.status},timestamp:Date.now(),sessionId:'debug-session',runId:'idempotency-pre',hypothesisId:'INV_SUBMIT_2'})}).catch(()=>{});
-    // #endregion
     return res.json({ ok: true, status: inv.status, alreadySubmitted: true });
   }
 
@@ -246,10 +217,6 @@ router.post("/:id/submit", async (req, res) => {
   await invalidateOwnerReports(updated.ownerId);
   // notify admins in real-time (optional) - only once (when transitioning DRAFT -> REQUESTED)
   try { authReq.app.get("io")?.emit?.("admin:invoice:submitted", { invoiceId: updated.id, bookingId: updated.bookingId }); } catch {}
-
-  // #region agent log
-  globalThis.fetch?.('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.invoices.ts:submit',message:'submit (updated)',data:{invoiceId:updated.id,status:updated.status},timestamp:Date.now(),sessionId:'debug-session',runId:'idempotency-pre',hypothesisId:'INV_SUBMIT_3'})}).catch(()=>{});
-  // #endregion
 
   return res.json({ ok: true, status: updated.status, alreadySubmitted: false });
 });

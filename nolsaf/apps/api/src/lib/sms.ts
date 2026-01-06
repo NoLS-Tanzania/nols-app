@@ -13,17 +13,55 @@ export async function sendSms(to: string, text: string) {
                            `+255${phone}`;
 
     // Check if SMS provider is configured
-    const smsProvider = process.env.SMS_PROVIDER || 'console'; // console, twilio, africastalking, etc.
+    // Priority: Africa's Talking (for East Africa) > Twilio > Generic API > Console
+    const smsProvider = process.env.SMS_PROVIDER || 
+                       (process.env.AFRICASTALKING_API_KEY ? 'africastalking' : 'console');
     const smsApiKey = process.env.SMS_API_KEY;
     const smsApiUrl = process.env.SMS_API_URL;
 
-    if (smsProvider === 'console' || !smsApiKey) {
-      // Development mode: just log
-      console.log(`[SMS] -> ${normalizedPhone}: ${text}`);
-      return { success: true, messageId: `dev-${Date.now()}` };
+    // Africa's Talking integration (preferred for Tanzania/East Africa)
+    if (smsProvider === 'africastalking' || process.env.AFRICASTALKING_API_KEY) {
+      const username = process.env.AFRICASTALKING_USERNAME;
+      const apiKey = process.env.AFRICASTALKING_API_KEY;
+      const fromNumber = process.env.AFRICASTALKING_SENDER_ID || 'NoLSAF';
+
+      if (username && apiKey) {
+        try {
+          const response = await fetch(
+            'https://api.africastalking.com/version1/messaging',
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'apiKey': apiKey,
+              },
+              body: new URLSearchParams({
+                username: username,
+                to: normalizedPhone,
+                message: text,
+                from: fromNumber,
+              }),
+            }
+          );
+
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(`Africa's Talking error: ${data.errorMessage || data.message || 'Unknown error'}`);
+          }
+
+          return { 
+            success: true, 
+            messageId: data.SMSMessageData?.Recipients?.[0]?.messageId || 'unknown',
+            provider: 'africastalking'
+          };
+        } catch (error: any) {
+          console.error('[SMS] Africa\'s Talking failed:', error.message);
+          // Fall through to next provider
+        }
+      }
     }
 
-    // Example: Twilio integration
+    // Twilio integration (fallback)
     if (smsProvider === 'twilio') {
       const accountSid = process.env.TWILIO_ACCOUNT_SID;
       const authToken = process.env.TWILIO_AUTH_TOKEN;
@@ -56,44 +94,7 @@ export async function sendSms(to: string, text: string) {
         throw new Error(`Twilio error: ${data.message || 'Unknown error'}`);
       }
 
-      return { success: true, messageId: data.sid };
-    }
-
-    // Example: Africa's Talking integration
-    if (smsProvider === 'africastalking') {
-      const username = process.env.AFRICASTALKING_USERNAME;
-      const apiKey = process.env.AFRICASTALKING_API_KEY;
-      const fromNumber = process.env.AFRICASTALKING_SENDER_ID || 'NoLSAF';
-
-      if (!username || !apiKey) {
-        console.warn('[SMS] Africa\'s Talking not fully configured, logging instead');
-        console.log(`[SMS] -> ${normalizedPhone}: ${text}`);
-        return { success: true, messageId: `log-${Date.now()}` };
-      }
-
-      const response = await fetch(
-        'https://api.africastalking.com/version1/messaging',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'apiKey': apiKey,
-          },
-          body: new URLSearchParams({
-            username: username,
-            to: normalizedPhone,
-            message: text,
-            from: fromNumber,
-          }),
-        }
-      );
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(`Africa's Talking error: ${data.errorMessage || 'Unknown error'}`);
-      }
-
-      return { success: true, messageId: data.SMSMessageData?.Recipients?.[0]?.messageId || 'unknown' };
+      return { success: true, messageId: data.sid, provider: 'twilio' };
     }
 
     // Generic HTTP API integration
@@ -115,12 +116,17 @@ export async function sendSms(to: string, text: string) {
       }
 
       const data = await response.json();
-      return { success: true, messageId: data.messageId || data.id || 'unknown' };
+      return { success: true, messageId: data.messageId || data.id || 'unknown', provider: 'generic' };
     }
 
-    // Fallback: log
-    console.log(`[SMS] -> ${normalizedPhone}: ${text}`);
-    return { success: true, messageId: `log-${Date.now()}` };
+    // Fallback: log (development mode)
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[SMS] -> ${normalizedPhone}: ${text}`);
+      return { success: true, messageId: `log-${Date.now()}`, provider: 'console' };
+    }
+
+    // Production mode without provider: return error
+    return { success: false, error: 'No SMS provider configured' };
   } catch (error: any) {
     console.error('[SMS] Failed to send SMS:', error);
     // Don't throw - SMS failure shouldn't break the payment flow

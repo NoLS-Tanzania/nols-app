@@ -4,14 +4,17 @@
   "private": true,
   "type": "module",
   "main": "src/index.ts",
-  "files": ["src"],
+  "files": [
+    "src"
+  ],
   "scripts": {
     "generate": "prisma generate --schema ../../prisma/schema.prisma"
   },
   "dependencies": {
-    "@prisma/client": "^5.22.0"
+    "@prisma/adapter-mariadb": "^7.0.0",
+    "@prisma/client": "^7.0.0"
   },
   "devDependencies": {
-    "prisma": "^5.22.0"
+    "prisma": "^7.0.0"
   }
 }

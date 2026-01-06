@@ -73,9 +73,6 @@ export default function OwnerCheckoutPage() {
   const load = async () => {
     setLoading(true);
     setError(null);
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner/bookings/check-out/page.tsx:load',message:'load checkout queue (start)',data:{url},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'FORCHK_UI_1'})}).catch(()=>{});
-    // #endregion
     try {
       const r = await api.get<unknown>(url);
       const raw: any = (r as any).data;
@@ -87,15 +84,9 @@ export default function OwnerCheckoutPage() {
             ? raw.items
             : []));
       setList(normalized as CheckoutItem[]);
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner/bookings/check-out/page.tsx:load',message:'load checkout queue (done)',data:{status:(r as any).status,contentType:String(((r as any).headers as any)?.['content-type']??''),isArray:Array.isArray(raw),normalizedLen:normalized.length},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'FORCHK_UI_2'})}).catch(()=>{});
-      // #endregion
     } catch (e: any) {
       setList([]);
       setError(e?.response?.data?.error ?? e?.message ?? "Failed to load check-out queue");
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner/bookings/check-out/page.tsx:load',message:'load checkout queue (error)',data:{url,error:String(e?.message??e),status:(e?.response as any)?.status??null},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'FORCHK_UI_3'})}).catch(()=>{});
-      // #endregion
     } finally {
       setLoading(false);
     }
@@ -125,14 +116,8 @@ export default function OwnerCheckoutPage() {
     }
     setConfirmingId(id);
     setError(null);
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner/bookings/check-out/page.tsx:confirm',message:'confirm checkout (start)',data:{bookingId:id},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'FORCHK_UI_CONFIRM_1'})}).catch(()=>{});
-    // #endregion
     try {
       const r = await api.post(`/api/owner/bookings/${id}/confirm-checkout`, { rating, feedback: feedback.trim() || null });
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner/bookings/check-out/page.tsx:confirm',message:'confirm checkout (done)',data:{bookingId:id,ok:Boolean((r as any).data?.ok),status:String((r as any).data?.status??'')},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'FORCHK_UI_CONFIRM_2'})}).catch(()=>{});
-      // #endregion
       // Refresh list + let sidebar update counts
       window.dispatchEvent(new Event("nols:checkout-changed"));
       setConfirmOpen(false);
@@ -142,9 +127,6 @@ export default function OwnerCheckoutPage() {
       await load();
     } catch (e: any) {
       setError(e?.response?.data?.error ?? e?.message ?? "Failed to confirm check-out");
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner/bookings/check-out/page.tsx:confirm',message:'confirm checkout (error)',data:{bookingId:id,error:String(e?.message??e),status:(e?.response as any)?.status??null},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'FORCHK_UI_CONFIRM_3'})}).catch(()=>{});
-      // #endregion
     } finally {
       setConfirmingId(null);
     }
@@ -156,22 +138,13 @@ export default function OwnerCheckoutPage() {
     setAuditLoading(true);
     setAuditItems([]);
     const url = `/api/owner/bookings/${b.id}/audit`;
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner/bookings/check-out/page.tsx:audit',message:'load audit (start)',data:{url,bookingId:b.id},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'CHKOUT_AUDIT_UI_1'})}).catch(()=>{});
-    // #endregion
     try {
       const r = await api.get(url);
       const items = Array.isArray((r as any).data?.items) ? (r as any).data.items : [];
       setAuditItems(items);
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner/bookings/check-out/page.tsx:audit',message:'load audit (done)',data:{bookingId:b.id,count:items.length},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'CHKOUT_AUDIT_UI_2'})}).catch(()=>{});
-      // #endregion
     } catch (e: any) {
       setAuditItems([]);
       setError(e?.response?.data?.error ?? e?.message ?? "Failed to load audit history");
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner/bookings/check-out/page.tsx:audit',message:'load audit (error)',data:{bookingId:b.id,error:String(e?.message??e)},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'CHKOUT_AUDIT_UI_3'})}).catch(()=>{});
-      // #endregion
     } finally {
       setAuditLoading(false);
     }

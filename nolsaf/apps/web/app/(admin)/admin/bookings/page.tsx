@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { Calendar, Search, X } from "lucide-react";
+import { Calendar, Search, X, Eye } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import DatePicker from "@/components/ui/DatePicker";
 import axios from "axios";
@@ -170,7 +170,7 @@ export default function AdminBookingsPage() {
   useEffect(() => {
     (async () => {
       try {
-        const r = await api.get('/admin/bookings/counts');
+        const r = await api.get('/api/admin/bookings/counts');
         if (r?.data) setCounts(r.data as Record<string, number>);
       } catch (e) {
         // ignore if not available
@@ -181,10 +181,11 @@ export default function AdminBookingsPage() {
   async function load() {
     setLoading(true);
     try {
-      const r = await api.get("/admin/bookings", {
+      const r = await api.get("/api/admin/bookings", {
         params: { status, date: Array.isArray(date) ? date.join(',') : date, q, page: 1, pageSize: 40 },
       });
-      setList((r.data as { items: Row[] })?.items ?? []);
+      const items = (r.data as { items: Row[] })?.items ?? [];
+      setList(items);
     } catch (err) {
       console.error('Failed to load bookings', err);
       setList([]);
@@ -195,7 +196,7 @@ export default function AdminBookingsPage() {
 
   async function fetchCounts() {
     try {
-      const r = await api.get('/admin/bookings/counts');
+      const r = await api.get('/api/admin/bookings/counts');
       if (r?.data) setCounts(r.data as Record<string, number>);
     } catch (e) {
       // ignore failures
@@ -352,7 +353,9 @@ export default function AdminBookingsPage() {
                       ? 'bg-white/20 text-white' 
                       : badgeClasses(s.value)
                   }`}>
-                    {s.value === 'CHECKED_IN'
+                    {s.value === ''
+                      ? ((counts['NEW'] ?? 0) + (counts['CONFIRMED'] ?? 0) + (counts['CHECKED_IN'] ?? 0) + (counts['PENDING_CHECKIN'] ?? 0) + (counts['CHECKED_OUT'] ?? 0) + (counts['CANCELED'] ?? 0))
+                      : s.value === 'CHECKED_IN'
                       ? ((counts['CHECKED_IN'] ?? 0) + (counts['PENDING_CHECKIN'] ?? 0))
                       : (counts[s.value] ?? 0)}
                   </span>
@@ -431,8 +434,9 @@ export default function AdminBookingsPage() {
                       <a 
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-[#02665e] border border-[#02665e] rounded-lg hover:bg-[#02665e] hover:text-white transition-all duration-200" 
                         href={`/admin/bookings/${b.id}`}
+                        title="View booking details"
                       >
-                        Open
+                        <Eye className="h-4 w-4" />
                       </a>
                     </div>
                   </div>
@@ -470,7 +474,7 @@ export default function AdminBookingsPage() {
                             case 'nights':
                               return 'Nights';
                             case 'actions':
-                              return '';
+                              return 'Action';
                             case 'contact':
                               return 'Contact';
                             case 'paymentDate':
@@ -537,8 +541,9 @@ export default function AdminBookingsPage() {
                                 <a 
                                   href={`/admin/bookings/${b.id}`}
                                   className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-sm text-[#02665e] border border-[#02665e] rounded-lg hover:bg-[#02665e] hover:text-white transition-all duration-200"
+                                  title="View booking details"
                                 >
-                                  Open
+                                  <Eye className="h-4 w-4" />
                                 </a>
                               );
                             case 'contact':

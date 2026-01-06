@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Save, Loader2, User, GraduationCap, MapPin, Award, Languages, Briefcase, FileText, CheckCircle, XCircle, UserPlus } from "lucide-react";
+import { ArrowLeft, Save, Loader2, GraduationCap, MapPin, Languages, Briefcase, FileText, XCircle, UserPlus } from "lucide-react";
 import axios from "axios";
 import Link from "next/link";
 
@@ -288,7 +288,7 @@ export default function NewAgentPage() {
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Education & Experience</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full min-w-0">
             <div className="space-y-2 min-w-0">
-              <label htmlFor="educationLevel" className="block text-sm font-semibold text-gray-900 flex items-center gap-2">
+              <label htmlFor="educationLevel" className="text-sm font-semibold text-gray-900 flex items-center gap-2">
                 <GraduationCap className="h-4 w-4 text-[#02665e] flex-shrink-0" />
                 Education Level
               </label>
@@ -309,7 +309,7 @@ export default function NewAgentPage() {
             </div>
 
             <div className="space-y-2 min-w-0">
-              <label htmlFor="yearsOfExperience" className="block text-sm font-semibold text-gray-900 flex items-center gap-2">
+              <label htmlFor="yearsOfExperience" className="text-sm font-semibold text-gray-900 flex items-center gap-2">
                 <Briefcase className="h-4 w-4 text-[#02665e] flex-shrink-0" />
                 Years of Experience
               </label>
@@ -333,7 +333,7 @@ export default function NewAgentPage() {
           <div className="space-y-5">
             {/* Areas of Operation */}
             <div className="space-y-2">
-              <label className="block text-sm font-semibold text-gray-900 flex items-center gap-2">
+              <label className="text-sm font-semibold text-gray-900 flex items-center gap-2">
                 <MapPin className="h-4 w-4 text-[#02665e]" />
                 Areas of Operation
               </label>
@@ -382,7 +382,7 @@ export default function NewAgentPage() {
 
           {/* Languages */}
           <div className="space-y-2">
-              <label className="block text-sm font-semibold text-gray-900 flex items-center gap-2">
+              <label className="text-sm font-semibold text-gray-900 flex items-center gap-2">
                 <Languages className="h-4 w-4 text-[#02665e]" />
                 Languages
               </label>
@@ -431,7 +431,7 @@ export default function NewAgentPage() {
 
           {/* Specializations */}
           <div className="space-y-2">
-              <label className="block text-sm font-semibold text-gray-900 flex items-center gap-2">
+              <label className="text-sm font-semibold text-gray-900 flex items-center gap-2">
                 <Briefcase className="h-4 w-4 text-[#02665e]" />
                 Specializations
               </label>
@@ -565,7 +565,7 @@ export default function NewAgentPage() {
           <div className="space-y-5">
             {/* Bio */}
             <div className="space-y-2">
-              <label htmlFor="bio" className="block text-sm font-semibold text-gray-900 flex items-center gap-2">
+              <label htmlFor="bio" className="text-sm font-semibold text-gray-900 flex items-center gap-2">
                 <FileText className="h-4 w-4 text-[#02665e]" />
                 Bio / Description
               </label>

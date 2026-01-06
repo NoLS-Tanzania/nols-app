@@ -10,7 +10,6 @@ generator client {
 
 datasource db {
   provider = "mysql"
-  url      = env("DATABASE_URL")
 }
 
 // =========================================================
@@ -125,9 +124,9 @@ model User {
   ownerNotifications Notification[] @relation("OwnerNotifications")
 
   // Admin audits performed by this user (if admin)
-  adminAudits AdminAudit[] @relation("AdminAudits")
+  adminAudits          AdminAudit[]          @relation("AdminAudits")
   // Group booking audits performed by this admin
-  groupBookingAudits GroupBookingAudit[] @relation("GroupBookingAudits")
+  groupBookingAudits   GroupBookingAudit[]   @relation("GroupBookingAudits")
   // Group booking messages sent by this user/admin
   groupBookingMessages GroupBookingMessage[] @relation("GroupBookingMessages")
 
@@ -172,10 +171,10 @@ model User {
 
   // Agent profile (if user is an agent)
   agentProfile Agent?
-  
+
   // Plan requests created by this user (if authenticated)
   planRequests PlanRequest[] @relation("PlanRequestsUser")
-  
+
   // Plan request messages sent by this user
   planRequestMessages PlanRequestMessage[] @relation("PlanRequestMessages")
 
@@ -215,14 +214,14 @@ model Property {
   longitude  Decimal? @db.Decimal(10, 6)
 
   // Media & details
-  description String? @db.Text
-  photos      Json? // Array of URLs (legacy, use PropertyImage now)
-  hotelStar   String? // basic, simple, moderate, high, luxury
+  description  String? @db.Text
+  photos       Json? // Array of URLs (legacy, use PropertyImage now)
+  hotelStar    String? // basic, simple, moderate, high, luxury
   buildingType String? // SINGLE_STORY, LOW_RISE, MID_RISE, HIGH_RISE, VILLA_COMPLEX, LODGE_CAMPUS
   totalFloors  Int? // Total number of floors (auto-calculated or manual)
-  roomsSpec   Json? // Room types, beds, price/night, images... (includes floor info)
-  services    Json? // Parking/breakfast/etc + nearbyFacilities[]
-  layout      Json? // Auto-generated SVG/plan metadata
+  roomsSpec    Json? // Room types, beds, price/night, images... (includes floor info)
+  services     Json? // Parking/breakfast/etc + nearbyFacilities[]
+  layout       Json? // Auto-generated SVG/plan metadata
 
   // Aggregates / pricing
   basePrice      Decimal? @db.Decimal(12, 2)
@@ -239,12 +238,12 @@ model Property {
   updatedAt DateTime @updatedAt
 
   // Relations
-  owner             User                        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  bookings          Booking[]
-  transportBookings TransportBooking[]
-  images            PropertyImage[]
-  reviews           PropertyReview[]
-  savedBy           SavedProperty[]
+  owner              User                        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  bookings           Booking[]
+  transportBookings  TransportBooking[]
+  images             PropertyImage[]
+  reviews            PropertyReview[]
+  savedBy            SavedProperty[]
   availabilityBlocks PropertyAvailabilityBlock[]
 
   @@index([ownerId])
@@ -254,6 +253,7 @@ model Property {
   @@index([regionName])
   @@index([district])
   @@index([ward])
+  @@index([createdAt]) // For sorting by newest and time-based queries
   @@index([status, createdAt, regionId])
   // Location indexes for map functionality
   @@index([latitude])
@@ -301,7 +301,9 @@ model Booking {
   @@index([status])
   @@index([checkIn])
   @@index([checkOut])
+  @@index([createdAt]) // For time-based queries (e.g., bookings in last 24h)
   @@index([status, checkIn])
+  @@index([status, createdAt]) // For filtering by status and creation time
   @@map("Booking")
 }
 
@@ -682,7 +684,7 @@ model GroupBooking {
   /// Property ID that user confirmed (after viewing recommendations)
   confirmedPropertyId    Int?
   /// Timestamp when user confirmed a property
-  propertyConfirmedAt   DateTime?
+  propertyConfirmedAt    DateTime?
 
   // ==================== Status & Financial ====================
   /// Booking status: PENDING, CONFIRMED, PROCESSING, CANCELED, COMPLETED
@@ -732,17 +734,17 @@ model GroupBooking {
 //  GROUP BOOKING AUDIT MODEL - Track admin actions
 // =========================================================
 model GroupBookingAudit {
-  id            Int      @id @default(autoincrement())
+  id             Int      @id @default(autoincrement())
   groupBookingId Int
-  adminId       Int      // Admin who performed the action
-  action        String   @db.VarChar(100) // e.g., STATUS_CHANGED, MESSAGE_SENT, PROPERTY_RECOMMENDED, SUGGESTIONS_PROVIDED
-  description   String?  @db.Text // Human-readable description
-  metadata      Json?    // Additional data (old status, new status, message content, etc.)
-  createdAt     DateTime @default(now())
+  adminId        Int // Admin who performed the action
+  action         String   @db.VarChar(100) // e.g., STATUS_CHANGED, MESSAGE_SENT, PROPERTY_RECOMMENDED, SUGGESTIONS_PROVIDED
+  description    String?  @db.Text // Human-readable description
+  metadata       Json? // Additional data (old status, new status, message content, etc.)
+  createdAt      DateTime @default(now())
 
   // Relations
-  groupBooking  GroupBooking @relation(fields: [groupBookingId], references: [id], onDelete: Cascade)
-  admin         User          @relation("GroupBookingAudits", fields: [adminId], references: [id], onDelete: Cascade)
+  groupBooking GroupBooking @relation(fields: [groupBookingId], references: [id], onDelete: Cascade)
+  admin        User         @relation("GroupBookingAudits", fields: [adminId], references: [id], onDelete: Cascade)
 
   @@index([groupBookingId])
   @@index([adminId])
@@ -755,27 +757,27 @@ model GroupBookingAudit {
 //  GROUP BOOKING MESSAGE MODEL - Conversation messages
 // =========================================================
 model GroupBookingMessage {
-  id            Int      @id @default(autoincrement())
+  id             Int @id @default(autoincrement())
   groupBookingId Int
-  
+
   /// Sender information
-  senderId   Int?  // User ID if sender is authenticated (admin or customer)
-  senderRole String @db.VarChar(20) // ADMIN, USER, SYSTEM
+  senderId   Int? // User ID if sender is authenticated (admin or customer)
+  senderRole String  @db.VarChar(20) // ADMIN, USER, SYSTEM
   senderName String? @db.VarChar(200) // Name for display (if not authenticated)
-  
+
   /// Message content
   messageType String? @db.VarChar(50) // "Ask for Feedback", "Admin Response", etc.
   body        String  @db.Text // Message content (sanitized)
-  
+
   /// Metadata
-  isInternal Boolean @default(false) // Internal notes not shown to customers
+  isInternal Boolean  @default(false) // Internal notes not shown to customers
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
-  
+
   // Relations
   groupBooking GroupBooking @relation(fields: [groupBookingId], references: [id], onDelete: Cascade)
   sender       User?        @relation("GroupBookingMessages", fields: [senderId], references: [id], onDelete: SetNull)
-  
+
   @@index([groupBookingId])
   @@index([senderId])
   @@index([senderRole])
@@ -893,15 +895,15 @@ model TransportBooking {
 
   // ==================== Arrival Information (for airport, bus station, etc.) ====================
   /// Arrival type: FLIGHT, BUS, TRAIN, FERRY, OTHER
-  arrivalType   String? @db.VarChar(20)
+  arrivalType      String?   @db.VarChar(20)
   /// Transport number (flight number, bus number, train number, etc.)
-  arrivalNumber String? @db.VarChar(40)
+  arrivalNumber    String?   @db.VarChar(40)
   /// Transport company/operator (airline, bus company, train operator, etc.)
-  transportCompany String? @db.VarChar(100)
+  transportCompany String?   @db.VarChar(100)
   /// Expected arrival time
-  arrivalTime   DateTime?
+  arrivalTime      DateTime?
   /// Pickup location description (e.g., "Julius Nyerere International Airport - Terminal 1", "Ubungo Bus Terminal")
-  pickupLocation String? @db.VarChar(255)
+  pickupLocation   String?   @db.VarChar(255)
 
   // ==================== Ratings & Reviews ====================
   /// Customer rating for the driver (1-5)
@@ -999,26 +1001,26 @@ model DriverLocationPing {
 //  TRANSPORT MESSAGE - Communication between driver, passenger, and admin
 // =========================================================
 model TransportMessage {
-  id              Int       @id @default(autoincrement())
+  id                 Int @id @default(autoincrement())
   transportBookingId Int
 
   /// Sender user ID (driver, passenger, or admin)
-  senderId        Int
+  senderId Int
 
   /// Sender type: DRIVER, PASSENGER, ADMIN
-  senderType      String    @db.VarChar(20)
+  senderType String @db.VarChar(20)
 
   /// Message content
-  message         String    @db.Text
+  message String @db.Text
 
   /// Message type: TEXT, IMAGE, LOCATION, SYSTEM
-  messageType     String    @default("TEXT") @db.VarChar(20)
+  messageType String @default("TEXT") @db.VarChar(20)
 
   /// When the message was read (null = unread)
-  readAt          DateTime?
+  readAt DateTime?
 
   /// Record creation timestamp
-  createdAt       DateTime  @default(now())
+  createdAt DateTime @default(now())
 
   // Relations
   transportBooking TransportBooking @relation(fields: [transportBookingId], references: [id], onDelete: Cascade)
@@ -1525,7 +1527,7 @@ model PlanRequest {
   fullName String  @db.VarChar(200)
   email    String  @db.VarChar(255)
   phone    String? @db.VarChar(40)
-  
+
   /// Optional reference to User account (if user is logged in)
   /// If null, request was submitted anonymously (matched by email/phone)
   userId Int?
@@ -1565,9 +1567,9 @@ model PlanRequest {
   updatedAt DateTime @updatedAt
 
   // Relations
-  user                   User?         @relation("PlanRequestsUser", fields: [userId], references: [id], onDelete: SetNull)
-  assignedAgentRelation Agent?        @relation("AssignedAgent", fields: [assignedAgentId], references: [id], onDelete: SetNull)
-  agentReviews          AgentReview[] @relation("AgentReviewsPlanRequest")
+  user                  User?                @relation("PlanRequestsUser", fields: [userId], references: [id], onDelete: SetNull)
+  assignedAgentRelation Agent?               @relation("AssignedAgent", fields: [assignedAgentId], references: [id], onDelete: SetNull)
+  agentReviews          AgentReview[]        @relation("AgentReviewsPlanRequest")
   messages              PlanRequestMessage[]
 
   @@index([role])
@@ -1587,27 +1589,27 @@ model PlanRequest {
 //  PLAN REQUEST MESSAGE MODEL - For conversation history
 // =========================================================
 model PlanRequestMessage {
-  id            Int      @id @default(autoincrement())
+  id            Int @id @default(autoincrement())
   planRequestId Int
-  
+
   /// Sender information
-  senderId   Int?  // User ID if sender is authenticated (admin or customer)
-  senderRole String @db.VarChar(20) // ADMIN, USER, SYSTEM
+  senderId   Int? // User ID if sender is authenticated (admin or customer)
+  senderRole String  @db.VarChar(20) // ADMIN, USER, SYSTEM
   senderName String? @db.VarChar(200) // Name for display (if not authenticated)
-  
+
   /// Message content
   messageType String? @db.VarChar(50) // "Ask for Feedback", "Admin Response", etc.
   body        String  @db.Text // Message content (sanitized)
-  
+
   /// Metadata
-  isInternal Boolean @default(false) // Internal notes not shown to customers
+  isInternal Boolean  @default(false) // Internal notes not shown to customers
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
-  
+
   // Relations
   planRequest PlanRequest @relation(fields: [planRequestId], references: [id], onDelete: Cascade)
   sender      User?       @relation("PlanRequestMessages", fields: [senderId], references: [id], onDelete: SetNull)
-  
+
   @@index([planRequestId])
   @@index([senderId])
   @@index([senderRole])
@@ -1683,7 +1685,7 @@ model Agent {
   user                 User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   assignedPlanRequests PlanRequest[]   @relation("AssignedAgent")
   application          JobApplication? @relation // Link back to original job application
-  reviews              AgentReview[]   // Reviews received from users
+  reviews              AgentReview[] // Reviews received from users
 
   @@index([status])
   @@index([isAvailable])
@@ -1724,9 +1726,9 @@ model AgentReview {
   updatedAt DateTime @updatedAt
 
   // Relations
-  agent        Agent       @relation(fields: [agentId], references: [id], onDelete: Cascade)
-  user         User        @relation("AgentReviewsUser", fields: [userId], references: [id], onDelete: Cascade)
-  planRequest  PlanRequest? @relation("AgentReviewsPlanRequest", fields: [planRequestId], references: [id], onDelete: SetNull)
+  agent       Agent        @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  user        User         @relation("AgentReviewsUser", fields: [userId], references: [id], onDelete: Cascade)
+  planRequest PlanRequest? @relation("AgentReviewsPlanRequest", fields: [planRequestId], references: [id], onDelete: SetNull)
 
   @@index([agentId])
   @@index([userId])
@@ -1981,19 +1983,19 @@ model DriverReminder {
 //  CHATBOT CONVERSATION MODEL - For Twiga chatbot conversations
 // =========================================================
 model ChatbotConversation {
-  id        Int      @id @default(autoincrement())
-  userId    Int?     // Optional: user ID if authenticated
-  sessionId String   @unique @db.VarChar(100) // Unique session identifier for anonymous users
-  language  String   @default("en") @db.VarChar(10) // Language code: en, es, fr, pt, ar, zh
-  needsFollowUp Boolean @default(false) // Track if conversation needs agent follow-up
-  followUpNotes String? @db.Text // Notes for agents about the conversation
-  followedUpAt DateTime? // When an agent followed up
-  followedUpBy Int? // Agent/admin user ID who followed up
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            Int       @id @default(autoincrement())
+  userId        Int? // Optional: user ID if authenticated
+  sessionId     String    @unique @db.VarChar(100) // Unique session identifier for anonymous users
+  language      String    @default("en") @db.VarChar(10) // Language code: en, es, fr, pt, ar, zh
+  needsFollowUp Boolean   @default(false) // Track if conversation needs agent follow-up
+  followUpNotes String?   @db.Text // Notes for agents about the conversation
+  followedUpAt  DateTime? // When an agent followed up
+  followedUpBy  Int? // Agent/admin user ID who followed up
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   // Relations
-  user     User?              @relation("ChatbotConversations", fields: [userId], references: [id], onDelete: SetNull)
+  user     User?            @relation("ChatbotConversations", fields: [userId], references: [id], onDelete: SetNull)
   messages ChatbotMessage[]
 
   @@index([userId])
@@ -2029,11 +2031,11 @@ model ChatbotMessage {
 //  SAVED PROPERTY MODEL - For users to save/favorite properties
 // =========================================================
 model SavedProperty {
-  id        Int      @id @default(autoincrement())
-  userId    Int      // User who saved the property
-  propertyId Int     // Property that was saved
-  savedAt   DateTime @default(now()) // When the property was saved
-  sharedAt  DateTime? // When the property was shared (optional)
+  id         Int       @id @default(autoincrement())
+  userId     Int // User who saved the property
+  propertyId Int // Property that was saved
+  savedAt    DateTime  @default(now()) // When the property was saved
+  sharedAt   DateTime? // When the property was shared (optional)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2057,7 +2059,7 @@ model SavedProperty {
 //  (Airbnb, Booking.com, walk-ins, etc.)
 // =========================================================
 model PropertyAvailabilityBlock {
-  id         Int      @id @default(autoincrement())
+  id         Int @id @default(autoincrement())
   propertyId Int
   ownerId    Int // Owner who created the block
 
@@ -2083,7 +2085,7 @@ model PropertyAvailabilityBlock {
 
   // Relations
   property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  owner    User    @relation("PropertyAvailabilityBlocks", fields: [ownerId], references: [id], onDelete: Cascade)
+  owner    User     @relation("PropertyAvailabilityBlocks", fields: [ownerId], references: [id], onDelete: Cascade)
 
   @@index([propertyId])
   @@index([ownerId])

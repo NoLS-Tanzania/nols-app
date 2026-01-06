@@ -245,7 +245,7 @@ export default function SystemSettingsPage(){
               <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
                   <label className="text-sm text-gray-600">Support email</label>
-                  <input className="w-full mt-1 px-3 py-2 border rounded" value={supportEmail} onChange={e=>setSupportEmail(e.target.value)} placeholder="support@nolsapp.com" />
+                  <input className="w-full mt-1 px-3 py-2 border rounded" value={supportEmail} onChange={e=>setSupportEmail(e.target.value)} placeholder="support@nolsaf.com" />
                 </div>
                 <div>
                   <label className="text-sm text-gray-600">Support phone</label>

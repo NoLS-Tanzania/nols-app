@@ -213,7 +213,7 @@ function formatBookingDetails(booking: any, property: any, user: any): {
         </div>
         <div class="footer">
           <p>This is an automated message. Please do not reply to this email.</p>
-          <p>For support, contact: ${process.env.SUPPORT_EMAIL || "support@nolsapp.com"}</p>
+          <p>For support, contact: ${process.env.SUPPORT_EMAIL || "support@nolsaf.com"}</p>
         </div>
       </div>
     </body>

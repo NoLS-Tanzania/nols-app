@@ -1,6 +1,4 @@
 import { getMaxLoginAttempts, getAccountLockoutDurationMinutes, shouldLogFailedLoginAttempts } from './securitySettings.js';
-import { debugLog } from "./debugLog.js";
-const log = (data: any) => void debugLog(data);
 
 /**
  * In-memory login attempt tracker
@@ -52,34 +50,41 @@ setInterval(() => {
  * Check if an email is locked out
  */
 export async function isEmailLocked(email: string): Promise<{ locked: boolean; lockedUntil: number | null }> {
-  const attempt = emailAttempts.get(email.toLowerCase());
-  if (!attempt) {
+  try {
+    const attempt = emailAttempts.get(email.toLowerCase());
+    if (!attempt) {
+      return { locked: false, lockedUntil: null };
+    }
+    
+    const now = Date.now();
+    
+    // Check if lockout has expired
+    if (attempt.lockedUntil && attempt.lockedUntil > now) {
+      return { locked: true, lockedUntil: attempt.lockedUntil };
+    }
+    
+    // Lockout expired, clear it
+    if (attempt.lockedUntil && attempt.lockedUntil <= now) {
+      emailAttempts.delete(email.toLowerCase());
+      return { locked: false, lockedUntil: null };
+    }
+    
+    return { locked: false, lockedUntil: null };
+  } catch (err) {
+    console.error('[isEmailLocked] Error:', err);
+    // Return safe default on error
     return { locked: false, lockedUntil: null };
   }
-  
-  const now = Date.now();
-  
-  // Check if lockout has expired
-  if (attempt.lockedUntil && attempt.lockedUntil > now) {
-    return { locked: true, lockedUntil: attempt.lockedUntil };
-  }
-  
-  // Lockout expired, clear it
-  if (attempt.lockedUntil && attempt.lockedUntil <= now) {
-    emailAttempts.delete(email.toLowerCase());
-    return { locked: false, lockedUntil: null };
-  }
-  
-  return { locked: false, lockedUntil: null };
 }
 
 /**
  * Record a failed login attempt
  */
 export async function recordFailedAttempt(email: string, ip: string): Promise<void> {
-  const maxAttempts = await getMaxLoginAttempts();
-  const lockoutDuration = (await getAccountLockoutDurationMinutes()) * 60 * 1000;
-  const shouldLog = await shouldLogFailedLoginAttempts();
+  try {
+    const maxAttempts = await getMaxLoginAttempts();
+    const lockoutDuration = (await getAccountLockoutDurationMinutes()) * 60 * 1000;
+    const shouldLog = await shouldLogFailedLoginAttempts();
   
   const emailKey = email.toLowerCase();
   const now = Date.now();
@@ -108,27 +113,42 @@ export async function recordFailedAttempt(email: string, ip: string): Promise<vo
   if (shouldLog) {
     console.warn(`[SECURITY] Failed login attempt: ${email} from IP ${ip} (attempt ${emailAttempt.count}/${maxAttempts})`);
   }
+  } catch (err) {
+    console.error('[recordFailedAttempt] Error:', err);
+    // Continue execution - don't block login flow on tracking errors
+  }
 }
 
 /**
  * Clear failed attempts for an email (on successful login)
  */
 export async function clearFailedAttempts(email: string): Promise<void> {
-  emailAttempts.delete(email.toLowerCase());
+  try {
+    emailAttempts.delete(email.toLowerCase());
+  } catch (err) {
+    console.error('[clearFailedAttempts] Error:', err);
+    // Continue execution - don't block login flow on tracking errors
+  }
 }
 
 /**
  * Get remaining attempts before lockout
  */
 export async function getRemainingAttempts(email: string): Promise<number> {
-  const maxAttempts = await getMaxLoginAttempts();
-  const attempt = emailAttempts.get(email.toLowerCase());
-  
-  if (!attempt) {
-    return maxAttempts;
+  try {
+    const maxAttempts = await getMaxLoginAttempts();
+    const attempt = emailAttempts.get(email.toLowerCase());
+    
+    if (!attempt) {
+      return maxAttempts;
+    }
+    
+    return Math.max(0, maxAttempts - attempt.count);
+  } catch (err) {
+    console.error('[getRemainingAttempts] Error:', err);
+    // Return safe default
+    return 5;
   }
-  
-  return Math.max(0, maxAttempts - attempt.count);
 }
 
 /**

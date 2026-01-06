@@ -1,6 +1,7 @@
 // apps/api/src/routes/owner.bookings.ts
 import { Router } from "express";
 import type { RequestHandler, Response } from 'express';
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@nolsaf/prisma";
 import { AuthedRequest, requireAuth, requireRole } from "../middleware/auth.js";
 import { invalidateOwnerReports } from "../lib/cache.js";
@@ -113,10 +114,6 @@ const confirmCheckin: RequestHandler = async (req, res) => {
   const { bookingId, consent, clientSnapshot } = req.body as { bookingId: number; consent?: any; clientSnapshot?: any };
   if (!bookingId) return (res as Response).status(400).json({ error: "bookingId is required" });
 
-  // #region agent log
-  globalThis.fetch?.('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.booking.ts:confirmCheckin',message:'confirm-checkin (entry)',data:{ownerId:r.user!.id,bookingId},timestamp:Date.now(),sessionId:'debug-session',runId:'idempotency-pre',hypothesisId:'CHKIN_IDEMP_1'})}).catch(()=>{});
-  // #endregion
-
   // ensure this booking belongs to one of the owner's properties
   const booking = await prisma.booking.findFirst({
     where: { id: bookingId, property: { ownerId: r.user!.id } },
@@ -130,9 +127,6 @@ const confirmCheckin: RequestHandler = async (req, res) => {
 
   // Idempotent: if already checked-in and code used, do not attempt to mark again.
   if (booking.status === "CHECKED_IN" && booking.code.status === "USED") {
-    // #region agent log
-    globalThis.fetch?.('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.booking.ts:confirmCheckin',message:'confirm-checkin (noop already CHECKED_IN)',data:{bookingId,status:booking.status,codeStatus:booking.code.status},timestamp:Date.now(),sessionId:'debug-session',runId:'idempotency-pre',hypothesisId:'CHKIN_IDEMP_2'})}).catch(()=>{});
-    // #endregion
     await invalidateOwnerReports(r.user!.id);
     return (res as Response).json({ ok: true, bookingId: booking.id, status: booking.status, alreadyConfirmed: true, invoiceId: null });
   }
@@ -169,9 +163,6 @@ const confirmCheckin: RequestHandler = async (req, res) => {
   }
 
   await invalidateOwnerReports(r.user!.id);
-  // #region agent log
-  globalThis.fetch?.('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.booking.ts:confirmCheckin',message:'confirm-checkin (done)',data:{bookingId:updated?.id,status:updated?.status},timestamp:Date.now(),sessionId:'debug-session',runId:'idempotency-pre',hypothesisId:'CHKIN_IDEMP_3'})}).catch(()=>{});
-  // #endregion
 
   return (res as Response).json({ ok: true, bookingId: updated.id, status: updated.status, invoiceId, alreadyConfirmed: false });
 };
@@ -181,14 +172,8 @@ const getCheckedInBookings: RequestHandler = async (req, res) => {
   const r = req as AuthedRequest;
   try {
     const ownerId = r.user?.id;
-    // #region agent log
-    globalThis.fetch?.('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.booking.ts:getCheckedInBookings',message:'GET checked-in (entry)',data:{path:req.path,baseUrl:(req as any).baseUrl,hasUser:Boolean(r.user),role:(r.user as any)?.role??null,ownerId:ownerId??null},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'CHKIN_500A'})}).catch(()=>{});
-    // #endregion
 
     if (!ownerId) {
-      // #region agent log
-      globalThis.fetch?.('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.booking.ts:getCheckedInBookings',message:'GET checked-in (no ownerId)',data:{hasUser:Boolean(r.user)},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'CHKIN_500B'})}).catch(()=>{});
-      // #endregion
       return res.status(401).json({ error: "Unauthorized" });
     }
 
@@ -229,10 +214,6 @@ const getCheckedInBookings: RequestHandler = async (req, res) => {
       },
     });
 
-    // #region agent log
-    globalThis.fetch?.('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.booking.ts:getCheckedInBookings',message:'GET checked-in (query ok)',data:{count:bookings.length,durationMs:Date.now()-t0},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'CHKIN_500C'})}).catch(()=>{});
-    // #endregion
-
     // Map to include relevant fields for the UI
     const mapped = bookings.map((b: any) => ({
       id: b.id,
@@ -254,18 +235,8 @@ const getCheckedInBookings: RequestHandler = async (req, res) => {
       user: b.user,
     }));
 
-    // #region agent log
-    try {
-      const sample = mapped.slice(0, 5).map((x: any) => ({ id: x.id, validatedAt: x.validatedAt, codeStatus: x?.code?.status ?? null }));
-      globalThis.fetch?.('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.booking.ts:getCheckedInBookings',message:'mapped validatedAt sample',data:{sample,withValidatedAt:mapped.filter((x:any)=>Boolean(x.validatedAt)).length,total:mapped.length},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'VALAT_API_1'})}).catch(()=>{});
-    } catch {}
-    // #endregion
-
     return (res as Response).json(mapped);
   } catch (err: any) {
-    // #region agent log
-    globalThis.fetch?.('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.booking.ts:getCheckedInBookings',message:'GET checked-in (error)',data:{name:String(err?.name??''),message:String(err?.message??err),code:String(err?.code??''),prismaCode:String(err?.meta?.code??''),metaKeys:err?.meta?Object.keys(err.meta):[]},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'CHKIN_500D'})}).catch(()=>{});
-    // #endregion
     console.error("GET /owner/bookings/checked-in error:", err);
     return res.status(500).json({ error: "Failed to load checked-in bookings" });
   }
@@ -282,10 +253,6 @@ const getForCheckoutBookings: RequestHandler = async (req, res) => {
     const nowMs = Date.now();
     const windowMs = 7 * 60 * 60 * 1000;
     const cutoff = new Date(nowMs + windowMs);
-
-    // #region agent log
-    globalThis.fetch?.('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.booking.ts:getForCheckoutBookings',message:'GET for-checkout (entry)',data:{ownerId,nowIso:new Date(nowMs).toISOString(),cutoffIso:cutoff.toISOString(),windowHours:7},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'FORCHK_API_1'})}).catch(()=>{});
-    // #endregion
 
     const t0 = Date.now();
     const bookings = await prisma.booking.findMany({
@@ -319,17 +286,8 @@ const getForCheckoutBookings: RequestHandler = async (req, res) => {
     }));
 
     // #region agent log
-    try {
-      const sample = mapped.slice(0, 5).map((x: any) => ({ id: x.id, checkOut: x.checkOut, phonePresent: Boolean(x.guestPhone), emailPresent: Boolean(x.guestEmail) }));
-      globalThis.fetch?.('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.booking.ts:getForCheckoutBookings',message:'GET for-checkout (query ok)',data:{count:mapped.length,durationMs:Date.now()-t0,sample},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'FORCHK_API_2'})}).catch(()=>{});
-    } catch {}
-    // #endregion
-
     return (res as Response).json(mapped);
   } catch (err: any) {
-    // #region agent log
-    globalThis.fetch?.('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.booking.ts:getForCheckoutBookings',message:'GET for-checkout (error)',data:{name:String(err?.name??''),message:String(err?.message??err),code:String(err?.code??''),prismaCode:String(err?.meta?.code??''),metaKeys:err?.meta?Object.keys(err.meta):[]},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'FORCHK_API_3'})}).catch(()=>{});
-    // #endregion
     console.error("GET /owner/bookings/for-checkout error:", err);
     return res.status(500).json({ error: "Failed to load check-out queue" });
   }
@@ -341,9 +299,6 @@ const getCheckedOutBookings: RequestHandler = async (req, res) => {
   const r = req as AuthedRequest;
   try {
     const ownerId = r.user?.id;
-    // #region agent log
-    globalThis.fetch?.('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.booking.ts:getCheckedOutBookings',message:'GET checked-out (entry)',data:{path:req.path,baseUrl:(req as any).baseUrl,hasUser:Boolean(r.user),role:(r.user as any)?.role??null,ownerId:ownerId??null},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'CHKOUT_500A'})}).catch(()=>{});
-    // #endregion
 
     if (!ownerId) return res.status(401).json({ error: "Unauthorized" });
 
@@ -383,10 +338,6 @@ const getCheckedOutBookings: RequestHandler = async (req, res) => {
       },
     });
 
-    // #region agent log
-    globalThis.fetch?.('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.booking.ts:getCheckedOutBookings',message:'GET checked-out (query ok)',data:{count:bookings.length,durationMs:Date.now()-t0},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'CHKOUT_500B'})}).catch(()=>{});
-    // #endregion
-
     const mapped = bookings.map((b: any) => ({
       id: b.id,
       property: b.property,
@@ -408,17 +359,8 @@ const getCheckedOutBookings: RequestHandler = async (req, res) => {
     }));
 
     // #region agent log
-    try {
-      const sample = mapped.slice(0, 5).map((x: any) => ({ id: x.id, checkOut: x.checkOut, status: x.status }));
-      globalThis.fetch?.('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.booking.ts:getCheckedOutBookings',message:'checked-out sample',data:{sample,total:mapped.length},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'CHKOUT_API_1'})}).catch(()=>{});
-    } catch {}
-    // #endregion
-
     return (res as Response).json(mapped);
   } catch (err: any) {
-    // #region agent log
-    globalThis.fetch?.('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.booking.ts:getCheckedOutBookings',message:'GET checked-out (error)',data:{name:String(err?.name??''),message:String(err?.message??err),code:String(err?.code??''),prismaCode:String(err?.meta?.code??''),metaKeys:err?.meta?Object.keys(err.meta):[]},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'CHKOUT_500C'})}).catch(()=>{});
-    // #endregion
     console.error("GET /owner/bookings/checked-out error:", err);
     return res.status(500).json({ error: "Failed to load checked-out bookings" });
   }
@@ -447,10 +389,6 @@ const getBookingAudit: RequestHandler = async (req, res) => {
   // ensure booking belongs to this owner
   const booking = await prisma.booking.findFirst({ where: { id, property: { ownerId: r.user!.id } }, select: { id: true } });
   if (!booking) return (res as Response).status(404).json({ error: "Not found" });
-
-  // #region agent log
-  globalThis.fetch?.('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.booking.ts:getBookingAudit',message:'GET booking audit (entry)',data:{ownerId:r.user!.id,bookingId:id},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'CHKOUT_AUDIT_API_1'})}).catch(()=>{});
-  // #endregion
 
   try {
     const rows: any[] = await prisma.$queryRaw`
@@ -491,15 +429,8 @@ const getBookingAudit: RequestHandler = async (req, res) => {
       };
     });
 
-    // #region agent log
-    globalThis.fetch?.('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.booking.ts:getBookingAudit',message:'GET booking audit (ok)',data:{count:items.length,hasCheckout:items.filter((i:any)=>i.note==='checkout').length,hasRatings:items.filter((i:any)=>typeof i.rating==='number').length},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'CHKOUT_AUDIT_API_2'})}).catch(()=>{});
-    // #endregion
-
     return (res as Response).json({ ok: true, items });
   } catch (err: any) {
-    // #region agent log
-    globalThis.fetch?.('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.booking.ts:getBookingAudit',message:'GET booking audit (error)',data:{name:String(err?.name??''),message:String(err?.message??err),code:String(err?.code??''),prismaCode:String(err?.meta?.code??''),metaKeys:err?.meta?Object.keys(err.meta):[]},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'CHKOUT_AUDIT_API_3'})}).catch(()=>{});
-    // #endregion
     // best-effort: return empty rather than failing the page if audit table is missing
     return (res as Response).json({ ok: true, items: [] });
   }
@@ -522,9 +453,6 @@ const confirmCheckout: RequestHandler = async (req, res) => {
 
   const booking = await prisma.booking.findFirst({ where: { id, property: { ownerId: r.user!.id } }, include: { property: true } });
   if (!booking) return (res as Response).status(404).json({ error: "Booking not found" });
-  // #region agent log
-  globalThis.fetch?.('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.booking.ts:confirmCheckout',message:'confirm-checkout (entry)',data:{ownerId:r.user!.id,bookingId:booking.id,status:booking.status,hasRating:Number.isFinite(rating),rating:Number.isFinite(rating)?rating:null,hasFeedback:Boolean(feedback)},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'FORCHK_CONFIRM_1'})}).catch(()=>{});
-  // #endregion
 
   if (booking.status === "CHECKED_OUT") {
     return (res as Response).json({ ok: true, bookingId: booking.id, status: booking.status, alreadyConfirmed: true });
@@ -545,9 +473,6 @@ const confirmCheckout: RequestHandler = async (req, res) => {
       VALUES
         (${booking.id}, ${r.user!.id}, NOW(), ${0}, ${null}, ${null}, ${snapshot}, ${ip}, ${ua}, ${'checkout'})
     `;
-    // #region agent log
-    globalThis.fetch?.('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.booking.ts:confirmCheckout',message:'checkout audit inserted',data:{bookingId:booking.id,rating,hasFeedback:Boolean(feedback)},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'FORCHK_CONFIRM_3'})}).catch(()=>{});
-    // #endregion
   } catch (err) {
     console.warn('Could not persist booking checkout audit row', err);
   }
@@ -560,9 +485,6 @@ const confirmCheckout: RequestHandler = async (req, res) => {
   }
 
   await invalidateOwnerReports(r.user!.id);
-  // #region agent log
-  globalThis.fetch?.('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.booking.ts:confirmCheckout',message:'confirm-checkout (done)',data:{bookingId:updated.id,status:updated.status},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'FORCHK_CONFIRM_2'})}).catch(()=>{});
-  // #endregion
   return (res as Response).json({ ok: true, bookingId: updated.id, status: updated.status });
 };
 router.post("/:id/confirm-checkout", confirmCheckout);
@@ -597,11 +519,7 @@ const sendInvoiceFromBooking: RequestHandler = async (req, res) => {
 
   const invoiceNumber = makeOwnerInvoiceNumber(booking.id, booking.code!.id);
 
-  // #region agent log
-  globalThis.fetch?.('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.booking.ts:sendInvoiceFromBooking',message:'send-invoice (entry)',data:{ownerId:r.user!.id,bookingId:booking.id,invoiceNumber},timestamp:Date.now(),sessionId:'debug-session',runId:'idempotency-pre',hypothesisId:'SENDINV_1'})}).catch(()=>{});
-  // #endregion
-
-  const result = await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const existing = await tx.invoice.findFirst({ where: { ownerId: r.user!.id, invoiceNumber } });
     let invoice = existing;
     let created = false;
@@ -636,10 +554,6 @@ const sendInvoiceFromBooking: RequestHandler = async (req, res) => {
   if (result.submitted) {
     try { req.app.get('io')?.emit?.('admin:invoice:submitted', { invoiceId: result.invoiceId, bookingId: booking.id }); } catch {}
   }
-
-  // #region agent log
-  globalThis.fetch?.('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.booking.ts:sendInvoiceFromBooking',message:'send-invoice (done)',data:{invoiceId:result.invoiceId,status:result.status,created:result.created,submitted:result.submitted},timestamp:Date.now(),sessionId:'debug-session',runId:'idempotency-pre',hypothesisId:'SENDINV_2'})}).catch(()=>{});
-  // #endregion
 
   return (res as Response).status(result.created ? 201 : 200).json({ ok: true, invoiceId: result.invoiceId, status: result.status, created: result.created, submitted: result.submitted });
 };

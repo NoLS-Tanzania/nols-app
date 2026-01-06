@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React from "react";
-import { Home, LayoutDashboard, Users, UsersRound, UserSquare2, Truck, LineChart, Building2, Calendar, FileText, Wallet, Settings, ChevronDown, ChevronRight, ShieldCheck, Link2, Receipt, ListFilter, ClipboardList, CheckCircle, Award, Megaphone, UserPlus, Trophy, Star, Bell, BarChart3, Activity, Eye, Briefcase, XCircle, UserCheck, Bot, Sparkles, MessageSquare } from "lucide-react";
+import { Home, LayoutDashboard, Users, Truck, LineChart, Building2, Calendar, FileText, Wallet, Settings, ChevronDown, ChevronRight, ShieldCheck, Link2, Receipt, ListFilter, CheckCircle, Award, Megaphone, UserPlus, Trophy, Bell, BarChart3, Activity, Eye, Briefcase, MessageSquare, Ban, Bot } from "lucide-react";
 import { useEffect, useState } from "react";
 
 type Item = {
@@ -11,16 +11,38 @@ type Item = {
   Icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
 };
 
-function Item({ href, label, Icon, isSubItem = false }: { href: string; label: string; Icon?: React.ComponentType<React.SVGProps<SVGSVGElement>>; isSubItem?: boolean }) {
+function Item({ href, label, Icon, isSubItem = false, collapsed = false }: { href: string; label: string; Icon?: React.ComponentType<React.SVGProps<SVGSVGElement>>; isSubItem?: boolean; collapsed?: boolean }) {
   const path = usePathname();
   const active = path === href || path?.startsWith(href + "/");
+  
+  if (collapsed) {
+    return (
+      <Link
+        href={href}
+        title={label}
+        className={`group relative no-underline flex items-center justify-center rounded-lg p-3 text-sm font-medium transition-all duration-200 bg-white border border-transparent
+          ${active ? "text-[#02665e] border-[#02665e]/20 bg-[#02665e]/5" : "text-[#02665e] hover:bg-gray-50"}
+          active:scale-95 hover:scale-105
+          [backface-visibility:hidden] [transform:translateZ(0)]`}
+      >
+        {Icon ? (
+          <Icon className="h-5 w-5 text-[#02665e] flex-shrink-0" aria-hidden />
+        ) : null}
+        {/* Tooltip for collapsed state */}
+        <span className="absolute left-full ml-2 px-2 py-1 text-xs font-medium text-white bg-gray-900 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 transition-opacity duration-200">
+          {label}
+        </span>
+      </Link>
+    );
+  }
+  
   return (
     <Link
       href={href}
       className={`no-underline flex items-center justify-between rounded-lg px-4 py-3 text-sm font-medium transition-all duration-200 bg-white border border-transparent
         ${active ? "text-[#02665e] border-[#02665e]/20" : "text-[#02665e] hover:bg-gray-50"}
-        ${isSubItem ? "ml-4" : ""}`}
-      style={{ backfaceVisibility: 'hidden', transform: 'translateZ(0)' }}
+        active:scale-[0.98] hover:scale-[1.02]
+        ${isSubItem ? "ml-4" : ""} [backface-visibility:hidden] [transform:translateZ(0)]`}
     >
       <div className="flex items-center gap-3">
         {Icon ? (
@@ -32,20 +54,6 @@ function Item({ href, label, Icon, isSubItem = false }: { href: string; label: s
     </Link>
   );
 }
-
-// Top-level visible by default: Admin, Owners, Users.
-// All remaining admin sections live under the Admin mini-sidebar.
-const items: Item[] = [
-  { href: "/admin/home", label: "Home", Icon: Home },
-  { href: "/admin", label: "Owners", Icon: Building2 },
-  { href: "/admin/drivers", label: "Drivers", Icon: Truck },
-  { href: "/admin/users", label: "Users", Icon: UserSquare2 },
-  { href: "/admin/group-stays", label: "Group Stay", Icon: UsersRound },
-  { href: "/admin/plan-with-us", label: "Plan with US", Icon: ClipboardList },
-  { href: "/admin/agents", label: "IoT & AI Agents", Icon: UserCheck },
-  { href: "/admin/cancellations", label: "Cancellations", Icon: XCircle },
-  { href: "/admin/management", label: "Management", Icon: LayoutDashboard },
-];
 
 const adminDetails: Item[] = [
   { href: "/admin", label: "Dashboard", Icon: LayoutDashboard },
@@ -116,9 +124,10 @@ const managementDetails: Item[] = [
 
 // Detailed admin links (analytics, owners, bookings, properties, etc.) remain reachable from the Admin dashboard page.
 
-export default function AdminNav({ variant = "light" }: { variant?: "light" | "dark" }) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export default function AdminNav({ variant = "light", collapsed = false }: { variant?: "light" | "dark"; collapsed?: boolean }) {
   const path = usePathname();
-  const [adminOpen, setAdminOpen] = useState(true);
+  const [adminOpen, setAdminOpen] = useState(false);
   const [driverOpen, setDriverOpen] = useState(false);
   const [managementOpen, setManagementOpen] = useState(false);
   const [usersOpen, setUsersOpen] = useState(false);
@@ -128,10 +137,10 @@ export default function AdminNav({ variant = "light" }: { variant?: "light" | "d
   const [cancellationsOpen, setCancellationsOpen] = useState(false);
 
   useEffect(() => {
-    // Auto-open Admin mini-sidebar when navigating to admin child routes
-    // but keep Drivers and Users as top-level pages (they should not auto-open Admin).
+    // Auto-open sections only when navigating to routes within that section
+    // Default: all sections closed, /admin/home is the default landing page
     if (!path) return;
-    const isAdminPath = path.startsWith("/admin");
+    const isAdminHome = path === "/admin/home";
     const isDrivers = path.startsWith("/admin/drivers");
     const isManagement = path.startsWith("/admin/management");
     const isUsers = path.startsWith("/admin/users");
@@ -139,9 +148,16 @@ export default function AdminNav({ variant = "light" }: { variant?: "light" | "d
     const isPlanWithUs = path.startsWith("/admin/plan-with-us");
     const isAgents = path.startsWith("/admin/agents");
     const isCancellations = path.startsWith("/admin/cancellations");
-    // Owner (admin) mini-sidebar: open when on admin child routes that aren't drivers/users/group-stays/plan-with-us/agents
-    if (isAdminPath && !isDrivers && !isUsers && !isGroupStay && !isPlanWithUs && !isAgents && !isCancellations) setAdminOpen(true);
-    else setAdminOpen(false);
+    // Owner (admin) mini-sidebar: open when on /admin (owners dashboard) or admin child routes
+    // but NOT on /admin/home (which is the admin home page, not owners)
+    const isAdminChildRoute = (path === "/admin" ||
+                                path === "/admin/owners" || path.startsWith("/admin/owners/") ||
+                                path === "/admin/bookings" || path.startsWith("/admin/bookings/") ||
+                                path === "/admin/properties" || path.startsWith("/admin/properties/") ||
+                                path === "/admin/payments" || path.startsWith("/admin/payments/") ||
+                                path === "/admin/revenue" || path.startsWith("/admin/revenue/")) &&
+                                !isAdminHome && !isDrivers && !isUsers && !isGroupStay && !isPlanWithUs && !isAgents && !isCancellations && !isManagement;
+    setAdminOpen(isAdminChildRoute);
     // Driver mini-sidebar: open when on driver-related routes
     if (isDrivers) setDriverOpen(true);
     else setDriverOpen(false);
@@ -164,195 +180,232 @@ export default function AdminNav({ variant = "light" }: { variant?: "light" | "d
     setUsersOpen(isUsers);
   }, [path]);
 
+  // Collapsible section button component
+  const CollapsibleButton = ({ 
+    label, 
+    Icon, 
+    isOpen, 
+    onClick, 
+    collapsed 
+  }: { 
+    label: string; 
+    Icon: React.ComponentType<React.SVGProps<SVGSVGElement>>; 
+    isOpen: boolean; 
+    onClick: () => void;
+    collapsed: boolean;
+  }) => {
+    if (collapsed) {
+      return (
+        <button 
+          onClick={onClick}
+          title={label}
+          className="group relative w-full flex items-center justify-center rounded-lg p-3 text-sm font-medium text-[#02665e] bg-white border border-gray-300 hover:bg-gray-50 active:scale-95 hover:scale-105 transition-all duration-200 [backface-visibility:hidden] [transform:translateZ(0)]"
+        >
+          <Icon className="h-5 w-5 text-[#02665e] flex-shrink-0" aria-hidden />
+          {/* Tooltip for collapsed state */}
+          <span className="absolute left-full ml-2 px-2 py-1 text-xs font-medium text-white bg-gray-900 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 transition-opacity duration-200">
+            {label}
+          </span>
+        </button>
+      );
+    }
+    
+    return (
+      <button 
+        onClick={onClick}
+        className="w-full flex items-center justify-between rounded-lg px-4 py-3 text-sm font-medium text-[#02665e] bg-white border border-gray-300 hover:bg-gray-50 active:scale-[0.98] hover:scale-[1.02] transition-all duration-200 [backface-visibility:hidden] [transform:translateZ(0)]"
+      >
+        <span>{label}</span>
+        {isOpen ? (
+          <ChevronDown className="h-4 w-4 text-[#02665e] opacity-60" aria-hidden />
+        ) : (
+          <ChevronRight className="h-4 w-4 text-[#02665e] opacity-60" aria-hidden />
+        )}
+      </button>
+    );
+  };
+
   return (
-    <div className="bg-gray-50 rounded-2xl p-3 border border-gray-200">
-      <div className="space-y-2">
+    <div className={`bg-gray-50 rounded-2xl border border-gray-200 ${collapsed ? 'p-2' : 'p-3'}`}>
+      <div className={`space-y-2 ${collapsed ? 'space-y-1' : ''}`}>
         {/* Home */}
-        <Item href="/admin/home" label="Home" Icon={Home} />
+        <Item href="/admin/home" label="Home" Icon={Home} collapsed={collapsed} />
 
         {/* Admin/Owners */}
-        <div>
-          <button 
-            onClick={() => setAdminOpen(v => !v)} 
-            className="w-full flex items-center justify-between rounded-lg px-4 py-3 text-sm font-medium text-[#02665e] bg-white border border-gray-300 hover:bg-gray-50 transition-all duration-200"
-            style={{ backfaceVisibility: 'hidden', transform: 'translateZ(0)' }}
-          >
-            <span>Owners</span>
-            {adminOpen ? (
-              <ChevronDown className="h-4 w-4 text-[#02665e] opacity-60" aria-hidden />
-            ) : (
-              <ChevronRight className="h-4 w-4 text-[#02665e] opacity-60" aria-hidden />
+        {collapsed ? (
+          <Item href="/admin" label="Owners" Icon={Building2} collapsed={collapsed} />
+        ) : (
+          <div>
+            <CollapsibleButton 
+              label="Owners" 
+              Icon={Building2} 
+              isOpen={adminOpen} 
+              onClick={() => setAdminOpen(v => !v)}
+              collapsed={collapsed}
+            />
+            {adminOpen && (
+              <div className="mt-2 space-y-2">
+                {adminDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => (
+                  <Item key={dHref} href={dHref} label={dLabel} Icon={DIcon} isSubItem collapsed={collapsed} />
+                ))}
+              </div>
             )}
-          </button>
-          {adminOpen && (
-            <div className="mt-2 space-y-2">
-              {adminDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => (
-                <Item key={dHref} href={dHref} label={dLabel} Icon={DIcon} isSubItem />
-              ))}
-            </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Drivers */}
-        <div>
-          <button 
-            onClick={() => setDriverOpen(v => !v)} 
-            className="w-full flex items-center justify-between rounded-lg px-4 py-3 text-sm font-medium text-[#02665e] bg-white border border-gray-300 hover:bg-gray-50 transition-all duration-200"
-            style={{ backfaceVisibility: 'hidden', transform: 'translateZ(0)' }}
-          >
-            <span>Drivers</span>
-            {driverOpen ? (
-              <ChevronDown className="h-4 w-4 text-[#02665e] opacity-60" aria-hidden />
-            ) : (
-              <ChevronRight className="h-4 w-4 text-[#02665e] opacity-60" aria-hidden />
+        {collapsed ? (
+          <Item href="/admin/drivers" label="Drivers" Icon={Truck} collapsed={collapsed} />
+        ) : (
+          <div>
+            <CollapsibleButton 
+              label="Drivers" 
+              Icon={Truck} 
+              isOpen={driverOpen} 
+              onClick={() => setDriverOpen(v => !v)}
+              collapsed={collapsed}
+            />
+            {driverOpen && (
+              <div className="mt-2 space-y-2">
+                {driverDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => (
+                  <Item key={dHref} href={dHref} label={dLabel} Icon={DIcon} isSubItem collapsed={collapsed} />
+                ))}
+              </div>
             )}
-          </button>
-          {driverOpen && (
-            <div className="mt-2 space-y-2">
-              {driverDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => (
-                <Item key={dHref} href={dHref} label={dLabel} Icon={DIcon} isSubItem />
-              ))}
-            </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Users */}
-        <div>
-          <button 
-            onClick={() => setUsersOpen(v => !v)} 
-            className="w-full flex items-center justify-between rounded-lg px-4 py-3 text-sm font-medium text-[#02665e] bg-white border border-gray-300 hover:bg-gray-50 transition-all duration-200"
-            style={{ backfaceVisibility: 'hidden', transform: 'translateZ(0)' }}
-          >
-            <span>Users</span>
-            {usersOpen ? (
-              <ChevronDown className="h-4 w-4 text-[#02665e] opacity-60" aria-hidden />
-            ) : (
-              <ChevronRight className="h-4 w-4 text-[#02665e] opacity-60" aria-hidden />
+        {collapsed ? (
+          <Item href="/admin/users" label="Users" Icon={Users} collapsed={collapsed} />
+        ) : (
+          <div>
+            <CollapsibleButton 
+              label="Users" 
+              Icon={Users} 
+              isOpen={usersOpen} 
+              onClick={() => setUsersOpen(v => !v)}
+              collapsed={collapsed}
+            />
+            {usersOpen && (
+              <div className="mt-2 space-y-2">
+                {userDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => (
+                  <Item key={dHref} href={dHref} label={dLabel} Icon={DIcon} isSubItem collapsed={collapsed} />
+                ))}
+              </div>
             )}
-          </button>
-          {usersOpen && (
-            <div className="mt-2 space-y-2">
-              {userDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => (
-                <Item key={dHref} href={dHref} label={dLabel} Icon={DIcon} isSubItem />
-              ))}
-            </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Group Stay */}
-        <div>
-          <button 
-            onClick={() => setGroupStayOpen(v => !v)} 
-            className="w-full flex items-center justify-between rounded-lg px-4 py-3 text-sm font-medium text-[#02665e] bg-white border border-gray-300 hover:bg-gray-50 transition-all duration-200"
-            style={{ backfaceVisibility: 'hidden', transform: 'translateZ(0)' }}
-          >
-            <span>Group Stay</span>
-            {groupStayOpen ? (
-              <ChevronDown className="h-4 w-4 text-[#02665e] opacity-60" aria-hidden />
-            ) : (
-              <ChevronRight className="h-4 w-4 text-[#02665e] opacity-60" aria-hidden />
+        {collapsed ? (
+          <Item href="/admin/group-stays" label="Group Stay" Icon={Users} collapsed={collapsed} />
+        ) : (
+          <div>
+            <CollapsibleButton 
+              label="Group Stay" 
+              Icon={Users} 
+              isOpen={groupStayOpen} 
+              onClick={() => setGroupStayOpen(v => !v)}
+              collapsed={collapsed}
+            />
+            {groupStayOpen && (
+              <div className="mt-2 space-y-2">
+                {groupStayDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => (
+                  <Item key={dHref} href={dHref} label={dLabel} Icon={DIcon} isSubItem collapsed={collapsed} />
+                ))}
+              </div>
             )}
-          </button>
-          {groupStayOpen && (
-            <div className="mt-2 space-y-2">
-              {groupStayDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => (
-                <Item key={dHref} href={dHref} label={dLabel} Icon={DIcon} isSubItem />
-              ))}
-            </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Plan with US */}
-        <div>
-          <button 
-            onClick={() => setPlanWithUsOpen(v => !v)} 
-            className="w-full flex items-center justify-between rounded-lg px-4 py-3 text-sm font-medium text-[#02665e] bg-white border border-gray-300 hover:bg-gray-50 transition-all duration-200"
-            style={{ backfaceVisibility: 'hidden', transform: 'translateZ(0)' }}
-          >
-            <span>Plan with US</span>
-            {planWithUsOpen ? (
-              <ChevronDown className="h-4 w-4 text-[#02665e] opacity-60" aria-hidden />
-            ) : (
-              <ChevronRight className="h-4 w-4 text-[#02665e] opacity-60" aria-hidden />
+        {collapsed ? (
+          <Item href="/admin/plan-with-us" label="Plan with US" Icon={ListFilter} collapsed={collapsed} />
+        ) : (
+          <div>
+            <CollapsibleButton 
+              label="Plan with US" 
+              Icon={ListFilter} 
+              isOpen={planWithUsOpen} 
+              onClick={() => setPlanWithUsOpen(v => !v)}
+              collapsed={collapsed}
+            />
+            {planWithUsOpen && (
+              <div className="mt-2 space-y-2">
+                {planWithUsDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => (
+                  <Item key={dHref} href={dHref} label={dLabel} Icon={DIcon} isSubItem collapsed={collapsed} />
+                ))}
+              </div>
             )}
-          </button>
-          {planWithUsOpen && (
-            <div className="mt-2 space-y-2">
-              {planWithUsDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => (
-                <Item key={dHref} href={dHref} label={dLabel} Icon={DIcon} isSubItem />
-              ))}
-            </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Agents */}
-        <div>
-          <button 
-            onClick={() => setAgentsOpen(v => !v)} 
-            className="w-full flex items-center justify-between rounded-lg px-4 py-3 text-sm font-medium text-[#02665e] bg-white border border-gray-300 hover:bg-gray-50 transition-all duration-200"
-            style={{ backfaceVisibility: 'hidden', transform: 'translateZ(0)' }}
-          >
-            <span>IoT & AI Agents</span>
-            {agentsOpen ? (
-              <ChevronDown className="h-4 w-4 text-[#02665e] opacity-60" aria-hidden />
-            ) : (
-              <ChevronRight className="h-4 w-4 text-[#02665e] opacity-60" aria-hidden />
+        {collapsed ? (
+          <Item href="/admin/agents" label="IoT & AI Agents" Icon={Bot} collapsed={collapsed} />
+        ) : (
+          <div>
+            <CollapsibleButton 
+              label="IoT & AI Agents" 
+              Icon={Bot} 
+              isOpen={agentsOpen} 
+              onClick={() => setAgentsOpen(v => !v)}
+              collapsed={collapsed}
+            />
+            {agentsOpen && (
+              <div className="mt-2 space-y-2">
+                {agentsDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => (
+                  <Item key={dHref} href={dHref} label={dLabel} Icon={DIcon} isSubItem collapsed={collapsed} />
+                ))}
+              </div>
             )}
-          </button>
-          {agentsOpen && (
-            <div className="mt-2 space-y-2">
-              {agentsDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => (
-                <Item key={dHref} href={dHref} label={dLabel} Icon={DIcon} isSubItem />
-              ))}
-            </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Cancellations */}
-        <div>
-          <button
-            onClick={() => setCancellationsOpen((v) => !v)}
-            className="w-full flex items-center justify-between rounded-lg px-4 py-3 text-sm font-medium text-[#02665e] bg-white border border-gray-300 hover:bg-gray-50 transition-all duration-200"
-            style={{ backfaceVisibility: "hidden", transform: "translateZ(0)" }}
-          >
-            <span>Cancellations</span>
-            {cancellationsOpen ? (
-              <ChevronDown className="h-4 w-4 text-[#02665e] opacity-60" aria-hidden />
-            ) : (
-              <ChevronRight className="h-4 w-4 text-[#02665e] opacity-60" aria-hidden />
+        {collapsed ? (
+          <Item href="/admin/cancellations" label="Cancellations" Icon={Ban} collapsed={collapsed} />
+        ) : (
+          <div>
+            <CollapsibleButton 
+              label="Cancellations" 
+              Icon={Ban} 
+              isOpen={cancellationsOpen} 
+              onClick={() => setCancellationsOpen(v => !v)}
+              collapsed={collapsed}
+            />
+            {cancellationsOpen && (
+              <div className="mt-2 space-y-2">
+                {cancellationsDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => (
+                  <Item key={dHref} href={dHref} label={dLabel} Icon={DIcon} isSubItem collapsed={collapsed} />
+                ))}
+              </div>
             )}
-          </button>
-          {cancellationsOpen && (
-            <div className="mt-2 space-y-2">
-              {cancellationsDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => (
-                <Item key={dHref} href={dHref} label={dLabel} Icon={DIcon} isSubItem />
-              ))}
-            </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Management */}
-        <div>
-          <button 
-            onClick={() => setManagementOpen(v => !v)} 
-            className="w-full flex items-center justify-between rounded-lg px-4 py-3 text-sm font-medium text-[#02665e] bg-white border border-gray-300 hover:bg-gray-50 transition-all duration-200"
-            style={{ backfaceVisibility: 'hidden', transform: 'translateZ(0)' }}
-          >
-            <span>Management</span>
-            {managementOpen ? (
-              <ChevronDown className="h-4 w-4 text-[#02665e] opacity-60" aria-hidden />
-            ) : (
-              <ChevronRight className="h-4 w-4 text-[#02665e] opacity-60" aria-hidden />
+        {collapsed ? (
+          <Item href="/admin/management" label="Management" Icon={Settings} collapsed={collapsed} />
+        ) : (
+          <div>
+            <CollapsibleButton 
+              label="Management" 
+              Icon={Settings} 
+              isOpen={managementOpen} 
+              onClick={() => setManagementOpen(v => !v)}
+              collapsed={collapsed}
+            />
+            {managementOpen && (
+              <div className="mt-2 space-y-2">
+                {managementDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => (
+                  <Item key={dHref} href={dHref} label={dLabel} Icon={DIcon} isSubItem collapsed={collapsed} />
+                ))}
+              </div>
             )}
-          </button>
-          {managementOpen && (
-            <div className="mt-2 space-y-2">
-              {managementDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => (
-                <Item key={dHref} href={dHref} label={dLabel} Icon={DIcon} isSubItem />
-              ))}
-            </div>
-          )}
-        </div>
+          </div>
+        )}
 
       </div>
     </div>

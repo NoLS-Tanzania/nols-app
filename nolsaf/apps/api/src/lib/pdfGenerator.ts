@@ -92,7 +92,7 @@ export async function generateBookingReservationHTML(details: BookingDetails): P
   const origin = (process.env.WEB_ORIGIN || process.env.APP_ORIGIN || "").replace(/\/+$/, "");
   const defaultLogoUrl = origin ? `${origin}/assets/NoLS2025-04.png` : "";
   const logoSrc = process.env.PDF_LOGO_URL || process.env.BRAND_LOGO_URL || defaultLogoUrl || inlineLogoDataUri;
-  const supportEmail = process.env.SUPPORT_EMAIL || "support@nolsapp.com";
+  const supportEmail = process.env.SUPPORT_EMAIL || "support@nolsaf.com";
   const supportPhone = process.env.SUPPORT_PHONE || process.env.SUPPORT_TEL || "";
   const supportWebsite = (process.env.WEB_ORIGIN || process.env.APP_ORIGIN || "https://nolsaf.com").replace(/\/+$/, "");
   const generatedAt = new Date().toLocaleDateString("en-US", {

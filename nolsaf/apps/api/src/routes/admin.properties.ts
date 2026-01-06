@@ -18,6 +18,7 @@ import {
   invalidateOwnerPropertyLists,
 } from "../lib/cache.js";
 import { auditLog } from "../lib/audit.js";
+import { invalidateCache, cacheKeys, cacheTags } from "../lib/performance.js";
 
 export const router = Router();
 router.use(requireAuth as RequestHandler, requireAdmin as RequestHandler);
@@ -639,6 +640,13 @@ router.patch("/:id", (async (req: AuthedRequest, res) => {
       include: { owner: { select: { id: true, name: true, email: true, phone: true } } }
     });
 
+    // Invalidate cache for this property and property lists
+    await Promise.all([
+      invalidateCache(cacheKeys.property(id)),
+      invalidateCache('properties:list:*'),
+      invalidateCache(cacheKeys.adminSummary()),
+    ]).catch(() => {}); // Don't fail the request if cache invalidation fails
+
     // Update room prices if provided
     // Rooms are stored in the roomsSpec JSON field, not a separate Room table
     if (roomPrices && typeof roomPrices === 'object') {
@@ -671,6 +679,9 @@ router.patch("/:id", (async (req: AuthedRequest, res) => {
           data: { roomsSpec: updatedRoomsSpec },
           include: { owner: { select: { id: true, name: true, email: true, phone: true } } }
         });
+        
+        // Invalidate cache for this property
+        await invalidateCache(cacheKeys.property(id)).catch(() => {});
       }
     }
 
@@ -777,6 +788,13 @@ router.post("/:id/approve", (async (req: AuthedRequest, res) => {
     data: { status: "APPROVED" },
   });
 
+  // Invalidate cache for this property and property lists
+  await Promise.all([
+    invalidateCache(cacheKeys.property(id)),
+    invalidateCache('properties:list:*'),
+    invalidateCache(cacheKeys.adminSummary()),
+  ]).catch(() => {}); // Don't fail the request if cache invalidation fails
+
   const payload = { id, from: before.status, to: "APPROVED", by: req.user!.id };
 
   // Get admin and owner info for notifications
@@ -855,6 +873,13 @@ router.post("/:id/reject", (async (req: AuthedRequest, res) => {
     data: { status: "REJECTED" },
   });
 
+  // Invalidate cache for this property and property lists
+  await Promise.all([
+    invalidateCache(cacheKeys.property(id)),
+    invalidateCache('properties:list:*'),
+    invalidateCache(cacheKeys.adminSummary()),
+  ]).catch(() => {}); // Don't fail the request if cache invalidation fails
+
   const payload = {
     id,
     from: before.status,
@@ -926,6 +951,13 @@ router.post("/:id/suspend", (async (req: AuthedRequest, res) => {
     where: { id },
     data: { status: newStatus },
   });
+
+  // Invalidate cache for this property and property lists
+  await Promise.all([
+    invalidateCache(cacheKeys.property(id)),
+    invalidateCache('properties:list:*'),
+    invalidateCache(cacheKeys.adminSummary()),
+  ]).catch(() => {}); // Don't fail the request if cache invalidation fails
 
   const payload = {
     id,
@@ -1001,6 +1033,13 @@ router.post("/:id/unsuspend", (async (req: AuthedRequest, res) => {
     where: { id },
     data: { status: "APPROVED" },
   });
+
+  // Invalidate cache for this property and property lists
+  await Promise.all([
+    invalidateCache(cacheKeys.property(id)),
+    invalidateCache('properties:list:*'),
+    invalidateCache(cacheKeys.adminSummary()),
+  ]).catch(() => {}); // Don't fail the request if cache invalidation fails
 
   const payload = { 
     id, 

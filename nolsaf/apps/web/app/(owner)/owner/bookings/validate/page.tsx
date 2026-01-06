@@ -16,7 +16,7 @@ type Preview = {
 
 export default function CheckinValidation() {
   // Support contact — fetch from public settings endpoint if available, otherwise use env fallbacks.
-  const [supportEmail, setSupportEmail] = useState<string>(process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "support@nolsapp.com");
+  const [supportEmail, setSupportEmail] = useState<string>(process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "support@nolsaf.com");
   const [supportPhone, setSupportPhone] = useState<string>(process.env.NEXT_PUBLIC_SUPPORT_PHONE ?? "+255 736 766 726");
 
   const [code, setCode] = useState("");
@@ -136,25 +136,15 @@ export default function CheckinValidation() {
           nationality: preview.personal.nationality
         }
       };
-
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'validate/page.tsx:handleConfirmWithConsent',message:'confirm-checkin (start)',data:{bookingId:payload.bookingId},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'VAL_CONFIRM'})}).catch(()=>{});
-      // #endregion
       await api.post('/api/owner/bookings/confirm-checkin', payload);
       setConfirmOpen(false);
 
       // notify sidebar (and any listeners) to refresh checked-in counts immediately
       window.dispatchEvent(new Event("nols:checkedin-changed"));
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'validate/page.tsx:handleConfirmWithConsent',message:'confirm-checkin (done) + event dispatched',data:{bookingId:payload.bookingId,event:'nols:checkedin-changed'},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'VAL_EVENT'})}).catch(()=>{});
-      // #endregion
       // redirect to checked-in list
       router.push('/owner/bookings/checked-in');
     } catch (err: any) {
       setResultMsg(err?.response?.data?.error ?? 'Could not confirm check-in');
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'validate/page.tsx:handleConfirmWithConsent',message:'confirm-checkin (error)',data:{error:String(err?.message??err)},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'VAL_ERROR'})}).catch(()=>{});
-      // #endregion
     } finally {
       setConfirmLoading(false);
     }
@@ -711,21 +701,6 @@ export default function CheckinValidation() {
           </div>
         )}
       </div>
-      </div>
-    </div>
-  );
-}
-
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="px-4 py-3 hover:bg-slate-50/60 transition-colors duration-150">
-      <div className="grid grid-cols-1 sm:grid-cols-[160px_1fr] gap-1 sm:gap-3 items-start">
-        <div className="text-[12px] sm:text-[13px] font-semibold text-slate-500 sm:text-slate-600">
-          {label}
-        </div>
-        <div className="text-[13px] sm:text-[13px] text-slate-900 font-semibold break-words">
-          {value || "—"}
-        </div>
       </div>
     </div>
   );
