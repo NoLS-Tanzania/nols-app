@@ -2,14 +2,11 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
   MapPin,
-  Users,
-  BedDouble,
-  Bath,
   Search,
   ChevronLeft,
   ChevronRight,

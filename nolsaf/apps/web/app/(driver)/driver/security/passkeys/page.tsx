@@ -35,72 +35,40 @@ export default function PasskeysPage() {
       const body = await optRes.json()
       const publicKey = body.publicKey as any
 
-      // convert challenge & user.id to Uint8Array if present
-      // Use a robust base64url -> Uint8Array helper to avoid InvalidCharacterError
-      const base64UrlToUint8Array = (input: string) => {
-        let str = String(input).trim()
-        // remove common whitespace/newline padding characters that may appear
-        str = str.replace(/\s+/g, '')
-        // permissively strip characters not in base64url
-        str = str.replace(/[^A-Za-z0-9-_]/g, '')
-        // base64url -> base64
-        str = str.replace(/-/g, '+').replace(/_/g, '/')
-        const pad = (4 - (str.length % 4)) % 4
-        if (pad) str += '='.repeat(pad)
+      // Convert challenge & user.id to BufferSource.
+      // - `challenge` MUST be base64url-decoded (challenge verification depends on exact bytes)
+      // - `user.id` may be base64url OR a plain string (e.g. "1"); for plain strings, UTF-8 encode
+      const base64urlToUint8 = (b64url: string): Uint8Array | null => {
         try {
-          const binary = atob(str)
-          const len = binary.length
-          const bytes = new Uint8Array(len)
-          for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i)
+          let s = String(b64url || '').trim()
+          if (!s) return null
+          // base64url -> base64
+          s = s.replace(/-/g, '+').replace(/_/g, '/')
+          const pad = (4 - (s.length % 4)) % 4
+          if (pad) s += '='.repeat(pad)
+          const bin = atob(s)
+          const bytes = new Uint8Array(bin.length)
+          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
           return bytes
-        } catch (err) {
+        } catch {
           return null
         }
       }
 
-      const coerceToUint8 = (val: any) : Uint8Array | null => {
-        if (!val && val !== 0) return null
-        // already a TypedArray / ArrayBuffer
-        if (val instanceof Uint8Array) return val
-        if (val instanceof ArrayBuffer) return new Uint8Array(val)
-        // array-like of numbers
-        if (Array.isArray(val) && val.every(n => typeof n === 'number')) return Uint8Array.from(val)
-        // Node.js Buffer-like object { type: 'Buffer', data: [...] }
-        if (val && typeof val === 'object' && Array.isArray((val as any).data)) return Uint8Array.from((val as any).data)
-        // string: try base64url decode
-        if (typeof val === 'string') {
-          // if looks like JSON array, try parse
-          if (val.trim().startsWith('[')) {
-            try { const parsed = JSON.parse(val); if (Array.isArray(parsed)) return Uint8Array.from(parsed) } catch (e) { /* ignore */ }
-          }
-          const b = base64UrlToUint8Array(val)
-          if (b) return b
-          // Last-resort: encode the UTF-8 bytes of the string so the browser
-          // receives a BufferSource and can open the prompt. This may not
-          // match server expectations but prevents the "could not be converted" TypeError.
-          try {
-            return new TextEncoder().encode(val)
-          } catch (e) {
-            return null
-          }
-        }
-        return null
+      const utf8ToUint8 = (text: string): Uint8Array => new TextEncoder().encode(String(text))
+
+      // `challenge` is required to be a BufferSource.
+      if (publicKey.challenge != null && typeof publicKey.challenge === 'string') {
+        const decoded = base64urlToUint8(publicKey.challenge)
+        if (!decoded) throw new Error('Invalid publicKey.challenge received from server')
+        publicKey.challenge = decoded
       }
 
-      // Attempt to coerce publicKey.challenge and publicKey.user.id to Uint8Array,
-      // but if coercion fails we proceed and let the browser attempt creation (it may still work).
-      try {
-        if (publicKey.challenge != null) {
-          const coerced = coerceToUint8(publicKey.challenge)
-          if (coerced) publicKey.challenge = coerced
-        }
-      } catch (e) { /* swallow */ }
-      try {
-        if (publicKey.user && publicKey.user.id != null) {
-          const coerced = coerceToUint8(publicKey.user.id)
-          if (coerced) publicKey.user.id = coerced
-        }
-      } catch (e) { /* swallow */ }
+      // `user.id` must be a BufferSource.
+      if (publicKey.user && publicKey.user.id != null && typeof publicKey.user.id === 'string') {
+        const decoded = base64urlToUint8(publicKey.user.id)
+        publicKey.user.id = decoded ?? utf8ToUint8(publicKey.user.id)
+      }
 
       // 2) call WebAuthn API
       const cred: any = await navigator.credentials.create({ publicKey }) as any

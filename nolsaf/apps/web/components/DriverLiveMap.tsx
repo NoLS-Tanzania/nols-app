@@ -20,7 +20,7 @@ export default function DriverLiveMap({ liveOnly }: { liveOnly?: boolean } = {})
       if (document.getElementById('nols-marker-pulse')) return;
       const s = document.createElement('style');
       s.id = 'nols-marker-pulse';
-      s.innerHTML = `@keyframes nols-pulse { 0% { box-shadow: 0 0 0 0 rgba(16,185,129,0.45);} 70% { box-shadow: 0 0 0 10px rgba(16,185,129,0);} 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0);} } .nols-pulse { animation: nols-pulse 2s infinite; }`;
+      s.textContent = `@keyframes nols-pulse { 0% { box-shadow: 0 0 0 0 rgba(16,185,129,0.45);} 70% { box-shadow: 0 0 0 10px rgba(16,185,129,0);} 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0);} } .nols-pulse { animation: nols-pulse 2s infinite; }`;
       document.head.appendChild(s);
     } catch (e) {
       // ignore

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import { Calendar, Download, CheckCircle, XCircle, Eye, ArrowRight, BookOpen } from "lucide-react";
 import Link from "next/link";
+import { sanitizeTrustedHtml } from "@/utils/html";
 
 const api = axios.create({ baseURL: "", withCredentials: true });
 
@@ -150,7 +151,7 @@ export default function MyBookingsPage() {
       }
 
       // Get HTML content
-      const html = await response.text();
+      const html = sanitizeTrustedHtml(await response.text());
       
       // Create a new window and print
       const printWindow = window.open("", "_blank");

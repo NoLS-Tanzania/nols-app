@@ -25,14 +25,10 @@ export function performanceMiddleware(req: Request, res: Response, next: NextFun
   const start = performance.now();
   const method = req.method;
   const path = req.path;
-
-  // Override res.json to capture response
-  const originalJson = res.json.bind(res);
-  res.json = function (body: any) {
+  res.on('finish', () => {
     const duration = performance.now() - start;
     const statusCode = res.statusCode;
 
-    // Record metrics
     const metric: PerformanceMetrics = {
       method,
       path,
@@ -43,49 +39,13 @@ export function performanceMiddleware(req: Request, res: Response, next: NextFun
 
     metrics.push(metric);
     if (metrics.length > maxMetrics) {
-      metrics.shift(); // Remove oldest
+      metrics.shift();
     }
 
-    // Log slow requests
     if (duration > slowRequestThreshold) {
       console.warn(
         `[PERF] Slow request: ${method} ${path} took ${duration.toFixed(2)}ms (status: ${statusCode})`
       );
-    }
-
-    // Add performance header
-    res.set('X-Response-Time', `${duration.toFixed(2)}ms`);
-
-    return originalJson(body);
-  };
-
-  // Handle errors
-  res.on('finish', () => {
-    const duration = performance.now() - start;
-    const statusCode = res.statusCode;
-
-    // Only log if not already logged by res.json
-    if (!res.headersSent || !res.getHeader('X-Response-Time')) {
-      const metric: PerformanceMetrics = {
-        method,
-        path,
-        duration,
-        statusCode,
-        timestamp: Date.now(),
-      };
-
-      metrics.push(metric);
-      if (metrics.length > maxMetrics) {
-        metrics.shift();
-      }
-
-      if (duration > slowRequestThreshold) {
-        console.warn(
-          `[PERF] Slow request: ${method} ${path} took ${duration.toFixed(2)}ms (status: ${statusCode})`
-        );
-      }
-
-      res.set('X-Response-Time', `${duration.toFixed(2)}ms`);
     }
   });
 

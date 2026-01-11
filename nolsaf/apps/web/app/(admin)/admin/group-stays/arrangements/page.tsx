@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
-import { Wrench, Search, X, Calendar, MapPin, UsersRound, BarChart3, Truck, Bus, Coffee, User, Package, TrendingUp } from "lucide-react";
+import { Wrench, Search, X, Calendar, MapPin, UsersRound, BarChart3, Truck, Bus, Coffee, User, Package, AlertCircle, RefreshCw, Loader2 } from "lucide-react";
 import DatePicker from "@/components/ui/DatePicker";
 import axios from "axios";
 import Chart from "@/components/Chart";
@@ -8,7 +8,47 @@ import type { ChartData } from "chart.js";
 
 // Use same-origin for HTTP calls so Next.js rewrites proxy to the API
 const api = axios.create({ baseURL: "", withCredentials: true });
-function authify() {}
+
+function authify() {
+  if (typeof window === "undefined") return;
+
+  // Most of the app uses a Bearer token (often stored in localStorage).
+  // The API endpoints are protected by requireAuth, so we must attach it.
+  const lsToken =
+    window.localStorage.getItem("token") ||
+    window.localStorage.getItem("nolsaf_token") ||
+    window.localStorage.getItem("__Host-nolsaf_token");
+
+  if (lsToken) {
+    api.defaults.headers.common["Authorization"] = `Bearer ${lsToken}`;
+    return;
+  }
+
+  // Fallback: non-httpOnly cookie (if present)
+  const m = String(document.cookie || "").match(/(?:^|;\s*)(?:nolsaf_token|__Host-nolsaf_token)=([^;]+)/);
+  const cookieToken = m?.[1] ? decodeURIComponent(m[1]) : "";
+  if (cookieToken) {
+    api.defaults.headers.common["Authorization"] = `Bearer ${cookieToken}`;
+  }
+}
+
+// Input sanitization helper
+function sanitizeInput(input: string): string {
+  return input.trim().replace(/[<>]/g, "").slice(0, 200);
+}
+
+// Validate filter values
+function isValidArrType(value: string): boolean {
+  return ["", "pickup", "transport", "meals", "guide", "equipment"].includes(value);
+}
+
+function isValidGroupType(value: string): boolean {
+  return ["", "family", "workers", "event", "students", "team", "other"].includes(value);
+}
+
+function isValidStatus(value: string): boolean {
+  return ["", "PENDING", "CONFIRMED", "PROCESSING", "COMPLETED", "CANCELED"].includes(value);
+}
 
 type ArrangementRow = {
   id: number;
@@ -64,6 +104,7 @@ export default function AdminGroupStaysArrangementsPage() {
   const [status, setStatus] = useState<string>("");
   const [date, setDate] = useState<string | string[]>("");
   const [q, setQ] = useState("");
+  const [debouncedQ, setDebouncedQ] = useState("");
   const [list, setList] = useState<ArrangementRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -72,21 +113,48 @@ export default function AdminGroupStaysArrangementsPage() {
   const searchRef = useRef<HTMLInputElement | null>(null);
   const [pickerAnim, setPickerAnim] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [statsError, setStatsError] = useState<string | null>(null);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Stats state
   const [stats, setStats] = useState<ArrangementStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
 
-  async function load() {
+  // Debounce search input
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    searchTimeoutRef.current = setTimeout(() => {
+      setDebouncedQ(q);
+    }, 300);
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [q]);
+
+  const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const params: any = {
         page,
         pageSize,
       };
-      if (arrType) params.arrType = arrType;
-      if (groupType) params.groupType = groupType;
-      if (status) params.status = status;
+      
+      // Validate and sanitize inputs
+      if (arrType && isValidArrType(arrType)) {
+        params.arrType = arrType;
+      }
+      if (groupType && isValidGroupType(groupType)) {
+        params.groupType = groupType;
+      }
+      if (status && isValidStatus(status)) {
+        params.status = status;
+      }
       if (date) {
         if (Array.isArray(date)) {
           params.start = date[0];
@@ -95,26 +163,33 @@ export default function AdminGroupStaysArrangementsPage() {
           params.date = date;
         }
       }
-      if (q) params.q = q;
+      if (debouncedQ) {
+        params.q = sanitizeInput(debouncedQ);
+      }
 
       const r = await api.get<{ items: ArrangementRow[]; total: number }>("/admin/group-stays/arrangements", { params });
       setList(r.data?.items ?? []);
       setTotal(r.data?.total ?? 0);
-    } catch (err) {
+    } catch (err: any) {
+      const errorMessage = err?.response?.data?.error || err?.message || "Failed to load arrangements";
+      setError(errorMessage);
       console.error("Failed to load arrangements", err);
       setList([]);
       setTotal(0);
     } finally {
       setLoading(false);
     }
-  }
+  }, [page, arrType, groupType, status, date, debouncedQ]);
 
   const loadStats = useCallback(async () => {
     setStatsLoading(true);
+    setStatsError(null);
     try {
       const r = await api.get<ArrangementStats>("/admin/group-stays/arrangements/stats");
       setStats(r.data);
-    } catch (err) {
+    } catch (err: any) {
+      const errorMessage = err?.response?.data?.error || err?.message || "Failed to load arrangement statistics";
+      setStatsError(errorMessage);
       console.error("Failed to load arrangement statistics", err);
       setStats(null);
     } finally {
@@ -124,9 +199,12 @@ export default function AdminGroupStaysArrangementsPage() {
 
   useEffect(() => {
     authify();
+  }, []);
+
+  useEffect(() => {
     load();
     loadStats();
-  }, [page, arrType, groupType, status, date, q, loadStats]);
+  }, [load, loadStats]);
 
   const pages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -255,7 +333,22 @@ export default function AdminGroupStaysArrangementsPage() {
       </div>
 
       {/* Summary Cards */}
-      {stats && (
+      {statsError ? (
+        <div className="bg-white rounded-lg border border-red-200 p-6 shadow-sm">
+          <div className="flex flex-col items-center justify-center py-8">
+            <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
+            <p className="text-sm font-medium text-gray-700 mb-2">Failed to load statistics</p>
+            <p className="text-xs text-gray-500 text-center mb-4">{statsError}</p>
+            <button
+              onClick={loadStats}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 transition-colors"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Retry
+            </button>
+          </div>
+        </div>
+      ) : stats && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-300 hover:border-blue-300 group">
             <div className="flex items-center gap-4">
@@ -550,14 +643,16 @@ export default function AdminGroupStaysArrangementsPage() {
                 className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none text-sm max-w-full box-border"
                 placeholder="Search bookings..."
                 value={q}
-                onChange={(e) => setQ(e.target.value)}
+                onChange={(e) => setQ(sanitizeInput(e.target.value))}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
                     setPage(1);
-                    load();
                   }
                 }}
+                aria-label="Search arrangements by customer name, email, or destination"
+                title="Search arrangements"
+                maxLength={200}
               />
               {q && (
                 <button
@@ -565,7 +660,6 @@ export default function AdminGroupStaysArrangementsPage() {
                   onClick={() => {
                     setQ("");
                     setPage(1);
-                    load();
                   }}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                   aria-label="Clear search"
@@ -583,6 +677,7 @@ export default function AdminGroupStaysArrangementsPage() {
                   setArrType(e.target.value);
                   setPage(1);
                 }}
+                aria-label="Filter by arrangement type"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none text-sm bg-white max-w-full box-border"
               >
                 <option value="">All Arrangements</option>
@@ -602,6 +697,7 @@ export default function AdminGroupStaysArrangementsPage() {
                   setGroupType(e.target.value);
                   setPage(1);
                 }}
+                aria-label="Filter by group type"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none text-sm bg-white max-w-full box-border"
               >
                 <option value="">All Group Types</option>
@@ -622,6 +718,7 @@ export default function AdminGroupStaysArrangementsPage() {
                   setStatus(e.target.value);
                   setPage(1);
                 }}
+                aria-label="Filter by status"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none text-sm bg-white max-w-full box-border"
               >
                 <option value="">All Status</option>
@@ -642,11 +739,13 @@ export default function AdminGroupStaysArrangementsPage() {
                   setTimeout(() => setPickerAnim(false), 350);
                   setPickerOpen((v) => !v);
                 }}
+                aria-label="Select date filter"
+                title="Select date filter"
                 className={`w-full px-3 py-2 rounded-lg border border-gray-300 text-sm flex items-center justify-center gap-2 text-gray-700 bg-white transition-all ${
                   pickerAnim ? "ring-2 ring-amber-100" : "hover:bg-gray-50"
                 } box-border`}
               >
-                <Calendar className="h-4 w-4" />
+                <Calendar className="h-4 w-4" aria-hidden="true" />
                 <span>Date</span>
               </button>
               {pickerOpen && (
@@ -672,6 +771,24 @@ export default function AdminGroupStaysArrangementsPage() {
       {/* Arrangements Table */}
       <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
         {loading ? (
+          <div className="px-6 py-12 text-center" role="status" aria-live="polite" aria-label="Loading arrangements">
+            <Loader2 className="h-8 w-8 text-amber-600 animate-spin mx-auto mb-4" />
+            <p className="text-sm font-medium text-gray-700">Loading arrangements...</p>
+          </div>
+        ) : error ? (
+          <div className="px-6 py-12 text-center">
+            <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+            <p className="text-sm font-medium text-gray-700 mb-2">Failed to load arrangements</p>
+            <p className="text-xs text-gray-500 text-center mb-4">{error}</p>
+            <button
+              onClick={load}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 transition-colors"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Retry
+            </button>
+          </div>
+        ) : list.length === 0 ? (
           <>
             {/* Skeleton Table */}
             <div className="hidden md:block overflow-x-auto">
@@ -803,7 +920,13 @@ export default function AdminGroupStaysArrangementsPage() {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button className="text-amber-600 hover:text-amber-900">View</button>
+                        <button 
+                          className="text-amber-600 hover:text-amber-900"
+                          aria-label={`View details for booking #${booking.id}`}
+                          title="View booking details"
+                        >
+                          View
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -862,7 +985,13 @@ export default function AdminGroupStaysArrangementsPage() {
                     </div>
                   </div>
                   <div className="mt-3 text-right">
-                    <button className="text-amber-600 hover:text-amber-900 text-sm">View Details</button>
+                    <button 
+                      className="text-amber-600 hover:text-amber-900 text-sm"
+                      aria-label={`View details for booking #${booking.id}`}
+                      title="View booking details"
+                    >
+                      View Details
+                    </button>
                   </div>
                 </div>
               ))}
@@ -878,6 +1007,7 @@ export default function AdminGroupStaysArrangementsPage() {
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page === 1}
+              aria-label="Go to previous page"
               className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Previous
@@ -888,6 +1018,7 @@ export default function AdminGroupStaysArrangementsPage() {
             <button
               onClick={() => setPage((p) => Math.min(pages, p + 1))}
               disabled={page === pages}
+              aria-label="Go to next page"
               className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Next

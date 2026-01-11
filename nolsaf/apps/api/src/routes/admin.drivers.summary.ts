@@ -12,6 +12,7 @@ router.get("/", async (_req, res) => {
     let totalDrivers = 0;
     let activeDrivers = 0;
     let suspendedDrivers = 0;
+    let tripsPendingReconciliation = 0;
     
     try {
       totalDrivers = await prisma.user.count({ where: { role: "DRIVER" } });
@@ -32,6 +33,25 @@ router.get("/", async (_req, res) => {
     } catch (e: any) {
       console.warn("Error counting suspended drivers:", e);
       suspendedDrivers = 0;
+    }
+
+    // Trips pending reconciliation: completed trips that are not marked as paid.
+    // This aligns with the Admin Home “Trips pending reconciliation” KPI.
+    try {
+      if (!prisma.transportBooking) {
+        console.warn("TransportBooking model not found in Prisma client. Run 'npx prisma generate' to regenerate.");
+        tripsPendingReconciliation = 0;
+      } else {
+        tripsPendingReconciliation = await prisma.transportBooking.count({
+          where: {
+            status: "COMPLETED",
+            OR: [{ paymentStatus: "PENDING" }, { paymentStatus: null }, { paymentStatus: { not: "PAID" } }],
+          },
+        });
+      }
+    } catch (e: any) {
+      console.warn("Error counting trips pending reconciliation:", e?.message || e);
+      tripsPendingReconciliation = 0;
     }
 
     // top bookings (driver with most transport bookings)
@@ -128,6 +148,7 @@ router.get("/", async (_req, res) => {
       totalDrivers, 
       activeDrivers, 
       suspendedDrivers, 
+      tripsPendingReconciliation,
       topBookings, 
       recentDrivers,
       bookingPerformance 

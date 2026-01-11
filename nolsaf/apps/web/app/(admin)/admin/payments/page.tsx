@@ -4,6 +4,7 @@ import { Wallet, CreditCard, Eye, Smartphone, Search, X, Clock, CheckCircle, Use
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import axios from 'axios';
 import Image from "next/image";
+import { escapeAttr, escapeHtml } from "@/utils/html";
 
 interface InvoicePayment {
   id: number;
@@ -109,6 +110,9 @@ export default function Page() {
     try {
       const receiptNo = payment.receiptNumber || `RCPT-${payment.invoiceId}`;
       const suggested = `${receiptNo}.pdf`;
+
+      const safeText = (v: unknown) => escapeHtml(v);
+      const safeAttr = (v: unknown) => escapeAttr(v);
       
       // Get QR code image as data URL
       const origin = typeof window !== 'undefined' && window.location ? window.location.origin : '';
@@ -153,7 +157,7 @@ export default function Page() {
         <html>
         <head>
           <meta charset="utf-8">
-          <title>Payment Receipt - ${receiptNo}</title>
+          <title>Payment Receipt - ${safeText(receiptNo)}</title>
           <style>
             @media print {
               @page {
@@ -340,9 +344,9 @@ export default function Page() {
               <div class="code-box">
                 <div class="verified-stamp">PAID</div>
                 <div style="font-size: 12px; color: #1e293b; margin-bottom: 6px; font-weight: 800;">Receipt Number</div>
-                <div class="code">${receiptNo}</div>
+                <div class="code">${safeText(receiptNo)}</div>
                 <div style="font-size: 11px; color: #334155; margin-top: 2px; font-weight: 600;">
-                  ${formatDate(payment.paidAt)}
+                  ${safeText(formatDate(payment.paidAt))}
                 </div>
               </div>
 
@@ -351,27 +355,27 @@ export default function Page() {
                 <div class="section-content">
                   <div class="detail-row">
                     <span class="detail-label">Amount:</span>
-                    <span class="detail-value"><strong>${formatCurrency(payment.amount, payment.currency)}</strong></span>
+                    <span class="detail-value"><strong>${safeText(formatCurrency(payment.amount, payment.currency))}</strong></span>
                   </div>
                   <div class="detail-row">
                     <span class="detail-label">Payment Method:</span>
-                    <span class="detail-value">${formatPaymentMethod(payment.paymentMethod) || 'Not specified'}</span>
+                    <span class="detail-value">${safeText(formatPaymentMethod(payment.paymentMethod) || 'Not specified')}</span>
                   </div>
                   ${payment.accountNumber ? `
                   <div class="detail-row">
                     <span class="detail-label">Account:</span>
-                    <span class="detail-value" style="font-family: monospace;">${maskAccountNumber(payment.accountNumber)}</span>
+                    <span class="detail-value" style="font-family: monospace;">${safeText(maskAccountNumber(payment.accountNumber))}</span>
                   </div>
                   ` : ''}
                   ${payment.paymentRef ? `
                   <div class="detail-row">
                     <span class="detail-label">Payment Reference:</span>
-                    <span class="detail-value" style="font-family: monospace;">${payment.paymentRef}</span>
+                    <span class="detail-value" style="font-family: monospace;">${safeText(payment.paymentRef)}</span>
                   </div>
                   ` : ''}
                   <div class="detail-row">
                     <span class="detail-label">Date Paid:</span>
-                    <span class="detail-value">${formatDateTime(payment.paidAt)}</span>
+                    <span class="detail-value">${safeText(formatDateTime(payment.paidAt))}</span>
                   </div>
                 </div>
               </div>
@@ -381,16 +385,16 @@ export default function Page() {
                 <div class="section-content">
                   <div class="detail-row">
                     <span class="detail-label">Invoice Number:</span>
-                    <span class="detail-value" style="font-family: monospace;">${payment.invoiceNumber}</span>
+                    <span class="detail-value" style="font-family: monospace;">${safeText(payment.invoiceNumber)}</span>
                   </div>
                   <div class="detail-row">
                     <span class="detail-label">Owner:</span>
-                    <span class="detail-value">${payment.owner.name || `Owner #${payment.owner.id}`}</span>
+                    <span class="detail-value">${safeText(payment.owner.name || `Owner #${payment.owner.id}`)}</span>
                   </div>
                   ${payment.property ? `
                   <div class="detail-row">
                     <span class="detail-label">Property:</span>
-                    <span class="detail-value">${payment.property.title}</span>
+                    <span class="detail-value">${safeText(payment.property.title)}</span>
                   </div>
                   ` : ''}
                 </div>
@@ -406,7 +410,7 @@ export default function Page() {
                   </div>
                   <div style="text-align: center;">
                     ${qrDataUrl ? `
-                    <img src="${qrDataUrl}" alt="Receipt QR Code" class="qr-code" />
+                    <img src="${safeAttr(qrDataUrl)}" alt="Receipt QR Code" class="qr-code" />
                     <div style="font-size: 10px; margin-top: 6px; color: #334155; font-weight: 800;">Scan to verify</div>
                     ` : ''}
                   </div>

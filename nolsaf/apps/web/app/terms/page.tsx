@@ -54,7 +54,7 @@ export default function TermsPage() {
     if (typeof document !== 'undefined') {
       const referrer = document.referrer;
       const origin = window.location.origin;
-      isFromPublicRoute = referrer && (
+      isFromPublicRoute = !!referrer && (
         referrer.includes('/public') || 
         referrer === origin || 
         referrer === origin + '/' ||

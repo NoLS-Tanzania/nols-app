@@ -2,7 +2,7 @@
 import { Router, RequestHandler } from "express";
 import { prisma } from "@nolsaf/prisma";
 import { requireAuth, requireRole } from "../middleware/auth.js";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
 export const router = Router();
 router.use(requireAuth as unknown as RequestHandler, requireRole("ADMIN") as unknown as RequestHandler);
@@ -439,7 +439,7 @@ router.get("/invoices/stats", async (req, res) => {
     // Group by date
     const dateMap = new Map<string, { count: number; paid: number; amount: number }>();
     
-    withdrawals.forEach((w) => {
+    withdrawals.forEach((w: any) => {
       const dateKey = w.createdAt.toISOString().split("T")[0];
       const existing = dateMap.get(dateKey) || { count: 0, paid: 0, amount: 0 };
       existing.count += 1;
@@ -504,10 +504,11 @@ router.get("/paid", async (req, res) => {
     // Search query
     if (q) {
       where.OR = [
-        { invoiceNumber: { contains: q, mode: "insensitive" } },
-        { receiptNumber: { contains: q, mode: "insensitive" } },
-        { tripCode: { contains: q, mode: "insensitive" } },
-        { paymentRef: { contains: q, mode: "insensitive" } },
+        // MySQL doesn't support `mode: "insensitive"`, so use plain contains.
+        { invoiceNumber: { contains: q } },
+        { receiptNumber: { contains: q } },
+        { tripCode: { contains: q } },
+        { paymentRef: { contains: q } },
       ];
     }
     
@@ -754,7 +755,7 @@ router.get("/revenues", async (req, res) => {
     const { driverId, date, start, end, page = "1", pageSize = "50", q = "" } = req.query as any;
     
     const where: any = {
-      booking: { driverId: { not: null } as any },
+      booking: { is: { driverId: { not: null } } },
     };
     
     // Filter by driver if specified
@@ -776,8 +777,9 @@ router.get("/revenues", async (req, res) => {
     // Search query
     if (q) {
       where.OR = [
-        { booking: { driver: { name: { contains: q, mode: "insensitive" } } } as any },
-        { booking: { driver: { email: { contains: q, mode: "insensitive" } } } as any },
+        // MySQL doesn't support `mode: "insensitive"`, so use plain contains.
+        { booking: { is: { driver: { is: { name: { contains: q } } } } } },
+        { booking: { is: { driver: { is: { email: { contains: q } } } } } },
       ];
     }
     
@@ -2088,7 +2090,7 @@ router.post("/auto-create-reminders", async (req, res) => {
             });
 
             if (!recentRatingReminder) {
-              let ratingMessage = null;
+              let ratingMessage: string | null = null;
               let ratingType = "WARNING";
 
               if (rating < 3.5) {
@@ -2158,7 +2160,7 @@ router.post("/auto-create-reminders", async (req, res) => {
             });
 
             if (!recentSafetyReminder) {
-              let safetyMessage = null;
+              let safetyMessage: string | null = null;
               
               if (vehicleType === "MotorCycle") {
                 safetyMessage = "Safety Reminder: Always wear a helmet while driving. Ensure your helmet meets safety standards and is properly fastened. Safety is our top priority.";
@@ -2362,7 +2364,7 @@ router.post("/auto-create-reminders", async (req, res) => {
               const goalProgress = todayEarnings > 0 ? Math.min(100, Math.round((todayEarnings / dailyEarningsGoal) * 100)) : 0;
               const tripsProgress = todayTrips > 0 ? Math.min(100, Math.round((todayTrips / dailyTripsGoal) * 100)) : 0;
 
-              let goalMessage = null;
+              let goalMessage: string | null = null;
               let goalType = "INFO";
 
               if (goalProgress < 50 && todayEarnings > 0) {
@@ -2439,7 +2441,7 @@ router.post("/auto-create-reminders", async (req, res) => {
             });
 
             if (!recentEarningsReminder) {
-              let earningsMessage = null;
+              let earningsMessage: string | null = null;
               let earningsType = "INFO";
 
               // Weekly earnings analysis

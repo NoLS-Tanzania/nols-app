@@ -1,11 +1,55 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
-import { Search, X, User, CheckCircle, XCircle, Clock, Eye, Plus, Filter, GraduationCap, MapPin, Award, Languages, Briefcase, UsersRound, ChevronDown, ChevronUp, Calendar, DollarSign, Star, CheckCircle2, Mail, Phone, TrendingUp, Target, Trophy } from "lucide-react";
+import { Search, X, User, CheckCircle, XCircle, Clock, Eye, Plus, Filter, GraduationCap, MapPin, Award, Languages, Briefcase, UsersRound, ChevronDown, ChevronUp, Calendar, DollarSign, Star, CheckCircle2, Mail, Phone, TrendingUp, Target, Trophy, Loader2, AlertCircle, RefreshCw } from "lucide-react";
 import axios from "axios";
 import Link from "next/link";
 
 const api = axios.create({ baseURL: "", withCredentials: true });
+
+function authify() {
+  if (typeof window === "undefined") return;
+
+  // Most of the app uses a Bearer token (often stored in localStorage).
+  // The API endpoints are protected by requireAuth, so we must attach it.
+  const lsToken =
+    window.localStorage.getItem("token") ||
+    window.localStorage.getItem("nolsaf_token") ||
+    window.localStorage.getItem("__Host-nolsaf_token");
+
+  if (lsToken) {
+    api.defaults.headers.common["Authorization"] = `Bearer ${lsToken}`;
+    return;
+  }
+
+  // Fallback: non-httpOnly cookie (if present)
+  const m = String(document.cookie || "").match(/(?:^|;\s*)(?:nolsaf_token|__Host-nolsaf_token)=([^;]+)/);
+  const cookieToken = m?.[1] ? decodeURIComponent(m[1]) : "";
+  if (cookieToken) {
+    api.defaults.headers.common["Authorization"] = `Bearer ${cookieToken}`;
+  }
+}
+
+// Input sanitization helper
+function sanitizeInput(input: string): string {
+  return input.trim().replace(/[<>]/g, "");
+}
+
+// Validate agent ID
+function isValidAgentId(id: number | null | undefined): boolean {
+  return id !== null && id !== undefined && Number.isInteger(id) && id > 0;
+}
+
+// Toast notification helper
+function showToast(type: "success" | "error" | "info" | "warning", title: string, message?: string, duration?: number) {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent("nols:toast", {
+        detail: { type, title, message, duration: duration ?? 5000 },
+      })
+    );
+  }
+}
 
 type Agent = {
   id: number;
@@ -71,7 +115,9 @@ export default function AdminAgentsPage() {
   const pageSize = 30;
   const [viewingAgent, setViewingAgent] = useState<Agent | null>(null);
   const [loadingAgentDetails, setLoadingAgentDetails] = useState(false);
+  const [agentDetailsError, setAgentDetailsError] = useState<string | null>(null);
   const [personalDetailsOpen, setPersonalDetailsOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Filter states
   const [status, setStatus] = useState<string>("");
@@ -81,6 +127,8 @@ export default function AdminAgentsPage() {
   const [specializations, setSpecializations] = useState<string>("");
   const [languages, setLanguages] = useState<string>("");
   const [q, setQ] = useState("");
+  const [debouncedQ, setDebouncedQ] = useState("");
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (searchParams) {
@@ -93,35 +141,56 @@ export default function AdminAgentsPage() {
     }
   }, [searchParams]);
 
-  async function load() {
+  // Debounce search input
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    searchTimeoutRef.current = setTimeout(() => {
+      setDebouncedQ(q);
+    }, 300);
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [q]);
+
+  const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
+      authify();
       const params: any = {
         page,
         pageSize,
       };
 
-      if (status && status.trim()) params.status = status.trim();
-      if (educationLevel && educationLevel.trim()) params.educationLevel = educationLevel.trim();
-      if (available && available.trim()) params.available = available.trim();
-      if (areasOfOperation && areasOfOperation.trim()) params.areasOfOperation = areasOfOperation.trim();
-      if (specializations && specializations.trim()) params.specializations = specializations.trim();
-      if (languages && languages.trim()) params.languages = languages.trim();
-      if (q && q.trim()) params.q = q.trim();
+      if (status && status.trim()) params.status = sanitizeInput(status.trim());
+      if (educationLevel && educationLevel.trim()) params.educationLevel = sanitizeInput(educationLevel.trim());
+      if (available && available.trim()) params.available = sanitizeInput(available.trim());
+      if (areasOfOperation && areasOfOperation.trim()) params.areasOfOperation = sanitizeInput(areasOfOperation.trim());
+      if (specializations && specializations.trim()) params.specializations = sanitizeInput(specializations.trim());
+      if (languages && languages.trim()) params.languages = sanitizeInput(languages.trim());
+      if (debouncedQ && debouncedQ.trim()) params.q = sanitizeInput(debouncedQ.trim());
 
       const response = await api.get<{ items: Agent[]; total: number; page: number; pageSize: number }>("/api/admin/agents", { params });
       setAgents(response.data.items || []);
       setTotal(response.data.total || 0);
     } catch (err: any) {
       console.error("Failed to load agents", err);
+      const errorMessage = err?.response?.data?.error || err?.message || "Failed to load agents";
+      setError(errorMessage);
+      showToast("error", "Failed to Load Agents", errorMessage);
     } finally {
       setLoading(false);
     }
-  }
+  }, [page, status, educationLevel, available, areasOfOperation, specializations, languages, debouncedQ]);
 
   useEffect(() => {
+    authify();
     load();
-  }, [page, status, educationLevel, available, areasOfOperation, specializations, languages, q]);
+  }, [load]);
 
   const getStatusColor = (agentStatus: string) => {
     switch (agentStatus) {
@@ -191,9 +260,26 @@ export default function AdminAgentsPage() {
               type="text"
               placeholder="Search agents by name, email, phone..."
               value={q}
-              onChange={(e) => setQ(e.target.value)}
-              className="w-full min-w-0 max-w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] outline-none text-sm transition-all duration-200 bg-white hover:border-gray-300 focus:bg-white box-border placeholder:text-gray-400"
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value.length <= 200) {
+                  setQ(value);
+                }
+              }}
+              aria-label="Search agents by name, email, phone, or other details"
+              title="Search agents"
+              maxLength={200}
+              className="w-full min-w-0 max-w-full pl-12 pr-10 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] outline-none text-sm transition-all duration-200 bg-white hover:border-gray-300 focus:bg-white box-border placeholder:text-gray-400"
             />
+            {q && (
+              <button
+                onClick={() => setQ("")}
+                aria-label="Clear search"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
           </div>
 
           {/* Filter Grid */}
@@ -220,6 +306,8 @@ export default function AdminAgentsPage() {
               <label htmlFor="availability-filter" className="text-xs font-semibold text-gray-700 mb-2">Availability</label>
               <select
                 id="availability-filter"
+                aria-label="Filter by availability"
+                title="Filter by availability"
                 value={available}
                 onChange={(e) => setAvailable(e.target.value)}
                 className="w-full min-w-0 px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] outline-none text-sm bg-white hover:border-gray-300 focus:bg-white transition-all duration-200 cursor-pointer box-border appearance-none"
@@ -257,7 +345,15 @@ export default function AdminAgentsPage() {
                 type="text"
                 placeholder="Filter by area..."
                 value={areasOfOperation}
-                onChange={(e) => setAreasOfOperation(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value.length <= 100) {
+                    setAreasOfOperation(value);
+                  }
+                }}
+                aria-label="Filter by area of operation"
+                title="Filter by area of operation"
+                maxLength={100}
                 className="w-full min-w-0 px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] outline-none text-sm bg-white hover:border-gray-300 focus:bg-white transition-all duration-200 box-border placeholder:text-gray-400"
               />
             </div>
@@ -269,7 +365,15 @@ export default function AdminAgentsPage() {
                 type="text"
                 placeholder="Filter by specialization..."
                 value={specializations}
-                onChange={(e) => setSpecializations(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value.length <= 100) {
+                    setSpecializations(value);
+                  }
+                }}
+                aria-label="Filter by specialization"
+                title="Filter by specialization"
+                maxLength={100}
                 className="w-full min-w-0 px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] outline-none text-sm bg-white hover:border-gray-300 focus:bg-white transition-all duration-200 box-border placeholder:text-gray-400"
               />
             </div>
@@ -281,7 +385,15 @@ export default function AdminAgentsPage() {
                 type="text"
                 placeholder="Filter by language..."
                 value={languages}
-                onChange={(e) => setLanguages(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value.length <= 50) {
+                    setLanguages(value);
+                  }
+                }}
+                aria-label="Filter by language"
+                title="Filter by language"
+                maxLength={50}
                 className="w-full min-w-0 px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] outline-none text-sm bg-white hover:border-gray-300 focus:bg-white transition-all duration-200 box-border placeholder:text-gray-400"
               />
             </div>
@@ -300,6 +412,7 @@ export default function AdminAgentsPage() {
                   setLanguages("");
                   setQ("");
                 }}
+                aria-label="Clear all filters"
                 className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-[#02665e] hover:bg-[#02665e]/5 rounded-lg transition-all duration-200"
               >
                 Clear all filters
@@ -312,11 +425,34 @@ export default function AdminAgentsPage() {
       {/* Agents List */}
       {loading ? (
         <div className="bg-white rounded-lg border border-gray-200 p-8 shadow-sm">
-          <div className="text-center text-gray-500">Loading agents...</div>
+          <div className="text-center">
+            <Loader2 className="h-6 w-6 text-[#02665e] animate-spin mx-auto mb-2" />
+            <p className="text-gray-500 text-sm">Loading agents...</p>
+          </div>
+        </div>
+      ) : error ? (
+        <div className="bg-white rounded-lg border border-red-200 p-8 shadow-sm">
+          <div className="text-center">
+            <AlertCircle className="h-8 w-8 text-red-600 mx-auto mb-3" />
+            <p className="text-red-800 font-medium mb-2">Failed to load agents</p>
+            <p className="text-red-600 text-sm mb-4">{error}</p>
+            <button
+              onClick={load}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+              aria-label="Retry loading agents"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Retry
+            </button>
+          </div>
         </div>
       ) : agents.length === 0 ? (
         <div className="bg-white rounded-lg border border-gray-200 p-8 shadow-sm">
-          <div className="text-center text-gray-500">No agents found</div>
+          <div className="text-center text-gray-500">
+            {debouncedQ || status || educationLevel || available || areasOfOperation || specializations || languages
+              ? "No agents found matching your filters"
+              : "No agents found"}
+          </div>
         </div>
       ) : (
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
@@ -434,16 +570,27 @@ export default function AdminAgentsPage() {
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <button
                         onClick={async () => {
+                          if (!isValidAgentId(agent.id)) {
+                            showToast("error", "Invalid Agent", "Invalid agent ID provided");
+                            return;
+                          }
                           setLoadingAgentDetails(true);
+                          setAgentDetailsError(null);
                           try {
+                            authify();
                             const response = await api.get<Agent>(`/api/admin/agents/${agent.id}`);
                             setViewingAgent(response.data);
                           } catch (err: any) {
                             console.error("Failed to load agent details", err);
+                            const errorMessage = err?.response?.data?.error || err?.message || "Failed to load agent details";
+                            setAgentDetailsError(errorMessage);
+                            showToast("error", "Failed to Load Agent", errorMessage);
                           } finally {
                             setLoadingAgentDetails(false);
                           }
                         }}
+                        aria-label={`View details for agent ${agent.user.name || "Unknown"}`}
+                        title="View agent details"
                         className="text-[#02665e] hover:text-[#014d47] flex items-center gap-1"
                       >
                         <Eye className="h-4 w-4" />
@@ -466,6 +613,7 @@ export default function AdminAgentsPage() {
                 <button
                   onClick={() => setPage(Math.max(1, page - 1))}
                   disabled={page === 1}
+                  aria-label="Go to previous page"
                   className="px-3 py-1 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Previous
@@ -473,6 +621,7 @@ export default function AdminAgentsPage() {
                 <button
                   onClick={() => setPage(Math.min(pages, page + 1))}
                   disabled={page === pages}
+                  aria-label="Go to next page"
                   className="px-3 py-1 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Next
@@ -491,7 +640,11 @@ export default function AdminAgentsPage() {
             <div className="bg-gradient-to-r from-[#02665e] to-[#024d47] px-6 py-4 flex items-center justify-between flex-shrink-0">
               <h2 className="text-xl font-bold text-white">Agent Details</h2>
               <button
-                onClick={() => setViewingAgent(null)}
+                onClick={() => {
+                  setViewingAgent(null);
+                  setAgentDetailsError(null);
+                }}
+                aria-label="Close agent details"
                 className="p-2 bg-white/10 hover:bg-white/20 border border-white/20 hover:border-white/30 rounded-lg transition-all duration-200 text-white group backdrop-blur-sm"
                 title="Close"
               >
@@ -501,6 +654,43 @@ export default function AdminAgentsPage() {
             
             {/* Content */}
             <div className="flex-1 overflow-y-auto bg-gray-50 min-w-0 min-h-0">
+              {loadingAgentDetails ? (
+                <div className="p-6 text-center">
+                  <Loader2 className="h-6 w-6 text-[#02665e] animate-spin mx-auto mb-2" />
+                  <p className="text-gray-500 text-sm">Loading agent details...</p>
+                </div>
+              ) : agentDetailsError ? (
+                <div className="p-6 text-center bg-red-50">
+                  <AlertCircle className="h-8 w-8 text-red-600 mx-auto mb-3" />
+                  <p className="text-red-800 font-medium mb-2">Failed to load agent details</p>
+                  <p className="text-red-600 text-sm mb-4">{agentDetailsError}</p>
+                  <button
+                    onClick={async () => {
+                      if (viewingAgent && isValidAgentId(viewingAgent.id)) {
+                        setLoadingAgentDetails(true);
+                        setAgentDetailsError(null);
+                        try {
+                          authify();
+                          const response = await api.get<Agent>(`/api/admin/agents/${viewingAgent.id}`);
+                          setViewingAgent(response.data);
+                        } catch (err: any) {
+                          console.error("Failed to load agent details", err);
+                          const errorMessage = err?.response?.data?.error || err?.message || "Failed to load agent details";
+                          setAgentDetailsError(errorMessage);
+                          showToast("error", "Failed to Load Agent", errorMessage);
+                        } finally {
+                          setLoadingAgentDetails(false);
+                        }
+                      }
+                    }}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+                    aria-label="Retry loading agent details"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Retry
+                  </button>
+                </div>
+              ) : (
               <div className="p-6 space-y-6">
                 {/* Agent Information - Always Visible */}
                 <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">
@@ -519,7 +709,7 @@ export default function AdminAgentsPage() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {/* Location */}
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1.5 flex items-center gap-1">
+                        <label className="text-xs font-medium text-gray-500 mb-1.5 flex items-center gap-1">
                           <MapPin className="h-3 w-3" />
                           Location
                         </label>
@@ -542,7 +732,7 @@ export default function AdminAgentsPage() {
 
                       {/* Specialization */}
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1.5 flex items-center gap-1">
+                        <label className="text-xs font-medium text-gray-500 mb-1.5 flex items-center gap-1">
                           <Briefcase className="h-3 w-3" />
                           Specialization
                         </label>
@@ -1105,12 +1295,17 @@ export default function AdminAgentsPage() {
                   )}
                 </div>
               </div>
+              )}
             </div>
 
             {/* Footer */}
             <div className="border-t border-gray-200 bg-white px-6 py-4 flex justify-end gap-3 flex-shrink-0">
               <button
-                onClick={() => setViewingAgent(null)}
+                onClick={() => {
+                  setViewingAgent(null);
+                  setAgentDetailsError(null);
+                }}
+                aria-label="Close agent details"
                 className="px-6 py-2.5 bg-[#02665e] text-white rounded-lg font-medium hover:bg-[#024d47] hover:shadow-md transition-all duration-300 ease-in-out hover:scale-105 active:scale-95 text-sm"
               >
                 Close

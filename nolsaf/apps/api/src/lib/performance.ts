@@ -8,8 +8,87 @@
 import { prisma } from "@nolsaf/prisma";
 import { getRedis } from "./redis.js";
 
-// Performance metrics storage
+// Security constants
+const MAX_METRICS_SIZE = 10000; // Maximum metrics entries before eviction
+const MAX_LOGGED_PATTERNS = 1000; // Maximum logged patterns to track
+const MAX_CACHE_KEY_LENGTH = 250; // Maximum cache key length
+const MAX_TTL = 86400 * 30; // 30 days maximum TTL
+const MAX_TAGS = 100; // Maximum tags per cache entry
+const MAX_CACHE_VALUE_SIZE = 10 * 1024 * 1024; // 10MB maximum cache value size
+const SCAN_TIMEOUT = 5000; // 5 seconds timeout for SCAN operations
+const MAX_SCAN_ITERATIONS = 10000; // Maximum SCAN iterations to prevent DoS
+
+// Performance metrics storage with size limits
 const queryMetrics = new Map<string, { count: number; totalTime: number; avgTime: number; maxTime: number }>();
+
+// Track logged patterns to avoid spam (with size limit)
+const loggedMissingRedisPatterns = new Set<string>();
+
+/**
+ * Sanitize cache key to prevent injection attacks while preserving existing keys
+ * Uses sanitization instead of rejection to maintain backward compatibility
+ */
+function sanitizeCacheKey(key: string): string {
+  if (!key || typeof key !== 'string') {
+    throw new Error('Invalid cache key: must be a non-empty string');
+  }
+  
+  // Remove dangerous characters but keep common separators (:, _, -)
+  // This preserves existing keys like "property:123" and "cache:tags:key"
+  let sanitized = key.replace(/[^\w:._-]/g, '_');
+  
+  // Limit key length
+  if (sanitized.length > MAX_CACHE_KEY_LENGTH) {
+    // Truncate and hash the rest to maintain uniqueness
+    const hash = sanitized.substring(MAX_CACHE_KEY_LENGTH - 9).split('').reduce((acc, char) => {
+      return ((acc << 5) - acc) + char.charCodeAt(0) | 0;
+    }, 0).toString(36);
+    sanitized = sanitized.substring(0, MAX_CACHE_KEY_LENGTH - 9) + '_' + hash;
+  }
+  
+  return sanitized;
+}
+
+/**
+ * Sanitize cache key for logging to prevent information disclosure
+ */
+function logSafeKey(key: string): string {
+  if (!key || key.length <= 20) {
+    return key || '<empty>';
+  }
+  // Show first 10 and last 10 characters, with ... in between
+  return key.substring(0, 10) + '...' + key.substring(key.length - 10);
+}
+
+/**
+ * Enforce memory limits on queryMetrics with LRU-style eviction
+ */
+function enforceMetricsLimit(): void {
+  if (queryMetrics.size > MAX_METRICS_SIZE) {
+    // Evict half of oldest entries (simple approach, not true LRU but safe)
+    const entries = Array.from(queryMetrics.entries());
+    queryMetrics.clear();
+    // Keep most recent half
+    entries.slice(-Math.floor(MAX_METRICS_SIZE / 2)).forEach(([k, v]) => {
+      queryMetrics.set(k, v);
+    });
+  }
+}
+
+/**
+ * Enforce size limit on logged patterns set
+ */
+function enforceLoggedPatternsLimit(): void {
+  if (loggedMissingRedisPatterns.size > MAX_LOGGED_PATTERNS) {
+    // Clear old entries (safe to reset this set, it's just for logging)
+    const patterns = Array.from(loggedMissingRedisPatterns);
+    loggedMissingRedisPatterns.clear();
+    // Keep most recent half
+    patterns.slice(-Math.floor(MAX_LOGGED_PATTERNS / 2)).forEach(p => {
+      loggedMissingRedisPatterns.add(p);
+    });
+  }
+}
 
 /**
  * Measure execution time of an async function
@@ -32,6 +111,9 @@ export async function measureTime<T>(
     existing.avgTime = existing.totalTime / existing.count;
     existing.maxTime = Math.max(existing.maxTime, duration);
     queryMetrics.set(label, existing);
+    
+    // Enforce memory limits to prevent DoS
+    enforceMetricsLimit();
     
     // Log slow queries (>1 second)
     if (duration > 1000 && logToDebug) {
@@ -74,111 +156,300 @@ export async function withCache<T>(
     skipCache?: boolean; // Skip cache (force refresh)
   } = {}
 ): Promise<T> {
-  const { ttl = 300, tags = [], skipCache = false } = options;
+  // Validate and sanitize inputs
+  let sanitizedKey: string;
+  try {
+    sanitizedKey = sanitizeCacheKey(key);
+  } catch (error: any) {
+    // If key validation fails, log and fall back to producer (don't break existing code)
+    console.warn(`[CACHE] Invalid cache key, skipping cache: ${logSafeKey(key)}`, error?.message);
+    return producer();
+  }
+  
+  // Validate and sanitize options
+  const { skipCache = false } = options;
+  let { ttl = 300, tags = [] } = options;
+  
+  // Validate TTL
+  if (typeof ttl !== 'number' || ttl < 1) {
+    ttl = 300; // Use default if invalid
+  } else {
+    ttl = Math.min(Math.max(1, Math.floor(ttl)), MAX_TTL); // Clamp between 1 and MAX_TTL
+  }
+  
+  // Validate tags
+  if (!Array.isArray(tags)) {
+    tags = [];
+  }
+  if (tags.length > MAX_TAGS) {
+    // Log warning but truncate instead of rejecting (preserve backward compatibility)
+    console.warn(`[CACHE] Too many tags (${tags.length}), truncating to ${MAX_TAGS}`);
+    tags = tags.slice(0, MAX_TAGS);
+  }
+  
+  // Validate tag contents (sanitize each tag)
+  tags = tags.map(tag => {
+    if (typeof tag !== 'string') {
+      return String(tag).replace(/[^\w:._-]/g, '_');
+    }
+    return tag.replace(/[^\w:._-]/g, '_').substring(0, 100); // Limit tag length
+  });
   
   if (skipCache) {
     return producer();
   }
   
+  const redis = getRedis();
+  
+  // If Redis is not available or not ready, skip cache and go directly to producer
+  if (!redis || redis.status !== 'ready') {
+    // Connection not ready (might be connecting, closed, or error)
+    // Log once per key pattern to avoid spam
+    const keyPattern = key.split(':').slice(0, 2).join(':');
+    if (!loggedMissingRedisPatterns.has(keyPattern)) {
+      loggedMissingRedisPatterns.add(keyPattern);
+      enforceLoggedPatternsLimit(); // Enforce size limit
+      const status = redis?.status || 'null';
+      console.warn(`[CACHE] Redis unavailable (status: ${status}), falling back to producer for key pattern: ${logSafeKey(keyPattern)}`);
+    }
+    return producer();
+  }
+  
   try {
-    const redis = getRedis();
+    // Try to get from cache with timeout (use sanitized key)
+    // Increased timeout from 100ms to 2000ms to allow for slower Redis connections
+    // Still fast enough to not block UI, but gives Redis time to respond
+    const cached = await Promise.race([
+      redis.get(sanitizedKey),
+      new Promise<string | null>((resolve) => {
+        setTimeout(() => resolve(null), 2000); // 2 seconds timeout for cache read (was 100ms)
+      }),
+    ]) as string | null;
     
-    // Try to get from cache
-    const cached = await redis.get(key);
     if (cached) {
       try {
         const parsed = JSON.parse(cached);
         return parsed as T;
-      } catch {
+      } catch (parseError) {
         // Invalid cache, continue to producer
+        console.warn(`[CACHE] Invalid cache data for key: ${logSafeKey(sanitizedKey)}`, parseError);
       }
     }
     
     // Cache miss - execute producer
-    
     const value = await producer();
     
-    // Store in cache
-    try {
-      await redis.setex(key, ttl, JSON.stringify(value));
-      
-      // Store tags for invalidation
-      if (tags.length > 0) {
-        const tagKey = `cache:tags:${key}`;
-        await redis.setex(tagKey, ttl, JSON.stringify(tags));
-      }
-    } catch (error) {
-      // Cache write failed, but return value anyway
-      console.warn(`[CACHE] Failed to write cache for key: ${key}`, error);
+    // Validate cache value size before storing
+    const serialized = JSON.stringify(value);
+    if (serialized.length > MAX_CACHE_VALUE_SIZE) {
+      // Value too large - skip cache but still return value
+      console.warn(`[CACHE] Value too large (${serialized.length} bytes), skipping cache for key: ${logSafeKey(sanitizedKey)}`);
+      return value;
     }
     
+    // Store in cache (fire and forget - don't block response)
+    Promise.race([
+      (async () => {
+        try {
+          await redis.setex(sanitizedKey, ttl, serialized);
+          
+          // Store tags for invalidation (use sanitized key)
+          if (tags.length > 0) {
+            const tagKey = `cache:tags:${sanitizedKey}`;
+            await redis.setex(tagKey, ttl, JSON.stringify(tags));
+          }
+        } catch (writeError) {
+          // Cache write failed, but return value anyway
+          console.warn(`[CACHE] Failed to write cache for key: ${logSafeKey(sanitizedKey)}`, writeError);
+        }
+      })(),
+      new Promise((resolve) => {
+        setTimeout(() => resolve(null), 500); // 500ms timeout for cache write
+      }),
+    ]).catch(() => {
+      // Ignore cache write errors
+    });
+    
     return value;
-  } catch (error) {
-    // Redis unavailable - fallback to producer
-    console.warn(`[CACHE] Redis unavailable, falling back to producer for key: ${key}`);
+  } catch (error: any) {
+    // Redis unavailable or error - fallback to producer
+    const errorMsg = error?.message || 'Unknown error';
+    // Filter out common connection errors to reduce noise (these are expected during connection)
+    if (!errorMsg.includes('ECONNREFUSED') && 
+        !errorMsg.includes('ENOTFOUND') && 
+        !errorMsg.includes('Connection is closed') &&
+        !errorMsg.includes('Stream isn\'t writeable')) {
+      // Only log unexpected errors (not connection errors which are already logged)
+      console.warn(`[CACHE] Cache error for key: ${logSafeKey(sanitizedKey)}`, errorMsg);
+    }
     return producer();
   }
 }
 
 /**
  * Invalidate cache by key pattern
+ * Includes timeout and iteration limits to prevent DoS
  */
 export async function invalidateCache(pattern: string): Promise<void> {
   try {
-    const redis = getRedis();
-    const stream = redis.scanStream({ match: pattern, count: 100 });
-    const keys: string[] = [];
+    // Validate and sanitize pattern
+    if (!pattern || typeof pattern !== 'string') {
+      console.warn(`[CACHE] Invalid pattern for invalidation: ${logSafeKey(pattern || '<empty>')}`);
+      return;
+    }
     
-    await new Promise<void>((resolve, reject) => {
-      stream.on("data", (k: string[]) => keys.push(...k));
+    // Sanitize pattern to prevent injection
+    const sanitizedPattern = pattern.replace(/[^\w:.*_-]/g, '_');
+    
+    const redis = getRedis();
+    if (!redis || redis.status !== 'ready') {
+      // Redis not available - silently skip invalidation
+      return;
+    }
+    
+    // TypeScript type narrowing - redis is guaranteed to be non-null and ready at this point
+    const redisClient = redis;
+    const stream = redisClient.scanStream({ match: sanitizedPattern, count: 100 });
+    const keys: string[] = [];
+    let iterations = 0;
+    
+    // Add timeout and iteration limit to prevent DoS
+    const scanPromise = new Promise<void>((resolve, reject) => {
+      stream.on("data", (k: string[]) => {
+        keys.push(...k);
+        iterations++;
+        // Limit iterations to prevent DoS
+        if (iterations > MAX_SCAN_ITERATIONS) {
+          stream.removeAllListeners();
+          resolve(); // Resolve early if limit reached
+        }
+      });
       stream.on("end", () => resolve());
       stream.on("error", reject);
     });
     
+    // Race against timeout
+    await Promise.race([
+      scanPromise,
+      new Promise<void>((_, reject) => {
+        setTimeout(() => reject(new Error('SCAN timeout')), SCAN_TIMEOUT);
+      }),
+    ]);
+    
     if (keys.length > 0) {
-      await redis.del(...keys);
+      // Delete in batches to avoid overwhelming Redis
+      const batchSize = 100;
+      for (let i = 0; i < keys.length; i += batchSize) {
+        const batch = keys.slice(i, i + batchSize);
+        await redisClient.del(...batch);
+      }
     }
-  } catch (error) {
-    console.warn(`[CACHE] Failed to invalidate cache pattern: ${pattern}`, error);
+  } catch (error: any) {
+    // Silently handle invalidation errors - cache invalidation is best effort
+    const errorMsg = error?.message || 'Unknown error';
+    if (!errorMsg.includes('ECONNREFUSED') && 
+        !errorMsg.includes('ENOTFOUND') &&
+        !errorMsg.includes('SCAN timeout')) {
+      console.warn(`[CACHE] Failed to invalidate cache pattern: ${logSafeKey(pattern)}`, errorMsg);
+    }
   }
 }
 
 /**
  * Invalidate cache by tags
+ * Includes timeout and iteration limits to prevent DoS
  */
 export async function invalidateByTags(tags: string[]): Promise<void> {
   try {
-    const redis = getRedis();
+    // Validate tags input
+    if (!Array.isArray(tags) || tags.length === 0) {
+      return;
+    }
     
-    for (const tag of tags) {
+    // Limit number of tags to prevent DoS
+    const validTags = tags.slice(0, MAX_TAGS).map(tag => {
+      if (typeof tag !== 'string') {
+        return String(tag).replace(/[^\w:._-]/g, '_');
+      }
+      return tag.replace(/[^\w:._-]/g, '_');
+    });
+    
+    const redis = getRedis();
+    if (!redis || redis.status !== 'ready') {
+      // Redis not available - silently skip invalidation
+      return;
+    }
+    
+    // TypeScript type narrowing - redis is guaranteed to be non-null and ready at this point
+    const redisClient = redis;
+    
+    for (const tag of validTags) {
       const pattern = `cache:tags:*`;
-      const stream = redis.scanStream({ match: pattern, count: 100 });
+      const stream = redisClient.scanStream({ match: pattern, count: 100 });
       const keys: string[] = [];
+      let iterations = 0;
       
-      await new Promise<void>((resolve, reject) => {
-        stream.on("data", (k: string[]) => keys.push(...k));
+      // Add timeout and iteration limit
+      const scanPromise = new Promise<void>((resolve, reject) => {
+        stream.on("data", (k: string[]) => {
+          keys.push(...k);
+          iterations++;
+          // Limit iterations to prevent DoS
+          if (iterations > MAX_SCAN_ITERATIONS) {
+            stream.removeAllListeners();
+            resolve(); // Resolve early if limit reached
+          }
+        });
         stream.on("end", () => resolve());
         stream.on("error", reject);
       });
       
-      for (const tagKey of keys) {
-        const cachedTags = await redis.get(tagKey);
-        if (cachedTags) {
-          try {
-            const parsedTags = JSON.parse(cachedTags);
-            if (parsedTags.includes(tag)) {
-              // Extract the actual cache key from tag key
-              const actualKey = tagKey.replace('cache:tags:', '');
-              await redis.del(actualKey, tagKey);
+      // Race against timeout
+      try {
+        await Promise.race([
+          scanPromise,
+          new Promise<void>((_, reject) => {
+            setTimeout(() => reject(new Error('SCAN timeout')), SCAN_TIMEOUT);
+          }),
+        ]);
+      } catch (timeoutError) {
+        // Timeout - continue with next tag
+        stream.removeAllListeners();
+        continue;
+      }
+      
+      // Process keys in batches to avoid overwhelming Redis
+      for (let i = 0; i < keys.length; i += 50) {
+        const batch = keys.slice(i, i + 50);
+        
+        for (const tagKey of batch) {
+          const cachedTags = await redisClient.get(tagKey).catch(() => null);
+          if (cachedTags) {
+            try {
+              const parsedTags = JSON.parse(cachedTags);
+              if (Array.isArray(parsedTags) && parsedTags.includes(tag)) {
+                // Extract the actual cache key from tag key
+                const actualKey = tagKey.replace('cache:tags:', '');
+                await redisClient.del(actualKey, tagKey).catch(() => {
+                  // Ignore delete errors
+                });
+              }
+            } catch {
+              // Invalid tag data, skip
             }
-          } catch {
-            // Invalid tag data, skip
           }
         }
       }
     }
-  } catch (error) {
-    console.warn(`[CACHE] Failed to invalidate by tags: ${tags.join(',')}`, error);
+  } catch (error: any) {
+    // Silently handle invalidation errors - cache invalidation is best effort
+    const errorMsg = error?.message || 'Unknown error';
+    if (!errorMsg.includes('ECONNREFUSED') && 
+        !errorMsg.includes('ENOTFOUND') &&
+        !errorMsg.includes('SCAN timeout')) {
+      const tagList = Array.isArray(tags) ? tags.slice(0, 5).join(',') : '<invalid>';
+      console.warn(`[CACHE] Failed to invalidate by tags: ${tagList}`, errorMsg);
+    }
   }
 }
 
@@ -194,16 +465,63 @@ export function prismaWithMetrics<T>(
 
 /**
  * Common cache key generators
+ * All keys are automatically sanitized when used in withCache()
  */
 export const cacheKeys = {
-  property: (id: number) => `property:${id}`,
-  propertyList: (params: Record<string, any>) => `properties:list:${JSON.stringify(params)}`,
-  user: (id: number) => `user:${id}`,
-  booking: (id: number) => `booking:${id}`,
-  invoice: (id: number) => `invoice:${id}`,
+  property: (id: number) => {
+    if (!Number.isFinite(id) || id < 0) {
+      throw new Error(`Invalid property ID: ${id}`);
+    }
+    return `property:${id}`;
+  },
+  propertyList: (params: Record<string, any>) => {
+    // Sanitize params before JSON.stringify to prevent injection
+    const sanitized: Record<string, any> = {};
+    for (const [key, value] of Object.entries(params || {})) {
+      // Only include safe primitive values
+      if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' || value === null) {
+        const safeKey = String(key).replace(/[^\w]/g, '_').substring(0, 50);
+        sanitized[safeKey] = value;
+      }
+    }
+    // Create a stable, sorted JSON string
+    const sortedKeys = Object.keys(sanitized).sort();
+    const sorted = JSON.stringify(sortedKeys.reduce((acc, k) => ({ ...acc, [k]: sanitized[k] }), {}));
+    return `properties:list:${sorted}`;
+  },
+  user: (id: number) => {
+    if (!Number.isFinite(id) || id < 0) {
+      throw new Error(`Invalid user ID: ${id}`);
+    }
+    return `user:${id}`;
+  },
+  booking: (id: number) => {
+    if (!Number.isFinite(id) || id < 0) {
+      throw new Error(`Invalid booking ID: ${id}`);
+    }
+    return `booking:${id}`;
+  },
+  invoice: (id: number) => {
+    if (!Number.isFinite(id) || id < 0) {
+      throw new Error(`Invalid invoice ID: ${id}`);
+    }
+    return `invoice:${id}`;
+  },
   adminSummary: () => `admin:summary`,
-  propertyCount: (status: string) => `property:count:${status}`,
-  bookingCount: (status: string) => `booking:count:${status}`,
+  propertyCount: (status: string) => {
+    if (!status || typeof status !== 'string') {
+      throw new Error(`Invalid status: ${status}`);
+    }
+    const safeStatus = status.replace(/[^\w]/g, '_').substring(0, 50);
+    return `property:count:${safeStatus}`;
+  },
+  bookingCount: (status: string) => {
+    if (!status || typeof status !== 'string') {
+      throw new Error(`Invalid status: ${status}`);
+    }
+    const safeStatus = status.replace(/[^\w]/g, '_').substring(0, 50);
+    return `booking:count:${safeStatus}`;
+  },
 };
 
 /**

@@ -1,6 +1,5 @@
-import { Router } from "express";
-import { requireAuth, requireRole } from "../middleware/auth.js";
-import type { AuthedRequest } from "../types.js";
+import { Router, type Request, type Response } from "express";
+import { requireAuth, requireRole, type AuthedRequest } from "../middleware/auth.js";
 
 const router = Router();
 
@@ -10,7 +9,7 @@ router.use(requireAuth as any, requireRole("ADMIN") as any);
  * GET /api/admin/integrations/status
  * Returns read-only integration status (checks env vars, never exposes secrets)
  */
-router.get("/status", async (_req: AuthedRequest, res) => {
+router.get("/status", async (_req: Request, res: Response) => {
   try {
     // Email provider status
     const emailStatus = {
@@ -74,6 +73,7 @@ router.get("/status", async (_req: AuthedRequest, res) => {
 });
 
 export default router;
+
 
 
 

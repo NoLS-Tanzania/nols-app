@@ -140,7 +140,7 @@ export default function SiteHeader({
 
     // fetch unread count when running in browser for admin
     (async () => {
-      if (!isAdmin) return;
+      if (role !== "ADMIN") return;
       try {
         // Use relative paths in browser to leverage Next.js rewrites (avoids CORS issues)
         const url = '/api/admin/notifications?tab=unread&page=1&pageSize=1';

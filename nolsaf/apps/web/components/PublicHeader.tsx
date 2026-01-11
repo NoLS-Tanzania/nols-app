@@ -8,19 +8,7 @@ import { REGIONS } from '@/lib/tzRegions';
 import UserMenu from '@/components/UserMenu';
 import ThemeToggle from "@/components/ThemeToggle";
 import GlobalPicker from "@/components/GlobalPicker";
-import { useRouter, usePathname } from "next/navigation";
-
-function computeLuminance(rgb: { r: number; g: number; b: number }) {
-  // sRGB relative luminance (0..1)
-  const toLinear = (c: number) => {
-    const v = c / 255;
-    return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
-  };
-  const R = toLinear(rgb.r);
-  const G = toLinear(rgb.g);
-  const B = toLinear(rgb.b);
-  return 0.2126 * R + 0.7152 * G + 0.0722 * B;
-}
+import { usePathname } from "next/navigation";
 
 export default function PublicHeader({
   tools,
@@ -34,8 +22,6 @@ export default function PublicHeader({
   const [authed, setAuthed] = React.useState<boolean>(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const [scrolled, setScrolled] = useState<boolean>(false);
-  const [scrollDirection, setScrollDirection] = useState<'up' | 'down' | null>(null);
-  const [lastScrollY, setLastScrollY] = useState<number>(0);
   const [headerVisible, setHeaderVisible] = useState<boolean>(true);
   const [scrollProgress, setScrollProgress] = useState<number>(0);
   const [scrollAmount, setScrollAmount] = useState<number>(0);
@@ -113,14 +99,12 @@ export default function PublicHeader({
           // Always show header at the very top
           if (currentScrollY < 5) {
             setHeaderVisible(true);
-            setScrollDirection(null);
             setScrolled(false);
           } else {
             // Determine scroll direction with better threshold
             if (scrollSpeed > 3) { // Lower threshold for more responsive feel
               if (scrollDifference > 0) {
                 // Scrolling down
-                setScrollDirection('down');
                 // Hide header when scrolling down (with delay for smooth feel)
                 if (currentScrollY > 80) {
                   // Clear any existing timeout
@@ -134,7 +118,6 @@ export default function PublicHeader({
                 }
               } else {
                 // Scrolling up - show immediately
-                setScrollDirection('up');
                 if (scrollTimeout) clearTimeout(scrollTimeout);
                 setHeaderVisible(true);
               }
@@ -148,7 +131,6 @@ export default function PublicHeader({
           }
           
           lastScrollTop = currentScrollY;
-          setLastScrollY(currentScrollY);
           ticking = false;
         });
         ticking = true;
@@ -163,7 +145,7 @@ export default function PublicHeader({
       window.removeEventListener('scroll', handleScroll);
       if (scrollTimeout) clearTimeout(scrollTimeout);
     };
-  }, []);
+  }, [pathname]);
 
   const heroBlend = pathname === "/public" && isOverHero ? Math.min(scrollAmount / 180, 1) : 1;
   const isPublicPath = pathname?.startsWith("/public") ?? false;
@@ -214,7 +196,6 @@ export default function PublicHeader({
     { href: '/public', label: 'Home' },
     { href: '/public/properties', label: 'Properties' },
     { href: '/public/group-stays', label: 'Group Stays' },
-    { href: '/public/safari-stay', label: 'Safari Stay' },
     { href: '/public/plan-with-us', label: 'Plan With Us' },
   ], []);
 

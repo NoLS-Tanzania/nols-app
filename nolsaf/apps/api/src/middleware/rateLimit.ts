@@ -52,6 +52,24 @@ export const limitPlanRequestMessages = rateLimit({
   message: { error: "Too many messages. Please wait a moment before sending another message." },
 });
 
+// Rate limiter for owner group stay messages (prevents spam/abuse)
+export const limitOwnerGroupStayMessages = rateLimit({
+  windowMs: 60_000, // 1 minute
+  max: 10, // 10 messages per minute per owner
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many messages. Please wait a moment before sending another message." },
+  keyGenerator: (req) => {
+    // Rate limit by owner ID if authenticated
+    const ownerId = (req as any).user?.id;
+    if (ownerId) {
+      return `owner-group-stay-msg:${ownerId}`;
+    }
+    // Fallback to IP if not authenticated
+    return req.ip || req.socket.remoteAddress || "unknown";
+  },
+});
+
 // Rate limiter for chatbot messages (prevents spam/abuse)
 export const limitChatbotMessages = rateLimit({
   windowMs: 60_000, // 1 minute

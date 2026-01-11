@@ -5,6 +5,7 @@ import React, { useEffect, useState } from "react";
 import { Wallet, CreditCard, Eye, Download, X } from "lucide-react";
 import Spinner from "@/components/Spinner";
 import TableRow from "@/components/TableRow"
+import { escapeAttr, escapeHtml } from "@/utils/html";
 
 type ColDef = { key: string; label: string; sortable?: boolean; align?: "left" | "right" };
 
@@ -95,12 +96,15 @@ export default function DriverPayoutsPage() {
       const qrData = encodeURIComponent(`${origin}/driver/invoices/${invoiceId}`)
       const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${qrData}`
 
+      const safeText = (v: unknown) => escapeHtml(v)
+      const safeAttr = (v: unknown) => escapeAttr(v)
+
       const html = `<!doctype html>
       <html>
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width,initial-scale=1" />
-        <title>Receipt ${receiptNo}</title>
+        <title>Receipt ${safeText(receiptNo)}</title>
         <style>
           body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; color: #0f172a; padding: 32px; }
           .header { text-align: center; font-size: 12px; color: #0f172a; }
@@ -125,8 +129,8 @@ export default function DriverPayoutsPage() {
         </div>
         <div class="hr"></div>
 
-        <div class="row"><div class="label">Receipt No: ${receiptNo}</div><div>${new Date(date).toLocaleDateString()}</div></div>
-        <div class="row" style="margin-top:8px"><div>Driver: ${driverName} (ID: ${driverId})</div></div>
+        <div class="row"><div class="label">Receipt No: ${safeText(receiptNo)}</div><div>${safeText(new Date(date).toLocaleDateString())}</div></div>
+        <div class="row" style="margin-top:8px"><div>Driver: ${safeText(driverName)} (ID: ${safeText(driverId)})</div></div>
 
         <table class="amounts">
           <thead>
@@ -138,15 +142,15 @@ export default function DriverPayoutsPage() {
           </thead>
           <tbody>
             <tr>
-              <td>${gross}</td>
-              <td>${tax}</td>
-              <td>${net}</td>
+              <td>${safeText(gross)}</td>
+              <td>${safeText(tax)}</td>
+              <td>${safeText(net)}</td>
             </tr>
           </tbody>
         </table>
 
         <div class="footer">
-          <div><img src="${qrUrl}" alt="qr"/></div>
+          <div><img src="${safeAttr(qrUrl)}" alt="qr"/></div>
           <div class="copyright">2025 NoLSAF All Rights Reserved</div>
         </div>
       </body>
@@ -178,6 +182,9 @@ export default function DriverPayoutsPage() {
         const qrData = encodeURIComponent(`${origin}/driver/invoices/${invoiceId}`)
         const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${qrData}`
 
+        const safeText = (v: unknown) => escapeHtml(v)
+        const safeAttr = (v: unknown) => escapeAttr(v)
+
         // fetch QR image and convert to data URL
         let qrDataUrl = qrUrl
         try {
@@ -204,8 +211,8 @@ export default function DriverPayoutsPage() {
             </div>
             <div style="border-top:1.5px solid #e6eef6; margin:10px 0 14px"></div>
 
-            <div style="display:flex; justify-content:space-between; margin-bottom:8px"><div style="font-weight:600; font-size:12px">Receipt No: ${receiptNo}</div><div style="font-size:12px">${new Date(payout.paidAt || payout.date || Date.now()).toLocaleDateString()}</div></div>
-            <div style="margin-bottom:10px; font-size:12px">Driver: ${payout.driverName || payout.driver_name || '—'} (ID: ${payout.driverId || payout.driver_id || '—'})</div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:8px"><div style="font-weight:600; font-size:12px">Receipt No: ${safeText(receiptNo)}</div><div style="font-size:12px">${safeText(new Date(payout.paidAt || payout.date || Date.now()).toLocaleDateString())}</div></div>
+            <div style="margin-bottom:10px; font-size:12px">Driver: ${safeText(payout.driverName || payout.driver_name || '—')} (ID: ${safeText(payout.driverId || payout.driver_id || '—')})</div>
 
             <table style="width:100%; border-collapse:collapse; margin-top:8px">
               <thead>
@@ -217,15 +224,15 @@ export default function DriverPayoutsPage() {
               </thead>
               <tbody>
                 <tr>
-                  <td style="padding:8px; border:1px solid #eef2f7; font-size:12px">${(payout.gross ?? payout.amount ?? 0).toFixed ? Number(payout.gross ?? payout.amount ?? 0).toFixed(2) : payout.gross ?? payout.amount ?? 0}</td>
-                  <td style="padding:8px; border:1px solid #eef2f7; font-size:12px">${(payout.taxCommission ?? payout.tax_and_commission ?? 0).toFixed ? Number(payout.taxCommission ?? payout.tax_and_commission ?? 0).toFixed(2) : payout.taxCommission ?? payout.tax_and_commission ?? 0}</td>
-                  <td style="padding:8px; border:1px solid #eef2f7; font-size:12px">${(payout.netPaid ?? payout.net ?? 0).toFixed ? Number(payout.netPaid ?? payout.net ?? 0).toFixed(2) : payout.netPaid ?? payout.net ?? 0}</td>
+                  <td style="padding:8px; border:1px solid #eef2f7; font-size:12px">${safeText((payout.gross ?? payout.amount ?? 0).toFixed ? Number(payout.gross ?? payout.amount ?? 0).toFixed(2) : payout.gross ?? payout.amount ?? 0)}</td>
+                  <td style="padding:8px; border:1px solid #eef2f7; font-size:12px">${safeText((payout.taxCommission ?? payout.tax_and_commission ?? 0).toFixed ? Number(payout.taxCommission ?? payout.tax_and_commission ?? 0).toFixed(2) : payout.taxCommission ?? payout.tax_and_commission ?? 0)}</td>
+                  <td style="padding:8px; border:1px solid #eef2f7; font-size:12px">${safeText((payout.netPaid ?? payout.net ?? 0).toFixed ? Number(payout.netPaid ?? payout.net ?? 0).toFixed(2) : payout.netPaid ?? payout.net ?? 0)}</td>
                 </tr>
               </tbody>
             </table>
 
             <div style="position:absolute; left:0; right:0; bottom:12mm; display:flex; justify-content:center; align-items:center; gap:8px;">
-              <div><img src="${qrDataUrl}" alt="qr" style="width:36px; height:36px;"/></div>
+              <div><img src="${safeAttr(qrDataUrl)}" alt="qr" style="width:36px; height:36px;"/></div>
               <div style="text-align:center; color:#94a3b8; font-size:10px">2025 NoLSAF All Rights Reserved</div>
             </div>
 

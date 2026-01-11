@@ -195,38 +195,77 @@ const listPublicProperties: RequestHandler = async (req, res) => {
       return await withCache(
         cacheKey,
         async () => {
-          const [items, total] = await Promise.all([
-            prisma.property.findMany({
-              where,
-              skip,
-              take: pageSize,
-              orderBy,
-              select: {
-                id: true,
-                title: true,
-                type: true,
-                regionName: true,
-                district: true,
-                ward: true,
-                street: true,
-                city: true,
-                country: true,
-                services: true,
-                basePrice: true,
-                currency: true,
-                maxGuests: true,
-                totalBedrooms: true,
-                totalBathrooms: true,
-                photos: true,
-                images: {
-                  select: { url: true, thumbnailUrl: true, status: true },
-                  orderBy: { createdAt: "asc" },
-                  take: 6,
+          let items: any[] = [];
+          let total = 0;
+
+          try {
+            const res = await Promise.all([
+              prisma.property.findMany({
+                where,
+                skip,
+                take: pageSize,
+                orderBy,
+                select: {
+                  id: true,
+                  title: true,
+                  type: true,
+                  regionName: true,
+                  district: true,
+                  ward: true,
+                  street: true,
+                  city: true,
+                  country: true,
+                  services: true,
+                  basePrice: true,
+                  currency: true,
+                  maxGuests: true,
+                  totalBedrooms: true,
+                  totalBathrooms: true,
+                  photos: true,
+                  images: {
+                    select: { url: true, thumbnailUrl: true, status: true },
+                    orderBy: { createdAt: "asc" },
+                    take: 6,
+                  },
                 },
-              },
-            }),
-            prisma.property.count({ where }),
-          ]);
+              }),
+              prisma.property.count({ where }),
+            ]);
+            items = res[0] as any[];
+            total = res[1] as number;
+          } catch (e) {
+            // Fail-soft for environments where DB migrations aren't fully applied yet
+            // (missing columns like ward/street or missing relations like images).
+            console.warn("public.properties.list falling back to minimal select", e);
+
+            const res = await Promise.all([
+              prisma.property.findMany({
+                where,
+                skip,
+                take: pageSize,
+                orderBy,
+                select: {
+                  id: true,
+                  title: true,
+                  type: true,
+                  regionName: true,
+                  district: true,
+                  city: true,
+                  country: true,
+                  services: true,
+                  basePrice: true,
+                  currency: true,
+                  maxGuests: true,
+                  totalBedrooms: true,
+                  totalBathrooms: true,
+                  photos: true,
+                },
+              }),
+              prisma.property.count({ where }),
+            ]);
+            items = res[0] as any[];
+            total = res[1] as number;
+          }
 
           const dto = (items || []).map(toPublicCard);
           return { items: dto, total, page, pageSize };
@@ -291,6 +330,10 @@ const getPublicProperty: RequestHandler = async (req, res) => {
               photos: true,
               ownerId: true, // Include ownerId to check ownership on frontend
               images: {
+                where: {
+                  status: { in: ['READY', 'PROCESSING'] }, // Only load active images
+                  url: { not: null }, // Ensure URL exists
+                },
                 select: { url: true, thumbnailUrl: true, status: true },
                 orderBy: { createdAt: "asc" },
                 take: 48,

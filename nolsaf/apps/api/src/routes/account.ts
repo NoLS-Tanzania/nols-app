@@ -94,20 +94,79 @@ const listSessionsSchema = z.object({
 
 /** GET /account/me */
 const getMe: RequestHandler = async (req, res) => {
+  let stage = 'start';
   try {
+    stage = 'get_user_id';
     const userId = getUserId(req as AuthedRequest);
-    const user = await prisma.user.findUnique({ where: { id: userId } });
+
+    // Fail-soft: some local DBs may be missing newer columns that exist in Prisma schema.
+    // Avoid `findUnique()` without `select` (Prisma will select all columns and can crash with P2022).
+    let user: any = null;
+    try {
+      stage = 'user_select_full';
+      user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          role: true,
+          email: true,
+          phone: true,
+          name: true,
+          fullName: true,
+          avatarUrl: true,
+          createdAt: true,
+          emailVerifiedAt: true,
+          phoneVerifiedAt: true,
+          twoFactorEnabled: true,
+          suspendedAt: true,
+          isDisabled: true,
+        } as any,
+      });
+    } catch (e) {
+      stage = 'user_select_minimal';
+      user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          role: true,
+          email: true,
+          phone: true,
+          name: true,
+          createdAt: true,
+        } as any,
+      });
+      if (user) {
+        user.fullName = user.fullName ?? null;
+        user.avatarUrl = user.avatarUrl ?? null;
+        user.emailVerifiedAt = null;
+        user.phoneVerifiedAt = null;
+        user.twoFactorEnabled = false;
+        user.suspendedAt = null;
+        user.isDisabled = null;
+      }
+    }
     
     if (!user) {
       return sendError(res, 404, "User not found");
     }
-
-    // Exclude sensitive fields
-    const { passwordHash, totpSecretEnc, backupCodesHash, ...safe } = user as any;
-    sendSuccess(res, safe);
+    // `user` is already a safe select (no passwordHash/totpSecretEnc/etc)
+    sendSuccess(res, user);
   } catch (error: any) {
-    console.error('account.me failed', error);
-    sendError(res, 500, "Failed to fetch user data");
+    const isProd = process.env.NODE_ENV === 'production';
+    console.error('account.me failed', { stage, error });
+    sendError(
+      res,
+      500,
+      "Failed to fetch user data",
+      isProd
+        ? undefined
+        : {
+            stage,
+            message: error?.message,
+            name: error?.name,
+            code: error?.code,
+          },
+    );
   }
 };
 router.get("/me", getMe as unknown as RequestHandler);

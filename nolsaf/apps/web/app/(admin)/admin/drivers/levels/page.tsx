@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { Trophy, Truck, Search, Star, TrendingUp, Users, Target, Award, CheckCircle, Eye, X, BarChart3, PieChart as PieChartIcon, Car, Bike, CarTaxiFront, MessageSquare, Send, Clock, Bell } from "lucide-react";
 import axios from "axios";
 import { io, Socket } from "socket.io-client";
@@ -55,6 +55,23 @@ type Summary = {
   diamond: number;
 };
 
+type DriverLevelMessage = {
+  id: number;
+  driverId: number;
+  driverName: string;
+  driverEmail: string;
+  driverPhone: string | null;
+  message: string;
+  status: "PENDING" | "RESPONDED" | "RESOLVED";
+  createdAt: string;
+  responses?: Array<{
+    id: number;
+    message: string;
+    adminName: string;
+    createdAt: string;
+  }>;
+};
+
 export default function AdminDriversLevelsPage() {
   const [drivers, setDrivers] = useState<DriverWithLevel[]>([]);
   const [summary, setSummary] = useState<Summary>({ total: 0, silver: 0, gold: 0, diamond: 0 });
@@ -66,24 +83,9 @@ export default function AdminDriversLevelsPage() {
   const [activeTab, setActiveTab] = useState<"drivers" | "messages">("drivers");
   
   // Messages state
-  const [messages, setMessages] = useState<Array<{
-    id: number;
-    driverId: number;
-    driverName: string;
-    driverEmail: string;
-    driverPhone: string | null;
-    message: string;
-    status: "PENDING" | "RESPONDED" | "RESOLVED";
-    createdAt: string;
-    responses?: Array<{
-      id: number;
-      message: string;
-      adminName: string;
-      createdAt: string;
-    }>;
-  }>>([]);
+  const [messages, setMessages] = useState<DriverLevelMessage[]>([]);
   const [messagesLoading, setMessagesLoading] = useState(false);
-  const [selectedMessage, setSelectedMessage] = useState<typeof messages[0] | null>(null);
+  const [selectedMessage, setSelectedMessage] = useState<DriverLevelMessage | null>(null);
   const [responseText, setResponseText] = useState("");
   const [sending, setSending] = useState(false);
   const [messageSearch, setMessageSearch] = useState("");
@@ -107,12 +109,52 @@ export default function AdminDriversLevelsPage() {
     };
   }, []);
 
+  const loadMessages = useCallback(async () => {
+    setMessagesLoading(true);
+    try {
+      const r = await api.get<{ messages: DriverLevelMessage[] }>("/api/admin/drivers/level-messages");
+      setMessages(r.data?.messages ?? []);
+    } catch (err: any) {
+      // Only log non-4xx errors to avoid console spam for expected errors (e.g., missing tables, permissions)
+      if (!err?.response || err.response.status >= 500) {
+        console.error("Failed to load messages", err);
+      } else {
+        console.debug("Could not load messages (expected):", err.response?.status, err.response?.data);
+      }
+      setMessages([]);
+    } finally {
+      setMessagesLoading(false);
+    }
+  }, []);
+
+  const loadDrivers = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params: any = { page: 1, pageSize: 200 };
+      if (search) params.search = search;
+      if (levelFilter) params.level = levelFilter;
+      
+      const r = await api.get<{ drivers: DriverWithLevel[]; summary: Summary }>("/admin/drivers/levels", { params });
+      const apiDrivers = r.data?.drivers ?? [];
+      const apiSummary = r.data?.summary ?? { total: 0, silver: 0, gold: 0, diamond: 0 };
+      
+      setDrivers(apiDrivers);
+      setSummary(apiSummary);
+    } catch (err) {
+      console.error("Failed to load drivers", err);
+      setDrivers([]);
+      setSummary({ total: 0, silver: 0, gold: 0, diamond: 0 });
+    } finally {
+      setLoading(false);
+    }
+  }, [search, levelFilter]);
+
   useEffect(() => {
     authify();
     if (activeTab === "drivers") {
-    loadDrivers();
+      void loadDrivers();
     } else {
-      loadMessages();
+      void loadMessages();
     }
 
     // Setup Socket.IO for real-time driver messages
@@ -139,7 +181,7 @@ export default function AdminDriversLevelsPage() {
       // Listen for new driver messages
       socket.on("driver-level-message", (data: { driverId: number; driverName: string; message: string; timestamp: string }) => {
         // Reload messages to get the latest
-        loadMessages();
+        void loadMessages();
         
         // Show notification
         setNotification({
@@ -164,25 +206,7 @@ export default function AdminDriversLevelsPage() {
         socketRef.current = null;
       }
     };
-  }, [levelFilter, activeTab]);
-
-  async function loadMessages() {
-    setMessagesLoading(true);
-    try {
-      const r = await api.get<{ messages: typeof messages }>("/api/admin/drivers/level-messages");
-      setMessages(r.data?.messages ?? []);
-    } catch (err: any) {
-      // Only log non-4xx errors to avoid console spam for expected errors (e.g., missing tables, permissions)
-      if (!err?.response || err.response.status >= 500) {
-        console.error("Failed to load messages", err);
-      } else {
-        console.debug("Could not load messages (expected):", err.response?.status, err.response?.data);
-      }
-      setMessages([]);
-    } finally {
-      setMessagesLoading(false);
-    }
-  }
+  }, [activeTab, loadDrivers, loadMessages]);
 
   async function sendResponse(messageId: number) {
     if (!responseText.trim() || !selectedMessage) return;
@@ -206,36 +230,12 @@ export default function AdminDriversLevelsPage() {
     }
   }
 
-  async function loadDrivers() {
-    setLoading(true);
-    try {
-      const params: any = { page: 1, pageSize: 200 };
-      if (search) params.search = search;
-      if (levelFilter) params.level = levelFilter;
-      
-      const r = await api.get<{ drivers: DriverWithLevel[]; summary: Summary }>("/admin/drivers/levels", { params });
-      const apiDrivers = r.data?.drivers ?? [];
-      const apiSummary = r.data?.summary ?? { total: 0, silver: 0, gold: 0, diamond: 0 };
-      
-      setDrivers(apiDrivers);
-      setSummary(apiSummary);
-    } catch (err) {
-      console.error("Failed to load drivers", err);
-      setDrivers([]);
-      setSummary({ total: 0, silver: 0, gold: 0, diamond: 0 });
-    } finally {
-      setLoading(false);
-    }
-  }
-
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      if (search !== undefined) {
-        loadDrivers();
-      }
+      void loadDrivers();
     }, 300);
     return () => clearTimeout(timeoutId);
-  }, [search]);
+  }, [loadDrivers]);
 
   const getLevelColor = (level: number) => {
     switch (level) {

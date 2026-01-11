@@ -3,7 +3,7 @@ import { Router, RequestHandler } from "express";
 import { prisma } from "@nolsaf/prisma";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import jwt from "jsonwebtoken";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { toCsv } from "../lib/csv.js";
 
 export const router = Router();

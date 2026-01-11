@@ -70,7 +70,7 @@ export default function AdminDriversInvoicesPage() {
   const [histogramData, setHistogramData] = useState<InvoiceStatsResponse | null>(null);
   const [histogramLoading, setHistogramLoading] = useState(false);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const params: any = {
@@ -98,7 +98,7 @@ export default function AdminDriversInvoicesPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [page, pageSize, status, date, q]);
 
   const loadHistogram = useCallback(async () => {
     setHistogramLoading(true);
@@ -118,7 +118,7 @@ export default function AdminDriversInvoicesPage() {
   useEffect(() => {
     authify();
     load();
-  }, [page, status, date, q]);
+  }, [load]);
 
   useEffect(() => {
     authify();

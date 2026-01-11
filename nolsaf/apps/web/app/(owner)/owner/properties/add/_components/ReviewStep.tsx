@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { CheckCircle2, XCircle, AlertCircle, ArrowRight } from "lucide-react";
 import { AddPropertySection } from "./AddPropertySection";
 import { StepFooter } from "./StepFooter";
@@ -33,30 +34,45 @@ interface ReviewData {
   currency?: string | null;
 }
 
-export function ReviewStep({
-  isVisible,
-  sectionRef,
-  goToPreviousStep,
-  submitForReview,
-  submitDisabled,
-  stepsMeta,
-  completeEnough,
-  onStepClick,
-  reviewData,
-}: {
+type ReviewStepBaseProps = {
   isVisible: boolean;
   sectionRef: (el: HTMLElement | null) => void;
   goToPreviousStep: () => void;
-  submitForReview: () => void;
+  submitForReview: () => void | Promise<void>;
   submitDisabled: boolean;
+};
+
+type ReviewStepFullProps = ReviewStepBaseProps & {
   stepsMeta: readonly StepMeta[];
   completeEnough: boolean;
   onStepClick?: (stepIndex: number) => void;
   reviewData: ReviewData;
-}) {
-  const completedCount = stepsMeta.filter((s) => s.completed).length;
-  const totalSteps = stepsMeta.length;
-  const incompleteSteps = stepsMeta.filter((s) => !s.completed);
+  children?: never;
+};
+
+type ReviewStepChildrenProps = ReviewStepBaseProps & {
+  children: ReactNode;
+  stepsMeta?: never;
+  completeEnough?: never;
+  onStepClick?: never;
+  reviewData?: never;
+};
+
+type ReviewStepProps = ReviewStepFullProps | ReviewStepChildrenProps;
+
+export function ReviewStep(props: ReviewStepProps) {
+  const { isVisible, sectionRef, goToPreviousStep, submitForReview, submitDisabled } = props;
+
+  const isChildrenMode = "children" in props;
+
+  const stepsMeta = !isChildrenMode ? props.stepsMeta : undefined;
+  const completeEnough = !isChildrenMode ? props.completeEnough : undefined;
+  const onStepClick = !isChildrenMode ? props.onStepClick : undefined;
+  const reviewData = !isChildrenMode ? props.reviewData : undefined;
+
+  const completedCount = stepsMeta?.filter((s) => s.completed).length ?? 0;
+  const totalSteps = stepsMeta?.length ?? 0;
+  const incompleteSteps = stepsMeta?.filter((s) => !s.completed) ?? [];
 
   return (
     <AddPropertySection
@@ -73,6 +89,10 @@ export function ReviewStep({
             description="Check everything once. When ready, submit for review."
           />
           <div className="pt-4 space-y-6">
+            {isChildrenMode ? (
+              props.children
+            ) : (
+              <>
             {/* Completion Checklist - Modern Card Design */}
             <div className="rounded-xl border-2 border-gray-200 bg-gradient-to-br from-gray-50 to-white p-5 sm:p-6 shadow-sm transition-all duration-300 hover:shadow-md">
               <div className="flex items-center justify-between mb-4">
@@ -99,7 +119,7 @@ export function ReviewStep({
                 )}
               </div>
               <div className="space-y-2">
-                {stepsMeta.map((step) => {
+                {stepsMeta!.map((step) => {
                   return (
                     <div key={step.index} className="flex items-center gap-3">
                       <button
@@ -194,20 +214,20 @@ export function ReviewStep({
             <div className="space-y-6">
               {/* Property Review Display - Matches Public View */}
               <PropertyReviewDisplay
-                title={reviewData.title}
-                type={reviewData.type}
-                location={reviewData.location}
-                rooms={reviewData.rooms}
-                currency={reviewData.currency}
+                title={reviewData!.title}
+                type={reviewData!.type}
+                location={reviewData!.location}
+                rooms={reviewData!.rooms}
+                currency={reviewData!.currency}
               />
 
               {/* Property Visualization Preview - Floor Plan */}
-              {reviewData.rooms.length > 0 && (
+              {reviewData!.rooms.length > 0 && (
                 <PropertyVisualizationPreview
-                  title={reviewData.title}
-                  buildingType={reviewData.buildingType}
-                  totalFloors={reviewData.totalFloors}
-                  rooms={reviewData.rooms.map((r) => ({
+                  title={reviewData!.title}
+                  buildingType={reviewData!.buildingType}
+                  totalFloors={reviewData!.totalFloors}
+                  rooms={reviewData!.rooms.map((r) => ({
                     roomType: r.roomType,
                     roomsCount: r.roomsCount,
                     floorDistribution: r.floorDistribution,
@@ -215,6 +235,8 @@ export function ReviewStep({
                 />
               )}
             </div>
+              </>
+            )}
           </div>
         </div>
       )}

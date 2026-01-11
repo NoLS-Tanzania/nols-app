@@ -207,7 +207,15 @@ const bookingsHandler: RequestHandler = async (req, res) => {
           checkIn: { gte: from, lte: to },
           ...(propertyId ? { propertyId } : {}),
         },
-        include: { property: true },
+        include: { 
+          property: true,
+          code: {
+            select: {
+              usedAt: true,
+              status: true,
+            }
+          }
+        },
       });
 
       const series: Record<string, { count: number }> = {};
@@ -232,11 +240,13 @@ const bookingsHandler: RequestHandler = async (req, res) => {
         table: bs.map((b: any) => ({
           id: b.id,
           property: b.property?.title ?? `#${b.propertyId}`,
+          propertyId: b.propertyId,
           checkIn: b.checkIn,
           checkOut: b.checkOut,
           status: b.status,
           totalAmount: b.totalAmount,
           guestName: (b as any).guestName ?? null,
+          checkedInAt: b.code?.usedAt ?? null,
         })),
       };
     });

@@ -1,12 +1,14 @@
-import { Router } from "express";
+import { Router, type RequestHandler } from "express";
 import { prisma } from "@nolsaf/prisma";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import requireRole from "../middleware/auth";
 
 const router = Router();
 
+const requireAdmin = requireRole("ADMIN") as unknown as RequestHandler;
+
 // Get all trust partners (admin only)
-router.get("/", requireRole("ADMIN"), async (req, res) => {
+router.get("/", requireAdmin, async (req, res) => {
   try {
     const partners = await prisma.trustPartner.findMany({
       orderBy: [{ displayOrder: "asc" }, { createdAt: "asc" }],
@@ -76,7 +78,7 @@ router.get("/public", async (req, res) => {
 });
 
 // Get single trust partner
-router.get("/:id", requireRole("ADMIN"), async (req, res) => {
+router.get("/:id", requireAdmin, async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) {
@@ -96,7 +98,7 @@ router.get("/:id", requireRole("ADMIN"), async (req, res) => {
 });
 
 // Create new trust partner
-router.post("/", requireRole("ADMIN"), async (req, res) => {
+router.post("/", requireAdmin, async (req, res) => {
   try {
     const { name, logoUrl, href, displayOrder, isActive } = req.body;
     
@@ -121,7 +123,7 @@ router.post("/", requireRole("ADMIN"), async (req, res) => {
 });
 
 // Update trust partner
-router.patch("/:id", requireRole("ADMIN"), async (req, res) => {
+router.patch("/:id", requireAdmin, async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) {
@@ -169,7 +171,7 @@ router.patch("/:id", requireRole("ADMIN"), async (req, res) => {
 });
 
 // Delete trust partner
-router.delete("/:id", requireRole("ADMIN"), async (req, res) => {
+router.delete("/:id", requireAdmin, async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) {

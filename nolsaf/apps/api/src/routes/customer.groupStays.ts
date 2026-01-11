@@ -8,17 +8,24 @@ import { sanitizeText } from "../lib/sanitize.js";
 export const router = Router();
 router.use(requireAuth as RequestHandler);
 
+function coerceIdArray(value: unknown): number[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((v) => (typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN))
+    .filter((v) => Number.isFinite(v));
+}
+
 /**
  * GET /api/customer/group-stays
  * Get all group stay bookings for the authenticated customer
  * Query params: status, page, pageSize
  */
-router.get("/", async (req: AuthedRequest, res) => {
+router.get("/", async (req, res) => {
   try {
     // Explicitly set Content-Type to JSON
     res.setHeader('Content-Type', 'application/json');
     
-    const userId = req.user!.id;
+    const userId = (req as AuthedRequest).user!.id;
     const { status, page = "1", pageSize = "20" } = req.query as any;
     
     const where: any = { userId };
@@ -59,7 +66,7 @@ router.get("/", async (req: AuthedRequest, res) => {
     ]);
 
     const now = new Date();
-    const groupStaysWithValidity = groupBookings.map((gb) => {
+    const groupStaysWithValidity = (groupBookings as any[]).map((gb: any) => {
       const checkOut = gb.checkOut ? new Date(gb.checkOut) : null;
       // For PENDING bookings, they're still valid (waiting for admin review)
       // For other bookings, check if checkout date hasn't passed and not canceled
@@ -70,7 +77,7 @@ router.get("/", async (req: AuthedRequest, res) => {
           : gb.status !== "CANCELED" && gb.status !== "COMPLETED";
       
       // Format passengers to match frontend expectations
-      const formattedPassengers = gb.passengers?.map((p) => ({
+      const formattedPassengers = gb.passengers?.map((p: any) => ({
         id: p.id,
         name: `${p.firstName} ${p.lastName}`.trim(),
         phone: p.phone,
@@ -89,7 +96,7 @@ router.get("/", async (req: AuthedRequest, res) => {
         : gb.toRegion || "Group Stay";
       
       // Parse admin notes/suggestions if available
-      let adminSuggestions = null;
+      let adminSuggestions: any = null;
       if (gb.adminNotes) {
         try {
           adminSuggestions = typeof gb.adminNotes === 'string' 
@@ -103,6 +110,11 @@ router.get("/", async (req: AuthedRequest, res) => {
       
       return {
         id: gb.id,
+        auction: {
+          isOpenForClaims: gb.isOpenForClaims,
+          recommendedPropertyCount: coerceIdArray(gb.recommendedPropertyIds).length,
+          confirmedPropertyId: gb.confirmedPropertyId ?? null,
+        },
         arrangement: {
           id: gb.id, // Use booking ID as arrangement ID
           property: {
@@ -137,6 +149,205 @@ router.get("/", async (req: AuthedRequest, res) => {
     console.error("GET /customer/group-stays error:", error);
     res.setHeader('Content-Type', 'application/json');
     return res.status(500).json({ error: "Failed to fetch group stays", message: error?.message || 'Unknown error' });
+  }
+});
+
+/**
+ * GET /api/customer/group-stays/:id/auction-offers
+ * Returns the 3 admin-selected auction offers (from owner claims).
+ */
+router.get("/:id/auction-offers", async (req, res) => {
+  try {
+    res.setHeader("Content-Type", "application/json");
+    const userId = (req as AuthedRequest).user!.id;
+    const bookingId = parseInt(String(req.params.id), 10);
+    if (!Number.isFinite(bookingId)) {
+      return res.status(400).json({ error: "Invalid booking id" });
+    }
+
+    const booking = await prisma.groupBooking.findFirst({
+      where: { id: bookingId, userId },
+      select: {
+        id: true,
+        status: true,
+        isOpenForClaims: true,
+        recommendedPropertyIds: true,
+        confirmedPropertyId: true,
+      },
+    });
+
+    if (!booking) {
+      return res.status(404).json({ error: "Group booking not found or access denied" });
+    }
+
+    const recommendedIds = coerceIdArray((booking as any).recommendedPropertyIds);
+    if (recommendedIds.length === 0) {
+      return res.json({
+        bookingId,
+        confirmedPropertyId: booking.confirmedPropertyId ?? null,
+        offers: [],
+      });
+    }
+
+    const claims = await (prisma as any).groupBookingClaim.findMany({
+      where: {
+        groupBookingId: bookingId,
+        propertyId: { in: recommendedIds },
+        status: { not: "WITHDRAWN" },
+      },
+      include: {
+        property: {
+          select: {
+            id: true,
+            title: true,
+            type: true,
+            regionName: true,
+            district: true,
+            ward: true,
+            city: true,
+            images: {
+              select: {
+                url: true,
+                thumbnailUrl: true,
+                status: true,
+              },
+              orderBy: { createdAt: "asc" },
+              take: 3,
+            },
+          },
+        },
+      },
+      orderBy: { totalAmount: "asc" },
+    });
+
+    const offers = (claims as any[])
+      .map((c: any) => ({
+        claimId: c.id,
+        property: {
+          id: c.property?.id,
+          title: c.property?.title,
+          type: c.property?.type,
+          regionName: c.property?.regionName,
+          district: c.property?.district,
+          ward: c.property?.ward,
+          city: c.property?.city,
+          imageUrl:
+            c.property?.images?.find((img: any) => img?.status === "READY")?.thumbnailUrl ||
+            c.property?.images?.find((img: any) => img?.status === "READY")?.url ||
+            c.property?.images?.[0]?.thumbnailUrl ||
+            c.property?.images?.[0]?.url ||
+            null,
+        },
+        offer: {
+          offeredPricePerNight: c.offeredPricePerNight,
+          discountPercent: c.discountPercent,
+          totalAmount: c.totalAmount,
+          currency: c.currency,
+          specialOffers: c.specialOffers,
+          notes: c.notes,
+        },
+      }))
+      // preserve admin ordering, but always keep only the recommended set
+      .sort((a: any, b: any) => recommendedIds.indexOf(a.property.id) - recommendedIds.indexOf(b.property.id));
+
+    return res.json({
+      bookingId,
+      confirmedPropertyId: booking.confirmedPropertyId ?? null,
+      offers,
+    });
+  } catch (error: any) {
+    console.error("GET /customer/group-stays/:id/auction-offers error:", error);
+    return res.status(500).json({ error: "Failed to fetch auction offers" });
+  }
+});
+
+/**
+ * POST /api/customer/group-stays/:id/auction-confirm
+ * Customer selects one of the admin-shortlisted offers.
+ */
+router.post("/:id/auction-confirm", async (req, res) => {
+  try {
+    res.setHeader("Content-Type", "application/json");
+    const userId = (req as AuthedRequest).user!.id;
+    const bookingId = parseInt(String(req.params.id), 10);
+    const propertyId = Number((req as any).body?.propertyId);
+
+    if (!Number.isFinite(bookingId) || !Number.isFinite(propertyId)) {
+      return res.status(400).json({ error: "Invalid bookingId or propertyId" });
+    }
+
+    const booking = await prisma.groupBooking.findFirst({
+      where: { id: bookingId, userId },
+      select: {
+        id: true,
+        status: true,
+        recommendedPropertyIds: true,
+        confirmedPropertyId: true,
+      },
+    });
+
+    if (!booking) {
+      return res.status(404).json({ error: "Group booking not found or access denied" });
+    }
+    if (booking.confirmedPropertyId) {
+      return res.status(409).json({ error: "A property has already been confirmed" });
+    }
+
+    const recommendedIds = coerceIdArray((booking as any).recommendedPropertyIds);
+    if (!recommendedIds.includes(propertyId)) {
+      return res.status(400).json({ error: "Selected property is not part of the shortlisted offers" });
+    }
+
+    const claim = await (prisma as any).groupBookingClaim.findFirst({
+      where: {
+        groupBookingId: bookingId,
+        propertyId,
+        status: { not: "WITHDRAWN" },
+      },
+      select: {
+        ownerId: true,
+      },
+    });
+
+    if (!claim) {
+      return res.status(400).json({ error: "Offer not found for the selected property" });
+    }
+
+    const now = new Date();
+    await (prisma as any).groupBooking.update({
+      where: { id: bookingId },
+      data: {
+        confirmedPropertyId: propertyId,
+        propertyConfirmedAt: now,
+        status: "CONFIRMED",
+        confirmedAt: now,
+        assignedOwnerId: claim.ownerId,
+        ownerAssignedAt: now,
+        isOpenForClaims: false,
+      },
+    });
+
+    try {
+      await (prisma as any).groupBookingAudit.create({
+        data: {
+          groupBookingId: bookingId,
+          adminId: userId,
+          action: "CUSTOMER_CONFIRMED_AUCTION_PROPERTY",
+          description: `Customer confirmed auction propertyId=${propertyId}`,
+          metadata: {
+            propertyId,
+          },
+          createdAt: now,
+        },
+      });
+    } catch {
+      // audit is best-effort
+    }
+
+    return res.json({ ok: true, bookingId, propertyId });
+  } catch (error: any) {
+    console.error("POST /customer/group-stays/:id/auction-confirm error:", error);
+    return res.status(500).json({ error: "Failed to confirm auction offer" });
   }
 });
 

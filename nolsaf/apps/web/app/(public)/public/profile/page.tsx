@@ -6,8 +6,8 @@ import { User, Mail, Phone, Save, LogOut, Copy, Check, Share2, Upload, X, AlertC
 
 const api = axios.create({ baseURL: "", withCredentials: true });
 
-function SkeletonLine({ w = "w-full" }: { w?: string }) {
-  return <div className={`h-4 ${w} rounded-full bg-slate-200/80 animate-pulse`} />;
+function SkeletonLine({ w = "w-full", className = "" }: { w?: string; className?: string }) {
+  return <div className={`h-4 ${w} ${className} rounded-full bg-slate-200/80 animate-pulse`} />;
 }
 
 export default function PublicProfile() {

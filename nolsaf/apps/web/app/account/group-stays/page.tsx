@@ -1,14 +1,19 @@
 "use client";
-import { useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import axios from "axios";
-import { Users, Calendar, MapPin, CheckCircle, XCircle, User, Phone, Globe, ArrowRight, Building2, Clock, ChevronDown, ChevronUp, MessageSquare, DollarSign, Tag, FileText, Sparkles, Gift, TrendingDown, Percent, Send, Loader2 } from "lucide-react";
+import { Users, Calendar, CheckCircle, XCircle, User, Phone, Globe, ArrowRight, Building2, Clock, ChevronDown, MessageSquare, DollarSign, Tag, FileText, Sparkles, Gift, Send, Loader2 } from "lucide-react";
 import Link from "next/link";
-import { io, Socket } from "socket.io-client";
+import { io } from "socket.io-client";
 
 const api = axios.create({ baseURL: "", withCredentials: true });
 
 type GroupStay = {
   id: number;
+  auction?: {
+    isOpenForClaims?: boolean;
+    recommendedPropertyCount?: number;
+    confirmedPropertyId?: number | null;
+  };
   arrangement: {
     id: number;
     property: {
@@ -40,6 +45,28 @@ type GroupStay = {
     nextSteps?: string;
     notes?: string;
   } | null;
+};
+
+type AuctionOffer = {
+  claimId: number;
+  property: {
+    id: number;
+    title: string;
+    type: string;
+    regionName?: string;
+    district?: string;
+    ward?: string;
+    city?: string;
+    imageUrl?: string | null;
+  };
+  offer: {
+    offeredPricePerNight: number;
+    discountPercent?: number | null;
+    totalAmount: number;
+    currency: string;
+    specialOffers?: string | null;
+    notes?: string | null;
+  };
 };
 
 function SkeletonLine({ w = "w-full" }: { w?: string }) {
@@ -89,10 +116,13 @@ function GroupStayCardSkeleton({ variant }: { variant: "active" | "expired" }) {
 export default function MyGroupStaysPage() {
   const [groupStays, setGroupStays] = useState<GroupStay[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<"all" | "pending" | "active" | "completed" | "expired">("all");
+  const [filter, setFilter] = useState<"pending" | "reviewed" | "active" | "completed" | "expired">("active");
   const [entered, setEntered] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [expandedPassengers, setExpandedPassengers] = useState<Set<number>>(new Set());
+  const [auctionOffersByBooking, setAuctionOffersByBooking] = useState<Record<number, AuctionOffer[]>>({});
+  const [auctionExpanded, setAuctionExpanded] = useState<Set<number>>(new Set());
+  const [auctionLoading, setAuctionLoading] = useState<Set<number>>(new Set());
+  const [auctionConfirming, setAuctionConfirming] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     loadGroupStays();
@@ -107,12 +137,10 @@ export default function MyGroupStaysPage() {
   const loadGroupStays = async () => {
     try {
       setLoading(true);
-      setError(null);
       const response = await api.get("/api/customer/group-stays");
       setGroupStays(response.data.items || []);
     } catch (err: any) {
       const msg = err?.response?.data?.error || "Failed to fetch group stays";
-      setError(msg);
       try {
         window.dispatchEvent(
           new CustomEvent("nols:toast", {
@@ -125,20 +153,112 @@ export default function MyGroupStaysPage() {
     }
   };
 
+  const toggleAuction = async (bookingId: number) => {
+    const next = new Set(auctionExpanded);
+    if (next.has(bookingId)) {
+      next.delete(bookingId);
+      setAuctionExpanded(next);
+      return;
+    }
+
+    next.add(bookingId);
+    setAuctionExpanded(next);
+
+    if (auctionOffersByBooking[bookingId]) return;
+    const loadingNext = new Set(auctionLoading);
+    loadingNext.add(bookingId);
+    setAuctionLoading(loadingNext);
+
+    try {
+      const resp = await api.get(`/api/customer/group-stays/${bookingId}/auction-offers`);
+      setAuctionOffersByBooking((prev) => ({
+        ...prev,
+        [bookingId]: resp.data?.offers || [],
+      }));
+    } catch (err: any) {
+      const msg = err?.response?.data?.error || "Failed to fetch auction offers";
+      try {
+        window.dispatchEvent(
+          new CustomEvent("nols:toast", {
+            detail: { type: "error", title: "Auction Offers", message: msg, duration: 4500 },
+          })
+        );
+      } catch {}
+    } finally {
+      const loadingDone = new Set(auctionLoading);
+      loadingDone.delete(bookingId);
+      setAuctionLoading(loadingDone);
+    }
+  };
+
+  const confirmAuctionOffer = async (bookingId: number, propertyId: number) => {
+    const confirmingNext = new Set(auctionConfirming);
+    confirmingNext.add(bookingId);
+    setAuctionConfirming(confirmingNext);
+
+    try {
+      await api.post(`/api/customer/group-stays/${bookingId}/auction-confirm`, { propertyId });
+      await loadGroupStays();
+      setAuctionExpanded((prev) => {
+        const n = new Set(prev);
+        n.delete(bookingId);
+        return n;
+      });
+    } catch (err: any) {
+      const msg = err?.response?.data?.error || "Failed to confirm offer";
+      try {
+        window.dispatchEvent(
+          new CustomEvent("nols:toast", {
+            detail: { type: "error", title: "Auction Offers", message: msg, duration: 4500 },
+          })
+        );
+      } catch {}
+    } finally {
+      const confirmingDone = new Set(auctionConfirming);
+      confirmingDone.delete(bookingId);
+      setAuctionConfirming(confirmingDone);
+    }
+  };
+
   const filteredGroupStays = groupStays.filter((stay) => {
     if (filter === "pending") return stay.status === "PENDING" || stay.status === "REVIEWING";
-    if (filter === "active") return stay.isValid && stay.status !== "PENDING" && stay.status !== "REVIEWING";
+    if (filter === "reviewed") return stay.status === "PROCESSING";
+    if (filter === "active") {
+      return (
+        stay.isValid &&
+        stay.status !== "PENDING" &&
+        stay.status !== "REVIEWING" &&
+        stay.status !== "PROCESSING"
+      );
+    }
     if (filter === "completed") return !stay.isValid && stay.status === "COMPLETED";
     if (filter === "expired") return !stay.isValid && stay.status !== "COMPLETED" && stay.status !== "CANCELED";
-    // "All" filter: Show all bookings EXCEPT PENDING and REVIEWING (matches Plan With Us pattern)
-    // This limits visibility of pending/reviewing bookings until admin processes them
-    return stay.status !== "PENDING" && stay.status !== "REVIEWING";
+    return false;
   });
 
   const pendingCount = groupStays.filter((s) => s.status === "PENDING" || s.status === "REVIEWING").length;
-  const activeCount = groupStays.filter((s) => s.isValid && s.status !== "PENDING").length;
+  const pendingOnlyCount = groupStays.filter((s) => s.status === "PENDING").length;
+  const reviewingOnlyCount = groupStays.filter((s) => s.status === "REVIEWING").length;
+  const reviewedCount = groupStays.filter((s) => s.status === "PROCESSING").length;
+  const activeCount = groupStays.filter(
+    (s) =>
+      s.isValid &&
+      s.status !== "PENDING" &&
+      s.status !== "REVIEWING" &&
+      s.status !== "PROCESSING"
+  ).length;
   const completedCount = groupStays.filter((s) => !s.isValid && s.status === "COMPLETED").length;
   const expiredCount = groupStays.filter((s) => !s.isValid && s.status !== "COMPLETED" && s.status !== "CANCELED").length;
+
+  const displayGroupStays =
+    filter === "pending"
+      ? [...filteredGroupStays].sort((a, b) => {
+          const rank = (s: GroupStay) => (s.status === "REVIEWING" ? 0 : 1);
+          const byStatus = rank(a) - rank(b);
+          if (byStatus !== 0) return byStatus;
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        })
+      : filteredGroupStays;
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
@@ -273,8 +393,8 @@ export default function MyGroupStaysPage() {
       <div className="flex justify-center">
         <div className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-1 shadow-sm flex-wrap">
           {[
-            { key: "all" as const, label: "All", count: groupStays.length },
             { key: "pending" as const, label: "Pending", count: pendingCount },
+            { key: "reviewed" as const, label: "Reviewed", count: reviewedCount },
             { key: "active" as const, label: "Active", count: activeCount },
             { key: "completed" as const, label: "Completed", count: completedCount },
             { key: "expired" as const, label: "Expired", count: expiredCount },
@@ -318,16 +438,18 @@ export default function MyGroupStaysPage() {
           <div className="mt-4 text-lg font-bold text-slate-900">No group stays found</div>
           <div className="mt-1 text-sm text-slate-600">
             {filter === "pending"
-              ? "You don't have any pending group stays at the moment."
+              ? "You don't have any group stays waiting for review at the moment."
+              : filter === "reviewed"
+              ? "You don't have any reviewed group stays at the moment."
               : filter === "active"
               ? "You don't have any active group stays at the moment."
               : filter === "completed"
               ? "You haven't completed any group stays yet."
               : filter === "expired"
               ? "You don't have any expired group stays."
-              : "When you book a group stay, it will appear here for easy access."}
+              : "No group stays found."}
           </div>
-          {filter === "all" && (
+          {filter === "active" && (
             <div className="mt-6 flex justify-center">
               <Link
                 href="/public/group-stays"
@@ -341,11 +463,39 @@ export default function MyGroupStaysPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {filteredGroupStays.map((stay) => (
-            <div
-              key={stay.id}
-              className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-[2px]"
-            >
+          {displayGroupStays.map((stay, idx) => {
+            const section = stay.status === "REVIEWING" ? "reviewing" : stay.status === "PENDING" ? "pending" : "other";
+            const prev = idx > 0 ? displayGroupStays[idx - 1] : null;
+            const next = idx + 1 < displayGroupStays.length ? displayGroupStays[idx + 1] : null;
+            const prevSection =
+              prev?.status === "REVIEWING" ? "reviewing" : prev?.status === "PENDING" ? "pending" : "other";
+            const nextSection =
+              next?.status === "REVIEWING" ? "reviewing" : next?.status === "PENDING" ? "pending" : "other";
+
+            const showSectionHeader = filter === "pending" && section !== "other" && (idx === 0 || section !== prevSection);
+            const showSectionDivider =
+              filter === "pending" && section !== "other" && Boolean(next) && nextSection === section;
+            const sectionTitle = section === "reviewing" ? "Under Review" : "Pending";
+            const sectionDescription =
+              section === "reviewing"
+                ? "Admin is actively reviewing these requests."
+                : "Submitted and waiting for admin to start review.";
+            const sectionCount = section === "reviewing" ? reviewingOnlyCount : pendingOnlyCount;
+
+            return (
+              <div key={`${stay.id}-${section}`} className="space-y-2">
+                {showSectionHeader && (
+                  <div className="pt-2">
+                    <div className="flex items-end justify-between">
+                      <div className="text-sm font-bold text-slate-900">{sectionTitle}</div>
+                      <div className="text-xs font-semibold text-slate-600">{sectionCount}</div>
+                    </div>
+                    <div className="mt-0.5 text-xs text-slate-600">{sectionDescription}</div>
+                  </div>
+                )}
+
+                <div className="group">
+                  <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-[2px] group-hover:border-slate-300">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0 flex-1">
                   {/* Header with property title and status */}
@@ -634,6 +784,147 @@ export default function MyGroupStaysPage() {
                     </div>
                   )}
 
+                  {/* Auction Offers (separate from normal recommendations) */}
+                  {((stay.auction?.recommendedPropertyCount || 0) > 0) && !stay.auction?.confirmedPropertyId && (
+                    <div className="mt-4 sm:mt-5 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                      <div className="p-4 sm:p-5">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                          <div className="flex items-start gap-3">
+                            <div className="h-12 w-12 rounded-2xl flex items-center justify-center flex-shrink-0 bg-slate-50 border border-slate-200">
+                              <Clock className="h-6 w-6 text-[#02665e]" />
+                            </div>
+                            <div className="flex-1">
+                              <h4 className="text-base sm:text-lg font-bold text-slate-900">Auction Offers</h4>
+                              <p className="text-xs sm:text-sm text-slate-600 mt-1">
+                                {stay.auction?.recommendedPropertyCount} shortlisted offers are ready. Choose one to confirm.
+                              </p>
+                            </div>
+                          </div>
+
+                          <button
+                            onClick={() => toggleAuction(stay.id)}
+                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50 transition-colors"
+                          >
+                            {auctionExpanded.has(stay.id) ? "Hide offers" : "View offers"}
+                            <ChevronDown
+                              className="h-4 w-4 text-slate-600 transition-transform"
+                              style={{ transform: auctionExpanded.has(stay.id) ? "rotate(180deg)" : "rotate(0deg)" }}
+                            />
+                          </button>
+                        </div>
+
+                        <div
+                          className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                            auctionExpanded.has(stay.id) ? "max-h-[2000px] opacity-100 mt-4" : "max-h-0 opacity-0"
+                          }`}
+                        >
+                          <div className="space-y-3">
+                            {auctionLoading.has(stay.id) && (
+                              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 flex items-center gap-3 text-sm text-slate-700">
+                                <Loader2 className="h-4 w-4 animate-spin text-[#02665e]" />
+                                Loading offers...
+                              </div>
+                            )}
+
+                            {!auctionLoading.has(stay.id) && (auctionOffersByBooking[stay.id] || []).length === 0 && (
+                              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                                No offers available yet.
+                              </div>
+                            )}
+
+                            {(auctionOffersByBooking[stay.id] || []).map((offer) => (
+                              <div
+                                key={offer.claimId}
+                                className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm"
+                              >
+                                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-start gap-3">
+                                      {offer.property.imageUrl ? (
+                                        // eslint-disable-next-line @next/next/no-img-element
+                                        <img
+                                          src={offer.property.imageUrl}
+                                          alt={offer.property.title}
+                                          className="h-14 w-14 rounded-xl object-cover border border-slate-200 bg-slate-50 flex-shrink-0"
+                                        />
+                                      ) : (
+                                        <div className="h-14 w-14 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-center flex-shrink-0">
+                                          <Building2 className="h-6 w-6 text-[#02665e]" />
+                                        </div>
+                                      )}
+                                      <div className="min-w-0">
+                                        <div className="text-sm sm:text-base font-bold text-slate-900 truncate">
+                                          {offer.property.title}
+                                        </div>
+                                        <div className="text-xs sm:text-sm text-slate-600 mt-1">
+                                          {[offer.property.regionName, offer.property.district, offer.property.ward || offer.property.city]
+                                            .filter(Boolean)
+                                            .join(", ")}
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                                      <div className="rounded-xl bg-slate-50/70 border border-slate-200 p-3">
+                                        <div className="text-xs font-medium text-slate-500 mb-1">Price / night</div>
+                                        <div className="font-semibold text-slate-900">
+                                          {Number(offer.offer.offeredPricePerNight).toLocaleString("en-US")} {offer.offer.currency}
+                                        </div>
+                                      </div>
+                                      <div className="rounded-xl bg-slate-50/70 border border-slate-200 p-3">
+                                        <div className="text-xs font-medium text-slate-500 mb-1">Total</div>
+                                        <div className="font-semibold text-slate-900">
+                                          {Number(offer.offer.totalAmount).toLocaleString("en-US")} {offer.offer.currency}
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {(offer.offer.specialOffers || offer.offer.notes) && (
+                                      <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700">
+                                        {offer.offer.specialOffers && (
+                                          <div className="whitespace-pre-wrap leading-relaxed">{offer.offer.specialOffers}</div>
+                                        )}
+                                        {offer.offer.notes && (
+                                          <div className={`${offer.offer.specialOffers ? "mt-2 pt-2 border-t border-slate-200" : ""} whitespace-pre-wrap leading-relaxed`}
+                                            >{offer.offer.notes}</div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  <div className="sm:pl-4">
+                                    <button
+                                      disabled={auctionConfirming.has(stay.id)}
+                                      onClick={() => confirmAuctionOffer(stay.id, offer.property.id)}
+                                      className={[
+                                        "w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors",
+                                        auctionConfirming.has(stay.id)
+                                          ? "bg-slate-100 text-slate-500 cursor-not-allowed"
+                                          : "bg-[#02665e] text-white hover:bg-[#025b54]",
+                                      ].join(" ")}
+                                    >
+                                      {auctionConfirming.has(stay.id) ? (
+                                        <>
+                                          <Loader2 className="h-4 w-4 animate-spin" />
+                                          Confirming...
+                                        </>
+                                      ) : (
+                                        <>
+                                          <CheckCircle className="h-4 w-4" />
+                                          Choose this offer
+                                        </>
+                                      )}
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Passengers List - Collapsible */}
                   {stay.passengers && stay.passengers.length > 0 && (
                     <div className="mt-4 rounded-lg border border-slate-200 bg-white overflow-hidden transition-all duration-200">
@@ -705,8 +996,15 @@ export default function MyGroupStaysPage() {
                   <GroupStayMessaging bookingId={stay.id} />
                 </div>
               </div>
-            </div>
-          ))}
+                </div>
+
+                  {showSectionDivider && (
+                    <div className="h-[2px] rounded-full bg-slate-300/80 opacity-80 transition-all duration-200 ease-out group-hover:bg-slate-400/80 group-hover:opacity-100 transform scale-x-[0.98] group-hover:scale-x-100 origin-center" />
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -732,7 +1030,30 @@ function GroupStayMessaging({ bookingId }: { bookingId: number }) {
   const [sent, setSent] = useState(false);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [conversationMessages, setConversationMessages] = useState<ConversationMessage[]>([]);
-  const [socket, setSocket] = useState<Socket | null>(null);
+
+  const loadMessages = useCallback(async () => {
+    setMessagesLoading(true);
+    try {
+      const response = await api.get(`/api/customer/group-stays/${bookingId}/messages`);
+      if (response.data.success && response.data.messages) {
+        const formattedMessages: ConversationMessage[] = response.data.messages.map((m: any) => ({
+          id: m.id,
+          messageType: m.messageType || "General",
+          message: m.message,
+          senderRole: m.senderRole,
+          senderName: m.senderName || "Unknown",
+          createdAt: m.createdAt,
+          formattedDate: m.formattedDate,
+        }));
+        setConversationMessages(formattedMessages);
+      }
+    } catch (err) {
+      console.error("Failed to load messages:", err);
+      setConversationMessages([]);
+    } finally {
+      setMessagesLoading(false);
+    }
+  }, [bookingId]);
 
   // Initialize Socket.IO connection
   useEffect(() => {
@@ -791,8 +1112,6 @@ function GroupStayMessaging({ bookingId }: { bookingId: number }) {
       }
     });
 
-    setSocket(newSocket);
-
     return () => {
       if (newSocket && newSocket.connected) {
         const userId = localStorage.getItem('userId') || '';
@@ -802,37 +1121,12 @@ function GroupStayMessaging({ bookingId }: { bookingId: number }) {
         newSocket.close();
       }
     };
-  }, [bookingId]);
-
-  // Load messages from API
-  const loadMessages = async () => {
-    setMessagesLoading(true);
-    try {
-      const response = await api.get(`/api/customer/group-stays/${bookingId}/messages`);
-      if (response.data.success && response.data.messages) {
-        const formattedMessages: ConversationMessage[] = response.data.messages.map((m: any) => ({
-          id: m.id,
-          messageType: m.messageType || 'General',
-          message: m.message,
-          senderRole: m.senderRole,
-          senderName: m.senderName || 'Unknown',
-          createdAt: m.createdAt,
-          formattedDate: m.formattedDate,
-        }));
-        setConversationMessages(formattedMessages);
-      }
-    } catch (err) {
-      console.error('Failed to load messages:', err);
-      setConversationMessages([]);
-    } finally {
-      setMessagesLoading(false);
-    }
-  };
+  }, [bookingId, loadMessages]);
 
   // Load messages on mount and when bookingId changes
   useEffect(() => {
     loadMessages();
-  }, [bookingId]);
+  }, [loadMessages]);
 
   const messageTypes = [
     "Ask for Feedback",

@@ -53,7 +53,9 @@ import adminGroupStaysRequestsRouter from "./routes/admin.groupStays.requests";
 import adminGroupStaysPassengersRouter from "./routes/admin.groupStays.passengers";
 import adminGroupStaysArrangementsRouter from "./routes/admin.groupStays.arrangements";
 import adminGroupStaysRecommendationsRouter from "./routes/admin.groupStays.recommendations";
+import adminGroupStaysAssignmentsRouter from "./routes/admin.groupStays.assignments";
 import adminGroupStaysBookingsAuditRouter from "./routes/admin.groupStays.bookings.audit";
+import adminGroupStaysClaimsRouter from "./routes/admin.groupStays.claims";
 import adminPlanWithUsSummaryRouter from "./routes/admin.planWithUs.summary";
 import adminPlanWithUsRequestsRouter from "./routes/admin.planWithUs.requests";
 import adminAgentsRouter from "./routes/admin.agents";
@@ -75,6 +77,8 @@ import ownerNotificationsRouter from './routes/owner.notifications';
 import ownerAvailabilityRouter from './routes/owner.availability';
 import { router as ownerBookingsRouter } from "./routes/owner.booking";
 import ownerInvoicesRouter from "./routes/owner.invoices";
+import ownerGroupStaysRouter from "./routes/owner.groupStays";
+import ownerGroupStaysClaimsRouter from "./routes/owner.groupStays.claims";
 import admin2faRouter from "./routes/admin.2fa.js";
 import driverRouter from "./routes/driver.stats";
 import driverRemindersRouter from './routes/driver.reminders';
@@ -418,7 +422,11 @@ app.use("/admin/revenue", adminRevenueRouter);
 // also expose API-prefixed route so frontend using `/api/admin/revenue` works
 app.use('/api/admin/revenue', adminRevenueRouter as express.RequestHandler);
 app.use("/admin/payments", adminPaymentsRouter);
+// also expose API-prefixed route so frontend using `/api/admin/payments` works
+app.use('/api/admin/payments', adminPaymentsRouter as express.RequestHandler);
 app.use("/admin/settings", adminSettingsRouter);
+// also expose API-prefixed route so frontend using `/api/admin/settings` works
+app.use('/api/admin/settings', adminSettingsRouter as express.RequestHandler);
 // IMPORTANT: mount /admin/drivers/summary BEFORE /admin/drivers to avoid ":id" catching "summary"
 app.use('/admin/drivers/summary', adminDriversSummaryRouter);
 // also expose API-prefixed route so frontend using `/api/admin/drivers/summary` works
@@ -443,6 +451,10 @@ app.use('/admin/group-stays/arrangements', adminGroupStaysArrangementsRouter);
 app.use('/api/admin/group-stays/arrangements', adminGroupStaysArrangementsRouter);
 app.use('/admin/group-stays/recommendations', adminGroupStaysRecommendationsRouter);
 app.use('/api/admin/group-stays/recommendations', adminGroupStaysRecommendationsRouter);
+app.use('/admin/group-stays/assignments', adminGroupStaysAssignmentsRouter);
+app.use('/api/admin/group-stays/assignments', adminGroupStaysAssignmentsRouter);
+app.use('/admin/group-stays/claims', adminGroupStaysClaimsRouter);
+app.use('/api/admin/group-stays/claims', adminGroupStaysClaimsRouter);
 app.use('/admin/plan-with-us/summary', adminPlanWithUsSummaryRouter);
 app.use('/api/admin/plan-with-us/summary', adminPlanWithUsSummaryRouter);
 app.use('/admin/plan-with-us/requests', adminPlanWithUsRequestsRouter);
@@ -529,6 +541,10 @@ app.use("/api/owner/bookings", ownerBookingsRouter);
 // Owner invoices (create from booking, view, submit)
 app.use("/owner/invoices", ownerInvoicesRouter as express.RequestHandler);
 app.use("/api/owner/invoices", ownerInvoicesRouter as express.RequestHandler);
+app.use("/owner/group-stays", ownerGroupStaysRouter as express.RequestHandler);
+app.use("/api/owner/group-stays", ownerGroupStaysRouter as express.RequestHandler);
+app.use("/owner/group-stays/claims", ownerGroupStaysClaimsRouter as express.RequestHandler);
+app.use("/api/owner/group-stays/claims", ownerGroupStaysClaimsRouter as express.RequestHandler);
 // Public support contact endpoint
 app.use('/api/public/support', publicSupportRouter);
 // Public updates endpoint

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import {
   MessageSquare,
   User,
@@ -18,10 +18,56 @@ import {
   BarChart3,
   Activity,
   ArrowUpRight,
+  Loader2,
+  RefreshCw,
 } from "lucide-react";
 import axios from "axios";
 
 const api = axios.create({ baseURL: "", withCredentials: true });
+
+function authify() {
+  if (typeof window === "undefined") return;
+
+  // Most of the app uses a Bearer token (often stored in localStorage).
+  // The API endpoints are protected by requireAuth, so we must attach it.
+  const lsToken =
+    window.localStorage.getItem("token") ||
+    window.localStorage.getItem("nolsaf_token") ||
+    window.localStorage.getItem("__Host-nolsaf_token");
+
+  if (lsToken) {
+    api.defaults.headers.common["Authorization"] = `Bearer ${lsToken}`;
+    return;
+  }
+
+  // Fallback: non-httpOnly cookie (if present)
+  const m = String(document.cookie || "").match(/(?:^|;\s*)(?:nolsaf_token|__Host-nolsaf_token)=([^;]+)/);
+  const cookieToken = m?.[1] ? decodeURIComponent(m[1]) : "";
+  if (cookieToken) {
+    api.defaults.headers.common["Authorization"] = `Bearer ${cookieToken}`;
+  }
+}
+
+// Input sanitization helper
+function sanitizeInput(input: string): string {
+  return input.trim().replace(/[<>]/g, "");
+}
+
+// Validate conversation ID
+function isValidConversationId(id: number | null | undefined): boolean {
+  return id !== null && id !== undefined && Number.isInteger(id) && id > 0;
+}
+
+// Toast notification helper
+function showToast(type: "success" | "error" | "info" | "warning", title: string, message?: string, duration?: number) {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent("nols:toast", {
+        detail: { type, title, message, duration: duration ?? 5000 },
+      })
+    );
+  }
+}
 
 type Conversation = {
   id: number;
@@ -71,13 +117,21 @@ export default function TwigaDashboardPage() {
   const [viewingConversation, setViewingConversation] = useState<FullConversation | null>(null);
   const [filter, setFilter] = useState<"all" | "needsFollowUp" | "followedUp">("needsFollowUp");
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [followUpNotes, setFollowUpNotes] = useState("");
   const [markingFollowUp, setMarkingFollowUp] = useState(false);
+  const [loadingConversationDetails, setLoadingConversationDetails] = useState(false);
   const [timeRange, setTimeRange] = useState<"7" | "30" | "90">("7");
+  const [error, setError] = useState<string | null>(null);
+  const [statsError, setStatsError] = useState<string | null>(null);
+  const [conversationDetailsError, setConversationDetailsError] = useState<string | null>(null);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const loadStats = useCallback(async () => {
     setLoadingStats(true);
+    setStatsError(null);
     try {
+      authify();
       const response = await api.get<{ success: boolean; stats: Stats }>("/api/admin/chatbot/stats", {
         params: { days: timeRange },
       });
@@ -86,6 +140,9 @@ export default function TwigaDashboardPage() {
       }
     } catch (err: any) {
       console.error("Failed to load stats", err);
+      const errorMessage = err?.response?.data?.error || err?.message || "Failed to load statistics";
+      setStatsError(errorMessage);
+      showToast("error", "Failed to Load Statistics", errorMessage);
     } finally {
       setLoadingStats(false);
     }
@@ -93,7 +150,9 @@ export default function TwigaDashboardPage() {
 
   const loadConversations = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
+      authify();
       const params: any = {
         page,
         pageSize,
@@ -120,18 +179,45 @@ export default function TwigaDashboardPage() {
       }
     } catch (err: any) {
       console.error("Failed to load conversations", err);
+      const errorMessage = err?.response?.data?.error || err?.message || "Failed to load conversations";
+      setError(errorMessage);
+      showToast("error", "Failed to Load Conversations", errorMessage);
     } finally {
       setLoading(false);
     }
   }, [filter, page, pageSize]);
 
+  // Debounce search input
   useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    searchTimeoutRef.current = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchQuery]);
+
+  useEffect(() => {
+    authify();
     loadStats();
     loadConversations();
   }, [loadStats, loadConversations]);
 
-  async function loadConversationDetails(id: number) {
+  const loadConversationDetails = useCallback(async (id: number) => {
+    if (!isValidConversationId(id)) {
+      showToast("error", "Invalid Conversation", "Invalid conversation ID provided");
+      return;
+    }
+
+    setLoadingConversationDetails(true);
+    setConversationDetailsError(null);
     try {
+      authify();
       const response = await api.get<{
         success: boolean;
         conversation: FullConversation;
@@ -142,19 +228,36 @@ export default function TwigaDashboardPage() {
       }
     } catch (err: any) {
       console.error("Failed to load conversation details", err);
+      const errorMessage = err?.response?.data?.error || err?.message || "Failed to load conversation details";
+      setConversationDetailsError(errorMessage);
+      showToast("error", "Failed to Load Conversation", errorMessage);
+    } finally {
+      setLoadingConversationDetails(false);
     }
-  }
+  }, []);
 
-  async function markAsFollowedUp(id: number) {
-    if (!followUpNotes.trim()) {
-      alert("Please add notes about the follow-up");
+  const markAsFollowedUp = useCallback(async (id: number) => {
+    if (!isValidConversationId(id)) {
+      showToast("error", "Invalid Conversation", "Invalid conversation ID provided");
+      return;
+    }
+
+    const sanitizedNotes = sanitizeInput(followUpNotes);
+    if (!sanitizedNotes.trim()) {
+      showToast("warning", "Notes Required", "Please add notes about the follow-up");
+      return;
+    }
+
+    if (sanitizedNotes.length > 2000) {
+      showToast("error", "Notes Too Long", "Follow-up notes must be less than 2000 characters");
       return;
     }
 
     setMarkingFollowUp(true);
     try {
+      authify();
       await api.post(`/api/admin/chatbot/conversations/${id}/follow-up`, {
-        notes: followUpNotes,
+        notes: sanitizedNotes,
       });
 
       await loadStats();
@@ -163,18 +266,19 @@ export default function TwigaDashboardPage() {
         await loadConversationDetails(id);
       }
       setFollowUpNotes("");
-      alert("Conversation marked as followed up!");
+      showToast("success", "Follow-up Marked", "Conversation marked as followed up successfully");
     } catch (err: any) {
       console.error("Failed to mark follow-up", err);
-      alert("Failed to mark follow-up");
+      const errorMessage = err?.response?.data?.error || err?.message || "Failed to mark follow-up";
+      showToast("error", "Failed to Mark Follow-up", errorMessage);
     } finally {
       setMarkingFollowUp(false);
     }
-  }
+  }, [followUpNotes, loadStats, loadConversations, viewingConversation, loadConversationDetails]);
 
   const filteredConversations = conversations.filter((conv) => {
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
+    if (!debouncedSearch) return true;
+    const query = sanitizeInput(debouncedSearch).toLowerCase();
     return (
       conv.userName?.toLowerCase().includes(query) ||
       conv.userEmail?.toLowerCase().includes(query) ||
@@ -207,6 +311,8 @@ export default function TwigaDashboardPage() {
                 setTimeRange(e.target.value as "7" | "30" | "90");
                 setPage(1);
               }}
+              aria-label="Select time range for statistics"
+              title="Select time range for statistics"
               className="px-4 py-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/50"
             >
               <option value="7">Last 7 days</option>
@@ -226,6 +332,20 @@ export default function TwigaDashboardPage() {
               <div className="h-8 bg-gray-200 rounded w-1/3"></div>
             </div>
           ))}
+        </div>
+      ) : statsError ? (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
+          <AlertCircle className="h-8 w-8 text-red-600 mx-auto mb-3" />
+          <p className="text-red-800 font-medium mb-2">Failed to load statistics</p>
+          <p className="text-red-600 text-sm mb-4">{statsError}</p>
+          <button
+            onClick={loadStats}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+            aria-label="Retry loading statistics"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Retry
+          </button>
         </div>
       ) : stats ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -369,14 +489,31 @@ export default function TwigaDashboardPage() {
             <div className="flex gap-2">
               {/* Search */}
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" aria-hidden="true" />
                 <input
                   type="text"
-                  placeholder="Search..."
+                  placeholder="Search conversations..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] outline-none w-64"
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value.length <= 200) {
+                      setSearchQuery(value);
+                    }
+                  }}
+                  aria-label="Search conversations by name, email, phone, message, or session ID"
+                  title="Search conversations"
+                  maxLength={200}
+                  className="pl-10 pr-10 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] outline-none w-64"
                 />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    aria-label="Clear search"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
               </div>
               {/* Filter Tabs */}
               <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
@@ -385,6 +522,7 @@ export default function TwigaDashboardPage() {
                     setFilter("needsFollowUp");
                     setPage(1);
                   }}
+                  aria-label="Filter conversations that need follow-up"
                   className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
                     filter === "needsFollowUp"
                       ? "bg-white text-[#02665e] shadow-sm"
@@ -398,6 +536,7 @@ export default function TwigaDashboardPage() {
                     setFilter("followedUp");
                     setPage(1);
                   }}
+                  aria-label="Filter followed up conversations"
                   className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
                     filter === "followedUp"
                       ? "bg-white text-[#02665e] shadow-sm"
@@ -411,6 +550,7 @@ export default function TwigaDashboardPage() {
                     setFilter("all");
                     setPage(1);
                   }}
+                  aria-label="Show all conversations"
                   className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
                     filter === "all"
                       ? "bg-white text-[#02665e] shadow-sm"
@@ -426,9 +566,28 @@ export default function TwigaDashboardPage() {
 
         {/* Conversations List */}
         {loading ? (
-          <div className="p-8 text-center text-gray-500">Loading conversations...</div>
+          <div className="p-8 text-center">
+            <Loader2 className="h-6 w-6 text-[#02665e] animate-spin mx-auto mb-2" />
+            <p className="text-gray-500 text-sm">Loading conversations...</p>
+          </div>
+        ) : error ? (
+          <div className="p-8 text-center bg-red-50 border-t border-red-200">
+            <AlertCircle className="h-8 w-8 text-red-600 mx-auto mb-3" />
+            <p className="text-red-800 font-medium mb-2">Failed to load conversations</p>
+            <p className="text-red-600 text-sm mb-4">{error}</p>
+            <button
+              onClick={loadConversations}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+              aria-label="Retry loading conversations"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Retry
+            </button>
+          </div>
         ) : filteredConversations.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">No conversations found</div>
+          <div className="p-8 text-center text-gray-500">
+            {debouncedSearch ? "No conversations found matching your search" : "No conversations found"}
+          </div>
         ) : (
           <>
             <div className="divide-y divide-gray-200">
@@ -509,6 +668,8 @@ export default function TwigaDashboardPage() {
                         e.stopPropagation();
                         loadConversationDetails(conv.id);
                       }}
+                      aria-label={`View conversation details for ${conv.userName || "Anonymous User"}`}
+                      title="View conversation details"
                       className="px-4 py-2 bg-[#02665e] text-white rounded-lg text-sm font-medium hover:bg-[#024d47] transition-colors flex items-center gap-2 flex-shrink-0"
                     >
                       <Eye className="h-4 w-4" />
@@ -529,6 +690,7 @@ export default function TwigaDashboardPage() {
                   <button
                     onClick={() => setPage(Math.max(1, page - 1))}
                     disabled={page === 1}
+                    aria-label="Go to previous page"
                     className="px-3 py-1 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Previous
@@ -536,6 +698,7 @@ export default function TwigaDashboardPage() {
                   <button
                     onClick={() => setPage(Math.min(pages, page + 1))}
                     disabled={page === pages}
+                    aria-label="Go to next page"
                     className="px-3 py-1 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Next
@@ -559,6 +722,7 @@ export default function TwigaDashboardPage() {
                   setViewingConversation(null);
                   setFollowUpNotes("");
                 }}
+                aria-label="Close conversation details"
                 className="p-2 bg-white/10 hover:bg-white/20 border border-white/20 hover:border-white/30 rounded-lg transition-all duration-200 text-white"
               >
                 <X size={18} />
@@ -567,6 +731,26 @@ export default function TwigaDashboardPage() {
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto bg-gray-50 min-w-0 min-h-0">
+              {loadingConversationDetails ? (
+                <div className="p-6 text-center">
+                  <Loader2 className="h-6 w-6 text-[#02665e] animate-spin mx-auto mb-2" />
+                  <p className="text-gray-500 text-sm">Loading conversation details...</p>
+                </div>
+              ) : conversationDetailsError ? (
+                <div className="p-6 text-center bg-red-50">
+                  <AlertCircle className="h-8 w-8 text-red-600 mx-auto mb-3" />
+                  <p className="text-red-800 font-medium mb-2">Failed to load conversation details</p>
+                  <p className="text-red-600 text-sm mb-4">{conversationDetailsError}</p>
+                  <button
+                    onClick={() => viewingConversation && loadConversationDetails(viewingConversation.id)}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+                    aria-label="Retry loading conversation details"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Retry
+                  </button>
+                </div>
+              ) : (
               <div className="p-6 space-y-6">
                 {/* User Information */}
                 <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">
@@ -646,21 +830,43 @@ export default function TwigaDashboardPage() {
                     <h3 className="text-base font-semibold text-gray-900 mb-4">Mark as Followed Up</h3>
                     <div className="space-y-4">
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-2">Follow-up Notes</label>
+                        <label htmlFor="follow-up-notes" className="block text-xs font-medium text-gray-500 mb-2">
+                          Follow-up Notes
+                        </label>
                         <textarea
+                          id="follow-up-notes"
                           value={followUpNotes}
-                          onChange={(e) => setFollowUpNotes(e.target.value)}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            if (value.length <= 2000) {
+                              setFollowUpNotes(value);
+                            }
+                          }}
                           placeholder="Add notes about how you followed up with this user..."
+                          aria-label="Follow-up notes"
+                          title="Add notes about the follow-up"
+                          maxLength={2000}
                           className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] outline-none text-sm"
                           rows={4}
                         />
+                        <p className="text-xs text-gray-500 mt-1">
+                          {followUpNotes.length}/2000 characters
+                        </p>
                       </div>
                       <button
-                        onClick={() => markAsFollowedUp(viewingConversation.id)}
+                        onClick={() => viewingConversation && markAsFollowedUp(viewingConversation.id)}
                         disabled={markingFollowUp || !followUpNotes.trim()}
-                        className="px-6 py-2.5 bg-[#02665e] text-white rounded-lg font-medium hover:bg-[#024d47] disabled:opacity-50 disabled:cursor-not-allowed"
+                        aria-label="Mark conversation as followed up"
+                        className="px-6 py-2.5 bg-[#02665e] text-white rounded-lg font-medium hover:bg-[#024d47] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                       >
-                        {markingFollowUp ? "Marking..." : "Mark as Followed Up"}
+                        {markingFollowUp ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Marking...
+                          </>
+                        ) : (
+                          "Mark as Followed Up"
+                        )}
                       </button>
                     </div>
                   </div>
@@ -680,6 +886,7 @@ export default function TwigaDashboardPage() {
                   </div>
                 )}
               </div>
+              )}
             </div>
 
             {/* Footer */}

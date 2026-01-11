@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { prisma } from "@nolsaf/prisma";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { invalidateOwnerReports } from "../lib/cache.js";
 import { makeQR } from "../lib/qr.js";

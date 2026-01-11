@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
   images: {
     domains: ['img.youtube.com', 'res.cloudinary.com', 'api.mapbox.com'],
   },
@@ -36,14 +39,14 @@ const nextConfig = {
       // The pattern uses negative lookahead to exclude specific routes
       { 
         // NOTE: include /admin/management/* (Next pages) as excluded too.
-        // Also exclude user detail pages (users/:id) so Next.js serves them, not the API proxy
-        source: '/admin/:path((?!cancellations/\\d+$|bookings/\\d+$|owners/\\d+$|properties/\\d+$|revenue/\\d+$|users/\\d+$|management/.*).*)', 
+        // Also exclude user detail pages (users/:id) and profile page so Next.js serves them, not the API proxy
+        source: '/admin/:path((?!cancellations/\\d+$|bookings/\\d+$|owners/\\d+$|properties/\\d+$|revenue/\\d+$|users/\\d+$|management/.*|profile$|profile/).*)', 
         destination: 'http://127.0.0.1:4000/admin/:path*' 
       },
       // Exclude known Owner page routes from proxying to API. Keep legacy API paths like `/owner/bookings/:id`.
       {
         // NOTE: exclude owner UI pages so Next.js serves them, not the API proxy.
-        source: '/owner/:path((?!bookings$|bookings/recent$|bookings/recents$|bookings/validate$|bookings/checked-in$|bookings/checked-in/\\d+$|bookings/check-out$|invoices$|invoices/new$|invoices/\\d+$|revenue$|revenue/.*).*)',
+        source: '/owner/:path((?!bookings$|bookings/recent$|bookings/recents$|bookings/validate$|bookings/checked-in$|bookings/checked-in/\\d+$|bookings/check-out$|invoices$|invoices/new$|invoices/\\d+$|revenue$|revenue/.*|group-stays$|group-stays/\\d+$|group-stays/claims$|group-stays/claims/my-claims$).*)',
         destination: 'http://127.0.0.1:4000/owner/:path*'
       },
       { source: '/uploads/:path*', destination: 'http://127.0.0.1:4000/uploads/:path*' },

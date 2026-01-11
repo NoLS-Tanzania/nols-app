@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import type { RequestHandler } from 'express';
 import jwt from 'jsonwebtoken';
 import { prisma } from '@nolsaf/prisma';
 
@@ -8,6 +9,7 @@ export interface AuthedUser {
   id: number;
   role: Role;
   email?: string;
+  name?: string;
 }
 
 export interface AuthedRequest extends Request {
@@ -84,15 +86,26 @@ async function verifyToken(token: string): Promise<AuthedUser | null> {
   }
 }
 
+// Optional auth: if a valid token is present, attach req.user; otherwise continue.
+// No DEV bypass, no 401.
+export const maybeAuth: RequestHandler = async (req, _res, next) => {
+  const token = getTokenFromRequest(req);
+  if (token) {
+    const user = await verifyToken(token);
+    if (user) (req as AuthedRequest).user = user;
+  }
+  return next();
+};
+
 // Minimal auth stub: read role and user id from headers for now.
 // In production, verify JWT in Authorization: Bearer <token>
 // Basic auth that attaches a user from headers (dev-friendly)
-export async function requireAuth(req: AuthedRequest, res: Response, next: NextFunction) {
+export const requireAuth: RequestHandler = async (req, res, next) => {
   const token = getTokenFromRequest(req);
   if (token) {
     const user = await verifyToken(token);
     if (user) {
-      req.user = user;
+      (req as AuthedRequest).user = user;
       return next();
     }
     // Check if token is valid but user is suspended
@@ -119,23 +132,23 @@ export async function requireAuth(req: AuthedRequest, res: Response, next: NextF
   // DEV behavior: keep current dev-bypass so the app keeps working locally.
   // Production is strict: no token -> 401.
   if (process.env.NODE_ENV !== "production") {
-    req.user = { id: 1, role: "ADMIN" };
+    (req as AuthedRequest).user = { id: 1, role: "ADMIN" };
     return next();
   }
 
   return res.status(401).json({ error: "Unauthorized" });
-}
+};
 
 // Role gate. If no role required, just ensure user exists.
 export function requireRole(required?: Role) {
-  return async (req: AuthedRequest, res: Response, next: NextFunction) => {
+  const handler: RequestHandler = async (req, res, next) => {
     // Ensure req.user exists (supports Bearer or httpOnly cookie).
-    if (!req.user) {
+    if (!(req as AuthedRequest).user) {
       const token = getTokenFromRequest(req);
       if (token) {
         const verified = await verifyToken(token);
         if (verified) {
-          req.user = verified;
+          (req as AuthedRequest).user = verified;
         } else {
           // Check if token is valid but user is suspended
           try {
@@ -162,18 +175,20 @@ export function requireRole(required?: Role) {
 
     // Dev bypass: keep local development productive.
     if (process.env.NODE_ENV !== "production") {
-      if (!req.user) req.user = { id: 1, role: "ADMIN" };
+      if (!(req as AuthedRequest).user) (req as AuthedRequest).user = { id: 1, role: "ADMIN" };
       return next();
     }
 
     // Production: strict — no user means no access.
-    if (!req.user) return res.status(401).json({ error: "Unauthorized" });
+    if (!(req as AuthedRequest).user) return res.status(401).json({ error: "Unauthorized" });
 
-    if (required && req.user.role !== required) {
+    if (required && (req as AuthedRequest).user!.role !== required) {
       return res.status(403).json({ error: "Forbidden" });
     }
     return next();
   };
+
+  return handler;
 }
 
 export default requireRole;

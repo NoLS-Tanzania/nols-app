@@ -135,7 +135,7 @@ router.get("/:id", (async (req: AuthedRequest, res) => {
     if (!item) return res.status(404).json({ error: "Cancellation request not found" });
 
     // Fetch payment information (invoice and payment events)
-    let paymentInfo = null;
+    let paymentInfo: { invoice: any; paymentEvents: any[]; hasTransactionId: boolean } | null = null;
     try {
       const invoice = await prisma.invoice.findFirst({
         where: { bookingId: item.bookingId },

@@ -73,11 +73,11 @@ const SOCIAL_LINKS = {
 export default function Testimonials() {
   const total = TESTIMONIALS.length;
   const [active, setActive] = useState(0);
-  const timerRef = useRef<ReturnType<typeof window.setInterval> | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const [viewportW, setViewportW] = useState(0);
   const [disableTransition, setDisableTransition] = useState(false);
-  const resizeTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
+  const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const slides = useMemo(() => TESTIMONIALS.map((t) => ({ ...t, snippet: stripHtml(t.text) })), []);
 
@@ -89,8 +89,8 @@ export default function Testimonials() {
       // During responsive resize/orientation changes, don't animate the transform jump.
       setDisableTransition(true);
       setViewportW(el.clientWidth || 0);
-      if (resizeTimerRef.current) window.clearTimeout(resizeTimerRef.current);
-      resizeTimerRef.current = window.setTimeout(() => setDisableTransition(false), 160);
+      if (resizeTimerRef.current) clearTimeout(resizeTimerRef.current);
+      resizeTimerRef.current = setTimeout(() => setDisableTransition(false), 160);
     };
     update();
 
@@ -98,20 +98,20 @@ export default function Testimonials() {
     ro.observe(el);
     return () => {
       ro.disconnect();
-      if (resizeTimerRef.current) window.clearTimeout(resizeTimerRef.current);
+      if (resizeTimerRef.current) clearTimeout(resizeTimerRef.current);
     };
   }, []);
 
   const start = () => {
-    if (timerRef.current) window.clearInterval(timerRef.current);
-    timerRef.current = window.setInterval(() => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
       setActive((a) => ((a + 1) % total));
     }, 9000);
   };
 
   const stop = () => {
     if (timerRef.current) {
-      window.clearInterval(timerRef.current);
+      clearInterval(timerRef.current);
       timerRef.current = null;
     }
   };

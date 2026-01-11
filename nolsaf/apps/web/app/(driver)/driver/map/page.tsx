@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState, useRef } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import DriverLiveMap from "@/components/DriverLiveMap";
 import DriverLiveMapCanvas from "@/components/DriverLiveMapCanvas";
 import LiveMap from "@/components/LiveMap";
@@ -68,7 +68,6 @@ export default function DriverLiveMapPage() {
   const requestAlertedRef = useRef<string | null>(null);
   
   // Loading and error states
-  const [isLoading, setIsLoading] = useState(false);
   const [isAccepting, setIsAccepting] = useState(false);
   const [isDeclining, setIsDeclining] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
@@ -78,7 +77,7 @@ export default function DriverLiveMapPage() {
   const [destinationETA, setDestinationETA] = useState<number | null>(null);
   const etaIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [driverPos, setDriverPos] = useState<{ lat: number; lng: number; speedMps?: number } | null>(null);
-  const [navBanner, setNavBanner] = useState<{ instruction: string; distanceMeters?: number; durationSec?: number; type: "pickup" | "destination" } | null>(null);
+  const [, setNavBanner] = useState<{ instruction: string; distanceMeters?: number; durationSec?: number; type: "pickup" | "destination" } | null>(null);
   const [routesOpen, setRoutesOpen] = useState(false);
   const [routeOptions, setRouteOptions] = useState<{ key: string; type: "pickup" | "destination"; routes: Array<{ index: number; durationSec: number | null; distanceMeters: number | null }> } | null>(null);
   const [selectedRouteIndex, setSelectedRouteIndex] = useState<number>(0);
@@ -154,7 +153,7 @@ export default function DriverLiveMapPage() {
     }
   }, [completedSteps]);
 
-  const [isAvailable, setIsAvailable] = useState<boolean>(() => {
+  const [, setIsAvailable] = useState<boolean>(() => {
     try {
       const raw = localStorage.getItem('driver_available');
       return raw === '1' || raw === 'true';
@@ -706,6 +705,15 @@ export default function DriverLiveMapPage() {
     }
   }, [routesOpen]);
 
+  // Stage progression handler used by auto-trigger logic
+  const handleArriveAtPickup = useCallback(() => {
+    if (activeTrip) {
+      setActiveTrip({ ...activeTrip, status: 'pickup' });
+      setTripStage('pickup');
+      setIsAtPickup(true);
+    }
+  }, [activeTrip]);
+
   // Automatic stage triggers using arrival geofence (pickup + dropoff)
   useEffect(() => {
     if (!driverPos) return;
@@ -785,7 +793,7 @@ export default function DriverLiveMapPage() {
         destinationDwellRef.current = null;
       }
     }
-  }, [driverPos, activeTrip, tripStage, hasClearLocationInfo]);
+  }, [driverPos, activeTrip, tripStage, hasClearLocationInfo, handleArriveAtPickup]);
 
   // Reset auto-trigger state when a new trip starts or ends
   useEffect(() => {
@@ -802,17 +810,9 @@ export default function DriverLiveMapPage() {
     pickupAutoTriggeredRef.current = false;
     destinationAutoTriggeredRef.current = false;
     setIsAtPickup(false);
-  }, [activeTrip?.id]);
+  }, [activeTrip?.id, tripStage]);
 
   // Stage progression handlers
-  const handleArriveAtPickup = () => {
-    if (activeTrip) {
-      setActiveTrip({ ...activeTrip, status: 'pickup' });
-      setTripStage('pickup');
-      setIsAtPickup(true);
-    }
-  };
-
   const handlePickupPassenger = () => {
     if (activeTrip) {
       setActiveTrip({ ...activeTrip, status: 'picked_up' });
@@ -1607,7 +1607,6 @@ export default function DriverLiveMapPage() {
         <DriverLiveMapBottomSheet
           isCollapsed={bottomSheetCollapsed}
           onToggle={() => setBottomSheetCollapsed(!bottomSheetCollapsed)}
-          mapTheme={mapTheme}
           tripRequest={tripRequest}
           activeTrip={activeTrip}
           tripStage={tripStage}
@@ -1616,7 +1615,6 @@ export default function DriverLiveMapPage() {
           onDeclineTrip={handleDeclineTrip}
           onCompleteTrip={handleCompleteTrip}
           onArriveAtPickup={handleArriveAtPickup}
-          onPickupPassenger={handlePickupPassenger}
           onStartTrip={handleStartTrip}
           onArriveAtDestination={handleArriveAtDestination}
           onStartDropoff={handleStartDropoff}

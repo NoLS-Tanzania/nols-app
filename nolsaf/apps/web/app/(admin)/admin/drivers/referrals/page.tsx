@@ -1,12 +1,44 @@
 "use client";
-import { useEffect, useState } from "react";
-import { UserPlus, Truck, Search, ExternalLink, X, MapPin, Eye } from "lucide-react";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { UserPlus, Truck, Search, ExternalLink, X, MapPin, Eye, AlertCircle, RefreshCw, Loader2 } from "lucide-react";
 import Link from "next/link";
 import axios from "axios";
 import TableRow from "@/components/TableRow";
 
 const api = axios.create({ baseURL: "", withCredentials: true });
-function authify() {}
+
+function authify() {
+  if (typeof window === "undefined") return;
+
+  // Most of the app uses a Bearer token (often stored in localStorage).
+  // The API endpoints are protected by requireAuth, so we must attach it.
+  const lsToken =
+    window.localStorage.getItem("token") ||
+    window.localStorage.getItem("nolsaf_token") ||
+    window.localStorage.getItem("__Host-nolsaf_token");
+
+  if (lsToken) {
+    api.defaults.headers.common["Authorization"] = `Bearer ${lsToken}`;
+    return;
+  }
+
+  // Fallback: non-httpOnly cookie (if present)
+  const m = String(document.cookie || "").match(/(?:^|;\s*)(?:nolsaf_token|__Host-nolsaf_token)=([^;]+)/);
+  const cookieToken = m?.[1] ? decodeURIComponent(m[1]) : "";
+  if (cookieToken) {
+    api.defaults.headers.common["Authorization"] = `Bearer ${cookieToken}`;
+  }
+}
+
+// Input sanitization helper
+function sanitizeInput(input: string): string {
+  return input.trim().replace(/[<>]/g, "");
+}
+
+// Validate driver ID
+function isValidDriverId(id: number | null): boolean {
+  return id !== null && Number.isInteger(id) && id > 0;
+}
 
 type Driver = {
   id: number;
@@ -53,10 +85,30 @@ export default function AdminDriversReferralsPage() {
   const [selectedDriver, setSelectedDriver] = useState<number | null>(null);
   const [referralData, setReferralData] = useState<ReferralData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingReferrals, setLoadingReferrals] = useState(false);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filter, setFilter] = useState<FilterType>("all");
   const [sort, setSort] = useState<SortType>("name_asc");
   const [viewingReferral, setViewingReferral] = useState<ReferralData["referrals"][0] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [referralsError, setReferralsError] = useState<string | null>(null);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Debounce search input
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    searchTimeoutRef.current = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 300);
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [search]);
 
   useEffect(() => {
     authify();
@@ -65,13 +117,16 @@ export default function AdminDriversReferralsPage() {
 
   async function loadDrivers() {
     setLoading(true);
+    setError(null);
     try {
       const r = await api.get<{ items: Driver[]; total: number }>("/admin/drivers", { 
         params: { page: 1, pageSize: 100, status: "" } 
       });
       const driversList = r.data?.items ?? [];
       setDrivers(driversList);
-    } catch (err) {
+    } catch (err: any) {
+      const errorMessage = err?.response?.data?.error || err?.message || "Failed to load drivers";
+      setError(errorMessage);
       console.error("Failed to load drivers", err);
       setDrivers([]);
     } finally {
@@ -79,25 +134,41 @@ export default function AdminDriversReferralsPage() {
     }
   }
 
-
   async function loadDriverReferrals(driverId: number) {
+    if (!isValidDriverId(driverId)) {
+      setReferralsError("Invalid driver ID");
+      return;
+    }
+
+    setLoadingReferrals(true);
+    setReferralsError(null);
     try {
       const r = await api.get<ReferralData>(`/admin/drivers/${driverId}/referrals`);
       setReferralData(r.data);
       setSelectedDriver(driverId);
-    } catch (err) {
+    } catch (err: any) {
+      const errorMessage = err?.response?.data?.error || err?.message || "Failed to load driver referrals";
+      setReferralsError(errorMessage);
       console.error("Failed to load driver referrals", err);
+      setReferralData(null);
+    } finally {
+      setLoadingReferrals(false);
     }
   }
 
+  const handleSearchChange = useCallback((value: string) => {
+    const sanitized = sanitizeInput(value);
+    setSearch(sanitized);
+  }, []);
+
   const filteredDrivers = drivers
     .filter((d) => {
-      // Search filter
+      // Search filter (using debounced search)
       const matchesSearch = 
-        !search ||
-        d.name.toLowerCase().includes(search.toLowerCase()) ||
-        d.email.toLowerCase().includes(search.toLowerCase()) ||
-        (d.phone && d.phone.toLowerCase().includes(search.toLowerCase()));
+        !debouncedSearch ||
+        d.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+        d.email.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+        (d.phone && d.phone.toLowerCase().includes(debouncedSearch.toLowerCase()));
       
       if (!matchesSearch) return false;
 
@@ -165,7 +236,8 @@ export default function AdminDriversReferralsPage() {
                   type="text"
                   placeholder="Search by name, email, or phone..."
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  maxLength={100}
                   className="w-full pl-10 pr-10 py-2.5 text-sm border border-gray-300 rounded-xl bg-white shadow-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all duration-200 hover:border-gray-400 placeholder:text-gray-400"
                   style={{ 
                     boxSizing: 'border-box',
@@ -177,6 +249,7 @@ export default function AdminDriversReferralsPage() {
                 {search && (
                   <button
                     onClick={() => setSearch("")}
+                    aria-label="Clear search"
                     className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600 active:scale-95 transition-all duration-200"
                   >
                     <X className="h-4 w-4" />
@@ -209,6 +282,7 @@ export default function AdminDriversReferralsPage() {
                 <select
                   value={sort}
                   onChange={(e) => setSort(e.target.value as SortType)}
+                  aria-label="Sort drivers"
                   className="w-full px-3 py-2 text-xs font-medium border border-gray-300 rounded-xl bg-white shadow-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none cursor-pointer transition-all duration-200 hover:border-gray-400"
                   style={{ 
                     boxSizing: 'border-box'
@@ -242,11 +316,33 @@ export default function AdminDriversReferralsPage() {
               </div>
             </div>
             <div className="divide-y divide-gray-100 overflow-y-auto flex-1 min-h-0 w-full max-w-full scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
-              {filteredDrivers.length > 0 ? (
+              {loading ? (
+                <div className="flex flex-col items-center justify-center py-12 px-4">
+                  <Loader2 className="h-8 w-8 text-emerald-600 animate-spin mb-4" />
+                  <p className="text-sm font-medium text-gray-700">Loading drivers...</p>
+                </div>
+              ) : error ? (
+                <div className="flex flex-col items-center justify-center py-12 px-4">
+                  <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
+                  <p className="text-sm font-medium text-gray-700 mb-2">Failed to load drivers</p>
+                  <p className="text-xs text-gray-500 text-center mb-4">{error}</p>
+                  <button
+                    onClick={loadDrivers}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Retry
+                  </button>
+                </div>
+              ) : filteredDrivers.length > 0 ? (
                 filteredDrivers.map((driver, index) => (
                   <div
                     key={driver.id}
-                    onClick={() => loadDriverReferrals(driver.id)}
+                    onClick={() => {
+                      if (isValidDriverId(driver.id)) {
+                        loadDriverReferrals(driver.id);
+                      }
+                    }}
                     className={`group p-3 sm:p-4 cursor-pointer transition-all duration-300 w-full max-w-full box-border transform hover:translate-x-1 hover:shadow-md ${
                       selectedDriver === driver.id 
                         ? "bg-gradient-to-r from-emerald-50 to-emerald-100/50 border-l-4 border-emerald-600 shadow-sm" 
@@ -299,7 +395,31 @@ export default function AdminDriversReferralsPage() {
         </div>
 
         <div className="lg:col-span-2 w-full max-w-full min-w-0">
-          {referralData ? (
+          {loadingReferrals ? (
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 lg:p-6">
+              <div className="flex flex-col items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 text-emerald-600 animate-spin mb-4" />
+                <p className="text-sm font-medium text-gray-700">Loading referral data...</p>
+              </div>
+            </div>
+          ) : referralsError ? (
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 lg:p-6">
+              <div className="flex flex-col items-center justify-center py-12">
+                <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
+                <p className="text-sm font-medium text-gray-700 mb-2">Failed to load referral data</p>
+                <p className="text-xs text-gray-500 text-center mb-4">{referralsError}</p>
+                {selectedDriver && (
+                  <button
+                    onClick={() => loadDriverReferrals(selectedDriver)}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Retry
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : referralData ? (
             <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 lg:p-6 overflow-hidden w-full max-w-full min-w-0 box-border">
               <div className="mb-4 lg:mb-6">
                 <h2 className="text-lg lg:text-xl font-bold text-gray-900 mb-2 break-words">{referralData.driver.name}</h2>
@@ -577,6 +697,7 @@ export default function AdminDriversReferralsPage() {
               <h2 className="text-xl font-bold text-gray-900">Referral Details</h2>
               <button
                 onClick={() => setViewingReferral(null)}
+                aria-label="Close modal"
                 className="p-2 text-gray-400 hover:text-gray-600 hover:bg-white/80 rounded-full transition-colors"
               >
                 <X className="h-5 w-5" />

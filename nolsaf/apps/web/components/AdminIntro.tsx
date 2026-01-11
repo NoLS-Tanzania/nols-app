@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
+import NextImage from "next/image";
 
 // Use same-origin calls + secure httpOnly cookie session.
 const api = axios.create({ baseURL: "", withCredentials: true });
@@ -39,7 +40,7 @@ export default function AdminIntro({ imageSrc = "/admin/welcome.jpg", videoSrc =
           v.addEventListener("loadeddata", () => !cancelled && setHasVideo(true));
           v.addEventListener("error", () => !cancelled && setHasVideo(false));
         } else {
-          const img = new Image();
+          const img = new window.Image();
           img.onload = () => !cancelled && setHasImage(true);
           img.onerror = () => !cancelled && setHasImage(false);
           img.src = url;
@@ -100,11 +101,13 @@ export default function AdminIntro({ imageSrc = "/admin/welcome.jpg", videoSrc =
                   aria-label="Welcome video"
                 />
               ) : (
-                <img
+                <NextImage
                   src={imageSrc}
                   alt="Welcome"
                   className="w-full h-full object-cover"
-                  loading="eager"
+                  fill
+                  priority
+                  style={{ objectFit: "cover" }}
                 />
               )}
             </div>

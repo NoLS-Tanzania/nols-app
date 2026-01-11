@@ -1,9 +1,16 @@
 const API = process.env.PUBLIC_API_URL ?? 'http://127.0.0.1:4000';
 
 export default async function Page(){
-  const res = await fetch(`${API}/api/public/properties`, { cache: 'no-store' });
-  const data = await res.json().catch(()=>({ items: [] }));
-  const items = data.items ?? [];
+  let items: any[] = [];
+  try {
+    const res = await fetch(`${API}/api/public/properties`, { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json().catch(() => ({ items: [] }));
+      items = data.items ?? [];
+    }
+  } catch {
+    items = [];
+  }
 
   return (
     <div className="container">

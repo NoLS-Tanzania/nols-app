@@ -1,7 +1,7 @@
 import { Router } from "express";
 import type { RequestHandler } from "express";
 import { prisma } from "@nolsaf/prisma";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import qrcode from 'qrcode';
 import { authenticator } from 'otplib';
 import crypto from 'crypto';
@@ -897,7 +897,9 @@ const getInvoices: RequestHandler = async (req, res) => {
           prisma.invoice.findMany({
             where: {
               booking: {
-                driverId: user.id,
+                is: {
+                  driverId: user.id,
+                },
               },
             },
             include: { booking: true },
@@ -908,7 +910,9 @@ const getInvoices: RequestHandler = async (req, res) => {
           prisma.invoice.count({
             where: {
               booking: {
-                driverId: user.id,
+                is: {
+                  driverId: user.id,
+                },
               },
             },
           }),
@@ -1319,7 +1323,7 @@ const get2faProvision: RequestHandler = async (req, res) => {
     const account = ((user as any).email || `user-${user.id}`) as string;
     const service = process.env.APP_NAME || 'nolsaf';
     const otpauth = authenticator.keyuri(account, service, secret);
-    let qr = null;
+    let qr: string | null = null;
     try { qr = await qrcode.toDataURL(otpauth); } catch (e) { /* ignore qr generation errors */ }
 
     // Attempt to persist secret to user record if schema supports it
@@ -1450,9 +1454,35 @@ router.post('/security/passkeys', postPasskeysCreate as unknown as RequestHandle
 const postPasskeysVerify: RequestHandler = async (req, res) => {
   const user = (req as AuthedRequest).user!;
   try {
-    const body = req.body ?? {};
-    const { response, name } = body as any;
-    if (!response) { res.status(400).json({ error: 'invalid payload' }); return; }
+    const body = (req.body ?? {}) as any;
+    const name = body?.name;
+
+    // The Web app may send the full credential JSON at the top-level (id/rawId/response/...)
+    // or nest it under `response`. Normalize to a RegistrationResponseJSON-like object.
+    const credential = (() => {
+      // If body already looks like a registration response
+      if (body && typeof body === 'object' && typeof body.id === 'string' && body.response) return body;
+      // If body.response is the full credential
+      if (body && typeof body === 'object' && body.response && typeof body.response.id === 'string') return body.response;
+      // If body has id/rawId but response is nested (common in our web page)
+      if (body && typeof body === 'object' && typeof body.id === 'string' && typeof body.rawId === 'string' && body.response) {
+        return {
+          id: body.id,
+          rawId: body.rawId,
+          response: body.response,
+          type: body.type ?? 'public-key',
+          clientExtensionResults: body.clientExtensionResults ?? {},
+        };
+      }
+      return null;
+    })();
+
+    if (!credential) {
+      return res.status(400).json({
+        error: 'invalid payload',
+        hint: 'Expected WebAuthn registration response JSON (id/rawId/response/type/clientExtensionResults).',
+      });
+    }
 
     const storedChallenge = passkeyChallenges.get(String(user.id));
     if (!storedChallenge) { res.status(400).json({ error: 'no challenge found' }); return; }
@@ -1464,20 +1494,26 @@ const postPasskeysVerify: RequestHandler = async (req, res) => {
     try {
       // simplewebauthn types are strict; cast to any to accept the browser-shaped response
       verification = await (verifyRegistrationResponse as any)({
-        credential: response,
+        response: credential,
         expectedChallenge: storedChallenge,
         expectedOrigin: origin,
         expectedRPID: rpID,
-        requireUserVerification: true,
+        // Our registration options use `userVerification: 'preferred'`.
+        // Don't hard-fail registration if a platform/roaming authenticator doesn't assert UV.
+        requireUserVerification: false,
       } as any);
     } catch (e) {
       console.warn('webauthn verification error', e);
-      return res.status(400).json({ error: 'verification failed' });
+      const details = process.env.NODE_ENV !== 'production' ? String((e as any)?.message ?? e) : undefined;
+      return res.status(400).json({ error: 'verification failed', ...(details ? { details } : {}) });
     }
 
     if (!verification || !verification.verified) {
       return res.status(400).json({ error: 'verification failed' });
     }
+
+    // One-time challenge: clear after successful verification to prevent replay.
+    try { passkeyChallenges.delete(String(user.id)); } catch { /* ignore */ }
 
     const regInfo = verification.registrationInfo;
     if (!regInfo || !regInfo.credentialID || !regInfo.credentialPublicKey) {

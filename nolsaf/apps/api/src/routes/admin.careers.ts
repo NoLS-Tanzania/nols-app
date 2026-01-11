@@ -12,9 +12,9 @@ router.use(requireAuth as RequestHandler, requireAdmin as RequestHandler);
  * GET /admin/careers
  * Get all jobs with optional filtering
  */
-router.get("/", async (req: AuthedRequest, res) => {
+router.get("/", async (req, res) => {
   try {
-    const { status, featured, category, type, location, page = "1", pageSize = "50" } = req.query;
+    const { status, featured, category, type, location, page = "1", pageSize = "50" } = (req as any).query;
     
     const pageNum = parseInt(page as string, 10) || 1;
     const size = parseInt(pageSize as string, 10) || 50;
@@ -63,9 +63,9 @@ router.get("/", async (req: AuthedRequest, res) => {
  * GET /admin/careers/:id
  * Get a single job by ID
  */
-router.get("/:id", async (req: AuthedRequest, res) => {
+router.get("/:id", async (req, res) => {
   try {
-    const id = parseInt(req.params.id, 10);
+    const id = parseInt((req as any).params.id, 10);
     if (isNaN(id)) {
       return res.status(400).json({ error: "Invalid job ID" });
     }
@@ -97,7 +97,7 @@ router.get("/:id", async (req: AuthedRequest, res) => {
  * POST /admin/careers
  * Create a new job posting
  */
-router.post("/", async (req: AuthedRequest, res) => {
+router.post("/", async (req, res) => {
   try {
     const {
       title,
@@ -115,7 +115,7 @@ router.post("/", async (req: AuthedRequest, res) => {
       applicationDeadline,
       featured,
       status = "ACTIVE"
-    } = req.body;
+    } = (req as any).body;
 
     // Validation
     if (!title || !category || !type || !location || !department || !description) {
@@ -167,7 +167,7 @@ router.post("/", async (req: AuthedRequest, res) => {
  * PATCH /admin/careers/:id
  * Update an existing job posting
  */
-router.patch("/:id", async (req: AuthedRequest, res) => {
+router.patch("/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) {
@@ -241,7 +241,7 @@ router.patch("/:id", async (req: AuthedRequest, res) => {
  * DELETE /admin/careers/:id
  * Delete a job posting
  */
-router.delete("/:id", async (req: AuthedRequest, res) => {
+router.delete("/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) {

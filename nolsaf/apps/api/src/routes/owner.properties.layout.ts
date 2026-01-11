@@ -8,9 +8,9 @@ import { regenerateAndSaveLayout } from "../lib/autoLayout.js";
 export const router = Router();
 router.use(requireAuth, requireRole("OWNER"));
 
-router.get("/:id/availability", async (req: AuthedRequest, res) => {
-  const ownerId = req.user!.id;
-  const id = Number(req.params.id);
+router.get("/:id/availability", async (req, res) => {
+  const ownerId = (req as AuthedRequest).user!.id;
+  const id = Number((req as any).params.id);
   const prop = await prisma.property.findFirst({
     where: { id, ownerId },
     select: { id: true, layout: true }
@@ -19,8 +19,8 @@ router.get("/:id/availability", async (req: AuthedRequest, res) => {
   if (!prop.layout) return res.status(400).json({ error: "No layout yet" });
 
   // parse window
-  const from = req.query.from ? new Date(String(req.query.from)) : new Date();
-  const to   = req.query.to   ? new Date(String(req.query.to))   : new Date(Date.now() + 86400000);
+  const from = (req as any).query.from ? new Date(String((req as any).query.from)) : new Date();
+  const to   = (req as any).query.to   ? new Date(String((req as any).query.to))   : new Date(Date.now() + 86400000);
   if (!(from instanceof Date) || isNaN(+from) || !(to instanceof Date) || isNaN(+to) || +to <= +from) {
     return res.status(400).json({ error: "Invalid date range" });
   }

@@ -71,6 +71,7 @@ const createGroupBooking: RequestHandler = async (req, res) => {
         groupType: validatedInput.groupType,
         
         // Origin information
+        fromCountry: validatedInput.fromCountry || null,
         fromRegion: validatedInput.fromRegion || null,
         fromDistrict: validatedInput.fromDistrict || null,
         fromWard: validatedInput.fromWard || null,

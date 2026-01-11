@@ -9,6 +9,6 @@ export default defineConfig({
   datasource: {
     // Prisma CLI loads this config file for every command.
     // Use a fallback so commands like `prisma generate` can run in CI without DATABASE_URL.
-    url: process.env.DATABASE_URL ?? '',
+    url: (globalThis as any).process?.env?.DATABASE_URL ?? '',
   },
 })

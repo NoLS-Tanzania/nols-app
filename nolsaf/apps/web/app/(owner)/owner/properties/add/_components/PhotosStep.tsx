@@ -27,6 +27,7 @@ export function PhotosStep({
   photos,
   photosSaved,
   photosUploading,
+  pickPropertyPhotos,
   setPhotos,
   setPhotosSaved,
   setPhotosUploading,
@@ -38,9 +39,10 @@ export function PhotosStep({
   photos: string[];
   photosSaved: boolean[];
   photosUploading: boolean[];
-  setPhotos: (value: string[]) => void;
-  setPhotosSaved: (value: boolean[]) => void;
-  setPhotosUploading: (value: boolean[]) => void;
+  pickPropertyPhotos?: (files: FileList | null) => void | Promise<void>;
+  setPhotos: React.Dispatch<React.SetStateAction<string[]>>;
+  setPhotosSaved: React.Dispatch<React.SetStateAction<boolean[]>>;
+  setPhotosUploading: React.Dispatch<React.SetStateAction<boolean[]>>;
   goToPreviousStep: () => void;
   goToNextStep: () => void;
   currentStep: number;
@@ -58,6 +60,11 @@ export function PhotosStep({
   const handleUpload = useCallback(
     async (files: FileList | null) => {
       if (!files?.length) {
+        return;
+      }
+
+      if (pickPropertyPhotos) {
+        await pickPropertyPhotos(files);
         return;
       }
 
@@ -102,7 +109,7 @@ export function PhotosStep({
         console.error("Failed to process selected photo files.", error);
       }
     },
-    [photos, photosSaved, photosUploading, setPhotos, setPhotosSaved, setPhotosUploading]
+    [photos, photosSaved, photosUploading, pickPropertyPhotos, setPhotos, setPhotosSaved, setPhotosUploading]
   );
 
   // Drag and drop handlers

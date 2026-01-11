@@ -180,8 +180,8 @@ router.post('/login', (req, res) => {
 
 // Register the route with rate limiting and async error handling
 router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res, next) => {
-  // Ensure we always return JSON, even on errors
-  res.setHeader('Content-Type', 'application/json');
+    // Ensure we always return JSON, even on errors
+    res.setHeader('Content-Type', 'application/json');
   
   try {
     
@@ -387,7 +387,7 @@ router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res,
     }
     
     try {
-      return res.status(500).json(errorResponse);
+    return res.status(500).json(errorResponse);
     } catch (sendError: any) {
       console.error("[LOGIN] Failed to send error response:", sendError);
       // If we can't send response, pass to Express error handler

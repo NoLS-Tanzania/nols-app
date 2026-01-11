@@ -1,6 +1,6 @@
 "use client";
-import React, { useEffect, useState } from 'react';
-import { Briefcase, Plus, Edit, Trash2, Eye, X, Save, Calendar, MapPin, DollarSign, Clock, CheckCircle2, AlertCircle, FileText, Users, Mail, Phone, ExternalLink, Download, CheckCircle, XCircle, UserCheck, Search, BarChart3, FileDown, Trash, CheckSquare, Square, GraduationCap, Languages } from "lucide-react";
+import React, { useCallback, useEffect, useState } from 'react';
+import { Briefcase, Plus, Edit, Trash2, Eye, X, Calendar, MapPin, DollarSign, Clock, CheckCircle2, AlertCircle, FileText, Users, Mail, Phone, ExternalLink, Download, CheckSquare, Square, GraduationCap, Languages } from "lucide-react";
 import PDFViewer from "@/components/PDFViewer";
 import DatePicker from "@/components/ui/DatePicker";
 
@@ -27,6 +27,7 @@ type Job = {
   applicationDeadline?: string | null;
   featured: boolean;
   status: string;
+  isTravelAgentPosition?: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -81,12 +82,11 @@ export default function CareersManagement() {
   const [viewingApplication, setViewingApplication] = useState<any | null>(null);
   const [applicationStatusFilter, setApplicationStatusFilter] = useState<string>('ALL');
   const [applicationJobFilter, setApplicationJobFilter] = useState<string>('ALL');
-  const [applicationSearch, setApplicationSearch] = useState<string>('');
+  const applicationSearch = '';
   const [selectedApplications, setSelectedApplications] = useState<number[]>([]);
-  const [bulkActionStatus, setBulkActionStatus] = useState<string>('');
-  const [showBulkActions, setShowBulkActions] = useState(false);
-  const [statistics, setStatistics] = useState<any>(null);
-  const [statisticsLoading, setStatisticsLoading] = useState(false);
+  
+  const [, setStatistics] = useState<any>(null);
+  const [, setStatisticsLoading] = useState(false);
   const [resumeViewUrl, setResumeViewUrl] = useState<string | null>(null);
   const [viewingResume, setViewingResume] = useState(false);
 
@@ -172,107 +172,6 @@ export default function CareersManagement() {
     }
   };
 
-  const handleExport = async () => {
-    try {
-      let url = `${apiBase.replace(/\/$/, '')}/api/admin/careers/applications/export?format=csv`;
-      if (applicationStatusFilter !== 'ALL') {
-        url += `&status=${applicationStatusFilter}`;
-      }
-      if (applicationJobFilter !== 'ALL' && applicationJobFilter) {
-        const jobIdNum = parseInt(applicationJobFilter, 10);
-        if (!isNaN(jobIdNum)) {
-          url += `&jobId=${jobIdNum}`;
-        }
-      }
-      if (applicationSearch.trim()) {
-        url += `&search=${encodeURIComponent(applicationSearch.trim())}`;
-      }
-      
-      const r = await fetch(url, { credentials: 'include' });
-      if (!r.ok) throw new Error('Failed to export');
-      
-      const blob = await r.blob();
-      const downloadUrl = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = downloadUrl;
-      a.download = `applications-${new Date().toISOString().split('T')[0]}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(downloadUrl);
-      
-      setSuccess('Applications exported successfully');
-      setTimeout(() => setSuccess(null), 3000);
-    } catch (e: any) {
-      setError(e.message || 'Failed to export applications');
-      setTimeout(() => setError(null), 5000);
-    }
-  };
-
-  const handleBulkStatusUpdate = async () => {
-    if (selectedApplications.length === 0 || !bulkActionStatus) {
-      setError('Please select applications and a status');
-      setTimeout(() => setError(null), 3000);
-      return;
-    }
-
-    try {
-      const url = `${apiBase.replace(/\/$/, '')}/api/admin/careers/applications/bulk`;
-      const r = await fetch(url, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          applicationIds: selectedApplications,
-          status: bulkActionStatus
-        })
-      });
-      if (!r.ok) throw new Error('Failed to update applications');
-      setSuccess(`Successfully updated ${selectedApplications.length} application(s)`);
-      setSelectedApplications([]);
-      setBulkActionStatus('');
-      setShowBulkActions(false);
-      loadApplications();
-      setTimeout(() => setSuccess(null), 3000);
-    } catch (e: any) {
-      setError(e.message || 'Failed to bulk update');
-      setTimeout(() => setError(null), 5000);
-    }
-  };
-
-  const handleBulkDelete = async () => {
-    if (selectedApplications.length === 0) {
-      setError('Please select applications to delete');
-      setTimeout(() => setError(null), 3000);
-      return;
-    }
-
-    if (!confirm(`Are you sure you want to delete ${selectedApplications.length} application(s)?`)) {
-      return;
-    }
-
-    try {
-      const url = `${apiBase.replace(/\/$/, '')}/api/admin/careers/applications/bulk`;
-      const r = await fetch(url, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          applicationIds: selectedApplications
-        })
-      });
-      if (!r.ok) throw new Error('Failed to delete applications');
-      setSuccess(`Successfully deleted ${selectedApplications.length} application(s)`);
-      setSelectedApplications([]);
-      setShowBulkActions(false);
-      loadApplications();
-      setTimeout(() => setSuccess(null), 3000);
-    } catch (e: any) {
-      setError(e.message || 'Failed to bulk delete');
-      setTimeout(() => setError(null), 5000);
-    }
-  };
-
   const toggleApplicationSelection = (id: number) => {
     setSelectedApplications(prev => 
       prev.includes(id) 
@@ -289,7 +188,7 @@ export default function CareersManagement() {
     }
   };
 
-  const loadJobs = async () => {
+  const loadJobs = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -304,11 +203,11 @@ export default function CareersManagement() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [apiBase]);
 
   useEffect(() => {
     loadJobs();
-  }, []);
+  }, [loadJobs]);
 
   useEffect(() => {
     if (activeTab === 'applications') {
@@ -364,7 +263,8 @@ export default function CareersManagement() {
       salaryPeriod: job.salary?.period || "MONTHLY",
       applicationDeadline: job.applicationDeadline ? new Date(job.applicationDeadline).toISOString().split('T')[0] : "",
       featured: job.featured,
-      status: job.status
+      status: job.status,
+      isTravelAgentPosition: job.isTravelAgentPosition ?? false,
     });
     setShowForm(true);
   };
@@ -1234,7 +1134,7 @@ export default function CareersManagement() {
                     {formData.isTravelAgentPosition && (
                       <div className="mt-3 ml-8 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                         <p className="text-xs text-blue-800">
-                          <strong>Note:</strong> Make sure the job title includes "Travel Agent" or "Agent" for proper identification. Applicants will see additional agent-specific fields in the application form.
+                          <strong>Note:</strong> Make sure the job title includes &quot;Travel Agent&quot; or &quot;Agent&quot; for proper identification. Applicants will see additional agent-specific fields in the application form.
                         </p>
                       </div>
                     )}

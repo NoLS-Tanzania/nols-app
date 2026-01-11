@@ -1,9 +1,89 @@
 import { Router, RequestHandler } from 'express';
 import { prisma } from '@nolsaf/prisma';
 import { requireAuth, requireRole } from '../middleware/auth.js';
+import { asyncHandler } from '../middleware/errorHandler.js';
 
 export const router = Router();
 router.use(requireAuth as RequestHandler, requireRole('ADMIN') as RequestHandler);
+
+function sendJsonSafe(res: any, payload: unknown, status = 200) {
+  try {
+    // Ensure Content-Type is set
+    res.setHeader('Content-Type', 'application/json');
+    res.status(status);
+    
+    // Handle BigInt (JSON.stringify throws on BigInt)
+    // Use a replacer function to convert BigInt to string
+    const jsonString = JSON.stringify(payload, (_key, value) => {
+      if (typeof value === 'bigint') {
+        return value.toString();
+      }
+      // Handle other non-serializable values
+      if (value === undefined) {
+        return null;
+      }
+      return value;
+    });
+    
+    // Use res.send() with the stringified JSON
+    return res.send(jsonString);
+  } catch (err: any) {
+    // Fallback: try to send error as JSON
+    if (!res.headersSent) {
+      res.status(500).setHeader('Content-Type', 'application/json').json({ error: 'Failed to serialize response', message: err?.message });
+    } else {
+      // If headers already sent, we can't send a proper error response
+      console.error('Cannot send error response - headers already sent');
+    }
+    throw err;
+  }
+}
+
+function buildPhoneVariants(phoneRaw: string | null | undefined): string[] {
+  const raw = String(phoneRaw ?? '').trim();
+  if (!raw) return [];
+
+  const compact = raw.replace(/\s+/g, '').replace(/-/g, '');
+  const noPlus = compact.replace(/^\+/, '');
+  const digitsOnly = noPlus.replace(/\D+/g, '');
+
+  const variants = new Set<string>([raw, compact, noPlus]);
+
+  // Tanzania-friendly normalization: 0XXXXXXXXX <-> 255XXXXXXXXX
+  if (digitsOnly.length === 9) {
+    variants.add('0' + digitsOnly);
+    variants.add('255' + digitsOnly);
+    variants.add('+255' + digitsOnly);
+  }
+
+  if (digitsOnly.startsWith('0') && digitsOnly.length === 10) {
+    const t = '255' + digitsOnly.slice(1);
+    variants.add(t);
+    variants.add('+' + t);
+  }
+
+  if (digitsOnly.startsWith('255') && digitsOnly.length === 12) {
+    variants.add(digitsOnly);
+    variants.add('+' + digitsOnly);
+    variants.add('0' + digitsOnly.slice(3));
+  }
+
+  return Array.from(variants).filter(Boolean);
+}
+
+function buildBookingWhereForUser(user: { id: number; phone?: string | null; email?: string | null }) {
+  const or: any[] = [{ userId: user.id }];
+
+  const phoneVariants = buildPhoneVariants(user.phone);
+  if (phoneVariants.length) {
+    or.push({ userId: null, guestPhone: { in: phoneVariants } });
+  }
+
+  // Note: guestEmail field doesn't exist in Booking model, only guestPhone and guestName
+  // If we need to match by email, we would need to match via userId instead
+
+  return { OR: or };
+}
 
 /*
  * GET /admin/users
@@ -61,8 +141,10 @@ router.get('/', async (req, res) => {
         return { ...user, bookingCount: 0, totalSpent: 0, lastBookingDate: null };
       }
 
+      const bookingWhere = buildBookingWhereForUser({ id: user.id, phone: user.phone, email: user.email });
+
       const bookingCount = await prisma.booking.count({
-        where: { userId: user.id },
+        where: bookingWhere,
       });
 
       const revenueResult = await prisma.invoice.aggregate({
@@ -74,7 +156,7 @@ router.get('/', async (req, res) => {
       });
 
       const lastBooking = await prisma.booking.findFirst({
-        where: { userId: user.id },
+        where: bookingWhere,
         orderBy: { createdAt: 'desc' },
         select: { createdAt: true },
       });
@@ -232,62 +314,156 @@ router.get('/summary', async (req, res) => {
  * GET /admin/users/:id
  * Returns detailed user information including bookings, stats, etc.
  */
-router.get('/:id', async (req, res) => {
+router.get('/:id', asyncHandler(async (req, res) => {
+  let stage = 'start';
+  const id = Number(req.params.id);
+
   try {
-    const id = Number(req.params.id);
-    if (!id) return res.status(400).json({ error: 'invalid id' });
+    stage = 'parse_id';
+    if (!id) {
+      return sendJsonSafe(res, { error: 'invalid id' }, 400);
+    }
 
-    const user = await prisma.user.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        role: true,
-        createdAt: true,
-        emailVerifiedAt: true,
-        phoneVerifiedAt: true,
-        twoFactorEnabled: true,
-        suspendedAt: true,
-        isDisabled: true,
-        _count: {
-          select: {
-            bookings: true,
-          }
-        }
+    // Fail-soft: some environments may not have all newer columns yet.
+    // If Prisma throws due to missing columns, retry with a minimal select.
+    let user: any = null;
+    try {
+      stage = 'user_select_full';
+      user = await prisma.user.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          role: true,
+          createdAt: true,
+          emailVerifiedAt: true,
+          phoneVerifiedAt: true,
+          twoFactorEnabled: true,
+          suspendedAt: true,
+          isDisabled: true,
+          _count: {
+            select: {
+              bookings: true,
+            },
+          },
+        },
+      });
+    } catch (e) {
+      console.warn('GET /admin/users/:id user select failed; retrying minimal select', e);
+      stage = 'user_select_minimal';
+      user = await prisma.user.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          role: true,
+          createdAt: true,
+        },
+      });
+      if (user) {
+        user.emailVerifiedAt = null;
+        user.phoneVerifiedAt = null;
+        user.twoFactorEnabled = false;
+        user.suspendedAt = null;
+        user.isDisabled = null;
+        user._count = { bookings: 0 };
       }
-    });
+    }
 
-    if (!user) return res.status(404).json({ error: 'user not found' });
+    if (!user) {
+      return sendJsonSafe(res, { error: 'user not found' }, 404);
+    }
+
+    // NOTE: bookingWhere may reference legacy columns (guestPhone/guestEmail).
+    // If an environment is missing those columns, Prisma will throw at runtime.
+    stage = 'build_booking_where';
+    const bookingWhere = buildBookingWhereForUser({ id, phone: user.phone, email: user.email });
 
     // Get bookings for this user
-    const bookings = await prisma.booking.findMany({
-      where: { userId: id },
-      include: {
-        property: {
-          select: {
-            id: true,
-            title: true,
-            type: true,
-            regionName: true,
-            city: true,
-            district: true,
-          }
+    let bookings: any[] = [];
+    try {
+      stage = 'booking_query_full';
+      bookings = await prisma.booking.findMany({
+        where: bookingWhere,
+        include: {
+          property: {
+            select: {
+              id: true,
+              title: true,
+              type: true,
+              regionName: true,
+              city: true,
+              district: true,
+            },
+          },
+          code: {
+            select: {
+              id: true,
+              status: true,
+              codeVisible: true,
+            },
+          },
         },
-        code: {
-          select: {
-            id: true,
-            status: true,
-            codeVisible: true,
-          }
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+      });
+    } catch (e1) {
+      console.warn('GET /admin/users/:id booking query failed; retrying without code include', e1);
+      try {
+        stage = 'booking_query_no_code';
+        bookings = await prisma.booking.findMany({
+          where: bookingWhere,
+          include: {
+            property: {
+              select: {
+                id: true,
+                title: true,
+                type: true,
+                regionName: true,
+                city: true,
+                district: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 50,
+        });
+        bookings = bookings.map((b) => ({ ...b, code: null }));
+      } catch (e2) {
+        console.warn('GET /admin/users/:id booking where failed; retrying userId-only', e2);
+        try {
+          stage = 'booking_query_userid_only';
+          bookings = await prisma.booking.findMany({
+            where: { userId: id },
+            include: {
+              property: {
+                select: {
+                  id: true,
+                  title: true,
+                  type: true,
+                  regionName: true,
+                  city: true,
+                  district: true,
+                },
+              },
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 50,
+          });
+          bookings = bookings.map((b) => ({ ...b, code: null }));
+        } catch (e3) {
+          console.warn('GET /admin/users/:id booking userId-only fallback failed; returning empty list', e3);
+          bookings = [];
         }
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 50,
-    });
+      }
+    }
 
     // Get booking stats
+    stage = 'compute_stats';
     const bookingStats = {
       total: bookings.length,
       confirmed: bookings.filter((b: typeof bookings[0]) => b.status === 'CONFIRMED').length,
@@ -296,39 +472,106 @@ router.get('/:id', async (req, res) => {
       canceled: bookings.filter((b: typeof bookings[0]) => b.status === 'CANCELED').length,
     };
 
-    // Get revenue stats from invoices
-    const revenueResult = await prisma.invoice.aggregate({
-      where: {
-        booking: { userId: id },
-        status: { in: ['APPROVED', 'PAID'] },
-      },
-      _sum: { total: true },
-      _count: true,
-    });
+    // Get revenue stats from invoices (based on the bookings we associate to this user)
+    const bookingIds = bookings.map((b: any) => b.id);
+    let revenueResult: any = { _sum: { total: 0 }, _count: { _all: 0 } };
+    if (bookingIds.length) {
+      try {
+        stage = 'invoice_aggregate';
+        revenueResult = await prisma.invoice.aggregate({
+          where: {
+            bookingId: { in: bookingIds },
+            status: { in: ['APPROVED', 'PAID'] },
+          },
+          _sum: { total: true },
+          _count: { _all: true },
+        });
+      } catch (e) {
+        console.warn('GET /admin/users/:id invoice aggregate failed; defaulting revenue to 0', e);
+        revenueResult = { _sum: { total: 0 }, _count: { _all: 0 } };
+      }
+    }
 
     const lastBooking = bookings.length > 0 ? bookings[0] : null;
 
-    res.json({
+    stage = 'respond';
+    
+    // Build response payload
+    const responsePayload = {
       user,
       bookings,
       stats: {
         booking: bookingStats,
         revenue: {
           total: Number(revenueResult._sum.total || 0),
-          invoiceCount: revenueResult._count,
+          invoiceCount: (revenueResult as any)._count?._all ?? 0,
         },
-        lastBooking: lastBooking ? {
-          id: lastBooking.id,
-          createdAt: lastBooking.createdAt,
-          status: lastBooking.status,
-        } : null,
-      }
-    });
+        lastBooking: lastBooking
+          ? {
+              id: lastBooking.id,
+              createdAt: lastBooking.createdAt,
+              status: lastBooking.status,
+            }
+          : null,
+      },
+    };
+    
+    try {
+      sendJsonSafe(res, responsePayload);
+      return;
+    } catch (sendError: any) {
+      throw sendError;
+    }
   } catch (err) {
-    console.error('GET /admin/users/:id error:', err);
-    res.status(500).json({ error: 'failed' });
+    const isProd = process.env.NODE_ENV === 'production';
+    console.error('GET /admin/users/:id error:', { stage, err });
+
+    // Fail-open: return a minimal shape so the admin page can still render.
+    // This avoids the dev proxy turning upstream failures into non-JSON/HTML.
+    let fallbackUser: any = null;
+    try {
+      stage = stage === 'parse_id' ? 'fallback_user_select' : stage;
+      fallbackUser = await prisma.user.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          role: true,
+          createdAt: true,
+        },
+      });
+    } catch {
+      fallbackUser = null;
+    }
+
+    return sendJsonSafe(
+      res,
+      {
+        user: fallbackUser,
+        bookings: [],
+        stats: {
+          booking: { total: 0, confirmed: 0, checkedIn: 0, checkedOut: 0, canceled: 0 },
+          revenue: { total: 0, invoiceCount: 0 },
+          lastBooking: null,
+        },
+        _error: {
+          error: 'failed',
+          stage,
+          ...(isProd
+            ? {}
+            : {
+                message: (err as any)?.message,
+                name: (err as any)?.name,
+                code: (err as any)?.code,
+              }),
+        },
+      },
+      200,
+    );
   }
-});
+}));
 
 /**
  * POST /admin/users/:id/suspend
@@ -418,7 +661,7 @@ router.patch('/:id', async (req, res) => {
 
     if (typeof disable !== 'undefined') {
       // check if isDisabled exists
-      const cols: any = await prisma.$queryRawUnsafe("SHOW COLUMNS FROM `User` LIKE 'isDisabled'") as any;
+      const cols: any = await prisma.$queryRaw`SHOW COLUMNS FROM \`User\` LIKE 'isDisabled'` as any;
       if (!cols || cols.length === 0) {
         return res.status(400).json({ error: 'disable not supported - add isDisabled column via migration' });
       }

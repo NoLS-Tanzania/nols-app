@@ -1,7 +1,7 @@
 // apps/api/src/routes/owner.bookings.ts
 import { Router } from "express";
 import type { RequestHandler, Response } from 'express';
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@nolsaf/prisma";
 import { AuthedRequest, requireAuth, requireRole } from "../middleware/auth.js";
 import { invalidateOwnerReports } from "../lib/cache.js";
@@ -284,8 +284,6 @@ const getForCheckoutBookings: RequestHandler = async (req, res) => {
       totalAmount: b.totalAmount,
       createdAt: b.createdAt,
     }));
-
-    // #region agent log
     return (res as Response).json(mapped);
   } catch (err: any) {
     console.error("GET /owner/bookings/for-checkout error:", err);
@@ -357,8 +355,6 @@ const getCheckedOutBookings: RequestHandler = async (req, res) => {
       createdAt: b.createdAt,
       user: b.user,
     }));
-
-    // #region agent log
     return (res as Response).json(mapped);
   } catch (err: any) {
     console.error("GET /owner/bookings/checked-out error:", err);

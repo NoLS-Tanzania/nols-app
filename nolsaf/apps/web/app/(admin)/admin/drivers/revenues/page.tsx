@@ -68,7 +68,7 @@ export default function AdminDriversRevenuesPage() {
   const [statsData, setStatsData] = useState<RevenueStatsResponse | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const params: any = {
@@ -95,7 +95,7 @@ export default function AdminDriversRevenuesPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [page, pageSize, date, q]);
 
   const loadStats = useCallback(async () => {
     setStatsLoading(true);
@@ -115,7 +115,7 @@ export default function AdminDriversRevenuesPage() {
   useEffect(() => {
     authify();
     load();
-  }, [page, date, q]);
+  }, [load]);
 
   useEffect(() => {
     authify();

@@ -3,6 +3,7 @@
 import { Settings } from "lucide-react";
 import axios from "axios";
 import { useCallback, useEffect, useState } from "react";
+import { sanitizeTrustedHtml } from "@/utils/html";
 
 // Use same-origin calls + secure httpOnly cookie session.
 const api = axios.create({ baseURL: "", withCredentials: true });
@@ -57,6 +58,12 @@ export default function SystemSettingsPage(){
 
   const [toast, setToast] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (!toast) return;
+    const t = window.setTimeout(() => setToast(null), 3500);
+    return () => window.clearTimeout(t);
+  }, [toast]);
+
   const load = useCallback(async ()=>{
     try {
       setLoading(true);
@@ -100,51 +107,57 @@ export default function SystemSettingsPage(){
     };
     try {
       await api.put('/admin/settings', payload);
-      alert('System settings saved');
+      setToast('System settings saved');
       await load();
     } catch (err) {
       console.error(err);
-      alert('Failed to save system settings');
+      setToast('Failed to save system settings');
     }
   };
 
   const saveFlagsAndTemplates = async () => {
     // For now we don't persist feature flags/templates in SystemSetting; backend work needed
-    alert('Feature flags & templates saving needs backend support. This is a client-only preview.');
+    setToast('Feature flags & templates saving needs backend support. This is a client-only preview.');
   };
 
   const saveInvoicingSettings = async () => {
     // Save taxPercent and invoicePrefix (persisted via SystemSetting) and keep invoiceTemplate client-side
     try {
       await api.put('/admin/settings', { taxPercent: Number(s.taxPercent || 0), invoicePrefix: s.invoicePrefix || 'INV-' });
-      alert('Invoicing settings saved');
+      setToast('Invoicing settings saved');
     } catch (err) {
       console.error(err);
-      alert('Failed to save invoicing settings');
+      setToast('Failed to save invoicing settings');
     }
   };
 
   const previewBonus = async () => {
-    if (!bonusOwnerId) return alert('owner id required');
+    if (!bonusOwnerId) {
+      setToast('Owner ID is required');
+      return;
+    }
     try {
       const r = await api.post('/admin/bonuses/grant', { ownerId: Number(bonusOwnerId), bonusPercent: Number(bonusPercentInput) });
       setBonusPreview(r.data);
     } catch (err) {
       console.error(err);
-      alert('Failed to preview bonus');
+      setToast('Failed to preview bonus');
     }
   };
 
   const grantBonus = async () => {
-    if (!bonusOwnerId) return alert('owner id required');
+    if (!bonusOwnerId) {
+      setToast('Owner ID is required');
+      return;
+    }
     if (!confirm('Grant bonus to owner? This action will be recorded in the admin audit log.')) return;
     try {
       const r = await api.post('/admin/bonuses/grant', { ownerId: Number(bonusOwnerId), bonusPercent: Number(bonusPercentInput), reason: 'Manual grant from settings UI' });
       setBonusPreview(r.data);
-      alert('Bonus grant recorded (audit only)');
+      setToast('Bonus grant recorded (audit only)');
     } catch (err) {
       console.error(err);
-      alert('Failed to grant bonus');
+      setToast('Failed to grant bonus');
     }
   };
 
@@ -153,15 +166,17 @@ export default function SystemSettingsPage(){
       const r = await api.post('/admin/settings/numbering/preview', { type: 'invoice' });
       const sample = r.data?.sample || '';
       // simple preview using invoiceTemplate + sample number
-      setInvoicePreviewHtml((invoiceTemplate || '<div>Invoice {{invoiceNumber}}</div>').replace(/{{\s*invoiceNumber\s*}}/g, sample));
+      const rawPreview = (invoiceTemplate || '<div>Invoice {{invoiceNumber}}</div>').replace(/{{\s*invoiceNumber\s*}}/g, sample);
+      setInvoicePreviewHtml(sanitizeTrustedHtml(rawPreview));
+      setToast('Invoice preview generated');
     } catch (err) {
       console.error(err);
-      alert('Failed to generate preview');
+      setToast('Failed to generate preview');
     }
   };
 
   const updatePayoutCron = async () => {
-    alert('Saving cron expressions requires backend support; not implemented yet.');
+    setToast('Saving cron expressions requires backend support; not implemented yet.');
   };
 
   return (

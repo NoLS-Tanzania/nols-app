@@ -16,7 +16,7 @@ router.use(requireAuth as RequestHandler, requireAdmin as RequestHandler);
  * GET /admin/careers/applications
  * Get all job applications with optional filtering
  */
-router.get("/", async (req: AuthedRequest, res) => {
+router.get("/", async (req, res) => {
   try {
     const { 
       jobId, 
@@ -120,7 +120,7 @@ router.get("/", async (req: AuthedRequest, res) => {
  * Get presigned URL for viewing/downloading resume
  * This route must come before /:id to avoid route conflicts
  */
-router.get("/:id/resume", async (req: AuthedRequest, res) => {
+router.get("/:id/resume", async (req, res) => {
   try {
     const { id } = req.params;
     const parsedId = parseInt(id, 10);
@@ -175,7 +175,9 @@ router.get("/:id/resume", async (req: AuthedRequest, res) => {
             Key: storageKey,
           });
 
-          const presignedUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 }); // 1 hour expiry
+          // Work around occasional AWS SDK v3 type mismatches caused by duplicate Smithy client types.
+          // This does not affect runtime behavior.
+          const presignedUrl = await getSignedUrl(s3Client as any, command as any, { expiresIn: 3600 }); // 1 hour expiry
           return res.json({ url: presignedUrl });
         } catch (s3Error: any) {
           console.error("Error generating presigned URL:", s3Error);
@@ -220,7 +222,7 @@ router.get("/:id/resume", async (req: AuthedRequest, res) => {
  * GET /admin/careers/applications/:id
  * Get a single application by ID
  */
-router.get("/:id", async (req: AuthedRequest, res) => {
+router.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const parsedId = parseInt(id, 10);
@@ -288,7 +290,7 @@ router.get("/:id", async (req: AuthedRequest, res) => {
  * PATCH /admin/careers/applications/:id
  * Update application status and notes
  */
-router.patch("/:id", async (req: AuthedRequest, res) => {
+router.patch("/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const parsedId = parseInt(id, 10);
@@ -556,7 +558,7 @@ router.patch("/:id", async (req: AuthedRequest, res) => {
  * DELETE /admin/careers/applications/:id
  * Delete an application (soft delete by setting status to DELETED or hard delete)
  */
-router.delete("/:id", async (req: AuthedRequest, res) => {
+router.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const parsedId = parseInt(id, 10);
@@ -608,7 +610,7 @@ router.delete("/:id", async (req: AuthedRequest, res) => {
  * GET /admin/careers/applications/export
  * Export applications to CSV
  */
-router.get("/export", async (req: AuthedRequest, res) => {
+router.get("/export", async (req, res) => {
   try {
     const { 
       jobId, 
@@ -715,7 +717,7 @@ router.get("/export", async (req: AuthedRequest, res) => {
  * PATCH /admin/careers/applications/bulk
  * Bulk update application statuses
  */
-router.patch("/bulk", async (req: AuthedRequest, res) => {
+router.patch("/bulk", async (req, res) => {
   try {
     const { applicationIds, status, adminNotes } = req.body;
 
@@ -827,7 +829,7 @@ router.patch("/bulk", async (req: AuthedRequest, res) => {
  * DELETE /admin/careers/applications/bulk
  * Bulk delete applications
  */
-router.delete("/bulk", async (req: AuthedRequest, res) => {
+router.delete("/bulk", async (req, res) => {
   try {
     const { applicationIds } = req.body;
 

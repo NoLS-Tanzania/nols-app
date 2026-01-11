@@ -11,9 +11,9 @@ router.use(requireAuth as RequestHandler, requireAdmin as RequestHandler);
  * GET /admin/careers/stats
  * Get comprehensive statistics for careers and applications
  */
-router.get("/", async (req: AuthedRequest, res) => {
+router.get("/", async (req, res) => {
   try {
-    const { from, to } = req.query;
+    const { from, to } = (req as any).query;
     
     const dateFilter: any = {};
     if (from || to) {

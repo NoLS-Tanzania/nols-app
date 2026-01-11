@@ -1504,6 +1504,7 @@ select[title="Room type"] {
 
   /* Spinner */
   @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes spin-slow { to { transform: rotate(360deg); } }
   .spinner {
     @apply inline-block h-5 w-5 rounded-full border-2 border-gray-300;
   border-right-color: theme('colors.brand.DEFAULT');
@@ -2041,6 +2042,51 @@ select[title="Room type"] {
     height: 16px;
     animation-duration: 1s;
   }
+
+/* CountdownClock Component Styles - Using CSS Variables for Dynamic Styling */
+.clock-container {
+  border-radius: var(--clock-border-radius, 50%);
+  background: var(--clock-bg-gradient);
+  border-color: var(--clock-border-color);
+  box-shadow: 0 20px 25px -5px var(--clock-shadow-color), 0 10px 10px -5px var(--clock-shadow-color-light);
+}
+
+.clock-glow-ring {
+  border-radius: var(--clock-border-radius, 50%);
+  background-color: var(--clock-glow-color);
+  opacity: var(--clock-glow-opacity, 0.5);
+}
+
+.clock-text {
+  color: var(--clock-text-color);
+}
+
+.clock-border-text {
+  color: var(--clock-border-color);
+}
+
+.clock-pattern {
+  border-radius: var(--clock-border-radius, 50%);
+  border-color: var(--clock-pattern-border);
+  animation: spin 30s linear infinite;
+}
+
+.clock-hands {
+  color: var(--clock-hands-color);
+}
+
+.clock-hand-hour {
+  animation: rotate-clock 120s linear infinite;
+}
+
+.clock-hand-minute {
+  animation: rotate-minute 3600s linear infinite;
+}
+
+.clock-pulse-ring {
+  border-radius: var(--clock-border-radius, 50%);
+  background-color: var(--clock-glow-color);
+}
 
   .dot-spinner.dot-sm .dot {
     width: 4px;

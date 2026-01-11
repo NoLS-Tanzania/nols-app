@@ -1,7 +1,6 @@
 "use client";
-import AdminPageHeader from "@/components/AdminPageHeader";
-import { Settings as SettingsIcon, CheckCircle, X } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { CheckCircle, X, Settings as SettingsIcon } from "lucide-react";
+import { useEffect, useState } from "react";
 import axios from "axios";
 
 // Use same-origin relative paths so Next.js rewrites proxy to the API in dev
@@ -51,15 +50,13 @@ export default function AdminSettings() {
 
   return (
     <div className="space-y-6">
-      <AdminPageHeader
-        title="Settings"
-        subtitle="Manage platform settings and preferences"
-        breadcrumb={[{ label: "Admin", href: "/admin" }, { label: "Settings" }]}
-        icon={<SettingsIcon className="h-5 w-5" />}
-      />
-
       <div className="space-y-4">
-        <h1 className="text-2xl font-semibold">System Settings</h1>
+        <div className="flex flex-col items-center justify-center gap-3">
+          <div className="h-16 w-16 rounded-full bg-gradient-to-br from-[#02665e]/10 to-[#014d47]/10 flex items-center justify-center">
+            <SettingsIcon className="h-8 w-8 text-[#02665e]" />
+          </div>
+          <h1 className="text-2xl font-semibold text-center">System Settings</h1>
+        </div>
 
         <div className="flex flex-wrap gap-2">
           {[
@@ -142,8 +139,8 @@ function Numbering({s,setS}:{s:any;setS:any}){
 }
 function Branding({s,setS}:{s:any;setS:any}){
   return <div className="bg-white border rounded-2xl p-3 grid md:grid-cols-2 gap-3">
-    <Input label="Brand color primary" value={s.brandColorPrimary||""} onChange={v=>setS({...s, brandColorPrimary:v})}/>
-    <Input label="Brand color secondary" value={s.brandColorSecondary||""} onChange={v=>setS({...s, brandColorSecondary:v})}/>
+    <ColorInput label="Brand color primary" value={s.brandColorPrimary||"#02665e"} onChange={v=>setS({...s, brandColorPrimary:v})}/>
+    <ColorInput label="Brand color secondary" value={s.brandColorSecondary||"#014d47"} onChange={v=>setS({...s, brandColorSecondary:v})}/>
     <Input label="Logo URL" value={s.brandLogoUrl||""} onChange={v=>setS({...s, brandLogoUrl:v})}/>
     <Input label="Logo (dark) URL" value={s.brandLogoDarkUrl||""} onChange={v=>setS({...s, brandLogoDarkUrl:v})}/>
   </div>;
@@ -180,6 +177,30 @@ function Num({label,value,onChange,description,min,max}:{label:string;value:numb
         min={min}
         max={max}
       />
+      {description && <span className="text-xs text-gray-500">{description}</span>}
+    </label>
+  );
+}
+
+function ColorInput({label,value,onChange,description}:{label:string;value:string;onChange:(v:string)=>void;description?:string}){
+  return (
+    <label className="text-sm grid gap-2">
+      <span className="font-medium text-gray-700">{label}</span>
+      <div className="flex items-center gap-3">
+        <input 
+          type="color" 
+          className="h-12 w-20 border-2 border-gray-300 rounded-lg cursor-pointer focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/20 outline-none transition-all duration-200" 
+          value={value || "#02665e"} 
+          onChange={e=>onChange(e.target.value)}
+        />
+        <input 
+          type="text" 
+          className="flex-1 border-2 border-gray-300 rounded-xl px-4 py-2.5 focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/20 outline-none transition-all duration-200 font-mono text-sm" 
+          value={value || ""} 
+          onChange={e=>onChange(e.target.value)}
+          placeholder="#000000"
+        />
+      </div>
       {description && <span className="text-xs text-gray-500">{description}</span>}
     </label>
   );

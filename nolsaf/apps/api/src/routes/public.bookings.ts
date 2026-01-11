@@ -2,12 +2,14 @@
 // apps/api/src/routes/public.bookings.ts
 import { Router, Request, Response } from "express";
 import { prisma } from "@nolsaf/prisma";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import rateLimit from "express-rate-limit";
 import crypto from "crypto";
 import { checkPropertyAvailability, checkGuestCapacity } from "../lib/bookingAvailability.js";
 import { sanitizeText } from "../lib/sanitize.js";
 import { notifyAdmins, notifyOwner } from "../lib/notifications.js";
+import { maybeAuth } from "../middleware/auth.js";
 
 // Helper function to calculate distance (Haversine formula)
 function calculateDistance(origin: { latitude: number; longitude: number }, destination: { latitude: number; longitude: number }): number {
@@ -31,6 +33,38 @@ function toRadians(degrees: number): number {
 }
 
 const router = Router();
+
+function buildPhoneVariants(phoneRaw: string | null | undefined): string[] {
+  const raw = String(phoneRaw ?? "").trim();
+  if (!raw) return [];
+
+  const compact = raw.replace(/\s+/g, "").replace(/-/g, "");
+  const noPlus = compact.replace(/^\+/, "");
+  const digitsOnly = noPlus.replace(/\D+/g, "");
+
+  const variants = new Set<string>([raw, compact, noPlus]);
+
+  // Tanzania-friendly normalization: 0XXXXXXXXX <-> 255XXXXXXXXX
+  if (digitsOnly.length === 9) {
+    variants.add("0" + digitsOnly);
+    variants.add("255" + digitsOnly);
+    variants.add("+255" + digitsOnly);
+  }
+
+  if (digitsOnly.startsWith("0") && digitsOnly.length === 10) {
+    const t = "255" + digitsOnly.slice(1);
+    variants.add(t);
+    variants.add("+" + t);
+  }
+
+  if (digitsOnly.startsWith("255") && digitsOnly.length === 12) {
+    variants.add(digitsOnly);
+    variants.add("+" + digitsOnly);
+    variants.add("0" + digitsOnly.slice(3));
+  }
+
+  return Array.from(variants).filter(Boolean);
+}
 
 // Rate limiting for booking creation (5 requests per 15 minutes)
 const bookingLimiter = rateLimit({
@@ -82,7 +116,7 @@ const createBookingSchema = z.object({
  * - Date validation
  * - Amount calculation (server-side only)
  */
-router.post("/", bookingLimiter, async (req: Request, res: Response) => {
+router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Response) => {
   try {
     // Validate request body
     const validationResult = createBookingSchema.safeParse(req.body);
@@ -160,7 +194,7 @@ router.post("/", bookingLimiter, async (req: Request, res: Response) => {
     // Use a transaction with SELECT FOR UPDATE to lock the property row
     // Enhanced to include availability blocks (external bookings)
     // Now checks capacity, not just conflicts (matching availability checker logic)
-    const availabilityCheck = await prisma.$transaction(async (tx) => {
+    const availabilityCheck = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // Lock property row to prevent concurrent bookings (parameterized query for security)
       await tx.$executeRaw`
         SELECT id FROM Property WHERE id = ${data.propertyId} FOR UPDATE
@@ -346,7 +380,7 @@ router.post("/", bookingLimiter, async (req: Request, res: Response) => {
       }
 
       // Count bookings by room code
-      conflictingBookings.forEach((booking) => {
+      conflictingBookings.forEach((booking: any) => {
         const code = booking.roomCode || "default";
         if (availabilityByRoomType[code]) {
           availabilityByRoomType[code].bookedRooms += 1;
@@ -355,7 +389,7 @@ router.post("/", bookingLimiter, async (req: Request, res: Response) => {
       });
 
       // Count blocks by room code
-      conflictingBlocks.forEach((block) => {
+      conflictingBlocks.forEach((block: any) => {
         const code = block.roomCode || "default";
         if (availabilityByRoomType[code]) {
           availabilityByRoomType[code].blockedRooms += 1;
@@ -397,7 +431,7 @@ router.post("/", bookingLimiter, async (req: Request, res: Response) => {
         conflictReasons.push(`${availabilityCheck.conflictingBookings.length} existing booking(s)`);
       }
       if (availabilityCheck.conflictingBlocks && availabilityCheck.conflictingBlocks.length > 0) {
-        const sources = availabilityCheck.conflictingBlocks.map((b) => b.source || "external").join(", ");
+        const sources = availabilityCheck.conflictingBlocks.map((b: any) => b.source || "external").join(", ");
         conflictReasons.push(`Blocked by external booking(s) from: ${sources}`);
       }
 
@@ -407,14 +441,14 @@ router.post("/", bookingLimiter, async (req: Request, res: Response) => {
       return res.status(409).json({
         error: "Property not available for selected dates",
         message: `The property is fully booked for the selected dates. ${conflictReasons.join(". ")}. Available: ${availableRooms} rooms, ${availableBeds} beds.`,
-        conflictingBookings: availabilityCheck.conflictingBookings?.map((b) => ({
+        conflictingBookings: availabilityCheck.conflictingBookings?.map((b: any) => ({
           id: b.id,
           checkIn: b.checkIn,
           checkOut: b.checkOut,
           status: b.status,
           roomCode: b.roomCode,
         })),
-        conflictingBlocks: availabilityCheck.conflictingBlocks?.map((b) => ({
+        conflictingBlocks: availabilityCheck.conflictingBlocks?.map((b: any) => ({
           id: b.id,
           startDate: b.startDate,
           endDate: b.endDate,
@@ -487,19 +521,33 @@ router.post("/", bookingLimiter, async (req: Request, res: Response) => {
     
     const totalAmount = accommodationAmount + transportFare;
 
-    // Check if user exists (optional - for logged-in users)
-    let userId: number | null = null;
+    // If the request is authenticated, always link the booking to the account.
+    // This ensures bookings show in "My bookings" even if payment/guest phone differs.
+    let userId: number | null = (req as any)?.user?.id ?? null;
     if (data.guestEmail) {
       const user = await prisma.user.findUnique({
         where: { email: data.guestEmail },
       });
-      if (user) {
-        userId = user.id;
+      if (user) userId = user.id;
+    }
+
+    // Fallback: link by phone when email is missing or doesn't match
+    if (!userId && (sanitizedGuestPhone || data.guestPhone)) {
+      const phoneVariants = buildPhoneVariants((sanitizedGuestPhone || data.guestPhone) as any);
+      if (phoneVariants.length) {
+        const user = await prisma.user.findFirst({
+          where: {
+            phone: { in: phoneVariants },
+          },
+          select: { id: true },
+        });
+
+        if (user) userId = user.id;
       }
     }
 
     // Create booking and booking code in a transaction with row-level locking
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // Double-check availability with lock (prevent race conditions)
       await tx.$executeRaw`
         SELECT id FROM Property WHERE id = ${data.propertyId} FOR UPDATE
@@ -660,7 +708,7 @@ router.post("/", bookingLimiter, async (req: Request, res: Response) => {
       }
 
       // Count bookings by room code
-      finalConflictingBookings.forEach((booking) => {
+      finalConflictingBookings.forEach((booking: any) => {
         const code = booking.roomCode || "default";
         if (finalAvailabilityByRoomType[code]) {
           finalAvailabilityByRoomType[code].bookedRooms += 1;
@@ -669,7 +717,7 @@ router.post("/", bookingLimiter, async (req: Request, res: Response) => {
       });
 
       // Count blocks by room code
-      finalConflictingBlocks.forEach((block) => {
+      finalConflictingBlocks.forEach((block: any) => {
         const code = block.roomCode || "default";
         if (finalAvailabilityByRoomType[code]) {
           finalAvailabilityByRoomType[code].blockedRooms += 1;

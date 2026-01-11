@@ -1,7 +1,7 @@
 // apps/api/src/routes/admin.revenue.ts
 import { Router } from "express";
 import { prisma } from "@nolsaf/prisma";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import express from "express";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { makeQR } from "../lib/qr.js";
@@ -145,13 +145,17 @@ router.get("/invoices/:id", async (req, res) => {
     let accountNumber: string | null = null;
     
     if (paymentEvent?.payload) {
-      const payload = paymentEvent.payload as any;
-      const accountFields = ['phoneNumber', 'phone', 'accountNumber', 'account', 'msisdn', 'sourcePhone', 'destinationPhone'];
-      for (const field of accountFields) {
-        if (payload[field]) {
-          accountNumber = String(payload[field]);
-          break;
+      try {
+        const payload = typeof paymentEvent.payload === 'string' ? JSON.parse(paymentEvent.payload) : paymentEvent.payload;
+        const accountFields = ['phoneNumber', 'phone', 'accountNumber', 'account', 'msisdn', 'sourcePhone', 'destinationPhone'];
+        for (const field of accountFields) {
+          if (payload[field]) {
+            accountNumber = String(payload[field]);
+            break;
+          }
         }
+      } catch (parseErr: any) {
+        // Continue without account number if payload parsing fails
       }
     }
     
@@ -167,10 +171,13 @@ router.get("/invoices/:id", async (req, res) => {
     const response: any = { ...inv };
     response.accountNumber = accountNumber;
     
+    // Explicitly set Content-Type to JSON
+    res.setHeader('Content-Type', 'application/json');
     res.json(response);
   } catch (err: any) {
     console.error("Error in GET /admin/invoices/:id", err);
-    res.status(500).json({ error: "Internal server error" });
+    res.setHeader('Content-Type', 'application/json');
+    res.status(500).json({ error: "Internal server error", message: err?.message || "Unknown error" });
   }
 });
 
@@ -184,7 +191,6 @@ router.get("/invoices/:id/receipt.html", async (req, res) => {
   try {
     const invoiceId = Number(req.params.id);
     if (!invoiceId || Number.isNaN(invoiceId)) return res.status(400).json({ error: "Invalid invoice ID" });
-
     const inv = await prisma.invoice.findUnique({
       where: { id: invoiceId },
       include: {
@@ -197,7 +203,6 @@ router.get("/invoices/:id/receipt.html", async (req, res) => {
         } as any,
       } as any,
     });
-
     if (!inv) return res.status(404).json({ error: "Invoice not found" });
     const booking: any = (inv as any).booking;
     if (!booking) return res.status(404).json({ error: "Booking not found" });
@@ -229,23 +234,50 @@ router.get("/invoices/:id/receipt.html", async (req, res) => {
         receiptNumber: (inv as any).receiptNumber || undefined,
         paidAt: (inv as any).paidAt || undefined,
       },
-      nights: 0,
+      nights: undefined,
     };
 
-    const checkInDate = new Date(booking.checkIn);
-    const checkOutDate = new Date(booking.checkOut);
-    bookingDetails.nights = Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24));
+    // Compute nights if dates are valid; otherwise let the HTML generator fall back safely.
+    try {
+      const ci = booking?.checkIn ? new Date(booking.checkIn) : null;
+      const co = booking?.checkOut ? new Date(booking.checkOut) : null;
+      const validCi = ci && !Number.isNaN(ci.getTime()) ? ci : null;
+      const validCo = co && !Number.isNaN(co.getTime()) ? co : null;
+      if (validCi && validCo) {
+        const diffDays = Math.ceil((validCo.getTime() - validCi.getTime()) / (1000 * 60 * 60 * 24));
+        bookingDetails.nights = Number.isFinite(diffDays) && diffDays > 0 ? diffDays : 1;
+      }
+    } catch {
+      // Ignore date parsing issues; downstream HTML generation handles placeholders.
+    }
 
     const { html } = await generateBookingPDF(bookingDetails);
+    
+    if (!html || typeof html !== 'string') {
+      throw new Error('Failed to generate HTML: invalid response from generateBookingPDF');
+    }
+    
     const filename = `Booking Reservation - ${String(bookingCode)}.pdf`;
 
+    // Set headers before sending
+    res.status(200);
     res.setHeader("Content-Type", "text/html; charset=utf-8");
-    res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
-    res.setHeader("X-NoLSAF-Filename", filename);
-    return res.send(html);
+    // Escape filename for Content-Disposition header to prevent issues with special characters
+    const safeFilename = filename.replace(/"/g, '\\"');
+    res.setHeader("Content-Disposition", `inline; filename="${safeFilename}"`);
+    res.setHeader("X-NoLSAF-Filename", safeFilename);
+    
+    // Check if response has already been sent
+    if (res.headersSent) {
+      return;
+    }
+
+    res.send(html);
+    return;
   } catch (err: any) {
     console.error("Error in GET /admin/revenue/invoices/:id/receipt.html", err);
-    return res.status(500).json({ error: "Failed to generate receipt template" });
+    res.setHeader('Content-Type', 'application/json');
+    return res.status(500).json({ error: "Failed to generate receipt template", message: err?.message || "Unknown error" });
   }
 });
 
@@ -776,7 +808,7 @@ router.get('/series', async (req, res) => {
     const rows: Array<any> = await prisma.$queryRaw`
       SELECT DATE_FORMAT(CONVERT_TZ(i.issuedAt, '+00:00', '+03:00'), ${fmt}) AS label,
         COALESCE(SUM(i.commissionAmount),0) AS commission_total,
-        COALESCE(SUM(i.subscriptionAmount),0) AS subscription_total
+        0 AS subscription_total
       FROM Invoice i
       WHERE i.status IN ('APPROVED','PAID') AND i.issuedAt BETWEEN ${sqlFromIso} AND ${sqlToIso}
       GROUP BY label
@@ -811,8 +843,8 @@ router.get('/summary', async (req, res) => {
 
     const rows: Array<any> = await prisma.$queryRaw`
       SELECT
-        COALESCE(SUM(CASE WHEN DATE(CONVERT_TZ(i.issuedAt, '+00:00', '+03:00')) = DATE(CONVERT_TZ(${todayStart.toISOString()}, '+00:00', '+03:00')) THEN COALESCE(i.commissionAmount,0)+COALESCE(i.subscriptionAmount,0) ELSE 0 END),0) AS today_total,
-        COALESCE(SUM(CASE WHEN DATE(CONVERT_TZ(i.issuedAt, '+00:00', '+03:00')) = DATE(CONVERT_TZ(${yesterdayStart.toISOString()}, '+00:00', '+03:00')) THEN COALESCE(i.commissionAmount,0)+COALESCE(i.subscriptionAmount,0) ELSE 0 END),0) AS yesterday_total
+        COALESCE(SUM(CASE WHEN DATE(CONVERT_TZ(i.issuedAt, '+00:00', '+03:00')) = DATE(CONVERT_TZ(${todayStart.toISOString()}, '+00:00', '+03:00')) THEN COALESCE(i.commissionAmount,0) ELSE 0 END),0) AS today_total,
+        COALESCE(SUM(CASE WHEN DATE(CONVERT_TZ(i.issuedAt, '+00:00', '+03:00')) = DATE(CONVERT_TZ(${yesterdayStart.toISOString()}, '+00:00', '+03:00')) THEN COALESCE(i.commissionAmount,0) ELSE 0 END),0) AS yesterday_total
       FROM Invoice i
       WHERE i.status IN ('APPROVED','PAID') AND i.issuedAt BETWEEN ${fromIso} AND ${toIso}
     ` as any;

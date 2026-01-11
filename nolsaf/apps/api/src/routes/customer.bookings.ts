@@ -7,6 +7,101 @@ import { generateBookingPDF } from "../lib/pdfGenerator.js";
 export const router = Router();
 router.use(requireAuth as RequestHandler);
 
+function buildPhoneVariants(phoneRaw: string | null | undefined): string[] {
+  const raw = String(phoneRaw ?? "").trim();
+  if (!raw) return [];
+
+  const compact = raw.replace(/\s+/g, "").replace(/-/g, "");
+  const noPlus = compact.replace(/^\+/, "");
+  const digitsOnly = noPlus.replace(/\D+/g, "");
+
+  const variants = new Set<string>([raw, compact, noPlus]);
+  if (digitsOnly) variants.add(digitsOnly);
+
+  // Tanzania-friendly normalization: 0XXXXXXXXX <-> 255XXXXXXXXX
+  if (digitsOnly.length === 9) {
+    variants.add("0" + digitsOnly);
+    variants.add("255" + digitsOnly);
+    variants.add("+255" + digitsOnly);
+  }
+
+  if (digitsOnly.startsWith("0") && digitsOnly.length === 10) {
+    const t = "255" + digitsOnly.slice(1);
+    variants.add(t);
+    variants.add("+" + t);
+  }
+
+  if (digitsOnly.startsWith("255") && digitsOnly.length === 12) {
+    variants.add(digitsOnly);
+    variants.add("+" + digitsOnly);
+    variants.add("0" + digitsOnly.slice(3));
+  }
+
+  return Array.from(variants).filter(Boolean);
+}
+
+async function getUserContact(userId: number) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, phone: true, email: true },
+  });
+  return { id: userId, phone: user?.phone ?? null, email: user?.email ?? null };
+}
+
+function getTail9Digits(phoneRaw: string | null | undefined): string | null {
+  const raw = String(phoneRaw ?? "").trim();
+  if (!raw) return null;
+  const digits = raw.replace(/\D+/g, "");
+  if (digits.length < 9) return null;
+  return digits.slice(-9);
+}
+
+async function findLegacyBookingIdsByPhoneTail(tail9: string): Promise<number[]> {
+  try {
+    const rows = await prisma.$queryRaw<Array<{ id: number }>>`
+      SELECT id
+      FROM \`Booking\`
+      WHERE \`userId\` IS NULL
+        AND \`guestPhone\` IS NOT NULL
+        AND RIGHT(REGEXP_REPLACE(\`guestPhone\`, '[^0-9]', ''), 9) = ${tail9}
+    `;
+
+    return rows.map((r: { id: number }) => r.id);
+  } catch (error) {
+    // If the DB doesn't support REGEXP_REPLACE (older MySQL), try a best-effort fallback
+    // that strips the most common separators.
+    try {
+      const rows = await prisma.$queryRaw<Array<{ id: number }>>`
+        SELECT id
+        FROM \`Booking\`
+        WHERE \`userId\` IS NULL
+          AND \`guestPhone\` IS NOT NULL
+          AND RIGHT(
+            REPLACE(REPLACE(REPLACE(REPLACE(\`guestPhone\`, ' ', ''), '-', ''), '+', ''), '\\t', ''),
+            9
+          ) = ${tail9}
+      `;
+
+      return rows.map((r: { id: number }) => r.id);
+    } catch (fallbackError) {
+      console.warn(
+        "Legacy phone match query failed; falling back to userId-only.",
+        error,
+        fallbackError
+      );
+      return [];
+    }
+  }
+}
+
+function buildCustomerBookingWhere(user: { id: number }, legacyBookingIds: number[]) {
+  const or: any[] = [{ userId: user.id }];
+  if (legacyBookingIds.length) {
+    or.push({ id: { in: legacyBookingIds } });
+  }
+  return { OR: or };
+}
+
 /**
  * GET /api/customer/bookings
  * Get all bookings for the authenticated customer
@@ -17,10 +112,18 @@ router.get("/", (async (req: AuthedRequest, res) => {
     const userId = req.user!.id;
     const { status, page = "1", pageSize = "20" } = req.query as any;
     
-    const where: any = { userId };
-    if (status) {
-      where.status = String(status);
-    }
+    const userContact = await getUserContact(userId);
+
+    const tail9 = getTail9Digits(userContact.phone);
+    const legacyBookingIds = tail9 ? await findLegacyBookingIdsByPhoneTail(tail9) : [];
+
+    const where: any = {
+      AND: [
+        buildCustomerBookingWhere({ id: userId }, legacyBookingIds),
+      ],
+    };
+
+    if (status) where.AND.push({ status: String(status) });
 
     const pageNum = Number(page);
     const pageSizeNum = Number(pageSize);
@@ -74,7 +177,8 @@ router.get("/", (async (req: AuthedRequest, res) => {
 
     // Calculate if bookings are valid (not expired)
     const now = new Date();
-    const bookingsWithValidity = bookings.map((booking) => {
+    type BookingRow = (typeof bookings)[number];
+    const bookingsWithValidity = bookings.map((booking: BookingRow) => {
       const checkOut = new Date(booking.checkOut);
       const isValid = checkOut >= now && booking.status !== "CANCELED";
       const invoice = booking.invoices?.[0] || null;
@@ -121,10 +225,15 @@ router.get("/:id", (async (req: AuthedRequest, res) => {
     const userId = req.user!.id;
     const bookingId = Number(req.params.id);
 
+    const userContact = await getUserContact(userId);
+
+    const tail9 = getTail9Digits(userContact.phone);
+    const legacyBookingIds = tail9 ? await findLegacyBookingIdsByPhoneTail(tail9) : [];
+
     const booking = await prisma.booking.findFirst({
       where: {
         id: bookingId,
-        userId,
+        ...buildCustomerBookingWhere({ id: userId }, legacyBookingIds),
       },
       include: {
         property: {
@@ -186,10 +295,15 @@ router.get("/:id/pdf", (async (req: AuthedRequest, res) => {
     const userId = req.user!.id;
     const bookingId = Number(req.params.id);
 
+    const userContact = await getUserContact(userId);
+
+    const tail9 = getTail9Digits(userContact.phone);
+    const legacyBookingIds = tail9 ? await findLegacyBookingIdsByPhoneTail(tail9) : [];
+
     const booking = await prisma.booking.findFirst({
       where: {
         id: bookingId,
-        userId,
+        ...buildCustomerBookingWhere({ id: userId }, legacyBookingIds),
       },
       include: {
         property: true,

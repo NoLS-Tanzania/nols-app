@@ -1,12 +1,56 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import Link from "next/link";
-import { ArrowLeft, Home, User, Calendar, DollarSign, Key, X, AlertCircle, CheckCircle } from "lucide-react";
+import { ArrowLeft, Home, User, Calendar, DollarSign, Key, AlertCircle, Loader2, RefreshCw } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 
 // Use same-origin calls + secure httpOnly cookie session.
 const api = axios.create({ baseURL: "", withCredentials: true });
+
+function authify() {
+  if (typeof window === "undefined") return;
+
+  // Most of the app uses a Bearer token (often stored in localStorage).
+  // The API endpoints are protected by requireAuth, so we must attach it.
+  const lsToken =
+    window.localStorage.getItem("token") ||
+    window.localStorage.getItem("nolsaf_token") ||
+    window.localStorage.getItem("__Host-nolsaf_token");
+
+  if (lsToken) {
+    api.defaults.headers.common["Authorization"] = `Bearer ${lsToken}`;
+    return;
+  }
+
+  // Fallback: non-httpOnly cookie (if present)
+  const m = String(document.cookie || "").match(/(?:^|;\s*)(?:nolsaf_token|__Host-nolsaf_token)=([^;]+)/);
+  const cookieToken = m?.[1] ? decodeURIComponent(m[1]) : "";
+  if (cookieToken) {
+    api.defaults.headers.common["Authorization"] = `Bearer ${cookieToken}`;
+  }
+}
+
+// Input sanitization helper
+function sanitizeInput(input: string): string {
+  return input.trim().replace(/[<>]/g, "");
+}
+
+// Validate booking ID
+function isValidBookingId(id: number | null | undefined): boolean {
+  return id !== null && id !== undefined && Number.isInteger(id) && id > 0;
+}
+
+// Toast notification helper
+function showToast(type: "success" | "error" | "info" | "warning", title: string, message?: string, duration?: number) {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent("nols:toast", {
+        detail: { type, title, message, duration: duration ?? 5000 },
+      })
+    );
+  }
+}
 
 function InfoRow({ label, value }: { label: string; value: string | number | null | undefined }) {
   return (
@@ -42,14 +86,16 @@ function ConfirmModal({
         {message && <div className="text-sm text-gray-600 mb-4">{message}</div>}
         <div className="flex justify-end gap-3">
           <button 
-            onClick={onCancel} 
+            onClick={onCancel}
+            aria-label="Cancel action"
             className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium transition-colors"
           >
             Cancel
           </button>
           <button 
             autoFocus 
-            onClick={onConfirm} 
+            onClick={onConfirm}
+            aria-label={confirmLabel || "Confirm action"}
             className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white font-medium transition-colors"
           >
             {confirmLabel || "Confirm"}
@@ -86,27 +132,43 @@ function CancelReasonModal({
       <div role="dialog" aria-modal="true" aria-label="Cancel Booking" className="bg-white rounded-lg p-5 z-10 w-full max-w-md shadow-lg">
         <div className="font-semibold text-lg mb-2">Cancel Booking</div>
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">Cancel Reason</label>
+          <label htmlFor="cancel-reason" className="block text-sm font-medium text-gray-700 mb-2">
+            Cancel Reason <span className="text-red-500">*</span>
+          </label>
           <textarea
+            id="cancel-reason"
             value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            placeholder="Enter reason for cancellation..."
+            onChange={(e) => {
+              const value = e.target.value;
+              if (value.length <= 500) {
+                setReason(value);
+              }
+            }}
+            placeholder="Enter reason for cancellation (minimum 3 characters)..."
+            aria-label="Enter cancellation reason"
+            title="Cancellation reason"
+            maxLength={500}
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
             rows={4}
             autoFocus
           />
+          <p className="text-xs text-gray-500 mt-1">
+            {reason.length}/500 characters (minimum 3 required)
+          </p>
         </div>
         <div className="flex justify-end gap-3">
           <button 
-            onClick={onCancel} 
+            onClick={onCancel}
+            aria-label="Cancel cancellation"
             className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium transition-colors"
           >
             Cancel
           </button>
           <button 
             onClick={handleConfirm}
-            disabled={!reason.trim()}
-            className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={!reason.trim() || reason.trim().length < 3}
+            aria-label="Confirm cancellation"
+            className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             Confirm Cancellation
           </button>
@@ -116,150 +178,197 @@ function CancelReasonModal({
   );
 }
 
-// Message Banner Component
-function MessageBanner({ type, message, onClose }: { type: "success" | "error"; message: string; onClose: () => void }) {
-  if (!message) return null;
-  const isSuccess = type === "success";
-  return (
-    <div className={`fixed top-4 right-4 z-50 flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg max-w-md ${
-      isSuccess ? "bg-emerald-50 border border-emerald-200" : "bg-red-50 border border-red-200"
-    }`}>
-      {isSuccess ? (
-        <CheckCircle className="h-5 w-5 text-emerald-600 flex-shrink-0" />
-      ) : (
-        <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
-      )}
-      <div className={`flex-1 text-sm font-medium ${isSuccess ? "text-emerald-800" : "text-red-800"}`}>
-        {message}
-      </div>
-      <button
-        onClick={onClose}
-        className={`p-1 rounded hover:bg-opacity-20 ${isSuccess ? "hover:bg-emerald-600" : "hover:bg-red-600"} transition-colors`}
-        aria-label="Close"
-      >
-        <X className={`h-4 w-4 ${isSuccess ? "text-emerald-600" : "text-red-600"}`} />
-      </button>
-    </div>
-  );
-}
 
 export default function AdminBookingDetail({ params }: { params: { id: string } }) {
   const id = Number(params.id);
   const [b, setB] = useState<any>(null);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [roomCode, setRoomCode] = useState("");
   
   // Modal and message states
   const [showVoidConfirm, setShowVoidConfirm] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  const load = React.useCallback(async () => {
+  const load = useCallback(async () => {
+    if (!isValidBookingId(id)) {
+      setError("Invalid booking ID");
+      setLoading(false);
+      showToast("error", "Invalid Booking", "Invalid booking ID provided");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
     try {
+      authify();
       const r = await api.get<any>(`/api/admin/bookings/${id}`);
       setB(r.data);
       setRoomCode(r.data.roomCode ?? "");
     } catch (err: any) {
       console.error("Failed to load booking:", err);
-      if (err?.response?.status === 404) {
-        setMessage({ type: "error", text: "Booking not found" });
-      } else {
-        setMessage({ type: "error", text: "Failed to load booking details" });
-      }
+      const errorMessage = err?.response?.status === 404
+        ? "Booking not found"
+        : err?.response?.data?.error || err?.message || "Failed to load booking details";
+      setError(errorMessage);
+      showToast("error", "Failed to Load Booking", errorMessage);
     } finally {
       setLoading(false);
     }
   }, [id]);
 
   useEffect(() => {
+    authify();
     load();
   }, [load]);
 
-  // Auto-hide message after 5 seconds
-  useEffect(() => {
-    if (message) {
-      const timer = setTimeout(() => setMessage(null), 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [message]);
-
-  async function confirmBooking() {
-    setBusy(true);
-    try {
-      await api.post(`/api/admin/bookings/${id}/confirm`, { generateCode: true });
-      await load();
-      setMessage({ type: "success", text: "Booking confirmed and code generated successfully" });
-    } catch (err: any) {
-      setMessage({ type: "error", text: err?.response?.data?.error || "Failed to confirm booking" });
-    }
-    setBusy(false);
-  }
-
-  async function handleCancel(reason: string) {
-    setShowCancelModal(false);
-    setBusy(true);
-    try {
-      await api.post(`/api/admin/bookings/${id}/cancel`, { reason });
-      await load();
-      setMessage({ type: "success", text: "Booking cancelled successfully" });
-    } catch (err: any) {
-      setMessage({ type: "error", text: err?.response?.data?.error || "Failed to cancel booking" });
-    }
-    setBusy(false);
-  }
-
-  async function reassign() {
-    if (!roomCode.trim()) {
-      setMessage({ type: "error", text: "Please enter a room code" });
+  const confirmBooking = useCallback(async () => {
+    if (!isValidBookingId(id)) {
+      showToast("error", "Invalid Booking", "Invalid booking ID provided");
       return;
     }
-    setBusy(true);
-    try {
-      await api.post(`/api/admin/bookings/${id}/reassign-room`, { roomCode });
-      await load();
-      setMessage({ type: "success", text: "Room reassigned successfully" });
-    } catch (e: any) {
-      setMessage({ type: "error", text: e?.response?.data?.error ?? "Failed to reassign room" });
-    }
-    setBusy(false);
-  }
 
-  async function handleVoidCode() {
-    setShowVoidConfirm(false);
-    if (!b?.code?.id) return;
     setBusy(true);
     try {
+      authify();
+      await api.post(`/api/admin/bookings/${id}/confirm`, { generateCode: true });
+      await load();
+      showToast("success", "Booking Confirmed", "Booking confirmed and code generated successfully");
+    } catch (err: any) {
+      const errorMessage = err?.response?.data?.error || err?.message || "Failed to confirm booking";
+      showToast("error", "Failed to Confirm Booking", errorMessage);
+    } finally {
+      setBusy(false);
+    }
+  }, [id, load]);
+
+  const handleCancel = useCallback(async (reason: string) => {
+    setShowCancelModal(false);
+    
+    if (!isValidBookingId(id)) {
+      showToast("error", "Invalid Booking", "Invalid booking ID provided");
+      return;
+    }
+
+    const sanitizedReason = sanitizeInput(reason);
+    if (sanitizedReason.length < 3) {
+      showToast("error", "Invalid Reason", "Cancel reason must be at least 3 characters");
+      return;
+    }
+
+    if (sanitizedReason.length > 500) {
+      showToast("error", "Reason Too Long", "Cancel reason must be less than 500 characters");
+      return;
+    }
+
+    setBusy(true);
+    try {
+      authify();
+      await api.post(`/api/admin/bookings/${id}/cancel`, { reason: sanitizedReason });
+      await load();
+      showToast("success", "Booking Cancelled", "Booking cancelled successfully");
+    } catch (err: any) {
+      const errorMessage = err?.response?.data?.error || err?.message || "Failed to cancel booking";
+      showToast("error", "Failed to Cancel Booking", errorMessage);
+    } finally {
+      setBusy(false);
+    }
+  }, [id, load]);
+
+  const reassign = useCallback(async () => {
+    if (!isValidBookingId(id)) {
+      showToast("error", "Invalid Booking", "Invalid booking ID provided");
+      return;
+    }
+
+    const sanitizedCode = sanitizeInput(roomCode);
+    if (!sanitizedCode.trim()) {
+      showToast("error", "Room Code Required", "Please enter a room code");
+      return;
+    }
+
+    if (sanitizedCode.length > 50) {
+      showToast("error", "Room Code Too Long", "Room code must be less than 50 characters");
+      return;
+    }
+
+    setBusy(true);
+    try {
+      authify();
+      await api.post(`/api/admin/bookings/${id}/reassign-room`, { roomCode: sanitizedCode });
+      await load();
+      showToast("success", "Room Reassigned", "Room reassigned successfully");
+    } catch (e: any) {
+      const errorMessage = e?.response?.data?.error || e?.message || "Failed to reassign room";
+      showToast("error", "Failed to Reassign Room", errorMessage);
+    } finally {
+      setBusy(false);
+    }
+  }, [id, roomCode, load]);
+
+  const handleVoidCode = useCallback(async () => {
+    setShowVoidConfirm(false);
+    if (!b?.code?.id) {
+      showToast("error", "No Code", "No check-in code found to void");
+      return;
+    }
+
+    if (!isValidBookingId(id)) {
+      showToast("error", "Invalid Booking", "Invalid booking ID provided");
+      return;
+    }
+
+    setBusy(true);
+    try {
+      authify();
       await api.post(`/api/admin/bookings/codes/${b.code.id}/void`, { reason: "Voided from admin detail" });
       await load();
-      setMessage({ type: "success", text: "Check-in code voided successfully" });
+      showToast("success", "Code Voided", "Check-in code voided successfully");
     } catch (err: any) {
-      setMessage({ type: "error", text: err?.response?.data?.error || "Failed to void code" });
+      const errorMessage = err?.response?.data?.error || err?.message || "Failed to void code";
+      showToast("error", "Failed to Void Code", errorMessage);
+    } finally {
+      setBusy(false);
     }
-    setBusy(false);
-  }
+  }, [b, id, load]);
 
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-2 border-gray-300 border-t-emerald-600"></div>
+        <div className="flex flex-col items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 text-[#02665e] animate-spin mb-3" />
+          <p className="text-gray-500 text-sm">Loading booking details...</p>
         </div>
       </div>
     );
   }
 
-  if (!b) {
+  if (error || !b) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="text-center py-12">
-          <p className="text-gray-500 mb-4">Booking not found</p>
-          <Link
-            href="/admin/bookings"
-            className="text-emerald-600 hover:text-emerald-700 underline"
-          >
-            ← Back to bookings list
-          </Link>
+          <AlertCircle className="h-12 w-12 text-red-600 mx-auto mb-4" />
+          <p className="text-gray-900 font-medium mb-2">{error || "Booking not found"}</p>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <Link
+              href="/admin/bookings"
+              className="text-[#02665e] hover:text-[#014d47] underline"
+              aria-label="Back to bookings list"
+            >
+              ← Back to bookings list
+            </Link>
+            {error && (
+              <button
+                onClick={load}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+                aria-label="Retry loading booking"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Retry
+              </button>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -271,12 +380,6 @@ export default function AdminBookingDetail({ params }: { params: { id: string } 
 
   return (
     <>
-      <MessageBanner 
-        type={message?.type || "error"} 
-        message={message?.text || ""} 
-        onClose={() => setMessage(null)} 
-      />
-      
       <ConfirmModal
         open={showVoidConfirm}
         title="Void Check-in Code"
@@ -316,15 +419,24 @@ export default function AdminBookingDetail({ params }: { params: { id: string } 
                 <button
                   disabled={busy}
                   onClick={confirmBooking}
-                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                  aria-label="Confirm booking and generate check-in code"
+                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center gap-2"
                 >
-                  {busy ? "Processing..." : "Confirm & Generate Code"}
+                  {busy ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    "Confirm & Generate Code"
+                  )}
                 </button>
               )}
               {b.status !== "CANCELED" && (
                 <button
                   disabled={busy}
                   onClick={() => setShowCancelModal(true)}
+                  aria-label="Cancel booking"
                   className="px-4 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed font-medium"
                 >
                   Cancel
@@ -422,16 +534,32 @@ export default function AdminBookingDetail({ params }: { params: { id: string } 
                     <input
                       className="flex-1 border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                       value={roomCode}
-                      onChange={(e) => setRoomCode(e.target.value)}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (value.length <= 50) {
+                          setRoomCode(value);
+                        }
+                      }}
                       placeholder="e.g., A-101"
+                      aria-label="Enter room code"
+                      title="Enter room code to assign"
+                      maxLength={50}
                       disabled={busy}
                     />
                     <button
                       disabled={busy}
                       onClick={reassign}
-                      className="px-4 py-2 bg-[#02665e] text-white rounded-lg hover:bg-[#013a37] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                      aria-label="Reassign room code"
+                      className="px-4 py-2 bg-[#02665e] text-white rounded-lg hover:bg-[#013a37] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center gap-2"
                     >
-                      {busy ? "Updating..." : "Reassign"}
+                      {busy ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Updating...
+                        </>
+                      ) : (
+                        "Reassign"
+                      )}
                     </button>
                   </div>
                 </div>
@@ -496,9 +624,17 @@ export default function AdminBookingDetail({ params }: { params: { id: string } 
                         <button
                           disabled={busy}
                           onClick={() => setShowVoidConfirm(true)}
-                          className="w-full px-4 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                          aria-label="Void check-in code"
+                          className="w-full px-4 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center justify-center gap-2"
                         >
-                          Void Code
+                          {busy ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Voiding...
+                            </>
+                          ) : (
+                            "Void Code"
+                          )}
                         </button>
                       )}
                     </div>

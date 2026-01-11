@@ -34,14 +34,15 @@ export default function OwnerLayout({ children }: { children: ReactNode }) {
           {/* Sidebar toggle controlled from SiteHeader (header-only menu icon). */}
 
           {/* Sidebar placed inside the centered container so it is considered part of the frame */}
-          <aside className={`absolute left-0 top-16 w-56 p-4 shadow-sm text-[#02665e] bg-white border-r border-gray-200 owner-sidebar-container hidden ${sidebarOpen ? 'md:block' : 'md:hidden'}`}>
+          {/* Sidebar inside the frame container on md+; collapsed shows icons only */}
+          <aside className={`absolute left-0 top-16 shadow-sm text-[#02665e] bg-white border-r border-gray-200 transition-all duration-300 ease-in-out hidden md:block ${sidebarOpen ? 'w-56 p-4' : 'w-16 p-2'} h-[calc(100vh-4rem)] overflow-y-auto`}>
             <div className="sidebar-scroll">
-              <OwnerSidebar />
+              <OwnerSidebar collapsed={!sidebarOpen} />
             </div>
           </aside>
 
-          {/* Main content: add left padding on md+ equal to sidebar width plus small gap so content clears it (removed when sidebar hidden) */}
-          <div className={`pt-16 pb-6 ${sidebarOpen ? 'owner-content-gap' : ''}`}>
+          {/* Main content: add left padding on md+ equal to sidebar width plus small gap so content clears it */}
+          <div className={`pt-16 pb-6 transition-all duration-300 ease-in-out ${sidebarOpen ? 'owner-content-gap' : 'md:ml-16'} h-[calc(100vh-4rem)] overflow-y-auto`}>
             <main>
               <div className="w-full">
                 <div className="mx-auto max-w-6xl">

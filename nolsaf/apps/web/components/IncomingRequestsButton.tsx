@@ -29,7 +29,7 @@ export default function IncomingRequestsButton({ className = '' }: { className?:
   useEffect(() => {
     if ((window as any).__NOLS_INCOMING_ANIM) return;
     const style = document.createElement('style');
-    style.innerHTML = `@keyframes nols-zoom { 0% { transform: scale(1); } 50% { transform: scale(1.12); } 100% { transform: scale(1); } } .nols-zoom { animation: nols-zoom 900ms ease-in-out infinite; }`;
+    style.textContent = `@keyframes nols-zoom { 0% { transform: scale(1); } 50% { transform: scale(1.12); } 100% { transform: scale(1); } } .nols-zoom { animation: nols-zoom 900ms ease-in-out infinite; }`;
     document.head.appendChild(style);
     (window as any).__NOLS_INCOMING_ANIM = true;
   }, []);

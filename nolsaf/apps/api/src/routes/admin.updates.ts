@@ -3,7 +3,7 @@ import { prisma } from "@nolsaf/prisma";
 import { AuthedRequest, requireAuth } from "../middleware/auth.js";
 import { requireAdmin } from "../middleware/admin.js";
 import multer from "multer";
-import { auditLog } from "../lib/audit.js";
+import { audit } from "../lib/audit.js";
 import { getUpdatesStore, setUpdate, deleteUpdate, getAllUpdates, Update } from "../lib/updatesStore.js";
 
 export const router = Router();
@@ -104,7 +104,7 @@ router.post("/", upload.fields([
 
     setUpdate(id, update);
 
-    await auditLog(req as AuthedRequest, "ADMIN_UPDATE_CREATE", `update:${id}`, null, update);
+    await audit(req as any, "ADMIN_UPDATE_CREATE", `update:${id}`, null, update);
 
     res.status(201).json(update);
   } catch (err: any) {
@@ -163,7 +163,7 @@ router.put("/:id", upload.fields([
 
     setUpdate(id, updated);
 
-    await auditLog(req as AuthedRequest, "ADMIN_UPDATE_UPDATE", `update:${id}`, existingUpdate, updated);
+    await audit(req as any, "ADMIN_UPDATE_UPDATE", `update:${id}`, existingUpdate, updated);
 
     res.json(updated);
   } catch (err: any) {
@@ -184,7 +184,7 @@ router.delete("/:id", async (req: any, res) => {
 
     deleteUpdate(id);
 
-    await auditLog(req as AuthedRequest, "ADMIN_UPDATE_DELETE", `update:${id}`, existingUpdate, null);
+    await audit(req as any, "ADMIN_UPDATE_DELETE", `update:${id}`, existingUpdate, null);
 
     res.json({ ok: true, message: "Update deleted successfully" });
   } catch (err: any) {

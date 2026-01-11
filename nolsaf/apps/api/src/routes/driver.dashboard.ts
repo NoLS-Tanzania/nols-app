@@ -21,7 +21,7 @@ router.get("/", async (req, res) => {
     tomorrow.setDate(tomorrow.getDate() + 1);
 
     // Fetch today's trips
-    const todaysTrips = await db.trip.findMany({
+    const todaysTrips = await prisma.trip.findMany({
       where: {
         driverId: Number(driverId),
         createdAt: {
@@ -46,7 +46,7 @@ router.get("/", async (req, res) => {
     }, 0);
 
     // Calculate acceptance rate (trips accepted / trips offered)
-    const tripsOffered = await db.trip.count({
+    const tripsOffered = await prisma.trip.count({
       where: {
         driverId: Number(driverId),
         createdAt: {
@@ -64,7 +64,7 @@ router.get("/", async (req, res) => {
     const bonuses = todaysTrips.reduce((sum: number, trip: any) => sum + (Number(trip.bonus) || 0), 0);
 
     // Get driver profile for rating
-    const driver = await db.user.findUnique({
+    const driver = await prisma.user.findUnique({
       where: { id: Number(driverId) },
       select: {
         rating: true,
@@ -80,7 +80,7 @@ router.get("/", async (req, res) => {
     const totalReviews = driver?._count?.reviewsReceived || 0;
 
     // Calculate online hours (sessions today)
-    const sessions = await db.driverSession.findMany({
+    const sessions = await prisma.driverSession.findMany({
       where: {
         driverId: Number(driverId),
         startedAt: {
@@ -113,14 +113,14 @@ router.get("/", async (req, res) => {
     const sevenDaysAgo = new Date(today);
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
 
-    const earningsChart = [];
+    const earningsChart: Array<{ day: string; amount: number }> = [];
     for (let i = 0; i < 7; i++) {
       const dayStart = new Date(sevenDaysAgo);
       dayStart.setDate(dayStart.getDate() + i);
       const dayEnd = new Date(dayStart);
       dayEnd.setDate(dayEnd.getDate() + 1);
 
-      const dayTrips = await db.trip.findMany({
+      const dayTrips = await prisma.trip.findMany({
         where: {
           driverId: Number(driverId),
           createdAt: {
@@ -175,7 +175,7 @@ router.get("/", async (req, res) => {
     const demandZones: Array<{ name: string; level: "high" | "medium" | "low" }> = [];
 
     // Recent trips (last 5)
-    const recentTripsData = await db.trip.findMany({
+    const recentTripsData = await prisma.trip.findMany({
       where: {
         driverId: Number(driverId),
       },
@@ -205,10 +205,16 @@ router.get("/", async (req, res) => {
     }));
 
     // Check for reminders
-    const reminders = [];
+    const reminders: Array<{
+      id: string;
+      type: 'warning' | 'info';
+      message: string;
+      action?: string;
+      actionLink?: string;
+    }> = [];
 
     // Check insurance expiry
-    const documents = await db.driverDocument.findMany({
+    const documents = await prisma.driverDocument.findMany({
       where: {
         driverId: Number(driverId),
         type: "INSURANCE",

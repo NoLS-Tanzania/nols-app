@@ -9,8 +9,9 @@ import {
   CreditCard, Eye, History, Activity, Clock, X
 } from "lucide-react";
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000").replace(/\/$/, "");
-const api = axios.create({ baseURL: API_BASE, withCredentials: true });
+// IMPORTANT: Use same-origin requests so Next.js can proxy via `rewrites()`.
+// Hardcoding `http://localhost:4000` from the browser triggers CORS failures.
+const api = axios.create({ withCredentials: true });
 
 type UserDetail = {
   id: number;
@@ -83,6 +84,7 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
   const router = useRouter();
   const [data, setData] = useState<UserDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [tab, setTab] = useState<"overview" | "bookings">("overview");
   const [auditHistory, setAuditHistory] = useState<any[]>([]);
@@ -97,10 +99,19 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
     if (!isValidUserId) return;
     setLoading(true);
     try {
-      const r = await api.get<UserDetailResponse>(`/admin/users/${userId}`);
+      const r = await api.get<UserDetailResponse>(`/api/admin/users/${userId}`);
       setData(r.data);
+      setLoadError(null);
     } catch (err: any) {
       console.error("Failed to load user details:", err);
+      const serverData = err?.response?.data;
+      const stage = typeof serverData?.stage === "string" ? serverData.stage : null;
+      const message = typeof serverData?.message === "string" ? serverData.message : null;
+      const errorText =
+        stage || message
+          ? `Server error${stage ? ` (${stage})` : ""}${message ? `: ${message}` : ""}`
+          : (typeof serverData?.error === "string" ? serverData.error : null);
+      setLoadError(errorText || "Failed to load user details");
       if (err?.response?.status === 404) {
         alert("User not found");
         router.push("/admin/users/list");
@@ -153,7 +164,7 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
     
     setActionLoading(true);
     try {
-      await api.post(`/admin/users/${userId}/suspend`, { 
+      await api.post(`/api/admin/users/${userId}/suspend`, { 
         reason: suspendReason.trim()
       });
       setSuspendReason("");
@@ -190,7 +201,7 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
     
     setActionLoading(true);
     try {
-      await api.post(`/admin/users/${userId}/unsuspend`, { 
+      await api.post(`/api/admin/users/${userId}/unsuspend`, { 
         notification: unsuspendNotification.trim()
       });
       setUnsuspendNotification("");
@@ -232,7 +243,7 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
     return (
       <div className="p-6">
         <div className="text-center">
-          <p className="text-gray-500">Failed to load user data</p>
+          <p className="text-gray-500">{loadError || "Failed to load user data"}</p>
           <Link href="/admin/users/list" className="text-emerald-600 hover:text-emerald-700 mt-4 inline-block">
             ← Back to users list
           </Link>

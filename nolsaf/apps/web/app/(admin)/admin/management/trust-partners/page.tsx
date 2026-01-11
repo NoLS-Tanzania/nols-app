@@ -23,6 +23,47 @@ type TrustPartner = {
   updatedAt: string;
 };
 
+function replaceWithLogoPlaceholder(parent: HTMLElement) {
+  try {
+    parent.replaceChildren();
+
+    const wrap = document.createElement("div");
+    wrap.className = "h-full w-full bg-gray-100 rounded flex items-center justify-center";
+
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("class", "h-6 w-6 text-gray-400");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("stroke", "currentColor");
+
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("stroke-linecap", "round");
+    path.setAttribute("stroke-linejoin", "round");
+    path.setAttribute("stroke-width", "2");
+    path.setAttribute(
+      "d",
+      "M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+    );
+    svg.appendChild(path);
+    wrap.appendChild(svg);
+    parent.appendChild(wrap);
+  } catch {
+    // ignore
+  }
+}
+
+function replaceWithInvalidImageText(parent: HTMLElement) {
+  try {
+    parent.replaceChildren();
+    const wrap = document.createElement("div");
+    wrap.className = "h-full w-full flex items-center justify-center text-red-500 text-xs";
+    wrap.textContent = "Invalid image";
+    parent.appendChild(wrap);
+  } catch {
+    // ignore
+  }
+}
+
 export default function AdminTrustPartnersPage() {
   const [partners, setPartners] = useState<TrustPartner[]>([]);
   const [loading, setLoading] = useState(true);
@@ -305,7 +346,8 @@ export default function AdminTrustPartnersPage() {
                                   style={{ maxHeight: "100%", maxWidth: "100%" }}
                                   onError={(e) => {
                                     (e.target as HTMLImageElement).style.display = "none";
-                                    (e.target as HTMLImageElement).parentElement!.innerHTML = '<div class="h-full w-full bg-gray-100 rounded flex items-center justify-center"><svg class="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg></div>';
+                                    const parent = (e.target as HTMLImageElement).parentElement;
+                                    if (parent) replaceWithLogoPlaceholder(parent);
                                   }}
                                 />
                               </div>
@@ -324,7 +366,8 @@ export default function AdminTrustPartnersPage() {
                                   style={{ maxHeight: "100%", maxWidth: "100%" }}
                                   onError={(e) => {
                                     (e.target as HTMLImageElement).style.display = "none";
-                                    (e.target as HTMLImageElement).parentElement!.innerHTML = '<div class="h-full w-full bg-gray-100 rounded flex items-center justify-center"><svg class="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg></div>';
+                                    const parent = (e.target as HTMLImageElement).parentElement;
+                                    if (parent) replaceWithLogoPlaceholder(parent);
                                   }}
                                 />
                               </div>
@@ -511,7 +554,7 @@ export default function AdminTrustPartnersPage() {
                                     (e.target as HTMLImageElement).style.display = "none";
                                     const parent = (e.target as HTMLImageElement).parentElement;
                                     if (parent) {
-                                      parent.innerHTML = '<div class="h-full w-full flex items-center justify-center text-red-500 text-xs">Invalid image</div>';
+                                      replaceWithInvalidImageText(parent);
                                     }
                                   }}
                                 />

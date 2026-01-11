@@ -443,23 +443,31 @@ const markEarningsAsBonus: RequestHandler = async (req, res) => {
         select: { driverId: true },
       });
       
-      const driverIds = [...new Set(earnings.map((e: any) => e.driverId))];
+      const driverIds = [
+        ...new Set(
+          earnings
+            .map((e: any) => Number(e.driverId))
+            .filter((id: number) => Number.isFinite(id) && id > 0)
+        ),
+      ];
       
       // Notify drivers and admins via Socket.IO
       const io = (req as any).app?.get?.('io') || (global as any).io;
       if (io) {
         // Notify each driver
-        driverIds.forEach((driverId: number) => {
+        for (const driverId of driverIds) {
           io.to(`driver:${driverId}`).emit('referral-earnings-marked-as-bonus', {
-            earningIds: earnings.filter((e: any) => e.driverId === driverId).map((e: any) => e.id),
+            earningIds: earnings
+              .filter((e: any) => Number(e.driverId) === driverId)
+              .map((e: any) => e.id),
             bonusPaymentRef,
-            count: earnings.filter((e: any) => e.driverId === driverId).length,
+            count: earnings.filter((e: any) => Number(e.driverId) === driverId).length,
             processedBy: {
               id: adminId,
               name: (req as AuthedRequest).user?.name,
             },
           });
-        });
+        }
         
         // Notify admins
         io.emit('admin:referral-earnings-paid-as-bonus', {

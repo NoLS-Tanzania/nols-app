@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { prisma } from '@nolsaf/prisma';
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { requireAuth, requireRole } from '../middleware/auth.js';
+import { asyncHandler } from '../middleware/errorHandler.js';
 
 const router = Router();
 // Note: requireAuth and requireRole are already applied in index.ts at route registration
@@ -9,7 +10,9 @@ const router = Router();
 router.use(requireAuth as any, requireRole('ADMIN') as any);
 
 // GET /api/admin/notifications?tab=unread|viewed&page=1&pageSize=20
-router.get('/', async (req, res) => {
+router.get('/', asyncHandler(async (req, res) => {
+  // Set Content-Type early to ensure JSON response
+  res.setHeader('Content-Type', 'application/json');
   try {
     const tab = req.query.tab === 'viewed' ? 'viewed' : 'unread';
     const page = Number(req.query.page || 1);
@@ -38,7 +41,7 @@ router.get('/', async (req, res) => {
     ]);
 
     // Enrich notifications with property and owner info if available
-    const dto = await Promise.all(items.map(async (i) => {
+    const dto = await Promise.all(items.map(async (i: typeof items[number]) => {
       const baseDto: any = {
         id: i.id,
         title: i.title,
@@ -109,10 +112,12 @@ router.get('/', async (req, res) => {
     // Fail-open with empty list to avoid breaking admin UI
     res.json({ items: [], total: 0, totalUnread: 0 });
   }
-});
+}));
 
 // POST /api/admin/notifications/:id/mark-read
-router.post('/:id/mark-read', async (req, res) => {
+router.post('/:id/mark-read', asyncHandler(async (req, res) => {
+  // Set Content-Type early to ensure JSON response
+  res.setHeader('Content-Type', 'application/json');
   try {
     const { id } = req.params;
     // For admin, we can mark any notification as read (no userId/ownerId restriction)
@@ -130,6 +135,6 @@ router.post('/:id/mark-read', async (req, res) => {
     console.error('POST /api/admin/notifications/:id/mark-read failed:', err?.message || err);
     return res.status(500).json({ ok: false, error: String(err?.message || err) });
   }
-});
+}));
 
 export default router;

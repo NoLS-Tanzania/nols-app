@@ -7,7 +7,8 @@ import { AuthedRequest, requireAuth, requireRole } from "../middleware/auth.js";
 import { audit } from "../lib/audit.js";
 import { sanitizeText } from "../lib/sanitize.js";
 import rateLimit from "express-rate-limit";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
+import { asyncHandler } from "../middleware/errorHandler.js";
 
 // ============================================================
 // Constants
@@ -73,6 +74,7 @@ const listAuditsQuerySchema = z.object({
 // Helper Functions
 // ============================================================
 function sendError(res: Response, status: number, message: string, details?: any): void {
+  res.setHeader('Content-Type', 'application/json');
   res.status(status).json({
     error: message,
     ...(details && { details }),
@@ -80,6 +82,7 @@ function sendError(res: Response, status: number, message: string, details?: any
 }
 
 function sendSuccess<T>(res: Response, data?: T, message?: string): void {
+  res.setHeader('Content-Type', 'application/json');
   res.json({
     ok: true,
     ...(message && { message }),
@@ -124,12 +127,16 @@ function toCsv(rows: Array<Record<string, any>>, fields: readonly string[]): str
 // Validation middleware helper
 function validate<T extends z.ZodTypeAny>(schema: T) {
   return (req: any, res: Response, next: any) => {
-    const result = schema.safeParse(req.query);
-    if (!result.success) {
-      return sendError(res, 400, "Invalid request parameters", { errors: result.error.errors });
+    try {
+      const result = schema.safeParse(req.query);
+      if (!result.success) {
+        return sendError(res, 400, "Invalid request parameters", { errors: result.error.errors });
+      }
+      req.validatedQuery = result.data;
+      next();
+    } catch (validateError: any) {
+      sendError(res, 500, "Validation error", { error: validateError.message });
     }
-    req.validatedQuery = result.data;
-    next();
   };
 }
 
@@ -137,14 +144,17 @@ function validate<T extends z.ZodTypeAny>(schema: T) {
 // Router Setup
 // ============================================================
 const router = Router();
-router.use(requireAuth as unknown as RequestHandler);
-router.use(requireRole("ADMIN") as unknown as RequestHandler);
+// Note: Authentication is handled at the app level in index.ts
+// router.use(requireAuth as unknown as RequestHandler);
+// router.use(requireRole("ADMIN") as unknown as RequestHandler);
 router.use(limitAuditAccess);
 
 // ============================================================
 // GET /api/admin/audits
 // ============================================================
-router.get("/", validate(listAuditsQuerySchema), async (req: any, res) => {
+router.get("/", validate(listAuditsQuerySchema), asyncHandler(async (req: any, res) => {
+  // Set Content-Type early to ensure JSON response
+  res.setHeader('Content-Type', 'application/json');
   try {
     const {
       q,
@@ -246,17 +256,22 @@ router.get("/", validate(listAuditsQuerySchema), async (req: any, res) => {
     const effectiveTake = format === "csv" 
       ? Math.min(DEFAULT_MAX_RECORDS, MAX_RECORDS_LIMIT)
       : take;
-
     // Fetch total count and items
-    const [total, items] = await Promise.all([
-      prisma.adminAudit.count({ where }),
-      prisma.adminAudit.findMany({
-        where,
-        orderBy,
-        skip: format === "csv" ? 0 : skip,
-        take: effectiveTake,
-      }),
-    ]);
+    let total: number;
+    let items: any[];
+    try {
+      [total, items] = await Promise.all([
+        prisma.adminAudit.count({ where }),
+        prisma.adminAudit.findMany({
+          where,
+          orderBy,
+          skip: format === "csv" ? 0 : skip,
+          take: effectiveTake,
+        }),
+      ]);
+    } catch (queryError: any) {
+      throw queryError;
+    }
 
     // Filter by JSON search in memory if needed (MySQL JSON search limitation)
     let filteredItems = items;
@@ -286,13 +301,18 @@ router.get("/", validate(listAuditsQuerySchema), async (req: any, res) => {
       ? filteredItems.length 
       : total;
 
-    // Audit log access
-    await audit(req as AuthedRequest, "AUDIT_LOG_ACCESSED", "audits", null, {
-      filters: { adminId, targetId, action, from, to, q: q ? "***" : undefined },
-      format,
-      page: pageNum,
-      pageSize: pageSizeNum,
-    });
+    // Audit log access (don't fail if audit logging fails)
+    try {
+      await audit(req as AuthedRequest, "AUDIT_LOG_ACCESSED", "audits", null, {
+        filters: { adminId, targetId, action, from, to, q: q ? "***" : undefined },
+        format,
+        page: pageNum,
+        pageSize: pageSizeNum,
+      });
+    } catch (auditError: any) {
+      console.warn('[GET /admin/audits] Failed to log audit access:', auditError);
+      // Continue - don't fail the request if audit logging fails
+    }
 
     // Handle CSV export
     if (format === "csv") {
@@ -345,12 +365,11 @@ router.get("/", validate(listAuditsQuerySchema), async (req: any, res) => {
         items: [],
       });
     }
-
     console.error('[GET /admin/audits] Error:', err);
     sendError(res, 500, "Failed to fetch audit logs", {
       message: err.message || "Unknown error",
     });
   }
-});
+}) as RequestHandler);
 
 export default router;

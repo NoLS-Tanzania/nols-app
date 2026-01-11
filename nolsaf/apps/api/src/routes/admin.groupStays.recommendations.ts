@@ -115,10 +115,9 @@ router.get("/search", async (req, res) => {
               },
             },
           },
-          orderBy: [
-            { updatedAt: "desc" },
-            { createdAt: "desc" },
-          ],
+          // Use indexed id column for sorting to avoid "Out of sort memory" errors
+          // NOTE: id is monotonic and approximates "newest" (higher id = more recent)
+          orderBy: { id: "desc" },
           skip,
           take,
         }),
@@ -142,10 +141,31 @@ router.get("/search", async (req, res) => {
                 },
               },
             },
-            orderBy: [
-              { updatedAt: "desc" },
-              { createdAt: "desc" },
-            ],
+            // Use indexed id column for sorting to avoid "Out of sort memory" errors
+            orderBy: { id: "desc" },
+            skip,
+            take,
+          }),
+          (prisma as any).property.count({ where }),
+        ]);
+      } else if (queryErr?.message?.includes("sort memory") || queryErr?.cause?.originalCode === "1038") {
+        // Handle sort memory errors specifically - retry with indexed sort
+        console.warn("Sort memory error detected, retrying with indexed sort");
+        [properties, total] = await Promise.all([
+          (prisma as any).property.findMany({
+            where,
+            include: {
+              owner: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  phone: true,
+                },
+              },
+            },
+            // Use indexed id column for sorting to avoid "Out of sort memory" errors
+            orderBy: { id: "desc" },
             skip,
             take,
           }),
@@ -341,19 +361,21 @@ router.patch("/bookings/:id/confirm-property", async (req, res) => {
     // Verify property exists and is approved
     const property = await (prisma as any).property.findUnique({
       where: { id: propertyId },
-      select: { id: true, status: true, ownerId: true },
+      select: { id: true, status: true, ownerId: true, title: true },
     });
 
     if (!property || property.status !== "APPROVED") {
       return res.status(400).json({ error: "Property not found or not approved" });
     }
 
-    // Update booking with confirmed property
+    // Update booking with confirmed property and auto-assign owner
     const updated = await (prisma as any).groupBooking.update({
       where: { id: bookingId },
       data: {
         confirmedPropertyId: propertyId,
         propertyConfirmedAt: new Date(),
+        assignedOwnerId: property.ownerId, // Auto-assign property owner
+        ownerAssignedAt: new Date(),
         status: "CONFIRMED",
       },
       include: {
@@ -365,19 +387,130 @@ router.patch("/bookings/:id/confirm-property", async (req, res) => {
             phone: true,
           },
         },
+        assignedOwner: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+          },
+        },
       },
     });
 
-    // TODO: 
-    // 1. Notify property owner about the booking
-    // 2. Create booking/invoice for payment processing
-    // 3. Send confirmation to user
+    // Create audit log for auto-assignment
+    try {
+      const adminId = (req as any).user?.id;
+      if (adminId) {
+        await (prisma as any).groupBookingAudit.create({
+          data: {
+            groupBookingId: bookingId,
+            adminId: adminId,
+            action: "OWNER_AUTO_ASSIGNED",
+            description: `Owner auto-assigned after user confirmed property. Property Owner: ${updated.assignedOwner?.name || updated.assignedOwner?.email || `#${property.ownerId}`}`,
+            metadata: { 
+              propertyId, 
+              ownerId: property.ownerId,
+              ownerName: updated.assignedOwner?.name || updated.assignedOwner?.email || null,
+              autoAssigned: true 
+            },
+          },
+        });
+      }
+    } catch (auditError) {
+      console.warn("Failed to create audit log for auto-assignment:", auditError);
+    }
+
+    // Notify property owner about the booking assignment
+    try {
+      const { notifyOwner } = await import("../lib/notifications.js");
+      if (property.ownerId && updated.assignedOwner) {
+        await notifyOwner(property.ownerId, "group_stay_assigned", {
+          bookingId: bookingId,
+          propertyId: propertyId,
+          groupType: updated.groupType || "Group Stay",
+          headcount: updated.headcount || 0,
+          checkIn: updated.checkIn,
+          checkOut: updated.checkOut,
+          customerName: updated.user?.name || "Customer",
+        });
+
+        // Create notification for owner
+        await prisma.notification.create({
+          data: {
+            userId: property.ownerId,
+            ownerId: property.ownerId,
+            title: "New Group Stay Assignment",
+            body: `You have been assigned to handle a group stay booking for ${updated.user?.name || "a customer"}. The customer has confirmed interest in your property.`,
+            unread: true,
+            type: "group_stay",
+            meta: {
+              type: "group_stay",
+              bookingId: bookingId,
+              propertyId: propertyId,
+              status: "CONFIRMED",
+            },
+          },
+        });
+
+        // Emit real-time notification to owner
+        try {
+          const io = (req.app as any)?.get?.("io") || (global as any).io;
+          if (io && typeof io.to === "function") {
+            io.to(`owner:${property.ownerId}`).emit("notification:new", {
+              title: "New Group Stay Assignment",
+              body: `You have been assigned to handle a group stay booking for ${updated.user?.name || "a customer"}.`,
+              type: "group_stay",
+              bookingId: bookingId,
+            });
+          }
+        } catch (ioErr) {
+          console.error("Failed to emit Socket.IO notification to owner:", ioErr);
+        }
+      }
+    } catch (notifyErr) {
+      console.error("Failed to notify owner:", notifyErr);
+      // Don't fail the request if notification fails
+    }
+
+    // Send confirmation notification to user
+    try {
+      const { notifyUser } = await import("../lib/notifications.js");
+      await notifyUser(updated.userId, "group_stay_confirmed", {
+        bookingId: bookingId,
+        propertyId: propertyId,
+        propertyTitle: property.title || "Property",
+        status: "CONFIRMED",
+      });
+
+      // Create notification for user
+      await prisma.notification.create({
+        data: {
+          userId: updated.userId,
+          ownerId: null,
+          title: "Property Confirmation Received",
+          body: `Thank you for confirming your interest. We've assigned a property owner to handle your group stay. They will contact you shortly with details.`,
+          unread: true,
+          type: "group_stay",
+          meta: {
+            type: "group_stay",
+            bookingId: bookingId,
+            propertyId: propertyId,
+            status: "CONFIRMED",
+          },
+        },
+      });
+    } catch (userNotifyErr) {
+      console.error("Failed to notify user:", userNotifyErr);
+      // Don't fail the request if notification fails
+    }
 
     return res.json({
       success: true,
       booking: {
         id: updated.id,
         confirmedPropertyId: updated.confirmedPropertyId,
+        assignedOwnerId: updated.assignedOwnerId,
         status: updated.status,
       },
     });

@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
-import { BarChart3, Truck, Search, Calendar, DollarSign, Star } from "lucide-react";
+import { useEffect, useState, useCallback } from "react";
+import { BarChart3, Truck, Search, Calendar, DollarSign, Star, Loader2 } from "lucide-react";
 import axios from "axios";
 
 const api = axios.create({ baseURL: "", withCredentials: true });
@@ -31,11 +31,20 @@ export default function AdminDriversStatsPage() {
     loadDrivers();
   }, []);
 
+  const loadDriverStats = useCallback(async (driverId: number) => {
+    try {
+      const r = await api.get<StatsData>(`/admin/drivers/${driverId}/stats`, { params: { date: selectedDate } });
+      setStatsData(r.data);
+    } catch (err) {
+      console.error("Failed to load driver stats", err);
+    }
+  }, [selectedDate]);
+
   useEffect(() => {
     if (selectedDriver) {
       loadDriverStats(selectedDriver);
     }
-  }, [selectedDriver, selectedDate]);
+  }, [selectedDriver, loadDriverStats]);
 
   async function loadDrivers() {
     setLoading(true);
@@ -46,15 +55,6 @@ export default function AdminDriversStatsPage() {
       console.error("Failed to load drivers", err);
     } finally {
       setLoading(false);
-    }
-  }
-
-  async function loadDriverStats(driverId: number) {
-    try {
-      const r = await api.get<StatsData>(`/admin/drivers/${driverId}/stats`, { params: { date: selectedDate } });
-      setStatsData(r.data);
-    } catch (err) {
-      console.error("Failed to load driver stats", err);
     }
   }
 
@@ -97,7 +97,19 @@ export default function AdminDriversStatsPage() {
               </div>
             </div>
             <div className="divide-y divide-gray-200 max-h-[600px] overflow-y-auto">
-              {filteredDrivers.map((driver) => (
+              {loading ? (
+                <div className="flex flex-col items-center justify-center py-12 px-4">
+                  <Loader2 className="h-8 w-8 text-emerald-600 animate-spin mb-4" />
+                  <p className="text-sm font-medium text-gray-700">Loading drivers...</p>
+                </div>
+              ) : filteredDrivers.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 px-4">
+                  <Search className="h-8 w-8 text-gray-400 mb-4" />
+                  <p className="text-sm font-medium text-gray-700 mb-1">No drivers found</p>
+                  <p className="text-xs text-gray-500 text-center">Try adjusting your search</p>
+                </div>
+              ) : (
+                filteredDrivers.map((driver) => (
                 <div
                   key={driver.id}
                   onClick={() => setSelectedDriver(driver.id)}
@@ -115,7 +127,8 @@ export default function AdminDriversStatsPage() {
                     </div>
                   </div>
                 </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -127,11 +140,13 @@ export default function AdminDriversStatsPage() {
                 <h2 className="text-xl font-bold text-gray-900 mb-2">{statsData.driver.name}</h2>
                 <p className="text-sm text-gray-500 mb-4">{statsData.driver.email}</p>
                 <div className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-gray-400" />
+                  <Calendar className="h-4 w-4 text-gray-400" aria-hidden="true" />
                   <input
                     type="date"
                     value={selectedDate}
                     onChange={(e) => setSelectedDate(e.target.value)}
+                    aria-label="Select date for statistics"
+                    title="Select date for statistics"
                     className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                   />
                 </div>

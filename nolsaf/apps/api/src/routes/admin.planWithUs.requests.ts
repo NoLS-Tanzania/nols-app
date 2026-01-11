@@ -2,19 +2,63 @@ import { Router } from "express";
 import type { RequestHandler } from "express";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { prisma } from "@nolsaf/prisma";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { sanitizeText } from "../lib/sanitize.js";
 import { limitPlanRequestMessages } from "../middleware/rateLimit.js";
 import { AuthedRequest } from "../middleware/auth.js";
 import { sendMail } from "../lib/mailer.js";
 import { getPlanRequestResponseEmail, getPlanRequestAgentAssignmentEmail } from "../lib/planRequestEmailTemplates.js";
 import { notifyUser } from "../lib/notifications.js";
+import { z } from "zod";
+import { audit } from "../lib/audit.js";
+import rateLimit from "express-rate-limit";
 
 export const router = Router();
 router.use(requireAuth as unknown as RequestHandler, requireRole("ADMIN") as unknown as RequestHandler);
 
+// Rate limiters
+const limitPlanRequestList = rateLimit({
+  windowMs: 60_000, // 1 minute
+  max: 30, // 30 requests per minute per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests. Please wait a moment and try again." },
+});
+
+const limitPlanRequestUpdate = rateLimit({
+  windowMs: 60_000, // 1 minute
+  max: 10, // 10 updates per minute per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many update requests. Please wait a moment and try again." },
+});
+
+// Validation schemas
+const updateRequestSchema = z.object({
+  status: z.enum(["NEW", "IN_PROGRESS", "COMPLETED"]).optional(),
+  adminResponse: z.string().max(10000).optional().nullable(),
+  suggestedItineraries: z.string().max(50000).optional().nullable(),
+  requiredPermits: z.string().max(5000).optional().nullable(),
+  estimatedTimeline: z.string().max(2000).optional().nullable(),
+  assignedAgent: z.string().max(200).optional().nullable(),
+  assignedAgentId: z.number().int().positive().nullable().optional(),
+}).strict();
+
+// Validation middleware
+function validateUpdateRequest(req: any, res: any, next: any) {
+  const result = updateRequestSchema.safeParse(req.body);
+  if (!result.success) {
+    return res.status(400).json({ 
+      error: "Invalid request data", 
+      details: result.error.errors.map(e => ({ path: e.path.join('.'), message: e.message }))
+    });
+  }
+  req.validatedBody = result.data;
+  next();
+}
+
 /** GET /admin/plan-with-us/requests?role=&tripType=&status=&date=&start=&end=&page=&pageSize=&q= */
-router.get("/", async (req, res) => {
+router.get("/", limitPlanRequestList, async (req, res) => {
   try {
     const { role, tripType, status, date, start, end, page = "1", pageSize = "50", q = "" } = req.query as any;
 
@@ -269,7 +313,7 @@ router.get("/stats", async (req, res) => {
 });
 
 /** POST /admin/plan-with-us/requests/:id/message - Send a quick message response to user */
-router.post("/:id/message", limitPlanRequestMessages, async (req: AuthedRequest, res) => {
+router.post("/:id/message", limitPlanRequestMessages, (async (req: AuthedRequest, res) => {
   try {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) {
@@ -297,6 +341,12 @@ router.post("/:id/message", limitPlanRequestMessages, async (req: AuthedRequest,
       return res.status(401).json({ error: "Authentication required" });
     }
 
+    // Fetch admin user details to get name
+    const adminUserDetails = await prisma.user.findUnique({
+      where: { id: adminUser.id },
+      select: { id: true, name: true, email: true },
+    });
+
     // Sanitize message content to prevent XSS
     const sanitizedMessage = sanitizeText(message);
 
@@ -306,7 +356,7 @@ router.post("/:id/message", limitPlanRequestMessages, async (req: AuthedRequest,
         planRequestId: id,
         senderId: adminUser.id,
         senderRole: "ADMIN",
-        senderName: adminUser.name || "Admin",
+        senderName: adminUserDetails?.name || "Admin",
         messageType: "Admin Response",
         body: sanitizedMessage,
         isInternal: false,
@@ -323,15 +373,30 @@ router.post("/:id/message", limitPlanRequestMessages, async (req: AuthedRequest,
       },
     });
 
+    // Audit log the message
+    await audit(
+      req as AuthedRequest,
+      "PLAN_REQUEST_MESSAGE_SENT",
+      `plan-request:${id}`,
+      null,
+      { messageLength: sanitizedMessage.length, senderId: adminUser.id }
+    );
+
     return res.json({
       success: true,
       message: "Message sent successfully",
     });
   } catch (error: any) {
+    const isProduction = process.env.NODE_ENV === "production";
     console.error("POST /admin/plan-with-us/requests/:id/message error:", error);
-    return res.status(500).json({ error: "Failed to send message" });
+    
+    // Don't expose internal error details in production
+    return res.status(500).json({ 
+      error: "Failed to send message",
+      ...(isProduction ? {} : { details: error?.message })
+    });
   }
-});
+}) as RequestHandler);
 
 /** GET /admin/plan-with-us/requests/:id/messages - Get conversation messages for a plan request */
 router.get("/:id/messages", async (req, res) => {
@@ -462,13 +527,17 @@ router.get("/:id", async (req, res) => {
       throw e;
     }
   } catch (err: any) {
+    const isProd = process.env.NODE_ENV === "production";
     console.error('Unhandled error in GET /admin/plan-with-us/requests/:id:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ 
+      error: 'Internal server error',
+      ...(isProd ? {} : { details: err?.message })
+    });
   }
 });
 
 /** PATCH /admin/plan-with-us/requests/:id */
-router.patch("/:id", async (req, res) => {
+router.patch("/:id", limitPlanRequestUpdate, validateUpdateRequest, (async (req: AuthedRequest, res) => {
   try {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) {
@@ -483,7 +552,7 @@ router.patch("/:id", async (req, res) => {
       estimatedTimeline,
       assignedAgent,
       assignedAgentId,
-    } = req.body;
+    } = (req as any).validatedBody;
 
     // Get the current plan request to check previous status and agent assignment
     const currentRequest = await (prisma as any).planRequest.findUnique({
@@ -508,11 +577,22 @@ router.patch("/:id", async (req, res) => {
     const updateData: any = {};
     
     if (status) updateData.status = status;
-    if (adminResponse !== undefined) updateData.adminResponse = adminResponse;
-    if (suggestedItineraries !== undefined) updateData.suggestedItineraries = suggestedItineraries;
-    if (requiredPermits !== undefined) updateData.requiredPermits = requiredPermits;
-    if (estimatedTimeline !== undefined) updateData.estimatedTimeline = estimatedTimeline;
-    if (assignedAgent !== undefined) updateData.assignedAgent = assignedAgent;
+    // Sanitize all text inputs to prevent XSS
+    if (adminResponse !== undefined && adminResponse !== null) {
+      updateData.adminResponse = sanitizeText(adminResponse);
+    }
+    if (suggestedItineraries !== undefined && suggestedItineraries !== null) {
+      updateData.suggestedItineraries = sanitizeText(suggestedItineraries);
+    }
+    if (requiredPermits !== undefined && requiredPermits !== null) {
+      updateData.requiredPermits = sanitizeText(requiredPermits);
+    }
+    if (estimatedTimeline !== undefined && estimatedTimeline !== null) {
+      updateData.estimatedTimeline = sanitizeText(estimatedTimeline);
+    }
+    if (assignedAgent !== undefined && assignedAgent !== null) {
+      updateData.assignedAgent = sanitizeText(assignedAgent);
+    }
     if (assignedAgentId !== undefined && assignedAgentId !== null) {
       updateData.assignedAgentId = Number(assignedAgentId);
       // If agent is assigned and it's a new assignment (and request is not already COMPLETED), increment their workload
@@ -618,10 +698,15 @@ router.patch("/:id", async (req, res) => {
           // Send email notification to customer if admin responded (status = COMPLETED with response fields)
           try {
             const adminUser = req.user;
+            // Fetch admin user details to get name
+            const adminUserDetails = adminUser ? await prisma.user.findUnique({
+              where: { id: adminUser.id },
+              select: { name: true },
+            }) : null;
             const customerEmail = getPlanRequestResponseEmail({
               customerName: currentRequest.fullName || "Customer",
               requestId: currentRequest.id,
-              adminName: adminUser?.name || undefined,
+              adminName: adminUserDetails?.name || undefined,
               hasItineraries: !!result.suggestedItineraries,
               hasPermits: !!result.requiredPermits,
               hasTimeline: !!result.estimatedTimeline,
@@ -697,10 +782,15 @@ router.patch("/:id", async (req, res) => {
       if (status === "COMPLETED" && (adminResponse || suggestedItineraries || requiredPermits || estimatedTimeline)) {
         try {
           const adminUser = req.user;
+          // Fetch admin user details to get name
+          const adminUserDetails = adminUser ? await prisma.user.findUnique({
+            where: { id: adminUser.id },
+            select: { name: true },
+          }) : null;
           const customerEmail = getPlanRequestResponseEmail({
             customerName: currentRequest.fullName || "Customer",
             requestId: currentRequest.id,
-            adminName: adminUser?.name || undefined,
+            adminName: adminUserDetails?.name || undefined,
             hasItineraries: !!suggestedItineraries,
             hasPermits: !!requiredPermits,
             hasTimeline: !!estimatedTimeline,
@@ -764,10 +854,14 @@ router.patch("/:id", async (req, res) => {
       throw e;
     }
   } catch (err: any) {
+    const isProd = process.env.NODE_ENV === "production";
     console.error('Unhandled error in PATCH /admin/plan-with-us/requests/:id:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ 
+      error: 'Internal server error',
+      ...(isProd ? {} : { details: err?.message })
+    });
   }
-});
+}) as RequestHandler);
 
 export default router;
 

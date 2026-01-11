@@ -85,6 +85,26 @@ export async function generateBookingReservationHTML(details: BookingDetails): P
   // Generate QR code
   const qrCodeDataUrl = await generateBookingQRCode(details);
 
+  const parseValidDate = (value: Date | string | undefined | null): Date | null => {
+    try {
+      if (value == null) return null;
+      const d = new Date(value);
+      return Number.isNaN(d.getTime()) ? null : d;
+    } catch {
+      return null;
+    }
+  };
+
+  const formatDate = (value: Date | string | undefined | null): string => {
+    const d = parseValidDate(value);
+    if (!d) return "—";
+    return d.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  };
+
   // Logo: use a configured image URL if provided; otherwise embed a print-safe SVG logo.
   const inlineLogoSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96" role="img" aria-label="NoLSAF logo"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#02665e"/><stop offset="1" stop-color="#014d47"/></linearGradient></defs><rect x="6" y="6" width="84" height="84" rx="22" fill="url(#g)"/><path d="M28 63V33h7l19 20V33h7v30h-7L35 43v20h-7z" fill="#fff" opacity="0.98"/></svg>`;
   const inlineLogoDataUri = `data:image/svg+xml;base64,${Buffer.from(inlineLogoSvg, "utf8").toString("base64")}`;
@@ -102,28 +122,19 @@ export async function generateBookingReservationHTML(details: BookingDetails): P
     hour: "2-digit",
     minute: "2-digit",
   });
-  const checkIn = new Date(details.checkIn).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-  const checkOut = new Date(details.checkOut).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-  const nights = details.nights || Math.ceil(
-    (new Date(details.checkOut).getTime() - new Date(details.checkIn).getTime()) /
-      (1000 * 60 * 60 * 24)
-  );
+  const checkIn = formatDate(details.checkIn);
+  const checkOut = formatDate(details.checkOut);
+  const providedNights = typeof details.nights === "number" && Number.isFinite(details.nights) ? details.nights : null;
+  const computedNights = (() => {
+    const ci = parseValidDate(details.checkIn);
+    const co = parseValidDate(details.checkOut);
+    if (!ci || !co) return null;
+    const diffDays = Math.ceil((co.getTime() - ci.getTime()) / (1000 * 60 * 60 * 24));
+    return Number.isFinite(diffDays) && diffDays > 0 ? diffDays : null;
+  })();
+  const nights = Math.max(1, Math.floor(providedNights ?? computedNights ?? 1));
   const amount = Number(details.totalAmount || 0).toLocaleString("en-US");
-  const paidAt = details.invoice?.paidAt
-    ? new Date(details.invoice.paidAt).toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      })
-    : null;
+  const paidAt = details.invoice?.paidAt ? formatDate(details.invoice.paidAt) : null;
 
   return `
 <!DOCTYPE html>

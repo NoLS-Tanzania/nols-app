@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Download, Loader2 } from "lucide-react";
+import { sanitizeTrustedHtml } from "@/utils/html";
 
 export default function AdminReceiptPdfPage({ params }: { params: { id: string } }) {
   const invoiceId = Number(params.id);
@@ -58,6 +59,10 @@ export default function AdminReceiptPdfPage({ params }: { params: { id: string }
     return html;
   }, [receiptHtml, printedAt, printedBy]);
 
+  const sanitizedReceiptHtmlWithMeta = useMemo(() => {
+    return sanitizeTrustedHtml(receiptHtmlWithMeta);
+  }, [receiptHtmlWithMeta]);
+
   // Load current admin (for "Printed by")
   useEffect(() => {
     let mounted = true;
@@ -87,7 +92,6 @@ export default function AdminReceiptPdfPage({ params }: { params: { id: string }
     try {
       const url = `/api/admin/revenue/invoices/${invoiceId}/receipt.html`;
       const r = await fetch(url, { credentials: "include", cache: "no-store" });
-      const ct = r.headers.get("content-type") || "";
       const html = await r.text();
       if (!r.ok) {
         throw new Error(`Failed to load receipt template (${r.status})`);
@@ -116,7 +120,7 @@ export default function AdminReceiptPdfPage({ params }: { params: { id: string }
   useEffect(() => {
     let revokedUrl: string | null = null;
     async function gen() {
-      if (!receiptHtmlWithMeta) return;
+      if (!sanitizedReceiptHtmlWithMeta) return;
       const root = containerRef.current;
       if (!root) return;
 
@@ -153,7 +157,7 @@ export default function AdminReceiptPdfPage({ params }: { params: { id: string }
         try { URL.revokeObjectURL(revokedUrl); } catch {}
       }
     };
-  }, [receiptHtmlWithMeta, filename, invoiceId, printedAt, printedBy]);
+  }, [sanitizedReceiptHtmlWithMeta, filename, invoiceId, printedAt, printedBy]);
 
   if (loading) {
     return (
@@ -220,13 +224,13 @@ export default function AdminReceiptPdfPage({ params }: { params: { id: string }
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
-          <iframe title="Receipt Template" srcDoc={receiptHtmlWithMeta} className="w-full h-[75vh]" />
+          <iframe title="Receipt Template" srcDoc={sanitizedReceiptHtmlWithMeta} className="w-full h-[75vh]" />
         </div>
       )}
 
       {/* Hidden source HTML for PDF generation */}
       <div className="fixed left-[-10000px] top-0">
-        <div ref={containerRef} dangerouslySetInnerHTML={{ __html: receiptHtmlWithMeta }} />
+        <div ref={containerRef} dangerouslySetInnerHTML={{ __html: sanitizedReceiptHtmlWithMeta }} />
       </div>
     </div>
   );

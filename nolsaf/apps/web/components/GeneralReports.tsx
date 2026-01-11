@@ -3,6 +3,7 @@ import React, { useRef, useState, useEffect } from "react";
 import { Download } from 'lucide-react';
 import Chart from "@/components/Chart";
 import { REGIONS } from '@/lib/tzRegions';
+import { escapeAttr, escapeHtml } from "@/utils/html";
 
 export default function GeneralReports() {
   const [activeTab, setActiveTab] = useState<'financial'|'invoices'>('financial');
@@ -152,10 +153,10 @@ export default function GeneralReports() {
         return;
       }
       const htmlParts: string[] = ['<html><head><title>General Reports Export</title></head><body>'];
-      htmlParts.push(`<h1>General Reports - ${region} - ${timeframe}</h1>`);
+      htmlParts.push(`<h1>General Reports - ${escapeHtml(region)} - ${escapeHtml(timeframe)}</h1>`);
       imgs.forEach(im => {
-        htmlParts.push(`<h2 style="font-family: sans-serif;">${im.title}</h2>`);
-        if (im.dataUrl) htmlParts.push(`<img src="${im.dataUrl}" style="max-width:100%;height:auto;margin-bottom:24px;border:1px solid #ddd;"/>`);
+        htmlParts.push(`<h2 style="font-family: sans-serif;">${escapeHtml(im.title)}</h2>`);
+        if (im.dataUrl) htmlParts.push(`<img src="${escapeAttr(im.dataUrl)}" style="max-width:100%;height:auto;margin-bottom:24px;border:1px solid #ddd;"/>`);
         else htmlParts.push('<p style="font-family: sans-serif;color:#666;">(chart not available)</p>');
       });
       htmlParts.push('</body></html>');

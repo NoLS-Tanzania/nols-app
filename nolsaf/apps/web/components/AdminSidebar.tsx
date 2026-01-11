@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React from "react";
-import { Home, LayoutDashboard, Users, Truck, LineChart, Building2, Calendar, FileText, Wallet, Settings, ChevronDown, ChevronRight, ShieldCheck, Link2, Receipt, ListFilter, CheckCircle, Award, Megaphone, UserPlus, Trophy, Bell, BarChart3, Activity, Eye, Briefcase, MessageSquare, Ban, Bot } from "lucide-react";
+import { Home, LayoutDashboard, Users, Truck, LineChart, Building2, Calendar, FileText, Wallet, Settings, ChevronDown, ChevronRight, ShieldCheck, Link2, Receipt, ListFilter, CheckCircle, Award, Megaphone, UserPlus, Trophy, Bell, BarChart3, Activity, Eye, Briefcase, MessageSquare, Ban, Bot, Gift } from "lucide-react";
 import { useEffect, useState } from "react";
 
 type Item = {
@@ -81,6 +81,8 @@ const groupStayDetails: Item[] = [
   { href: "/admin/group-stays", label: "Dashboard", Icon: LayoutDashboard },
   { href: "/admin/group-stays/bookings", label: "Bookings", Icon: Calendar },
   { href: "/admin/group-stays/requests", label: "Requests", Icon: FileText },
+  { href: "/admin/group-stays/claims", label: "Submitted Claims", Icon: Gift },
+  { href: "/admin/group-stays/assignments", label: "Assignments", Icon: Users },
   { href: "/admin/group-stays/passengers", label: "Passengers", Icon: Users },
   { href: "/admin/group-stays/arrangements", label: "Arrangements", Icon: Settings },
 ];
@@ -149,7 +151,7 @@ export default function AdminNav({ variant = "light", collapsed = false }: { var
     const isAgents = path.startsWith("/admin/agents");
     const isCancellations = path.startsWith("/admin/cancellations");
     // Owner (admin) mini-sidebar: open when on /admin (owners dashboard) or admin child routes
-    // but NOT on /admin/home (which is the admin home page, not owners)
+    // but NOT on /admin/home (which is the admin , not owners)
     const isAdminChildRoute = (path === "/admin" ||
                                 path === "/admin/owners" || path.startsWith("/admin/owners/") ||
                                 path === "/admin/bookings" || path.startsWith("/admin/bookings/") ||

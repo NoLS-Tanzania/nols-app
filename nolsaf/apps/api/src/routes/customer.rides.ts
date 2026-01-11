@@ -11,9 +11,9 @@ router.use(requireAuth as RequestHandler);
  * Get all transportation/ride bookings for the authenticated customer
  * Query params: status, page, pageSize
  */
-router.get("/", async (req: AuthedRequest, res) => {
+router.get("/", async (req, res) => {
   try {
-    const userId = req.user!.id;
+    const userId = (req as AuthedRequest).user!.id;
     const { status, page = "1", pageSize = "20" } = req.query as any;
     
     // Note: This assumes you have a TransportBooking or similar model

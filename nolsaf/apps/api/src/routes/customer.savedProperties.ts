@@ -37,33 +37,27 @@ const propertyIdParamSchema = z.object({
 });
 
 // Type definitions
-type SavedPropertyWithRelations = Awaited<
-  ReturnType<typeof prisma.savedProperty.findMany<{
-    include: {
-      property: {
-        select: {
-          id: true;
-          title: true;
-          type: true;
-          regionName: true;
-          district: true;
-          city: true;
-          street: true;
-          ward: true;
-          basePrice: true;
-          currency: true;
-          photos: true;
-          images: {
-            where: { status: "READY" };
-            orderBy: { createdAt: "asc" };
-            take: 1;
-            select: { url: true };
-          };
-        };
-      };
-    };
-  }>>
->[number];
+type SavedPropertyWithRelations = {
+  id: number;
+  createdAt: Date;
+  updatedAt: Date;
+  property: {
+    id: number;
+    title: string;
+    type: string;
+    regionName: string | null;
+    district: string | null;
+    city: string | null;
+    street: string | null;
+    ward: string | null;
+    basePrice: any;
+    currency: string | null;
+    photos: any;
+    images?: Array<{ url: string | null }>;
+  };
+  savedAt: Date;
+  sharedAt: Date | null;
+};
 
 type PropertyItem = {
   id: number;

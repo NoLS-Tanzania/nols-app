@@ -162,7 +162,7 @@ export default function Page() {
                             {m.meta.propertyTitle || `Property #${m.meta.propertyId}`}
                           </div>
                           <Link 
-                            href={`/admin/properties?previewId=${m.meta.propertyId}`}
+                            href={`/admin/properties/previews?previewId=${m.meta.propertyId}`}
                             className="inline-flex items-center gap-1.5 text-xs text-[#02665e] hover:text-[#014e47] font-medium underline transition-colors"
                           >
                             View Property <ExternalLink className="w-3.5 h-3.5" />

@@ -572,7 +572,7 @@ export default function AdminHome() {
             {/* Equal-height grid for quick-links: two columns, two rows, matching tile heights */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 auto-rows-fr">
               <div className="h-full">
-                <QLink href="/admin/properties" label="Manage Properties" Icon={Building2} color="bg-[#02665e]" />
+                <QLink href="/admin/properties/previews" label="Manage Properties" Icon={Building2} color="bg-[#02665e]" />
               </div>
               <div className="h-full">
                 <QLink href="/admin/owners" label="View Owners" Icon={Users} color="bg-sky-600" />

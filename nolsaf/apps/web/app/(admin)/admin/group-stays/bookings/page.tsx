@@ -1,14 +1,38 @@
 "use client";
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
-import { Users, Search, X, Calendar, MapPin, Clock, User, BarChart3, Home, UsersRound, CheckCircle, AlertCircle, Loader2, XCircle, Circle, Mail, Phone, FileText, Truck, Bus, Coffee, Wrench, Send, MessageSquare, Edit, CheckCircle2, Building2, Star, Plus, Trash2, Tag, ChevronDown, ChevronUp, Globe, DollarSign, Sparkles, Gift, ArrowRight } from "lucide-react";
+import { Users, Search, X, Calendar, MapPin, Clock, User, BarChart3, UsersRound, CheckCircle, AlertCircle, Loader2, XCircle, Mail, Phone, FileText, Truck, Bus, Coffee, Wrench, Send, MessageSquare, Edit, CheckCircle2, Building2, Plus, Trash2, Tag, ChevronDown, Globe, DollarSign, Sparkles, Gift, ArrowRight } from "lucide-react";
 import DatePicker from "@/components/ui/DatePicker";
 import axios from "axios";
 import Chart from "@/components/Chart";
 import type { ChartData } from "chart.js";
+import Image from "next/image";
+import { useSearchParams } from "next/navigation";
 
 // Use same-origin for HTTP calls so Next.js rewrites proxy to the API
 const api = axios.create({ baseURL: "", withCredentials: true });
-function authify() {}
+
+function authify() {
+  if (typeof window === "undefined") return;
+
+  // Most of the app uses a Bearer token (often stored in localStorage).
+  // The API endpoints are protected by requireAuth, so we must attach it.
+  const lsToken =
+    window.localStorage.getItem("token") ||
+    window.localStorage.getItem("nolsaf_token") ||
+    window.localStorage.getItem("__Host-nolsaf_token");
+
+  if (lsToken) {
+    api.defaults.headers.common["Authorization"] = `Bearer ${lsToken}`;
+    return;
+  }
+
+  // Fallback: non-httpOnly cookie (if present)
+  const m = String(document.cookie || "").match(/(?:^|;\s*)(?:nolsaf_token|__Host-nolsaf_token)=([^;]+)/);
+  const cookieToken = m?.[1] ? decodeURIComponent(m[1]) : "";
+  if (cookieToken) {
+    api.defaults.headers.common["Authorization"] = `Bearer ${cookieToken}`;
+  }
+}
 
 type GroupBookingRow = {
   id: number;
@@ -37,6 +61,8 @@ type GroupBookingRow = {
   pickupTime?: string | null;
   arrangementNotes?: string | null;
   notes?: string | null;
+  isOpenForClaims?: boolean; // Whether booking is open for owner claims/offers
+  openedForClaimsAt?: string | null; // When booking was opened for claims
 };
 
 function badgeClasses(v: string) {
@@ -82,6 +108,7 @@ type SummaryData = {
 };
 
 export default function AdminGroupStaysBookingsPage() {
+  const searchParams = useSearchParams();
   const [status, setStatus] = useState<string>("");
   const [groupType, setGroupType] = useState<string>("");
   const [date, setDate] = useState<string | string[]>("");
@@ -102,7 +129,6 @@ export default function AdminGroupStaysBookingsPage() {
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
 
   // Modal state for booking details
-  const [selectedBooking, setSelectedBooking] = useState<GroupBookingRow | null>(null);
   const [bookingDetails, setBookingDetails] = useState<GroupBookingRow | null>(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
@@ -152,6 +178,16 @@ export default function AdminGroupStaysBookingsPage() {
   const [selectedProperties, setSelectedProperties] = useState<any[]>([]);
   const [attachingProperties, setAttachingProperties] = useState(false);
   const [recommendedPropertyIds, setRecommendedPropertyIds] = useState<number[]>([]);
+
+  // Claims review state - Premium admin interface for reviewing owner offers
+  const [claimsData, setClaimsData] = useState<any>(null);
+  const [claimsLoading, setClaimsLoading] = useState(false);
+  const [selectedClaimIds, setSelectedClaimIds] = useState<number[]>([]); // Selected claims for recommendation (max 3)
+  const [recommendingClaims, setRecommendingClaims] = useState(false);
+  const [startingClaimsReview, setStartingClaimsReview] = useState(false);
+  const [comparisonView, setComparisonView] = useState<"grid" | "list">("grid");
+  const [claimsFilter, setClaimsFilter] = useState<"all" | "pending" | "accepted" | "rejected">("all");
+  const [showShortlistOnly, setShowShortlistOnly] = useState(true);
 
   async function load() {
     setLoading(true);
@@ -288,6 +324,10 @@ export default function AdminGroupStaysBookingsPage() {
       await loadPassengers(bookingId);
       // Load conversation messages
       await loadConversationMessages(bookingId);
+      // Load submitted claims if booking is open for claims
+      if ((r.data as any).isOpenForClaims === true) {
+        await loadClaims(bookingId);
+      }
     } catch (err) {
       console.error("Failed to load booking details", err);
       alert("Failed to load booking details");
@@ -297,7 +337,6 @@ export default function AdminGroupStaysBookingsPage() {
   };
 
   const handleViewBooking = (booking: GroupBookingRow) => {
-    setSelectedBooking(booking);
     loadBookingDetails(booking.id);
   };
 
@@ -455,13 +494,122 @@ export default function AdminGroupStaysBookingsPage() {
     }
   };
 
+  // Load submitted claims for a group booking
+  const loadClaims = async (bookingId: number) => {
+    setClaimsLoading(true);
+    try {
+      const response = await api.get(`/api/admin/group-stays/claims/${bookingId}`);
+      setClaimsData(response.data);
+
+      const serverRecommendedIds = Array.isArray(response.data?.recommendedClaimIds)
+        ? response.data.recommendedClaimIds
+        : [];
+      setSelectedClaimIds(serverRecommendedIds);
+
+      const shortlistIds = [
+        response.data?.shortlist?.high?.id,
+        response.data?.shortlist?.mid?.id,
+        response.data?.shortlist?.low?.id,
+      ].filter(Boolean);
+      setShowShortlistOnly(shortlistIds.length > 0);
+    } catch (err: any) {
+      console.error("Failed to load claims:", err);
+      setClaimsData(null);
+    } finally {
+      setClaimsLoading(false);
+    }
+  };
+
+  // Toggle claim selection for recommendation (max 3)
+  const toggleClaimSelection = (claimId: number) => {
+    setSelectedClaimIds((prev) => {
+      if (prev.includes(claimId)) {
+        // Deselect
+        return prev.filter((id) => id !== claimId);
+      } else {
+        // Select (max 3)
+        if (prev.length >= 3) {
+          alert("You can only select up to 3 claims for recommendation");
+          return prev;
+        }
+        return [...prev, claimId];
+      }
+    });
+  };
+
+  // Submit selected claims as recommendations
+  const handleRecommendClaims = async () => {
+    if (!bookingDetails || selectedClaimIds.length === 0) return;
+    
+    setRecommendingClaims(true);
+    try {
+      const response = await api.post(`/api/admin/group-stays/claims/${bookingDetails.id}/recommendations`, {
+        claimIds: selectedClaimIds,
+      });
+
+      if (response.data.success) {
+        // Reload claims to update status
+        await loadClaims(bookingDetails.id);
+        // Reload booking details
+        await loadBookingDetails(bookingDetails.id);
+        alert(`Successfully recommended ${selectedClaimIds.length} claim(s) to customer`);
+      }
+    } catch (err: any) {
+      console.error("Failed to recommend claims:", err);
+      alert(err?.response?.data?.error || "Failed to recommend claims");
+    } finally {
+      setRecommendingClaims(false);
+    }
+  };
+
+  const handleStartClaimsReview = async () => {
+    if (!bookingDetails) return;
+    setStartingClaimsReview(true);
+    try {
+      const r = await api.post(`/api/admin/group-stays/claims/${bookingDetails.id}/start-review`);
+      if (r.data?.success) {
+        await loadClaims(bookingDetails.id);
+        await loadBookingDetails(bookingDetails.id);
+        alert("Claims marked as REVIEWING");
+      }
+    } catch (err: any) {
+      console.error("Failed to start claims review:", err);
+      alert(err?.response?.data?.error || "Failed to start review");
+    } finally {
+      setStartingClaimsReview(false);
+    }
+  };
+
+  // Update individual claim status
+  const handleUpdateClaimStatus = async (claimId: number, status: string) => {
+    if (!bookingDetails) return;
+    
+    try {
+      const response = await api.patch(`/api/admin/group-stays/claims/${claimId}/status`, {
+        status,
+      });
+
+      if (response.data.success) {
+        // Reload claims to update
+        await loadClaims(bookingDetails.id);
+      }
+    } catch (err: any) {
+      console.error("Failed to update claim status:", err);
+      alert(err?.response?.data?.error || "Failed to update claim status");
+    }
+  };
+
   const closeDetailsModal = () => {
     setShowDetailsModal(false);
-    setSelectedBooking(null);
     setBookingDetails(null);
     setQuickMessage("");
     setShowPassengers(false);
     setPassengers([]);
+    setClaimsData(null);
+    setSelectedClaimIds([]);
+    setClaimsFilter("all");
+    setComparisonView("grid");
+    setShowShortlistOnly(true);
     setAdminSuggestions({
       accommodationOptions: "",
       pricing: "",
@@ -767,6 +915,21 @@ export default function AdminGroupStaysBookingsPage() {
     return String(date || '');
   }, [date]);
 
+  // Check for bookingId in URL params and open modal when list is loaded
+  useEffect(() => {
+    const bookingIdParam = searchParams?.get("bookingId");
+    if (bookingIdParam && !isNaN(Number(bookingIdParam)) && !loading && list.length > 0) {
+      const bookingId = Number(bookingIdParam);
+      const existingBooking = list.find((b) => b.id === bookingId);
+      if (existingBooking) {
+        loadBookingDetails(bookingId);
+        // Clean up URL without reloading
+        window.history.replaceState({}, "", "/admin/group-stays/bookings");
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, list, searchParams]);
+
   useEffect(() => {
     authify();
     load();
@@ -780,6 +943,13 @@ export default function AdminGroupStaysBookingsPage() {
   }, [loadHistogram]);
 
   const pages = Math.max(1, Math.ceil(total / pageSize));
+
+  const recommendedClaimIds = Array.isArray(claimsData?.recommendedClaimIds) ? claimsData.recommendedClaimIds : [];
+  const shortlistClaimIds = [
+    claimsData?.shortlist?.high?.id,
+    claimsData?.shortlist?.mid?.id,
+    claimsData?.shortlist?.low?.id,
+  ].filter(Boolean) as number[];
 
   // Prepare histogram chart data
   const histogramChartData = useMemo<ChartData<"bar">>(() => {
@@ -847,6 +1017,8 @@ export default function AdminGroupStaysBookingsPage() {
                   placeholder="Search bookings..."
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
+                  aria-label="Search bookings"
+                  title="Search bookings"
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
@@ -1534,7 +1706,7 @@ export default function AdminGroupStaysBookingsPage() {
                         <div className="space-y-3">
                           <div className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
                             <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Group Type</span>
-                            <span className="text-sm font-semibold text-gray-900 capitalize px-3 py-1 bg-purple-100 text-purple-700 rounded-full">
+                            <span className="text-sm font-semibold text-purple-700 capitalize px-3 py-1 bg-purple-100 rounded-full">
                               {bookingDetails.groupType}
                             </span>
                           </div>
@@ -2059,7 +2231,14 @@ export default function AdminGroupStaysBookingsPage() {
                     )}
 
                     {/* Other Audit History (Status Changes, etc.) */}
-                    {auditHistory.filter((a: any) => a.action !== 'SUGGESTIONS_PROVIDED').length > 0 && (
+                    {loadingAuditHistory ? (
+                      <div className="bg-gradient-to-br from-slate-50 to-gray-50 border-2 border-slate-200 rounded-xl p-5 shadow-sm">
+                        <div className="flex items-center justify-center py-8">
+                          <Loader2 className="h-6 w-6 text-slate-600 animate-spin" />
+                          <span className="ml-2 text-sm text-gray-600">Loading audit history...</span>
+                        </div>
+                      </div>
+                    ) : auditHistory.filter((a: any) => a.action !== 'SUGGESTIONS_PROVIDED').length > 0 && (
                       <div className="bg-gradient-to-br from-slate-50 to-gray-50 border-2 border-slate-200 rounded-xl p-5 shadow-sm">
                         <h4 className="text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
                           <div className="h-8 w-8 rounded-lg bg-slate-500 flex items-center justify-center">
@@ -2159,6 +2338,8 @@ export default function AdminGroupStaysBookingsPage() {
                                 onChange={(e) => setQuickMessage(e.target.value)}
                                 placeholder="Type a message to the customer... or click a template above to auto-fill"
                                 rows={4}
+                                aria-label="Message to customer"
+                                title="Type a message to the customer"
                                 className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm transition-all resize-none"
                               />
                               <button
@@ -2253,6 +2434,7 @@ export default function AdminGroupStaysBookingsPage() {
                                             </div>
                                             <button
                                               onClick={() => handleRemoveProperty(prop.id)}
+                                              aria-label="Remove property"
                                               className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                                             >
                                               <Trash2 className="h-4 w-4" />
@@ -2309,9 +2491,11 @@ export default function AdminGroupStaysBookingsPage() {
                                           return (
                                             <div key={prop.id} className="flex gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-indigo-300 transition-colors">
                                               {prop.imageUrl && (
-                                                <img
+                                                <Image
                                                   src={prop.imageUrl}
                                                   alt={prop.title}
+                                                  width={80}
+                                                  height={80}
                                                   className="w-20 h-20 object-cover rounded-lg"
                                                 />
                                               )}
@@ -2361,6 +2545,443 @@ export default function AdminGroupStaysBookingsPage() {
                           )}
                         </div>
 
+                        {/* Submitted Claims Review Section - Premium Admin Interface */}
+                        {(bookingDetails as any).isOpenForClaims && (
+                          <div className="bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 border-2 border-emerald-200 rounded-xl p-5 sm:p-6 shadow-lg hover:shadow-xl transition-all duration-300">
+                            <div className="flex items-center justify-between mb-5">
+                              <div className="flex items-center gap-3">
+                                <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg">
+                                  <Gift className="h-5 w-5 text-white" />
+                                </div>
+                                <div>
+                                  <h4 className="text-lg font-bold text-gray-900">Submitted Claims & Offers</h4>
+                                  <p className="text-xs text-gray-600 mt-0.5">Review and select top 3 recommendations for customer</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {shortlistClaimIds.length > 0 && (
+                                  <button
+                                    onClick={() => setShowShortlistOnly((v) => !v)}
+                                    className="px-3 py-1.5 text-xs font-semibold bg-white/80 border border-emerald-200 rounded-lg hover:bg-white hover:border-emerald-300 transition-all text-gray-700"
+                                    title={showShortlistOnly ? "Showing auto-picked shortlist" : "Showing all claims"}
+                                  >
+                                    {showShortlistOnly ? "⭐ Shortlist" : "📦 All"}
+                                  </button>
+                                )}
+                                <button
+                                  onClick={handleStartClaimsReview}
+                                  disabled={startingClaimsReview}
+                                  className="px-3 py-1.5 text-xs font-semibold bg-white/80 border border-emerald-200 rounded-lg hover:bg-white hover:border-emerald-300 transition-all text-gray-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                                  title="Mark all pending claims as REVIEWING"
+                                >
+                                  {startingClaimsReview ? "Starting..." : "Mark Reviewing"}
+                                </button>
+                                <button
+                                  onClick={() => setComparisonView(comparisonView === "grid" ? "list" : "grid")}
+                                  className="px-3 py-1.5 text-xs font-semibold bg-white/80 border border-emerald-200 rounded-lg hover:bg-white hover:border-emerald-300 transition-all text-gray-700"
+                                  title={`Switch to ${comparisonView === "grid" ? "list" : "grid"} view`}
+                                >
+                                  {comparisonView === "grid" ? "📋 List" : "🔲 Grid"}
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Claims Summary Stats */}
+                            {claimsData && claimsData.summary && (
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+                                <div className="bg-white/90 rounded-lg p-3 border border-emerald-100 shadow-sm">
+                                  <div className="text-xs font-medium text-gray-500 uppercase tracking-wider">Total</div>
+                                  <div className="text-xl font-bold text-emerald-700 mt-1">{claimsData.summary.total}</div>
+                                </div>
+                                <div className="bg-white/90 rounded-lg p-3 border border-blue-100 shadow-sm">
+                                  <div className="text-xs font-medium text-gray-500 uppercase tracking-wider">Pending</div>
+                                  <div className="text-xl font-bold text-blue-700 mt-1">{claimsData.summary.pending}</div>
+                                </div>
+                                <div className="bg-white/90 rounded-lg p-3 border border-green-100 shadow-sm">
+                                  <div className="text-xs font-medium text-gray-500 uppercase tracking-wider">Recommended</div>
+                                  <div className="text-xl font-bold text-green-700 mt-1">{recommendedClaimIds.length}</div>
+                                </div>
+                                <div className="bg-white/90 rounded-lg p-3 border border-gray-100 shadow-sm">
+                                  <div className="text-xs font-medium text-gray-500 uppercase tracking-wider">Selected</div>
+                                  <div className="text-xl font-bold text-teal-700 mt-1">{selectedClaimIds.length}/3</div>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Claims Loading State */}
+                            {claimsLoading ? (
+                              <div className="bg-white/90 rounded-xl p-8 border border-emerald-200 text-center">
+                                <Loader2 className="h-8 w-8 animate-spin text-emerald-600 mx-auto mb-3" />
+                                <p className="text-sm text-gray-600">Loading submitted claims...</p>
+                              </div>
+                            ) : claimsData && claimsData.claims && claimsData.claims.length > 0 ? (
+                              <>
+                                {/* Filter Tabs */}
+                                <div className="flex items-center gap-2 mb-4 flex-wrap">
+                                  <button
+                                    onClick={() => setClaimsFilter("all")}
+                                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                                      claimsFilter === "all"
+                                        ? "bg-emerald-600 text-white shadow-md"
+                                        : "bg-white/80 text-gray-700 border border-emerald-200 hover:bg-emerald-50"
+                                    }`}
+                                  >
+                                    All ({claimsData.summary?.total || 0})
+                                  </button>
+                                  <button
+                                    onClick={() => setClaimsFilter("pending")}
+                                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                                      claimsFilter === "pending"
+                                        ? "bg-blue-600 text-white shadow-md"
+                                        : "bg-white/80 text-gray-700 border border-blue-200 hover:bg-blue-50"
+                                    }`}
+                                  >
+                                    Pending ({claimsData.summary?.pending || 0})
+                                  </button>
+                                  <button
+                                    onClick={() => setClaimsFilter("accepted")}
+                                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                                      claimsFilter === "accepted"
+                                        ? "bg-green-600 text-white shadow-md"
+                                        : "bg-white/80 text-gray-700 border border-green-200 hover:bg-green-50"
+                                    }`}
+                                  >
+                                    Recommended ({recommendedClaimIds.length})
+                                  </button>
+                                  <button
+                                    onClick={() => setClaimsFilter("rejected")}
+                                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                                      claimsFilter === "rejected"
+                                        ? "bg-red-600 text-white shadow-md"
+                                        : "bg-white/80 text-gray-700 border border-red-200 hover:bg-red-50"
+                                    }`}
+                                  >
+                                    Rejected ({claimsData.summary?.rejected || 0})
+                                  </button>
+                                </div>
+
+                                {/* Claims Display - Grid or List View */}
+                                <div className={`${comparisonView === "grid" ? "grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4" : "space-y-4"} mb-5`}>
+                                  {claimsData.claims
+                                    .filter((claim: any) => {
+                                      if (showShortlistOnly && shortlistClaimIds.length > 0 && !shortlistClaimIds.includes(claim.id)) {
+                                        return false;
+                                      }
+                                      if (claimsFilter === "all") return true;
+                                      if (claimsFilter === "pending") return ["PENDING", "REVIEWING"].includes(claim.status);
+                                      if (claimsFilter === "accepted") return recommendedClaimIds.includes(claim.id);
+                                      if (claimsFilter === "rejected") return claim.status === "REJECTED";
+                                      return true;
+                                    })
+                                    .map((claim: any) => {
+                                      const isSelected = selectedClaimIds.includes(claim.id);
+                                      const canSelect = selectedClaimIds.length < 3 && ["PENDING", "REVIEWING"].includes(claim.status);
+                                      const isRecommended = recommendedClaimIds.includes(claim.id);
+                                      const isShortlistHigh = claimsData?.shortlist?.high?.id === claim.id;
+                                      const isShortlistMid = claimsData?.shortlist?.mid?.id === claim.id;
+                                      const isShortlistLow = claimsData?.shortlist?.low?.id === claim.id;
+
+                                      return (
+                                        <div
+                                          key={claim.id}
+                                          className={`bg-white rounded-xl border-2 p-5 shadow-md hover:shadow-xl transition-all duration-300 ${
+                                            isSelected
+                                              ? "border-emerald-500 bg-emerald-50/50 ring-2 ring-emerald-200"
+                                              : isRecommended
+                                              ? "border-green-400 bg-green-50/30"
+                                              : "border-gray-200 hover:border-emerald-300"
+                                          }`}
+                                        >
+                                          {/* Claim Header */}
+                                          <div className="flex items-start justify-between mb-4">
+                                            <div className="flex-1">
+                                              <div className="flex items-center gap-2 mb-2">
+                                                {isSelected && (
+                                                  <div className="h-6 w-6 rounded-full bg-emerald-600 flex items-center justify-center">
+                                                    <CheckCircle2 className="h-4 w-4 text-white" />
+                                                  </div>
+                                                )}
+                                                {isRecommended && !isSelected && (
+                                                  <div className="h-6 w-6 rounded-full bg-green-600 flex items-center justify-center">
+                                                    <Sparkles className="h-4 w-4 text-white" />
+                                                  </div>
+                                                )}
+                                                <span className={`px-2.5 py-1 text-xs font-bold rounded-lg ${
+                                                  claim.status === "PENDING" ? "bg-blue-100 text-blue-700" :
+                                                  claim.status === "REVIEWING" ? "bg-purple-100 text-purple-700" :
+                                                  claim.status === "ACCEPTED" ? "bg-green-100 text-green-700" :
+                                                  claim.status === "REJECTED" ? "bg-red-100 text-red-700" :
+                                                  "bg-gray-100 text-gray-700"
+                                                }`}>
+                                                  {claim.status}
+                                                </span>
+                                                {(isShortlistHigh || isShortlistMid || isShortlistLow) && (
+                                                  <span
+                                                    className={`px-2 py-1 text-[10px] font-bold rounded-lg border ${
+                                                      isShortlistHigh
+                                                        ? "bg-amber-50 text-amber-800 border-amber-200"
+                                                        : isShortlistMid
+                                                        ? "bg-slate-50 text-slate-800 border-slate-200"
+                                                        : "bg-indigo-50 text-indigo-800 border-indigo-200"
+                                                    }`}
+                                                    title="Auto-picked shortlist"
+                                                  >
+                                                    {isShortlistHigh ? "HIGH" : isShortlistMid ? "MID" : "LOW"}
+                                                  </span>
+                                                )}
+                                              </div>
+                                              {claim.property && (
+                                                <h5 className="text-sm font-bold text-gray-900 leading-tight mb-1">
+                                                  {claim.property.title}
+                                                </h5>
+                                              )}
+                                              {claim.owner && (
+                                                <p className="text-xs text-gray-600">
+                                                  Owner: <span className="font-semibold">{claim.owner.name}</span>
+                                                </p>
+                                              )}
+                                            </div>
+                                          </div>
+
+                                          {/* Property Image */}
+                                          {claim.property?.primaryImage && (
+                                            <div className="mb-4 rounded-lg overflow-hidden border border-gray-200">
+                                              <Image
+                                                src={claim.property.primaryImage}
+                                                alt={claim.property.title || "Property"}
+                                                width={300}
+                                                height={200}
+                                                className="w-full h-32 object-cover"
+                                              />
+                                            </div>
+                                          )}
+
+                                          {/* Pricing Details */}
+                                          <div className="space-y-2 mb-4">
+                                            <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-lg p-3 border border-emerald-200">
+                                              <div className="flex items-baseline justify-between mb-1">
+                                                <span className="text-xs font-medium text-gray-600">Price/Night</span>
+                                                <span className="text-lg font-bold text-emerald-700">
+                                                  {claim.currency} {claim.offeredPricePerNight.toLocaleString()}
+                                                </span>
+                                              </div>
+                                              {claim.discountPercent && claim.discountPercent > 0 && (
+                                                <div className="flex items-center justify-between text-xs">
+                                                  <span className="text-gray-600">Discount</span>
+                                                  <span className="font-semibold text-green-600">
+                                                    -{claim.discountPercent}%
+                                                  </span>
+                                                </div>
+                                              )}
+                                              {claim.savingsAmount && (
+                                                <div className="flex items-center justify-between text-xs mt-1 pt-1 border-t border-emerald-200">
+                                                  <span className="text-gray-600">You Save</span>
+                                                  <span className="font-bold text-green-700">
+                                                    {claim.currency} {claim.savingsAmount.toLocaleString()}
+                                                  </span>
+                                                </div>
+                                              )}
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2 text-xs">
+                                              <div className="bg-gray-50 rounded-lg p-2">
+                                                <div className="text-gray-500">Total Amount</div>
+                                                <div className="font-bold text-gray-900 mt-0.5">
+                                                  {claim.currency} {claim.totalAmount.toLocaleString()}
+                                                </div>
+                                              </div>
+                                              {claim.pricePerGuest && (
+                                                <div className="bg-gray-50 rounded-lg p-2">
+                                                  <div className="text-gray-500">Per Guest</div>
+                                                  <div className="font-bold text-gray-900 mt-0.5">
+                                                    {claim.currency} {claim.pricePerGuest.toFixed(0)}
+                                                  </div>
+                                                </div>
+                                              )}
+                                            </div>
+                                          </div>
+
+                                          {/* Special Offers */}
+                                          {claim.specialOffers && (
+                                            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                                              <div className="flex items-center gap-2 mb-1">
+                                                <Tag className="h-3.5 w-3.5 text-amber-600" />
+                                                <span className="text-xs font-semibold text-amber-800">Special Offers</span>
+                                              </div>
+                                              <p className="text-xs text-amber-900 leading-relaxed">{claim.specialOffers}</p>
+                                            </div>
+                                          )}
+
+                                          {/* Notes */}
+                                          {claim.notes && (
+                                            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                              <div className="flex items-center gap-2 mb-1">
+                                                <FileText className="h-3.5 w-3.5 text-blue-600" />
+                                                <span className="text-xs font-semibold text-blue-800">Owner Notes</span>
+                                              </div>
+                                              <p className="text-xs text-blue-900 leading-relaxed">{claim.notes}</p>
+                                            </div>
+                                          )}
+
+                                          {/* Location Info */}
+                                          {claim.property && (
+                                            <div className="mb-4 flex items-center gap-2 text-xs text-gray-600">
+                                              <MapPin className="h-3.5 w-3.5" />
+                                              <span className="truncate">
+                                                {[claim.property.regionName, claim.property.district, claim.property.city].filter(Boolean).join(", ")}
+                                              </span>
+                                            </div>
+                                          )}
+
+                                          {/* Action Buttons */}
+                                          <div className="flex flex-col gap-2 pt-3 border-t border-gray-200">
+                                            {canSelect && (
+                                              <button
+                                                onClick={() => toggleClaimSelection(claim.id)}
+                                                className={`w-full px-4 py-2.5 rounded-lg text-xs font-bold transition-all duration-200 ${
+                                                  isSelected
+                                                    ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-md"
+                                                    : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-300"
+                                                }`}
+                                              >
+                                                {isSelected ? (
+                                                  <>
+                                                    <CheckCircle2 className="h-4 w-4 inline mr-1.5" />
+                                                    Selected for Recommendation
+                                                  </>
+                                                ) : (
+                                                  <>
+                                                    <Plus className="h-4 w-4 inline mr-1.5" />
+                                                    Select for Recommendation
+                                                  </>
+                                                )}
+                                              </button>
+                                            )}
+                                            {isRecommended && (
+                                              <div className="text-center py-2 px-3 bg-green-100 border border-green-300 rounded-lg">
+                                                <div className="flex items-center justify-center gap-1.5 text-xs font-semibold text-green-700">
+                                                  <Sparkles className="h-3.5 w-3.5" />
+                                                  Already Recommended
+                                                </div>
+                                              </div>
+                                            )}
+                                            {["PENDING", "REVIEWING"].includes(claim.status) && !canSelect && !isSelected && (
+                                              <div className="text-center py-2 px-3 bg-amber-100 border border-amber-300 rounded-lg">
+                                                <p className="text-xs font-semibold text-amber-700">
+                                                  Max 3 selections reached
+                                                </p>
+                                              </div>
+                                            )}
+                                            {["PENDING", "REVIEWING"].includes(claim.status) && (
+                                              <div className="grid grid-cols-2 gap-2">
+                                                <button
+                                                  onClick={() => handleUpdateClaimStatus(claim.id, "REJECTED")}
+                                                  className="px-3 py-1.5 text-xs font-semibold bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 transition-all"
+                                                >
+                                                  Reject
+                                                </button>
+                                                <button
+                                                  onClick={() => {
+                                                    if (bookingDetails && claim.property) {
+                                                      window.open(`/admin/properties/${claim.propertyId}`, "_blank");
+                                                    }
+                                                  }}
+                                                  className="px-3 py-1.5 text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition-all"
+                                                >
+                                                  View Property
+                                                </button>
+                                              </div>
+                                            )}
+                                          </div>
+
+                                          {/* Submitted Time */}
+                                          <div className="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-500 text-center">
+                                            Submitted {new Date(claim.createdAt).toLocaleDateString("en-US", {
+                                              month: "short",
+                                              day: "numeric",
+                                              hour: "2-digit",
+                                              minute: "2-digit",
+                                            })}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                </div>
+
+                                {/* Selection Summary & Submit */}
+                                {selectedClaimIds.length > 0 && (
+                                  <div className="bg-gradient-to-r from-emerald-500 to-teal-600 rounded-xl p-5 border-2 border-emerald-400 shadow-xl">
+                                    <div className="flex items-center justify-between mb-4">
+                                      <div className="flex items-center gap-3">
+                                        <div className="h-10 w-10 rounded-lg bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                                          <Sparkles className="h-5 w-5 text-white" />
+                                        </div>
+                                        <div>
+                                          <h5 className="text-base font-bold text-white">
+                                            {selectedClaimIds.length} Claim{selectedClaimIds.length > 1 ? 's' : ''} Selected
+                                          </h5>
+                                          <p className="text-xs text-emerald-100 mt-0.5">
+                                            Ready to recommend to customer
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <button
+                                        onClick={handleRecommendClaims}
+                                        disabled={recommendingClaims || selectedClaimIds.length === 0}
+                                        className="px-6 py-3 bg-white text-emerald-700 rounded-xl text-sm font-bold hover:bg-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all shadow-lg hover:shadow-xl"
+                                      >
+                                        {recommendingClaims ? (
+                                          <>
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                            Recommending...
+                                          </>
+                                        ) : (
+                                          <>
+                                            <CheckCircle2 className="h-4 w-4" />
+                                            Recommend {selectedClaimIds.length} to Customer
+                                          </>
+                                        )}
+                                      </button>
+                                    </div>
+                                    <div className="text-xs text-emerald-100 bg-white/10 rounded-lg p-3 backdrop-blur-sm">
+                                      💡 <strong>Premium Service:</strong> These recommendations will be presented to the customer for their final selection. Choose the best offers that provide value and meet their requirements.
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Empty State for Filter */}
+                                {claimsData.claims.filter((c: any) => {
+                                  if (claimsFilter === "all") return true;
+                                  return c.status === claimsFilter.toUpperCase();
+                                }).length === 0 && (
+                                  <div className="bg-white/90 rounded-xl p-8 border border-emerald-200 text-center">
+                                    <AlertCircle className="h-8 w-8 text-gray-400 mx-auto mb-3" />
+                                    <p className="text-sm text-gray-600 font-medium">
+                                      No {claimsFilter === "all" ? "" : claimsFilter} claims found
+                                    </p>
+                                  </div>
+                                )}
+                              </>
+                            ) : claimsData && claimsData.claims && claimsData.claims.length === 0 ? (
+                              <div className="bg-white/90 rounded-xl p-8 border border-emerald-200 text-center">
+                                <Gift className="h-8 w-8 text-gray-400 mx-auto mb-3" />
+                                <p className="text-sm text-gray-600 font-medium mb-1">No Claims Submitted Yet</p>
+                                <p className="text-xs text-gray-500">
+                                  Owners can submit competitive offers when this booking is open for claims.
+                                </p>
+                              </div>
+                            ) : (
+                              <div className="bg-white/90 rounded-xl p-6 border border-emerald-200 text-center">
+                                <button
+                                  onClick={() => bookingDetails && loadClaims(bookingDetails.id)}
+                                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 transition-all"
+                                >
+                                  Load Submitted Claims
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
                         {/* Admin Suggestions Section */}
                         <div className="bg-gradient-to-br from-purple-50 to-pink-50 border-2 border-purple-200 rounded-xl p-5 shadow-sm">
                           <h4 className="text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
@@ -2395,6 +3016,7 @@ export default function AdminGroupStaysBookingsPage() {
                                   <select
                                     value={pricingDetails.currency}
                                     onChange={(e) => setPricingDetails({ ...pricingDetails, currency: e.target.value })}
+                                    aria-label="Select currency"
                                     className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm font-medium bg-gray-50 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none"
                                   >
                                     <option value="TZS">TZS</option>
@@ -2415,6 +3037,8 @@ export default function AdminGroupStaysBookingsPage() {
                                         type="number"
                                         value={pricingDetails.headcount}
                                         readOnly
+                                        aria-label="Headcount (read-only)"
+                                        title="Headcount (read-only)"
                                         className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg bg-gray-50 text-sm transition-all cursor-not-allowed"
                                       />
                                     </div>
@@ -2429,6 +3053,8 @@ export default function AdminGroupStaysBookingsPage() {
                                         type="number"
                                         value={pricingDetails.roomsNeeded}
                                         readOnly
+                                        aria-label="Rooms needed (read-only)"
+                                        title="Rooms needed (read-only)"
                                         className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg bg-gray-50 text-sm transition-all cursor-not-allowed"
                                       />
                                     </div>
@@ -2447,6 +3073,8 @@ export default function AdminGroupStaysBookingsPage() {
                                         type="number"
                                         value={pricingDetails.privateRoomCount}
                                         readOnly
+                                        aria-label="Private rooms count (read-only)"
+                                        title="Private rooms count (read-only)"
                                         className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg bg-gray-50 text-sm transition-all cursor-not-allowed"
                                       />
                                     </div>
@@ -2461,6 +3089,7 @@ export default function AdminGroupStaysBookingsPage() {
                                       <select
                                         value={pricingDetails.currency}
                                         onChange={(e) => setPricingDetails({ ...pricingDetails, currency: e.target.value })}
+                                        aria-label="Select currency"
                                         className="hidden sm:block px-2.5 py-2 border-2 border-gray-200 rounded-lg text-xs font-medium bg-gray-50 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none"
                                       >
                                         <option value="TZS">TZS</option>
@@ -2480,6 +3109,8 @@ export default function AdminGroupStaysBookingsPage() {
                                           }
                                         }}
                                         placeholder="0.00"
+                                        aria-label="Price per night per room"
+                                        title="Price per night per room"
                                         className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none text-sm transition-all"
                                       />
                                     </div>
@@ -2504,6 +3135,8 @@ export default function AdminGroupStaysBookingsPage() {
                                         }}
                                         placeholder="0"
                                         min="1"
+                                        aria-label="Total nights"
+                                        title="Total nights"
                                         className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none text-sm transition-all"
                                       />
                                     </div>
@@ -2522,6 +3155,8 @@ export default function AdminGroupStaysBookingsPage() {
                                       value={pricingDetails.totalAmount}
                                       onChange={(e) => setPricingDetails({ ...pricingDetails, totalAmount: e.target.value })}
                                       placeholder="0.00"
+                                      aria-label="Total amount"
+                                      title="Total amount"
                                       className="flex-1 px-3 py-2 border-2 border-purple-200 bg-purple-50 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none text-sm font-semibold text-purple-900 transition-all"
                                     />
                                   </div>
@@ -2561,6 +3196,7 @@ export default function AdminGroupStaysBookingsPage() {
                                           });
                                         }
                                       }}
+                                      aria-label={discountEnabled ? "Disable discount" : "Enable discount"}
                                       className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 ${
                                         discountEnabled ? "bg-purple-600" : "bg-gray-300"
                                       }`}
@@ -2581,6 +3217,7 @@ export default function AdminGroupStaysBookingsPage() {
                                           <select
                                             value={discountDetails.type}
                                             onChange={(e) => setDiscountDetails({ ...discountDetails, type: e.target.value as "percentage" | "amount" })}
+                                            aria-label="Select discount type"
                                             className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm font-medium bg-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none"
                                           >
                                             <option value="percentage">Percentage (%)</option>
@@ -2608,6 +3245,8 @@ export default function AdminGroupStaysBookingsPage() {
                                               placeholder={discountDetails.type === "percentage" ? "0" : "0.00"}
                                               min="0"
                                               max={discountDetails.type === "percentage" ? "100" : undefined}
+                                              aria-label={`Discount ${discountDetails.type === "percentage" ? "percentage" : "amount"}`}
+                                              title={`Discount ${discountDetails.type === "percentage" ? "percentage" : "amount"}`}
                                               className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none text-sm transition-all"
                                             />
                                           </div>
@@ -2619,6 +3258,7 @@ export default function AdminGroupStaysBookingsPage() {
                                         <select
                                           value={discountDetails.criteria}
                                           onChange={(e) => setDiscountDetails({ ...discountDetails, criteria: e.target.value as "nights" | "headcount" | "both" })}
+                                          aria-label="Select discount criteria"
                                           className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm font-medium bg-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none"
                                         >
                                           <option value="nights">Based on Total Nights</option>
@@ -2636,6 +3276,8 @@ export default function AdminGroupStaysBookingsPage() {
                                             onChange={(e) => setDiscountDetails({ ...discountDetails, minNights: e.target.value })}
                                             placeholder="e.g., 5 nights"
                                             min="1"
+                                            aria-label="Minimum nights required for discount"
+                                            title="Minimum nights required for discount"
                                             className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none text-sm transition-all"
                                           />
                                         </div>
@@ -2649,6 +3291,8 @@ export default function AdminGroupStaysBookingsPage() {
                                             value={discountDetails.minHeadcount}
                                             onChange={(e) => setDiscountDetails({ ...discountDetails, minHeadcount: e.target.value })}
                                             placeholder="e.g., 10 people"
+                                            aria-label="Minimum headcount required for discount"
+                                            title="Minimum headcount required for discount"
                                             min="1"
                                             className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none text-sm transition-all"
                                           />

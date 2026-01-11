@@ -6,7 +6,7 @@ type Props = {
   url: string
 }
 
-// Lightweight PDF.js viewer that loads pdf.js from a CDN at runtime.
+// Lightweight PDF.js viewer that loads pdf.js from a  at runtime.
 export default function PDFViewer({ url }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const [pdfDoc, setPdfDoc] = useState<any | null>(null)

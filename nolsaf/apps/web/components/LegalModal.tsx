@@ -1,5 +1,6 @@
 "use client";
 import React, { useEffect, useState, useRef } from 'react';
+import { escapeHtml, sanitizeTrustedHtml } from "@/utils/html";
 
 type LegalType = 'terms' | 'privacy' | 'cookies';
 
@@ -38,13 +39,14 @@ export default function LegalModal() {
 
   const handlePrint = () => {
     if (!contentRef.current) return;
+    const safeBody = sanitizeTrustedHtml(contentRef.current.innerHTML);
     const html = `
       <html>
         <head>
-          <title>${TITLES[type]}</title>
+          <title>${escapeHtml(TITLES[type])}</title>
           <style>body{font-family:system-ui, -apple-system, Roboto, Arial; padding:20px}</style>
         </head>
-        <body>${contentRef.current.innerHTML}</body>
+        <body>${safeBody}</body>
       </html>`;
     const w = window.open('', '_blank', 'noopener');
     if (!w) return;

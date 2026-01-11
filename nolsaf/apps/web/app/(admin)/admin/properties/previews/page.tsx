@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import PropertyPreview from "@/components/PropertyPreview";
 import { Loader2, ScanEye, MapPin, Star, Search, X, Filter } from "lucide-react";
 import axios from "axios";
@@ -79,18 +79,7 @@ export default function PropertyPreviewsPage() {
     };
   }, []);
 
-  useEffect(() => {
-    loadProperties();
-  }, [statusFilter, searchQuery, regionFilter, typeFilter, ownerFilter]);
-
-  // Load owners for filter dropdown
-  useEffect(() => {
-    if (showAdvancedFilters && owners.length === 0) {
-      loadOwners();
-    }
-  }, [showAdvancedFilters]);
-
-  async function loadOwners() {
+  const loadOwners = useCallback(async () => {
     try {
       setLoadingOwners(true);
       const response = await api.get("/admin/owners", {
@@ -103,36 +92,9 @@ export default function PropertyPreviewsPage() {
     } finally {
       setLoadingOwners(false);
     }
-  }
-
-  // Fetch counts for each status
-  useEffect(() => {
-    (async () => {
-      try {
-        const r = await api.get<Record<string, number>>('/api/admin/properties/counts');
-        console.log('[PropertyPreviews] Counts response:', r.data);
-        if (r?.data) {
-          setCounts((prev) => {
-            const newCounts = { ...prev, ...r.data };
-            // Calculate ALL count
-            newCounts.ALL = Object.values(newCounts).reduce((sum, count) => {
-              if (typeof count === 'number' && count > 0) {
-                return sum + count;
-              }
-              return sum;
-            }, 0);
-            return newCounts;
-          });
-        }
-      } catch (e: any) {
-        console.error('[PropertyPreviews] Failed to load counts:', e);
-        console.error('[PropertyPreviews] Error response:', e.response?.data);
-        // ignore if backend doesn't expose counts
-      }
-    })();
   }, []);
 
-  async function loadProperties() {
+  const loadProperties = useCallback(async () => {
     try {
       setLoading(true);
       const params: any = { page: 1, pageSize: 50 };
@@ -170,7 +132,45 @@ export default function PropertyPreviewsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [statusFilter, searchQuery, regionFilter, typeFilter, ownerFilter]);
+
+  useEffect(() => {
+    loadProperties();
+  }, [loadProperties]);
+
+  // Load owners for filter dropdown
+  useEffect(() => {
+    if (showAdvancedFilters && owners.length === 0) {
+      loadOwners();
+    }
+  }, [showAdvancedFilters, owners.length, loadOwners]);
+
+  // Fetch counts for each status
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await api.get<Record<string, number>>('/api/admin/properties/counts');
+        console.log('[PropertyPreviews] Counts response:', r.data);
+        if (r?.data) {
+          setCounts((prev) => {
+            const newCounts = { ...prev, ...r.data };
+            // Calculate ALL count
+            newCounts.ALL = Object.values(newCounts).reduce((sum, count) => {
+              if (typeof count === 'number' && count > 0) {
+                return sum + count;
+              }
+              return sum;
+            }, 0);
+            return newCounts;
+          });
+        }
+      } catch (e: any) {
+        console.error('[PropertyPreviews] Failed to load counts:', e);
+        console.error('[PropertyPreviews] Error response:', e.response?.data);
+        // ignore if backend doesn't expose counts
+      }
+    })();
+  }, []);
 
   const clearFilters = () => {
     setSearchQuery("");
@@ -398,7 +398,7 @@ export default function PropertyPreviewsPage() {
             <p className="text-gray-500">No properties available for preview</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-6 gap-5">
             {properties.map((property) => {
               const locationParts = [
                 property.location?.city,
@@ -433,10 +433,10 @@ export default function PropertyPreviewsPage() {
                 {property.photos && property.photos.length > 0 ? (
                     <Image
                       src={property.photos[0]}
-                          alt=""
+                      alt=""
                       fill
-                          sizes="(min-width: 1280px) 33vw, (min-width: 1024px) 50vw, (min-width: 640px) 50vw, 100vw"
-                          className="object-cover group-hover:scale-105 transition-transform duration-200 rounded-2xl"
+                      sizes="(min-width: 1536px) 16vw, (min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"
+                      className="object-cover group-hover:scale-105 transition-transform duration-200 rounded-2xl"
                     />
                       ) : (
                         <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 rounded-2xl">

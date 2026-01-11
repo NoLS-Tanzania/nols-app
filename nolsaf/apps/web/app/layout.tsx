@@ -2,7 +2,7 @@
 
 import "@/styles/globals.css";
 import "@/styles/property-visualization.css";
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import ToastContainer from "../components/ToastContainer";
 
 /**
@@ -14,7 +14,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en" suppressHydrationWarning>
       <body>
         <div className="min-h-screen bg-neutral-50">
-          {children}
+          <Suspense fallback={null}>{children}</Suspense>
         </div>
         <ToastContainer />
       </body>

@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import Image from "next/image";
-import { User, Upload, X, CheckCircle, Save, Lock, LogOut, Trash2, Mail, Phone, MapPin, Building2, FileText, Pencil, AlertCircle, Shield } from 'lucide-react';
+import { User, Upload, X, CheckCircle, Save, Lock, LogOut, Mail, Phone, MapPin, Pencil, Shield } from 'lucide-react';
 // Use same-origin calls + secure httpOnly cookie session.
 const api = axios.create({ baseURL: "", withCredentials: true });
 
@@ -24,14 +24,15 @@ export default function AdminProfile() {
       try {
         const r = await api.get("/api/account/me");
         if (!mounted) return;
+        const user = (r as any)?.data?.data ?? (r as any)?.data;
         // Check if user is an admin
-        if (r.data.role !== 'ADMIN') {
+        if (user?.role !== 'ADMIN') {
           window.location.href = '/login';
           return;
         }
-        setForm(r.data);
-        setMe(r.data);
-        try { (window as any).ME = r.data; } catch (e) { /* ignore */ }
+        setForm(user);
+        setMe(user);
+        try { (window as any).ME = user; } catch (e) { /* ignore */ }
       } catch (err: any) {
         console.error('Failed to load profile', err);
         if (mounted) setError(String(err?.message ?? err));
@@ -55,24 +56,8 @@ export default function AdminProfile() {
         address: form.address,
       };
 
-      // Handle file uploads if any
-      const formData = new FormData();
-      Object.keys(payload).forEach(key => {
-        if (payload[key] !== null && payload[key] !== undefined) {
-          formData.append(key, payload[key]);
-        }
-      });
-      
-      if (avatarFileInputRef.current?.files?.[0]) {
-        formData.append('avatarFile', avatarFileInputRef.current.files[0]);
-      }
-
-      // Use FormData if files exist, otherwise use JSON
-      if (avatarFileInputRef.current?.files?.[0]) {
-        await api.put("/api/account/profile", payload);
-      } else {
-        await api.put("/api/account/profile", payload);
-      }
+      // API expects JSON (req.body). Avatar is stored via `avatarUrl`.
+      await api.put("/api/account/profile", payload);
       
       setSuccess("Profile saved successfully!");
       setError(null);
@@ -152,7 +137,6 @@ export default function AdminProfile() {
                 className="block w-full max-w-full rounded-lg border-2 border-[#02665e]/20 px-3 py-2.5 text-sm focus:border-[#02665e] focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 transition-all duration-200 resize-none min-w-0 box-border"
                 rows={3}
                 autoFocus
-                onBlur={() => setEditingField(null)}
               />
             ) : (
               <input
@@ -161,10 +145,6 @@ export default function AdminProfile() {
                 onChange={(e) => setForm({...form, [fieldKey]: e.target.value})}
                 className="block w-full max-w-full rounded-lg border-2 border-[#02665e]/20 px-3 py-2.5 text-sm focus:border-[#02665e] focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 transition-all duration-200 min-w-0 box-border"
                 autoFocus
-                onBlur={() => setEditingField(null)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') setEditingField(null);
-                }}
               />
             )
           ) : (

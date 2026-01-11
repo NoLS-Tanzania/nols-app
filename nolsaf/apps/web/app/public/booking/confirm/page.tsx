@@ -154,34 +154,87 @@ export default function BookingConfirmPage() {
     }
 
     try {
-      const API = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000").replace(/\/$/, "");
-      const response = await fetch(`${API}/api/public/properties/${propertyId}`);
+      const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000").replace(/\/$/, "");
+      
+      // Add timeout to prevent hanging requests (15 seconds should be enough)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      
+      const response = await fetch(`${API_BASE}/api/public/properties/${propertyId}`, {
+        signal: controller.signal,
+        cache: 'no-store', // Don't cache this request
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+      
+      clearTimeout(timeoutId);
       
       if (!response.ok) {
-        throw new Error("Failed to fetch property");
+        // Handle specific error cases
+        if (response.status === 404) {
+          throw new Error(`Property #${propertyId} not found or not approved for public viewing`);
+        } else if (response.status === 400) {
+          throw new Error(`Invalid property ID: ${propertyId}`);
+        } else if (response.status >= 500) {
+          throw new Error(`Server error: Please try again later`);
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || errorData.message || `Failed to fetch property (${response.status})`);
+        }
       }
 
-      const data = await response.json();
+      const data = await response.json().catch((parseErr) => {
+        throw new Error(`Invalid response from server: ${parseErr?.message || 'Unknown error'}`);
+      });
+      
       // API returns { property: {...} } so we need to extract the property object
       const propertyData = data.property || data;
+      
+      // Validate property data structure
+      if (!propertyData || typeof propertyData !== 'object' || !propertyData.id) {
+        throw new Error('Invalid property data received from server');
+      }
+      
       setProperty(propertyData);
+      setError(null); // Clear any previous errors
       
       // Debug: Log property data structure
       if (process.env.NODE_ENV === 'development') {
-        console.log('Property loaded:', {
-          rawData: data,
-          propertyData,
+        console.log('Property loaded successfully:', {
           id: propertyData.id,
+          title: propertyData.title,
           basePrice: propertyData.basePrice,
-          roomsSpec: propertyData.roomsSpec,
+          currency: propertyData.currency,
+          hasRoomsSpec: !!propertyData.roomsSpec,
           roomsSpecType: typeof propertyData.roomsSpec,
           roomsSpecIsArray: Array.isArray(propertyData.roomsSpec),
-          roomsSpecLength: Array.isArray(propertyData.roomsSpec) ? propertyData.roomsSpec.length : 'N/A',
-          firstRoom: Array.isArray(propertyData.roomsSpec) && propertyData.roomsSpec.length > 0 ? propertyData.roomsSpec[0] : null,
+          roomsSpecLength: Array.isArray(propertyData.roomsSpec) ? propertyData.roomsSpec.length : 0,
+          status: propertyData.status,
         });
       }
     } catch (err: any) {
-      setError(err?.message || "Failed to load property");
+      // Handle AbortError (timeout)
+      if (err.name === 'AbortError') {
+        setError('Request timed out. Please check your connection and try again.');
+      } else if (err?.message) {
+        setError(err.message);
+      } else {
+        setError("Failed to load property. Please try again.");
+      }
+      
+      // Log error for debugging
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Property fetch error:', {
+          propertyId,
+          error: err?.message || err,
+          name: err?.name,
+          stack: err?.stack,
+        });
+      }
+      
+      // Set property to null so UI can handle error state
+      setProperty(null);
     } finally {
       setLoading(false);
     }
@@ -241,8 +294,6 @@ export default function BookingConfirmPage() {
     }
 
     try {
-      const API = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000").replace(/\/$/, "");
-      
       // Convert dates to ISO 8601 format (required by API)
       const checkInISO = checkInDate.toISOString();
       const checkOutISO = checkOutDate.toISOString();
@@ -286,8 +337,9 @@ export default function BookingConfirmPage() {
       };
       
       // Create booking
-      const bookingResponse = await fetch(`${API}/api/public/bookings`, {
+      const bookingResponse = await fetch(`/api/public/bookings`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestBody),
       });
@@ -330,8 +382,9 @@ export default function BookingConfirmPage() {
       }
 
       // Create invoice from booking
-      const invoiceResponse = await fetch(`${API}/api/public/invoices/from-booking`, {
+      const invoiceResponse = await fetch(`/api/public/invoices/from-booking`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           bookingId: bookingResult.bookingId,
@@ -420,17 +473,34 @@ export default function BookingConfirmPage() {
   // Always show the room's price even when nights is 0, so users can see the price while selecting dates
   let pricePerNight = property?.basePrice ? Number(property.basePrice) : 0;
   
-  // Debug logging
+  // Debug logging - enhanced to help diagnose issues
   if (process.env.NODE_ENV === 'development') {
     console.log('Price calculation debug:', {
       hasProperty: !!property,
+      propertyId: property?.id,
+      propertyTitle: property?.title,
       basePrice: property?.basePrice,
+      basePriceType: typeof property?.basePrice,
+      currency: property?.currency,
       selectedRoomCode,
       selectedRoomIndex,
       hasRoomsSpec: !!property?.roomsSpec,
       roomsSpecType: typeof property?.roomsSpec,
       roomsSpecIsArray: Array.isArray(property?.roomsSpec),
+      roomsSpecLength: Array.isArray(property?.roomsSpec) ? property?.roomsSpec.length : 0,
+      loading,
+      error,
     });
+    
+    // Warn if property is missing basePrice
+    if (property && (property.basePrice === null || property.basePrice === undefined)) {
+      console.warn('⚠️ Property missing basePrice:', {
+        id: property.id,
+        title: property.title,
+        hasRoomsSpec: !!property.roomsSpec,
+        suggestion: 'Property may need basePrice set or roomsSpec with prices',
+      });
+    }
   }
   
   // If a room is selected, use that room's price (this takes priority over basePrice)

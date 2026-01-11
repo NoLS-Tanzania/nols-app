@@ -44,12 +44,6 @@ type PaidStatsResponse = {
   endDate: string;
 };
 
-type StatusBreakdown = {
-  label: string;
-  value: number;
-  color: string;
-};
-
 export default function AdminDriversPaidPage() {
   const [date, setDate] = useState<string | string[]>("");
   const [q, setQ] = useState("");
@@ -67,7 +61,7 @@ export default function AdminDriversPaidPage() {
   const [statsData, setStatsData] = useState<PaidStatsResponse | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const params: any = {
@@ -94,7 +88,7 @@ export default function AdminDriversPaidPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [page, pageSize, date, q]);
 
   const loadStats = useCallback(async () => {
     setStatsLoading(true);
@@ -113,7 +107,7 @@ export default function AdminDriversPaidPage() {
 
   useEffect(() => {
     load();
-  }, [page, date, q]);
+  }, [load]);
 
   useEffect(() => {
     loadStats();
@@ -491,8 +485,8 @@ export default function AdminDriversPaidPage() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
-                      setPage(1);
-                      load();
+                      if (page !== 1) setPage(1);
+                      else load();
                     }
                   }}
                   style={{ width: '100%', maxWidth: '100%' }}
@@ -503,7 +497,6 @@ export default function AdminDriversPaidPage() {
                     onClick={() => {
                       setQ("");
                       setPage(1);
-                      load();
                     }}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors z-10"
                     aria-label="Clear search"

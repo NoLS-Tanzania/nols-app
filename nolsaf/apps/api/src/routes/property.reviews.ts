@@ -73,14 +73,14 @@ router.get("/:propertyId", async (req, res) => {
     const stats = {
       totalReviews: reviews.length,
       averageRating: reviews.length > 0
-        ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+        ? reviews.reduce((sum: number, r: any) => sum + r.rating, 0) / reviews.length
         : 0,
       ratingDistribution: {
-        5: reviews.filter((r) => r.rating === 5).length,
-        4: reviews.filter((r) => r.rating === 4).length,
-        3: reviews.filter((r) => r.rating === 3).length,
-        2: reviews.filter((r) => r.rating === 2).length,
-        1: reviews.filter((r) => r.rating === 1).length,
+        5: reviews.filter((r: any) => r.rating === 5).length,
+        4: reviews.filter((r: any) => r.rating === 4).length,
+        3: reviews.filter((r: any) => r.rating === 3).length,
+        2: reviews.filter((r: any) => r.rating === 2).length,
+        1: reviews.filter((r: any) => r.rating === 1).length,
       },
       categoryAverages: reviews.length > 0 && reviews[0].categoryRatings
         ? (() => {
@@ -88,10 +88,10 @@ router.get("/:propertyId", async (req, res) => {
             const avgs: Record<string, number> = {};
             cats.forEach((cat) => {
               const ratings = reviews
-                .map((r) => (r.categoryRatings as any)?.[cat])
-                .filter((r): r is number => typeof r === "number");
+                .map((r: any) => (r.categoryRatings as any)?.[cat])
+                .filter((r: any): r is number => typeof r === "number");
               avgs[cat] = ratings.length > 0
-                ? ratings.reduce((sum, r) => sum + r, 0) / ratings.length
+                ? ratings.reduce((sum: number, r: number) => sum + r, 0) / ratings.length
                 : 0;
             });
             return avgs;
@@ -113,10 +113,10 @@ router.get("/:propertyId", async (req, res) => {
  * POST /property-reviews
  * Create a new review (requires authentication)
  */
-router.post("/", requireAuth, async (req: AuthedRequest, res) => {
+router.post("/", requireAuth, async (req, res) => {
   try {
-    const userId = req.user!.id;
-    const parsed = createReviewSchema.parse(req.body);
+    const userId = (req as AuthedRequest).user!.id;
+    const parsed = createReviewSchema.parse((req as any).body);
 
     // Check if user already reviewed this property
     const existing = await prisma.propertyReview.findFirst({
@@ -198,11 +198,11 @@ router.post("/", requireAuth, async (req: AuthedRequest, res) => {
  * POST /property-reviews/:reviewId/owner-response
  * Property owner responds to a review (requires owner authentication)
  */
-router.post("/:reviewId/owner-response", requireAuth, async (req: AuthedRequest, res) => {
+router.post("/:reviewId/owner-response", requireAuth, async (req, res) => {
   try {
-    const reviewId = Number(req.params.reviewId);
-    const userId = req.user!.id;
-    const parsed = ownerResponseSchema.parse(req.body);
+    const reviewId = Number((req as any).params.reviewId);
+    const userId = (req as AuthedRequest).user!.id;
+    const parsed = ownerResponseSchema.parse((req as any).body);
 
     if (!reviewId || isNaN(reviewId)) {
       return res.status(400).json({ error: "Invalid review ID" });

@@ -4,28 +4,39 @@ import Link from "next/link";
 import { Briefcase, Truck, Users, BarChart2 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
+import { useAdminHomeKpis, useAdminMonitoring, useAdminRecentActivities, useAdminSearch } from "./adminHomeHooks";
 
 const Chart = dynamic(() => import("../../../../components/Chart"), { ssr: false });
 
+type RevenueChartDataset = {
+  label: string;
+  data: number[];
+  borderColor: string;
+  backgroundColor: string;
+  tension: number;
+  borderWidth: number;
+  pointRadius: number;
+};
+
+type RevenueChartData = {
+  labels: string[];
+  datasets: [RevenueChartDataset, RevenueChartDataset];
+};
+
 export default function AdminHomePage() {
   const router = useRouter();
-  const [query, setQuery] = useState("");
-  const [suggestions, setSuggestions] = useState<any[]>([]);
-  const [selected, setSelected] = useState(-1);
-  const debounceRef = useRef<number | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const revenueRef = useRef<HTMLDivElement | null>(null);
   const [hoursWindow, setHoursWindow] = useState<number>(24);
   const [rangeType, setRangeType] = useState<'hours' | 'months' | 'properties'>('hours');
   const [monthsWindow, setMonthsWindow] = useState<number>(1);
   const propertiesCount = 5;
-  const [chartData, setChartData] = useState<any | null>(null);
+  const [chartData, setChartData] = useState<RevenueChartData | null>(null);
   const [revenueOpen, setRevenueOpen] = useState<boolean>(false);
-  const [monitoring, setMonitoring] = useState<{ activeSessions: number; pendingApprovals: number; invoicesReceived: number; bookings: number } | null>(null);
-  const [recentActivities, setRecentActivities] = useState<any[] | null>(null);
-  const [driversPending, setDriversPending] = useState<number | null>(null);
-  const [usersNew, setUsersNew] = useState<number | null>(null);
-  const [revenueDelta, setRevenueDelta] = useState<string | null>(null);
+  const { query, setQuery, suggestions, selected, onKeyDown } = useAdminSearch((href) => router.push(href));
+  const { monitoring } = useAdminMonitoring();
+  const { recentActivities } = useAdminRecentActivities();
+  const { driversPending, usersNew, revenueDelta, paymentsWaiting } = useAdminHomeKpis();
   
 
   function ClientTime({ iso }: { iso?: string | null }) {
@@ -48,56 +59,7 @@ export default function AdminHomePage() {
     return;
   }, [revenueOpen]);
 
-  function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (!suggestions.length) return;
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setSelected((s) => Math.min(s + 1, suggestions.length - 1));
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setSelected((s) => Math.max(s - 1, 0));
-    } else if (e.key === "Enter") {
-      if (selected >= 0 && suggestions[selected]) {
-        const item = suggestions[selected];
-        const href = item.href || item.url || `/admin/search?query=${encodeURIComponent(item.label || item.name || query)}`;
-        router.push(href);
-      } else {
-        router.push(`/admin/search?query=${encodeURIComponent(query)}`);
-      }
-    } else if (e.key === "Escape") {
-      setSuggestions([]);
-      setSelected(-1);
-    }
-  }
-
-  // debounce search suggestions
-  useEffect(() => {
-    if (!query.trim()) {
-      setSuggestions([]);
-      setSelected(-1);
-      return;
-    }
-
-    if (debounceRef.current) window.clearTimeout(debounceRef.current);
-    debounceRef.current = window.setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/admin/search?q=${encodeURIComponent(query)}`);
-        if (!res.ok) {
-          setSuggestions([]);
-          setSelected(-1);
-          return;
-        }
-        const data = await res.json();
-        setSuggestions(Array.isArray(data) ? data : []);
-        setSelected(-1);
-      } catch (err) {
-        setSuggestions([]);
-        setSelected(-1);
-      }
-    }, 300);
-
-    return () => { if (debounceRef.current) window.clearTimeout(debounceRef.current); };
-  }, [query]);
+  // Search + metrics polling are handled by hooks (no UI changes).
 
   // Auto-fetch/generate chart data whenever the selected hours range changes
   // Auto-generate chart data for Hours/Months/Properties whenever selection changes
@@ -123,7 +85,29 @@ export default function AdminHomePage() {
           });
         }
         const zeros = placeholderLabels.map(() => 0);
-        setChartData({ labels: placeholderLabels, datasets: [ { label: 'Commission', data: zeros, borderColor: 'rgba(2,102,94,0.95)', backgroundColor: 'rgba(2,102,94,0.06)', tension: 0.4, borderWidth: 2, pointRadius: 0 }, { label: 'Subscription', data: zeros.slice(), borderColor: 'rgba(34,197,94,0.9)', backgroundColor: 'rgba(34,197,94,0.04)', tension: 0.4, borderWidth: 2, pointRadius: 0 } ] } as any);
+        setChartData({
+          labels: placeholderLabels,
+          datasets: [
+            {
+              label: 'Commission',
+              data: zeros,
+              borderColor: 'rgba(2,102,94,0.95)',
+              backgroundColor: 'rgba(2,102,94,0.06)',
+              tension: 0.4,
+              borderWidth: 2,
+              pointRadius: 0,
+            },
+            {
+              label: 'Subscription',
+              data: zeros.slice(),
+              borderColor: 'rgba(34,197,94,0.9)',
+              backgroundColor: 'rgba(34,197,94,0.04)',
+              tension: 0.4,
+              borderWidth: 2,
+              pointRadius: 0,
+            },
+          ],
+        });
 
       } catch (err) {
         // ignore placeholder build errors — we'll still attempt fetch below
@@ -138,7 +122,29 @@ export default function AdminHomePage() {
           const labels = Array.isArray(json) ? json.map((it: any) => it.name ?? it.title ?? `Property ${it.id ?? ''}`) : [];
           const commission = Array.isArray(json) ? json.map((it: any) => Number(it.commission ?? it.commission_total ?? it.commissionAmount ?? 0)) : [];
           const subscription = Array.isArray(json) ? json.map((it: any) => Number(it.subscription ?? it.subscription_total ?? it.subscriptionAmount ?? 0)) : [];
-          setChartData({ labels, datasets: [ { label: 'Commission', data: commission, borderColor: 'rgba(2,102,94,0.95)', backgroundColor: 'rgba(2,102,94,0.06)', tension: 0.2, borderWidth: 2, pointRadius: 3 }, { label: 'Subscription', data: subscription, borderColor: 'rgba(34,197,94,0.9)', backgroundColor: 'rgba(34,197,94,0.04)', tension: 0.2, borderWidth: 2, pointRadius: 3 } ] } as any);
+          setChartData({
+            labels,
+            datasets: [
+              {
+                label: 'Commission',
+                data: commission,
+                borderColor: 'rgba(2,102,94,0.95)',
+                backgroundColor: 'rgba(2,102,94,0.06)',
+                tension: 0.2,
+                borderWidth: 2,
+                pointRadius: 3,
+              },
+              {
+                label: 'Subscription',
+                data: subscription,
+                borderColor: 'rgba(34,197,94,0.9)',
+                backgroundColor: 'rgba(34,197,94,0.04)',
+                tension: 0.2,
+                borderWidth: 2,
+                pointRadius: 3,
+              },
+            ],
+          });
           return;
         }
 
@@ -168,89 +174,35 @@ export default function AdminHomePage() {
         const labels = Array.isArray(rows) ? rows.map((r: any) => String(r.label)) : [];
         const commission = Array.isArray(rows) ? rows.map((r: any) => Number(r.commission ?? 0)) : [];
         const subscription = Array.isArray(rows) ? rows.map((r: any) => Number(r.subscription ?? 0)) : [];
-        setChartData({ labels, datasets: [ { label: 'Commission', data: commission, borderColor: 'rgba(2,102,94,0.95)', backgroundColor: 'rgba(2,102,94,0.06)', tension: 0.4, borderWidth: 2, pointRadius: 0 }, { label: 'Subscription', data: subscription, borderColor: 'rgba(34,197,94,0.9)', backgroundColor: 'rgba(34,197,94,0.04)', tension: 0.4, borderWidth: 2, pointRadius: 0 } ] } as any);
-        // compute a simple percent delta between the last and previous combined points if possible
-        try {
-          const combined = commission.map((c: number, i: number) => Number(c || 0) + Number(subscription[i] || 0));
-          if (combined.length >= 2) {
-            const last = combined[combined.length - 1];
-            const prev = combined[combined.length - 2] || 0;
-            if (prev > 0) {
-              const pct = Math.round(((last - prev) / prev) * 100);
-              setRevenueDelta(`${pct >= 0 ? '+' : ''}${pct}%`);
-            } else if (last > 0) {
-              setRevenueDelta(`+${Math.round(last)}%`);
-            } else {
-              setRevenueDelta(null);
-            }
-          } else {
-            setRevenueDelta(null);
-          }
-        } catch (e) {
-          setRevenueDelta(null);
-        }
+        setChartData({
+          labels,
+          datasets: [
+            {
+              label: 'Commission',
+              data: commission,
+              borderColor: 'rgba(2,102,94,0.95)',
+              backgroundColor: 'rgba(2,102,94,0.06)',
+              tension: 0.4,
+              borderWidth: 2,
+              pointRadius: 0,
+            },
+            {
+              label: 'Subscription',
+              data: subscription,
+              borderColor: 'rgba(34,197,94,0.9)',
+              backgroundColor: 'rgba(34,197,94,0.04)',
+              tension: 0.4,
+              borderWidth: 2,
+              pointRadius: 0,
+            },
+          ],
+        });
       } catch (e) {
         // If fetching fails we keep the zero placeholders set above.
       }
     })();
   }, [hoursWindow, monthsWindow, propertiesCount, rangeType, revenueOpen]);
 
-  // Monitoring: fetch summary info from backend
-  useEffect(() => {
-    let mounted = true;
-    async function load() {
-      try {
-        const res = await fetch('/api/admin/summary');
-        if (!mounted) return;
-        if (!res.ok) throw new Error('no summary');
-        const data = await res.json();
-        setMonitoring({
-          activeSessions: data.activeSessions ?? 0,
-          pendingApprovals: data.pendingApprovals ?? 0,
-          invoicesReceived: data.invoicesReceived ?? 0,
-          bookings: data.bookings ?? 0,
-        });
-        // reflect some counts into the card-level metrics; only show when meaningful (>0)
-        if (mounted) {
-          setDriversPending(null); // leave null until a real endpoint provides this
-          setUsersNew(null); // leave null until a real endpoint provides this
-        }
-      } catch (e) {
-        // failed to load summary — clear monitoring so UI shows placeholders
-        if (!mounted) return;
-        setMonitoring(null);
-      }
-    }
-    load();
-    const t = setInterval(load, 30_000); // refresh every 30s
-    return () => { mounted = false; clearInterval(t); };
-  }, []);
-
-  // Recent Activities: fetch latest admin audit entries and show top 5
-  useEffect(() => {
-    let mounted = true;
-    async function load() {
-      try {
-        const res = await fetch('/api/admin/audits');
-        if (!mounted) return;
-        if (!res.ok) { setRecentActivities([]); return; }
-        const txt = await res.text();
-        let data: any = [];
-        if (txt && txt.trim()) {
-          try { data = JSON.parse(txt); } catch (err) { data = []; }
-        }
-        // expect array ordered desc; take first 5
-        const items = Array.isArray(data) ? data.slice(0, 5) : [];
-        setRecentActivities(items);
-      } catch (e) {
-        if (!mounted) return;
-        setRecentActivities([]);
-      }
-    }
-    load();
-    const t = setInterval(load, 30_000); // refresh every 30s
-    return () => { mounted = false; clearInterval(t); };
-  }, []);
   return (
     <div className="min-h-screen flex items-center justify-center p-6">
       <div className="max-w-4xl w-full">
@@ -423,8 +375,8 @@ export default function AdminHomePage() {
 
             {chartData !== null && (
               (() => {
-                const commissionArr: number[] = (chartData?.datasets?.[0]?.data) || [];
-                const subscriptionArr: number[] = (chartData?.datasets?.[1]?.data) || [];
+                const commissionArr = chartData.datasets[0].data;
+                const subscriptionArr = chartData.datasets[1].data;
                 const totalCommission = commissionArr.reduce((s, v) => s + Number(v || 0), 0);
                 const totalSubscription = subscriptionArr.reduce((s, v) => s + Number(v || 0), 0);
                 const totalCombined = totalCommission + totalSubscription;
@@ -496,14 +448,14 @@ export default function AdminHomePage() {
               </div>
 
               <div className="col-span-1 sm:col-span-2 grid grid-cols-3 gap-3">
-                <button onClick={() => router.push('/admin/properties')} className="p-3 rounded border border-gray-200 bg-white text-left">
+                <button onClick={() => router.push('/admin/properties/previews')} className="p-3 rounded border border-gray-200 bg-white text-left">
                   <div className="text-sm text-gray-500">Pending approvals</div>
                   <div className="text-lg font-semibold text-red-600">{monitoring ? monitoring.pendingApprovals : '—'}</div>
                 </button>
 
-                <button onClick={() => router.push('/admin/invoices')} className="p-3 rounded border border-gray-200 bg-white text-left">
-                  <div className="text-sm text-gray-500">Invoices Received</div>
-                  <div className="text-lg font-semibold text-red-600">{monitoring ? monitoring.invoicesReceived : '—'}</div>
+                <button onClick={() => router.push('/admin/payments')} className="p-3 rounded border border-gray-200 bg-white text-left">
+                  <div className="text-sm text-gray-500">Payments</div>
+                  <div className="text-lg font-semibold text-red-600">{paymentsWaiting ?? '—'}</div>
                 </button>
 
                 <button onClick={() => router.push('/admin/bookings')} className="p-3 rounded border border-gray-200 bg-white text-left">

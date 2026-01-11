@@ -1,28 +1,27 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from 'react';
-import { DayPicker, type DateRange } from 'react-day-picker';
-import 'react-day-picker/dist/style.css';
-import { REGIONS as TZ_REGIONS, type Region as TZRegion, type District as TZDistrict, type Ward as TZWard } from '@/lib/tzRegions';
+import React, { useState, useEffect } from 'react';
+import DatePicker from '@/components/ui/DatePicker';
+import { REGIONS as TZ_REGIONS } from '@/lib/tzRegions';
 import { REGIONS_FULL_DATA } from '@/lib/tzRegionsFull';
 import Link from 'next/link';
-import { Calendar, ChevronDown, ChevronLeft, ChevronRight, Check, Truck, Bus, Coffee, Users, Wrench, Download, ArrowLeft, CheckCircle, ArrowRight } from 'lucide-react';
+import { Calendar, ChevronDown, ChevronLeft, ChevronRight, Check, Truck, Bus, Coffee, Users, Wrench, Download, ArrowLeft, CheckCircle, ArrowRight, Trash2 } from 'lucide-react';
 import Spinner from './Spinner';
 
-// DateRange type is imported from react-day-picker for accurate typing
-
-
 export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
+  const DRAFT_KEY = 'groupStaysDraft.v1';
   const [groupType, setGroupType] = useState<string>('');
   const [accommodationType, setAccommodationType] = useState<string>('');
   const [headcount, setHeadcount] = useState<number>(4);
   const [maleCount, setMaleCount] = useState<number>(2);
   const [femaleCount, setFemaleCount] = useState<number>(2);
   const [otherCount, setOtherCount] = useState<number>(0);
-  const [range, setRange] = useState<DateRange | undefined>(undefined);
-  const [pendingRange, setPendingRange] = useState<DateRange | undefined>(undefined);
+  const [checkInIso, setCheckInIso] = useState<string>('');
+  const [checkOutIso, setCheckOutIso] = useState<string>('');
   const [roomSize, setRoomSize] = useState<number>(2);
   const [errors, setErrors] = useState<string[]>([]);
+  const [hasSavedDraft, setHasSavedDraft] = useState<boolean>(false);
+  const [draftNotice, setDraftNotice] = useState<string>('');
 
   // Use canonical TZ region/district data from `lib/tzRegions.ts`
   // `TZ_REGIONS` is an array of { id, name, districts }
@@ -54,6 +53,7 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
     return ward?.streets ?? [];
   };
 
+  const [fromCountry, setFromCountry] = useState<string>('');
   const [fromRegion, setFromRegion] = useState<string>('');
   const [toRegion, setToRegion] = useState<string>('');
   const [toDistrict, setToDistrict] = useState<string>('');
@@ -63,6 +63,35 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
   const [fromWard, setFromWard] = useState<string>('');
   const [fromLocation, setFromLocation] = useState<string>('');
 
+  // Countries list with EU as a special option
+  const COUNTRIES = [
+    { value: 'tanzania', label: 'Tanzania' },
+    { value: 'eu', label: 'EU (European Union)' },
+    { value: 'kenya', label: 'Kenya' },
+    { value: 'uganda', label: 'Uganda' },
+    { value: 'rwanda', label: 'Rwanda' },
+    { value: 'burundi', label: 'Burundi' },
+    { value: 'south-africa', label: 'South Africa' },
+    { value: 'united-states', label: 'United States' },
+    { value: 'united-kingdom', label: 'United Kingdom' },
+    { value: 'canada', label: 'Canada' },
+    { value: 'australia', label: 'Australia' },
+    { value: 'india', label: 'India' },
+    { value: 'china', label: 'China' },
+    { value: 'japan', label: 'Japan' },
+    { value: 'south-korea', label: 'South Korea' },
+    { value: 'brazil', label: 'Brazil' },
+    { value: 'mexico', label: 'Mexico' },
+    { value: 'argentina', label: 'Argentina' },
+    { value: 'egypt', label: 'Egypt' },
+    { value: 'nigeria', label: 'Nigeria' },
+    { value: 'ghana', label: 'Ghana' },
+    { value: 'other', label: 'Other' },
+  ];
+
+  // Check if Tanzania is selected
+  const isTanzaniaSelected = fromCountry === 'tanzania';
+
   // Calculate headcount from gender breakdown
   const calculatedHeadcount = maleCount + femaleCount + otherCount;
   // Update headcount when gender breakdown changes
@@ -70,12 +99,12 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
     if (calculatedHeadcount > 0) {
       setHeadcount(calculatedHeadcount);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [maleCount, femaleCount, otherCount]);
   
   const roomsNeeded = Math.max(0, Math.ceil(headcount / (roomSize || 1)));
-  const [numberOfMonths, setNumberOfMonths] = useState<number>(2);
-  const [showPickerPopover, setShowPickerPopover] = useState(false);
-  const popoverRef = useRef<HTMLDivElement | null>(null);
+  const [checkInPickerOpen, setCheckInPickerOpen] = useState(false);
+  const [checkOutPickerOpen, setCheckOutPickerOpen] = useState(false);
   const [useDates, setUseDates] = useState<boolean>(true);
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [needsPrivateRoom, setNeedsPrivateRoom] = useState<boolean>(false);
@@ -91,15 +120,212 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
   const [arrangementNotes, setArrangementNotes] = useState<string>('');
   const [roster, setRoster] = useState<Array<Record<string, string>>>([]);
   const [rosterError, setRosterError] = useState<string>('');
+  const [rosterFileName, setRosterFileName] = useState<string>('');
   const [showAllPassengers, setShowAllPassengers] = useState<boolean>(false);
   const [isCreating, setIsCreating] = useState<boolean>(false);
   const [showSuccess, setShowSuccess] = useState<boolean>(false);
   const templateColumns = ['First name','Last name','Phone','Age','Gender','Nationality'];
 
+  const toIsoDate = (d: Date) => {
+    const y = d.getUTCFullYear();
+    const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(d.getUTCDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
+  const addDaysIso = (iso: string, days: number) => {
+    if (!iso) return '';
+    const dt = new Date(iso);
+    if (Number.isNaN(dt.getTime())) return '';
+    dt.setUTCDate(dt.getUTCDate() + days);
+    return toIsoDate(dt);
+  };
+
+  const isoDateToApiDateTime = (iso: string) => {
+    if (!iso) return null;
+    return `${iso}T00:00:00.000Z`;
+  };
+
+  const clearSavedDraft = () => {
+    try {
+      localStorage.removeItem(DRAFT_KEY);
+    } catch {}
+    setHasSavedDraft(false);
+    setDraftNotice('Saved draft cleared.');
+    window.setTimeout(() => setDraftNotice(''), 2500);
+  };
+
+  // Restore Step 1 + Step 2 draft (never restores roster)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as any;
+      if (!parsed || typeof parsed !== 'object') return;
+
+      setGroupType(typeof parsed.groupType === 'string' ? parsed.groupType : '');
+      setFromCountry(typeof parsed.fromCountry === 'string' ? parsed.fromCountry : '');
+      setFromRegion(typeof parsed.fromRegion === 'string' ? parsed.fromRegion : '');
+      setFromDistrict(typeof parsed.fromDistrict === 'string' ? parsed.fromDistrict : '');
+      setFromWard(typeof parsed.fromWard === 'string' ? parsed.fromWard : '');
+      setFromLocation(typeof parsed.fromLocation === 'string' ? parsed.fromLocation : '');
+      setToRegion(typeof parsed.toRegion === 'string' ? parsed.toRegion : '');
+      setToDistrict(typeof parsed.toDistrict === 'string' ? parsed.toDistrict : '');
+      setToWard(typeof parsed.toWard === 'string' ? parsed.toWard : '');
+      setToLocation(typeof parsed.toLocation === 'string' ? parsed.toLocation : '');
+
+      setAccommodationType(typeof parsed.accommodationType === 'string' ? parsed.accommodationType : '');
+      setMaleCount(Number.isFinite(parsed.maleCount) ? Math.max(0, Number(parsed.maleCount)) : 2);
+      setFemaleCount(Number.isFinite(parsed.femaleCount) ? Math.max(0, Number(parsed.femaleCount)) : 2);
+      setOtherCount(Number.isFinite(parsed.otherCount) ? Math.max(0, Number(parsed.otherCount)) : 0);
+      setRoomSize(Number.isFinite(parsed.roomSize) ? Math.max(1, Number(parsed.roomSize)) : 2);
+      setNeedsPrivateRoom(typeof parsed.needsPrivateRoom === 'boolean' ? parsed.needsPrivateRoom : false);
+      setPrivateRoomCount(Number.isFinite(parsed.privateRoomCount) ? Math.max(0, Number(parsed.privateRoomCount)) : 0);
+      setUseDates(typeof parsed.useDates === 'boolean' ? parsed.useDates : true);
+      setCheckInIso(typeof parsed.checkInIso === 'string' ? parsed.checkInIso : '');
+      setCheckOutIso(typeof parsed.checkOutIso === 'string' ? parsed.checkOutIso : '');
+
+      setArrPickup(typeof parsed.arrPickup === 'boolean' ? parsed.arrPickup : false);
+      setArrTransport(typeof parsed.arrTransport === 'boolean' ? parsed.arrTransport : false);
+      setArrMeals(typeof parsed.arrMeals === 'boolean' ? parsed.arrMeals : false);
+      setArrGuide(typeof parsed.arrGuide === 'boolean' ? parsed.arrGuide : false);
+      setArrEquipment(typeof parsed.arrEquipment === 'boolean' ? parsed.arrEquipment : false);
+      setPickupLocation(typeof parsed.pickupLocation === 'string' ? parsed.pickupLocation : '');
+      setPickupTime(typeof parsed.pickupTime === 'string' ? parsed.pickupTime : '');
+      setArrangementNotes(typeof parsed.arrangementNotes === 'string' ? parsed.arrangementNotes : '');
+
+      const savedStep = Number.isFinite(parsed.currentStep) ? Number(parsed.currentStep) : 1;
+      setCurrentStep(Math.min(2, Math.max(1, savedStep)));
+
+      setHasSavedDraft(true);
+      setDraftNotice('Draft restored (Steps 1–2).');
+      window.setTimeout(() => setDraftNotice(''), 3000);
+    } catch {
+      // If draft is corrupted, ignore it
+      try { localStorage.removeItem(DRAFT_KEY); } catch {}
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Autosave Step 1 + Step 2 fields only (never saves roster)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const t = window.setTimeout(() => {
+      try {
+        const draft = {
+          currentStep: Math.min(2, Math.max(1, currentStep)),
+
+          // Step 1
+          groupType,
+          fromCountry,
+          fromRegion,
+          fromDistrict,
+          fromWard,
+          fromLocation,
+          toRegion,
+          toDistrict,
+          toWard,
+          toLocation,
+
+          // Step 2
+          accommodationType,
+          maleCount,
+          femaleCount,
+          otherCount,
+          roomSize,
+          needsPrivateRoom,
+          privateRoomCount,
+          useDates,
+          checkInIso,
+          checkOutIso,
+          arrPickup,
+          arrTransport,
+          arrMeals,
+          arrGuide,
+          arrEquipment,
+          pickupLocation,
+          pickupTime,
+          arrangementNotes,
+        };
+
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+        setHasSavedDraft(true);
+      } catch {
+        // ignore quota/unavailable storage
+      }
+    }, 450);
+
+    return () => window.clearTimeout(t);
+  }, [
+    currentStep,
+    groupType,
+    fromCountry,
+    fromRegion,
+    fromDistrict,
+    fromWard,
+    fromLocation,
+    toRegion,
+    toDistrict,
+    toWard,
+    toLocation,
+    accommodationType,
+    maleCount,
+    femaleCount,
+    otherCount,
+    roomSize,
+    needsPrivateRoom,
+    privateRoomCount,
+    useDates,
+    checkInIso,
+    checkOutIso,
+    arrPickup,
+    arrTransport,
+    arrMeals,
+    arrGuide,
+    arrEquipment,
+    pickupLocation,
+    pickupTime,
+    arrangementNotes,
+  ]);
+
+  const collectValidationErrors = (opts?: { upToStep?: number }) => {
+    const upToStep = opts?.upToStep ?? 4;
+    const e: string[] = [];
+
+    // Step 1 required fields
+    if (upToStep >= 1) {
+      if (!groupType) e.push('Group type is required.');
+      if (!fromCountry) e.push('Country is required.');
+      if (!toRegion) e.push('Destination region is required.');
+      if (!toDistrict) e.push('Destination district is required.');
+
+      // If Tanzania is selected, origin region is required
+      if (isTanzaniaSelected && !fromRegion) e.push('Region is required when Tanzania is selected.');
+    }
+
+    // Step 2 required fields
+    if (upToStep >= 2) {
+      if (!accommodationType) e.push('Accommodation type is required.');
+      if (calculatedHeadcount < 1) e.push('Headcount must be at least 1. Please specify at least one person in the gender breakdown.');
+      if (needsPrivateRoom && (!privateRoomCount || privateRoomCount < 1)) e.push('Please specify how many private rooms are needed.');
+      if (useDates && (!checkInIso || !checkOutIso)) e.push('Please select check-in and check-out dates.');
+      if (checkInIso && checkOutIso && new Date(checkInIso) >= new Date(checkOutIso)) e.push('Check-out must be after check-in.');
+    }
+
+    return e;
+  };
+
   // Check if all required fields are filled
   const isFormComplete = () => {
-    // Step 1: Group type and destination region required
-    if (!groupType || !toRegion) return false;
+    // Step 1: Required fields
+    if (!groupType) return false;
+    if (!fromCountry) return false;
+    if (!toRegion) return false;
+    if (!toDistrict) return false;
+    
+    // If Tanzania is selected, origin region is required
+    if (isTanzaniaSelected && !fromRegion) return false;
     
     // Step 2: Accommodation type required
     if (!accommodationType) return false;
@@ -111,7 +337,7 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
     if (needsPrivateRoom && (!privateRoomCount || privateRoomCount < 1)) return false;
     
     // If using dates, both check-in and check-out must be selected
-    if (useDates && (!range?.from || !range?.to)) return false;
+    if (useDates && (!checkInIso || !checkOutIso)) return false;
     
     return true;
   };
@@ -162,6 +388,7 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
 
   const handleRosterFile = (file?: File) => {
     setRosterError('');
+    setRosterFileName(file?.name ?? '');
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
@@ -187,40 +414,16 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
     };
     reader.readAsText(file);
   };
-  
 
-  useEffect(() => {
-    // responsive: show 2 months on >= 768px, 1 month on small screens
-    if (typeof window === 'undefined') return;
-    const mq = window.matchMedia('(min-width: 768px)');
-    const update = () => setNumberOfMonths(mq.matches ? 2 : 1);
-    update();
-    // addEventListener('change') is modern; fallback to addListener for older env
-    if ((mq as any).addEventListener) {
-      (mq as any).addEventListener('change', update);
-      return () => (mq as any).removeEventListener('change', update);
-    }
-    (mq as any).addListener(update);
-    return () => (mq as any).removeListener(update);
-  }, []);
-
-  // close popover on outside click
-  useEffect(() => {
-    const onDoc = (e: MouseEvent) => {
-      const el = popoverRef.current;
-      if (!el) return;
-      if (!(e.target instanceof Node)) return;
-      if (!el.contains(e.target)) setShowPickerPopover(false);
-    };
-    document.addEventListener('click', onDoc);
-    return () => document.removeEventListener('click', onDoc);
-  }, []);
 
   const validate = () => {
-    const e: string[] = [];
-    if (calculatedHeadcount < 1) e.push('Headcount must be at least 1. Please specify at least one person in the gender breakdown.');
-    if (needsPrivateRoom && (!privateRoomCount || privateRoomCount < 1)) e.push('Please specify how many private rooms are needed.');
-    if (range?.from && range?.to && range.from > range.to) e.push('Check-out must be after check-in.');
+    const e = collectValidationErrors();
+    setErrors(e);
+    return e.length === 0;
+  };
+
+  const validateUpToStep = (upToStep: number) => {
+    const e = collectValidationErrors({ upToStep });
     setErrors(e);
     return e.length === 0;
   };
@@ -233,10 +436,11 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
     
     const payload = {
       groupType,
-      fromRegion,
-      fromDistrict,
-      fromWard,
-      fromLocation,
+      fromCountry: fromCountry || null,
+      fromRegion: isTanzaniaSelected ? fromRegion : null,
+      fromDistrict: isTanzaniaSelected ? fromDistrict : null,
+      fromWard: isTanzaniaSelected ? fromWard : null,
+      fromLocation: isTanzaniaSelected ? fromLocation : null,
       toRegion,
       toDistrict,
       toWard,
@@ -248,8 +452,8 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
       otherCount: otherCount > 0 ? otherCount : null,
       needsPrivateRoom,
       privateRoomCount,
-      checkin: range?.from?.toISOString() ?? null,
-      checkout: range?.to?.toISOString() ?? null,
+      checkin: useDates ? isoDateToApiDateTime(checkInIso) : null,
+      checkout: useDates ? isoDateToApiDateTime(checkOutIso) : null,
       useDates,
       roomSize,
       roomsNeeded,
@@ -303,6 +507,10 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
         status: data.booking?.status,
         destination: data.booking?.destination,
       });
+
+      // Clear saved draft on successful submit
+      try { localStorage.removeItem(DRAFT_KEY); } catch {}
+      setHasSavedDraft(false);
       
       // Show success message
       setShowSuccess(true);
@@ -362,11 +570,11 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
   };
   const formatDateSummary = () => {
     if (!useDates) return 'Not specified';
-    const from = range?.from;
-    const to = range?.to;
-    if (!from && !to) return 'Select dates';
-    const formatDateShort = (d?: Date) => d ? new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(d) : '—';
-    const f = from ? formatDateShort(from) : '—';
+    if (!checkInIso && !checkOutIso) return 'Select dates';
+    const from = checkInIso ? new Date(checkInIso) : null;
+    const to = checkOutIso ? new Date(checkOutIso) : null;
+    const formatDateShort = (d?: Date | null) => d ? new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(d) : '—';
+    const f = formatDateShort(from);
     const t = to ? formatDateShort(to) : 'Any';
     if (from && to) {
       const nights = Math.max(0, Math.round((to.getTime() - from.getTime()) / 86400000));
@@ -415,8 +623,8 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
                   Thank you for your Group Stay booking!
                 </h2>
                 <p className="text-base sm:text-lg text-slate-600 leading-relaxed">
-                  We've received your group stay request and our team is currently reviewing it. 
-                  We'll get back to you soon with accommodation options and pricing tailored to your group's needs.
+                  We&apos;ve received your group stay request and our team is currently reviewing it. 
+                  We&apos;ll get back to you soon with accommodation options and pricing tailored to your group&apos;s needs.
                 </p>
               </div>
 
@@ -482,7 +690,19 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
                     <div key={s} className="flex items-center gap-3">
                       <button
                         type="button"
-                        onClick={() => setCurrentStep(s)}
+                        onClick={() => {
+                          if (s <= currentStep) {
+                            setErrors([]);
+                            setCurrentStep(s);
+                            return;
+                          }
+                          // Validate all steps up to the target step
+                          const ok = validateUpToStep(s - 1);
+                          if (ok) {
+                            setErrors([]);
+                            setCurrentStep(s);
+                          }
+                        }}
                         className={`flex items-center justify-center w-10 h-10 rounded-full text-sm font-semibold transition-transform transform ${currentStep===s ? 'bg-emerald-600 text-white shadow-md scale-105' : 'bg-slate-100 text-slate-700 hover:scale-105'} focus:outline-none focus:ring-2 focus:ring-emerald-200`}
                         aria-current={currentStep===s ? 'step' : undefined}
                         aria-label={`Step ${s}`}
@@ -502,10 +722,33 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
 
             {/* Step content */}
             <div className="sm:col-span-2">
+              <div key={currentStep} className="stepContentTransition">
               {currentStep === 1 && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="sm:col-span-2">
+                    <div className="flex items-center justify-between gap-3 text-xs">
+                      <div className="text-slate-500">
+                        {draftNotice ? (
+                          <span className="text-emerald-700">{draftNotice}</span>
+                        ) : (
+                          <span>Saved automatically (Steps 1–2)</span>
+                        )}
+                      </div>
+                      {hasSavedDraft ? (
+                        <button
+                          type="button"
+                          onClick={clearSavedDraft}
+                          aria-label="Clear saved draft"
+                          title="Clear saved draft"
+                          className="inline-flex items-center justify-center h-8 w-8 rounded-md border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                        >
+                          <Trash2 className="h-4 w-4" aria-hidden />
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
                   <div className="rounded-lg bg-white p-4 border border-slate-100 shadow-sm transform transition hover:-translate-y-0.5 hover:shadow-lg">
-                    <label htmlFor="group-type" className="block text-sm font-medium text-slate-700">Group type</label>
+                    <label htmlFor="group-type" className="block text-sm font-medium text-slate-700">Group type <span className="text-red-500">*</span></label>
                     <p className="text-xs text-slate-500 mt-1">Select the group type. Students option added for school groups.</p>
                     <div className="mt-3">
                       <div className="relative">
@@ -516,72 +759,107 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
                           <option value="event">Event</option>
                           <option value="students">Students</option>
                           <option value="team">Team</option>
+                          <option value="safari_stay">Safari Stay</option>
                           <option value="other">Other</option>
                         </select>
                         <ChevronDown className="groupstays-chevron pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden />
                       </div>
                     </div>
 
-                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="mt-3">
                       <div>
-                        <label htmlFor="from-region" className="block text-xs text-slate-600">Region</label>
+                        <label htmlFor="from-country" className="block text-xs text-slate-600 mb-1">Country <span className="text-red-500">*</span></label>
                         <div className="relative">
-                          <select id="from-region" value={fromRegion} onChange={(e) => { setFromRegion(e.target.value); setFromDistrict(''); setFromWard(''); setFromLocation(''); }} className="groupstays-select mt-1 w-full rounded-md px-3 py-2 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 pr-9">
-                            <option value="">Select region</option>
-                            {REGION_OPTIONS.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-                          </select>
-                          <ChevronDown className="groupstays-chevron pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label htmlFor="from-district" className="block text-xs text-slate-600">District</label>
-                        <div className="relative">
-                          <select id="from-district" value={fromDistrict} onChange={(e) => { setFromDistrict(e.target.value); setFromWard(''); setFromLocation(''); }} className="groupstays-select mt-1 w-full rounded-md px-3 py-2 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 pr-9">
-                            <option value="">Select district</option>
-                            {getDistrictsFor(fromRegion).map((d) => <option key={d} value={d}>{d}</option>)}
-                          </select>
-                          <ChevronDown className="groupstays-chevron pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label htmlFor="from-ward" className="block text-xs text-slate-600">Ward</label>
-                        <div className="relative">
-                          <select id="from-ward" value={fromWard} onChange={(e) => { setFromWard(e.target.value); setFromLocation(''); }} disabled={!fromDistrict} className="groupstays-select mt-1 w-full rounded-md px-3 py-2 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 pr-9 disabled:bg-slate-50 disabled:text-slate-400">
-                            <option value="">Select ward</option>
-                            {getWardsFor(fromRegion, fromDistrict).map((ward) => (
-                              <option key={ward.name} value={ward.name}>{ward.name}</option>
-                            ))}
-                          </select>
-                          <ChevronDown className="groupstays-chevron pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label htmlFor="from-location" className="block text-xs text-slate-600">Street</label>
-                        <div className="relative">
-                          <select id="from-location" value={fromLocation} onChange={(e) => setFromLocation(e.target.value)} disabled={!fromWard} className="groupstays-select mt-1 w-full rounded-md px-3 py-2 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 pr-9 disabled:bg-slate-50 disabled:text-slate-400">
-                            <option value="">Select street</option>
-                            {getStreetsFor(fromRegion, fromDistrict, fromWard).map((street) => (
-                              <option key={street} value={street}>{street}</option>
+                          <select 
+                            id="from-country" 
+                            value={fromCountry} 
+                            onChange={(e) => { 
+                              const newCountry = e.target.value;
+                              setFromCountry(newCountry);
+                              // Clear region/district/ward/street if not Tanzania
+                              if (newCountry !== 'tanzania') {
+                                setFromRegion('');
+                                setFromDistrict('');
+                                setFromWard('');
+                                setFromLocation('');
+                              }
+                            }} 
+                            className="groupstays-select mt-1 w-full rounded-md px-3 py-2 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 pr-9"
+                          >
+                            <option value="">Select country</option>
+                            {COUNTRIES.map((country) => (
+                              <option key={country.value} value={country.value}>{country.label}</option>
                             ))}
                           </select>
                           <ChevronDown className="groupstays-chevron pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden />
                         </div>
                       </div>
                     </div>
+
+                    {isTanzaniaSelected && (
+                      <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label htmlFor="from-region" className="block text-xs text-slate-600">
+                            Region <span className="text-red-500">*</span>
+                          </label>
+                          <div className="relative">
+                            <select id="from-region" value={fromRegion} onChange={(e) => { setFromRegion(e.target.value); setFromDistrict(''); setFromWard(''); setFromLocation(''); }} required className="groupstays-select mt-1 w-full rounded-md px-3 py-2 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 pr-9">
+                              <option value="">Select region</option>
+                              {REGION_OPTIONS.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                            </select>
+                            <ChevronDown className="groupstays-chevron pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label htmlFor="from-district" className="block text-xs text-slate-600">District</label>
+                          <div className="relative">
+                            <select id="from-district" value={fromDistrict} onChange={(e) => { setFromDistrict(e.target.value); setFromWard(''); setFromLocation(''); }} disabled={!fromRegion} className="groupstays-select mt-1 w-full rounded-md px-3 py-2 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 pr-9 disabled:bg-slate-50 disabled:text-slate-400">
+                              <option value="">Select district</option>
+                              {getDistrictsFor(fromRegion).map((d) => <option key={d} value={d}>{d}</option>)}
+                            </select>
+                            <ChevronDown className="groupstays-chevron pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label htmlFor="from-ward" className="block text-xs text-slate-600">Ward</label>
+                          <div className="relative">
+                            <select id="from-ward" value={fromWard} onChange={(e) => { setFromWard(e.target.value); setFromLocation(''); }} disabled={!fromDistrict} className="groupstays-select mt-1 w-full rounded-md px-3 py-2 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 pr-9 disabled:bg-slate-50 disabled:text-slate-400">
+                              <option value="">Select ward</option>
+                              {getWardsFor(fromRegion, fromDistrict).map((ward) => (
+                                <option key={ward.name} value={ward.name}>{ward.name}</option>
+                              ))}
+                            </select>
+                            <ChevronDown className="groupstays-chevron pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label htmlFor="from-location" className="block text-xs text-slate-600">Street</label>
+                          <div className="relative">
+                            <select id="from-location" value={fromLocation} onChange={(e) => setFromLocation(e.target.value)} disabled={!fromWard} className="groupstays-select mt-1 w-full rounded-md px-3 py-2 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 pr-9 disabled:bg-slate-50 disabled:text-slate-400">
+                              <option value="">Select street</option>
+                              {getStreetsFor(fromRegion, fromDistrict, fromWard).map((street) => (
+                                <option key={street} value={street}>{street}</option>
+                              ))}
+                            </select>
+                            <ChevronDown className="groupstays-chevron pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden />
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="rounded-lg bg-white p-4 border border-slate-100 shadow-sm transform transition hover:-translate-y-0.5 hover:shadow-lg">
                     <div>
-                      <label htmlFor="to-region" className="block text-sm font-medium text-slate-700">Where are you going?</label>
+                      <label htmlFor="to-region" className="block text-sm font-medium text-slate-700">Where are you going? <span className="text-red-500">*</span></label>
                       <p className="text-xs text-slate-500 mt-1">Region, district, ward and exact location</p>
                     </div>
 
                     <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <label htmlFor="to-region" className="block text-xs text-slate-600">Region</label>
+                        <label htmlFor="to-region" className="block text-xs text-slate-600">Region <span className="text-red-500">*</span></label>
                         <div className="relative">
                           <select id="to-region" value={toRegion} onChange={(e) => { setToRegion(e.target.value); setToDistrict(''); setToWard(''); setToLocation(''); }} className="groupstays-select mt-1 w-full rounded-md px-3 py-2 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 pr-9">
                             <option value="">Select region</option>
@@ -592,9 +870,9 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
                       </div>
 
                       <div>
-                        <label htmlFor="to-district" className="block text-xs text-slate-600">District</label>
+                        <label htmlFor="to-district" className="block text-xs text-slate-600">District <span className="text-red-500">*</span></label>
                         <div className="relative">
-                          <select id="to-district" value={toDistrict} onChange={(e) => setToDistrict(e.target.value)} className="groupstays-select mt-1 w-full rounded-md px-3 py-2 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 pr-9">
+                          <select id="to-district" value={toDistrict} onChange={(e) => { setToDistrict(e.target.value); setToWard(''); setToLocation(''); }} disabled={!toRegion} className="groupstays-select mt-1 w-full rounded-md px-3 py-2 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 pr-9 disabled:bg-slate-50 disabled:text-slate-400">
                             <option value="">Select district</option>
                             {getDistrictsFor(toRegion).map((d) => <option key={d} value={d}>{d}</option>)}
                           </select>
@@ -636,6 +914,26 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
 
               {currentStep === 2 && (
                 <div>
+                  <div className="mb-3 flex items-center justify-between gap-3 text-xs">
+                    <div className="text-slate-500">
+                      {draftNotice ? (
+                        <span className="text-emerald-700">{draftNotice}</span>
+                      ) : (
+                        <span>Saved automatically (Steps 1–2)</span>
+                      )}
+                    </div>
+                    {hasSavedDraft ? (
+                      <button
+                        type="button"
+                        onClick={clearSavedDraft}
+                        aria-label="Clear saved draft"
+                        title="Clear saved draft"
+                        className="inline-flex items-center justify-center h-8 w-8 rounded-md border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                      >
+                        <Trash2 className="h-4 w-4" aria-hidden />
+                      </button>
+                    ) : null}
+                  </div>
                   {/* Accommodation, headcount and private-room controls moved to top of Step 2 */}
                   <div className="rounded border p-3 mb-4 groupstays-section border-slate-100">
                     <div className="flex items-center justify-between mb-2">
@@ -804,16 +1102,12 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
                       </div>
                     </div>
                     <div className="mt-2">
-                      {/* existing date UI (kept) */}
-                      {/* control to enable/disable date selection. When disabled the date UI is hidden */}
                       {!useDates ? (
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
                             onClick={() => {
                               setUseDates(true);
-                              setPendingRange(range);
-                              setShowPickerPopover(true);
                             }}
                             className="px-3 py-2 rounded border bg-white text-sm"
                           >
@@ -822,104 +1116,92 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
                           <span className="text-sm text-slate-500">Dates: Not specified</span>
                         </div>
                       ) : (
-                        <>
-                          <div className="flex flex-col items-center gap-3">
-                            {numberOfMonths === 1 ? (
-                              <div className="relative">
-                                <button
-                                  type="button"
-                                  aria-haspopup="dialog"
-                                  aria-expanded={showPickerPopover}
-                                  onClick={() => setShowPickerPopover((s) => { const ns = !s; if (!s) setPendingRange(range); return ns; })}
-                                  className="mx-auto text-left rounded px-4 py-2 border bg-white min-w-[12rem]"
-                                >
-                                  <div className="text-sm text-slate-700">
-                                    <span className="font-medium">{range?.from ? new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(range.from) : 'Select dates'}</span>
-                                    <span className="mx-2">to</span>
-                                    <span className="font-medium">{range?.to ? new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(range.to) : 'Any'}</span>
-                                  </div>
-                                </button>
-
-                                {showPickerPopover && (
-                                  <div ref={popoverRef} className="absolute z-50 left-1/2 -translate-x-1/2 mt-2 w-[22rem] bg-white rounded shadow-lg p-3 animate-fade-in sm:left-auto sm:translate-x-0 sm:right-0 sm:w-auto">
-                                    <DayPicker
-                                      mode="range"
-                                      selected={pendingRange ?? range}
-                                      onSelect={(r) => {
-                                        const rr = r as DateRange | undefined;
-                                        setPendingRange(rr);
-                                      }}
-                                      numberOfMonths={numberOfMonths}
-                                      fromDate={new Date()}
-                                      disabled={{ before: new Date() }}
-                                      defaultMonth={new Date()}
-                                    />
-                                    <div className="mt-2 flex justify-center gap-2">
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setRange(pendingRange);
-                                          setPendingRange(undefined);
-                                          setShowPickerPopover(false);
-                                        }}
-                                        disabled={!(pendingRange?.from && pendingRange?.to)}
-                                        className="px-3 py-1 text-sm rounded bg-emerald-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                                      >
-                                        Apply
-                                      </button>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            ) : (
-                              <div className="w-full flex justify-center">
-                                <div>
-                                  <DayPicker
-                                    mode="range"
-                                    selected={pendingRange ?? range}
-                                    onSelect={(r) => {
-                                      const rr = r as DateRange | undefined;
-                                      setPendingRange(rr);
-                                    }}
-                                    numberOfMonths={numberOfMonths}
-                                    fromDate={new Date()}
-                                    disabled={{ before: new Date() }}
-                                    defaultMonth={new Date()}
-                                    footer={undefined}
-                                  />
-                                  <div className="mt-2 flex justify-center gap-2">
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setRange(pendingRange);
-                                        setPendingRange(undefined);
-                                        setShowPickerPopover(false);
-                                      }}
-                                      disabled={!(pendingRange?.from && pendingRange?.to)}
-                                      className="px-3 py-1 text-sm rounded bg-emerald-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                      Apply
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-
-                            <div>
+                        <div className="w-full max-w-md mx-auto">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="relative">
                               <button
                                 type="button"
-                                onClick={() => {
-                                  // Close the date picker UI without clearing the selected dates
-                                  setShowPickerPopover(false);
-                                  setPendingRange(undefined);
-                                }}
-                                className="px-3 py-2 text-sm rounded border bg-slate-50 text-slate-600"
+                                onClick={() => setCheckInPickerOpen(true)}
+                                className="w-full text-left rounded px-3 py-2 border bg-white text-sm"
                               >
-                                Close
+                                <div className="text-xs text-slate-500">Check-in</div>
+                                <div className="font-medium text-slate-700">
+                                  {checkInIso ? new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(checkInIso)) : 'Select'}
+                                </div>
                               </button>
+
+                              {checkInPickerOpen && (
+                                <>
+                                  <div className="fixed inset-0 z-40" onClick={() => setCheckInPickerOpen(false)} />
+                                  <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                                    <DatePicker
+                                      selected={checkInIso || undefined}
+                                      onSelect={(s) => {
+                                        const date = Array.isArray(s) ? s[0] : s;
+                                        if (date) {
+                                          setCheckInIso(date);
+                                          if (checkOutIso && new Date(checkOutIso) <= new Date(date)) setCheckOutIso('');
+                                        }
+                                        setCheckInPickerOpen(false);
+                                      }}
+                                      onClose={() => setCheckInPickerOpen(false)}
+                                      allowRange={false}
+                                    />
+                                  </div>
+                                </>
+                              )}
+                            </div>
+
+                            <div className="relative">
+                              <button
+                                type="button"
+                                onClick={() => setCheckOutPickerOpen(true)}
+                                disabled={!checkInIso}
+                                className="w-full text-left rounded px-3 py-2 border bg-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <div className="text-xs text-slate-500">Check-out</div>
+                                <div className="font-medium text-slate-700">
+                                  {checkOutIso ? new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(checkOutIso)) : 'Select'}
+                                </div>
+                              </button>
+
+                              {checkOutPickerOpen && (
+                                <>
+                                  <div className="fixed inset-0 z-40" onClick={() => setCheckOutPickerOpen(false)} />
+                                  <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                                    <DatePicker
+                                      selected={checkOutIso || undefined}
+                                      onSelect={(s) => {
+                                        const date = Array.isArray(s) ? s[0] : s;
+                                        if (date) setCheckOutIso(date);
+                                        setCheckOutPickerOpen(false);
+                                      }}
+                                      onClose={() => setCheckOutPickerOpen(false)}
+                                      allowRange={false}
+                                      minDate={checkInIso ? addDaysIso(checkInIso, 1) : undefined}
+                                    />
+                                  </div>
+                                </>
+                              )}
                             </div>
                           </div>
-                        </>
+
+                          <div className="mt-2 flex items-center justify-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setUseDates(false);
+                                setCheckInIso('');
+                                setCheckOutIso('');
+                                setCheckInPickerOpen(false);
+                                setCheckOutPickerOpen(false);
+                              }}
+                              className="px-3 py-2 text-sm rounded border bg-slate-50 text-slate-600"
+                            >
+                              Remove dates
+                            </button>
+                          </div>
+                        </div>
                       )}
                     </div>
                     <div className="mt-2 text-sm text-slate-600 text-center">Selected: <span className="font-medium">{formatDateSummary()}</span></div>
@@ -986,54 +1268,149 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
 
               {currentStep === 3 && (
                 <div>
-                  <div className="rounded border p-3">
-                    <label className="block text-xs text-slate-600">Roster</label>
-                    <div className="mt-2 text-sm text-slate-500">Manage passenger roster for this booking. Download the template, fill rows, and upload CSV to import.</div>
-
-                    <div className="mt-3 grid grid-cols-1 gap-2">
-                      <div className="flex items-center gap-2">
-                        <button type="button" onClick={downloadTemplate} aria-label="Download roster template" title="Download template" className="px-3 py-2 rounded border bg-white text-sm inline-flex items-center justify-center">
-                          <Download className="w-4 h-4 text-slate-700" aria-hidden />
-                        </button>
-                      </div>
-
+                  <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-5 shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
                       <div>
-                        <label htmlFor="roster-file" className="sr-only">Upload roster CSV</label>
-                        <input id="roster-file" type="file" accept=".csv,text/csv" aria-label="Upload roster CSV" onChange={(e) => handleRosterFile(e.target.files ? e.target.files[0] : undefined)} className="text-sm" />
+                        <div className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Roster</div>
+                        <h4 className="mt-1 text-base sm:text-lg font-semibold text-slate-900">Passenger roster (CSV / Excel)</h4>
+                        <p className="mt-1 text-sm text-slate-600">
+                          To help us plan rooms and logistics, you can upload a passenger list. The easiest way is to download the template, fill it in Excel/Google Sheets, then upload the saved CSV.
+                        </p>
+                        <p className="mt-2 text-xs text-slate-500">Optional: If you don’t have the roster yet, you can continue without it.</p>
                       </div>
+                      <div className="hidden sm:flex items-center justify-center h-10 w-10 rounded-lg bg-slate-50 border border-slate-200">
+                        <Users className="w-5 h-5 text-slate-600" aria-hidden />
+                      </div>
+                    </div>
 
-                      {rosterError ? <div className="text-xs text-rose-600">{rosterError}</div> : null}
+                    <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                        <div className="flex items-center gap-2">
+                          <div className="h-7 w-7 rounded-full bg-white border border-slate-200 flex items-center justify-center text-sm font-semibold text-slate-700">1</div>
+                          <div className="text-sm font-semibold text-slate-900">Download template</div>
+                        </div>
+                        <div className="mt-2 text-xs text-slate-600">Get the correct columns and formatting.</div>
+                      </div>
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                        <div className="flex items-center gap-2">
+                          <div className="h-7 w-7 rounded-full bg-white border border-slate-200 flex items-center justify-center text-sm font-semibold text-slate-700">2</div>
+                          <div className="text-sm font-semibold text-slate-900">Fill in Excel</div>
+                        </div>
+                        <div className="mt-2 text-xs text-slate-600">One passenger per row. Don’t change column names.</div>
+                      </div>
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                        <div className="flex items-center gap-2">
+                          <div className="h-7 w-7 rounded-full bg-white border border-slate-200 flex items-center justify-center text-sm font-semibold text-slate-700">3</div>
+                          <div className="text-sm font-semibold text-slate-900">Upload CSV</div>
+                        </div>
+                        <div className="mt-2 text-xs text-slate-600">Export/Save as CSV, then upload here.</div>
+                      </div>
+                    </div>
 
-                      {roster.length ? (
-                        <div className="mt-2">
-                          <div className="text-xs text-slate-600">Imported rows: <strong>{roster.length}</strong></div>
-                          <div className="mt-2 text-sm bg-slate-50 p-2 rounded">
-                            <table className="w-full text-left text-xs">
-                                <thead>
-                                  <tr>
-                                    {templateColumns.map((col, idx) => (
-                                      <th key={col + idx} className="pr-2">{col.replace(/\s+/g, '').toLowerCase()}</th>
-                                    ))}
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {roster.slice(0,5).map((r,i) => (
-                                    <tr key={i} className="border-t">
-                                      {templateColumns.map((col, ci) => {
-                                        const key = col.replace(/\s+/g, '').toLowerCase();
-                                        return <td key={ci} className="pr-2 py-1">{r[key] ?? ''}</td>;
-                                      })}
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
+                    <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="rounded-lg border border-slate-200 p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <div className="text-sm font-semibold text-slate-900">Template</div>
+                            <div className="text-xs text-slate-600">CSV template (opens in Excel)</div>
                           </div>
-                          <div className="mt-2">
-                            <button type="button" onClick={() => setRoster([])} className="px-3 py-1 rounded border text-sm">Clear roster</button>
+                          <button
+                            type="button"
+                            onClick={downloadTemplate}
+                            aria-label="Download roster template"
+                            className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold inline-flex items-center gap-2 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                          >
+                            <Download className="w-4 h-4" aria-hidden />
+                            Download
+                          </button>
+                        </div>
+
+                        <div className="mt-3">
+                          <div className="text-xs text-slate-500">Expected columns</div>
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {templateColumns.map((c) => (
+                              <span key={c} className="px-2 py-1 rounded-full text-xs bg-slate-50 border border-slate-200 text-slate-700">
+                                {c}
+                              </span>
+                            ))}
                           </div>
                         </div>
-                      ) : null}
+                      </div>
+
+                      <div className="rounded-lg border border-slate-200 p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <div className="text-sm font-semibold text-slate-900">Upload roster</div>
+                            <div className="text-xs text-slate-600">Upload a saved CSV file</div>
+                          </div>
+                        </div>
+
+                        <div className="mt-3">
+                          <label
+                            htmlFor="roster-file"
+                            className="w-full cursor-pointer rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-700 flex items-center justify-between gap-3 hover:bg-slate-100"
+                          >
+                            <span className="truncate">{rosterFileName ? rosterFileName : 'Choose CSV file to upload'}</span>
+                            <span className="text-xs font-semibold text-slate-600">Browse</span>
+                          </label>
+                          <input
+                            id="roster-file"
+                            type="file"
+                            accept=".csv,text/csv"
+                            aria-label="Upload roster CSV"
+                            onChange={(e) => handleRosterFile(e.target.files ? e.target.files[0] : undefined)}
+                            className="sr-only"
+                          />
+                          <div className="mt-2 text-xs text-slate-500">Tip: In Excel, use “Save As” → “CSV (Comma delimited)”.</div>
+                        </div>
+
+                        {rosterError ? <div className="mt-2 text-xs text-rose-600">{rosterError}</div> : null}
+                      </div>
                     </div>
+
+                    {roster.length ? (
+                      <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                            <Check className="w-4 h-4 text-emerald-600" aria-hidden />
+                            Imported roster
+                          </div>
+                          <div className="text-xs text-slate-600">Rows: <strong>{roster.length}</strong> (showing first 5)</div>
+                        </div>
+
+                        <div className="mt-3 overflow-x-auto">
+                          <table className="min-w-full text-left text-xs">
+                            <thead>
+                              <tr className="text-slate-600">
+                                {templateColumns.map((col, idx) => (
+                                  <th key={col + idx} className="pr-4 pb-2 font-semibold whitespace-nowrap">{col}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {roster.slice(0, 5).map((r, i) => (
+                                <tr key={i} className="border-t border-slate-200">
+                                  {templateColumns.map((col, ci) => {
+                                    const key = col.replace(/\s+/g, '').toLowerCase();
+                                    return <td key={ci} className="pr-4 py-2 text-slate-700 whitespace-nowrap">{r[key] ?? ''}</td>;
+                                  })}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        <div className="mt-3 flex items-center justify-end">
+                          <button
+                            type="button"
+                            onClick={() => { setRoster([]); setRosterFileName(''); }}
+                            className="px-3 py-2 rounded-lg border bg-white text-sm text-slate-700 hover:bg-slate-50"
+                          >
+                            Clear roster
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               )}
@@ -1077,21 +1454,31 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
                       <h5 className="text-sm font-semibold text-blue-700 uppercase mb-3 pb-2 border-b border-blue-100">Origin</h5>
                       <div className="space-y-2">
                         <div className="flex justify-between items-center py-1">
-                          <span className="text-xs text-slate-500">Region</span>
-                          <span className="text-sm font-medium text-slate-900">{fromRegion ? getRegionName(fromRegion) : '—'}</span>
+                          <span className="text-xs text-slate-500">Country</span>
+                          <span className="text-sm font-medium text-slate-900">
+                            {fromCountry ? COUNTRIES.find(c => c.value === fromCountry)?.label || fromCountry : '—'}
+                          </span>
                         </div>
-                        <div className="flex justify-between items-center py-1 bg-slate-50 px-2 rounded">
-                          <span className="text-xs text-slate-500">District</span>
-                          <span className="text-sm font-medium text-slate-900">{fromDistrict || '—'}</span>
-                        </div>
-                        <div className="flex justify-between items-center py-1">
-                          <span className="text-xs text-slate-500">Ward</span>
-                          <span className="text-sm font-medium text-slate-900">{fromWard || '—'}</span>
-                        </div>
-                        <div className="flex justify-between items-center py-1 bg-slate-50 px-2 rounded">
-                          <span className="text-xs text-slate-500">Location</span>
-                          <span className="text-sm font-medium text-slate-900">{fromLocation || '—'}</span>
-                        </div>
+                        {isTanzaniaSelected && (
+                          <>
+                            <div className="flex justify-between items-center py-1 bg-slate-50 px-2 rounded">
+                              <span className="text-xs text-slate-500">Region</span>
+                              <span className="text-sm font-medium text-slate-900">{fromRegion ? getRegionName(fromRegion) : '—'}</span>
+                            </div>
+                            <div className="flex justify-between items-center py-1">
+                              <span className="text-xs text-slate-500">District</span>
+                              <span className="text-sm font-medium text-slate-900">{fromDistrict || '—'}</span>
+                            </div>
+                            <div className="flex justify-between items-center py-1 bg-slate-50 px-2 rounded">
+                              <span className="text-xs text-slate-500">Ward</span>
+                              <span className="text-sm font-medium text-slate-900">{fromWard || '—'}</span>
+                            </div>
+                            <div className="flex justify-between items-center py-1">
+                              <span className="text-xs text-slate-500">Location</span>
+                              <span className="text-sm font-medium text-slate-900">{fromLocation || '—'}</span>
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
 
@@ -1127,16 +1514,16 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
                       <div className="space-y-2">
                         <div className="flex justify-between items-center py-1">
                           <span className="text-xs text-slate-500">Check-in</span>
-                          <span className="text-sm font-medium text-slate-900">{range?.from ? new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(range.from) : '—'}</span>
+                          <span className="text-sm font-medium text-slate-900">{checkInIso ? new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(checkInIso)) : '—'}</span>
                         </div>
                         <div className="flex justify-between items-center py-1 bg-slate-50 px-2 rounded">
                           <span className="text-xs text-slate-500">Check-out</span>
-                          <span className="text-sm font-medium text-slate-900">{range?.to ? new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(range.to) : '—'}</span>
+                          <span className="text-sm font-medium text-slate-900">{checkOutIso ? new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(checkOutIso)) : '—'}</span>
                         </div>
-                        {range?.from && range?.to && (
+                        {checkInIso && checkOutIso && (
                           <div className="flex justify-between items-center py-1">
                             <span className="text-xs text-slate-500">Duration</span>
-                            <span className="text-sm font-medium text-slate-900">{Math.max(0, Math.round((range.to.getTime() - range.from.getTime()) / 86400000))} night{Math.max(0, Math.round((range.to.getTime() - range.from.getTime()) / 86400000)) !== 1 ? 's' : ''}</span>
+                            <span className="text-sm font-medium text-slate-900">{Math.max(0, Math.round((new Date(checkOutIso).getTime() - new Date(checkInIso).getTime()) / 86400000))} night{Math.max(0, Math.round((new Date(checkOutIso).getTime() - new Date(checkInIso).getTime()) / 86400000)) !== 1 ? 's' : ''}</span>
                           </div>
                         )}
                         <div className="flex justify-between items-center py-1 bg-slate-50 px-2 rounded">
@@ -1300,6 +1687,7 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
                   </div>
                 </div>
               )}
+              </div>
             </div>
           </div>
 
@@ -1313,7 +1701,16 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
             ) : null}
 
             {currentStep < 4 ? (
-              <button type="button" onClick={() => setCurrentStep((s) => s + 1)} className="px-4 py-2 bg-emerald-600 text-white rounded-lg shadow transition transform hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 focus:outline-none focus:ring-2 focus:ring-emerald-300 inline-flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const ok = validateUpToStep(currentStep);
+                  if (!ok) return;
+                  setErrors([]);
+                  setCurrentStep((s) => s + 1);
+                }}
+                className="px-4 py-2 bg-emerald-600 text-white rounded-lg shadow transition transform hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 focus:outline-none focus:ring-2 focus:ring-emerald-300 inline-flex items-center gap-2"
+              >
                 <span className="text-sm">Next</span>
                 <ChevronRight className="w-4 h-4" aria-hidden />
               </button>
@@ -1354,6 +1751,28 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
               {errors.map((er,i) => <div key={i}>{er}</div>)}
             </div>
           ) : null}
+
+          <style jsx>{`
+            .stepContentTransition {
+              animation: stepContentIn 180ms ease-out;
+              will-change: transform, opacity;
+            }
+            @keyframes stepContentIn {
+              from {
+                opacity: 0;
+                transform: translateY(6px);
+              }
+              to {
+                opacity: 1;
+                transform: translateY(0);
+              }
+            }
+            @media (prefers-reduced-motion: reduce) {
+              .stepContentTransition {
+                animation: none;
+              }
+            }
+          `}</style>
         </article>
       </div>
     </section>

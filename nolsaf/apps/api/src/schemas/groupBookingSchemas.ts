@@ -17,6 +17,7 @@ export const GROUP_TYPES = [
   "event",
   "students",
   "team",
+  "safari_stay",
   "other"
 ] as const;
 
@@ -90,6 +91,7 @@ export const CreateGroupBookingInput = z.object({
   }),
   
   // ==================== Origin (Optional) ====================
+  fromCountry: z.string().max(100).optional().nullable(),
   fromRegion: z.string().max(100).optional().nullable(),
   fromDistrict: z.string().max(100).optional().nullable(),
   fromWard: z.string().max(100).optional().nullable(),

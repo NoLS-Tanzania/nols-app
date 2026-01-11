@@ -1002,7 +1002,7 @@ export default function OwnerDetailPage({ params }: { params: { id: string }}) {
                   </div>
                   <div className="mt-6 text-center">
                     <Link
-                      href={`/admin/properties?ownerId=${ownerId}`}
+                      href={`/admin/properties/previews?ownerId=${ownerId}`}
                       className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-[#02665e] bg-[#02665e]/5 rounded-lg hover:bg-[#02665e]/10 hover:text-[#02665e] transition-all duration-300 no-underline hover:no-underline group"
                       style={{ textDecoration: 'none' }}
                     >
@@ -1016,7 +1016,7 @@ export default function OwnerDetailPage({ params }: { params: { id: string }}) {
                   <Building2 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                   <p className="text-gray-600 mb-4">No properties found for this owner</p>
                   <Link
-                    href={`/admin/properties?ownerId=${ownerId}`}
+                    href={`/admin/properties/previews?ownerId=${ownerId}`}
                     className="inline-flex items-center gap-2 px-4 py-2 bg-[#02665e] text-white rounded-lg hover:bg-[#02665e]/90 transition-colors duration-200 no-underline hover:no-underline"
                     style={{ textDecoration: 'none' }}
                   >
@@ -1748,7 +1748,7 @@ function PropertyCard({ property }: { property: Property }) {
 
   return (
     <Link
-      href={`/admin/properties?previewId=${property.id}`}
+      href={`/admin/properties/previews?previewId=${property.id}`}
       className="group no-underline text-slate-900"
       aria-label={`View ${property.title}`}
     >
