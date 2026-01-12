@@ -190,11 +190,18 @@ export default function AdminTrustPartnersPage() {
     setUploadingLogo(true);
     try {
       authify();
-      
-      // Get Cloudinary signature
-      const sig = await api.get(`/uploads/cloudinary/sign?folder=trust-partners`);
-      
-      const sigData = sig.data;
+      // 1) Get Cloudinary signature from our API (requires auth)
+      let sigData: any;
+      try {
+        // Use `/api/*` so Next rewrites proxy to the API server and cookies/session auth apply.
+        const sig = await api.get(getApiPath(`/uploads/cloudinary/sign?folder=trust-partners`));
+        sigData = sig.data;
+      } catch (err: any) {
+        console.error("Failed to get Cloudinary signature", err);
+        const msg = err?.response?.data?.error || err?.response?.data?.message || err?.message || "Unauthorized";
+        alert(`Failed to get upload signature (${err?.response?.status ?? "?"}). ${msg}`);
+        return;
+      }
 
       // Create form data for Cloudinary
       const fd = new FormData();
@@ -202,13 +209,25 @@ export default function AdminTrustPartnersPage() {
       fd.append("api_key", sigData.apiKey);
       fd.append("timestamp", String(sigData.timestamp));
       fd.append("folder", sigData.folder);
+      // Must match the signed params on the server (see apps/api/src/routes/uploads.cloudinary.ts)
+      fd.append("overwrite", "true");
       fd.append("signature", sigData.signature);
 
-      // Upload to Cloudinary
-      const uploadRes = await axios.post(
-        `https://api.cloudinary.com/v1_1/${sigData.cloudName}/auto/upload`,
-        fd
-      );
+      // 2) Upload to Cloudinary (does NOT use our session cookies)
+      let uploadRes: any;
+      try {
+        uploadRes = await axios.post(`https://api.cloudinary.com/v1_1/${sigData.cloudName}/auto/upload`, fd);
+      } catch (err: any) {
+        console.error("Cloudinary upload failed", err);
+        const cloudMsg =
+          err?.response?.data?.error?.message ||
+          err?.response?.data?.error ||
+          err?.response?.data?.message ||
+          err?.message ||
+          "Upload failed";
+        alert(`Cloudinary upload failed (${err?.response?.status ?? "?"}). ${cloudMsg}`);
+        return;
+      }
 
       const uploadedUrl = uploadRes.data.secure_url;
       setFormData({ ...formData, logoUrl: uploadedUrl });

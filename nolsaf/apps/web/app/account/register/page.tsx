@@ -44,7 +44,7 @@ export default function RegisterPage() {
   const [forgotLoading, setForgotLoading] = useState<boolean>(false);
   const [forgotSent, setForgotSent] = useState<boolean>(false);
   const [forgotCountdown, setForgotCountdown] = useState<number>(0);
-  const [forgotResetToken, setForgotResetToken] = useState<string | null>(null);
+  const [, setForgotResetToken] = useState<string | null>(null);
   const forgotOtpRef = useRef<HTMLInputElement | null>(null);
   
   const router = useRouter();
@@ -224,7 +224,7 @@ export default function RegisterPage() {
                   </div>
                   <p className="text-xs text-slate-500 flex items-center gap-1.5">
                     <span className="w-1 h-1 bg-slate-400 rounded-full flex-shrink-0" />
-                    <span>We'll send you a verification code</span>
+                    <span>We&apos;ll send you a verification code</span>
                   </p>
                 </div>
 
@@ -473,7 +473,7 @@ export default function RegisterPage() {
                         </div>
                         <p className="text-xs text-slate-500 flex items-center gap-1.5">
                           <span className="w-1 h-1 bg-slate-400 rounded-full flex-shrink-0" />
-                          <span>We'll send you a verification code</span>
+                          <span>We&apos;ll send you a verification code</span>
                         </p>
                       </div>
                     <button
@@ -567,7 +567,7 @@ export default function RegisterPage() {
                   onClick={() => setAuthMode('register')}
                   className="w-full text-sm text-slate-600 hover:text-slate-900 py-2 flex items-center justify-center gap-2 transition-colors"
                 >
-                  <span>Don't have an account?</span>
+                  <span>Don&apos;t have an account?</span>
                   <UserPlus className="w-4 h-4" />
                 </button>
               </>
@@ -833,7 +833,7 @@ export default function RegisterPage() {
                 <Mail className="w-8 h-8 text-emerald-600 mx-auto mb-2" />
                 <h3 className="text-sm font-semibold text-emerald-900 mb-1">Check your email</h3>
                 <p className="text-xs text-emerald-700 break-words">
-                  We've sent a password reset link to {forgotEmail}
+                  We&apos;ve sent a password reset link to {forgotEmail}
                 </p>
               </div>
               <button

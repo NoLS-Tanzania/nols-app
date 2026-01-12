@@ -36,7 +36,7 @@ export default function OwnerBookingsPage() {
 
   // Allow deep-linking from sidebar: /owner/bookings?tab=checked-out
   useEffect(() => {
-    const tab = searchParams.get('tab');
+    const tab = searchParams?.get('tab') ?? null;
     if (isValidTab(tab) && tab !== activeTab) {
       setActiveTab(tab);
     }
@@ -283,7 +283,7 @@ export default function OwnerBookingsPage() {
               onClick={() => {
                 setActiveTab(tab.key);
                 try {
-                  const next = new URLSearchParams(searchParams.toString());
+                  const next = new URLSearchParams(searchParams?.toString() ?? "");
                   if (tab.key === 'all') next.delete('tab');
                   else next.set('tab', tab.key);
                   router.replace(`/owner/bookings${next.toString() ? `?${next.toString()}` : ''}`);

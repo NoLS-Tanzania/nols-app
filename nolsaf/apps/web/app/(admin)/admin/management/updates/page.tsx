@@ -1,6 +1,7 @@
 "use client";
 
-import { Megaphone, Plus, Image as ImageIcon, Video, X, Edit, Trash2, Eye, Calendar, Loader2 } from "lucide-react";
+import Image from "next/image";
+import { Megaphone, Plus, Image as ImageIcon, Video, X, Edit, Trash2, Calendar, Loader2, Play } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 
@@ -21,6 +22,7 @@ export default function UpdatesPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [activeVideoUrl, setActiveVideoUrl] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     title: "",
     content: "",
@@ -74,6 +76,14 @@ export default function UpdatesPage() {
     return (match && match[2].length === 11) ? match[2] : null;
   };
 
+  const passthroughLoader = ({ src }: { src: string }) => src;
+
+  const getYouTubeThumb = (embedOrWatchUrl: string): string | null => {
+    const id = extractYouTubeId(embedOrWatchUrl);
+    if (!id) return null;
+    return `https://i.ytimg.com/vi/${id}/hqdefault.jpg`;
+  };
+
   const addVideoUrl = () => {
     if (!newVideoUrl.trim()) return;
     const videoId = extractYouTubeId(newVideoUrl.trim());
@@ -81,7 +91,7 @@ export default function UpdatesPage() {
       setError("Please enter a valid YouTube URL");
       return;
     }
-    const embedUrl = `https://www.youtube.com/embed/${videoId}`;
+    const embedUrl = `https://www.youtube-nocookie.com/embed/${videoId}`;
     setFormData({
       ...formData,
       videoUrls: [...formData.videoUrls, embedUrl],
@@ -133,6 +143,7 @@ export default function UpdatesPage() {
     setShowForm(false);
     setError(null);
     setSuccess(null);
+    setActiveVideoUrl(null);
   };
 
   const handleEdit = (update: Update) => {
@@ -218,6 +229,44 @@ export default function UpdatesPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+      {activeVideoUrl && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Video preview"
+          onClick={() => setActiveVideoUrl(null)}
+        >
+          <div
+            className="w-full max-w-3xl rounded-2xl bg-white shadow-xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
+              <div className="text-sm font-semibold text-slate-900">Video preview</div>
+              <button
+                type="button"
+                onClick={() => setActiveVideoUrl(null)}
+                className="p-2 rounded-lg hover:bg-slate-100"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4 text-slate-700" />
+              </button>
+            </div>
+            <div className="aspect-video w-full bg-slate-100">
+              <iframe
+                src={activeVideoUrl}
+                className="w-full h-full"
+                frameBorder="0"
+                loading="lazy"
+                referrerPolicy="no-referrer"
+                allow="autoplay; encrypted-media; picture-in-picture"
+                allowFullScreen
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col items-center text-center mb-4">
         <Megaphone className="h-8 w-8 text-gray-400 mb-3" />
         <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900">
@@ -247,7 +296,7 @@ export default function UpdatesPage() {
             resetForm();
             setShowForm(true);
           }}
-          className="flex items-center gap-2 px-4 py-2 bg-[#02665e] text-white rounded-lg hover:bg-[#014e47] transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 transition-colors"
         >
           <Plus className="w-4 h-4" />
           Create Update
@@ -268,7 +317,7 @@ export default function UpdatesPage() {
                 type="text"
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                className="w-full max-w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#02665e] box-border"
+                className="w-full max-w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-200 box-border"
                 required
                 placeholder="Update title"
               />
@@ -281,7 +330,7 @@ export default function UpdatesPage() {
               <textarea
                 value={formData.content}
                 onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                className="w-full max-w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#02665e] h-32 resize-y box-border"
+                className="w-full max-w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-200 h-32 resize-y box-border"
                 required
                 placeholder="Update content..."
               />
@@ -303,7 +352,7 @@ export default function UpdatesPage() {
                 <button
                   type="button"
                   onClick={() => imageInputRef.current?.click()}
-                  className="w-full max-w-full px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg hover:border-[#02665e] transition-colors flex items-center justify-center gap-2 text-gray-600 box-border"
+                  className="w-full max-w-full px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg hover:border-emerald-600 transition-colors flex items-center justify-center gap-2 text-gray-600 box-border"
                 >
                   <ImageIcon className="w-5 h-5 flex-shrink-0" />
                   <span className="truncate">Add Images</span>
@@ -312,9 +361,14 @@ export default function UpdatesPage() {
                   <div className="mt-2 grid grid-cols-3 gap-2">
                     {formData.existingImages.map((img, idx) => (
                       <div key={`existing-${idx}`} className="relative group min-w-0">
-                        <img
+                        <Image
+                          loader={passthroughLoader}
+                          unoptimized
                           src={img}
                           alt={`Preview ${idx + 1}`}
+                          width={320}
+                          height={192}
+                          sizes="(max-width: 768px) 33vw, 140px"
                           className="w-full h-24 object-cover rounded border"
                         />
                         <button
@@ -328,9 +382,14 @@ export default function UpdatesPage() {
                     ))}
                     {imagePreviews.map((preview, idx) => (
                       <div key={idx} className="relative group min-w-0">
-                        <img
+                        <Image
+                          loader={passthroughLoader}
+                          unoptimized
                           src={preview}
                           alt={`Preview ${idx + 1}`}
+                          width={320}
+                          height={192}
+                          sizes="(max-width: 768px) 33vw, 140px"
                           className="w-full h-24 object-cover rounded border"
                         />
                         <button
@@ -360,7 +419,7 @@ export default function UpdatesPage() {
                         setError(null);
                       }}
                       placeholder="Paste YouTube URL here"
-                      className="flex-1 min-w-0 max-w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#02665e] box-border text-sm"
+                      className="flex-1 min-w-0 max-w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-200 box-border text-sm"
                       onKeyPress={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
@@ -371,7 +430,7 @@ export default function UpdatesPage() {
                     <button
                       type="button"
                       onClick={addVideoUrl}
-                      className="px-4 py-2 bg-[#02665e] text-white rounded-lg hover:bg-[#014e47] transition-colors flex-shrink-0 whitespace-nowrap text-sm"
+                      className="px-4 py-2 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 transition-colors flex-shrink-0 whitespace-nowrap text-sm"
                     >
                       <Video className="w-4 h-4 inline mr-1" />
                       Add
@@ -381,15 +440,37 @@ export default function UpdatesPage() {
                     <div className="space-y-2 max-w-full">
                       {formData.existingVideos.map((vid, idx) => (
                         <div key={`existing-vid-${idx}`} className="relative group w-full">
-                          <div className="aspect-video w-full rounded border overflow-hidden bg-gray-100">
-                            <iframe
-                              src={vid}
-                              className="w-full h-full"
-                              frameBorder="0"
-                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                              allowFullScreen
-                            />
-                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setActiveVideoUrl(vid)}
+                            className="relative w-full aspect-video rounded border overflow-hidden bg-gray-100 text-left"
+                            aria-label="Preview video"
+                          >
+                            {(() => {
+                              const thumb = getYouTubeThumb(vid);
+                              return thumb ? (
+                                <Image
+                                  loader={passthroughLoader}
+                                  unoptimized
+                                  src={thumb}
+                                  alt="Video thumbnail"
+                                  width={640}
+                                  height={360}
+                                  sizes="(max-width: 768px) 100vw, 520px"
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-slate-500">
+                                  <Video className="w-6 h-6" />
+                                </div>
+                              );
+                            })()}
+                            <span className="absolute inset-0 grid place-items-center">
+                              <span className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-white/90 border border-slate-200 shadow-sm">
+                                <Play className="w-5 h-5 text-emerald-700" />
+                              </span>
+                            </span>
+                          </button>
                           <button
                             type="button"
                             onClick={() => removeExistingVideo(vid)}
@@ -401,15 +482,37 @@ export default function UpdatesPage() {
                       ))}
                       {formData.videoUrls.map((embedUrl, idx) => (
                         <div key={idx} className="relative group w-full">
-                          <div className="aspect-video w-full rounded border overflow-hidden bg-gray-100">
-                            <iframe
-                              src={embedUrl}
-                              className="w-full h-full"
-                              frameBorder="0"
-                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                              allowFullScreen
-                            />
-                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setActiveVideoUrl(embedUrl)}
+                            className="relative w-full aspect-video rounded border overflow-hidden bg-gray-100 text-left"
+                            aria-label="Preview video"
+                          >
+                            {(() => {
+                              const thumb = getYouTubeThumb(embedUrl);
+                              return thumb ? (
+                                <Image
+                                  loader={passthroughLoader}
+                                  unoptimized
+                                  src={thumb}
+                                  alt="Video thumbnail"
+                                  width={640}
+                                  height={360}
+                                  sizes="(max-width: 768px) 100vw, 520px"
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-slate-500">
+                                  <Video className="w-6 h-6" />
+                                </div>
+                              );
+                            })()}
+                            <span className="absolute inset-0 grid place-items-center">
+                              <span className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-white/90 border border-slate-200 shadow-sm">
+                                <Play className="w-5 h-5 text-emerald-700" />
+                              </span>
+                            </span>
+                          </button>
                           <button
                             type="button"
                             onClick={() => removeVideoUrl(idx)}
@@ -429,7 +532,7 @@ export default function UpdatesPage() {
               <button
                 type="submit"
                 disabled={uploading}
-                className="flex-1 px-4 py-2 bg-[#02665e] text-white rounded-lg hover:bg-[#014e47] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                className="flex-1 px-4 py-2 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
               >
                 {uploading ? (
                   <>
@@ -498,31 +601,74 @@ export default function UpdatesPage() {
               {update.images && update.images.length > 0 && (
                 <div className="mb-4">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                    {update.images.map((img, idx) => (
-                      <img
-                        key={idx}
-                        src={img}
-                        alt={`${update.title} - Image ${idx + 1}`}
-                        className="w-full h-32 object-cover rounded border"
-                      />
-                    ))}
+                    {(() => {
+                      const images = update.images ?? [];
+                      const totalImages = images.length;
+                      return images.slice(0, 4).map((img, idx) => (
+                        <div key={idx} className="relative">
+                          <Image
+                            loader={passthroughLoader}
+                            unoptimized
+                            src={img}
+                            alt={`${update.title} - Image ${idx + 1}`}
+                            width={640}
+                            height={360}
+                            sizes="(max-width: 768px) 50vw, 220px"
+                            className="w-full h-32 object-cover rounded border"
+                          />
+                          {idx === 3 && totalImages > 4 && (
+                            <div className="absolute inset-0 rounded border bg-black/50 text-white flex items-center justify-center text-sm font-semibold">
+                              +{totalImages - 4}
+                            </div>
+                          )}
+                        </div>
+                      ));
+                    })()}
                   </div>
                 </div>
               )}
 
               {update.videos && update.videos.length > 0 && (
                 <div className="space-y-2">
-                  {update.videos.map((vid, idx) => (
-                    <div key={idx} className="w-full aspect-video rounded border overflow-hidden bg-gray-100">
-                      <iframe
-                        src={vid}
-                        className="w-full h-full"
-                        frameBorder="0"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        allowFullScreen
-                      />
-                    </div>
-                  ))}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {update.videos.slice(0, 2).map((vid, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setActiveVideoUrl(vid)}
+                        className="relative w-full aspect-video rounded border overflow-hidden bg-gray-100 text-left"
+                        aria-label="Preview video"
+                      >
+                        {(() => {
+                          const thumb = getYouTubeThumb(vid);
+                          return thumb ? (
+                            <Image
+                              loader={passthroughLoader}
+                              unoptimized
+                              src={thumb}
+                              alt="Video thumbnail"
+                              width={640}
+                              height={360}
+                              sizes="(max-width: 768px) 100vw, 520px"
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-slate-500">
+                              <Video className="w-6 h-6" />
+                            </div>
+                          );
+                        })()}
+                        <span className="absolute inset-0 grid place-items-center">
+                          <span className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-white/90 border border-slate-200 shadow-sm">
+                            <Play className="w-5 h-5 text-emerald-700" />
+                          </span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  {update.videos.length > 2 && (
+                    <div className="text-xs text-gray-500">+{update.videos.length - 2} more videos</div>
+                  )}
                 </div>
               )}
             </div>

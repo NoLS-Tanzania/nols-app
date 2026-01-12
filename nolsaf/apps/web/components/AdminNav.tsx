@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, Building2, Calendar, LineChart, Wallet, Settings } from "lucide-react";
+import { LayoutDashboard, Users, Calendar, LineChart, Wallet, Settings } from "lucide-react";
 
 type Item = {
   href: string;
@@ -27,7 +27,7 @@ export default function AdminNav({ variant = "light" }: { variant?: "light" | "d
   return (
     <nav className="space-y-1">
       {items.map(({ href, label, Icon }) => {
-  const isActive = path.startsWith(href);
+        const isActive = (path ?? "").startsWith(href);
         return (
           <Link
             key={href}

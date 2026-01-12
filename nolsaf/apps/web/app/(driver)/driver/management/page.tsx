@@ -7,7 +7,7 @@ import { Eye, Upload, Lock, Truck, Pencil, Settings, FileText, Shield, CheckCirc
 
 export default function DriverManagementPage() {
   const searchParams = useSearchParams()
-  const tabParam = searchParams.get('tab')
+  const tabParam = searchParams?.get('tab') ?? null
   const [tab, setTab] = useState<'documents' | 'safety' | 'settings'>('documents')
   const [loadingDocs, setLoadingDocs] = useState(false)
   const [loadingSafety, setLoadingSafety] = useState(false)

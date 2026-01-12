@@ -21,7 +21,7 @@ const TESTIMONIALS = [
   },
   {
     title: 'Reliable drivers & booking codes',
-    text: '<strong>Driver</strong> arrived on time and the booking code system worked perfectly — stress free.',
+    text: 'Driver arrived on time and the booking code system worked perfectly — stress free.',
     name: 'John K.',
     company: 'International traveller',
     roleType: 'driver',
@@ -29,7 +29,7 @@ const TESTIMONIALS = [
   },
   {
     title: 'Bookings & fast payouts',
-    text: 'As a <strong>host</strong>, I get bookings and fast payouts NoLSAF really helps our business.',
+    text: 'As a host, I get bookings and fast payouts — NoLSAF really helps our business.',
     name: 'Moses N.',
     company: 'Properties Owner, Arusha',
     roleType: 'owner',
@@ -45,7 +45,7 @@ const TESTIMONIALS = [
   },
   {
     title: 'Booking without internet',
-    text: 'No internet? No problem the <strong>USSD code</strong> *123# lets me check stays and book without data. NoLSAF works for everyone, even without a smartphone.',
+    text: 'No internet? No problem — the USSD code *123# lets me check stays and book without data. NoLSAF works for everyone, even without a smartphone.',
     name: 'Samson O.',
     company: 'USSD user',
     roleType: 'traveller',
@@ -53,7 +53,7 @@ const TESTIMONIALS = [
   },
   {
     title: 'Plan With Us simplified planning',
-    text: 'I had planning paralysis <strong>Plan With Us</strong> gave clear recommendations, friendly costs and a simple plan. Booking felt easy and affordable.',
+    text: 'I had planning paralysis — Plan With Us gave clear recommendations, friendly costs and a simple plan. Booking felt easy and affordable.',
     name: 'Grace T.',
     company: 'Planner',
     roleType: 'planner',
@@ -151,7 +151,7 @@ export default function Testimonials() {
               </h3>
               <p className="mt-1 text-sm text-slate-600">
                 Real stories from travellers, drivers and{" "}
-                <strong className="text-[#039e92] font-semibold">hosts</strong> who use NoLSAF.
+                <strong className="text-emerald-700 font-semibold">hosts</strong> who use NoLSAF.
               </p>
             </div>
             <div className="hidden sm:block" aria-hidden="true" />
@@ -187,12 +187,12 @@ export default function Testimonials() {
                       Download;
 
                     const platformColor =
-                      t.platform === 'linkedin' ? 'text-[#0A66C2]' :
+                      t.platform === 'linkedin' ? 'text-sky-600' :
                       t.platform === 'x' ? 'text-slate-800' :
-                      t.platform === 'facebook' ? 'text-[#1877F2]' :
-                      t.platform === 'instagram' ? 'text-[#E1306C]' :
-                      t.platform === 'play' ? 'text-[#3DDC84]' :
-                      'text-[#039e92]';
+                      t.platform === 'facebook' ? 'text-blue-600' :
+                      t.platform === 'instagram' ? 'text-pink-600' :
+                      t.platform === 'play' ? 'text-emerald-600' :
+                      'text-emerald-700';
 
                     const initials = (t.name || 'N')
                       .split(' ')
@@ -217,7 +217,7 @@ export default function Testimonials() {
                                 <Quote className="w-4.5 h-4.5 text-emerald-700" aria-hidden />
                               </span>
                               <div>
-                                <div className="text-sm font-semibold text-[#02665e] leading-tight whitespace-normal break-words">
+                                <div className="text-sm font-semibold text-emerald-800 leading-tight whitespace-normal break-words">
                                   {t.title}
                                 </div>
                                 <div className="text-xs text-slate-500 whitespace-normal break-words">

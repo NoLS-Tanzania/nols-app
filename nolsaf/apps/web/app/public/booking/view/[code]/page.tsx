@@ -36,7 +36,7 @@ type BookingData = {
 
 export default function PublicBookingViewPage() {
   const params = useParams();
-  const code = params.code as string;
+  const code = String((params as any)?.code ?? "");
   const [booking, setBooking] = useState<BookingData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

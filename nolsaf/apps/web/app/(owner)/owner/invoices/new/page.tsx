@@ -10,7 +10,7 @@ const api = axios.create({ baseURL: "", withCredentials: true });
 
 export default function NewInvoice() {
   const sp = useSearchParams();
-  const bookingId = Number(sp.get("bookingId"));
+  const bookingId = Number(sp?.get("bookingId") ?? "");
   const router = useRouter();
   const [preview, setPreview] = useState<any>(null);
   const [creating, setCreating] = useState(false);

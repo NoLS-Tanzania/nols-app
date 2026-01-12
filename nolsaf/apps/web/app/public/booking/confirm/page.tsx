@@ -100,15 +100,15 @@ export default function BookingConfirmPage() {
 
   useEffect(() => {
     // Get booking data from URL params
-    const propertyId = searchParams.get("property");
-    const checkIn = searchParams.get("checkIn");
-    const checkOut = searchParams.get("checkOut");
-    const adults = searchParams.get("adults") || "1";
-    const children = searchParams.get("children") || "0";
-    const pets = searchParams.get("pets") || "0";
-    const rooms = searchParams.get("rooms") || "1";
-    const roomCode = searchParams.get("roomCode");
-    const roomIndex = searchParams.get("roomIndex");
+    const propertyId = searchParams?.get("property");
+    const checkIn = searchParams?.get("checkIn");
+    const checkOut = searchParams?.get("checkOut");
+    const adults = searchParams?.get("adults") || "1";
+    const children = searchParams?.get("children") || "0";
+    const pets = searchParams?.get("pets") || "0";
+    const rooms = searchParams?.get("rooms") || "1";
+    const roomCode = searchParams?.get("roomCode");
+    const roomIndex = searchParams?.get("roomIndex");
 
     // Property ID is required and must be a valid number
     const numericPropertyId = propertyId ? Number(propertyId) : null;

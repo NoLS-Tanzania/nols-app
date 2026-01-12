@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -44,14 +44,13 @@ type ReceiptData = {
 };
 
 export default function ReceiptPage() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<ReceiptData | null>(null);
 
   useEffect(() => {
-    const invoiceId = searchParams.get("invoiceId");
+    const invoiceId = searchParams?.get("invoiceId");
 
     if (!invoiceId) {
       setError("Missing invoice ID");
@@ -78,25 +77,39 @@ export default function ReceiptPage() {
         try {
           const response = await fetch(url, { cache: "no-store" });
           const contentType = response.headers.get("content-type") || "";
-          let bodyText = "";
+          let bodyText: string | null = null;
           let bodyJson: any = null;
+
           try {
             if (contentType.includes("application/json")) {
               bodyJson = await response.json();
             } else {
               bodyText = await response.text();
+              try {
+                bodyJson = JSON.parse(bodyText);
+              } catch {
+                // Non-JSON response; keep as text for error/debug messages.
+              }
             }
-          } catch {}
+          } catch {
+            // Ignore parse errors; handled below.
+          }
 
           if (!response.ok) {
-            const msg = bodyJson?.error || bodyJson?.message || `Failed to fetch receipt (${response.status})`;
+            const msg =
+              bodyJson?.error ||
+              bodyJson?.message ||
+              (bodyText ? bodyText.slice(0, 500) : null) ||
+              `Failed to fetch receipt (${response.status})`;
             lastErr = new Error(String(msg));
             continue;
           }
 
           data = bodyJson ?? null;
           if (!data) {
-            lastErr = new Error("Invalid receipt response");
+            lastErr = new Error(
+              bodyText ? `Invalid receipt response: ${bodyText.slice(0, 500)}` : "Invalid receipt response"
+            );
             continue;
           }
           break;

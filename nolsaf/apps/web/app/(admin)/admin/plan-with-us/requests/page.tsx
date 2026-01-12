@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
-import { ClipboardList, Search, X, Calendar, MapPin, Clock, User, BarChart3, TrendingUp, CheckCircle, XCircle, Loader2, FileText, AlertTriangle, Edit, Send, Eye, MessageSquare, ChevronDown } from "lucide-react";
+import { Search, X, Calendar, MapPin, Clock, User, BarChart3, TrendingUp, Loader2, FileText, AlertTriangle, Edit, Send, Eye, MessageSquare, ChevronDown } from "lucide-react";
 import DatePicker from "@/components/ui/DatePicker";
 import axios from "axios";
 import Chart from "@/components/Chart";
@@ -803,15 +803,6 @@ export default function AdminPlanWithUsRequestsPage() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {list.map((request) => {
-                    const responseTimeColor = request.hoursSinceCreation > 48 
-                      ? "text-red-600" 
-                      : request.hoursSinceCreation > 24 
-                      ? "text-amber-600" 
-                      : "text-green-600";
-                    const responseTimeText = request.hoursSinceCreation < 24
-                      ? `${request.hoursSinceCreation}h`
-                      : `${Math.floor(request.hoursSinceCreation / 24)}d`;
-                    
                     return (
                       <tr key={request.id} className={`hover:bg-gray-50 transition-colors duration-150 ${request.isUrgent ? "bg-amber-50 border-l-4 border-l-amber-500" : ""}`}>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
@@ -1458,7 +1449,7 @@ export default function AdminPlanWithUsRequestsPage() {
                 {/* Response Form */}
                 <div className="space-y-5">
                   <div className="bg-white rounded-xl p-4 sm:p-5 border border-gray-200 shadow-sm transition-all duration-300 hover:shadow-md overflow-hidden">
-                    <label className="block text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                    <label className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
                       <Send className="h-4 w-4 text-blue-600" />
                       Suggested Itineraries with Prices <span className="text-red-500">*</span>
                     </label>
@@ -1475,7 +1466,7 @@ export default function AdminPlanWithUsRequestsPage() {
                   </div>
 
                   <div className="bg-white rounded-xl p-4 sm:p-5 border border-gray-200 shadow-sm transition-all duration-300 hover:shadow-md overflow-hidden">
-                    <label className="block text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                    <label className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
                       <FileText className="h-4 w-4 text-blue-600" />
                       Checklist of Required Permits and Documents <span className="text-red-500">*</span>
                     </label>
@@ -1492,7 +1483,7 @@ export default function AdminPlanWithUsRequestsPage() {
                   </div>
 
                   <div className="bg-white rounded-xl p-4 sm:p-5 border border-gray-200 shadow-sm transition-all duration-300 hover:shadow-md overflow-hidden">
-                    <label className="block text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                    <label className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
                       <Calendar className="h-4 w-4 text-blue-600" />
                       Estimated Timelines and Booking Windows <span className="text-red-500">*</span>
                     </label>
@@ -1509,7 +1500,7 @@ export default function AdminPlanWithUsRequestsPage() {
                   </div>
 
                   <div className="bg-white rounded-xl p-4 sm:p-5 border border-gray-200 shadow-sm transition-all duration-300 hover:shadow-md overflow-hidden">
-                    <label className="block text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                    <label className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
                       <User className="h-4 w-4 text-blue-600" />
                       Assign Agent
                     </label>
@@ -1612,7 +1603,7 @@ export default function AdminPlanWithUsRequestsPage() {
                   </div>
 
                   <div className="bg-white rounded-xl p-4 sm:p-5 border border-gray-200 shadow-sm transition-all duration-300 hover:shadow-md overflow-hidden">
-                    <label className="block text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                    <label className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
                       <FileText className="h-4 w-4 text-blue-600" />
                       Additional Notes / Recommendations
                     </label>

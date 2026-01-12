@@ -101,7 +101,7 @@ export default function PaymentPage() {
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    const invoiceId = searchParams.get("invoiceId");
+    const invoiceId = searchParams?.get("invoiceId");
     if (!invoiceId) {
       setError("Missing invoice ID");
       setLoading(false);

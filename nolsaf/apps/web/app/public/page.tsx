@@ -21,19 +21,14 @@ import axios from 'axios';
 
 // Component to fetch and display trust partners from API
 function TrustedBySectionWithData() {
-  const [brands, setBrands] = useState<Array<{ name: string; logoUrl?: string; href?: string }>>([
-    { name: "M-Pesa", logoUrl: "/assets/M-pesa.png", href: "https://www.vodacom.co.tz/m-pesa" },
-    { name: "Airtel Money", logoUrl: "/assets/airtel_money.png", href: "https://www.airtel.co.tz/airtel-money" },
-    { name: "Tigo Pesa", logoUrl: "/assets/mix%20by%20yas.png", href: "https://www.tigo.co.tz/tigo-pesa" },
-    { name: "VISA", logoUrl: "/assets/visa_card.png", href: "https://www.visa.com" },
-  ]);
+  const [brands, setBrands] = useState<Array<{ name: string; logoUrl?: string; href?: string }>>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
       try {
         const api = axios.create({ baseURL: "" });
-        const r = await api.get<{ items: Array<{ name: string; logoUrl: string | null; href: string | null }> }>("/admin/trust-partners/public");
+        const r = await api.get<{ items: Array<{ name: string; logoUrl: string | null; href: string | null }> }>("/api/admin/trust-partners/public");
         const items = Array.isArray(r.data?.items) ? r.data.items : [];
         const mapped = items
           .map((item) => ({
@@ -43,26 +38,10 @@ function TrustedBySectionWithData() {
           }))
           .filter((b) => Boolean(b.name));
 
-        // If DB has no rows yet, show a safe default so the section is still visible in public.
-        if (mapped.length > 0) {
-          setBrands(mapped);
-        } else {
-          setBrands([
-            { name: "M-Pesa", logoUrl: "/assets/M-pesa.png", href: "https://www.vodacom.co.tz/m-pesa" },
-            { name: "Airtel Money", logoUrl: "/assets/airtel_money.png", href: "https://www.airtel.co.tz/airtel-money" },
-            { name: "Tigo Pesa", logoUrl: "/assets/mix%20by%20yas.png", href: "https://www.tigo.co.tz/tigo-pesa" },
-            { name: "VISA", logoUrl: "/assets/visa_card.png", href: "https://www.visa.com" },
-          ]);
-        }
+        setBrands(mapped);
       } catch (err) {
         console.error("Failed to load trust partners", err);
-        // Fallback to default partners if API fails
-        setBrands([
-          { name: "M-Pesa", logoUrl: "/assets/M-pesa.png", href: "https://www.vodacom.co.tz/m-pesa" },
-          { name: "Airtel Money", logoUrl: "/assets/airtel_money.png", href: "https://www.airtel.co.tz/airtel-money" },
-          { name: "Tigo Pesa", logoUrl: "/assets/mix%20by%20yas.png", href: "https://www.tigo.co.tz/tigo-pesa" },
-          { name: "VISA", logoUrl: "/assets/visa_card.png", href: "https://www.visa.com" },
-        ]);
+        setBrands([]);
       } finally {
         setLoading(false);
       }
@@ -70,7 +49,10 @@ function TrustedBySectionWithData() {
     load();
   }, []);
 
-  // Keep layout stable: show something even while loading (fallback brands will be replaced if DB has items)
+  // Admin fully controls this section. If no partners are configured (or API fails), hide the section.
+  if (!loading && brands.length === 0) return null;
+  if (brands.length === 0) return null;
+
   return <TrustedBySection brands={brands} className={loading ? "opacity-90" : ""} />;
 }
 /* react-day-picker in this project/version doesn't export a Range type,
@@ -849,7 +831,7 @@ export default function Page() {
         {/* Full-bleed hero background (treated like header background).
             Keep content aligned via public-container inside the overlay. */}
         <div
-          className="relative w-screen left-1/2 -translate-x-1/2 overflow-hidden w-full h-64 md:h-[420px] lg:h-[560px] rounded-b-2xl sm:rounded-b-3xl shadow-[0_18px_50px_rgba(2,6,23,0.10)] ring-1 ring-black/5"
+          className="relative left-1/2 -translate-x-1/2 w-screen overflow-hidden h-64 md:h-[420px] lg:h-[560px] rounded-b-2xl sm:rounded-b-3xl shadow-[0_18px_50px_rgba(2,6,23,0.10)] ring-1 ring-black/5"
           onMouseEnter={() => setPaused(true)}
           onMouseLeave={() => setPaused(false)}
         >

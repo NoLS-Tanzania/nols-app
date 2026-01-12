@@ -63,7 +63,7 @@ const CANCELLATION_EMAIL = "cancellation@nolsaf.com";
 
 export default function CancellationRequestPage() {
   const sp = useSearchParams();
-  const initialCode = useMemo(() => normalizeCode(sp.get("code") || ""), [sp]);
+  const initialCode = useMemo(() => normalizeCode(sp?.get("code") || ""), [sp]);
 
   const [code, setCode] = useState("");
   const [lookup, setLookup] = useState<LookupResponse | null>(null);

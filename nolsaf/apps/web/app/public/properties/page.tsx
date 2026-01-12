@@ -198,8 +198,8 @@ function fmtMoney(amount: number | null | undefined, currency?: string | null) {
   }
 }
 
-function buildQuery(searchParams: URLSearchParams) {
-  const qp = new URLSearchParams(searchParams.toString());
+function buildQuery(searchParams: { toString(): string } | null | undefined) {
+  const qp = new URLSearchParams(searchParams?.toString() ?? "");
   if (!qp.get("pageSize")) qp.set("pageSize", "24");
   if (!qp.get("page")) qp.set("page", "1");
   // Guests are chosen later during booking (dates/adults/children),

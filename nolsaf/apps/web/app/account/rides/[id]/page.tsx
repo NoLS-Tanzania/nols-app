@@ -70,7 +70,7 @@ type Ride = {
 export default function RideDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const rideId = Number(params.id);
+  const rideId = Number((params as any)?.id ?? "");
   const [ride, setRide] = useState<Ride | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

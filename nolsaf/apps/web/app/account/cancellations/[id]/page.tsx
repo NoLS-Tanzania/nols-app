@@ -64,7 +64,7 @@ function badge(status: string) {
 
 export default function CustomerCancellationDetailPage() {
   const params = useParams<{ id: string }>();
-  const id = Number(params.id);
+  const id = Number(params?.id ?? "");
 
   const [item, setItem] = useState<Item | null>(null);
   const [loading, setLoading] = useState(true);
