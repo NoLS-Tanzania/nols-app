@@ -1,7 +1,12 @@
 import { Router } from "express";
-import { getAllUpdates } from "../lib/updatesStore.js";
+import { prisma } from "@nolsaf/prisma";
 
 const router = Router();
+
+function toStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((v) => typeof v === "string") as string[];
+}
 
 /** GET /api/public/updates - Get public updates */
 router.get("/", async (_req, res) => {
@@ -9,11 +14,21 @@ router.get("/", async (_req, res) => {
     // Ensure we always return JSON, even on errors
     res.setHeader('Content-Type', 'application/json');
     
-    const items = getAllUpdates()
-      .sort((a, b) => 
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      )
-      .slice(0, 20); // Limit to latest 20 updates
+    const rows = await prisma.siteUpdate.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 20,
+    });
+
+    const items = rows.map((row: any) => ({
+      id: String(row.id),
+      title: String(row.title),
+      content: String(row.content),
+      images: toStringArray(row.images),
+      videos: toStringArray(row.videos),
+      createdAt: new Date(row.createdAt).toISOString(),
+      updatedAt: new Date(row.updatedAt).toISOString(),
+    }));
+
     res.status(200).json({ items, total: items.length });
   } catch (err: any) {
     console.error("Error fetching public updates:", err);

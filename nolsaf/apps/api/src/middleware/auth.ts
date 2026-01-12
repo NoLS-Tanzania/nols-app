@@ -131,7 +131,7 @@ export const requireAuth: RequestHandler = async (req, res, next) => {
 
   // DEV behavior: keep current dev-bypass so the app keeps working locally.
   // Production is strict: no token -> 401.
-  if (process.env.NODE_ENV !== "production") {
+  if (process.env.NODE_ENV !== "production" && process.env.NODE_ENV !== "test") {
     (req as AuthedRequest).user = { id: 1, role: "ADMIN" };
     return next();
   }
@@ -174,7 +174,7 @@ export function requireRole(required?: Role) {
     }
 
     // Dev bypass: keep local development productive.
-    if (process.env.NODE_ENV !== "production") {
+    if (process.env.NODE_ENV !== "production" && process.env.NODE_ENV !== "test") {
       if (!(req as AuthedRequest).user) (req as AuthedRequest).user = { id: 1, role: "ADMIN" };
       return next();
     }

@@ -210,7 +210,9 @@ export async function withCache<T>(
       loggedMissingRedisPatterns.add(keyPattern);
       enforceLoggedPatternsLimit(); // Enforce size limit
       const status = redis?.status || 'null';
-      console.warn(`[CACHE] Redis unavailable (status: ${status}), falling back to producer for key pattern: ${logSafeKey(keyPattern)}`);
+      if (process.env.NODE_ENV !== "test") {
+        console.warn(`[CACHE] Redis unavailable (status: ${status}), falling back to producer for key pattern: ${logSafeKey(keyPattern)}`);
+      }
     }
     return producer();
   }

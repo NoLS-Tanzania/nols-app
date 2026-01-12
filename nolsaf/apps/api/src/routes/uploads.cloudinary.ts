@@ -16,7 +16,9 @@ router.use(requireAuth);
 router.get("/sign", (req, res) => {
   const folder = (req.query.folder as string) || "uploads";
   const timestamp = Math.floor(Date.now() / 1000);
-  const params = { timestamp, folder, overwrite: true };
+  // Cloudinary signature is sensitive to exact param values.
+  // Use string values to match what browsers send via FormData.
+  const params = { timestamp, folder, overwrite: "true" };
   const signature = cloudinary.utils.api_sign_request(params as any, process.env.CLOUDINARY_API_SECRET!);
   res.json({
     cloudName: process.env.CLOUDINARY_CLOUD_NAME,

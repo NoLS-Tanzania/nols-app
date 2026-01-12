@@ -26,18 +26,20 @@ router.post("/", limitPlanRequestSubmit, upload.none(), async (req: Request, res
     // Parse form data (multipart/form-data) - now parsed by multer
     const formData = req.body;
     
-    // Log received data for debugging
-    console.log('Plan request received:', {
-      hasBody: !!req.body,
-      bodyKeys: req.body ? Object.keys(req.body) : [],
-      contentType: req.headers['content-type'],
-      role: formData?.role,
-      fullName: formData?.fullName,
-      'full-name': formData?.['full-name'],
-      email: formData?.email,
-      phone: formData?.phone,
-      rawBody: req.body, // Log entire body for debugging
-    });
+    // Log received data for debugging (skip during tests to keep output clean)
+    if (process.env.NODE_ENV !== "test") {
+      console.log('Plan request received:', {
+        hasBody: !!req.body,
+        bodyKeys: req.body ? Object.keys(req.body) : [],
+        contentType: req.headers['content-type'],
+        role: formData?.role,
+        fullName: formData?.fullName,
+        'full-name': formData?.['full-name'],
+        email: formData?.email,
+        phone: formData?.phone,
+        rawBody: req.body, // Log entire body for debugging
+      });
+    }
     
     // Extract basic fields - tripType is required by schema
     const role = formData.role || null;

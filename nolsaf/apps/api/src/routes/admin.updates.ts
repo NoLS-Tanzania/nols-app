@@ -4,7 +4,6 @@ import { AuthedRequest, requireAuth } from "../middleware/auth.js";
 import { requireAdmin } from "../middleware/admin.js";
 import multer from "multer";
 import { audit } from "../lib/audit.js";
-import { getUpdatesStore, setUpdate, deleteUpdate, getAllUpdates, Update } from "../lib/updatesStore.js";
 
 export const router = Router();
 router.use(requireAuth as RequestHandler, requireAdmin as RequestHandler);
@@ -29,12 +28,28 @@ function bufferToDataURL(buffer: Buffer, mimeType: string): string {
   return `data:${mimeType};base64,${base64}`;
 }
 
+function toStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((v) => typeof v === "string") as string[];
+}
+
+function toApiDto(row: any) {
+  return {
+    id: String(row.id),
+    title: String(row.title),
+    content: String(row.content),
+    images: toStringArray(row.images),
+    videos: toStringArray(row.videos),
+    createdAt: new Date(row.createdAt).toISOString(),
+    updatedAt: new Date(row.updatedAt).toISOString(),
+  };
+}
+
 /** GET /api/admin/updates - List all updates */
 router.get("/", async (_req, res) => {
   try {
-    const items = getAllUpdates().sort((a, b) => 
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
+    const rows = await prisma.siteUpdate.findMany({ orderBy: { createdAt: "desc" } });
+    const items = rows.map(toApiDto);
     res.json({ items, total: items.length });
   } catch (err: any) {
     console.error("Error fetching updates:", err);
@@ -46,11 +61,11 @@ router.get("/", async (_req, res) => {
 router.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const update = getUpdatesStore()[id];
-    if (!update) {
+    const row = await prisma.siteUpdate.findUnique({ where: { id } });
+    if (!row) {
       return res.status(404).json({ error: "Update not found" });
     }
-    res.json(update);
+    res.json(toApiDto(row));
   } catch (err: any) {
     console.error("Error fetching update:", err);
     res.status(500).json({ error: "Failed to fetch update", message: err?.message });
@@ -70,7 +85,6 @@ router.post("/", upload.fields([
     }
 
     const id = generateId();
-    const now = new Date().toISOString();
     
     // Process uploaded images
     const imageUrls: string[] = Array.isArray(existingImages) ? existingImages : [];
@@ -92,21 +106,19 @@ router.post("/", upload.fields([
       }
     }
 
-    const update: Update = {
-      id,
-      title: String(title),
-      content: String(content),
-      images: imageUrls,
-      videos: videoUrls,
-      createdAt: now,
-      updatedAt: now,
-    };
+    const created = await prisma.siteUpdate.create({
+      data: {
+        id,
+        title: String(title),
+        content: String(content),
+        images: imageUrls,
+        videos: videoUrls,
+      },
+    });
 
-    setUpdate(id, update);
-
-    await audit(req as any, "ADMIN_UPDATE_CREATE", `update:${id}`, null, update);
-
-    res.status(201).json(update);
+    const dto = toApiDto(created);
+    await audit(req as any, "ADMIN_UPDATE_CREATE", `update:${id}`, null, dto);
+    res.status(201).json(dto);
   } catch (err: any) {
     console.error("Error creating update:", err);
     res.status(500).json({ error: "Failed to create update", message: err?.message });
@@ -120,9 +132,8 @@ router.put("/:id", upload.fields([
 ]), async (req: any, res) => {
   try {
     const { id } = req.params;
-    const existingUpdate = getUpdatesStore()[id];
-    
-    if (!existingUpdate) {
+    const existing = await prisma.siteUpdate.findUnique({ where: { id } });
+    if (!existing) {
       return res.status(404).json({ error: "Update not found" });
     }
 
@@ -152,20 +163,19 @@ router.put("/:id", upload.fields([
       }
     }
 
-    const updated: Update = {
-      ...existingUpdate,
-      title: String(title),
-      content: String(content),
-      images: imageUrls,
-      videos: videoUrls,
-      updatedAt: new Date().toISOString(),
-    };
+    const updated = await prisma.siteUpdate.update({
+      where: { id },
+      data: {
+        title: String(title),
+        content: String(content),
+        images: imageUrls,
+        videos: videoUrls,
+      },
+    });
 
-    setUpdate(id, updated);
-
-    await audit(req as any, "ADMIN_UPDATE_UPDATE", `update:${id}`, existingUpdate, updated);
-
-    res.json(updated);
+    const dto = toApiDto(updated);
+    await audit(req as any, "ADMIN_UPDATE_UPDATE", `update:${id}`, toApiDto(existing), dto);
+    res.json(dto);
   } catch (err: any) {
     console.error("Error updating update:", err);
     res.status(500).json({ error: "Failed to update update", message: err?.message });
@@ -176,15 +186,13 @@ router.put("/:id", upload.fields([
 router.delete("/:id", async (req: any, res) => {
   try {
     const { id } = req.params;
-    const existingUpdate = getUpdatesStore()[id];
-    
-    if (!existingUpdate) {
+    const existing = await prisma.siteUpdate.findUnique({ where: { id } });
+    if (!existing) {
       return res.status(404).json({ error: "Update not found" });
     }
 
-    deleteUpdate(id);
-
-    await audit(req as any, "ADMIN_UPDATE_DELETE", `update:${id}`, existingUpdate, null);
+    await prisma.siteUpdate.delete({ where: { id } });
+    await audit(req as any, "ADMIN_UPDATE_DELETE", `update:${id}`, toApiDto(existing), null);
 
     res.json({ ok: true, message: "Update deleted successfully" });
   } catch (err: any) {

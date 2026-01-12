@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import "./env";
 import express from 'express';
 import http from 'http';
 import helmet from 'helmet';
@@ -396,7 +396,11 @@ app.use(morgan('dev'));
 app.use(performanceMiddleware);
 // generic rate limit already applied via configureSecurity; keep specific route limits where needed
 app.use("/uploads/cloudinary", upCld);
+// also expose API-prefixed route so frontend using `/api/uploads/cloudinary` works
+app.use("/api/uploads/cloudinary", upCld);
 app.use("/uploads/s3", upS3);
+// also expose API-prefixed route so frontend using `/api/uploads/s3` works
+app.use("/api/uploads/s3", upS3);
 app.use("/owner/properties", ownerProperties);
 app.use("/owner/properties", ownerPropLayout);
 // also expose API-prefixed route so frontend using `/api/owner/properties` works
@@ -593,15 +597,19 @@ app.use((req: express.Request, res: express.Response) => {
 // Error handler middleware (must be last, after all routes and 404 handler)
 app.use(errorHandler);
 
-// Start server
-const PORT = Number(process.env.PORT) || 4000;
-const HOST = process.env.HOST || '0.0.0.0';
-server.listen(PORT, HOST, () => {
-  console.log(`Server listening on http://${HOST}:${PORT}`);
-});
+export { app, server };
 
-server.on('error', (err) => {
-  console.error('HTTP server error:', err);
-});
+// Start server (skip during tests so Vitest can import this module safely)
+if (process.env.NODE_ENV !== "test") {
+  const PORT = Number(process.env.PORT) || 4000;
+  const HOST = process.env.HOST || "0.0.0.0";
+  server.listen(PORT, HOST, () => {
+    console.log(`Server listening on http://${HOST}:${PORT}`);
+  });
+
+  server.on("error", (err) => {
+    console.error("HTTP server error:", err);
+  });
+}
 
 // Note: server and PORT are declared earlier; no duplicate server.listen here.
