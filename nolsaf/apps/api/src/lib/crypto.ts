@@ -1,4 +1,5 @@
 import argon2 from "argon2";
+import crypto from "crypto";
 
 /** Password hashing */
 export const hashPassword = (plain: string) => argon2.hash(plain, { type: argon2.argon2id });
@@ -16,19 +17,155 @@ export const verifyPassword = async (hash: string, plain: string): Promise<boole
 export const hashCode = (plain: string) => hashPassword(plain);
 export const verifyCode = (hash: string, plain: string) => verifyPassword(hash, plain);
 
-/** Very light secret encryption placeholder: replace with KMS/libsodium in prod */
-const ENC_KEY = (process.env.ENCRYPTION_KEY || "dev-key-dev-key-dev-key-32bytes").slice(0, 32);
-export function encrypt(text: string): string {
-  // Simple XOR-ish placeholder NOT for production use; swap for proper AES-256-GCM
-  const buf = Buffer.from(text, "utf8");
-  const key = Buffer.from(ENC_KEY);
-  const out = Buffer.alloc(buf.length);
-  for (let i = 0; i < buf.length; i++) out[i] = buf[i] ^ key[i % key.length];
-  return out.toString("base64");
+/**
+ * Production-grade AES-256-GCM encryption for sensitive data (bank accounts, etc.)
+ * 
+ * Key Requirements:
+ * - ENCRYPTION_KEY must be exactly 32 bytes (256 bits) for AES-256
+ * - In production, use a secure key management service (AWS KMS, Azure Key Vault, etc.)
+ * - Never commit encryption keys to version control
+ * - Store keys in environment variables or secret management systems
+ * 
+ * Format: base64(iv:12bytes + encrypted_data + auth_tag:16bytes)
+ * The IV and auth tag are prepended/appended for security and verification
+ */
+function getEncryptionKey(): Buffer {
+  const keyEnv = process.env.ENCRYPTION_KEY;
+  
+  if (!keyEnv) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(
+        'ENCRYPTION_KEY environment variable is required in production. ' +
+        'Generate a secure 32-byte key using: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'base64\'))"'
+      );
+    }
+    // Development fallback (warn but allow)
+    console.warn(
+      '⚠️  WARNING: Using default encryption key in development. ' +
+      'Set ENCRYPTION_KEY environment variable for production!'
+    );
+    return crypto.createHash('sha256').update('dev-key-dev-key-dev-key-32bytes').digest();
+  }
+  
+  // Support both base64 and hex encoded keys, or raw strings
+  let key: Buffer;
+  try {
+    // Try base64 first
+    key = Buffer.from(keyEnv, 'base64');
+    if (key.length !== 32) {
+      // Try hex
+      key = Buffer.from(keyEnv, 'hex');
+      if (key.length !== 32) {
+        // Use SHA-256 hash of the string to ensure 32 bytes
+        key = crypto.createHash('sha256').update(keyEnv).digest();
+      }
+    }
+  } catch {
+    // If parsing fails, hash the string
+    key = crypto.createHash('sha256').update(keyEnv).digest();
+  }
+  
+  if (key.length !== 32) {
+    throw new Error('ENCRYPTION_KEY must be 32 bytes (256 bits). Use SHA-256 hash or provide a 32-byte key.');
+  }
+  
+  return key;
 }
-export function decrypt(b64: string): string {
+
+const ENC_KEY = getEncryptionKey();
+
+/**
+ * Encrypts sensitive data using AES-256-GCM
+ * @param plaintext - The plain text to encrypt
+ * @returns Base64-encoded string containing: IV (12 bytes) + encrypted data + auth tag (16 bytes)
+ */
+export function encrypt(plaintext: string): string {
+  if (!plaintext || plaintext.length === 0) {
+    return '';
+  }
+  
+  try {
+    // Generate a random 12-byte IV for GCM mode
+    const iv = crypto.randomBytes(12);
+    
+    // Create cipher
+    const cipher = crypto.createCipheriv('aes-256-gcm', ENC_KEY, iv);
+    
+    // Encrypt
+    const encrypted = Buffer.concat([
+      cipher.update(plaintext, 'utf8'),
+      cipher.final()
+    ]);
+    
+    // Get authentication tag (16 bytes for GCM)
+    const authTag = cipher.getAuthTag();
+    
+    // Combine: IV (12 bytes) + encrypted data + auth tag (16 bytes)
+    const combined = Buffer.concat([iv, encrypted, authTag]);
+    
+    // Return as base64
+    return combined.toString('base64');
+  } catch (error) {
+    console.error('Encryption failed:', error);
+    throw new Error('Failed to encrypt sensitive data');
+  }
+}
+
+/**
+ * Decrypts data encrypted with AES-256-GCM
+ * @param encryptedData - Base64-encoded string from encrypt()
+ * @returns Decrypted plain text
+ */
+export function decrypt(encryptedData: string): string {
+  if (!encryptedData || encryptedData.length === 0) {
+    return '';
+  }
+  
+  try {
+    // Decode from base64
+    const combined = Buffer.from(encryptedData, 'base64');
+    
+    // Check minimum length (IV: 12 + auth tag: 16 = 28 bytes minimum)
+    if (combined.length < 28) {
+      // Might be old XOR-encrypted data, try legacy decryption
+      return decryptLegacy(encryptedData);
+    }
+    
+    // Extract components
+    const iv = combined.slice(0, 12);
+    const authTag = combined.slice(-16);
+    const encrypted = combined.slice(12, -16);
+    
+    // Create decipher
+    const decipher = crypto.createDecipheriv('aes-256-gcm', ENC_KEY, iv);
+    decipher.setAuthTag(authTag);
+    
+    // Decrypt
+    const decrypted = Buffer.concat([
+      decipher.update(encrypted),
+      decipher.final()
+    ]);
+    
+    return decrypted.toString('utf8');
+  } catch (error) {
+    // If GCM decryption fails, might be legacy XOR-encrypted data
+    try {
+      return decryptLegacy(encryptedData);
+    } catch (legacyError) {
+      console.error('Decryption failed (both GCM and legacy):', error);
+      throw new Error('Failed to decrypt sensitive data - invalid format or corrupted');
+    }
+  }
+}
+
+/**
+ * Legacy XOR decryption for backward compatibility with old encrypted data
+ * @private
+ */
+function decryptLegacy(b64: string): string {
+  const devKey = "dev-key-dev-key-dev-key-32bytes".slice(0, 32);
   const buf = Buffer.from(b64, "base64");
-  const key = Buffer.from(ENC_KEY);
+  const key = Buffer.from(devKey);
   const out = Buffer.alloc(buf.length);
   for (let i = 0; i < buf.length; i++) out[i] = buf[i] ^ key[i % key.length];
   return out.toString("utf8");

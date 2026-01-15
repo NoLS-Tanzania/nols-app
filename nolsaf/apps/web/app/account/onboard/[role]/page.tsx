@@ -42,16 +42,6 @@ export default function OnboardRole({ params }: { params: { role: string } }) {
   const [success, setSuccess] = useState<string | null>(null);
   const router = useRouter();
 
-  // Fallbacks for lucide icons in case the named exports are undefined at runtime
-  const FileTextIcon: any = (Icons as any).FileText ?? ((props: any) => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-      <path d="M14 2v6h6" />
-      <path d="M8 13h8" />
-      <path d="M8 17h8" />
-    </svg>
-  ));
-
   const IdIcon: any = (props: any) => (
     <svg suppressHydrationWarning viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" {...props}>
       <rect x="2" y="4" width="20" height="16" rx="2" />
@@ -60,15 +50,6 @@ export default function OnboardRole({ params }: { params: { role: string } }) {
       <path d="M13 14h6" />
     </svg>
   );
-
-  const TruckIcon: any = (Icons as any).Truck ?? ((props: any) => (
-    <svg suppressHydrationWarning viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <rect x="1" y="3" width="15" height="13" rx="2" />
-      <path d="M16 8h4v5" />
-      <circle cx="5.5" cy="18.5" r="1.5" />
-      <circle cx="18.5" cy="18.5" r="1.5" />
-    </svg>
-  ));
 
   const title = role === 'driver' ? 'Welcome, Driver' : role === 'owner' ? 'Welcome, Property Owner' : 'Welcome, Traveller';
   const help = role === 'driver'
@@ -120,8 +101,14 @@ export default function OnboardRole({ params }: { params: { role: string } }) {
 
       const resp = await fetch('/api/auth/profile', { method: 'POST', body: fd });
       if (!resp.ok) {
-        const data = await resp.json().catch(() => ({}));
-        throw new Error(data?.message || 'Failed to save profile');
+        const data: any = await resp.json().catch(() => ({}));
+        if (data?.error === 'role_mismatch') {
+          throw new Error(
+            data?.message ||
+              `You're signed in with a different account role and can't complete onboarding for “${role}”. Please sign in with the correct role account.`
+          );
+        }
+        throw new Error(data?.message || data?.error || 'Failed to save profile');
       }
       setSuccess('Profile saved');
       // navigate to role dashboard or public account area
@@ -667,7 +654,7 @@ export default function OnboardRole({ params }: { params: { role: string } }) {
 
                   <div className="space-y-4">
                   <div>
-                      <label className="block text-sm font-semibold text-slate-900 mb-1.5 flex items-center gap-2">
+                      <label className="text-sm font-semibold text-slate-900 mb-1.5 flex items-center gap-2">
                         <UserCircle className="w-3.5 h-3.5 text-slate-500" />
                         Full name
                         <span className="text-red-500">*</span>
@@ -693,7 +680,7 @@ export default function OnboardRole({ params }: { params: { role: string } }) {
                     </div>
 
                   <div>
-                      <label className="block text-sm font-semibold text-slate-900 mb-1.5 flex items-center gap-2">
+                      <label className="text-sm font-semibold text-slate-900 mb-1.5 flex items-center gap-2">
                         <Mail className="w-3.5 h-3.5 text-slate-500" />
                         Email
                         <span className="text-red-500">*</span>
@@ -741,7 +728,7 @@ export default function OnboardRole({ params }: { params: { role: string } }) {
                     </div>
 
                     <div>
-                        <label htmlFor="nationality-select" className="block text-sm font-semibold text-slate-900 mb-1.5 flex items-center gap-2">
+                        <label htmlFor="nationality-select" className="text-sm font-semibold text-slate-900 mb-1.5 flex items-center gap-2">
                           <Globe className="w-3.5 h-3.5 text-slate-500" />
                           Nationality
                         </label>
@@ -790,7 +777,7 @@ export default function OnboardRole({ params }: { params: { role: string } }) {
 
                   <div className="space-y-4">
                   <div>
-                      <label className="block text-sm font-semibold text-slate-900 mb-1.5 flex items-center gap-2">
+                      <label className="text-sm font-semibold text-slate-900 mb-1.5 flex items-center gap-2">
                         <FileText className="w-3.5 h-3.5 text-slate-500" />
                         License number
                         <span className="text-red-500">*</span>
@@ -816,7 +803,7 @@ export default function OnboardRole({ params }: { params: { role: string } }) {
                   </div>
 
                     <div>
-                      <label className="block text-sm font-semibold text-slate-900 mb-2 flex items-center gap-2">
+                      <label className="text-sm font-semibold text-slate-900 mb-2 flex items-center gap-2">
                         <Truck className="w-3.5 h-3.5 text-slate-500" />
                         Type of vehicle
                         <span className="text-red-500">*</span>
@@ -857,7 +844,7 @@ export default function OnboardRole({ params }: { params: { role: string } }) {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
-                        <label className="block text-sm font-semibold text-slate-900 mb-1.5 flex items-center gap-2">
+                        <label className="text-sm font-semibold text-slate-900 mb-1.5 flex items-center gap-2">
                           <FileText className="w-3.5 h-3.5 text-slate-500" />
                           Plate number
                           <span className="text-red-500">*</span>
@@ -882,7 +869,7 @@ export default function OnboardRole({ params }: { params: { role: string } }) {
                         )}
                     </div>
                     <div>
-                        <label className="block text-sm font-semibold text-slate-900 mb-1.5 flex items-center gap-2">
+                        <label className="text-sm font-semibold text-slate-900 mb-1.5 flex items-center gap-2">
                           <MapPin className="w-3.5 h-3.5 text-slate-500" />
                           Operation / Parking area
                         </label>
@@ -912,7 +899,7 @@ export default function OnboardRole({ params }: { params: { role: string } }) {
 
                   <div className="space-y-4">
                   <div>
-                      <label className="block text-sm font-semibold text-slate-900 mb-2 flex items-center gap-2">
+                      <label className="text-sm font-semibold text-slate-900 mb-2 flex items-center gap-2">
                         <Phone className="w-3.5 h-3.5 text-slate-500" />
                         Payment phone
                         <span className="text-red-500">*</span>
@@ -985,7 +972,7 @@ export default function OnboardRole({ params }: { params: { role: string } }) {
 
                     {paymentSent && !paymentVerified && (
                       <div className="p-4 bg-slate-50 border-2 border-slate-200 rounded-lg space-y-3">
-                        <label className="block text-sm font-semibold text-slate-900 flex items-center gap-2">
+                        <label className="text-sm font-semibold text-slate-900 flex items-center gap-2">
                           <CreditCard className="w-3.5 h-3.5 text-slate-500" />
                           Enter verification code
                         </label>
@@ -1083,7 +1070,7 @@ export default function OnboardRole({ params }: { params: { role: string } }) {
 
                   <div className="space-y-4">
                   <div>
-                      <label htmlFor="license-upload" className="block text-sm font-semibold text-slate-900 mb-2 flex items-center gap-2">
+                      <label htmlFor="license-upload" className="text-sm font-semibold text-slate-900 mb-2 flex items-center gap-2">
                         <FileText className="w-3.5 h-3.5 text-slate-500" />
                         Upload driving license
                         <span className="text-red-500">*</span>
@@ -1124,7 +1111,7 @@ export default function OnboardRole({ params }: { params: { role: string } }) {
                     </div>
 
                   <div>
-                      <label htmlFor="id-upload" className="block text-sm font-semibold text-slate-900 mb-2 flex items-center gap-2">
+                      <label htmlFor="id-upload" className="text-sm font-semibold text-slate-900 mb-2 flex items-center gap-2">
                         <IdIcon className="w-3.5 h-3.5 text-slate-500" />
                         Upload national ID
                         <span className="text-red-500">*</span>
@@ -1165,7 +1152,7 @@ export default function OnboardRole({ params }: { params: { role: string } }) {
                     </div>
 
                   <div>
-                      <label htmlFor="vehicle-reg-upload" className="block text-sm font-semibold text-slate-900 mb-2 flex items-center gap-2">
+                      <label htmlFor="vehicle-reg-upload" className="text-sm font-semibold text-slate-900 mb-2 flex items-center gap-2">
                         <Truck className="w-3.5 h-3.5 text-slate-500" />
                         Upload vehicle registration
                         <span className="text-xs font-normal text-slate-500">(optional)</span>

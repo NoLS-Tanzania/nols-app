@@ -35,11 +35,41 @@ model User {
   id              Int       @id @default(autoincrement())
   role            String    @default("CUSTOMER") // ADMIN, OWNER, DRIVER, CUSTOMER, AGENT
   name            String?
+  /// Human-friendly display name (used by newer UI)
+  fullName        String?   @db.VarChar(160)
   email           String?   @unique
   phone           String?   @unique
   passwordHash    String?
+  /// Profile avatar image URL (Cloudinary, etc.)
+  avatarUrl       String?   @db.VarChar(500)
+  /// User timezone (e.g., Africa/Dar_es_Salaam)
+  timezone        String?   @db.VarChar(80)
+  /// Date of birth (date-only)
+  dateOfBirth     DateTime? @db.Date
+  /// Location fields used by driver onboarding/profile UI
+  region          String?   @db.VarChar(120)
+  district        String?   @db.VarChar(120)
   emailVerifiedAt DateTime?
   phoneVerifiedAt DateTime?
+
+  // Owner / business details
+  tin     String? @db.VarChar(50)
+  address String? @db.VarChar(500)
+
+  // Driver identity + onboarding details
+  gender      String? @db.VarChar(20)
+  nationality String? @db.VarChar(80)
+  nin         String? @db.VarChar(50)
+
+  // Driver vehicle / license details
+  licenseNumber  String?  @db.VarChar(80)
+  plateNumber    String?  @db.VarChar(30)
+  vehicleType    String?  @db.VarChar(50)
+  vehicleMake    String?  @db.VarChar(100)
+  vehiclePlate   String?  @db.VarChar(30)
+  operationArea  String?  @db.VarChar(200)
+  paymentPhone   String?  @db.VarChar(30)
+  paymentVerified Boolean? @default(false)
 
   // Two-Factor Authentication
   twoFactorEnabled Boolean  @default(false)
@@ -658,6 +688,9 @@ model GroupBooking {
   // ==================== Accommodation Details ====================
   /// Type of accommodation: villa, apartment, hotel, hostel, lodge, etc.
   accommodationType String
+  /// Minimum acceptable hotel comfort level when accommodationType is hotel
+  /// Uses the same labels as owner listings: basic|simple|moderate|high|luxury
+  minHotelStarLabel String? @db.VarChar(20)
   /// Total number of people in the group
   headcount         Int
   /// Number of males in the group (for accommodation planning)
@@ -1333,6 +1366,12 @@ model SystemSetting {
 
   /// Session idle timeout in minutes
   sessionIdleMinutes Int? @default(30)
+
+  /// Session TTL by role (minutes). If null, falls back to sessionIdleMinutes.
+  sessionMaxMinutesAdmin Int?
+  sessionMaxMinutesOwner Int?
+  sessionMaxMinutesDriver Int?
+  sessionMaxMinutesCustomer Int?
 
   /// Maximum session duration in hours
   maxSessionDurationHours Int? @default(24)

@@ -1221,8 +1221,8 @@ export default function Page() {
             </div>
 
             <div
-              onClick={() => router.push('/register?role=driver')}
-              onKeyDown={(e) => { if (e.key === 'Enter') router.push('/register?role=driver'); }}
+              onClick={() => router.push('/account/register?role=driver')}
+              onKeyDown={(e) => { if (e.key === 'Enter') router.push('/account/register?role=driver'); }}
               role="link"
               tabIndex={0}
               aria-label="Drivers - Register as a driver"
@@ -1260,8 +1260,8 @@ export default function Page() {
             </div>
 
             <div
-              onClick={() => router.push('/register?role=owner')}
-              onKeyDown={(e) => { if (e.key === 'Enter') router.push('/register?role=owner'); }}
+              onClick={() => router.push('/account/register?role=owner')}
+              onKeyDown={(e) => { if (e.key === 'Enter') router.push('/account/register?role=owner'); }}
               role="link"
               tabIndex={0}
               aria-label="Property Owners - List your property"

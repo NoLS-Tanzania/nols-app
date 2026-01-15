@@ -7,10 +7,29 @@ import { Prisma } from "@prisma/client";
 export const router = Router();
 router.use(requireAuth as unknown as RequestHandler, requireRole("ADMIN") as unknown as RequestHandler);
 
+function toSingleString(value: unknown): string | undefined {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return typeof value[0] === "string" ? value[0] : undefined;
+  return undefined;
+}
+
+function toPositiveInt(value: unknown, fallback: number): number {
+  const n = Number(toSingleString(value));
+  if (!Number.isFinite(n)) return fallback;
+  const asInt = Math.floor(n);
+  return asInt > 0 ? asInt : fallback;
+}
+
 /** GET /admin/group-stays/arrangements?arrType=&groupType=&region=&status=&page=&pageSize=&q= */
 router.get("/", async (req, res) => {
   try {
-    const { arrType, groupType, region, status, page = "1", pageSize = "50", q = "" } = req.query as any;
+    const arrType = toSingleString((req.query as any).arrType);
+    const groupType = toSingleString((req.query as any).groupType);
+    const region = toSingleString((req.query as any).region);
+    const status = toSingleString((req.query as any).status);
+    const q = (toSingleString((req.query as any).q) ?? "").trim();
+    const page = toPositiveInt((req.query as any).page, 1);
+    const pageSizeRequested = toPositiveInt((req.query as any).pageSize, 50);
 
     const where: any = {};
 
@@ -53,16 +72,16 @@ router.get("/", async (req, res) => {
     // Search query
     if (q) {
       where.OR = [
-        { user: { name: { contains: q, mode: "insensitive" } } },
-        { user: { email: { contains: q, mode: "insensitive" } } },
-        { toRegion: { contains: q, mode: "insensitive" } },
-        { toDistrict: { contains: q, mode: "insensitive" } },
-        { toLocation: { contains: q, mode: "insensitive" } },
+        { user: { name: { contains: q } } },
+        { user: { email: { contains: q } } },
+        { toRegion: { contains: q } },
+        { toDistrict: { contains: q } },
+        { toLocation: { contains: q } },
       ];
     }
 
-    const skip = (Number(page) - 1) * Number(pageSize);
-    const take = Math.min(Number(pageSize), 100);
+    const skip = (page - 1) * pageSizeRequested;
+    const take = Math.min(pageSizeRequested, 100);
 
     const [items, total] = await Promise.all([
       (prisma as any).groupBooking.findMany({
@@ -108,7 +127,7 @@ router.get("/", async (req, res) => {
       createdAt: b.createdAt,
     }));
 
-    return res.json({ total, page: Number(page), pageSize: take, items: mapped });
+    return res.json({ total, page, pageSize: take, items: mapped });
   } catch (err: any) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && (err.code === 'P2021' || err.code === 'P2022')) {
       console.warn('Prisma schema mismatch when querying arrangements:', err.message);

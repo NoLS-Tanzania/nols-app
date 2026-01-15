@@ -2,6 +2,7 @@ import jwt, { SignOptions } from "jsonwebtoken";
 import { 
   getSessionIdleMinutes, 
   getMaxSessionDurationHours,
+  getRoleSessionMaxMinutes,
   shouldForceLogoutOnPasswordChange 
 } from "./securitySettings.js";
 
@@ -63,12 +64,9 @@ export async function signUserJwt(
   user: { id: number; role?: string | null; email?: string | null }
 ): Promise<string> {
   try {
-    const settings = await getSessionSettings();
-    
-    // Convert max duration hours to seconds for JWT expiration
-    // Use the shorter of: maxDurationHours or 7 days (default fallback)
+    const roleMaxMinutes = await getRoleSessionMaxMinutes(user.role);
     const maxDurationSeconds = Math.min(
-      settings.maxDurationHours * 60 * 60, // Convert hours to seconds
+      roleMaxMinutes * 60,
       7 * 24 * 60 * 60 // 7 days max
     );
     
@@ -117,10 +115,8 @@ export async function setAuthCookie(
 ): Promise<void> {
   try {
     const isProd = process.env.NODE_ENV === "production";
-    const settings = await getSessionSettings();
-    
-    // Cookie maxAge in milliseconds (use idle timeout)
-    const maxAge = settings.idleMinutes * 60 * 1000;
+    const roleMaxMinutes = await getRoleSessionMaxMinutes(role);
+    const maxAge = roleMaxMinutes * 60 * 1000;
     
     const cookieOptions = {
       httpOnly: true,

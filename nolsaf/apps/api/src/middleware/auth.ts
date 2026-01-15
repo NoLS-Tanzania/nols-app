@@ -2,6 +2,8 @@ import { Request, Response, NextFunction } from 'express';
 import type { RequestHandler } from 'express';
 import jwt from 'jsonwebtoken';
 import { prisma } from '@nolsaf/prisma';
+import { getRoleSessionMaxMinutes } from '../lib/securitySettings.js';
+import { clearAuthCookie } from '../lib/sessionManager.js';
 
 export type Role = 'ADMIN' | 'OWNER' | 'USER' | 'DRIVER';
 
@@ -75,6 +77,19 @@ async function verifyToken(token: string): Promise<AuthedUser | null> {
     // Check raw database value before casting to handle CUSTOMER -> USER mapping
     const rawRole = (user.role?.toUpperCase() || 'USER');
     const role: Role = rawRole === 'CUSTOMER' ? 'USER' : (rawRole as Role);
+
+    // Enforce dynamic per-role session TTL based on token issuance time.
+    // This ensures that if admin reduces TTL, old tokens are also forced out.
+    const issuedAtSec = typeof decoded.iat === 'number' ? decoded.iat : Number(decoded.iat);
+    if (Number.isFinite(issuedAtSec) && issuedAtSec > 0) {
+      const maxMinutes = await getRoleSessionMaxMinutes(role);
+      const ageSec = Math.floor(Date.now() / 1000) - issuedAtSec;
+      if (ageSec > maxMinutes * 60) {
+        const e: any = new Error('Session expired');
+        e.code = 'SESSION_EXPIRED';
+        throw e;
+      }
+    }
     
     return {
       id: user.id,
@@ -82,7 +97,7 @@ async function verifyToken(token: string): Promise<AuthedUser | null> {
       email: user.email || undefined,
     };
   } catch (err) {
-    return null;
+    throw err;
   }
 }
 
@@ -91,8 +106,12 @@ async function verifyToken(token: string): Promise<AuthedUser | null> {
 export const maybeAuth: RequestHandler = async (req, _res, next) => {
   const token = getTokenFromRequest(req);
   if (token) {
-    const user = await verifyToken(token);
-    if (user) (req as AuthedRequest).user = user;
+    try {
+      const user = await verifyToken(token);
+      if (user) (req as AuthedRequest).user = user;
+    } catch {
+      // ignore in maybeAuth
+    }
   }
   return next();
 };
@@ -103,10 +122,18 @@ export const maybeAuth: RequestHandler = async (req, _res, next) => {
 export const requireAuth: RequestHandler = async (req, res, next) => {
   const token = getTokenFromRequest(req);
   if (token) {
-    const user = await verifyToken(token);
-    if (user) {
-      (req as AuthedRequest).user = user;
-      return next();
+    try {
+      const user = await verifyToken(token);
+      if (user) {
+        (req as AuthedRequest).user = user;
+        return next();
+      }
+    } catch (err: any) {
+      if (err?.code === 'SESSION_EXPIRED') {
+        clearAuthCookie(res);
+        return res.status(401).json({ error: 'Session expired', code: 'SESSION_EXPIRED' });
+      }
+      // fallthrough to suspended/unauthorized logic
     }
     // Check if token is valid but user is suspended
     try {
@@ -146,10 +173,18 @@ export function requireRole(required?: Role) {
     if (!(req as AuthedRequest).user) {
       const token = getTokenFromRequest(req);
       if (token) {
-        const verified = await verifyToken(token);
-        if (verified) {
-          (req as AuthedRequest).user = verified;
-        } else {
+        try {
+          const verified = await verifyToken(token);
+          if (verified) {
+            (req as AuthedRequest).user = verified;
+          } else {
+            // token verified but user not found/suspended etc
+          }
+        } catch (err: any) {
+          if (err?.code === 'SESSION_EXPIRED') {
+            clearAuthCookie(res);
+            return res.status(401).json({ error: 'Session expired', code: 'SESSION_EXPIRED' });
+          }
           // Check if token is valid but user is suspended
           try {
             const secret = process.env.JWT_SECRET || (process.env.NODE_ENV !== "production" ? (process.env.DEV_JWT_SECRET || "dev_jwt_secret") : "");

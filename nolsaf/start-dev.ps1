@@ -26,6 +26,18 @@ if ($port4000) {
 # Change to project directory
 Set-Location $PSScriptRoot
 
+# Clean Next.js build output to prevent stale asset references (e.g. /_next/static/css/app/layout.css errors)
+$webNextPath = Join-Path $PSScriptRoot "apps\web\.next"
+if (Test-Path $webNextPath) {
+    Write-Host "Cleaning apps/web/.next..." -ForegroundColor Cyan
+    Remove-Item -Recurse -Force $webNextPath -ErrorAction SilentlyContinue
+}
+
+# Silence Node.js warnings in dev (e.g. DEP0060 util._extend)
+# NODE_NO_WARNINGS disables all process warnings; NODE_OPTIONS provides CLI-equivalent flags.
+$env:NODE_NO_WARNINGS = "1"
+$env:NODE_OPTIONS = (($env:NODE_OPTIONS + ' ') + '--no-warnings').Trim()
+
 # Start the servers
 Write-Host "Starting npm run dev..." -ForegroundColor Cyan
 npm run dev

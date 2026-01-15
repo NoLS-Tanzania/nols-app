@@ -20,6 +20,8 @@ export default function UserMenu({ variant = "dark" }: { variant?: "light" | "da
   const ref = useRef<HTMLDivElement | null>(null);
   const pathname = usePathname();
 
+  const logoutRedirect = "/public";
+
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
       if (!ref.current) return;
@@ -198,7 +200,7 @@ export default function UserMenu({ variant = "dark" }: { variant?: "light" | "da
                 try {
                   await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
                 } catch {}
-                window.location.href = "/login";
+                window.location.href = logoutRedirect;
               }}
               className={`group relative flex items-center gap-3 w-full px-4 py-2.5 text-sm font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 transition-all duration-200 active:scale-[0.98] border-0 bg-transparent cursor-pointer`}
               style={{

@@ -29,22 +29,80 @@ router.get("/", async (req, res) => {
     const skip = (Number(page) - 1) * Number(pageSize);
     const take = Math.min(Number(pageSize), 100);
 
-    const [items, total] = await Promise.all([
-      prisma.user.findMany({
-        where,
-        select: {
-          id: true, name: true, email: true, phone: true,
-          suspendedAt: true, createdAt: true,
-          _count: true,
-        },
-        orderBy: { id: "desc" },
-        skip, take,
-      }),
-      prisma.user.count({ where }),
-    ]);
+    console.log('[GET /admin/drivers] Query:', JSON.stringify(where, null, 2));
+    console.log('[GET /admin/drivers] Pagination:', { skip, take, page, pageSize });
 
-    return res.json({ total, page: Number(page), pageSize: take, items });
+    // Try querying without _count first to see if that's the issue
+    let items: any[];
+    let total: number;
+    
+    try {
+      [items, total] = await Promise.all([
+        prisma.user.findMany({
+          where,
+          select: {
+            id: true, 
+            name: true, 
+            email: true, 
+            phone: true,
+            suspendedAt: true, 
+            createdAt: true,
+          },
+          orderBy: { id: "desc" },
+          skip, 
+          take,
+        }),
+        prisma.user.count({ where }),
+      ]);
+      
+      console.log('[GET /admin/drivers] Found drivers:', total, 'items:', items.length);
+    } catch (queryErr: any) {
+      console.error('[GET /admin/drivers] Query error:', queryErr);
+      // If the query fails, try a simpler query without suspendedAt
+      try {
+        const simpleWhere: any = { role: "DRIVER" };
+        [items, total] = await Promise.all([
+          prisma.user.findMany({
+            where: simpleWhere,
+            select: {
+              id: true, 
+              name: true, 
+              email: true, 
+              phone: true,
+              createdAt: true,
+            },
+            orderBy: { id: "desc" },
+            skip, 
+            take,
+          }),
+          prisma.user.count({ where: simpleWhere }),
+        ]);
+        console.log('[GET /admin/drivers] Fallback query found:', total, 'drivers');
+      } catch (fallbackErr: any) {
+        console.error('[GET /admin/drivers] Fallback query also failed:', fallbackErr);
+        throw fallbackErr;
+      }
+    }
+
+    // Format items to ensure dates are strings and handle nulls
+    const formattedItems = items.map((item: any) => ({
+      id: item.id,
+      name: item.name || `Driver #${item.id}`,
+      email: item.email || '',
+      phone: item.phone || null,
+      createdAt: item.createdAt ? new Date(item.createdAt).toISOString() : new Date().toISOString(),
+    }));
+
+    console.log('[GET /admin/drivers] Returning:', formattedItems.length, 'formatted items');
+    return res.json({ total, page: Number(page), pageSize: take, items: formattedItems });
   } catch (err: any) {
+    console.error('[GET /admin/drivers] Error details:', {
+      message: err?.message,
+      code: err?.code,
+      name: err?.name,
+      stack: err?.stack,
+    });
+    
     if (err instanceof Prisma.PrismaClientKnownRequestError && (err.code === 'P2021' || err.code === 'P2022')) {
       console.warn('Prisma schema mismatch when querying drivers list:', err.message);
       const page = Number((req.query as any).page ?? 1);
@@ -58,7 +116,7 @@ router.get("/", async (req, res) => {
       return res.json({ total: 0, page, pageSize, items: [] });
     }
     console.error('Unhandled error in GET /admin/drivers:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error', details: err?.message });
   }
 });
 
@@ -2624,36 +2682,35 @@ router.get("/:id/stats", async (req, res) => {
 router.get("/:id/activities", async (req, res) => {
   try {
     const driverId = Number(req.params.id);
+    if (!Number.isFinite(driverId)) {
+      return res.status(400).json({ error: "Invalid driver ID" });
+    }
     
     // Verify driver exists
     const driver = await prisma.user.findFirst({
       where: { id: driverId, role: "DRIVER" },
       select: { id: true, name: true, email: true, createdAt: true },
     });
-    if (!driver) return res.status(404).json({ error: "Driver not found" });
+    if (!driver) {
+      return res.status(404).json({ error: "Driver not found" });
+    }
 
-    // Get all activity summaries
+    // Get all activity summaries - use proper Prisma models
     const [referrals, bonuses, level, reminders, stats, trips, invoices] = await Promise.all([
       // Referrals summary
       (async () => {
         try {
           let totalReferrals = 0;
-          if ((prisma as any).referral) {
-            totalReferrals = await (prisma as any).referral.count({ where: { referrerId: driverId } });
-          } else if ((prisma as any).user) {
-            const referralCode = `DRIVER-${driverId.toString().slice(-6).toUpperCase()}`;
-            totalReferrals = await (prisma as any).user.count({
-              where: {
-                OR: [
-                  { referredBy: driverId },
-                  { referralCode: referralCode },
-                  { referralId: driverId },
-                ],
-              },
-            });
-          }
+          // Check for referredBy field in User model
+          totalReferrals = await prisma.user.count({
+            where: {
+              referredBy: driverId,
+            },
+          });
           return { totalReferrals };
-        } catch (e) {
+        } catch (e: any) {
+          // If referredBy field doesn't exist, return 0
+          console.warn('Error counting referrals:', e?.message);
           return { totalReferrals: 0 };
         }
       })(),
@@ -2667,24 +2724,39 @@ router.get("/:id/activities", async (req, res) => {
             },
           });
           return { totalBonuses: bonusCount };
-        } catch (e) {
+        } catch (e: any) {
+          console.warn('Error counting bonuses:', e?.message);
           return { totalBonuses: 0 };
         }
       })(),
-      // Level summary
+      // Level summary - count completed bookings/trips
       (async () => {
         try {
           let totalTrips = 0;
-          if ((prisma as any).booking) {
-            totalTrips = await (prisma as any).booking.count({
+          // Try TransportBooking first (for transport rides)
+          try {
+            totalTrips = await prisma.transportBooking.count({
               where: {
                 driverId,
-                status: { in: ['COMPLETED', 'FINISHED', 'PAID', 'CONFIRMED'] },
+                status: { in: ['COMPLETED', 'CONFIRMED', 'IN_PROGRESS'] },
               },
             });
+          } catch (e: any) {
+            // If TransportBooking doesn't exist or fails, try Booking model
+            try {
+              totalTrips = await prisma.booking.count({
+                where: {
+                  driverId,
+                  status: { in: ['CHECKED_IN', 'CHECKED_OUT', 'CONFIRMED'] },
+                },
+              });
+            } catch (e2: any) {
+              console.warn('Error counting trips from Booking:', e2?.message);
+            }
           }
           return { totalTrips };
-        } catch (e) {
+        } catch (e: any) {
+          console.warn('Error counting trips:', e?.message);
           return { totalTrips: 0 };
         }
       })(),
@@ -2692,17 +2764,24 @@ router.get("/:id/activities", async (req, res) => {
       (async () => {
         try {
           let unreadReminders = 0;
-          if ((prisma as any).driverReminder) {
-            unreadReminders = await (prisma as any).driverReminder.count({
-              where: { driverId, isRead: false },
-            });
+          // Try to find driver reminders - check if model exists
+          try {
+            if ((prisma as any).driverReminder) {
+              unreadReminders = await (prisma as any).driverReminder.count({
+                where: { driverId, isRead: false },
+              });
+            }
+          } catch (e: any) {
+            // Model doesn't exist, return 0
+            console.warn('DriverReminder model not found:', e?.message);
           }
           return { unreadReminders };
-        } catch (e) {
+        } catch (e: any) {
+          console.warn('Error counting reminders:', e?.message);
           return { unreadReminders: 0 };
         }
       })(),
-      // Stats summary
+      // Stats summary - today's trips
       (async () => {
         try {
           const today = new Date();
@@ -2711,30 +2790,55 @@ router.get("/:id/activities", async (req, res) => {
           tomorrow.setDate(tomorrow.getDate() + 1);
           
           let todayTrips = 0;
-          if ((prisma as any).transportBooking) {
-            todayTrips = await (prisma as any).transportBooking.count({
+          // Try TransportBooking first
+          try {
+            todayTrips = await prisma.transportBooking.count({
               where: {
                 driverId,
                 scheduledDate: { gte: today, lt: tomorrow },
               },
             });
+          } catch (e: any) {
+            // If TransportBooking fails, try Booking
+            try {
+              todayTrips = await prisma.booking.count({
+                where: {
+                  driverId,
+                  checkIn: { gte: today, lt: tomorrow },
+                },
+              });
+            } catch (e2: any) {
+              console.warn('Error counting today trips:', e2?.message);
+            }
           }
           return { todayTrips };
-        } catch (e) {
+        } catch (e: any) {
+          console.warn('Error counting today trips:', e?.message);
           return { todayTrips: 0 };
         }
       })(),
-      // Trips summary (using TransportBooking, not Booking)
+      // Trips summary - total trips (all statuses)
       (async () => {
         try {
-          if ((prisma as any).transportBooking) {
-            const totalTrips = await (prisma as any).transportBooking.count({
+          let totalTrips = 0;
+          // Try TransportBooking first
+          try {
+            totalTrips = await prisma.transportBooking.count({
               where: { driverId },
             });
-            return { totalTrips };
+          } catch (e: any) {
+            // If TransportBooking fails, try Booking
+            try {
+              totalTrips = await prisma.booking.count({
+                where: { driverId },
+              });
+            } catch (e2: any) {
+              console.warn('Error counting total trips:', e2?.message);
+            }
           }
-          return { totalTrips: 0 };
-        } catch (e) {
+          return { totalTrips };
+        } catch (e: any) {
+          console.warn('Error counting total trips:', e?.message);
           return { totalTrips: 0 };
         }
       })(),
@@ -2744,7 +2848,7 @@ router.get("/:id/activities", async (req, res) => {
           // Invoices are for property bookings, not driver transport bookings
           // Return 0 as invoices don't apply to transport bookings
           return { totalInvoices: 0 };
-        } catch (e) {
+        } catch (e: any) {
           return { totalInvoices: 0 };
         }
       })(),
@@ -2753,9 +2857,9 @@ router.get("/:id/activities", async (req, res) => {
     return res.json({
       driver: {
         id: driver.id,
-        name: driver.name,
-        email: driver.email,
-        joinedAt: driver.createdAt,
+        name: driver.name || `Driver #${driver.id}`,
+        email: driver.email || '',
+        createdAt: driver.createdAt.toISOString(),
       },
       activities: {
         referrals: referrals.totalReferrals,
@@ -2771,8 +2875,19 @@ router.get("/:id/activities", async (req, res) => {
   } catch (err: any) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && (err.code === 'P2021' || err.code === 'P2022')) {
       console.warn('Prisma schema mismatch when querying driver activities:', err.message);
+      // Still return driver info if available, with zero activities
+      const driver = await prisma.user.findFirst({
+        where: { id: Number(req.params.id), role: "DRIVER" },
+        select: { id: true, name: true, email: true, createdAt: true },
+      }).catch(() => null);
+      
       return res.json({
-        driver: null,
+        driver: driver ? {
+          id: driver.id,
+          name: driver.name,
+          email: driver.email,
+          createdAt: driver.createdAt,
+        } : null,
         activities: {
           referrals: 0,
           bonuses: 0,
@@ -2786,7 +2901,7 @@ router.get("/:id/activities", async (req, res) => {
       });
     }
     console.error('Unhandled error in GET /admin/drivers/:id/activities:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error', message: err?.message });
   }
 });
 

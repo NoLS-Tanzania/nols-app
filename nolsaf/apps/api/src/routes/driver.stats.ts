@@ -7,7 +7,7 @@ import { authenticator } from 'otplib';
 import crypto from 'crypto';
 import argon2 from 'argon2';
 import { generateRegistrationOptions, verifyRegistrationResponse, generateAuthenticationOptions, verifyAuthenticationResponse } from '@simplewebauthn/server';
-import { validatePasswordStrength } from '../lib/security.js';
+import { validatePasswordStrength, isPasswordReused, addPasswordToHistory } from '../lib/security.js';
 import { validatePasswordWithSettings } from '../lib/securitySettings.js';
 import { requireAuth, AuthedRequest } from "../middleware/auth.js";
 
@@ -1079,30 +1079,156 @@ router.post('/availability', postAvailability as unknown as RequestHandler);
 
 /** PUT /driver/profile - update authenticated driver's profile (best-effort fields) */
 const updateDriverProfile: RequestHandler = async (req, res) => {
-  const { fullName, phone, nationality, avatarUrl, timezone, dateOfBirth, gender } = req.body ?? {};
+  const {
+    fullName,
+    phone,
+    nationality,
+    avatarUrl,
+    timezone,
+    dateOfBirth,
+    gender,
+    nin,
+    licenseNumber,
+    plateNumber,
+    vehicleType,
+    vehicleMake,
+    vehiclePlate,
+    operationArea,
+    paymentPhone,
+    // Uploaded docs (Cloudinary URLs)
+    drivingLicenseUrl,
+    nationalIdUrl,
+    vehicleRegistrationUrl,
+    insuranceUrl,
+    // Optional extra fields (not always present in Prisma schema)
+    region,
+    district,
+  } = req.body ?? {};
   const userId = (req as AuthedRequest).user!.id;
 
   // Best-effort: only include fields if Prisma user model has them
   const meta = (prisma as any).user?._meta ?? {};
-  const beforeSelect: any = { fullName: true, phone: true, nationality: true, avatarUrl: true, timezone: true };
-  if (Object.prototype.hasOwnProperty.call(meta, 'dateOfBirth')) beforeSelect.dateOfBirth = true;
-  if (Object.prototype.hasOwnProperty.call(meta, 'gender')) beforeSelect.gender = true;
+  const hasField = (field: string) => Object.prototype.hasOwnProperty.call(meta, field);
+  const beforeSelect: any = { };
+  if (hasField('fullName')) beforeSelect.fullName = true;
+  if (hasField('name')) beforeSelect.name = true;
+  if (hasField('phone')) beforeSelect.phone = true;
+  if (hasField('nationality')) beforeSelect.nationality = true;
+  if (hasField('avatarUrl')) beforeSelect.avatarUrl = true;
+  if (hasField('timezone')) beforeSelect.timezone = true;
+  if (hasField('dateOfBirth')) beforeSelect.dateOfBirth = true;
+  if (hasField('region')) beforeSelect.region = true;
+  if (hasField('district')) beforeSelect.district = true;
+  if (hasField('gender')) beforeSelect.gender = true;
+  if (hasField('nin')) beforeSelect.nin = true;
+  if (hasField('licenseNumber')) beforeSelect.licenseNumber = true;
+  if (hasField('plateNumber')) beforeSelect.plateNumber = true;
+  if (hasField('vehicleType')) beforeSelect.vehicleType = true;
+  if (hasField('vehicleMake')) beforeSelect.vehicleMake = true;
+  if (hasField('vehiclePlate')) beforeSelect.vehiclePlate = true;
+  if (hasField('operationArea')) beforeSelect.operationArea = true;
+  if (hasField('paymentPhone')) beforeSelect.paymentPhone = true;
+  // We'll also load payout JSON to store extra fields safely
+  if (hasField('payout')) beforeSelect.payout = true;
 
   let before: any = null;
   try { before = await prisma.user.findUnique({ where: { id: userId }, select: beforeSelect }); } catch (e) { /* ignore */ }
 
-  const data: any = { fullName, phone, nationality, avatarUrl, timezone };
-  if (Object.prototype.hasOwnProperty.call(meta, 'dateOfBirth') && typeof dateOfBirth !== 'undefined') data.dateOfBirth = dateOfBirth;
-  if (Object.prototype.hasOwnProperty.call(meta, 'gender') && typeof gender !== 'undefined') data.gender = gender;
+  const data: any = {};
+  // Name fields
+  if (hasField('fullName') && typeof fullName !== 'undefined') data.fullName = fullName;
+  if (hasField('name') && typeof fullName !== 'undefined' && typeof data.fullName === 'undefined') data.name = fullName;
+
+  // Core driver fields
+  if (hasField('phone') && typeof phone !== 'undefined') data.phone = phone;
+  if (hasField('nationality') && typeof nationality !== 'undefined') data.nationality = nationality;
+  if (hasField('avatarUrl') && typeof avatarUrl !== 'undefined') data.avatarUrl = avatarUrl;
+  if (hasField('timezone') && typeof timezone !== 'undefined') data.timezone = timezone;
+  if (hasField('dateOfBirth') && typeof dateOfBirth !== 'undefined') data.dateOfBirth = dateOfBirth;
+  if (hasField('region') && typeof region !== 'undefined') data.region = region;
+  if (hasField('district') && typeof district !== 'undefined') data.district = district;
+  if (hasField('gender') && typeof gender !== 'undefined') data.gender = gender;
+  if (hasField('nin') && typeof nin !== 'undefined') data.nin = nin;
+  if (hasField('licenseNumber') && typeof licenseNumber !== 'undefined') data.licenseNumber = licenseNumber;
+  if (hasField('plateNumber') && typeof plateNumber !== 'undefined') data.plateNumber = plateNumber;
+  if (hasField('vehicleType') && typeof vehicleType !== 'undefined') data.vehicleType = vehicleType;
+  if (hasField('vehicleMake') && typeof vehicleMake !== 'undefined') data.vehicleMake = vehicleMake;
+  if (hasField('vehiclePlate') && typeof vehiclePlate !== 'undefined') data.vehiclePlate = vehiclePlate;
+  if (hasField('operationArea') && typeof operationArea !== 'undefined') data.operationArea = operationArea;
+  if (hasField('paymentPhone') && typeof paymentPhone !== 'undefined') data.paymentPhone = paymentPhone;
+
+  const extractUnknownArg = (err: any): string | null => {
+    const msg = String(err?.message ?? '');
+    const m = msg.match(/Unknown argument `([^`]+)`/);
+    return m?.[1] ?? null;
+  };
+
+  let updated: any;
+  try {
+    updated = await prisma.user.update({ where: { id: userId }, data } as any);
+  } catch (err: any) {
+    const badField = extractUnknownArg(err);
+    if (badField) {
+      delete (data as any)[badField];
+      updated = await prisma.user.update({ where: { id: userId }, data } as any);
+    } else {
+      console.error('driver.profile.update failed', err);
+      return res.status(500).json({ error: 'failed' });
+    }
+  }
+
+  // Persist extra fields to payout JSON for drivers when schema does not have dedicated columns
+  try {
+    // Only do this for drivers
+    const role = String((req as AuthedRequest).user?.role ?? '').toUpperCase();
+    if (role === 'DRIVER' && hasField('payout')) {
+      const currentPayout = (before as any)?.payout;
+      const payoutObj: any = (typeof currentPayout === 'object' && currentPayout !== null) ? { ...currentPayout } : {};
+      const extras: any = (typeof payoutObj.profileExtras === 'object' && payoutObj.profileExtras !== null) ? { ...payoutObj.profileExtras } : {};
+      if (typeof region !== 'undefined') extras.region = region;
+      if (typeof district !== 'undefined') extras.district = district;
+      if (typeof timezone !== 'undefined' && !hasField('timezone')) extras.timezone = timezone;
+      if (typeof dateOfBirth !== 'undefined' && !hasField('dateOfBirth')) extras.dateOfBirth = dateOfBirth;
+      payoutObj.profileExtras = extras;
+      await prisma.user.update({ where: { id: userId }, data: { payout: payoutObj } as any });
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  // Persist document URLs into UserDocument (best-effort)
+  const upsertDoc = async (type: string, url: string | undefined, metadata?: any) => {
+    if (!url || typeof url !== 'string') return;
+    if (!(prisma as any).userDocument) return;
+    const existing = await prisma.userDocument.findFirst({ where: { userId, type }, orderBy: { id: 'desc' } });
+    if (existing) {
+      await prisma.userDocument.update({ where: { id: existing.id }, data: { url, status: 'PENDING', metadata } as any });
+    } else {
+      await prisma.userDocument.create({ data: { userId, type, url, status: 'PENDING', metadata } as any });
+    }
+  };
 
   try {
-    const u = await prisma.user.update({ where: { id: userId }, data } as any);
-    try { await audit(req as AuthedRequest, 'USER_PROFILE_UPDATE', `user:${u.id}`, before, data); } catch (e) { /* ignore audit errors */ }
-    res.json({ ok: true });
+    await upsertDoc('DRIVER_LICENSE', drivingLicenseUrl, {
+      licenseNumber: typeof licenseNumber === 'string' ? licenseNumber : undefined,
+      uploadedAt: new Date().toISOString(),
+    });
+    await upsertDoc('NATIONAL_ID', nationalIdUrl, {
+      nin: typeof nin === 'string' ? nin : undefined,
+      uploadedAt: new Date().toISOString(),
+    });
+    await upsertDoc('VEHICLE_REGISTRATION', vehicleRegistrationUrl, {
+      plateNumber: typeof plateNumber === 'string' ? plateNumber : undefined,
+      vehicleType: typeof vehicleType === 'string' ? vehicleType : undefined,
+      uploadedAt: new Date().toISOString(),
+    });
+    await upsertDoc('INSURANCE', insuranceUrl, { uploadedAt: new Date().toISOString() });
   } catch (e) {
-    console.error('driver.profile.update failed', e);
-    res.status(500).json({ error: 'failed' });
+    // Best-effort: don't fail the whole profile update
   }
+
+  try { await audit(req as AuthedRequest, 'USER_PROFILE_UPDATE', `user:${updated.id}`, before, { ...data, drivingLicenseUrl, nationalIdUrl, vehicleRegistrationUrl, insuranceUrl }); } catch (e) { /* ignore audit errors */ }
+  return res.json({ ok: true });
 };
 router.put('/profile', updateDriverProfile as unknown as RequestHandler);
 
@@ -1118,17 +1244,78 @@ router.put('/profile', updateDriverProfile as unknown as RequestHandler);
 const postChangePassword: RequestHandler = async (req, res) => {
   const user = (req as AuthedRequest).user!;
   const { currentPassword, newPassword } = req.body ?? {};
-  if (!newPassword || typeof newPassword !== 'string') { res.status(400).json({ error: 'newPassword required' }); return; }
+  
+  // DoS protection: Enforce 8-12 character limit
+  if (!newPassword || typeof newPassword !== 'string') { 
+    res.status(400).json({ error: 'newPassword required' }); 
+    return; 
+  }
+  
+  if (newPassword.length < 8 || newPassword.length > 12) {
+    return res.status(400).json({ 
+      error: 'Password must be between 8 and 12 characters', 
+      reasons: ['Password length must be between 8 and 12 characters to prevent DoS attacks'] 
+    });
+  }
+
   try {
+    // Import shared password change security utilities from account.ts
+    // For now, implement inline to avoid circular dependencies
+    // Track password change attempts (shared with account endpoint would be ideal, but using local for now)
+    interface PasswordChangeAttempt {
+      failures: number;
+      lastFailure: number;
+      lockedUntil: number | null;
+      lastSuccess: number | null;
+    }
+    const passwordChangeAttempts = new Map<number, PasswordChangeAttempt>();
+    
+    function getPasswordChangeAttempt(userId: number): PasswordChangeAttempt {
+      if (!passwordChangeAttempts.has(userId)) {
+        passwordChangeAttempts.set(userId, { failures: 0, lastFailure: 0, lockedUntil: null, lastSuccess: null });
+      }
+      return passwordChangeAttempts.get(userId)!;
+    }
+
+    const attempt = getPasswordChangeAttempt(user.id);
+    const now = Date.now();
+    
+    // Check for timeout/lockout
+    if (attempt.lockedUntil && now < attempt.lockedUntil) {
+      const remaining = Math.ceil((attempt.lockedUntil - now) / 1000);
+      return res.status(429).json({ 
+        error: `Too many failed attempts. Please wait ${remaining} seconds.`,
+        reasons: [`Account temporarily locked. Try again in ${remaining} seconds.`],
+        lockedUntil: attempt.lockedUntil
+      });
+    }
+
+    // Check 30-minute cooldown after successful password change
+    if (attempt.lastSuccess && (now - attempt.lastSuccess) < (30 * 60 * 1000)) {
+      const remaining = Math.ceil((30 * 60 * 1000 - (now - attempt.lastSuccess)) / 60000);
+      return res.status(429).json({ 
+        error: `Password was recently changed. Please wait ${remaining} minute(s) before changing it again.`,
+        reasons: [`Password change cooldown active. Try again in ${remaining} minute(s).`],
+        cooldownUntil: attempt.lastSuccess + (30 * 60 * 1000)
+      });
+    }
+
     // If a user table with a password/hash exists, attempt proper verification & hashing
     if ((prisma as any).user) {
       try {
-        const u = await prisma.user.findUnique({ where: { id: user.id }, select: { password: true } as any });
-        const stored = (u as any)?.password ?? null;
+        // Try passwordHash first (standard field), then fallback to password
+        const u = await prisma.user.findUnique({ 
+          where: { id: user.id }, 
+          select: { passwordHash: true, password: true } as any 
+        });
+        const stored = (u as any)?.passwordHash ?? (u as any)?.password ?? null;
 
         // If a password exists, require currentPassword and verify
         if (stored) {
-          if (!currentPassword || typeof currentPassword !== 'string') { res.status(400).json({ error: 'currentPassword required' }); return; }
+          if (!currentPassword || typeof currentPassword !== 'string') { 
+            res.status(400).json({ error: 'currentPassword required' }); 
+            return; 
+          }
 
           let ok = false;
           try {
@@ -1143,7 +1330,52 @@ const postChangePassword: RequestHandler = async (req, res) => {
             ok = false;
           }
 
-          if (!ok) { res.status(400).json({ error: 'current password is incorrect' }); return; }
+          if (!ok) {
+            // Track failure
+            attempt.failures += 1;
+            attempt.lastFailure = now;
+            
+            // Lock after 3 consecutive failures for 5 minutes
+            if (attempt.failures >= 3) {
+              attempt.lockedUntil = now + (5 * 60 * 1000); // 5 minutes
+              attempt.failures = 0; // Reset counter after lockout
+              return res.status(429).json({ 
+                error: "Too many failed attempts. Account locked for 5 minutes.",
+                reasons: ['Account temporarily locked due to multiple failed password change attempts.'],
+                lockedUntil: attempt.lockedUntil
+              });
+            }
+            
+            return res.status(400).json({ 
+              error: 'current password is incorrect',
+              reasons: [`Incorrect current password. ${3 - attempt.failures} attempt(s) remaining before lockout.`]
+            });
+          }
+        }
+
+        // Reset failure counter on successful password verification
+        attempt.failures = 0;
+        attempt.lockedUntil = null;
+
+        // Enforce policy: Prevent reusing the current/existing password
+        if (stored) {
+          let isCurrentPassword = false;
+          try {
+            if (typeof stored === 'string' && stored.startsWith('$argon2')) {
+              isCurrentPassword = await argon2.verify(stored, newPassword);
+            } else {
+              isCurrentPassword = stored === newPassword;
+            }
+          } catch (e) {
+            isCurrentPassword = false;
+          }
+          
+          if (isCurrentPassword) {
+            return res.status(400).json({ 
+              error: "Cannot reuse current password", 
+              reasons: ['The new password must be different from your current password. Please choose a different password.'] 
+            });
+          }
         }
 
         // Validate strength before hashing using SystemSetting configuration
@@ -1154,9 +1386,38 @@ const postChangePassword: RequestHandler = async (req, res) => {
             return;
           }
 
+          // Prevent reuse of recent passwords from history
+          const reused = await isPasswordReused(user.id, newPassword);
+          if (reused) {
+            return res.status(400).json({ 
+              error: "Password was used recently", 
+              reasons: ['This password was used recently. Please choose a different password that has not been used before.'] 
+            });
+          }
+
           const hash = await argon2.hash(newPassword);
-          await prisma.user.update({ where: { id: user.id }, data: { password: hash } as any });
-          return res.json({ ok: true, message: 'Password changed successfully' });
+          // Try passwordHash first, then fallback to password
+          const updateData: any = {};
+          try {
+            updateData.passwordHash = hash;
+          } catch (e) {
+            updateData.password = hash;
+          }
+          await prisma.user.update({ where: { id: user.id }, data: updateData as any });
+          
+          // Record the new hash in password history (best-effort)
+          try {
+            await addPasswordToHistory(user.id, hash);
+          } catch (e) {
+            // Best-effort
+          }
+          
+          // Record successful password change and set cooldown
+          attempt.lastSuccess = now;
+          attempt.failures = 0;
+          attempt.lockedUntil = null;
+          
+          return res.json({ ok: true, message: 'Password changed successfully', cooldownUntil: now + (30 * 60 * 1000) });
         } catch (e) {
           // if update fails, fall through to generic success to avoid leaking implementation
         }
@@ -1186,10 +1447,12 @@ const get2faStatus: RequestHandler = async (req, res) => {
     let phone: string | null = null;
     try {
       if ((prisma as any).user) {
-        const u = await prisma.user.findUnique({ where: { id: user.id }, select: { twoFactorEnabled: true, phone: true, sms2faEnabled: true } as any });
+        const u = await prisma.user.findUnique({ where: { id: user.id }, select: { twoFactorEnabled: true, twoFactorMethod: true, phone: true } as any });
         if (u) {
-          totpEnabled = !!(u as any).twoFactorEnabled || false;
-          smsEnabled = !!(u as any).sms2faEnabled || false;
+          const twoFactorEnabled = !!(u as any).twoFactorEnabled || false;
+          const twoFactorMethod = (u as any).twoFactorMethod || null;
+          totpEnabled = twoFactorEnabled && twoFactorMethod === 'TOTP';
+          smsEnabled = twoFactorEnabled && twoFactorMethod === 'SMS';
           phone = (u as any).phone ?? null;
         }
       }
@@ -1260,8 +1523,10 @@ const postToggle2fa: RequestHandler = async (req, res) => {
 
             // verification passed: mark enabled and persist flag
             updateData.twoFactorEnabled = true;
+            updateData.twoFactorMethod = 'TOTP';
           } else {
             updateData.twoFactorEnabled = false;
+            updateData.twoFactorMethod = null;
           }
         } else {
           // no specific type provided: toggle the generic twoFactorEnabled flag

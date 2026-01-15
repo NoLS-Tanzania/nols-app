@@ -156,8 +156,8 @@ export default function LoginPage() {
       } else if (originalRole === "DRIVER") {
         window.location.href = "/driver";
       } else {
-        // Default to public properties page for CUSTOMER and other roles
-        window.location.href = "/public";
+        // Default to customer account area for CUSTOMER and other roles
+        window.location.href = "/account";
       }
     } catch (err: any) {
       setError(getErrorMessage(err?.message || "Login error"));

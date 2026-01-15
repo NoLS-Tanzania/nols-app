@@ -21,10 +21,35 @@ export default function DriverProfile() {
   const idFileInputRef = useRef<HTMLInputElement>(null);
   const vehicleRegFileInputRef = useRef<HTMLInputElement>(null);
   const insuranceFileInputRef = useRef<HTMLInputElement>(null);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [licenseFile, setLicenseFile] = useState<File | null>(null);
   const [idFile, setIdFile] = useState<File | null>(null);
   const [vehicleRegFile, setVehicleRegFile] = useState<File | null>(null);
   const [insuranceFile, setInsuranceFile] = useState<File | null>(null);
+
+  type CloudinarySig = {
+    timestamp: number;
+    apiKey: string;
+    signature: string;
+    folder: string;
+    cloudName: string;
+  };
+
+  async function uploadToCloudinary(file: File, folder: string) {
+    // Use relative path in browser to leverage Next.js rewrites and avoid CORS
+    const sig = await api.get(`/uploads/cloudinary/sign?folder=${encodeURIComponent(folder)}`);
+    const sigData = sig.data as CloudinarySig;
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('timestamp', String(sigData.timestamp));
+    fd.append('api_key', sigData.apiKey);
+    fd.append('signature', sigData.signature);
+    fd.append('folder', sigData.folder);
+    // Signature currently includes overwrite=true on the server
+    fd.append('overwrite', 'true');
+    const resp = await axios.post(`https://api.cloudinary.com/v1_1/${sigData.cloudName}/auto/upload`, fd);
+    return (resp.data as { secure_url: string }).secure_url;
+  }
 
   useEffect(() => {
     let mounted = true;
@@ -34,17 +59,24 @@ export default function DriverProfile() {
       try {
         const r = await api.get("/api/account/me");
         if (!mounted) return;
-        setForm(r.data);
-        setMe(r.data);
-        try { (window as any).ME = r.data; } catch (e) { /* ignore */ }
+        const meData = r.data?.data ?? r.data;
+        // Normalize common naming differences across environments
+        const normalized = {
+          ...(meData ?? {}),
+          fullName: (meData as any)?.fullName ?? (meData as any)?.name ?? '',
+        };
+        setForm(normalized);
+        setMe(normalized);
+        try { (window as any).ME = normalized; } catch (e) { /* ignore */ }
         // fetch payment methods (best-effort)
         try {
           setLoadingPaymentMethods(true);
           const pm = await api.get('/api/account/payment-methods');
           if (!mounted) return;
-          setPaymentMethods(pm.data?.methods ?? null);
+          const pmData = pm.data?.data ?? pm.data;
+          setPaymentMethods(pmData?.methods ?? null);
           // attach payout data to form if present (for editing payouts inline)
-          if (pm.data?.payout) setForm((prev:any)=>({ ...prev, ...pm.data.payout }));
+          if (pmData?.payout) setForm((prev:any)=>({ ...prev, ...pmData.payout }));
         } catch (e) {
           // ignore payment-methods fetch errors
         } finally {
@@ -65,46 +97,64 @@ export default function DriverProfile() {
     setSaving(true);
     setEditingField(null); // Close any open edit fields
     try {
+      // Upload avatar/documents first (so we persist HTTPS URLs, not data: URLs)
+      let avatarUrl = form.avatarUrl;
+      if (avatarFile) {
+        avatarUrl = await uploadToCloudinary(avatarFile, 'avatars');
+      }
+
+      let drivingLicenseUrl = form.drivingLicenseUrl || form.licenseFileUrl || null;
+      let nationalIdUrl = form.nationalIdUrl || form.idFileUrl || null;
+      let vehicleRegistrationUrl = form.vehicleRegistrationUrl || form.vehicleRegFileUrl || null;
+      let insuranceUrl = form.insuranceUrl || form.insuranceFileUrl || null;
+
+      if (licenseFile) drivingLicenseUrl = await uploadToCloudinary(licenseFile, 'driver-documents/license');
+      if (idFile) nationalIdUrl = await uploadToCloudinary(idFile, 'driver-documents/id');
+      if (vehicleRegFile) vehicleRegistrationUrl = await uploadToCloudinary(vehicleRegFile, 'driver-documents/vehicle-registration');
+      if (insuranceFile) insuranceUrl = await uploadToCloudinary(insuranceFile, 'driver-documents/insurance');
+
+      // Driver profile endpoint currently supports a limited set of fields.
+      // Keep the request aligned so it doesn't 404 (Next rewrites only proxy /api/*).
       const payload: any = {
-        fullName: form.fullName,
+        fullName: form.fullName ?? form.name,
         phone: form.phone,
         nationality: form.nationality,
-        avatarUrl: form.avatarUrl,
+        avatarUrl,
         timezone: form.timezone,
         region: form.region,
         district: form.district,
         nin: form.nin || form.nationalId,
         licenseNumber: form.licenseNumber,
-        vehicleType: form.vehicleType,
         plateNumber: form.plateNumber,
+        vehicleType: form.vehicleType,
+        vehicleMake: form.vehicleMake,
+        vehiclePlate: form.vehiclePlate,
         operationArea: form.operationArea || form.parkingArea,
         paymentPhone: form.paymentPhone,
+        drivingLicenseUrl,
+        nationalIdUrl,
+        vehicleRegistrationUrl,
+        insuranceUrl,
       };
-      // include optional driver fields
       if (typeof form.dateOfBirth !== 'undefined') payload.dateOfBirth = form.dateOfBirth;
       if (typeof form.gender !== 'undefined') payload.gender = form.gender;
 
-      // Handle file uploads if any
-      const formData = new FormData();
-      Object.keys(payload).forEach(key => {
-        if (payload[key] !== null && payload[key] !== undefined) {
-          formData.append(key, payload[key]);
-        }
-      });
-      
-      if (licenseFile) formData.append('licenseFile', licenseFile);
-      if (idFile) formData.append('idFile', idFile);
-      if (vehicleRegFile) formData.append('vehicleRegFile', vehicleRegFile);
-      if (insuranceFile) formData.append('insuranceFile', insuranceFile);
+      await api.put("/api/driver/profile", payload);
 
-      // Use FormData if files exist, otherwise use JSON
-      if (licenseFile || idFile || vehicleRegFile || insuranceFile) {
-        await api.put("/account/profile", formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
-      } else {
-        await api.put("/account/profile", payload);
-      }
+      // Update UI with new URLs and clear pending file selections
+      setForm((prev: any) => ({
+        ...prev,
+        avatarUrl,
+        drivingLicenseUrl,
+        nationalIdUrl,
+        vehicleRegistrationUrl,
+        insuranceUrl,
+      }));
+      setAvatarFile(null);
+      setLicenseFile(null);
+      setIdFile(null);
+      setVehicleRegFile(null);
+      setInsuranceFile(null);
       // also save payout details (owner fields) if present
       try {
         const payoutPayload: any = {
@@ -118,7 +168,7 @@ export default function DriverProfile() {
         };
         // Only call payouts endpoint if any payout field exists
         if (Object.values(payoutPayload).some(v => typeof v !== 'undefined' && v !== null && v !== '')) {
-          await api.put('/account/payouts', payoutPayload);
+          await api.put('/api/account/payouts', payoutPayload);
         }
       } catch (e) {
         // ignore payout save errors
@@ -136,7 +186,8 @@ export default function DriverProfile() {
       } catch (e) { /* ignore */ }
     } catch (err: any) {
       console.error('Failed to save profile', err);
-      setError('Could not save profile: ' + String(err?.message ?? err));
+      const apiError = err?.response?.data?.message || err?.response?.data?.error;
+      setError('Could not save profile: ' + String(apiError ?? err?.message ?? err));
       setSuccess(null);
     } finally {
       setSaving(false);
@@ -286,6 +337,18 @@ export default function DriverProfile() {
             {hasFile ? 'Change' : 'Upload'}
           </button>
         </div>
+        {fileUrl && (
+          <div className="mt-2">
+            <a
+              href={fileUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="text-xs text-blue-700 hover:underline"
+            >
+              View uploaded file
+            </a>
+          </div>
+        )}
         {file && (
           <div className="mt-2 p-2 bg-emerald-50 border border-emerald-200 rounded flex items-center justify-between">
             <span className="text-xs text-emerald-700 font-medium truncate flex-1">{file.name}</span>
@@ -351,6 +414,7 @@ export default function DriverProfile() {
             onChange={async (e) => {
               const f = e.target.files?.[0];
               if (!f) return;
+              setAvatarFile(f);
               const reader = new FileReader();
               reader.onload = () => {
                 setForm((prev: any) => ({ ...prev, avatarUrl: String(reader.result) }));

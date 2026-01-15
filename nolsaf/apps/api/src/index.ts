@@ -22,7 +22,8 @@ import publicBookingsRouter from './routes/public.bookings';
 import publicInvoicesRouter from './routes/public.invoices';
 import publicPropertiesRouter from './routes/public.properties';
 import publicPlanRequestRouter from './routes/public.planRequest';
-// import { router as ownerPhone } from "./routes/owner.phone.verify";
+import { router as ownerPhone } from "./routes/owner.phone.verify";
+import { router as ownerEmail } from "./routes/owner.email.verify";
 import { router as upCld } from "./routes/uploads.cloudinary";
 import { router as upS3 } from "./routes/uploads.s3";
 import { adminAllowlist } from "./middleware/adminAllowlist";
@@ -538,7 +539,8 @@ app.use('/api/driver/notifications', requireRole('DRIVER') as express.RequestHan
 app.use('/api/driver/license', requireRole('DRIVER') as express.RequestHandler, driverLicenseRouter as express.RequestHandler);
 // Driver scheduled trips (claim system)
 app.use('/api/driver/trips', driverScheduledRouter as express.RequestHandler);
-// app.use('/api/owner/phone', ownerPhone);
+app.use('/api/owner/phone', ownerPhone);
+app.use('/api/owner/email', ownerEmail);
 app.use("/admin/2fa", admin2faRouter);
 app.use("/owner/bookings", ownerBookingsRouter);
 app.use("/api/owner/bookings", ownerBookingsRouter);

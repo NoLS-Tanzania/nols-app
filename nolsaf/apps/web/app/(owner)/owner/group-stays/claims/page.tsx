@@ -47,6 +47,7 @@ type AvailableGroupStay = {
   openedForClaimsAt: string | null;
   submissionDeadline: string | null;
   minDiscountPercent: number | null;
+  minHotelStar?: number | null;
   createdAt: string;
 };
 
@@ -55,9 +56,109 @@ type Property = {
   title: string;
   type: string;
   regionName: string;
+  district?: string | null;
+  services?: any;
+  hotelStar?: string | null;
   basePrice: number | null;
   currency: string;
 };
+
+function normalizeText(v: unknown): string {
+  if (typeof v !== "string") return "";
+  return v.trim().toLowerCase();
+}
+
+function normalizeKey(v: unknown): string {
+  return normalizeText(v).replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+}
+
+function normalizeDistrictName(v: unknown): string {
+  return normalizeText(v)
+    .replace(/\bdistrict\b/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function getServicesTags(services: any): string[] {
+  if (!services) return [];
+  if (Array.isArray(services)) {
+    return services.filter((s) => typeof s === "string");
+  }
+  if (typeof services === "object") {
+    const tags = (services as any)?.tags;
+    if (Array.isArray(tags)) {
+      return tags.filter((s) => typeof s === "string");
+    }
+  }
+  return [];
+}
+
+function propertyAllowsGroupStay(property: Property): boolean {
+  const tags = getServicesTags(property.services);
+  return tags.some((t) => normalizeText(t) === "group stay");
+}
+
+function propertyTypeToAccommodationKey(propertyType: unknown): string {
+  const k = normalizeKey(propertyType);
+  // UI uses human labels like "Hotel", "Guest House", etc.
+  if (k === "guest_house" || k === "guesthouse") return "guest_house";
+  if (k === "hotel") return "hotel";
+  if (k === "apartment") return "apartment";
+  if (k === "villa") return "villa";
+  if (k === "lodge") return "lodge";
+  if (k === "resort") return "resort";
+  if (k === "camp" || k === "campsite") return "camp";
+  if (k === "hostel") return "hostel";
+  return k;
+}
+
+function bookingAccommodationKey(accommodationType: unknown): string {
+  const k = normalizeKey(accommodationType);
+  if (k === "guest_house" || k === "guesthouse") return "guesthouse";
+  return k;
+}
+
+function isAccommodationCompatible(requestedAccommodationType: unknown, propertyType: unknown): boolean {
+  const requested = bookingAccommodationKey(requestedAccommodationType);
+  const propertyKey = propertyTypeToAccommodationKey(propertyType);
+
+  if (!requested || !propertyKey) return true;
+  if (requested === propertyKey) return true;
+
+  // Current system does not reliably model "Hostel" as a distinct property type.
+  // Best-effort compatibility: allow hotel/guest_house for hostel requests.
+  if (requested === "hostel") {
+    return propertyKey === "hotel" || propertyKey === "guest_house";
+  }
+
+  if (requested === "guesthouse") {
+    return propertyKey === "guest_house";
+  }
+
+  return false;
+}
+
+function hotelStarLabelToNumber(v: unknown): number | null {
+  const s = normalizeText(v);
+  if (!s) return null;
+  const map: Record<string, number> = {
+    basic: 1,
+    simple: 2,
+    moderate: 3,
+    high: 4,
+    luxury: 5,
+  };
+  if (map[s]) return map[s];
+  const n = Number(s);
+  if (Number.isFinite(n) && n >= 1 && n <= 5) return Math.trunc(n);
+  return null;
+}
+
+function describeAccommodationType(v: unknown): string {
+  const s = normalizeText(v);
+  if (!s) return "any";
+  return s.replace(/_/g, " ");
+}
 
 export default function OwnerClaimBookingPage() {
   const [groupStays, setGroupStays] = useState<AvailableGroupStay[]>([]);
@@ -66,7 +167,6 @@ export default function OwnerClaimBookingPage() {
   const [selectedRegion, setSelectedRegion] = useState<string>("");
   const [selectedAccommodation, setSelectedAccommodation] = useState<string>("");
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [claimFilter, setClaimFilter] = useState<"all-active" | "claimed">("all-active");
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [selectedGroupStay, setSelectedGroupStay] = useState<AvailableGroupStay | null>(null);
   const [claiming, setClaiming] = useState(false);
@@ -277,7 +377,7 @@ export default function OwnerClaimBookingPage() {
       const groupStaysData = groupStaysRes.data.items || [];
       setGroupStays(groupStaysData);
       const props = Array.isArray(propertiesRes.data) ? propertiesRes.data : (propertiesRes.data?.items || []);
-      setProperties(props);
+      setProperties(props as Property[]);
     } catch (err: any) {
       console.error("Failed to load data:", err);
       setGroupStays([]);
@@ -324,6 +424,89 @@ export default function OwnerClaimBookingPage() {
       }
     }
   }, [selectedPropertyId, properties]);
+
+  const eligibleProperties = useMemo(() => {
+    if (!selectedGroupStay) return properties;
+
+    const bookingRegion = normalizeText(selectedGroupStay.toRegion);
+    const bookingDistrict = normalizeDistrictName(selectedGroupStay.toDistrict);
+    const requiresDistrict = Boolean(bookingDistrict);
+    const minHotelStar = typeof selectedGroupStay.minHotelStar === "number" ? selectedGroupStay.minHotelStar : null;
+
+    return properties.filter((p) => {
+      if (!propertyAllowsGroupStay(p)) return false;
+      if (!isAccommodationCompatible(selectedGroupStay.accommodationType, p.type)) return false;
+
+      if (bookingRegion && normalizeText(p.regionName) !== bookingRegion) return false;
+      if (requiresDistrict) {
+        const propertyDistrict = normalizeDistrictName(p.district);
+        if (!propertyDistrict || propertyDistrict !== bookingDistrict) return false;
+      }
+
+      if (minHotelStar) {
+        const star = hotelStarLabelToNumber(p.hotelStar);
+        if (!star || star < minHotelStar) return false;
+      }
+
+      return true;
+    });
+  }, [properties, selectedGroupStay]);
+
+  const propertyEligibility = useMemo(() => {
+    if (!selectedGroupStay) {
+      return properties.map((p) => ({ property: p, eligible: true, reasons: [] as string[] }));
+    }
+
+    const bookingRegion = normalizeText(selectedGroupStay.toRegion);
+    const bookingDistrict = normalizeDistrictName(selectedGroupStay.toDistrict);
+    const requiresDistrict = Boolean(bookingDistrict);
+    const requestedAccommodation = describeAccommodationType(selectedGroupStay.accommodationType);
+    const minHotelStar = typeof selectedGroupStay.minHotelStar === "number" ? selectedGroupStay.minHotelStar : null;
+
+    return properties.map((p) => {
+      const reasons: string[] = [];
+
+      if (!propertyAllowsGroupStay(p)) {
+        reasons.push("Group stay not enabled");
+      }
+
+      if (!isAccommodationCompatible(selectedGroupStay.accommodationType, p.type)) {
+        reasons.push(`Type mismatch (needs ${requestedAccommodation})`);
+      }
+
+      if (bookingRegion && normalizeText(p.regionName) !== bookingRegion) {
+        reasons.push("Wrong region");
+      }
+
+      if (requiresDistrict) {
+        const propertyDistrict = normalizeDistrictName(p.district);
+        if (!propertyDistrict) {
+          reasons.push("Missing district");
+        } else if (propertyDistrict !== bookingDistrict) {
+          reasons.push("Wrong district");
+        }
+      }
+
+      if (minHotelStar) {
+        const star = hotelStarLabelToNumber(p.hotelStar);
+        if (!star) {
+          reasons.push(`Missing hotel star (needs ${minHotelStar}★+)`);
+        } else if (star < minHotelStar) {
+          reasons.push(`Hotel star too low (needs ${minHotelStar}★+)`);
+        }
+      }
+
+      return { property: p, eligible: reasons.length === 0, reasons };
+    });
+  }, [properties, selectedGroupStay]);
+
+  // If a property was selected and becomes ineligible, clear it.
+  useEffect(() => {
+    if (!selectedPropertyId) return;
+    if (!selectedGroupStay) return;
+    const stillEligible = eligibleProperties.some((p) => p.id === selectedPropertyId);
+    if (!stillEligible) setSelectedPropertyId(null);
+  }, [eligibleProperties, selectedGroupStay, selectedPropertyId]);
 
   const handleSubmitClaim = async () => {
     // Validate form
@@ -417,17 +600,11 @@ export default function OwnerClaimBookingPage() {
   // Filter and sort group stays
   const filteredGroupStays = useMemo(() => {
     const filtered = groupStays.filter(gs => {
-      // Filter by claim status
       const hasOwnerClaim = gs.hasOwnerClaim ?? (gs.ownerClaims && gs.ownerClaims.length > 0 && 
         gs.ownerClaims.some(claim => claim.status === "PENDING" || claim.status === "REVIEWING" || claim.status === "ACCEPTED"));
-      
-      if (claimFilter === "claimed") {
-        // Show only group stays where owner has submitted a claim
-        if (!hasOwnerClaim) return false;
-      } else {
-        // "all-active" - show only group stays where owner hasn't claimed yet
-        if (hasOwnerClaim) return false;
-      }
+
+      // Available-to-claim list should only show bookings not yet claimed by this owner.
+      if (hasOwnerClaim) return false;
       
       if (selectedRegion && gs.toRegion !== selectedRegion) return false;
       if (selectedAccommodation && gs.accommodationType !== selectedAccommodation) return false;
@@ -447,7 +624,7 @@ export default function OwnerClaimBookingPage() {
     });
 
     return filtered;
-  }, [groupStays, selectedRegion, selectedAccommodation, claimFilter, getTimeRemaining]);
+  }, [groupStays, selectedRegion, selectedAccommodation, getTimeRemaining]);
 
   if (loading) {
     return (
@@ -480,60 +657,28 @@ export default function OwnerClaimBookingPage() {
       <div className="flex flex-col items-center gap-4">
         {/* Filter Buttons & Filter Icon */}
         <div className="flex items-center gap-3 flex-wrap justify-center">
-          <button
-            onClick={() => setClaimFilter("all-active")}
-            className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border-2 transition-all duration-300 font-semibold text-sm ${
-              claimFilter === "all-active"
-                ? 'bg-gradient-to-r from-brand-600 to-brand-700 text-white border-brand-600 shadow-lg shadow-brand-500/30 scale-105'
-                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-300 hover:shadow-md hover:scale-105'
-            }`}
-          >
-            <Zap className={`h-4 w-4 ${claimFilter === "all-active" ? 'text-white' : 'text-slate-500'}`} />
-            <span>All Active</span>
-            {(() => {
-              const count = groupStays.filter(gs => {
-                const hasOwnerClaim = gs.hasOwnerClaim ?? (gs.ownerClaims && gs.ownerClaims.length > 0 && 
+          <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border-2 bg-gradient-to-r from-brand-600 to-brand-700 text-white border-brand-600 shadow-lg shadow-brand-500/30">
+            <Zap className="h-4 w-4 text-white" />
+            <span>Available to Claim</span>
+            <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-white/25 text-white backdrop-blur-sm">
+              {groupStays.filter(gs => {
+                const hasOwnerClaim = gs.hasOwnerClaim ?? (gs.ownerClaims && gs.ownerClaims.length > 0 &&
                   gs.ownerClaims.some(claim => claim.status === "PENDING" || claim.status === "REVIEWING" || claim.status === "ACCEPTED"));
                 return !hasOwnerClaim;
-              }).length;
-              return count > 0 && (
-                <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
-                  claimFilter === "all-active"
-                    ? 'bg-white/25 text-white backdrop-blur-sm' 
-                    : 'bg-slate-100 text-slate-700'
-                }`}>
-                  {count}
-                </span>
-              );
-            })()}
-          </button>
-          <button
-            onClick={() => setClaimFilter("claimed")}
-            className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border-2 transition-all duration-300 font-semibold text-sm ${
-              claimFilter === "claimed"
-                ? 'bg-gradient-to-r from-brand-600 to-brand-700 text-white border-brand-600 shadow-lg shadow-brand-500/30 scale-105'
-                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-300 hover:shadow-md hover:scale-105'
-            }`}
+              }).length}
+            </span>
+          </div>
+
+          <a
+            href="/owner/group-stays/claims/my-claims"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border-2 transition-all duration-300 font-semibold text-sm bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-300 hover:shadow-md hover:scale-105"
+            aria-label="Go to My Claims"
+            title="My Claims"
           >
-            <HandHeart className={`h-4 w-4 ${claimFilter === "claimed" ? 'text-white' : 'text-slate-500'}`} />
-            <span>Claimed</span>
-            {(() => {
-              const count = groupStays.filter(gs => {
-                const hasOwnerClaim = gs.hasOwnerClaim ?? (gs.ownerClaims && gs.ownerClaims.length > 0 && 
-                  gs.ownerClaims.some(claim => claim.status === "PENDING" || claim.status === "REVIEWING" || claim.status === "ACCEPTED"));
-                return hasOwnerClaim;
-              }).length;
-              return count > 0 && (
-                <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
-                  claimFilter === "claimed"
-                    ? 'bg-white/25 text-white backdrop-blur-sm' 
-                    : 'bg-slate-100 text-slate-700'
-                }`}>
-                  {count}
-                </span>
-              );
-            })()}
-          </button>
+            <FileText className="h-4 w-4 text-slate-500" />
+            <span>My Claims</span>
+            <ArrowRight className="h-4 w-4 text-slate-500" />
+          </a>
           {/* Filter Button - Executive Professional Style */}
           <button
             onClick={() => setFiltersOpen(!filtersOpen)}
@@ -1085,12 +1230,30 @@ export default function OwnerClaimBookingPage() {
                     title="Select Property"
                   >
                     <option value="">Choose a property...</option>
-                    {properties.map(prop => (
-                      <option key={prop.id} value={prop.id}>
-                        {prop.title} ({prop.type}) - {formatCurrency(prop.basePrice, prop.currency)}/night
-                      </option>
-                    ))}
+                    {propertyEligibility
+                      .filter((x) => x.eligible)
+                      .map(({ property: prop }) => (
+                        <option key={prop.id} value={prop.id}>
+                          {prop.title} ({prop.type}) - {formatCurrency(prop.basePrice, prop.currency)}/night
+                        </option>
+                      ))}
+                    {propertyEligibility.some((x) => !x.eligible) && (
+                      <optgroup label="Not eligible (disabled)">
+                        {propertyEligibility
+                          .filter((x) => !x.eligible)
+                          .map(({ property: prop, reasons }) => (
+                            <option key={prop.id} value={prop.id} disabled>
+                              {prop.title} ({prop.type}) — Not eligible: {reasons.slice(0, 3).join("; ")}
+                            </option>
+                          ))}
+                      </optgroup>
+                    )}
                   </select>
+                  {selectedGroupStay && propertyEligibility.every((x) => !x.eligible) && (
+                    <p className="mt-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                      No eligible properties found for this request. The disabled options show what’s missing.
+                    </p>
+                  )}
                   {errors.property && (
                     <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
                       <XCircle className="h-3 w-3" />

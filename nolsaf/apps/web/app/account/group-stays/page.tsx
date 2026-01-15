@@ -1261,6 +1261,11 @@ function GroupStayMessaging({ bookingId }: { bookingId: number }) {
                         Admin
                       </span>
                     )}
+                    {msg.senderRole === 'SYSTEM' && (
+                      <span className="text-[10px] font-semibold text-[#02665e] px-2 py-0.5 rounded-md bg-[#02665e]/10 border border-[#02665e]/20">
+                        NoLSAF
+                      </span>
+                    )}
                     <span className="text-[10px] text-slate-400">{msg.formattedDate}</span>
                   </div>
                   <div

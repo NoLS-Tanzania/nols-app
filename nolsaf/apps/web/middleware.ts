@@ -38,7 +38,7 @@ export function middleware(req: NextRequest) {
     if (role === "ADMIN") url.pathname = "/admin/home";
     else if (role === "OWNER") url.pathname = "/owner";
     else if (role === "DRIVER") url.pathname = "/driver";
-    else url.pathname = "/public";
+    else url.pathname = "/account";
     return NextResponse.redirect(url);
   }
 

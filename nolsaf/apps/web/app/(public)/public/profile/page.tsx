@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import Image from "next/image";
-import { User, Mail, Phone, Save, LogOut, Copy, Check, Share2, Upload, X, AlertCircle, MessageCircle } from "lucide-react";
+import { User, Mail, Phone, Save, LogOut, Copy, Check, Share2, Upload, AlertCircle, MessageCircle } from "lucide-react";
 
 const api = axios.create({ baseURL: "", withCredentials: true });
 
@@ -390,7 +390,7 @@ export default function PublicProfile() {
             try {
               await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
             } catch {}
-            window.location.href = "/login";
+            window.location.href = "/public";
           }}
           className="group inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl border-2 border-red-200 bg-white text-red-600 font-semibold text-sm hover:bg-red-50 hover:border-red-300 active:scale-[0.98] transition-all duration-200"
         >

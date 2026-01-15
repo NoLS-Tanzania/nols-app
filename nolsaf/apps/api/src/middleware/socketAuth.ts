@@ -2,6 +2,7 @@
 import { Socket } from "socket.io";
 import jwt from "jsonwebtoken";
 import { prisma } from "@nolsaf/prisma";
+import { getRoleSessionMaxMinutes } from "../lib/securitySettings.js";
 
 export interface AuthenticatedSocket extends Socket {
   data: {
@@ -60,6 +61,16 @@ async function verifyToken(token: string): Promise<{ id: number; role: string; e
     // Map role - ensure it's a string and handle CUSTOMER -> USER mapping
     const role = (user.role?.toUpperCase() || 'USER');
     const mappedRole = role === 'CUSTOMER' ? 'USER' : role;
+
+    // Enforce dynamic per-role TTL based on token issuance time
+    const issuedAtSec = typeof (decoded as any).iat === 'number' ? (decoded as any).iat : Number((decoded as any).iat);
+    if (Number.isFinite(issuedAtSec) && issuedAtSec > 0) {
+      const maxMinutes = await getRoleSessionMaxMinutes(mappedRole);
+      const ageSec = Math.floor(Date.now() / 1000) - issuedAtSec;
+      if (ageSec > maxMinutes * 60) {
+        return null;
+      }
+    }
 
     return {
       id: user.id,

@@ -1,12 +1,144 @@
 import { prisma } from "@nolsaf/prisma";
 import { validatePasswordStrength } from "./security.js";
 
+type SessionRole = 'ADMIN' | 'OWNER' | 'DRIVER' | 'USER' | 'CUSTOMER';
+
+// Cache session-related settings to avoid DB hits on every request.
+let cachedSessionPolicy: {
+  lastUpdate: number;
+  sessionIdleMinutes: number;
+  maxSessionDurationHours: number;
+  sessionMaxMinutesAdmin?: number | null;
+  sessionMaxMinutesOwner?: number | null;
+  sessionMaxMinutesDriver?: number | null;
+  sessionMaxMinutesCustomer?: number | null;
+} = {
+  lastUpdate: 0,
+  sessionIdleMinutes: 30,
+  maxSessionDurationHours: 24,
+  sessionMaxMinutesAdmin: null,
+  sessionMaxMinutesOwner: null,
+  sessionMaxMinutesDriver: null,
+  sessionMaxMinutesCustomer: null,
+};
+
+const SESSION_POLICY_CACHE_TTL_MS = 60 * 1000; // 60s
+
+async function getSessionPolicyCached() {
+  const now = Date.now();
+  if (now - cachedSessionPolicy.lastUpdate <= SESSION_POLICY_CACHE_TTL_MS) return cachedSessionPolicy;
+
+  try {
+    let settings: any = null;
+    try {
+      settings = await prisma.systemSetting.findUnique({
+        where: { id: 1 },
+        select: {
+          sessionIdleMinutes: true,
+          maxSessionDurationHours: true,
+          sessionMaxMinutesAdmin: true,
+          sessionMaxMinutesOwner: true,
+          sessionMaxMinutesDriver: true,
+          sessionMaxMinutesCustomer: true,
+        } as any,
+      });
+    } catch (err: any) {
+      // If the DB hasn't been migrated yet, these columns may not exist.
+      // Fall back to selecting only columns guaranteed to exist.
+      if (err?.code === 'P2022' || String(err?.message || '').includes('ColumnNotFound')) {
+        settings = await prisma.systemSetting.findUnique({
+          where: { id: 1 },
+          select: {
+            sessionIdleMinutes: true,
+            maxSessionDurationHours: true,
+          },
+        });
+      } else {
+        throw err;
+      }
+    }
+
+    cachedSessionPolicy = {
+      lastUpdate: now,
+      sessionIdleMinutes: settings?.sessionIdleMinutes ?? 30,
+      maxSessionDurationHours: settings?.maxSessionDurationHours ?? 24,
+      sessionMaxMinutesAdmin: (settings as any)?.sessionMaxMinutesAdmin ?? null,
+      sessionMaxMinutesOwner: (settings as any)?.sessionMaxMinutesOwner ?? null,
+      sessionMaxMinutesDriver: (settings as any)?.sessionMaxMinutesDriver ?? null,
+      sessionMaxMinutesCustomer: (settings as any)?.sessionMaxMinutesCustomer ?? null,
+    };
+  } catch (err) {
+    console.error('Failed to fetch session policy from SystemSetting:', err);
+    // Keep existing cached values.
+    cachedSessionPolicy.lastUpdate = now;
+  }
+
+  return cachedSessionPolicy;
+}
+
+function normalizeSessionRole(role?: string | null): SessionRole {
+  const r = String(role ?? '').trim().toUpperCase();
+  if (r === 'ADMIN') return 'ADMIN';
+  if (r === 'OWNER') return 'OWNER';
+  if (r === 'DRIVER') return 'DRIVER';
+  if (r === 'CUSTOMER') return 'CUSTOMER';
+  return 'USER';
+}
+
+/**
+ * Get the effective session TTL (minutes) for a given role.
+ *
+ * - Uses per-role override if set (e.g. sessionMaxMinutesAdmin)
+ * - Falls back to global sessionIdleMinutes
+ * - Enforces maxSessionDurationHours as an upper bound (defense-in-depth)
+ */
+export async function getRoleSessionMaxMinutes(role?: string | null): Promise<number> {
+  const policy = await getSessionPolicyCached();
+  const normalized = normalizeSessionRole(role);
+
+  let roleMinutes: number | null | undefined;
+  switch (normalized) {
+    case 'ADMIN':
+      roleMinutes = policy.sessionMaxMinutesAdmin;
+      break;
+    case 'OWNER':
+      roleMinutes = policy.sessionMaxMinutesOwner;
+      break;
+    case 'DRIVER':
+      roleMinutes = policy.sessionMaxMinutesDriver;
+      break;
+    case 'CUSTOMER':
+      roleMinutes = policy.sessionMaxMinutesCustomer;
+      break;
+    default:
+      roleMinutes = null;
+  }
+
+  const fallbackMinutes = Number(policy.sessionIdleMinutes ?? 30);
+  const chosenMinutes = Number(roleMinutes ?? fallbackMinutes);
+  const capMinutes = Number(policy.maxSessionDurationHours ?? 24) * 60;
+
+  // Sanitize: minimum 1 minute; cap to configured max duration.
+  const safe = Math.max(1, isFinite(chosenMinutes) ? chosenMinutes : 30);
+  const capped = isFinite(capMinutes) && capMinutes > 0 ? Math.min(safe, capMinutes) : safe;
+  return Math.floor(capped);
+}
+
 /**
  * Get password validation options from SystemSetting
  */
 export async function getPasswordValidationOptions() {
   try {
-    const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
+    const settings = await prisma.systemSetting.findUnique({
+      where: { id: 1 },
+      select: {
+        minPasswordLength: true,
+        requirePasswordUppercase: true,
+        requirePasswordLowercase: true,
+        requirePasswordNumber: true,
+        requirePasswordSpecial: true,
+      },
+    });
     return {
       minLength: settings?.minPasswordLength ?? 8,
       requireUpper: settings?.requirePasswordUppercase ?? false,
@@ -43,7 +175,10 @@ export async function validatePasswordWithSettings(
  */
 export async function isAdmin2FARequired(): Promise<boolean> {
   try {
-    const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
+    const settings = await prisma.systemSetting.findUnique({
+      where: { id: 1 },
+      select: { requireAdmin2FA: true },
+    });
     return settings?.requireAdmin2FA ?? false;
   } catch (err) {
     console.error('Failed to fetch admin 2FA requirement setting:', err);
@@ -56,7 +191,10 @@ export async function isAdmin2FARequired(): Promise<boolean> {
  */
 export async function getSessionIdleMinutes(): Promise<number> {
   try {
-    const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
+    const settings = await prisma.systemSetting.findUnique({
+      where: { id: 1 },
+      select: { sessionIdleMinutes: true },
+    });
     return settings?.sessionIdleMinutes ?? 30;
   } catch (err: any) {
     console.error('Failed to fetch session idle minutes from SystemSetting:', err);
@@ -69,7 +207,10 @@ export async function getSessionIdleMinutes(): Promise<number> {
  */
 export async function getMaxSessionDurationHours(): Promise<number> {
   try {
-    const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
+    const settings = await prisma.systemSetting.findUnique({
+      where: { id: 1 },
+      select: { maxSessionDurationHours: true },
+    });
     return settings?.maxSessionDurationHours ?? 24;
   } catch (err) {
     console.error('Failed to fetch max session duration from SystemSetting:', err);
@@ -82,7 +223,10 @@ export async function getMaxSessionDurationHours(): Promise<number> {
  */
 export async function shouldForceLogoutOnPasswordChange(): Promise<boolean> {
   try {
-    const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
+    const settings = await prisma.systemSetting.findUnique({
+      where: { id: 1 },
+      select: { forceLogoutOnPasswordChange: true },
+    });
     return settings?.forceLogoutOnPasswordChange ?? true;
   } catch (err) {
     console.error('Failed to fetch force logout on password change setting:', err);
@@ -95,7 +239,10 @@ export async function shouldForceLogoutOnPasswordChange(): Promise<boolean> {
  */
 export async function getApiRateLimitPerMinute(): Promise<number> {
   try {
-    const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
+    const settings = await prisma.systemSetting.findUnique({
+      where: { id: 1 },
+      select: { apiRateLimitPerMinute: true },
+    });
     return settings?.apiRateLimitPerMinute ?? 100;
   } catch (err) {
     console.error('Failed to fetch API rate limit from SystemSetting:', err);
@@ -108,7 +255,10 @@ export async function getApiRateLimitPerMinute(): Promise<number> {
  */
 export async function getMaxLoginAttempts(): Promise<number> {
   try {
-    const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
+    const settings = await prisma.systemSetting.findUnique({
+      where: { id: 1 },
+      select: { maxLoginAttempts: true },
+    });
     return settings?.maxLoginAttempts ?? 5;
   } catch (err: any) {
     console.error('Failed to fetch max login attempts from SystemSetting:', err);
@@ -121,7 +271,10 @@ export async function getMaxLoginAttempts(): Promise<number> {
  */
 export async function getAccountLockoutDurationMinutes(): Promise<number> {
   try {
-    const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
+    const settings = await prisma.systemSetting.findUnique({
+      where: { id: 1 },
+      select: { accountLockoutDurationMinutes: true },
+    });
     return settings?.accountLockoutDurationMinutes ?? 5; // Default: 5 minutes (was 30)
   } catch (err) {
     console.error('Failed to fetch account lockout duration from SystemSetting:', err);
@@ -134,7 +287,10 @@ export async function getAccountLockoutDurationMinutes(): Promise<number> {
  */
 export async function isSecurityAuditLoggingEnabled(): Promise<boolean> {
   try {
-    const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
+    const settings = await prisma.systemSetting.findUnique({
+      where: { id: 1 },
+      select: { enableSecurityAuditLogging: true },
+    });
     return settings?.enableSecurityAuditLogging ?? true;
   } catch (err) {
     console.error('Failed to fetch security audit logging setting:', err);
@@ -147,7 +303,10 @@ export async function isSecurityAuditLoggingEnabled(): Promise<boolean> {
  */
 export async function shouldLogFailedLoginAttempts(): Promise<boolean> {
   try {
-    const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
+    const settings = await prisma.systemSetting.findUnique({
+      where: { id: 1 },
+      select: { logFailedLoginAttempts: true },
+    });
     return settings?.logFailedLoginAttempts ?? true;
   } catch (err) {
     console.error('Failed to fetch log failed login attempts setting:', err);
@@ -160,7 +319,10 @@ export async function shouldLogFailedLoginAttempts(): Promise<boolean> {
  */
 export async function shouldAlertOnSuspiciousActivity(): Promise<boolean> {
   try {
-    const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
+    const settings = await prisma.systemSetting.findUnique({
+      where: { id: 1 },
+      select: { alertOnSuspiciousActivity: true },
+    });
     return settings?.alertOnSuspiciousActivity ?? false;
   } catch (err) {
     console.error('Failed to fetch alert on suspicious activity setting:', err);

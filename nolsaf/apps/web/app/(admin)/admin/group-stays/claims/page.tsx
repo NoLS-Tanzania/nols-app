@@ -4,10 +4,12 @@ import {
   Gift, Search, X, Calendar, MapPin, Clock, User, 
   Loader2, Eye, 
   Sparkles, Tag, DollarSign,
-  Filter, Building2, Users as UsersIcon, ArrowRight
+  Filter, Building2, Users as UsersIcon, ArrowRight, ArrowLeft, FileText
 } from "lucide-react";
 import Image from "next/image";
 import axios from "axios";
+import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 
 // Use same-origin for HTTP calls so Next.js rewrites proxy to the API
 const api = axios.create({ baseURL: "", withCredentials: true });
@@ -113,6 +115,12 @@ function badgeClasses(v: string) {
 
 type BookingClaimsResponse = {
   groupBooking: any;
+  claimsConfig?: {
+    deadline: string | null;
+    notes: string | null;
+    minDiscountPercent: number | null;
+    updatedAt: string | null;
+  };
   claims: ClaimRow[];
   shortlist: {
     high: { id: number; totalAmount: number };
@@ -126,6 +134,15 @@ type BookingClaimsResponse = {
 };
 
 export default function AdminGroupStaysClaimsPage() {
+  const searchParams = useSearchParams();
+  const didAutoOpenRef = useRef(false);
+  const focusedBookingId = (() => {
+    const bookingIdParam = searchParams?.get("bookingId");
+    if (!bookingIdParam) return null;
+    const bookingId = Number(bookingIdParam);
+    if (!Number.isFinite(bookingId) || bookingId <= 0) return null;
+    return bookingId;
+  })();
   const [status, setStatus] = useState<string>("");
   const [q, setQ] = useState("");
   const [list, setList] = useState<ClaimRow[]>([]);
@@ -154,6 +171,10 @@ export default function AdminGroupStaysClaimsPage() {
         page,
         pageSize,
       };
+
+      if (focusedBookingId) {
+        params.bookingId = focusedBookingId;
+      }
       
       if (status && status.trim()) {
         params.status = status.trim();
@@ -207,7 +228,12 @@ export default function AdminGroupStaysClaimsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, status, q, pageSize]);
+  }, [page, status, q, pageSize, focusedBookingId]);
+
+  useEffect(() => {
+    if (!focusedBookingId) return;
+    if (page !== 1) setPage(1);
+  }, [focusedBookingId, page]);
 
   // Reset to page 1 when search query changes
   useEffect(() => {
@@ -256,9 +282,18 @@ export default function AdminGroupStaysClaimsPage() {
     }
   }, []);
 
+  useEffect(() => {
+    if (didAutoOpenRef.current) return;
+    if (!focusedBookingId) return;
+    didAutoOpenRef.current = true;
+    openBookingReview(focusedBookingId);
+  }, [focusedBookingId, openBookingReview]);
+
   const closeBookingReview = () => {
     setActiveBookingId(null);
-    setBookingClaims(null);
+    if (!focusedBookingId) {
+      setBookingClaims(null);
+    }
     setSelectedClaimIds([]);
     setShowShortlistOnly(true);
   };
@@ -462,6 +497,72 @@ export default function AdminGroupStaysClaimsPage() {
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {focusedBookingId && (
+        <div className="rounded-xl border border-emerald-200 bg-gradient-to-r from-emerald-50/70 via-white to-white p-4 sm:p-5 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+            <Link
+              href="/admin/group-stays/assignments"
+              className="no-underline hover:no-underline inline-flex items-center justify-center h-10 w-10 rounded-xl bg-white border border-emerald-200 text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 hover:shadow-sm transition-all"
+              aria-label="Back to assignments"
+              title="Back to assignments"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Link>
+            <div className="text-sm font-bold text-gray-900">Auction focus: Group Stay #{focusedBookingId}</div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="rounded-lg border border-gray-200 bg-white/70 p-3">
+              <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Destination</div>
+              <div className="mt-1 text-sm font-bold text-gray-900">
+                {bookingClaims?.groupBooking?.toRegion || "—"}
+              </div>
+              <div className="mt-1 text-xs text-gray-600">
+                {bookingClaims?.groupBooking?.toDistrict || bookingClaims?.groupBooking?.toLocation || ""}
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-gray-200 bg-white/70 p-3">
+              <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                Deadline
+              </div>
+              <div className="mt-1 text-sm font-bold text-gray-900">
+                {bookingClaims?.claimsConfig?.deadline
+                  ? new Date(bookingClaims.claimsConfig.deadline).toLocaleString()
+                  : "Not set"}
+              </div>
+              {bookingClaims?.claimsConfig?.updatedAt ? (
+                <div className="mt-1 text-xs text-gray-500">Updated: {new Date(bookingClaims.claimsConfig.updatedAt).toLocaleString()}</div>
+              ) : null}
+            </div>
+
+            <div className="rounded-lg border border-gray-200 bg-white/70 p-3">
+              <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                <Tag className="h-3 w-3" />
+                Min discount
+              </div>
+              <div className="mt-1 text-sm font-bold text-gray-900">
+                {bookingClaims?.claimsConfig?.minDiscountPercent !== null && bookingClaims?.claimsConfig?.minDiscountPercent !== undefined
+                  ? `${bookingClaims.claimsConfig.minDiscountPercent}%`
+                  : "None"}
+              </div>
+              <div className="mt-1 text-xs text-gray-500">Quality gate</div>
+            </div>
+          </div>
+
+          {bookingClaims?.claimsConfig?.notes ? (
+            <div className="mt-3 rounded-lg border border-gray-200 bg-white/70 p-3">
+              <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                <FileText className="h-3 w-3" />
+                Notes
+              </div>
+              <div className="mt-1 text-sm text-gray-700 whitespace-pre-wrap">{bookingClaims.claimsConfig.notes}</div>
+            </div>
+          ) : null}
         </div>
       )}
 

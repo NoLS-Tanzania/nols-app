@@ -150,6 +150,20 @@ export const limitLoginAttempts = rateLimit({
   skipSuccessfulRequests: true, // Don't count successful logins
 });
 
+// Rate limiter for registration attempts (prevents account creation abuse)
+export const limitRegisterAttempts = rateLimit({
+  windowMs: 15 * 60_000, // 15 minutes
+  max: 5, // 5 registration attempts per 15 minutes
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many registration attempts. Please wait 15 minutes before trying again." },
+  keyGenerator: (req) => {
+    const email = req.body?.email;
+    if (email) return `register:${String(email).trim().toLowerCase()}`;
+    return req.ip || req.socket.remoteAddress || "unknown";
+  },
+});
+
 // Rate limiter for public transport booking creation (prevents spam/abuse)
 export const limitTransportBooking = rateLimit({
   windowMs: 15 * 60_000, // 15 minutes

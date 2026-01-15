@@ -40,9 +40,15 @@ function generatePasswordExample(role?: string | null): string {
   return chars.join('');
 }
 
-// Password validation function (mirrors backend logic)
+// Password validation function with DoS protection (8-12 characters)
+// Accepts passwords that are 8-12 characters AND meet all strength requirements
+// For ADMIN/OWNER roles, minimum is 12 characters (matches backend validation)
+// A password with 8 characters (or 12 for ADMIN/OWNER) that meets all requirements will be accepted
 function validatePasswordStrength(password: string, role?: string | null) {
-  const minLength = role && (role.toUpperCase() === 'ADMIN' || role.toUpperCase() === 'OWNER') ? 12 : 10;
+  // Backend enforces 12 characters minimum for ADMIN/OWNER roles
+  const roleMinLength = role && (String(role).toUpperCase() === 'ADMIN' || String(role).toUpperCase() === 'OWNER') ? 12 : 8;
+  const minLength = roleMinLength; // DoS protection: minimum 8 characters (12 for ADMIN/OWNER)
+  const maxLength = 12; // DoS protection: maximum 12 characters
   const requireUpper = true;
   const requireLower = true;
   const requireNumber = true;
@@ -57,13 +63,19 @@ function validatePasswordStrength(password: string, role?: string | null) {
     return { valid: false, reasons: [], strength: 'weak' as const, score: 0 };
   }
 
-  // Check requirements
-  if (noSpaces && /\s/.test(password)) reasons.push('Password must not contain spaces');
+  // DoS protection: enforce length limits (8-12 characters, 12 minimum for ADMIN/OWNER)
+  // If password is within valid range, it passes length check (no reason added)
   if (password.length < minLength) {
     reasons.push(`Password must be at least ${minLength} characters long`);
+  } else if (password.length > maxLength) {
+    reasons.push(`Password must not exceed ${maxLength} characters`);
   } else {
+    // Password length is valid (8-12 characters, or 12 for ADMIN/OWNER)
     score += 2;
   }
+
+  // Check requirements
+  if (noSpaces && /\s/.test(password)) reasons.push('Password must not contain spaces');
   
   if (requireUpper && !/[A-Z]/.test(password)) {
     reasons.push('Password must include at least one uppercase letter');
@@ -89,12 +101,9 @@ function validatePasswordStrength(password: string, role?: string | null) {
     score += 1;
   }
 
-  // Additional length bonus
-  if (password.length >= minLength + 4) score += 1;
-
   // Determine strength
   if (reasons.length === 0) {
-    strength = score >= 6 ? 'strong' : 'medium';
+    strength = score >= 5 ? 'strong' : 'medium';
   } else if (reasons.length <= 2) {
     strength = 'medium';
   } else {
@@ -109,6 +118,8 @@ export default function SecurityTab() {
   const [pwd, setPwd] = useState({ currentPassword:"", newPassword:"", confirmPassword: "" });
   const [twofa, setTwofa] = useState<any>(null); // setup payload
   const [code, setCode] = useState("");
+  const [disableCode, setDisableCode] = useState("");
+  const [showDisableInput, setShowDisableInput] = useState(false);
   const [passwordValidation, setPasswordValidation] = useState<{
     valid: boolean;
     reasons: string[];
@@ -117,6 +128,12 @@ export default function SecurityTab() {
   }>({ valid: false, reasons: [], strength: 'weak', score: 0 });
   const [passwordMatch, setPasswordMatch] = useState<boolean | null>(null);
   const [passwordExample, setPasswordExample] = useState<string>('');
+  const [inputLocked, setInputLocked] = useState(false);
+  const [confirmInputLocked, setConfirmInputLocked] = useState(false);
+  const [consecutiveFailures, setConsecutiveFailures] = useState(0);
+  const [timeoutUntil, setTimeoutUntil] = useState<number | null>(null);
+  const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
+  const [remainingSeconds, setRemainingSeconds] = useState<number>(0);
 
   useEffect(() => {
     api.get("/api/account/me").then((r) => {
@@ -139,26 +156,100 @@ export default function SecurityTab() {
       setPasswordValidation({ valid: false, reasons: [], strength: 'weak', score: 0 });
     }
 
-    // Check password match
-    if (pwd.confirmPassword) {
+    // Check password match - both must be non-empty and match
+    if (pwd.newPassword && pwd.confirmPassword) {
       setPasswordMatch(pwd.newPassword === pwd.confirmPassword);
+    } else if (pwd.confirmPassword && !pwd.newPassword) {
+      setPasswordMatch(false); // Can't match if new password is empty
     } else {
-      setPasswordMatch(null);
+      setPasswordMatch(null); // Reset when confirm password is cleared
     }
   }, [pwd.newPassword, pwd.confirmPassword, me?.role]);
 
+  // DoS protection: Lock inputs only when both passwords are 12 characters AND they match
+  useEffect(() => {
+    const shouldLock = pwd.newPassword.length === 12 && 
+                       pwd.confirmPassword.length === 12 && 
+                       pwd.newPassword === pwd.confirmPassword;
+    setInputLocked(shouldLock);
+    setConfirmInputLocked(shouldLock);
+  }, [pwd.newPassword, pwd.confirmPassword])
+
+  // Check timeout and cooldown status, update countdown
+  useEffect(() => {
+    const checkTimers = () => {
+      const now = Date.now();
+      if (timeoutUntil && now < timeoutUntil) {
+        setRemainingSeconds(Math.ceil((timeoutUntil - now) / 1000));
+      } else if (timeoutUntil && now >= timeoutUntil) {
+        setTimeoutUntil(null);
+        setConsecutiveFailures(0);
+        setRemainingSeconds(0);
+      } else {
+        setRemainingSeconds(0);
+      }
+      if (cooldownUntil && now >= cooldownUntil) {
+        setCooldownUntil(null);
+      }
+    };
+    checkTimers(); // Run immediately
+    const interval = setInterval(checkTimers, 1000);
+    return () => clearInterval(interval);
+  }, [timeoutUntil, cooldownUntil])
+
+  // Real-time validation: Check if new password matches current password
+  const isSameAsCurrent = pwd.currentPassword && pwd.newPassword && pwd.currentPassword === pwd.newPassword
+
   const changePassword = async () => {
+    // Check timeout
+    if (timeoutUntil && Date.now() < timeoutUntil) {
+      return // Message is shown in UI, no need for alert
+    }
+
+    // Check cooldown
+    if (cooldownUntil && Date.now() < cooldownUntil) {
+      const remaining = Math.ceil((cooldownUntil - Date.now()) / 60000)
+      alert(`Password was recently changed. Please wait ${remaining} minute(s) before changing it again.`)
+      return
+    }
+
     if (pwd.newPassword !== pwd.confirmPassword) { alert('Passwords do not match'); return; }
+    if (pwd.newPassword.length < 8 || pwd.newPassword.length > 12) {
+      alert('Password must be between 8 and 12 characters')
+      return
+    }
+    // Enforce policy: Prevent reusing current password
+    if (pwd.currentPassword && pwd.newPassword === pwd.currentPassword) {
+      alert('The new password must be different from your current password. Please choose a different password.')
+      return
+    }
+    
     try {
       await api.post("/api/account/password/change", { currentPassword: pwd.currentPassword, newPassword: pwd.newPassword });
-      alert("Password changed");
+      // Success: reset failures and set cooldown
+      setConsecutiveFailures(0)
+      setTimeoutUntil(null)
+      const cooldownDuration = 30 * 60 * 1000
+      setCooldownUntil(Date.now() + cooldownDuration)
+      
+      alert("Password changed successfully. You cannot change it again for 30 minutes.");
       setPwd({ currentPassword:"", newPassword:"", confirmPassword: "" });
     } catch (err: any) {
       const reasons = err?.response?.data?.reasons;
-      if (Array.isArray(reasons) && reasons.length) {
-        alert('Password change failed:\n' + reasons.join('\n'))
+      
+      // Track consecutive failures
+      const newFailureCount = consecutiveFailures + 1
+      setConsecutiveFailures(newFailureCount)
+      if (newFailureCount >= 3) {
+        const lockoutDuration = 5 * 60 * 1000
+        setTimeoutUntil(Date.now() + lockoutDuration)
+        setRemainingSeconds(300) // 5 minutes = 300 seconds
       } else {
-        alert(err?.response?.data?.error || err?.message || String(err))
+        if (Array.isArray(reasons) && reasons.length) {
+          alert('Password change failed:\n' + reasons.join('\n'))
+        } else {
+          alert(err?.response?.data?.error || err?.message || String(err))
+        }
       }
     }
   };
@@ -192,15 +283,29 @@ export default function SecurityTab() {
       try { window.dispatchEvent(new CustomEvent('nols:toast', { detail: { type: 'error', title: 'Failed to enable authenticator', message: msg, duration: 6000 } })); } catch (e) {}
     }
   };
+  const handleDisableClick = () => {
+    setShowDisableInput(true);
+    setDisableCode("");
+  };
+
+  const cancelDisable = () => {
+    setShowDisableInput(false);
+    setDisableCode("");
+  };
+
   const disable2FA = async () => {
-    const c = prompt("Enter TOTP code or a backup code to disable:");
-    if (!c) return;
+    if (!disableCode || disableCode.trim().length === 0) {
+      try { window.dispatchEvent(new CustomEvent('nols:toast', { detail: { type: 'error', title: 'Error', message: 'Please enter a TOTP code or backup code', duration: 4500 } })); } catch (e) {}
+      return;
+    }
     try {
-      await api.post("/api/account/2fa/disable", { code: c });
+      await api.post("/api/account/2fa/disable", { code: disableCode.trim() });
       try { window.dispatchEvent(new CustomEvent('nols:toast', { detail: { type: 'success', title: '2FA disabled', message: 'Two-factor authentication disabled.', duration: 4500 } })); } catch (e) {}
       const me2 = await api.get("/api/account/me");
       const meData = me2.data?.data || me2.data;
       setMe(meData);
+      setShowDisableInput(false);
+      setDisableCode("");
     } catch (err: any) {
       const msg = err?.response?.data?.error || err?.message || 'Failed to disable 2FA.'
       try { window.dispatchEvent(new CustomEvent('nols:toast', { detail: { type: 'error', title: 'Failed to disable 2FA', message: msg, duration: 4500 } })); } catch (e) {}
@@ -300,12 +405,46 @@ export default function SecurityTab() {
               </div>
             )
           ) : (
-            <button 
-              className="inline-flex items-center justify-center gap-2 px-4 sm:px-6 py-3 rounded-xl border border-red-300 bg-white text-red-700 font-semibold text-sm hover:bg-red-50 hover:border-red-400 active:scale-[0.98] transition-all duration-200" 
-              onClick={disable2FA}
-            >
-              Disable 2FA
-            </button>
+            !showDisableInput ? (
+              <button 
+                className="inline-flex items-center justify-center gap-2 px-4 sm:px-6 py-3 rounded-xl border border-red-300 bg-white text-red-700 font-semibold text-sm hover:bg-red-50 hover:border-red-400 active:scale-[0.98] transition-all duration-200" 
+                onClick={handleDisableClick}
+              >
+                Disable 2FA
+              </button>
+            ) : (
+              <div className="space-y-3 sm:space-y-4 w-full max-w-full">
+                <div className="w-full max-w-full min-w-0">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5 sm:mb-2">
+                    Enter TOTP code or backup code to disable
+                  </label>
+                  <input 
+                    type="text"
+                    value={disableCode}
+                    onChange={(e) => setDisableCode(e.target.value)}
+                    placeholder="Enter code"
+                    className="block w-full max-w-full min-w-0 rounded-lg border-2 border-slate-200 px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-mono focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200 transition-all duration-200 box-border"
+                    autoFocus
+                  />
+                  <p className="mt-1.5 text-xs text-slate-500">Enter a 6-digit TOTP code from your authenticator app or a backup code.</p>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full max-w-full">
+                  <button 
+                    onClick={disable2FA}
+                    disabled={!disableCode.trim()}
+                    className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-all duration-300 border-2 border-red-600 hover:border-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Disable 2FA
+                  </button>
+                  <button 
+                    onClick={cancelDisable}
+                    className="sm:w-auto inline-flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 text-xs font-semibold text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-all duration-300 border-2 border-slate-200 hover:border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed min-w-0"
+                  >
+                    <span className="truncate">Cancel</span>
+                  </button>
+                </div>
+              </div>
+            )
           )}
         </div>
       </section>
@@ -333,6 +472,7 @@ export default function SecurityTab() {
                   <span className="font-medium text-slate-700 text-sm break-words">New password</span>
                   <input 
                     className={`border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-1 transition-all duration-300 ease-out w-full bg-white min-w-0 max-w-full break-words ${
+                      inputLocked || (timeoutUntil !== null && Date.now() < timeoutUntil) ? 'bg-slate-100 cursor-not-allowed border-red-400' :
                       !pwd.newPassword ? 'border-slate-200 focus:border-[#02665e]/50 focus:ring-[#02665e]/20' :
                       passwordValidation.strength === 'strong' ? 'border-green-500 focus:border-green-600 focus:ring-green-200' :
                       passwordValidation.strength === 'medium' ? 'border-yellow-500 focus:border-yellow-600 focus:ring-yellow-200' :
@@ -340,7 +480,24 @@ export default function SecurityTab() {
                     }`}
                     type="password" 
                     value={pwd.newPassword} 
-                    onChange={e=>setPwd({...pwd, newPassword:e.target.value})}
+                    onChange={e=>{
+                      if (timeoutUntil && Date.now() < timeoutUntil) return // Block during timeout
+                      const value = e.target.value
+                      // Strictly enforce 12 character limit - always truncate immediately
+                      const truncated = value.slice(0, 12)
+                      setPwd({...pwd, newPassword: truncated})
+                    }}
+                    onPaste={(e) => {
+                      e.preventDefault()
+                      if (timeoutUntil && Date.now() < timeoutUntil) return // Block during timeout
+                      const pastedText = e.clipboardData.getData('text')
+                      // Strictly enforce 12 character limit - always truncate immediately
+                      const truncated = pastedText.slice(0, 12)
+                      setPwd({...pwd, newPassword: truncated})
+                    }}
+                    maxLength={12}
+                    disabled={inputLocked || (timeoutUntil !== null && Date.now() < timeoutUntil)}
+                    placeholder="8-12 characters"
                   />
                 </label>
                 {/* Password Strength Feedback */}
@@ -376,7 +533,7 @@ export default function SecurityTab() {
                     <div className="text-xs text-slate-500 space-y-1">
                       <div className="flex items-center gap-2">
                         <span>•</span>
-                        <span>At least {me?.role && (me.role.toUpperCase() === 'ADMIN' || me.role.toUpperCase() === 'OWNER') ? '12' : '10'} characters</span>
+                        <span>{me?.role && (String(me.role).toUpperCase() === 'ADMIN' || String(me.role).toUpperCase() === 'OWNER') ? 'Exactly 12 characters' : 'Between 8 and 12 characters'}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <span>•</span>
@@ -431,6 +588,7 @@ export default function SecurityTab() {
                   <span className="font-medium text-slate-700 text-sm break-words">Confirm new password</span>
                   <input 
                     className={`border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-1 transition-all duration-300 ease-out w-full bg-white min-w-0 max-w-full break-words ${
+                      confirmInputLocked || (timeoutUntil !== null && Date.now() < timeoutUntil) ? 'bg-slate-100 cursor-not-allowed border-red-400' :
                       !pwd.confirmPassword ? 'border-slate-200 focus:border-[#02665e]/50 focus:ring-[#02665e]/20' :
                       passwordMatch === true ? 'border-green-500 focus:border-green-600 focus:ring-green-200' :
                       passwordMatch === false ? 'border-red-500 focus:border-red-600 focus:ring-red-200' :
@@ -438,12 +596,29 @@ export default function SecurityTab() {
                     }`}
                     type="password" 
                     value={pwd.confirmPassword} 
-                    onChange={e=>setPwd({...pwd, confirmPassword:e.target.value})}
+                    onChange={e=>{
+                      if (timeoutUntil && Date.now() < timeoutUntil) return // Block during timeout
+                      const value = e.target.value
+                      // Strictly enforce 12 character limit - always truncate immediately
+                      const truncated = value.slice(0, 12)
+                      setPwd({...pwd, confirmPassword: truncated})
+                    }}
+                    onPaste={(e) => {
+                      e.preventDefault()
+                      if (timeoutUntil && Date.now() < timeoutUntil) return // Block during timeout
+                      const pastedText = e.clipboardData.getData('text')
+                      // Strictly enforce 12 character limit - always truncate immediately
+                      const truncated = pastedText.slice(0, 12)
+                      setPwd({...pwd, confirmPassword: truncated})
+                    }}
+                    maxLength={12}
+                    disabled={confirmInputLocked || (timeoutUntil !== null && Date.now() < timeoutUntil)}
+                    placeholder="8-12 characters"
                   />
                 </label>
                 {/* Password Match Feedback */}
                 {pwd.confirmPassword && (
-                  <div className="mt-2">
+                  <div className="mt-2 space-y-1">
                     <div className={`text-xs font-medium transition-colors duration-300 ${
                       passwordMatch === true ? 'text-green-600' :
                       passwordMatch === false ? 'text-red-600' :
@@ -452,16 +627,64 @@ export default function SecurityTab() {
                       {passwordMatch === true && '✓ Passwords match'}
                       {passwordMatch === false && '✗ Passwords do not match'}
                     </div>
+                    {/* Warning: Same as current password */}
+                    {isSameAsCurrent && (
+                      <div className="text-xs text-red-600 font-medium bg-red-50 border border-red-200 rounded-lg p-2">
+                        ⚠ The new password must be different from your current password.
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
             </div>
           </div>
+          
+          {/* Timeout Warning - Consolidated message with countdown and attempt count */}
+          {timeoutUntil && Date.now() < timeoutUntil && (
+            <div className="rounded-lg bg-red-50 border-2 border-red-200 p-4">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <div className="text-sm font-bold text-red-800 mb-1">
+                    Account temporarily locked due to {consecutiveFailures >= 3 ? 3 : consecutiveFailures} failed attempt{consecutiveFailures >= 3 ? 's' : consecutiveFailures > 1 ? 's' : ''}
+                  </div>
+                  <div className="text-sm text-red-700">
+                    Please wait <span className="font-bold text-red-800">{remainingSeconds}</span> second{remainingSeconds !== 1 ? 's' : ''} before trying again.
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Cooldown Warning */}
+          {cooldownUntil && Date.now() < cooldownUntil && (
+            <div className="rounded-lg bg-blue-50 border border-blue-200 p-3">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                <div className="text-sm font-semibold text-blue-800">
+                  Password was recently changed. You can change it again in {Math.ceil((cooldownUntil - Date.now()) / 60000)} minute(s).
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Warning: Same as current password in strength feedback */}
+          {pwd.newPassword && isSameAsCurrent && (
+            <div className="rounded-lg bg-red-50 border border-red-200 p-3">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-red-600 flex-shrink-0" />
+                <div className="text-sm font-semibold text-red-800">
+                  The new password must be different from your current password.
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="flex justify-end pt-2">
             <button 
               type="submit" 
               className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 sm:px-6 py-3 rounded-xl bg-[#02665e] text-white font-semibold text-sm hover:bg-[#014d47] hover:shadow-md active:scale-[0.98] transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-[#02665e]"
-              disabled={!pwd.currentPassword || !pwd.newPassword || !pwd.confirmPassword || !passwordValidation.valid || passwordMatch !== true}
+              disabled={!pwd.currentPassword || !pwd.newPassword || !pwd.confirmPassword || !passwordValidation.valid || passwordMatch !== true || isSameAsCurrent || (timeoutUntil !== null && Date.now() < timeoutUntil) || (cooldownUntil !== null && Date.now() < cooldownUntil)}
             >
               <Key className="h-4 w-4" />
               Update Password

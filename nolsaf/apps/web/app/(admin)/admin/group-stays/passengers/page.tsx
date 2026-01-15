@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
-import { Users, Search, X, Calendar, MapPin, User, BarChart3, UsersRound, Globe, TrendingUp, Filter } from "lucide-react";
-import DatePicker from "@/components/ui/DatePicker";
+import Link from "next/link";
+import { Users, Search, X, MapPin, User, UsersRound, Globe, TrendingUp, Calendar, Phone, Hash, ExternalLink } from "lucide-react";
 import axios from "axios";
 import Chart from "@/components/Chart";
 import type { ChartData } from "chart.js";
@@ -14,7 +14,7 @@ type PassengerRow = {
   id: number;
   firstName: string;
   lastName: string;
-  phone: string | null;
+  phone: string | number | null;
   age: number | null;
   gender: string | null;
   nationality: string | null;
@@ -55,12 +55,119 @@ export default function AdminGroupStaysPassengersPage() {
   const [total, setTotal] = useState(0);
   const pageSize = 30;
   const searchRef = useRef<HTMLInputElement | null>(null);
+  const qRef = useRef(q);
+
+  useEffect(() => {
+    qRef.current = q;
+  }, [q]);
+
+  // Passenger details modal
+  const [selectedPassenger, setSelectedPassenger] = useState<PassengerRow | null>(null);
+  const [showPassengerModal, setShowPassengerModal] = useState(false);
+  const [passengerModalMounted, setPassengerModalMounted] = useState(false);
+  const [passengerModalVisible, setPassengerModalVisible] = useState(false);
+  const openPassengerModal = useCallback((passenger: PassengerRow) => {
+    setSelectedPassenger(passenger);
+    setShowPassengerModal(true);
+  }, []);
+  const closePassengerModal = useCallback(() => {
+    setShowPassengerModal(false);
+  }, []);
+
+  useEffect(() => {
+    if (showPassengerModal) {
+      setPassengerModalMounted(true);
+      const id = window.requestAnimationFrame(() => setPassengerModalVisible(true));
+      return () => window.cancelAnimationFrame(id);
+    }
+
+    setPassengerModalVisible(false);
+    const t = window.setTimeout(() => {
+      setPassengerModalMounted(false);
+      setSelectedPassenger(null);
+    }, 180);
+    return () => window.clearTimeout(t);
+  }, [showPassengerModal]);
+
+  useEffect(() => {
+    if (!passengerModalMounted) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        closePassengerModal();
+      }
+    };
+
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [passengerModalMounted, closePassengerModal]);
+
+  const expandScientificNotation = useCallback((raw: string) => {
+    const s = raw.trim();
+    const m = s.match(/^([+-]?\d+)(?:\.(\d+))?[eE]([+-]?\d+)$/);
+    if (!m) return raw;
+
+    const intPart = m[1].replace(/^\+/, "");
+    const fracPart = m[2] ?? "";
+    const exponent = Number(m[3]);
+    if (!Number.isFinite(exponent) || exponent < 0) return raw;
+
+    const digits = `${intPart}${fracPart}`.replace(/^0+/, "0");
+    const decimalIndex = intPart.length;
+    const newIndex = decimalIndex + exponent;
+
+    if (newIndex <= 0) return raw;
+    if (newIndex < digits.length) {
+      // Would still have decimals; keep original string to avoid surprising formatting.
+      return raw;
+    }
+
+    return `${digits}${"0".repeat(newIndex - digits.length)}`;
+  }, []);
+
+  const formatPhone = useCallback((value: PassengerRow["phone"]) => {
+    if (value == null || value === "") return "N/A";
+    if (typeof value === "number") {
+      try {
+        return new Intl.NumberFormat("en-US", {
+          useGrouping: false,
+          maximumFractionDigits: 0,
+        }).format(value);
+      } catch {
+        return String(value);
+      }
+    }
+    const asString = String(value).trim();
+    if (/\d(?:\.\d+)?[eE][+-]?\d+/.test(asString)) {
+      return expandScientificNotation(asString);
+    }
+    return asString;
+  }, [expandScientificNotation]);
+
+  const formatDateTime = useCallback((value: string | null | undefined) => {
+    if (!value) return "N/A";
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return value;
+    return d.toLocaleString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }, []);
 
   // Stats state
   const [stats, setStats] = useState<PassengerStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const params: any = {
@@ -73,9 +180,10 @@ export default function AdminGroupStaysPassengersPage() {
       if (nationality) params.nationality = nationality;
       if (ageMin) params.ageMin = ageMin;
       if (ageMax) params.ageMax = ageMax;
-      if (q) params.q = q;
+      if (qRef.current) params.q = qRef.current;
 
-      const r = await api.get<{ items: PassengerRow[]; total: number }>("/admin/group-stays/passengers", { params });
+      // IMPORTANT: call via /api/* so we hit the API proxy, not the Next.js page route.
+      const r = await api.get<{ items: PassengerRow[]; total: number }>("/api/admin/group-stays/passengers", { params });
       setList(r.data?.items ?? []);
       setTotal(r.data?.total ?? 0);
     } catch (err) {
@@ -85,12 +193,12 @@ export default function AdminGroupStaysPassengersPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [page, pageSize, bookingId, groupType, gender, nationality, ageMin, ageMax]);
 
   const loadStats = useCallback(async () => {
     setStatsLoading(true);
     try {
-      const r = await api.get<PassengerStats>("/admin/group-stays/passengers/stats");
+      const r = await api.get<PassengerStats>("/api/admin/group-stays/passengers/stats");
       setStats(r.data);
     } catch (err) {
       console.error("Failed to load passenger statistics", err);
@@ -104,7 +212,7 @@ export default function AdminGroupStaysPassengersPage() {
     authify();
     load();
     loadStats();
-  }, [page, bookingId, groupType, gender, nationality, ageMin, ageMax, loadStats]);
+  }, [load, loadStats]);
 
   const pages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -469,7 +577,10 @@ export default function AdminGroupStaysPassengersPage() {
                 className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none text-sm max-w-full box-border"
                 placeholder="Search passengers by name, phone, nationality..."
                 value={q}
-                onChange={(e) => setQ(e.target.value)}
+                onChange={(e) => {
+                  qRef.current = e.target.value;
+                  setQ(e.target.value);
+                }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
@@ -482,6 +593,7 @@ export default function AdminGroupStaysPassengersPage() {
                 <button
                   type="button"
                   onClick={() => {
+                    qRef.current = "";
                     setQ("");
                     setPage(1);
                     load();
@@ -671,7 +783,7 @@ export default function AdminGroupStaysPassengersPage() {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <span className="max-w-xs truncate block">{passenger.phone || "N/A"}</span>
+                        <span className="max-w-xs truncate block">{formatPhone(passenger.phone)}</span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{passenger.age || "N/A"}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{passenger.gender || "N/A"}</td>
@@ -702,7 +814,13 @@ export default function AdminGroupStaysPassengersPage() {
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button className="text-green-600 hover:text-green-900">View</button>
+                                <button
+                                  type="button"
+                                  onClick={() => openPassengerModal(passenger)}
+                                  className="text-green-600 hover:text-green-900"
+                                >
+                                  View
+                                </button>
                       </td>
                     </tr>
                   ))}
@@ -725,7 +843,7 @@ export default function AdminGroupStaysPassengersPage() {
                     )}
                   </div>
                   <div className="text-sm text-gray-600 mb-1">
-                    <span>Phone: {passenger.phone || "N/A"}</span>
+                    <span>Phone: {formatPhone(passenger.phone)}</span>
                   </div>
                   <div className="text-sm text-gray-600 mb-1">
                     <span>Age: {passenger.age || "N/A"} • Gender: {passenger.gender || "N/A"}</span>
@@ -746,7 +864,13 @@ export default function AdminGroupStaysPassengersPage() {
                     </>
                   )}
                   <div className="mt-3 text-right">
-                    <button className="text-green-600 hover:text-green-900 text-sm">View Details</button>
+                    <button
+                      type="button"
+                      onClick={() => openPassengerModal(passenger)}
+                      className="text-green-600 hover:text-green-900 text-sm"
+                    >
+                      View Details
+                    </button>
                   </div>
                 </div>
               ))}
@@ -754,6 +878,190 @@ export default function AdminGroupStaysPassengersPage() {
           </>
         )}
       </div>
+
+      {/* Passenger Details Modal */}
+      {passengerModalMounted && selectedPassenger && (
+        <div
+          className={`fixed inset-0 z-50 flex items-center justify-center p-4 transition-opacity duration-200 ${
+            passengerModalVisible ? "opacity-100 bg-black/50" : "opacity-0 bg-black/0"
+          }`}
+          onClick={closePassengerModal}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Passenger details"
+        >
+          <div
+            className={`w-full max-w-3xl rounded-2xl bg-white shadow-2xl border border-gray-200 overflow-hidden max-h-[90vh] flex flex-col transform transition-all duration-200 ease-out ${
+              passengerModalVisible ? "opacity-100 translate-y-0 scale-100" : "opacity-0 translate-y-2 scale-[0.98]"
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6 bg-gradient-to-br from-green-50 via-white to-emerald-50 border-b border-gray-200">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-12 rounded-xl bg-white border border-gray-200 flex items-center justify-center shadow-sm">
+                    <User className="h-6 w-6 text-green-700" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-medium text-gray-500">Passenger Details</div>
+                    <h2 className="text-lg sm:text-xl font-semibold text-gray-900 leading-tight">
+                      {selectedPassenger.firstName} {selectedPassenger.lastName}
+                    </h2>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      {selectedPassenger.booking?.status && (
+                        <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800">
+                          {selectedPassenger.booking.status}
+                        </span>
+                      )}
+                      {selectedPassenger.booking?.groupType && (
+                        <span className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-semibold text-gray-700 capitalize">
+                          {selectedPassenger.booking.groupType}
+                        </span>
+                      )}
+                      {selectedPassenger.nationality && (
+                        <span className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-semibold text-gray-700">
+                          <Globe className="h-3.5 w-3.5 mr-1 text-gray-400" />
+                          {selectedPassenger.nationality}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {selectedPassenger.booking?.id ? (
+                    <Link
+                      href={`/admin/group-stays/bookings?bookingId=${selectedPassenger.booking.id}`}
+                      className="hidden sm:inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-green-600 text-white text-sm font-medium hover:bg-green-700"
+                    >
+                      Go to booking
+                      <ExternalLink className="h-4 w-4" />
+                    </Link>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={closePassengerModal}
+                    className="inline-flex items-center justify-center h-9 w-9 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                    aria-label="Close"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+              </div>
+              <p className="mt-3 text-xs text-gray-500">Tip: press ESC to close</p>
+            </div>
+
+            <div className="p-6 space-y-5 bg-white flex-1 overflow-y-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-4">
+                  <div className="flex items-center gap-2 text-xs font-medium text-gray-500">
+                    <Phone className="h-4 w-4" />
+                    Phone
+                  </div>
+                  <div className="mt-1 text-sm font-semibold text-gray-900">{formatPhone(selectedPassenger.phone)}</div>
+                </div>
+
+                <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-4">
+                  <div className="flex items-center gap-2 text-xs font-medium text-gray-500">
+                    <Hash className="h-4 w-4" />
+                    Sequence
+                  </div>
+                  <div className="mt-1 text-sm font-semibold text-gray-900">{selectedPassenger.sequenceNumber}</div>
+                </div>
+
+                <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-4">
+                  <div className="flex items-center gap-2 text-xs font-medium text-gray-500">
+                    <Users className="h-4 w-4" />
+                    Age
+                  </div>
+                  <div className="mt-1 text-sm font-semibold text-gray-900">{selectedPassenger.age ?? "N/A"}</div>
+                </div>
+
+                <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-4">
+                  <div className="flex items-center gap-2 text-xs font-medium text-gray-500">
+                    <User className="h-4 w-4" />
+                    Gender
+                  </div>
+                  <div className="mt-1 text-sm font-semibold text-gray-900">{selectedPassenger.gender || "N/A"}</div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-gray-200 bg-white p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-sm font-semibold text-gray-900">Booking</h3>
+                  {selectedPassenger.booking?.id ? (
+                    <Link
+                      href={`/admin/group-stays/bookings?bookingId=${selectedPassenger.booking.id}`}
+                      className="sm:hidden inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-green-600 text-white text-sm font-medium hover:bg-green-700"
+                    >
+                      Go to booking
+                      <ExternalLink className="h-4 w-4" />
+                    </Link>
+                  ) : null}
+                </div>
+
+                {selectedPassenger.booking ? (
+                  <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <div className="text-xs font-medium text-gray-500">Booking ID</div>
+                      <div className="mt-1 text-sm font-semibold text-gray-900">#{selectedPassenger.booking.id}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs font-medium text-gray-500">Status</div>
+                      <div className="mt-1 text-sm font-semibold text-gray-900 capitalize">{selectedPassenger.booking.status}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs font-medium text-gray-500">Destination</div>
+                      <div className="mt-1 text-sm font-semibold text-gray-900 flex items-center gap-2">
+                        <MapPin className="h-4 w-4 text-gray-400" />
+                        <span className="truncate">{selectedPassenger.booking.destination}</span>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs font-medium text-gray-500">Group Type</div>
+                      <div className="mt-1 text-sm font-semibold text-gray-900 capitalize">{selectedPassenger.booking.groupType}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs font-medium text-gray-500">Check-in</div>
+                      <div className="mt-1 text-sm font-semibold text-gray-900 flex items-center gap-2">
+                        <Calendar className="h-4 w-4 text-gray-400" />
+                        <span>{formatDateTime(selectedPassenger.booking.checkIn)}</span>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs font-medium text-gray-500">Check-out</div>
+                      <div className="mt-1 text-sm font-semibold text-gray-900 flex items-center gap-2">
+                        <Calendar className="h-4 w-4 text-gray-400" />
+                        <span>{formatDateTime(selectedPassenger.booking.checkOut)}</span>
+                      </div>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <div className="text-xs font-medium text-gray-500">Customer</div>
+                      <div className="mt-1 text-sm font-semibold text-gray-900">
+                        {selectedPassenger.booking.customer
+                          ? `${selectedPassenger.booking.customer.name} (${selectedPassenger.booking.customer.email})`
+                          : "N/A"}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-3 text-sm text-gray-500">No booking linked.</div>
+                )}
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={closePassengerModal}
+                className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Pagination */}
       {list.length > 0 && (

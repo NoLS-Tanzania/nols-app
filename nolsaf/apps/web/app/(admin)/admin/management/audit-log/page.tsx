@@ -1,6 +1,5 @@
 "use client";
-import React, { useEffect, useState } from "react";
-import AdminPageHeader from "@/components/AdminPageHeader";
+import { useEffect, useState } from "react";
 import TableRow from "@/components/TableRow";
 import { ShieldCheck, Download } from "lucide-react";
 
@@ -31,7 +30,15 @@ export default function AuditLogPage() {
         const contentType = res.headers.get("content-type");
         if (contentType && contentType.includes("application/json")) {
           const json = await res.json();
-          if (mounted) setData(json);
+          const audits: Audit[] = Array.isArray(json)
+            ? json
+            : Array.isArray(json?.data)
+              ? json.data
+              : Array.isArray(json?.audits)
+                ? json.audits
+                : [];
+
+          if (mounted) setData(audits);
         } else {
           throw new Error("Invalid response format");
         }
@@ -78,6 +85,8 @@ export default function AuditLogPage() {
     </div>
   );
 
+  const audits = Array.isArray(data) ? data : [];
+
   const exportUrl = typeof window === 'undefined'
     ? `${apiBase.replace(/\/$/, '')}/api/admin/audits?format=csv`
     : `/api/admin/audits?format=csv`;
@@ -119,14 +128,14 @@ export default function AuditLogPage() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {data.length === 0 ? (
+              {audits.length === 0 ? (
                 <TableRow hover={false}>
                   <td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-500">
                     No audit logs found
                   </td>
                 </TableRow>
               ) : (
-                data.map((a) => (
+                audits.map((a) => (
                   <TableRow key={a.id}>
                     <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
                       {new Date(a.createdAt).toLocaleString()}

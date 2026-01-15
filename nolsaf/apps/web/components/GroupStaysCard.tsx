@@ -12,6 +12,7 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
   const DRAFT_KEY = 'groupStaysDraft.v1';
   const [groupType, setGroupType] = useState<string>('');
   const [accommodationType, setAccommodationType] = useState<string>('');
+  const [minHotelStarLabel, setMinHotelStarLabel] = useState<string>('');
   const [headcount, setHeadcount] = useState<number>(4);
   const [maleCount, setMaleCount] = useState<number>(2);
   const [femaleCount, setFemaleCount] = useState<number>(2);
@@ -91,6 +92,36 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
 
   // Check if Tanzania is selected
   const isTanzaniaSelected = fromCountry === 'tanzania';
+
+  const HOTEL_STAR_OPTIONS = [
+    { value: '', label: 'Select rating' },
+    { value: 'basic', label: 'Basic accommodations' },
+    { value: 'simple', label: 'Simple and affordable' },
+    { value: 'moderate', label: 'Moderate quality' },
+    { value: 'high', label: 'High-end comfort' },
+    { value: 'luxury', label: 'Luxury and exceptional service' },
+  ] as const;
+
+  const hotelStarLabelToNumber = (v: unknown): number | null => {
+    const s = typeof v === 'string' ? v.trim().toLowerCase() : '';
+    if (s === 'basic') return 1;
+    if (s === 'simple') return 2;
+    if (s === 'moderate') return 3;
+    if (s === 'high') return 4;
+    if (s === 'luxury') return 5;
+    return null;
+  };
+
+  const hotelStarNumberToLabel = (n: unknown): string => {
+    const num = Number(n);
+    if (!Number.isFinite(num)) return '';
+    if (num <= 1) return 'basic';
+    if (num === 2) return 'simple';
+    if (num === 3) return 'moderate';
+    if (num === 4) return 'high';
+    if (num >= 5) return 'luxury';
+    return '';
+  };
 
   // Calculate headcount from gender breakdown
   const calculatedHeadcount = maleCount + femaleCount + otherCount;
@@ -176,6 +207,18 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
       setToLocation(typeof parsed.toLocation === 'string' ? parsed.toLocation : '');
 
       setAccommodationType(typeof parsed.accommodationType === 'string' ? parsed.accommodationType : '');
+      // Draft compatibility:
+      // - new drafts store minHotelStarLabel (basic/simple/moderate/high/luxury)
+      // - older drafts stored minHotelStar as a number (1-5)
+      if (typeof parsed.minHotelStarLabel === 'string') {
+        setMinHotelStarLabel(parsed.minHotelStarLabel);
+      } else if (typeof parsed.minHotelStar === 'string') {
+        setMinHotelStarLabel(parsed.minHotelStar);
+      } else if (Number.isFinite(parsed.minHotelStar)) {
+        setMinHotelStarLabel(hotelStarNumberToLabel(parsed.minHotelStar));
+      } else {
+        setMinHotelStarLabel('');
+      }
       setMaleCount(Number.isFinite(parsed.maleCount) ? Math.max(0, Number(parsed.maleCount)) : 2);
       setFemaleCount(Number.isFinite(parsed.femaleCount) ? Math.max(0, Number(parsed.femaleCount)) : 2);
       setOtherCount(Number.isFinite(parsed.otherCount) ? Math.max(0, Number(parsed.otherCount)) : 0);
@@ -230,6 +273,7 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
 
           // Step 2
           accommodationType,
+          minHotelStarLabel,
           maleCount,
           femaleCount,
           otherCount,
@@ -270,6 +314,7 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
     toWard,
     toLocation,
     accommodationType,
+    minHotelStarLabel,
     maleCount,
     femaleCount,
     otherCount,
@@ -307,6 +352,7 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
     // Step 2 required fields
     if (upToStep >= 2) {
       if (!accommodationType) e.push('Accommodation type is required.');
+      if (accommodationType === 'hotel' && !hotelStarLabelToNumber(minHotelStarLabel)) e.push('Hotel rating is required when accommodation type is Hotel.');
       if (calculatedHeadcount < 1) e.push('Headcount must be at least 1. Please specify at least one person in the gender breakdown.');
       if (needsPrivateRoom && (!privateRoomCount || privateRoomCount < 1)) e.push('Please specify how many private rooms are needed.');
       if (useDates && (!checkInIso || !checkOutIso)) e.push('Please select check-in and check-out dates.');
@@ -329,6 +375,9 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
     
     // Step 2: Accommodation type required
     if (!accommodationType) return false;
+
+    // If Hotel is selected, rating is required
+    if (accommodationType === 'hotel' && !hotelStarLabelToNumber(minHotelStarLabel)) return false;
     
     // Headcount must be at least 1 (default is 4, so this is usually satisfied)
     if (!headcount || headcount < 1) return false;
@@ -446,6 +495,7 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
       toWard,
       toLocation,
       accommodationType,
+      minHotelStarLabel: accommodationType === 'hotel' ? (minHotelStarLabel || null) : null,
       headcount: calculatedHeadcount,
       maleCount: maleCount > 0 ? maleCount : null,
       femaleCount: femaleCount > 0 ? femaleCount : null,
@@ -947,7 +997,16 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
                     </div>
                     <div className="relative">
                       <label htmlFor="accommodation-type" className="sr-only">Accommodation type</label>
-                      <select id="accommodation-type" value={accommodationType} onChange={(e) => setAccommodationType(e.target.value)} className="groupstays-select mt-1 w-full rounded px-2 py-1 border appearance-none pr-9">
+                        <select
+                          id="accommodation-type"
+                          value={accommodationType}
+                          onChange={(e) => {
+                            const next = e.target.value;
+                            setAccommodationType(next);
+                            if (next !== 'hotel') setMinHotelStarLabel('');
+                          }}
+                          className="groupstays-select mt-1 w-full rounded px-2 py-1 border appearance-none pr-9"
+                        >
                         <option value="">Select</option>
                         <option value="villa">Villa</option>
                         <option value="apartment">Apartment</option>
@@ -966,6 +1025,26 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
                       <ChevronDown className="groupstays-chevron pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden />
                     </div>
                     <p className="mt-2 text-xs text-slate-500">Choose the accommodation style so we can recommend room sizes.</p>
+
+                    {accommodationType === 'hotel' ? (
+                      <div className="mt-3">
+                        <label htmlFor="hotel-rating" className="block text-xs text-slate-600 mb-1">Hotel rating</label>
+                        <div className="relative">
+                          <select
+                            id="hotel-rating"
+                            value={minHotelStarLabel}
+                            onChange={(e) => setMinHotelStarLabel(e.target.value)}
+                            className="groupstays-select mt-1 w-full rounded px-2 py-1 border appearance-none pr-9"
+                          >
+                            {HOTEL_STAR_OPTIONS.map((o) => (
+                              <option key={o.value} value={o.value}>{o.label}</option>
+                            ))}
+                          </select>
+                          <ChevronDown className="groupstays-chevron pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden />
+                        </div>
+                        <p className="mt-2 text-xs text-slate-500">Required when you select Hotel.</p>
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="rounded border p-3 mb-4 groupstays-section border-slate-100">
@@ -1446,6 +1525,12 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
                           <span className="text-xs text-slate-500">Accommodation</span>
                           <span className="text-sm font-medium text-slate-900">{accommodationType || '—'}</span>
                         </div>
+                        {accommodationType === 'hotel' ? (
+                          <div className="flex justify-between items-center py-1 bg-slate-50 px-2 rounded">
+                            <span className="text-xs text-slate-500">Hotel rating</span>
+                            <span className="text-sm font-medium text-slate-900">{minHotelStarLabel || '—'}</span>
+                          </div>
+                        ) : null}
                       </div>
                     </div>
 

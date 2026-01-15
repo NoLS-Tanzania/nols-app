@@ -41,6 +41,8 @@ export const ACCOMMODATION_TYPES = [
   "other"
 ] as const;
 
+export const HOTEL_STAR_LABELS = ["basic", "simple", "moderate", "high", "luxury"] as const;
+
 /**
  * Valid booking statuses
  */
@@ -105,6 +107,7 @@ export const CreateGroupBookingInput = z.object({
   
   // ==================== Accommodation ====================
   accommodationType: z.string().min(1, "Accommodation type is required").max(50),
+  minHotelStarLabel: z.enum(HOTEL_STAR_LABELS).optional().nullable(),
   headcount: z.number().int().min(1, "Headcount must be at least 1").max(1000, "Headcount cannot exceed 1000"),
   maleCount: z.number().int().min(0).max(1000).optional().nullable(),
   femaleCount: z.number().int().min(0).max(1000).optional().nullable(),
@@ -125,6 +128,16 @@ export const CreateGroupBookingInput = z.object({
   // ==================== Roster ====================
   roster: z.array(PassengerSchema).default([]),
 })
+  // Custom refinement: if accommodation is Hotel, minHotelStar is required
+  .superRefine((data, ctx) => {
+    if (data.accommodationType === "hotel" && data.minHotelStarLabel == null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["minHotelStarLabel"],
+        message: "Hotel rating is required when accommodation type is Hotel",
+      });
+    }
+  })
   // Custom refinement: validate private room logic
   .refine(
     (data) => {

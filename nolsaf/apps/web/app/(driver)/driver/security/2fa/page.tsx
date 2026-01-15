@@ -16,6 +16,10 @@ export default function TwoFAPage() {
   const [totpFlow, setTotpFlow] = useState<'idle'|'provision'|'verifying'|'enabled'|'disabled'>('idle')
   const [smsFlow, setSmsFlow] = useState<'idle'|'sent'|'verifying'|'enabled'|'disabled'>('idle')
   const [otp, setOtp] = useState('')
+  const [disableCode, setDisableCode] = useState('')
+  const [showDisableInput, setShowDisableInput] = useState(false)
+  const [smsDisableCode, setSmsDisableCode] = useState('')
+  const [showSmsDisableInput, setShowSmsDisableInput] = useState(false)
   const [sending, setSending] = useState(false)
   const [provision, setProvision] = useState<{ qr?: string; secret?: string; otpauth?: string } | null>(null)
   const totpVerifyingRef = useRef(false)
@@ -30,9 +34,12 @@ export default function TwoFAPage() {
         if (!res.ok) return
         const body = await res.json().catch(() => null)
         if (body) {
-          setStatus({ totpEnabled: !!body.totpEnabled, smsEnabled: !!body.smsEnabled, phone: body.phone ?? null })
-          setTotpFlow(body.totpEnabled ? 'enabled' : 'idle')
-          setSmsFlow(body.smsEnabled ? 'enabled' : 'idle')
+          // Use the boolean flags from the API response
+          const isTotpEnabled = !!body.totpEnabled
+          const isSmsEnabled = !!body.smsEnabled
+          setStatus({ totpEnabled: isTotpEnabled, smsEnabled: isSmsEnabled, phone: body.phone ?? null })
+          setTotpFlow(isTotpEnabled ? 'enabled' : 'idle')
+          setSmsFlow(isSmsEnabled ? 'enabled' : 'idle')
         }
       } catch (e) {
         // ignore
@@ -91,11 +98,28 @@ export default function TwoFAPage() {
     totpVerifyingRef.current = false
   }
 
+  const handleDisableClick = () => {
+    setShowDisableInput(true)
+    setDisableCode("")
+    setError(null)
+  }
+
+  const cancelDisable = () => {
+    setShowDisableInput(false)
+    setDisableCode("")
+    setError(null)
+  }
+
   const handleTotpDisable = async () => {
+    if (!disableCode || disableCode.trim().length === 0) {
+      setError('Please enter a TOTP code or backup code')
+      dispatchToast({ type: 'error', title: 'Error', message: 'Please enter a TOTP code or backup code' })
+      return
+    }
     setError(null)
     setLoading(true)
     try {
-      const res = await fetch('/api/driver/security/2fa', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'totp', action: 'disable' }) })
+      const res = await fetch('/api/driver/security/2fa', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'totp', action: 'disable', code: disableCode.trim() }) })
       const body = await res.json().catch(() => null)
       if (!res.ok) {
         setError((body && body.error) || `Failed (status ${res.status})`)
@@ -103,6 +127,8 @@ export default function TwoFAPage() {
       } else {
         setStatus(s => s ? { ...s, totpEnabled: false } : { totpEnabled: false, smsEnabled: false })
         setTotpFlow('disabled')
+        setShowDisableInput(false)
+        setDisableCode("")
         dispatchToast({ type: 'success', title: 'Two-factor disabled', message: 'Authenticator/TOTP disabled.' })
       }
     } catch (e: any) { setError(String(e)) } finally { setLoading(false) }
@@ -112,54 +138,133 @@ export default function TwoFAPage() {
     setError(null)
     setSending(true)
     try {
-      // In this demo-friendly implementation we mark sms as sent and rely on server to enable after verify
-      // (server will set sms2faEnabled on verify/enable request)
-      // Simulate sending by calling a POST without enabling yet
-      await new Promise(r => setTimeout(r, 700))
-      setSmsFlow('sent')
-      dispatchToast({ type: 'info', title: 'SMS sent', message: 'A verification code was sent to your phone.' })
-    } catch (e) {
+      const res = await fetch('/api/account/2fa/sms/send', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
+      const body = await res.json().catch(() => null)
+      if (!res.ok) {
+        setError((body && body.error) || `Failed (status ${res.status})`)
+        dispatchToast({ type: 'error', title: 'Failed to send SMS', message: (body && body.error) || 'Failed to send SMS code.' })
+      } else {
+        setSmsFlow('sent')
+        dispatchToast({ type: 'info', title: 'SMS sent', message: 'A verification code was sent to your phone.' })
+      }
+    } catch (e: any) {
       setError(String(e))
+      dispatchToast({ type: 'error', title: 'Failed to send SMS', message: String(e) })
     } finally { setSending(false) }
   }
 
   const handleSmsVerify = async () => {
     if (smsVerifyingRef.current) return
+    if (!otp || otp.length !== 6 || !/^\d{6}$/.test(otp)) {
+      setError('Please enter a valid 6-digit verification code')
+      dispatchToast({ type: 'error', title: 'Error', message: 'Please enter a valid 6-digit verification code' })
+      return
+    }
     smsVerifyingRef.current = true
     setError(null)
     setLoading(true)
     setSmsFlow('verifying')
     try {
-      const res = await fetch('/api/driver/security/2fa', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'sms', action: 'enable', code: otp }) })
+      const codeToSend = String(otp).replace(/\D/g, '').slice(0, 6)
+      const res = await fetch('/api/account/2fa/sms/verify', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: codeToSend }) })
       const body = await res.json().catch(() => null)
       if (!res.ok) {
         setError((body && body.error) || `Failed (status ${res.status})`)
         setSmsFlow('sent')
-        dispatchToast({ type: 'error', title: '2FA', message: 'Failed to verify SMS code.' })
+        dispatchToast({ type: 'error', title: '2FA', message: (body && body.error) || 'Failed to verify SMS code.' })
       } else {
-        setStatus(s => s ? { ...s, smsEnabled: true } : { totpEnabled: false, smsEnabled: true })
-        setSmsFlow('enabled')
+        // Refresh status from API
+        const statusRes = await fetch('/api/driver/security/2fa', { credentials: 'include' })
+        const statusBody = await statusRes.json().catch(() => null)
+        if (statusBody) {
+          const isTotpEnabled = !!statusBody.totpEnabled
+          const isSmsEnabled = !!statusBody.smsEnabled
+          setStatus({ totpEnabled: isTotpEnabled, smsEnabled: isSmsEnabled, phone: statusBody.phone ?? null })
+          setSmsFlow(isSmsEnabled ? 'enabled' : 'idle')
+        } else {
+          setStatus(s => s ? { ...s, smsEnabled: true } : { totpEnabled: false, smsEnabled: true })
+          setSmsFlow('enabled')
+        }
+        setOtp('')
         dispatchToast({ type: 'success', title: 'Two-factor enabled', message: 'SMS-based 2FA enabled.' })
       }
-    } catch (e: any) { setError(String(e)); setSmsFlow('sent') } finally { setLoading(false) }
-    smsVerifyingRef.current = false
+    } catch (e: any) { 
+      setError(String(e))
+      setSmsFlow('sent')
+      dispatchToast({ type: 'error', title: '2FA', message: 'Failed to verify SMS code.' })
+    } finally { 
+      setLoading(false)
+      smsVerifyingRef.current = false
+    }
   }
 
-  const handleSmsDisable = async () => {
+  const handleSmsDisableClick = async () => {
     setError(null)
-    setLoading(true)
+    setSending(true)
     try {
-      const res = await fetch('/api/driver/security/2fa', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'sms', action: 'disable' }) })
+      // Send a verification code to the registered phone, same as enabling
+      const res = await fetch('/api/account/2fa/sms/send', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
       const body = await res.json().catch(() => null)
       if (!res.ok) {
         setError((body && body.error) || `Failed (status ${res.status})`)
-        dispatchToast({ type: 'error', title: '2FA', message: 'Failed to disable SMS-based 2FA.' })
+        dispatchToast({ type: 'error', title: 'Failed to send SMS', message: (body && body.error) || 'Failed to send SMS code.' })
       } else {
-        setStatus(s => s ? { ...s, smsEnabled: false } : { totpEnabled: false, smsEnabled: false })
-        setSmsFlow('disabled')
+        setShowSmsDisableInput(true)
+        setSmsDisableCode("")
+        dispatchToast({ type: 'info', title: 'SMS sent', message: 'A verification code was sent to your phone. Enter it to disable SMS 2FA.' })
+      }
+    } catch (e: any) {
+      setError(String(e))
+      dispatchToast({ type: 'error', title: 'Failed to send SMS', message: String(e) })
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const cancelSmsDisable = () => {
+    setShowSmsDisableInput(false)
+    setSmsDisableCode("")
+    setError(null)
+  }
+
+  const handleSmsDisable = async () => {
+    if (!smsDisableCode || smsDisableCode.length !== 6 || !/^\d{6}$/.test(smsDisableCode)) {
+      setError('Please enter a valid 6-digit verification code')
+      dispatchToast({ type: 'error', title: 'Error', message: 'Please enter a valid 6-digit verification code' })
+      return
+    }
+    setError(null)
+    setLoading(true)
+    try {
+      const codeToSend = String(smsDisableCode).replace(/\D/g, '').slice(0, 6)
+      const res = await fetch('/api/account/2fa/sms/disable', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: codeToSend }) })
+      const body = await res.json().catch(() => null)
+      if (!res.ok) {
+        setError((body && body.error) || `Failed (status ${res.status})`)
+        dispatchToast({ type: 'error', title: '2FA', message: (body && body.error) || 'Failed to disable SMS-based 2FA.' })
+      } else {
+        // Refresh status from API
+        const statusRes = await fetch('/api/driver/security/2fa', { credentials: 'include' })
+        const statusBody = await statusRes.json().catch(() => null)
+        if (statusBody) {
+          const isTotpEnabled = !!statusBody.totpEnabled
+          const isSmsEnabled = !!statusBody.smsEnabled
+          setStatus({ totpEnabled: isTotpEnabled, smsEnabled: isSmsEnabled, phone: statusBody.phone ?? null })
+          setSmsFlow(isSmsEnabled ? 'enabled' : 'disabled')
+        } else {
+          setStatus(s => s ? { ...s, smsEnabled: false } : { totpEnabled: false, smsEnabled: false })
+          setSmsFlow('disabled')
+        }
+        setSmsDisableCode('')
+        setShowSmsDisableInput(false)
         dispatchToast({ type: 'success', title: 'Two-factor disabled', message: 'SMS-based 2FA disabled.' })
       }
-    } catch (e: any) { setError(String(e)) } finally { setLoading(false) }
+    } catch (e: any) { 
+      setError(String(e))
+      dispatchToast({ type: 'error', title: '2FA', message: 'Failed to disable SMS-based 2FA.' })
+    } finally { 
+      setLoading(false)
+    }
   }
 
   return (
@@ -205,13 +310,48 @@ export default function TwoFAPage() {
 
             <div className="flex items-center justify-end gap-3">
               {status && status.totpEnabled ? (
-                <button 
-                  onClick={handleTotpDisable} 
-                  disabled={loading} 
-                  className="inline-flex items-center px-3 py-2 text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors border border-red-200 hover:border-red-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Disable
-                </button>
+                !showDisableInput ? (
+                  <button 
+                    onClick={handleDisableClick} 
+                    disabled={loading} 
+                    className="inline-flex items-center px-3 py-2 text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors border border-red-200 hover:border-red-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Disable
+                  </button>
+                ) : (
+                  <div className="w-full space-y-3">
+                    <div className="w-full">
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        Enter TOTP code or backup code to disable
+                      </label>
+                      <input 
+                        type="text"
+                        value={disableCode}
+                        onChange={(e) => setDisableCode(e.target.value)}
+                        placeholder="Enter code"
+                        className="block w-full rounded-md border-2 border-slate-200 px-3 py-2 text-sm font-mono focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200 transition-colors"
+                        autoFocus
+                      />
+                      <p className="mt-1.5 text-xs text-slate-500">Enter a 6-digit TOTP code from your authenticator app or a backup code.</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={handleTotpDisable}
+                        disabled={loading || !disableCode.trim()}
+                        className="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors border border-red-600 hover:border-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {loading ? 'Disabling...' : 'Disable'}
+                      </button>
+                      <button 
+                        onClick={cancelDisable}
+                        disabled={loading}
+                        className="inline-flex items-center px-3 py-2 text-sm font-medium text-slate-600 hover:text-slate-700 hover:bg-slate-50 rounded-md transition-colors border border-slate-200 hover:border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )
               ) : (
                 <>
                   {(() => {
@@ -323,14 +463,50 @@ export default function TwoFAPage() {
             </div>
 
             <div className="flex items-center justify-end gap-3">
-              {status && status.smsEnabled ? (
-                <button 
-                  onClick={handleSmsDisable} 
-                  disabled={loading} 
-                  className="inline-flex items-center px-3 py-2 text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors border border-red-200 hover:border-red-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Disable
-                </button>
+              {(status && status.smsEnabled) || smsFlow === 'enabled' ? (
+                !showSmsDisableInput ? (
+                  <button 
+                    onClick={handleSmsDisableClick} 
+                    disabled={loading || sending} 
+                    className="inline-flex items-center px-3 py-2 text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors border border-red-200 hover:border-red-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {sending ? 'Sending code...' : 'Disable'}
+                  </button>
+                ) : (
+                  <div className="w-full space-y-3">
+                    <div className="w-full">
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        Enter SMS code to disable
+                      </label>
+                      <input 
+                        type="text"
+                        maxLength={6}
+                        value={smsDisableCode}
+                        onChange={(e) => setSmsDisableCode(e.target.value.replace(/\D/g, ''))}
+                        placeholder="000000"
+                        className="block w-full rounded-md border-2 border-slate-200 px-3 py-2 text-sm font-mono text-center focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200 transition-colors"
+                        autoFocus
+                      />
+                      <p className="mt-1.5 text-xs text-slate-500">Enter the 6-digit code sent to your phone.</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={handleSmsDisable}
+                        disabled={loading || smsDisableCode.length !== 6}
+                        className="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors border border-red-600 hover:border-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {loading ? 'Disabling...' : 'Disable SMS 2FA'}
+                      </button>
+                      <button 
+                        onClick={cancelSmsDisable}
+                        disabled={loading}
+                        className="inline-flex items-center px-3 py-2 text-sm font-medium text-slate-600 hover:text-slate-700 hover:bg-slate-50 rounded-md transition-colors border border-slate-200 hover:border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )
               ) : (
                 <>
                   {(() => {

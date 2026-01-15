@@ -7,60 +7,98 @@ import { Prisma } from "@prisma/client";
 export const router = Router();
 router.use(requireAuth as unknown as RequestHandler, requireRole("ADMIN") as unknown as RequestHandler);
 
+function toPositiveInt(value: unknown): number | undefined {
+  const n = typeof value === "string" && value.trim() !== "" ? Number.parseInt(value, 10) : typeof value === "number" ? value : NaN;
+  if (!Number.isFinite(n)) return undefined;
+  if (!Number.isInteger(n)) return undefined;
+  if (n <= 0) return undefined;
+  return n;
+}
+
+function toNumberOrUndefined(value: unknown): number | undefined {
+  const n = typeof value === "string" && value.trim() !== "" ? Number(value) : typeof value === "number" ? value : NaN;
+  if (!Number.isFinite(n)) return undefined;
+  return n;
+}
+
+function toSingleString(value: unknown): string {
+  if (Array.isArray(value)) return String(value[0] ?? "");
+  if (value === undefined || value === null) return "";
+  return String(value);
+}
+
 /** GET /admin/group-stays/passengers?bookingId=&groupType=&region=&gender=&nationality=&ageMin=&ageMax=&page=&pageSize=&q= */
 router.get("/", async (req, res) => {
   try {
     const { bookingId, groupType, region, gender, nationality, ageMin, ageMax, page = "1", pageSize = "50", q = "" } = req.query as any;
 
+    const bookingIdStr = toSingleString(bookingId).trim();
+    const groupTypeStr = toSingleString(groupType).trim();
+    const regionStr = toSingleString(region).trim();
+    const genderStr = toSingleString(gender).trim();
+    const nationalityStr = toSingleString(nationality).trim();
+    const ageMinStr = toSingleString(ageMin).trim();
+    const ageMaxStr = toSingleString(ageMax).trim();
+    const pageStr = toSingleString(page).trim();
+    const pageSizeStr = toSingleString(pageSize).trim();
+    const qStr = toSingleString(q).trim();
+
     // Build where clause for passenger filtering
     const where: any = {};
 
     // Filter by booking ID
-    if (bookingId) {
-      where.groupBookingId = Number(bookingId);
+    const bookingIdNum = toPositiveInt(bookingIdStr);
+    if (bookingIdNum) {
+      where.groupBookingId = bookingIdNum;
     }
 
     // Filter by group type (through booking)
-    if (groupType) {
-      where.groupBooking = { groupType };
+    if (groupTypeStr) {
+      where.groupBooking = { groupType: groupTypeStr };
     }
 
     // Filter by region (through booking)
-    if (region) {
-      where.groupBooking = { ...where.groupBooking, toRegion: region };
+    if (regionStr) {
+      where.groupBooking = { ...where.groupBooking, toRegion: regionStr };
     }
 
     // Filter by gender
-    if (gender) {
-      where.gender = gender.toUpperCase();
+    if (genderStr) {
+      where.gender = genderStr.toUpperCase();
     }
 
     // Filter by nationality
-    if (nationality) {
-      where.nationality = { contains: nationality, mode: "insensitive" };
+    if (nationalityStr) {
+      where.nationality = { contains: nationalityStr };
     }
 
     // Filter by age range
-    if (ageMin || ageMax) {
+    if (ageMinStr || ageMaxStr) {
       where.age = {};
-      if (ageMin) where.age.gte = Number(ageMin);
-      if (ageMax) where.age.lte = Number(ageMax);
+      const ageMinNum = toNumberOrUndefined(ageMinStr);
+      const ageMaxNum = toNumberOrUndefined(ageMaxStr);
+      if (ageMinNum !== undefined) where.age.gte = ageMinNum;
+      if (ageMaxNum !== undefined) where.age.lte = ageMaxNum;
+      // Avoid sending an empty object to Prisma
+      if (Object.keys(where.age).length === 0) delete where.age;
     }
 
     // Search query
-    if (q) {
+    if (qStr) {
       where.OR = [
-        { firstName: { contains: q, mode: "insensitive" } },
-        { lastName: { contains: q, mode: "insensitive" } },
-        { phone: { contains: q, mode: "insensitive" } },
-        { nationality: { contains: q, mode: "insensitive" } },
-        { groupBooking: { user: { name: { contains: q, mode: "insensitive" } } } },
-        { groupBooking: { user: { email: { contains: q, mode: "insensitive" } } } },
+        { firstName: { contains: qStr } },
+        { lastName: { contains: qStr } },
+        { phone: { contains: qStr } },
+        { nationality: { contains: qStr } },
+        { groupBooking: { user: { name: { contains: qStr } } } },
+        { groupBooking: { user: { email: { contains: qStr } } } },
       ];
     }
 
-    const skip = (Number(page) - 1) * Number(pageSize);
-    const take = Math.min(Number(pageSize), 100);
+    const pageNum = toPositiveInt(pageStr) ?? 1;
+    const pageSizeNum = toPositiveInt(pageSizeStr) ?? 50;
+    const take = Math.min(pageSizeNum, 100);
+    const skip = Math.max(0, (pageNum - 1) * take);
 
     const [items, total] = await Promise.all([
       (prisma as any).groupBookingPassenger.findMany({
@@ -112,13 +150,13 @@ router.get("/", async (req, res) => {
       } : null,
     }));
 
-    return res.json({ total, page: Number(page), pageSize: take, items: mapped });
+    return res.json({ total, page: pageNum, pageSize: take, items: mapped });
   } catch (err: any) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && (err.code === 'P2021' || err.code === 'P2022')) {
       console.warn('Prisma schema mismatch when querying passengers:', err.message);
-      const page = Number((req.query as any).page ?? 1);
-      const pageSize = Math.min(Number((req.query as any).pageSize ?? 50), 100);
-      return res.json({ total: 0, page, pageSize, items: [] });
+      const pageNum = toPositiveInt((req.query as any).page) ?? 1;
+      const pageSizeNum = Math.min(toPositiveInt((req.query as any).pageSize) ?? 50, 100);
+      return res.json({ total: 0, page: pageNum, pageSize: pageSizeNum, items: [] });
     }
     console.error('Unhandled error in GET /admin/group-stays/passengers:', err);
     return res.status(500).json({ error: 'Internal server error' });

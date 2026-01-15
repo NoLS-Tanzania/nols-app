@@ -17,6 +17,66 @@ import { z } from "zod";
 export const router = Router();
 router.use(requireAuth as unknown as RequestHandler, requireRole("ADMIN") as unknown as RequestHandler);
 
+function parseJsonish(value: unknown): any | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "object") return value as any;
+  if (typeof value !== "string") return null;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+}
+
+async function getLatestClaimsConfig(groupBookingId: number): Promise<{
+  deadline: string | null;
+  notes: string | null;
+  minDiscountPercent: number | null;
+  updatedAt: string | null;
+}> {
+  const latest = await prisma.groupBookingAudit.findFirst({
+    where: {
+      groupBookingId,
+      action: { in: ["OPENED_FOR_CLAIMS", "UPDATED_CLAIMS_SETTINGS"] },
+    },
+    orderBy: { createdAt: "desc" },
+    select: { metadata: true, createdAt: true },
+  });
+
+  if (!latest) {
+    return { deadline: null, notes: null, minDiscountPercent: null, updatedAt: null };
+  }
+
+  const meta = parseJsonish((latest as any).metadata) || {};
+  const rawDeadline = meta.deadline ?? null;
+  const rawNotes = meta.notes ?? null;
+  const rawMinDiscount = meta.minDiscountPercent ?? null;
+
+  const deadline =
+    rawDeadline instanceof Date
+      ? rawDeadline.toISOString()
+      : typeof rawDeadline === "number"
+        ? new Date(rawDeadline).toISOString()
+        : typeof rawDeadline === "string" && rawDeadline.trim()
+          ? rawDeadline
+          : null;
+
+  const notes = typeof rawNotes === "string" && rawNotes.trim() ? rawNotes : null;
+  const minDiscountPercent =
+    rawMinDiscount === null || rawMinDiscount === undefined
+      ? null
+      : Number.isFinite(Number(rawMinDiscount))
+        ? Number(rawMinDiscount)
+        : null;
+
+  return {
+    deadline,
+    notes,
+    minDiscountPercent,
+    updatedAt: latest.createdAt ? latest.createdAt.toISOString() : null,
+  };
+}
+
 function computeThreeWayShortlist(claims: Array<{ id: number; totalAmount: number; createdAt: Date; currency?: string | null; status?: string | null }>) {
   const eligible = claims
     .filter((c) => ["PENDING", "REVIEWING"].includes(String(c.status || "").toUpperCase()))
@@ -80,14 +140,22 @@ function computeThreeWayShortlist(claims: Array<{ id: number; totalAmount: numbe
  * - page: Page number (default: 1)
  * - pageSize: Results per page (default: 50)
  * - q: Search query (property, owner, customer, region)
+ * - bookingId: Filter claims to a specific group booking
  */
 router.get("/", asyncHandler(async (req: any, res: any) => {
   try {
-    const { status, page = "1", pageSize = "50", q = "" } = req.query as any;
+    const { status, bookingId, page = "1", pageSize = "50", q = "" } = req.query as any;
     
     const pageNum = Math.max(1, Number(page) || 1);
     const pageSizeNum = Math.min(100, Math.max(1, Number(pageSize) || 50));
     const skip = (pageNum - 1) * pageSizeNum;
+
+    const bookingIdNum = bookingId !== undefined && bookingId !== null && String(bookingId).trim() !== ""
+      ? Number(bookingId)
+      : null;
+    if (bookingIdNum !== null && (!Number.isFinite(bookingIdNum) || bookingIdNum <= 0)) {
+      return res.status(400).json({ error: "Invalid bookingId" });
+    }
 
     // Build where clause - fetch ALL claims first (no isOpenForClaims filter)
     // This ensures we get all submitted claims regardless of booking status
@@ -95,6 +163,10 @@ router.get("/", asyncHandler(async (req: any, res: any) => {
     
     if (status && String(status).trim()) {
       where.status = String(status).trim().toUpperCase();
+    }
+
+    if (bookingIdNum !== null) {
+      where.groupBookingId = bookingIdNum;
     }
 
     // Get all claims with full details (regardless of booking isOpenForClaims status)
@@ -271,6 +343,7 @@ router.get("/", asyncHandler(async (req: any, res: any) => {
 
     // Calculate summary stats from ALL claims (before any filtering)
     const allClaimsForStats = await prisma.groupBookingClaim.findMany({
+      where: bookingIdNum !== null ? { groupBookingId: bookingIdNum } : undefined,
       select: {
         status: true,
         propertyId: true,
@@ -357,6 +430,8 @@ router.get("/:bookingId", asyncHandler(async (req: any, res: any) => {
     if (!groupBooking) {
       return res.status(404).json({ error: "Group booking not found" });
     }
+
+    const claimsConfig = await getLatestClaimsConfig(bookingId);
 
     // Get all claims for this booking with full details
     const claims = await prisma.groupBookingClaim.findMany({
@@ -510,6 +585,7 @@ router.get("/:bookingId", asyncHandler(async (req: any, res: any) => {
 
     return res.json({
       groupBooking,
+      claimsConfig,
       claims: formattedClaims,
       claimsByStatus,
       shortlist,

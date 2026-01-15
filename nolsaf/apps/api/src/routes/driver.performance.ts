@@ -11,7 +11,8 @@ router.use(requireAuth as unknown as RequestHandler, requireRole("DRIVER") as un
  */
 router.get("/", async (req, res) => {
   try {
-    const driverId = (req as any).userId;
+    const user = (req as any).user;
+    const driverId = user?.id;
     if (!driverId) {
       return res.status(401).json({ error: "Unauthorized" });
     }
@@ -31,11 +32,6 @@ router.get("/", async (req, res) => {
         email: true,
         createdAt: true,
         rating: true,
-        _count: {
-          select: {
-            reviewsReceived: true,
-          },
-        },
       },
     });
 
@@ -56,38 +52,74 @@ router.get("/", async (req, res) => {
     let activeDays = new Set<string>();
 
     try {
-      // Try to get trips from Booking model
-      if ((prisma as any).booking) {
-        monthlyTrips = await (prisma as any).booking.findMany({
+      // Try TransportBooking first (for transport rides)
+      try {
+        monthlyTrips = await prisma.transportBooking.findMany({
           where: {
             driverId: Number(driverId),
-            scheduledAt: { gte: startOfMonth },
+            scheduledDate: { gte: startOfMonth },
           },
           select: {
             id: true,
             status: true,
-            scheduledAt: true,
+            scheduledDate: true,
           },
         });
 
         // Get all-time trips count
-        totalTrips = await (prisma as any).booking.count({
+        totalTrips = await prisma.transportBooking.count({
           where: { driverId: Number(driverId) },
         });
 
         // Count completed and cancelled
         completedTrips = monthlyTrips.filter(
-          (t: any) => t.status === "COMPLETED" || t.status === "FINISHED" || t.status === "PAID"
+          (t: any) => t.status === "COMPLETED" || t.status === "CONFIRMED" || t.status === "IN_PROGRESS"
         ).length;
-        cancelledTrips = monthlyTrips.filter((t: any) => t.status === "CANCELLED").length;
+        cancelledTrips = monthlyTrips.filter((t: any) => t.status === "CANCELED" || t.status === "CANCELLED").length;
 
         // Count active days (days with at least one trip)
         monthlyTrips.forEach((trip: any) => {
-          if (trip.scheduledAt) {
-            const date = new Date(trip.scheduledAt).toISOString().split("T")[0];
+          if (trip.scheduledDate) {
+            const date = new Date(trip.scheduledDate).toISOString().split("T")[0];
             activeDays.add(date);
           }
         });
+      } catch (transportErr: any) {
+        // If TransportBooking fails, try Booking model (for property bookings with driver)
+        try {
+          monthlyTrips = await prisma.booking.findMany({
+            where: {
+              driverId: Number(driverId),
+              checkIn: { gte: startOfMonth },
+            },
+            select: {
+              id: true,
+              status: true,
+              checkIn: true,
+            },
+          });
+
+          // Get all-time trips count
+          totalTrips = await prisma.booking.count({
+            where: { driverId: Number(driverId) },
+          });
+
+          // Count completed and cancelled
+          completedTrips = monthlyTrips.filter(
+            (t: any) => t.status === "CHECKED_IN" || t.status === "CHECKED_OUT" || t.status === "CONFIRMED"
+          ).length;
+          cancelledTrips = monthlyTrips.filter((t: any) => t.status === "CANCELED" || t.status === "CANCELLED").length;
+
+          // Count active days (days with at least one trip)
+          monthlyTrips.forEach((trip: any) => {
+            if (trip.checkIn) {
+              const date = new Date(trip.checkIn).toISOString().split("T")[0];
+              activeDays.add(date);
+            }
+          });
+        } catch (bookingErr: any) {
+          console.warn("Failed to fetch trips from both TransportBooking and Booking", { transportErr, bookingErr });
+        }
       }
     } catch (e) {
       console.warn("Failed to fetch trips for performance metrics", e);
@@ -156,7 +188,7 @@ router.get("/", async (req, res) => {
         startOfMonth: startOfMonth.toISOString(),
         endOfMonth: now.toISOString(),
       },
-      totalReviews: driver._count.reviewsReceived,
+      totalReviews: 0, // Reviews count not available in current schema
     });
   } catch (err: any) {
     console.error("Error fetching driver performance:", err);

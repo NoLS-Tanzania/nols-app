@@ -1,7 +1,8 @@
 "use client";
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import TableRow from "@/components/TableRow";
-import { Receipt, ChevronLeft, ChevronRight, Download, CheckCircle, DollarSign } from "lucide-react";
+import { Receipt, ChevronLeft, ChevronRight, Download, Search, ChevronDown, X, CheckCircle2, Clock, XCircle } from "lucide-react";
+import Link from "next/link";
 
 type InvoiceRow = {
   id: number;
@@ -50,7 +51,8 @@ export default function InvoicesManagementPage(){
   const [pageSize] = useState(25);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [markPaidModal, setMarkPaidModal] = useState<InvoiceRow | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("ALL");
 
   useEffect(() => {
     let mounted = true;
@@ -79,51 +81,28 @@ export default function InvoicesManagementPage(){
     return () => { mounted = false; };
   }, [page, pageSize, apiBase]);
 
-  async function approve(inv: InvoiceRow) {
-    if (!confirm('Approve invoice #' + inv.id + '?')) return;
-    try {
-      const r = await fetch(`${apiBase.replace(/\/$/, '')}/api/admin/invoices/${inv.id}/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
-      if (!r.ok) throw new Error('approve failed');
-      const j = await r.json();
-      setItems((cur) => cur.map(i => i.id === inv.id ? (j.invoice as InvoiceRow) : i));
-      alert('Approved');
-    } catch (e) { alert('Approve failed'); }
-  }
-
-  async function openMarkPaid(inv: InvoiceRow) {
-    setMarkPaidModal(inv);
-  }
-
-  async function markPaid(inv: InvoiceRow, method = 'BANK', ref = '') {
-    try {
-      const r = await fetch(`${apiBase.replace(/\/$/, '')}/api/admin/invoices/${inv.id}/mark-paid`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ method, ref }) });
-      if (!r.ok) throw new Error('mark-paid failed');
-      const j = await r.json();
-      setItems((cur) => cur.map(i => i.id === inv.id ? (j.invoice as InvoiceRow) : i));
-      setMarkPaidModal(null);
-      alert('Marked as paid');
-    } catch (e) {
-      alert('Mark paid failed');
-    }
-  }
+  // Manual invoice actions intentionally removed (invoice lifecycle is automatic).
 
   function downloadReceipt(inv: InvoiceRow) {
     const url = `${apiBase.replace(/\/$/, '')}/api/admin/invoices/${inv.id}/receipt.png`;
     window.open(url, '_blank');
   }
 
-  function getStatusBadgeClass(status: string) {
+  function getStatusIcon(status: string) {
     const statusLower = status.toLowerCase();
-    if (statusLower.includes('paid') || statusLower.includes('approved')) {
-      return "inline-flex items-center px-2 py-1 rounded-md bg-green-50 text-green-700 text-xs font-medium";
+    if (statusLower.includes('paid')) {
+      return { Icon: CheckCircle2, className: "h-4 w-4 text-emerald-600" };
     }
-    if (statusLower.includes('pending') || statusLower.includes('unpaid')) {
-      return "inline-flex items-center px-2 py-1 rounded-md bg-yellow-50 text-yellow-700 text-xs font-medium";
+    if (statusLower.includes('approved')) {
+      return { Icon: CheckCircle2, className: "h-4 w-4 text-blue-600" };
+    }
+    if (statusLower.includes('pending') || statusLower.includes('requested') || statusLower.includes('unpaid')) {
+      return { Icon: Clock, className: "h-4 w-4 text-amber-600" };
     }
     if (statusLower.includes('cancel') || statusLower.includes('reject')) {
-      return "inline-flex items-center px-2 py-1 rounded-md bg-red-50 text-red-700 text-xs font-medium";
+      return { Icon: XCircle, className: "h-4 w-4 text-rose-600" };
     }
-    return "inline-flex items-center px-2 py-1 rounded-md bg-gray-50 text-gray-700 text-xs font-medium";
+    return { Icon: Clock, className: "h-4 w-4 text-slate-500" };
   }
 
   function formatCurrency(amount: number) {
@@ -135,153 +114,326 @@ export default function InvoicesManagementPage(){
     }).format(amount);
   }
 
+  const filteredItems = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return items.filter((inv) => {
+      if (statusFilter !== 'ALL' && inv.status !== statusFilter) return false;
+      if (!q) return true;
+      const haystack = [
+        inv.invoiceNumber,
+        inv.receiptNumber,
+        String(inv.id),
+        inv.owner?.name,
+        inv.owner?.email,
+        inv.owner?.phone,
+        inv.booking?.property?.title,
+        inv.booking?.property?.type,
+        inv.status,
+      ]
+        .filter(Boolean)
+        .join(' | ')
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [items, searchQuery, statusFilter]);
+
+  const statusOptions = useMemo(() => {
+    const unique = new Set<string>();
+    items.forEach(i => unique.add(i.status));
+    return ['ALL', ...Array.from(unique).sort()];
+  }, [items]);
+
+  const paidOnPage = useMemo(() => filteredItems.filter(i => i.status?.toLowerCase().includes('paid')).length, [filteredItems]);
+  const pendingOnPage = useMemo(() => filteredItems.filter(i => {
+    const s = i.status?.toLowerCase() ?? '';
+    return s.includes('pending') || s.includes('unpaid');
+  }).length, [filteredItems]);
+  const approvedOnPage = useMemo(() => filteredItems.filter(i => i.status?.toLowerCase().includes('approved')).length, [filteredItems]);
+
+  function applyQuickFilter(kind: 'ALL' | 'PAID' | 'APPROVED' | 'PENDING') {
+    if (kind === 'ALL') {
+      setSearchQuery('');
+      setStatusFilter('ALL');
+      return;
+    }
+
+    const candidates = statusOptions.filter(s => s !== 'ALL');
+    const pick = (predicate: (s: string) => boolean) => candidates.find(s => predicate(s.toLowerCase()));
+
+    const selected =
+      kind === 'PAID'
+        ? pick((s) => s.includes('paid'))
+        : kind === 'APPROVED'
+          ? pick((s) => s.includes('approved'))
+          : pick((s) => s.includes('pending') || s.includes('unpaid'));
+
+    setSearchQuery('');
+    if (selected) {
+      setStatusFilter(selected);
+    } else {
+      setStatusFilter('ALL');
+      setSearchQuery(kind === 'PAID' ? 'paid' : kind === 'APPROVED' ? 'approved' : 'pending');
+    }
+  }
+
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-        <div className="flex flex-col items-center text-center mb-4">
-          <Receipt className="h-8 w-8 text-gray-400 mb-3" />
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900">
-            All Invoices Management
-          </h1>
-          <p className="mt-1 text-sm text-gray-600">
-            Manage all invoices from owners, drivers, and bookings across the platform
-          </p>
-          <p className="mt-1 text-xs text-gray-500">
-            Total invoices: {total.toLocaleString()}
-          </p>
+      <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="absolute inset-0 bg-gradient-to-br from-[#02665e]/8 via-white to-sky-50" />
+        <div className="relative p-6 sm:p-8">
+          <div className="flex flex-col gap-5">
+            <div className="flex flex-col items-center text-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#02665e]/10 ring-1 ring-inset ring-[#02665e]/20">
+                <Receipt className="h-6 w-6 text-[#02665e]" />
+              </div>
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-slate-900">
+                  All Invoices
+                </h1>
+                <p className="mt-1 text-sm text-slate-600 max-w-2xl mx-auto">
+                  All invoices from owners and drivers across the platform.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <button
+                type="button"
+                onClick={() => applyQuickFilter('ALL')}
+                className="group text-left rounded-2xl border border-slate-200 bg-white/70 p-4 backdrop-blur transition-all hover:-translate-y-0.5 hover:shadow-md hover:border-[#02665e]/25 focus:outline-none focus:ring-2 focus:ring-[#02665e]/30"
+                aria-label="Show all invoices"
+              >
+                <div className="text-xs font-medium text-slate-600">Total invoices</div>
+                <div className="mt-1 text-2xl font-semibold tracking-tight text-slate-900 tabular-nums">{total.toLocaleString()}</div>
+                <div className="mt-2 text-xs text-slate-500 group-hover:text-slate-600">Clear filters</div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => applyQuickFilter('PAID')}
+                className="group text-left rounded-2xl border border-slate-200 bg-white/70 p-4 backdrop-blur transition-all hover:-translate-y-0.5 hover:shadow-md hover:border-emerald-300/60 focus:outline-none focus:ring-2 focus:ring-emerald-300/40"
+                aria-label="Filter paid invoices"
+              >
+                <div className="text-xs font-medium text-slate-600">Paid (this page)</div>
+                <div className="mt-1 text-2xl font-semibold tracking-tight text-slate-900 tabular-nums">{paidOnPage.toLocaleString()}</div>
+                <div className="mt-2 text-xs text-slate-500 group-hover:text-slate-600">Filter list</div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => applyQuickFilter('APPROVED')}
+                className="group text-left rounded-2xl border border-slate-200 bg-white/70 p-4 backdrop-blur transition-all hover:-translate-y-0.5 hover:shadow-md hover:border-sky-300/70 focus:outline-none focus:ring-2 focus:ring-sky-300/40"
+                aria-label="Filter approved invoices"
+              >
+                <div className="text-xs font-medium text-slate-600">Approved (this page)</div>
+                <div className="mt-1 text-2xl font-semibold tracking-tight text-slate-900 tabular-nums">{approvedOnPage.toLocaleString()}</div>
+                <div className="mt-2 text-xs text-slate-500 group-hover:text-slate-600">Filter list</div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => applyQuickFilter('PENDING')}
+                className="group text-left rounded-2xl border border-slate-200 bg-white/70 p-4 backdrop-blur transition-all hover:-translate-y-0.5 hover:shadow-md hover:border-amber-300/70 focus:outline-none focus:ring-2 focus:ring-amber-300/40"
+                aria-label="Filter pending or unpaid invoices"
+              >
+                <div className="text-xs font-medium text-slate-600">Pending/Unpaid (this page)</div>
+                <div className="mt-1 text-2xl font-semibold tracking-tight text-slate-900 tabular-nums">{pendingOnPage.toLocaleString()}</div>
+                <div className="mt-2 text-xs text-slate-500 group-hover:text-slate-600">Filter list</div>
+              </button>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200/80 bg-white/70 shadow-sm backdrop-blur overflow-hidden focus-within:ring-2 focus-within:ring-[#02665e]/20 focus-within:border-[#02665e]/30">
+              <div className="flex flex-col sm:flex-row items-stretch overflow-hidden">
+                <div className="relative flex-1 min-w-0">
+                  <label htmlFor="invoiceSearch" className="sr-only">Search invoices</label>
+                  <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <input
+                    id="invoiceSearch"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search by invoice #, receipt, owner, property, status…"
+                    className="w-full min-w-0 border-0 bg-transparent py-3.5 pl-11 pr-4 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:ring-0"
+                  />
+                </div>
+
+                <div className="flex min-w-0 items-stretch border-t border-slate-200/80 sm:border-t-0 sm:border-l">
+                  <div className="relative w-full min-w-0 sm:w-64">
+                    <label htmlFor="statusFilter" className="sr-only">Filter by status</label>
+                    <select
+                      id="statusFilter"
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                      className="h-full w-full min-w-0 !appearance-none !bg-none border-0 bg-transparent px-4 py-3.5 pr-10 text-sm font-medium text-slate-900 outline-none focus:ring-0"
+                    >
+                      {statusOptions.map((s) => (
+                        <option key={s} value={s}>{s === 'ALL' ? 'All statuses' : s}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  </div>
+
+                  {(searchQuery.trim() || statusFilter !== 'ALL') ? (
+                    <button
+                      type="button"
+                      onClick={() => { setSearchQuery(''); setStatusFilter('ALL'); }}
+                      className="inline-flex shrink-0 items-center justify-center border-l border-slate-200/80 bg-white/40 px-3 text-slate-500 transition hover:bg-white/70 hover:text-slate-700 focus:outline-none"
+                      aria-label="Clear filters"
+                      title="Clear filters"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <table className="min-w-full divide-y divide-slate-200">
+            <thead className="bg-slate-50 sticky top-0 z-10">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoice #</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Owner</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Property</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Issued</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Net Payable</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">ID</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Type</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Invoice</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Owner</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Property</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Issued</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Total</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Net</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Status</th>
+                <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase tracking-wider">Receipt</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-white divide-y divide-slate-100">
               {loading ? (
+                Array.from({ length: 8 }).map((_, idx) => (
+                  <TableRow key={`sk-${idx}`} hover={false}>
+                    <td colSpan={10} className="px-4 py-4">
+                      <div className="h-10 w-full rounded-xl bg-slate-100 animate-pulse" />
+                    </td>
+                  </TableRow>
+                ))
+              ) : filteredItems.length === 0 ? (
                 <TableRow hover={false}>
-                  <td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-500">
-                    Loading…
-                  </td>
-                </TableRow>
-              ) : items.length === 0 ? (
-                <TableRow hover={false}>
-                  <td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-500">
-                    No invoices found
+                  <td colSpan={10} className="px-4 py-10 text-center">
+                    <div className="mx-auto max-w-md">
+                      <div className="text-sm font-medium text-slate-900">No invoices match your filters</div>
+                      <div className="mt-1 text-sm text-slate-600">Try clearing search or switching the status filter.</div>
+                      <div className="mt-4 flex justify-center gap-2">
+                        <button
+                          className="px-3 py-2 text-sm font-medium text-slate-700 border border-slate-200 rounded-xl hover:bg-slate-50 transition"
+                          onClick={() => { setSearchQuery(''); setStatusFilter('ALL'); }}
+                        >
+                          Clear filters
+                        </button>
+                      </div>
+                    </div>
                   </td>
                 </TableRow>
               ) : (
-                items.map(i => (
+                filteredItems.map(i => {
+                  const invoiceType = i.owner?.role === 'DRIVER' ? 'Driver' : 'Owner';
+                  return (
                   <TableRow key={i.id}>
-                    <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap font-medium">
-                      #{i.id}
+                    <td className="px-4 py-3 text-sm text-slate-900 whitespace-nowrap font-semibold tabular-nums">
+                      #{i.id.toLocaleString()}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-700">
-                      <div className="font-medium">{i.invoiceNumber ?? '—'}</div>
-                      {i.receiptNumber && (
-                        <div className="text-xs text-gray-500">Receipt: {i.receiptNumber}</div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-700">
-                      <div className="font-medium">{i.owner?.name ?? `Owner #${i.ownerId}`}</div>
-                      {i.owner?.email && (
-                        <div className="text-xs text-gray-500">{i.owner.email}</div>
-                      )}
-                      {i.owner?.phone && (
-                        <div className="text-xs text-gray-500">{i.owner.phone}</div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-700">
-                      {i.booking?.property?.title ?? '—'}
-                      {i.booking?.property?.type && (
-                        <div className="text-xs text-gray-500">{i.booking.property.type}</div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">
-                      {new Date(i.issuedAt).toLocaleDateString()}
-                      <br />
-                      <span className="text-xs text-gray-500">
-                        {new Date(i.issuedAt).toLocaleTimeString()}
+                    <td className="px-4 py-3 text-sm">
+                      <span className={`inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-semibold ${
+                        invoiceType === 'Driver' 
+                          ? 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-200' 
+                          : 'bg-[#02665e]/10 text-[#02665e] ring-1 ring-inset ring-[#02665e]/20'
+                      }`}>
+                        {invoiceType}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900 text-right whitespace-nowrap font-medium">
+                    <td className="px-4 py-3 text-sm text-slate-700">
+                      <div className="font-semibold text-slate-900">{i.invoiceNumber ?? '—'}</div>
+                      {i.receiptNumber && (
+                        <div className="text-xs text-slate-500">Receipt: <span className="tabular-nums">{i.receiptNumber}</span></div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-slate-700">
+                      <div className="font-semibold text-slate-900">{i.owner?.name ?? `Owner #${i.ownerId}`}</div>
+                      {i.owner?.email && (
+                        <div className="text-xs text-slate-500 truncate max-w-[260px]">{i.owner.email}</div>
+                      )}
+                      {i.owner?.phone && (
+                        <div className="text-xs text-slate-500 tabular-nums">{i.owner.phone}</div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-slate-700">
+                      <div className="font-medium text-slate-900">{i.booking?.property?.title ?? '—'}</div>
+                      {i.booking?.property?.type && (
+                        <div className="text-xs text-slate-500">{i.booking.property.type}</div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">
+                      <div className="tabular-nums text-slate-900 font-medium">{new Date(i.issuedAt).toLocaleDateString()}</div>
+                      <div className="text-xs text-slate-500 tabular-nums">{new Date(i.issuedAt).toLocaleTimeString()}</div>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-slate-900 text-right whitespace-nowrap font-semibold tabular-nums">
                       {formatCurrency(Number(i.total))}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900 text-right whitespace-nowrap">
-                      <div className="font-medium">{i.netPayable ? formatCurrency(Number(i.netPayable)) : '—'}</div>
+                    <td className="px-4 py-3 text-sm text-slate-900 text-right whitespace-nowrap">
+                      <div className="font-semibold tabular-nums">{i.netPayable ? formatCurrency(Number(i.netPayable)) : '—'}</div>
                       {i.commissionAmount && (
-                        <div className="text-xs text-gray-500">Commission: {formatCurrency(Number(i.commissionAmount))}</div>
+                        <div className="text-xs text-slate-500 tabular-nums">Commission: {formatCurrency(Number(i.commissionAmount))}</div>
                       )}
                     </td>
                     <td className="px-4 py-3 text-sm">
-                      <span className={getStatusBadgeClass(i.status)}>
-                        {i.status}
-                      </span>
+                      <div className="flex items-center">
+                        {(() => {
+                          const { Icon, className } = getStatusIcon(i.status);
+                          return (
+                            <span title={i.status}>
+                              <Icon className={className} />
+                            </span>
+                          );
+                        })()}
+                      </div>
                       {i.paidAt && (
-                        <div className="text-xs text-gray-500 mt-1">
+                        <div className="text-xs text-slate-500 mt-1.5 tabular-nums">
                           Paid: {new Date(i.paidAt).toLocaleDateString()}
                         </div>
                       )}
                       {i.paymentMethod && (
-                        <div className="text-xs text-gray-500">
+                        <div className="text-xs text-slate-500 mt-0.5">
                           {i.paymentMethod}
                         </div>
                       )}
                     </td>
                     <td className="px-4 py-3 text-sm">
-                      <div className="flex gap-2 justify-center flex-wrap">
-                        {i.status !== 'APPROVED' && i.status !== 'PAID' && (
-                          <button 
-                            className="px-3 py-1 text-xs font-medium text-[#02665e] border border-[#02665e] rounded hover:bg-[#02665e] hover:text-white transition-all duration-200 active:bg-[#02665e] active:text-white touch-manipulation flex items-center gap-1"
-                            onClick={() => approve(i)}
-                          >
-                            <CheckCircle className="h-3 w-3" />
-                            Approve
-                          </button>
-                        )}
-                        {i.status !== 'PAID' && (
-                          <button 
-                            className="px-3 py-1 text-xs font-medium text-gray-700 border border-gray-300 rounded hover:border-green-500 hover:text-green-600 transition-all duration-200 active:border-green-500 active:text-green-600 touch-manipulation flex items-center gap-1"
-                            onClick={() => openMarkPaid(i)}
-                          >
-                            <DollarSign className="h-3 w-3" />
-                            Mark Paid
-                          </button>
-                        )}
-                        {i.receiptNumber && (
-                          <button 
-                            className="px-3 py-1 text-xs font-medium text-gray-700 border border-gray-300 rounded hover:border-blue-500 hover:text-blue-600 transition-all duration-200 active:border-blue-500 active:text-blue-600 touch-manipulation flex items-center gap-1"
+                      <div className="flex justify-center">
+                        {i.receiptNumber ? (
+                          <button
+                            className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition-all duration-200 hover:border-sky-300 hover:bg-sky-50/40 hover:text-sky-700 active:border-sky-400 active:text-sky-800"
                             onClick={() => downloadReceipt(i)}
                           >
                             <Download className="h-3 w-3" />
                             Receipt
                           </button>
+                        ) : (
+                          <span className="text-xs text-slate-400">—</span>
                         )}
                       </div>
                     </td>
                   </TableRow>
-                ))
+                );
+                })
               )}
             </tbody>
           </table>
         </div>
       </div>
 
-      <div className="flex items-center justify-between bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
         <div className="flex gap-2">
           <button 
-            className="p-2 border border-gray-300 rounded-lg hover:border-[#02665e] hover:text-[#02665e] transition-all duration-200 active:border-[#02665e] active:text-[#02665e] touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+            className="p-2 border border-slate-200 rounded-xl hover:border-[#02665e]/40 hover:text-[#02665e] transition-all duration-200 active:border-[#02665e] active:text-[#02665e] touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center bg-white"
             onClick={() => setPage(p => Math.max(1, p - 1))}
             disabled={page === 1 || loading}
             aria-label="Previous page"
@@ -289,7 +441,7 @@ export default function InvoicesManagementPage(){
             <ChevronLeft className="h-5 w-5" />
           </button>
           <button 
-            className="p-2 border border-gray-300 rounded-lg hover:border-[#02665e] hover:text-[#02665e] transition-all duration-200 active:border-[#02665e] active:text-[#02665e] touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+            className="p-2 border border-slate-200 rounded-xl hover:border-[#02665e]/40 hover:text-[#02665e] transition-all duration-200 active:border-[#02665e] active:text-[#02665e] touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center bg-white"
             onClick={() => setPage(p => p + 1)}
             disabled={items.length < pageSize || loading || (page * pageSize >= total)}
             aria-label="Next page"
@@ -297,62 +449,17 @@ export default function InvoicesManagementPage(){
             <ChevronRight className="h-5 w-5" />
           </button>
         </div>
-        <div className="text-sm text-gray-600">
-          Page <span className="font-semibold text-gray-900">{page}</span>
+        <div className="text-sm text-slate-600">
+          Page <span className="font-semibold text-slate-900 tabular-nums">{page}</span>
           {total > 0 && (
-            <span className="ml-2 text-gray-500">
-              (Total: {total})
+            <span className="ml-2 text-slate-500 tabular-nums">
+              (Total: {total.toLocaleString()})
             </span>
           )}
         </div>
       </div>
 
-      {markPaidModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md border border-gray-200">
-            <h2 className="text-lg font-semibold mb-4 text-gray-900">Mark Invoice Paid</h2>
-            <p className="text-sm mb-4 text-gray-600">Invoice #{markPaidModal.id} — {markPaidModal.invoiceNumber ?? '—'}</p>
-            <div className="mb-4">
-              <label htmlFor="pmethod" className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
-              <select 
-                id="pmethod" 
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] outline-none"
-                defaultValue="BANK"
-              >
-                <option value="BANK">Bank</option>
-                <option value="MOMO">Mobile Money</option>
-              </select>
-            </div>
-            <div className="mb-4">
-              <label htmlFor="pref" className="block text-sm font-medium text-gray-700 mb-1">Reference</label>
-              <input 
-                id="pref" 
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] outline-none"
-                placeholder="Enter payment reference"
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              <button 
-                className="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-all duration-200"
-                onClick={() => setMarkPaidModal(null)}
-              >
-                Cancel
-              </button>
-              <button 
-                className="px-4 py-2 text-sm font-medium text-white bg-[#02665e] rounded-lg hover:bg-[#015b54] transition-all duration-200"
-                onClick={() => {
-                  const method = (document.getElementById('pmethod') as HTMLSelectElement).value;
-                  const ref = (document.getElementById('pref') as HTMLInputElement).value;
-                  markPaid(markPaidModal, method, ref);
-                }}
-              >
-                Mark Paid
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
+      {/* Manual invoice actions intentionally removed (invoice lifecycle is automatic). */}
     </div>
   );
 }

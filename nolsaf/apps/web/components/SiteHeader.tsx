@@ -114,6 +114,7 @@ export default function SiteHeader({
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const isAdmin = role === "ADMIN";
   const isOwner = role === "OWNER";
+  const logoutRedirect = isAdmin || isOwner || driverMode || role === "DRIVER" ? "/login" : "/public";
   const [unreadCount, setUnreadCount] = useState<number | null>(null);
   const [touchedIcon, setTouchedIcon] = useState<string | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -507,7 +508,7 @@ export default function SiteHeader({
                           try {
                             await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
                           } catch {}
-                          window.location.href = "/login";
+                          window.location.href = logoutRedirect;
                         }}
                         className="group w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-all duration-200 no-underline rounded-lg mx-1"
                       >
@@ -813,7 +814,7 @@ export default function SiteHeader({
                         try {
                           await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
                         } catch {}
-                        window.location.href = "/login";
+                        window.location.href = logoutRedirect;
                       }}
                       className="group w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50/50 transition-all duration-200 no-underline"
                     >
@@ -990,7 +991,7 @@ export default function SiteHeader({
                         try {
                           await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
                         } catch {}
-                        window.location.href = "/login";
+                        window.location.href = logoutRedirect;
                       }}
                       className="group w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-all duration-200 no-underline rounded-lg mx-1"
                     >
@@ -1252,7 +1253,7 @@ export default function SiteHeader({
                     try {
                       await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
                     } catch {}
-                    window.location.href = "/login";
+                    window.location.href = logoutRedirect;
                   }}
                   className="mobile-menu-item group relative px-4 py-3 rounded-xl text-sm font-semibold text-red-300 hover:text-red-100 active:scale-[0.98] transition-all duration-300 ease-out animate-fade-in-stagger overflow-hidden"
                   style={{ '--delay': 10 } as React.CSSProperties}

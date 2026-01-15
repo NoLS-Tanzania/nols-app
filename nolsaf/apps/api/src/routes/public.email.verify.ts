@@ -28,7 +28,14 @@ router.get("/admin/email/verify", async (req, res) => {
 
   await prisma.emailVerificationToken.delete({ where: { id: rec.id } });
 
-  // Redirect to app success page
-  const app = process.env.APP_URL || "/";
-  res.redirect(`${app}/admin/settings?email_verified=1`);
+  // Redirect to appropriate page based on user role
+  const app = process.env.APP_URL || process.env.WEB_ORIGIN || "http://localhost:3000";
+  const userRole = String(user.role || '').toUpperCase();
+  if (userRole === 'OWNER') {
+    res.redirect(`${app}/owner/profile?email_verified=1`);
+  } else if (userRole === 'ADMIN') {
+    res.redirect(`${app}/admin/settings?email_verified=1`);
+  } else {
+    res.redirect(`${app}/account/security?email_verified=1`);
+  }
 });

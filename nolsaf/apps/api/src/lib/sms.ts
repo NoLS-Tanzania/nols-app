@@ -12,6 +12,27 @@ export async function sendSms(to: string, text: string) {
                            phone.startsWith('255') ? `+${phone}` : 
                            `+255${phone}`;
 
+    // Track last error so we can return something useful
+    let lastError: string | null = null;
+
+    async function readJsonOrText(response: Response): Promise<{ json: any | null; text: string } > {
+      const contentType = response.headers.get('content-type') || '';
+      const raw = await response.text();
+      if (contentType.toLowerCase().includes('application/json')) {
+        try {
+          return { json: raw ? JSON.parse(raw) : null, text: raw };
+        } catch {
+          return { json: null, text: raw };
+        }
+      }
+      // Some providers return text/plain even on errors
+      try {
+        return { json: raw ? JSON.parse(raw) : null, text: raw };
+      } catch {
+        return { json: null, text: raw };
+      }
+    }
+
     // Check if SMS provider is configured
     // Priority: Africa's Talking (for East Africa) > Twilio > Generic API > Console
     const smsProvider = process.env.SMS_PROVIDER || 
@@ -44,9 +65,16 @@ export async function sendSms(to: string, text: string) {
             }
           );
 
-          const data = await response.json();
+          const { json, text: rawText } = await readJsonOrText(response);
+          const data = json;
           if (!response.ok) {
-            throw new Error(`Africa's Talking error: ${data.errorMessage || data.message || 'Unknown error'}`);
+            const msg =
+              data?.errorMessage ||
+              data?.message ||
+              (rawText ? String(rawText).slice(0, 300) : '') ||
+              response.statusText ||
+              'Unknown error';
+            throw new Error(`Africa's Talking error: ${msg}`);
           }
 
           return { 
@@ -55,7 +83,8 @@ export async function sendSms(to: string, text: string) {
             provider: 'africastalking'
           };
         } catch (error: any) {
-          console.error('[SMS] Africa\'s Talking failed:', error.message);
+          lastError = error?.message || 'Africa\'s Talking failed';
+          console.error('[SMS] Africa\'s Talking failed:', lastError);
           // Fall through to next provider
         }
       }
@@ -99,6 +128,11 @@ export async function sendSms(to: string, text: string) {
 
     // Generic HTTP API integration
     if (smsApiUrl) {
+      // Avoid noisy failures when a placeholder is accidentally configured.
+      const isPlaceholderUrl = /your-sms-api\.com|example\.com/i.test(String(smsApiUrl));
+      if (isPlaceholderUrl && process.env.NODE_ENV !== 'production') {
+        lastError = `SMS_API_URL is set to a placeholder (${smsApiUrl}); using console SMS in non-production.`;
+      } else {
       const response = await fetch(smsApiUrl, {
         method: 'POST',
         headers: {
@@ -112,24 +146,34 @@ export async function sendSms(to: string, text: string) {
       });
 
       if (!response.ok) {
-        throw new Error(`SMS API error: ${response.statusText}`);
+        const { text: rawText } = await readJsonOrText(response);
+        throw new Error(`SMS API error: ${rawText ? String(rawText).slice(0, 300) : response.statusText}`);
       }
 
-      const data = await response.json();
+      const { json } = await readJsonOrText(response);
+      const data = json || {};
       return { success: true, messageId: data.messageId || data.id || 'unknown', provider: 'generic' };
+      }
     }
 
-    // Fallback: log (development mode)
+    // Fallback: log (non-production)
     if (process.env.NODE_ENV !== 'production') {
+      if (lastError) console.warn('[SMS] Falling back to console SMS:', lastError);
       console.log(`[SMS] -> ${normalizedPhone}: ${text}`);
       return { success: true, messageId: `log-${Date.now()}`, provider: 'console' };
     }
 
     // Production mode without provider: return error
-    return { success: false, error: 'No SMS provider configured' };
+    return { success: false, error: lastError || 'No SMS provider configured' };
   } catch (error: any) {
-    console.error('[SMS] Failed to send SMS:', error);
-    // Don't throw - SMS failure shouldn't break the payment flow
-    return { success: false, error: error.message };
+    const msg = error?.message || 'Failed to send SMS';
+    console.error('[SMS] Failed to send SMS:', msg);
+    // In non-production, don't break flows (OTP/payment) because of SMS provider config.
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('[SMS] Using console SMS in non-production due to provider failure.');
+      console.log(`[SMS] -> ${to}: ${text}`);
+      return { success: true, messageId: `log-${Date.now()}`, provider: 'console' };
+    }
+    return { success: false, error: msg };
   }
 }

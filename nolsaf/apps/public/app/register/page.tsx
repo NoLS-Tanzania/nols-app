@@ -6,7 +6,7 @@ export default function RegisterPage() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<"USER" | "OWNER" | "DRIVER">("USER");
+  const [role, setRole] = useState<"CUSTOMER" | "OWNER" | "DRIVER">("CUSTOMER");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -39,7 +39,7 @@ export default function RegisterPage() {
         <p className="text-sm text-gray-600">Choose the account type below. Admin accounts cannot be created here.</p>
 
         <div className="grid grid-cols-3 gap-3">
-          <a href="/register" className="btn btn-outline">General (User)</a>
+          <a href="/register" className="btn btn-outline">Customer</a>
           <a href="/register/owner" className="btn btn-outline">Owner</a>
           <a href="/register/driver" className="btn btn-outline">Driver</a>
         </div>

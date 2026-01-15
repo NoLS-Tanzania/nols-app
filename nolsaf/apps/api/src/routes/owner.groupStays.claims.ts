@@ -8,6 +8,100 @@ import type { RequestHandler } from "express";
 const router = Router();
 router.use(requireAuth as unknown as RequestHandler, requireRole("OWNER") as unknown as RequestHandler);
 
+function normalizeText(v: unknown): string {
+  return String(v ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+function normalizeKey(v: unknown): string {
+  return normalizeText(v)
+    .replace(/[\s\-]+/g, "_")
+    .replace(/[^a-z0-9_]/g, "");
+}
+
+function normalizeDistrictName(v: unknown): string {
+  // Make matching resilient to "District" suffix and spacing.
+  return normalizeText(v)
+    .replace(/\bdistrict\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getServicesTags(services: unknown): string[] {
+  if (!services) return [];
+  if (Array.isArray(services)) {
+    return services
+      .filter((s) => typeof s === "string")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+  if (typeof services === "object") {
+    const tags = (services as any)?.tags;
+    if (Array.isArray(tags)) {
+      return tags
+        .filter((s) => typeof s === "string")
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
+  }
+  return [];
+}
+
+function propertyAllowsGroupStay(services: unknown): boolean {
+  const tags = getServicesTags(services);
+  return tags.some((t) => normalizeText(t) === "group stay");
+}
+
+function propertyTypeToAccommodationKey(propertyType: unknown): string {
+  // Property.type is stored as UI label (e.g. "Hotel", "Guest House")
+  return normalizeKey(propertyType);
+}
+
+function bookingAccommodationKey(accommodationType: unknown): string {
+  // GroupBooking.accommodationType is typically lower-case like "hotel"/"guest_house".
+  return normalizeKey(accommodationType);
+}
+
+function isAccommodationCompatible(requested: string, propertyKey: string): boolean {
+  if (!requested || !propertyKey) return false;
+
+  // Direct match works for most cases.
+  if (requested === propertyKey) return true;
+
+  // Special cases / legacy compatibility.
+  // NOTE: We do not have a distinct Property type "Hostel" in the system UI,
+  // so we treat hostel requests as compatible with Hotel or Guest House.
+  if (requested === "hostel") {
+    return propertyKey === "hotel" || propertyKey === "guest_house";
+  }
+
+  if (requested === "guesthouse") {
+    return propertyKey === "guest_house";
+  }
+
+  return false;
+}
+
+function hotelStarLabelToNumber(v: unknown): number | null {
+  const s = normalizeText(v);
+  if (!s) return null;
+  // Stored in DB as label (basic/simple/moderate/high/luxury)
+  const map: Record<string, number> = {
+    basic: 1,
+    simple: 2,
+    moderate: 3,
+    high: 4,
+    luxury: 5,
+  };
+  if (map[s]) return map[s];
+  // Fallback: allow numeric strings 1-5
+  const n = Number(s);
+  if (Number.isFinite(n) && n >= 1 && n <= 5) return Math.trunc(n);
+  return null;
+}
+
 /**
  * GET /owner/group-stays/claims/available
  * Get group stays available for owners to claim (open for competitive bidding)
@@ -27,14 +121,20 @@ router.get("/available", asyncHandler(async (req: Request, res: Response) => {
   const pageNum = Math.max(1, Number(page) || 1);
   const pageSizeNum = Math.min(100, Math.max(1, Number(pageSize) || 50));
 
-    // Note: We don't exclude owner's claims here - frontend will filter by "all-active" vs "claimed"
-    // This allows owners to see their own claims too
     const where: any = {
       isOpenForClaims: true,
       // Allow all statuses except final states (COMPLETED, CANCELED)
       // If admin opened it for claims, it should be visible regardless of intermediate status
       status: {
         notIn: ["COMPLETED", "CANCELED"],
+      },
+      // Owners should only see bookings they have NOT already claimed.
+      // Claimed bookings belong in the dedicated /my-claims experience.
+      claims: {
+        none: {
+          ownerId,
+          status: { not: "WITHDRAWN" },
+        },
       },
     };
 
@@ -69,7 +169,7 @@ router.get("/available", asyncHandler(async (req: Request, res: Response) => {
             take: 10, // Show more offers including owner's claims
           },
           auditLogs: {
-            where: { action: "OPENED_FOR_CLAIMS" },
+            where: { action: { in: ["OPENED_FOR_CLAIMS", "UPDATED_CLAIMS_SETTINGS"] } },
             orderBy: { createdAt: "desc" },
             take: 1,
             select: { metadata: true, createdAt: true },
@@ -83,7 +183,8 @@ router.get("/available", asyncHandler(async (req: Request, res: Response) => {
     ]);
 
     // Extract deadline from audit metadata if available
-    const itemsWithDeadline = items.map((gb: any) => {
+    const expiredIds: number[] = [];
+    const itemsWithDeadline = items.flatMap((gb: any) => {
       const latestAudit = gb.auditLogs?.[0];
       
       // Parse metadata if it's a string (Prisma might store JSON as string)
@@ -107,8 +208,18 @@ router.get("/available", asyncHandler(async (req: Request, res: Response) => {
         defaultDeadline.setDate(defaultDeadline.getDate() + 7); // 7 days from opening
         deadline = defaultDeadline;
       }
+
+      // Auto-close if deadline has passed
+      if (deadline && gb.isOpenForClaims && new Date() > deadline) {
+        expiredIds.push(gb.id);
+        return [];
+      }
       
       const minDiscountPercent = metadata?.minDiscountPercent || null;
+
+      const customerMinHotelStar = hotelStarLabelToNumber((gb as any).minHotelStarLabel);
+      const adminMinHotelStar = typeof metadata?.minHotelStar === "number" ? metadata.minHotelStar : null;
+      const minHotelStar = Math.max(customerMinHotelStar ?? 0, adminMinHotelStar ?? 0) || null;
       
       // Separate claims into owner's claims and other claims
       const ownerClaims = gb.claims.filter((c: any) => c.ownerId === ownerId);
@@ -116,7 +227,7 @@ router.get("/available", asyncHandler(async (req: Request, res: Response) => {
       const hasOwnerClaim = ownerClaims.length > 0 && 
         ownerClaims.some((c: any) => c.status === "PENDING" || c.status === "ACCEPTED");
       
-      return {
+      return [{
         id: gb.id,
         groupType: gb.groupType,
         accommodationType: gb.accommodationType,
@@ -139,9 +250,33 @@ router.get("/available", asyncHandler(async (req: Request, res: Response) => {
         openedForClaimsAt: gb.openedForClaimsAt,
         submissionDeadline: deadline?.toISOString() || null,
         minDiscountPercent: minDiscountPercent,
+        minHotelStar: minHotelStar,
         createdAt: gb.createdAt,
-      };
+      }];
     });
+
+    // Best-effort auto-close expired claims so they disappear immediately.
+    if (expiredIds.length > 0) {
+      try {
+        await prisma.groupBooking.updateMany({
+          where: { id: { in: expiredIds }, isOpenForClaims: true },
+          data: { isOpenForClaims: false, openedForClaimsAt: null },
+        });
+
+        await prisma.groupBookingMessage.createMany({
+          data: expiredIds.map((id) => ({
+            groupBookingId: id,
+            senderRole: "SYSTEM",
+            senderName: "System",
+            messageType: "Claims Auto-Closed",
+            body: "Competitive claims were closed automatically because the submission deadline was reached.",
+            isInternal: true,
+          })),
+        });
+      } catch (e) {
+        console.warn("[API] Failed to auto-close expired claims:", e);
+      }
+    }
 
     return res.json({
       items: itemsWithDeadline,
@@ -197,6 +332,14 @@ router.post("/", asyncHandler(async (req: Request, res: Response) => {
     return res.status(400).json({ error: "Invalid discount percentage (must be 0-100)" });
   }
 
+  class HttpError extends Error {
+    status: number;
+    constructor(status: number, message: string) {
+      super(message);
+      this.status = status;
+    }
+  }
+
   try {
     // Use transaction to prevent race conditions
     const result = await prisma.$transaction(async (tx: typeof prisma) => {
@@ -205,20 +348,26 @@ router.post("/", asyncHandler(async (req: Request, res: Response) => {
         where: { id: groupBookingIdNum },
         include: {
           user: { select: { id: true, name: true } },
+          auditLogs: {
+            where: { action: { in: ["OPENED_FOR_CLAIMS", "UPDATED_CLAIMS_SETTINGS"] } },
+            orderBy: { createdAt: "desc" },
+            take: 1,
+            select: { metadata: true, createdAt: true },
+          },
         },
       });
 
       if (!groupBooking) {
-        throw new Error("Group stay not found");
+        throw new HttpError(404, "Group stay not found");
       }
 
       if (!groupBooking.isOpenForClaims) {
-        throw new Error("This group stay is not open for claims");
+        throw new HttpError(409, "This group stay is not open for claims");
       }
 
       // Allow all statuses except final states
       if (groupBooking.status === "COMPLETED" || groupBooking.status === "CANCELED") {
-        throw new Error("Group stay is not available for claiming");
+        throw new HttpError(409, "Group stay is not available for claiming");
       }
 
       // Check if owner already has a claim for this group booking
@@ -232,7 +381,7 @@ router.post("/", asyncHandler(async (req: Request, res: Response) => {
       });
 
       if (existingClaim) {
-        throw new Error("You have already submitted a claim for this group stay");
+        throw new HttpError(409, "You have already submitted a claim for this group stay");
       }
 
       // Verify property belongs to owner
@@ -242,10 +391,101 @@ router.post("/", asyncHandler(async (req: Request, res: Response) => {
           ownerId: ownerId,
           status: "APPROVED",
         },
+        select: {
+          id: true,
+          ownerId: true,
+          status: true,
+          title: true,
+          type: true,
+          regionName: true,
+          district: true,
+          services: true,
+          hotelStar: true,
+        },
       });
 
       if (!property) {
-        throw new Error("Property not found or not approved, or you don't own it");
+        throw new HttpError(404, "Property not found or not approved, or you don't own it");
+      }
+
+      // === Claim eligibility rules (production enforcement) ===
+      // 1) Property must be explicitly enabled for Group Stay (via the "Group stay" tag).
+      if (!propertyAllowsGroupStay(property.services)) {
+        throw new HttpError(400, "This property is not eligible for group stay claims. Enable 'Group stay' in the property settings first.");
+      }
+
+      // 2) Accommodation type must match the request (per-property, not per-owner).
+      const requestedAccommodation = bookingAccommodationKey(groupBooking.accommodationType);
+      const propertyAccommodation = propertyTypeToAccommodationKey(property.type);
+      if (!isAccommodationCompatible(requestedAccommodation, propertyAccommodation)) {
+        throw new HttpError(400, `This property type does not match the requested accommodation type (${groupBooking.accommodationType}).`);
+      }
+
+      // 3) Location must match the requested destination (region + optional district).
+      const bookingRegion = normalizeText(groupBooking.toRegion);
+      const bookingDistrict = normalizeDistrictName(groupBooking.toDistrict);
+      const propertyRegion = normalizeText(property.regionName);
+      const propertyDistrict = normalizeDistrictName(property.district);
+
+      if (!propertyRegion) {
+        throw new HttpError(400, "This property is missing a region. Please complete the property location details before claiming.");
+      }
+
+      if (bookingRegion && propertyRegion !== bookingRegion) {
+        throw new HttpError(400, "This property is not in the requested destination region.");
+      }
+
+      if (bookingDistrict) {
+        if (!propertyDistrict) {
+          throw new HttpError(400, "This property is missing a district. Please complete the property location details before claiming.");
+        }
+        if (propertyDistrict !== bookingDistrict) {
+          throw new HttpError(400, "This property is not in the requested destination district.");
+        }
+      }
+
+      // 4) Auction constraints set by admin (metadata) must be met.
+      const latestAudit = (groupBooking as any).auditLogs?.[0];
+      let metadata: any = latestAudit?.metadata ?? null;
+      if (metadata && typeof metadata === "string") {
+        try {
+          metadata = JSON.parse(metadata);
+        } catch {
+          metadata = null;
+        }
+      }
+
+      // Submission deadline enforcement: if deadline exists and has passed, reject.
+      // Fallback: if not set, default to 7 days from openedForClaimsAt (same as /available).
+      let deadline: Date | null = null;
+      if (metadata?.deadline) {
+        const d = new Date(metadata.deadline);
+        if (!Number.isNaN(d.getTime())) deadline = d;
+      }
+      if (!deadline && groupBooking.isOpenForClaims && groupBooking.openedForClaimsAt) {
+        const d = new Date(groupBooking.openedForClaimsAt);
+        d.setDate(d.getDate() + 7);
+        deadline = d;
+      }
+      if (deadline && new Date() > deadline) {
+        throw new HttpError(409, "Competitive claims are closed: the submission deadline has passed.");
+      }
+
+      const minDiscountPercent = typeof metadata?.minDiscountPercent === "number" ? metadata.minDiscountPercent : null;
+      if (minDiscountPercent !== null) {
+        if (discount === null || discount < minDiscountPercent) {
+          throw new HttpError(400, `This auction requires at least ${minDiscountPercent}% discount.`);
+        }
+      }
+
+      const customerMinHotelStar = hotelStarLabelToNumber((groupBooking as any).minHotelStarLabel);
+      const adminMinHotelStar = typeof metadata?.minHotelStar === "number" ? metadata.minHotelStar : null;
+      const minHotelStar = Math.max(customerMinHotelStar ?? 0, adminMinHotelStar ?? 0) || null;
+      if (minHotelStar !== null) {
+        const propertyStar = hotelStarLabelToNumber(property.hotelStar);
+        if (propertyStar === null || propertyStar < minHotelStar) {
+          throw new HttpError(400, `This auction requires a hotel star rating of at least ${minHotelStar}.`);
+        }
       }
 
       // Calculate total amount (simplified: price per night * number of nights)
@@ -300,8 +540,10 @@ router.post("/", asyncHandler(async (req: Request, res: Response) => {
     });
   } catch (err: any) {
     console.error("Error creating group stay claim:", err);
-    const statusCode = err.message.includes("not found") ? 404 : err.message.includes("already") || err.message.includes("not open") ? 409 : 500;
-    return res.status(statusCode).json({ error: err.message || "Failed to submit claim" });
+    if (err instanceof HttpError) {
+      return res.status(err.status).json({ error: err.message });
+    }
+    return res.status(500).json({ error: err?.message || "Failed to submit claim" });
   }
 }));
 

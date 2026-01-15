@@ -5,6 +5,7 @@ import DatePicker from "@/components/ui/DatePicker";
 import axios from "axios";
 import Chart from "@/components/Chart";
 import type { ChartData } from "chart.js";
+import Link from "next/link";
 
 // Use same-origin for HTTP calls so Next.js rewrites proxy to the API
 const api = axios.create({ baseURL: "", withCredentials: true });
@@ -98,6 +99,13 @@ type ArrangementStats = {
   totalBookings: number;
 };
 
+function formatDateTime(value: string | null | undefined): string {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleString();
+}
+
 export default function AdminGroupStaysArrangementsPage() {
   const [arrType, setArrType] = useState<string>("");
   const [groupType, setGroupType] = useState<string>("");
@@ -120,6 +128,25 @@ export default function AdminGroupStaysArrangementsPage() {
   // Stats state
   const [stats, setStats] = useState<ArrangementStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
+
+  // Details modal state
+  const [selected, setSelected] = useState<ArrangementRow | null>(null);
+  const [detailsMounted, setDetailsMounted] = useState(false);
+  const [detailsVisible, setDetailsVisible] = useState(false);
+
+  const openDetails = useCallback((booking: ArrangementRow) => {
+    setSelected(booking);
+    setDetailsMounted(true);
+    requestAnimationFrame(() => setDetailsVisible(true));
+  }, []);
+
+  const closeDetails = useCallback(() => {
+    setDetailsVisible(false);
+    window.setTimeout(() => {
+      setDetailsMounted(false);
+      setSelected(null);
+    }, 160);
+  }, []);
 
   // Debounce search input
   useEffect(() => {
@@ -167,7 +194,7 @@ export default function AdminGroupStaysArrangementsPage() {
         params.q = sanitizeInput(debouncedQ);
       }
 
-      const r = await api.get<{ items: ArrangementRow[]; total: number }>("/admin/group-stays/arrangements", { params });
+      const r = await api.get<{ items: ArrangementRow[]; total: number }>("/api/admin/group-stays/arrangements", { params });
       setList(r.data?.items ?? []);
       setTotal(r.data?.total ?? 0);
     } catch (err: any) {
@@ -185,7 +212,7 @@ export default function AdminGroupStaysArrangementsPage() {
     setStatsLoading(true);
     setStatsError(null);
     try {
-      const r = await api.get<ArrangementStats>("/admin/group-stays/arrangements/stats");
+      const r = await api.get<ArrangementStats>("/api/admin/group-stays/arrangements/stats");
       setStats(r.data);
     } catch (err: any) {
       const errorMessage = err?.response?.data?.error || err?.message || "Failed to load arrangement statistics";
@@ -200,6 +227,21 @@ export default function AdminGroupStaysArrangementsPage() {
   useEffect(() => {
     authify();
   }, []);
+
+  useEffect(() => {
+    if (!detailsMounted) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeDetails();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [detailsMounted, closeDetails]);
 
   useEffect(() => {
     load();
@@ -924,6 +966,7 @@ export default function AdminGroupStaysArrangementsPage() {
                           className="text-amber-600 hover:text-amber-900"
                           aria-label={`View details for booking #${booking.id}`}
                           title="View booking details"
+                          onClick={() => openDetails(booking)}
                         >
                           View
                         </button>
@@ -989,6 +1032,7 @@ export default function AdminGroupStaysArrangementsPage() {
                       className="text-amber-600 hover:text-amber-900 text-sm"
                       aria-label={`View details for booking #${booking.id}`}
                       title="View booking details"
+                      onClick={() => openDetails(booking)}
                     >
                       View Details
                     </button>
@@ -999,6 +1043,114 @@ export default function AdminGroupStaysArrangementsPage() {
           </>
         )}
       </div>
+
+      {/* Details Modal */}
+      {detailsMounted && selected && (
+        <div className={`fixed inset-0 z-50 ${detailsVisible ? "" : "pointer-events-none"}`} aria-modal="true" role="dialog">
+          <div
+            className={`absolute inset-0 bg-black/40 transition-opacity duration-200 ease-out ${detailsVisible ? "opacity-100" : "opacity-0"}`}
+            onClick={closeDetails}
+          />
+
+          <div className="absolute inset-0 flex items-center justify-center p-4">
+            <div
+              className={`w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden transform transition-all duration-200 ease-out ${
+                detailsVisible ? "opacity-100 translate-y-0 scale-100" : "opacity-0 translate-y-3 scale-[0.98]"
+              }`}
+            >
+              <div className="px-5 py-4 bg-gradient-to-b from-gray-50 to-white border-b border-gray-100">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-xs text-gray-500">Booking</div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-base font-semibold text-gray-900 truncate">#{selected.id} • Arrangements</h2>
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        selected.status === "COMPLETED" ? "bg-green-100 text-green-800" :
+                        selected.status === "CONFIRMED" ? "bg-blue-100 text-blue-800" :
+                        selected.status === "PROCESSING" ? "bg-amber-100 text-amber-800" :
+                        selected.status === "CANCELED" ? "bg-red-100 text-red-800" :
+                        "bg-gray-100 text-gray-800"
+                      }`}>{selected.status}</span>
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">Created {formatDateTime(selected.createdAt)}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={closeDetails}
+                    className="p-2 rounded-xl text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                    aria-label="Close"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="max-h-[70vh] overflow-y-auto px-5 py-4 space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-3">
+                    <div className="text-[11px] font-medium text-gray-500">Customer</div>
+                    <div className="text-sm font-semibold text-gray-900 truncate">{selected.customer?.name || "N/A"}</div>
+                    <div className="text-xs text-gray-600 truncate">{selected.customer?.email || "—"}</div>
+                    <div className="text-xs text-gray-600 truncate">{selected.customer?.phone || "—"}</div>
+                  </div>
+                  <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-3">
+                    <div className="text-[11px] font-medium text-gray-500">Destination</div>
+                    <div className="text-sm font-semibold text-gray-900 truncate">{selected.destination.region}</div>
+                    <div className="text-xs text-gray-600 truncate">
+                      {[selected.destination.district, selected.destination.ward, selected.destination.location].filter(Boolean).join(" • ") || "—"}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="rounded-xl border border-gray-100 p-3">
+                    <div className="text-[11px] font-medium text-gray-500">Headcount</div>
+                    <div className="text-sm font-semibold text-gray-900">{selected.headcount}</div>
+                  </div>
+                  <div className="rounded-xl border border-gray-100 p-3">
+                    <div className="text-[11px] font-medium text-gray-500">Check-in</div>
+                    <div className="text-sm font-semibold text-gray-900">{formatDateTime(selected.checkIn)}</div>
+                  </div>
+                  <div className="rounded-xl border border-gray-100 p-3">
+                    <div className="text-[11px] font-medium text-gray-500">Check-out</div>
+                    <div className="text-sm font-semibold text-gray-900">{formatDateTime(selected.checkOut)}</div>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-gray-100 p-3">
+                  <div className="text-[11px] font-medium text-gray-500 mb-2">Arrangements</div>
+                  <div className="flex flex-wrap gap-2">
+                    {selected.arrangements.pickup && <span className="px-2.5 py-1 text-xs font-medium bg-blue-50 text-blue-700 rounded-full">Pickup</span>}
+                    {selected.arrangements.transport && <span className="px-2.5 py-1 text-xs font-medium bg-green-50 text-green-700 rounded-full">Transport</span>}
+                    {selected.arrangements.meals && <span className="px-2.5 py-1 text-xs font-medium bg-amber-50 text-amber-700 rounded-full">Meals</span>}
+                    {selected.arrangements.guide && <span className="px-2.5 py-1 text-xs font-medium bg-purple-50 text-purple-700 rounded-full">Guide</span>}
+                    {selected.arrangements.equipment && <span className="px-2.5 py-1 text-xs font-medium bg-red-50 text-red-700 rounded-full">Equipment</span>}
+                    {!selected.arrangements.pickup && !selected.arrangements.transport && !selected.arrangements.meals && !selected.arrangements.guide && !selected.arrangements.equipment && (
+                      <span className="text-xs text-gray-500">No arrangements selected.</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="px-5 py-4 border-t border-gray-100 flex items-center justify-end gap-2">
+                <Link
+                  href={`/admin/group-stays/bookings?bookingId=${encodeURIComponent(String(selected.id))}`}
+                  className="inline-flex items-center justify-center px-3 py-2 text-sm font-medium text-amber-700 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors"
+                >
+                  Go to booking
+                </Link>
+                <button
+                  type="button"
+                  onClick={closeDetails}
+                  className="inline-flex items-center justify-center px-3 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Pagination */}
       {list.length > 0 && (

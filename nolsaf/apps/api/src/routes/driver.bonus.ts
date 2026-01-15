@@ -102,21 +102,42 @@ const getBonusEligibility: RequestHandler = async (req, res) => {
 
     try {
       // Count trips/bookings for current month
-      if ((prisma as any).booking) {
-        const bookings = await (prisma as any).booking.findMany({
+      // Try TransportBooking first (for transport rides)
+      try {
+        const transportBookings = await prisma.transportBooking.findMany({
           where: {
             driverId,
-            scheduledAt: {
+            scheduledDate: {
               gte: monthStart,
               lte: monthEnd,
             },
             status: {
-              in: ['COMPLETED', 'FINISHED', 'PAID', 'CONFIRMED'],
+              in: ['COMPLETED', 'CONFIRMED', 'IN_PROGRESS'],
             },
           },
         });
-        tripsCompleted = bookings.length;
-        currentEarnings = bookings.reduce((sum: number, b: any) => sum + (Number(b.price || b.amount || 0)), 0);
+        tripsCompleted = transportBookings.length;
+        currentEarnings = transportBookings.reduce((sum: number, b: any) => sum + (Number(b.amount || 0)), 0);
+      } catch (transportErr: any) {
+        // If TransportBooking fails, try Booking model (for property bookings with driver)
+        try {
+          const bookings = await prisma.booking.findMany({
+            where: {
+              driverId,
+              checkIn: {
+                gte: monthStart,
+                lte: monthEnd,
+              },
+              status: {
+                in: ['CHECKED_IN', 'CHECKED_OUT', 'CONFIRMED'],
+              },
+            },
+          });
+          tripsCompleted = bookings.length;
+          currentEarnings = bookings.reduce((sum: number, b: any) => sum + (Number(b.totalAmount || 0)), 0);
+        } catch (bookingErr: any) {
+          console.warn('Failed to fetch trips from both TransportBooking and Booking', { transportErr, bookingErr });
+        }
       }
     } catch (e) {
       console.warn('Failed to fetch trips/earnings', e);

@@ -11,8 +11,6 @@
  * - Single payment package (everything paid together)
  * - No surprise charges (fixed price guarantee)
  * 
- * Similar to Uber/Bolt/Careem upfront pricing model.
- * 
  * Pricing Structure:
  * - Base fare: 2000 TZS (minimum)
  * - Per kilometer: 500 TZS

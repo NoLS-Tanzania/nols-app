@@ -3,12 +3,15 @@ import multer from 'multer';
 import { prisma } from '@nolsaf/prisma';
 import { hashPassword, verifyPassword } from '../lib/crypto.js';
 import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
 import { sendMail } from '../lib/mailer.js';
 import { sendSms } from '../lib/sms.js';
 import { addPasswordToHistory } from '../lib/security.js';
 import { validatePasswordWithSettings } from '../lib/securitySettings.js';
 import { signUserJwt, setAuthCookie, clearAuthCookie } from '../lib/sessionManager.js';
-import { limitOtpSend, limitOtpVerify, limitLoginAttempts } from '../middleware/rateLimit.js';
+import { audit } from '../lib/audit.js';
+import { maybeAuth } from '../middleware/auth.js';
+import { limitOtpSend, limitOtpVerify, limitLoginAttempts, limitRegisterAttempts } from '../middleware/rateLimit.js';
 import { isEmailLocked, recordFailedAttempt, clearFailedAttempts, getRemainingAttempts, getLockoutStatus } from '../lib/loginAttemptTracker.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 
@@ -28,17 +31,82 @@ function generateOtp() {
   return Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit
 }
 
+function normalizePhoneForAuth(input: string): string {
+  let cleaned = String(input || '').trim();
+  if (!cleaned) return '';
+  cleaned = cleaned.replace(/[^\d+]/g, '');
+
+  // Convert 00-prefixed international numbers to +
+  if (cleaned.startsWith('00')) cleaned = `+${cleaned.slice(2)}`;
+
+  if (cleaned.startsWith('+')) return cleaned;
+
+  // Default to Tanzania (+255) unless overridden
+  const defaultCallingCode = String(process.env.DEFAULT_COUNTRY_CALLING_CODE || '255').replace(/\D/g, '') || '255';
+  if (cleaned.startsWith(defaultCallingCode)) return `+${cleaned}`;
+  if (cleaned.startsWith('0')) return `+${defaultCallingCode}${cleaned.slice(1)}`;
+  return `+${defaultCallingCode}${cleaned}`;
+}
+
+function normalizeSignupRole(input: any): 'CUSTOMER' | 'OWNER' | 'DRIVER' | 'RESET' | null {
+  const v = String(input ?? '').trim().toUpperCase();
+  if (!v) return null;
+  if (v === 'RESET') return 'RESET';
+  if (v === 'OWNER') return 'OWNER';
+  if (v === 'DRIVER') return 'DRIVER';
+  if (v === 'TRAVELLER' || v === 'TRAVELER' || v === 'USER' || v === 'CUSTOMER') return 'CUSTOMER';
+  return null;
+}
+
+function getJwtSecret(): string {
+  return (
+    process.env.JWT_SECRET ||
+    (process.env.NODE_ENV !== 'production' ? (process.env.DEV_JWT_SECRET || 'dev_jwt_secret') : '')
+  );
+}
+
 // POST /api/auth/send-otp
 // Rate limited: 3 requests per phone number per 15 minutes
-router.post('/send-otp', limitOtpSend, (req, res) => {
+router.post('/send-otp', limitOtpSend, async (req, res) => {
   const { phone, role } = req.body || {};
   if (!phone) return res.status(400).json({ message: 'phone required' });
 
+  const normalizedPhone = normalizePhoneForAuth(String(phone));
+  if (!normalizedPhone) return res.status(400).json({ message: 'phone required' });
+
+  const normalizedRole = normalizeSignupRole(role);
+
+  // Policy: once a phone is verified during registration, do not allow a new registration.
+  // Allow OTP for RESET flow (forgot password).
+  if (normalizedRole !== 'RESET') {
+    try {
+      const existing = await prisma.user.findFirst({
+        where: { phone: normalizedPhone },
+        select: { id: true, phoneVerifiedAt: true },
+      });
+      if (existing?.phoneVerifiedAt) {
+        return res.status(409).json({
+          error: 'phone_already_registered',
+          message: 'This phone number already has an account. Please login or use forgot password to access it.',
+          action: 'login_or_forgot_password',
+        });
+      }
+    } catch {
+      // If the DB is temporarily unavailable, continue with OTP send.
+    }
+  }
+
   const otp = generateOtp();
-  otpStore[phone] = { otp, expiresAt: Date.now() + OTP_TTL_MS, role };
+  otpStore[normalizedPhone] = { otp, expiresAt: Date.now() + OTP_TTL_MS, role: normalizedRole || undefined };
   // Log OTP only in development mode (not in production)
   if (process.env.NODE_ENV !== 'production') {
-    console.log(`[DEV] OTP for ${phone}${role ? ` (role=${role})` : ''}: ${otp}`);
+    console.log(`[DEV] OTP for ${normalizedPhone}${normalizedRole ? ` (role=${normalizedRole})` : ''}: ${otp}`);
+  }
+
+  const smsText = `Your NoLSAF verification code is ${otp}`;
+  const smsResult = await sendSms(normalizedPhone, smsText);
+  if (process.env.NODE_ENV === 'production' && !smsResult?.success) {
+    return res.status(502).json({ error: 'sms_failed', message: 'Failed to send OTP. Please try again.' });
   }
 
   // In development it's useful to return the OTP; remove in production
@@ -53,17 +121,25 @@ router.post('/verify-otp', limitOtpVerify, async (req, res) => {
   const { phone, otp, role } = req.body || {};
   if (!phone || !otp) return res.status(400).json({ message: 'phone and otp required' });
 
+  const normalizedPhone = normalizePhoneForAuth(String(phone));
+  if (!normalizedPhone) return res.status(400).json({ message: 'phone and otp required' });
+
+  const requestedRole = normalizeSignupRole(role);
+
   // Development master OTP override — accepts this code regardless of stored value.
   // DISABLED in production for security
   const isProduction = process.env.NODE_ENV === 'production';
   const MASTER_OTP = isProduction ? null : (process.env.DEV_MASTER_OTP || '123456');
   if (!isProduction && MASTER_OTP && String(otp) === MASTER_OTP) {
     // allow even if there's no stored OTP (dev convenience)
-    const entry = otpStore[phone] || { role };
-    delete otpStore[phone];
+    const entry = otpStore[normalizedPhone] || { role: requestedRole || undefined };
+    delete otpStore[normalizedPhone];
+
+    const storedRole = normalizeSignupRole(entry.role);
+    const effectiveRole = storedRole || requestedRole;
 
     // If the caller requested a password reset flow, generate a reset token
-    if (String(role).toUpperCase() === 'RESET') {
+    if (effectiveRole === 'RESET') {
       try {
         const raw = crypto.randomBytes(24).toString('hex');
         const hashed = crypto.createHash('sha256').update(raw).digest('hex');
@@ -71,7 +147,7 @@ router.post('/verify-otp', limitOtpVerify, async (req, res) => {
         // try to persist
         let u: any = null;
         try {
-          u = await prisma.user.findFirst({ where: { phone: String(phone) } });
+          u = await prisma.user.findFirst({ where: { phone: normalizedPhone } });
           if (u) {
             await prisma.user.update({ where: { id: u.id }, data: { resetPasswordToken: hashed as any, resetPasswordExpires: new Date(expiresAt) as any } as any });
           } else {
@@ -92,41 +168,44 @@ router.post('/verify-otp', limitOtpVerify, async (req, res) => {
 
     // In dev, still issue a real JWT if possible (so production behavior can be tested locally).
     try {
-      const desiredRole = String(entry.role || role || "USER").toUpperCase();
-      const allowed = ["USER", "OWNER", "DRIVER", "CUSTOMER", "ADMIN"];
-      const safeRole = allowed.includes(desiredRole) ? desiredRole : "USER";
+      const safeRole = (effectiveRole || 'CUSTOMER') as 'CUSTOMER' | 'OWNER' | 'DRIVER';
       const user = await prisma.user.upsert({
-        where: { phone: String(phone) },
-        update: { phoneVerifiedAt: new Date(), role: safeRole },
-        create: { phone: String(phone), role: safeRole, phoneVerifiedAt: new Date() } as any,
+        where: { phone: normalizedPhone },
+        update: { phoneVerifiedAt: new Date() },
+        create: { phone: normalizedPhone, role: safeRole, phoneVerifiedAt: new Date() } as any,
         select: { id: true, role: true, email: true, phone: true },
       });
       const token = await signUserJwt({ id: user.id, role: user.role, email: user.email });
       await setAuthCookie(res, token, user.role);
       return res.json({ ok: true, message: "verified (master otp)", user: { id: user.id, phone: user.phone, role: user.role } });
     } catch (e: any) {
-      // fallback: old stub token in dev
-      const token = `dev.${Buffer.from(String(phone)).toString('base64')}.token`;
-      return res.json({ ok: true, message: 'verified (master otp)', token, user: { id: `u_${Date.now()}`, phone, role: entry.role || role || 'USER' } });
+      console.error("verify-otp (master otp) failed to issue JWT", e);
+      return res.status(503).json({ error: 'database_unavailable', message: 'Unable to create account right now.' });
     }
   }
 
-  const entry = otpStore[phone];
+  const entry = otpStore[normalizedPhone];
   if (!entry) return res.status(400).json({ message: 'no OTP found for this phone' });
   if (Date.now() > entry.expiresAt) {
-    delete otpStore[phone];
+    delete otpStore[normalizedPhone];
     return res.status(400).json({ message: 'OTP expired' });
   }
   if (entry.otp !== String(otp)) return res.status(400).json({ message: 'invalid OTP' });
-  if (role && entry.role && entry.role !== role) return res.status(400).json({ message: 'role mismatch' });
+
+  const storedRole = normalizeSignupRole(entry.role);
+  if (requestedRole && storedRole && requestedRole !== storedRole) {
+    return res.status(400).json({ message: 'role mismatch' });
+  }
 
   // success — remove OTP
-  delete otpStore[phone];
+  delete otpStore[normalizedPhone];
+
+  const effectiveRole = storedRole || requestedRole;
 
   // If this OTP was requested for reset flow, issue a reset token and return it
-  if (String(role).toUpperCase() === 'RESET') {
+  if (effectiveRole === 'RESET') {
     try {
-      const user = await prisma.user.findFirst({ where: { phone: String(phone) } });
+      const user = await prisma.user.findFirst({ where: { phone: normalizedPhone } });
       const raw = crypto.randomBytes(24).toString('hex');
       const hashed = crypto.createHash('sha256').update(raw).digest('hex');
       const expiresAt = Date.now() + 1000 * 60 * 60; // 1 hour
@@ -152,13 +231,11 @@ router.post('/verify-otp', limitOtpVerify, async (req, res) => {
 
   // Normal auth flow: verify OTP and issue JWT + httpOnly cookie.
   try {
-    const desiredRole = String(entry.role || role || "USER").toUpperCase();
-    const allowed = ["USER", "OWNER", "DRIVER", "CUSTOMER"];
-    const safeRole = allowed.includes(desiredRole) ? desiredRole : "USER";
+    const safeRole = (effectiveRole || 'CUSTOMER') as 'CUSTOMER' | 'OWNER' | 'DRIVER';
     const user = await prisma.user.upsert({
-      where: { phone: String(phone) },
+      where: { phone: normalizedPhone },
       update: { phoneVerifiedAt: new Date() },
-      create: { phone: String(phone), role: safeRole, phoneVerifiedAt: new Date() } as any,
+      create: { phone: normalizedPhone, role: safeRole, phoneVerifiedAt: new Date() } as any,
       select: { id: true, role: true, email: true, phone: true },
     });
     const token = await signUserJwt({ id: user.id, role: user.role, email: user.email });
@@ -166,7 +243,7 @@ router.post('/verify-otp', limitOtpVerify, async (req, res) => {
     return res.json({ ok: true, message: "verified", user: { id: user.id, phone: user.phone, role: user.role } });
   } catch (e) {
     console.error("verify-otp failed to issue JWT", e);
-    return res.status(500).json({ message: "failed" });
+    return res.status(503).json({ error: 'database_unavailable', message: "Unable to create account right now." });
   }
 });
 
@@ -186,14 +263,15 @@ router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res,
   try {
     
     const { email, password } = req.body || {};
-    if (!email || !password) {
+    const identifier = String(email || '').trim();
+    if (!identifier || !password) {
       return res.status(400).json({ error: "email and password required" });
     }
     
     // Check if account is locked
     let lockoutStatus;
     try {
-      lockoutStatus = await isEmailLocked(String(email));
+      lockoutStatus = await isEmailLocked(identifier);
     } catch (lockoutError: any) {
       console.error('[LOGIN] Error checking lockout status:', lockoutError);
       // Default to not locked on error
@@ -214,10 +292,25 @@ router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res,
     
     let user;
     try {
+      const phoneCandidates = (() => {
+        const v = identifier;
+        const out: string[] = [];
+        out.push(v);
+        if (/^\d+$/.test(v) && v.length <= 12) out.push(`+255${v}`);
+        if (v.startsWith('0') && /^\d+$/.test(v.slice(1))) out.push(`+255${v.slice(1)}`);
+        return Array.from(new Set(out));
+      })();
+
       user = await prisma.user.findFirst({
-      where: { email: String(email) },
-      select: { id: true, role: true, email: true, passwordHash: true },
-    });
+        where: {
+          OR: [
+            { email: identifier },
+            { name: identifier },
+            ...phoneCandidates.map((p) => ({ phone: p } as any)),
+          ] as any,
+        } as any,
+        select: { id: true, role: true, email: true, passwordHash: true },
+      });
     } catch (dbError: any) {
       console.error('[LOGIN] Database query error:', dbError);
       // Check if it's a database connection error
@@ -242,13 +335,13 @@ router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res,
     if (!user || !user.passwordHash) {
       // Record failed attempt even if user doesn't exist (prevents email enumeration)
       try {
-        await recordFailedAttempt(String(email), clientIp);
+        await recordFailedAttempt(identifier, clientIp);
       } catch (err) {
         console.error('[LOGIN] Failed to record failed attempt:', err);
       }
       let remaining = 5; // Default
       try {
-        remaining = await getRemainingAttempts(String(email));
+        remaining = await getRemainingAttempts(identifier);
       } catch (err) {
         console.error('[LOGIN] Failed to get remaining attempts:', err);
       }
@@ -265,13 +358,13 @@ router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res,
     } catch (verifyError: any) {
       console.error("Password verification error:", verifyError);
       try {
-        await recordFailedAttempt(String(email), clientIp);
+        await recordFailedAttempt(identifier, clientIp);
       } catch (err) {
         console.error('[LOGIN] Failed to record failed attempt:', err);
       }
       let remaining = 5; // Default
       try {
-        remaining = await getRemainingAttempts(String(email));
+        remaining = await getRemainingAttempts(identifier);
       } catch (err) {
         console.error('[LOGIN] Failed to get remaining attempts:', err);
       }
@@ -284,13 +377,13 @@ router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res,
     if (!ok) {
       // Record failed attempt
       try {
-        await recordFailedAttempt(String(email), clientIp);
+        await recordFailedAttempt(identifier, clientIp);
       } catch (err) {
         console.error('[LOGIN] Failed to record failed attempt:', err);
       }
       let remaining = 5; // Default
       try {
-        remaining = await getRemainingAttempts(String(email));
+        remaining = await getRemainingAttempts(identifier);
       } catch (err) {
         console.error('[LOGIN] Failed to get remaining attempts:', err);
       }
@@ -298,7 +391,7 @@ router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res,
       // Check if account is now locked
       let newLockoutStatus;
       try {
-        newLockoutStatus = await isEmailLocked(String(email));
+        newLockoutStatus = await isEmailLocked(identifier);
       } catch (err) {
         console.error('[LOGIN] Failed to check lockout status:', err);
         newLockoutStatus = { locked: false, lockedUntil: null };
@@ -321,7 +414,7 @@ router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res,
 
     // Successful login - clear failed attempts
     try {
-      await clearFailedAttempts(String(email));
+      await clearFailedAttempts(identifier);
     } catch (err) {
       console.error('[LOGIN] Failed to clear failed attempts:', err);
       // Continue - don't block successful login
@@ -343,6 +436,18 @@ router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res,
       console.error("Cookie setting error:", cookieError);
       // Token was generated, so we can still return success even if cookie fails
       // The token is in the response body
+    }
+
+    // Audit successful login
+    try {
+      await audit(req, "USER_LOGIN", `user:${user.id}`, null, { 
+        role: user.role,
+        email: user.email,
+        loginMethod: 'password'
+      });
+    } catch (auditError) {
+      // Don't block login if audit fails
+      console.warn("Failed to audit login:", auditError);
     }
 
     return res.status(200).json({ ok: true, user: { id: user.id, role: user.role, email: user.email } });
@@ -397,32 +502,68 @@ router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res,
 }));
 
 // POST /api/auth/logout
-router.post("/logout", async (_req, res) => {
+// Use maybeAuth to optionally extract user for audit logging
+router.post("/logout", maybeAuth, async (req, res) => {
+  // Audit logout if user is authenticated
+  try {
+    const userId = (req as any).user?.id;
+    if (userId) {
+      await audit(req, "USER_LOGOUT", `user:${userId}`, null, { 
+        logoutMethod: 'manual'
+      });
+    }
+  } catch (auditError) {
+    // Don't block logout if audit fails
+    console.warn("Failed to audit logout:", auditError);
+  }
+  
   clearAuthCookie(res);
   return res.json({ ok: true });
 });
 
 /**
  * POST /api/auth/register
- * Body: { email, name?, phone?, password?, role?: 'USER'|'OWNER'|'DRIVER' }
- * NOTE: ADMIN creation is explicitly forbidden here. This endpoint attempts to create a real user via Prisma, but
- * falls back to a safe stub response if the database/schema isn't ready (local dev mode).
+ * Body: { email, name?, phone?, password, role?: 'CUSTOMER'|'OWNER'|'DRIVER'|'USER'|'TRAVELLER' }
+ * NOTE: ADMIN creation is explicitly forbidden here. Registration must be DB-backed (no stub fallback).
  */
-router.post('/register', async (req, res) => {
-  const { email, name, phone, password, role, referralCode } = req.body as any;
-  const desiredRole = (role || 'USER').toUpperCase();
+router.post('/register', limitRegisterAttempts, async (req, res) => {
+  const { email, name, phone, password, role, referralCode, tin, address, vehicleMake, vehiclePlate, licenseNumber } = req.body as any;
 
-  const allowed = ['USER', 'OWNER', 'DRIVER'];
-  if (!allowed.includes(desiredRole)) return res.status(400).json({ error: 'invalid role' });
+  const cleanEmail = String(email || '').trim().toLowerCase();
+  if (!cleanEmail || !cleanEmail.includes('@')) return res.status(400).json({ error: 'invalid email' });
+  if (!password || String(password).length < 1) return res.status(400).json({ error: 'password required' });
 
-  // For safety, never allow creating ADMIN via this public endpoint
-  if (desiredRole === 'ADMIN') return res.status(403).json({ error: 'cannot create admin via public registration' });
+  const desiredRole = normalizeSignupRole(role) || 'CUSTOMER';
+  if (desiredRole === 'RESET') return res.status(400).json({ error: 'invalid role' });
+
+  const normalizedPhone = phone ? normalizePhoneForAuth(String(phone)) : null;
+  if (phone && !normalizedPhone) return res.status(400).json({ error: 'invalid_phone' });
 
   // Get Socket.IO instance from app
   const io: any = (req as any).app?.get?.('io');
 
-  // Try to create a real user if Prisma is available and DB schema matches; otherwise fallback to stub
   try {
+    // Policy: once an email is verified (or already in use), do not allow a new registration.
+    // Users must login or use forgot-password.
+    const existingByEmail = await prisma.user.findFirst({
+      where: { email: cleanEmail },
+      select: { id: true, emailVerifiedAt: true },
+    });
+    if (existingByEmail?.emailVerifiedAt) {
+      return res.status(409).json({
+        error: 'email_already_registered',
+        message: 'This email already has an account. Please login or use forgot password to access it.',
+        action: 'login_or_forgot_password',
+      });
+    }
+    if (existingByEmail) {
+      return res.status(409).json({
+        error: 'email_already_in_use',
+        message: 'This email is already linked to an account. Please login or use forgot password.',
+        action: 'login_or_forgot_password',
+      });
+    }
+
     // Check for referral code and find referring driver
     let referredBy: string | number | null = null;
     if (referralCode) {
@@ -442,19 +583,64 @@ router.post('/register', async (req, res) => {
       }
     }
 
-    const pwHash = password ? await hashPassword(String(password)) : null;
+    const strength = await validatePasswordWithSettings(String(password), desiredRole);
+    if (!strength.valid) return res.status(400).json({ error: 'weak_password', reasons: strength.reasons });
+
+    // Policy: disallow registering a second account with an already-verified phone.
+    if (normalizedPhone) {
+      const existingByPhone = await prisma.user.findFirst({
+        where: { phone: normalizedPhone },
+        select: { id: true, phoneVerifiedAt: true },
+      });
+      if (existingByPhone?.phoneVerifiedAt) {
+        return res.status(409).json({
+          error: 'phone_already_registered',
+          message: 'This phone number already has an account. Please login or use forgot password to access it.',
+          action: 'login_or_forgot_password',
+        });
+      }
+      // Even if not verified, the unique constraint will block duplicates; return a clearer message.
+      if (existingByPhone) {
+        return res.status(409).json({
+          error: 'phone_already_in_use',
+          message: 'This phone number is already linked to an account. Please login or use forgot password.',
+          action: 'login_or_forgot_password',
+        });
+      }
+    }
+
+    const pwHash = await hashPassword(String(password));
     const created = await prisma.user.create({
       data: {
-        email: String(email),
+        email: cleanEmail,
         name: name ?? null,
-        phone: phone ?? null,
+        phone: normalizedPhone ?? null,
         role: desiredRole,
-        passwordHash: pwHash ?? null,
+        passwordHash: pwHash,
+        ...(desiredRole === 'OWNER'
+          ? {
+              tin: typeof tin === 'string' ? tin : null,
+              address: typeof address === 'string' ? address : null,
+            }
+          : {}),
+        ...(desiredRole === 'DRIVER'
+          ? {
+              vehicleMake: typeof vehicleMake === 'string' ? vehicleMake : null,
+              vehiclePlate: typeof vehiclePlate === 'string' ? vehiclePlate : null,
+              licenseNumber: typeof licenseNumber === 'string' ? licenseNumber : null,
+            }
+          : {}),
         referredBy: referredBy as any,
         referralCode: referralCode || null,
       } as any,
       select: { id: true, email: true, name: true, phone: true, role: true }
     });
+
+    try {
+      await addPasswordToHistory(created.id, pwHash);
+    } catch {
+      // ignore
+    }
 
     // Emit Socket.IO notification to referring driver if applicable
     if (referredBy && io) {
@@ -483,11 +669,29 @@ router.post('/register', async (req, res) => {
       }
     }
 
-    return res.status(201).json({ id: created.id, email: created.email, role: desiredRole });
-  } catch (err) {
-    // If Prisma fails (missing schema/enum), log and return a safe response so the public UI can continue working in dev.
-    console.warn('Prisma create failed in /api/auth/register (falling back to stub):', err);
-    return res.status(201).json({ id: null, email: String(email), role: desiredRole, warning: 'created-stub' });
+    return res.status(201).json({ ok: true, id: created.id, email: created.email, role: created.role });
+  } catch (err: any) {
+    if (err?.code === 'P2002') {
+      const target = (err?.meta?.target || []) as any;
+      const targetArr = Array.isArray(target) ? target.map(String) : [String(target)];
+      if (targetArr.some((t) => t.toLowerCase().includes('phone'))) {
+        return res.status(409).json({
+          error: 'phone_already_registered',
+          message: 'This phone number already has an account. Please login or use forgot password to access it.',
+          action: 'login_or_forgot_password',
+        });
+      }
+      if (targetArr.some((t) => t.toLowerCase().includes('email'))) {
+        return res.status(409).json({
+          error: 'email_already_registered',
+          message: 'This email already has an account. Please login or use forgot password to access it.',
+          action: 'login_or_forgot_password',
+        });
+      }
+      return res.status(409).json({ error: 'email_or_phone_already_in_use' });
+    }
+    console.error('Prisma create failed in /api/auth/register:', err);
+    return res.status(503).json({ error: 'database_unavailable', message: 'Unable to register right now.' });
   }
 });
 
@@ -500,7 +704,23 @@ router.post('/profile', upload.any(), async (req, res) => {
   try {
     // Parse form data (multer handles multipart/form-data)
     const body = req.body;
-    const { role, name, email, referralCode } = body;
+    const {
+      role,
+      name,
+      email,
+      referralCode,
+      tin,
+      address,
+      gender,
+      nationality,
+      nin,
+      licenseNumber,
+      plateNumber,
+      vehicleType,
+      operationArea,
+      paymentPhone,
+      paymentVerified,
+    } = body;
     
     // Get user from token (Authorization: Bearer OR httpOnly cookie)
     const token =
@@ -515,26 +735,37 @@ router.post('/profile', upload.any(), async (req, res) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    // Get Socket.IO instance from app
-    const io: any = (req as any).app?.get?.('io');
+    const secret = getJwtSecret();
+    if (!secret) return res.status(500).json({ error: 'server_misconfigured' });
 
-    // For now, decode token to get user ID (simplified - in production use proper JWT verification)
-    let userId: string | number | null = null;
+    let userId: number | null = null;
     try {
-      if (token.startsWith('dev.')) {
-        const decoded = Buffer.from(token.split('.')[1], 'base64').toString();
-        // Extract user ID from session or create user
-        // This is a simplified flow - in production you'd have proper user creation
-        const existingUser = await prisma.user.findFirst({ 
-          where: { email: String(email) } 
+      const decoded = jwt.verify(token, secret) as any;
+      userId = decoded?.sub ? Number(decoded.sub) : null;
+    } catch {
+      userId = null;
+    }
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    // Enforce that the role in the request (if any) matches the user's role (prevents role hopping)
+    try {
+      const dbUser = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true } });
+      if (!dbUser) return res.status(401).json({ error: 'Unauthorized' });
+      const requested = normalizeSignupRole(role);
+      // Normalize DB roles too (e.g. USER/TRAVELLER should be treated as CUSTOMER)
+      const dbRole = normalizeSignupRole(dbUser.role) || String(dbUser.role || '').trim().toUpperCase();
+      if (requested && requested !== 'RESET' && dbRole !== requested) {
+        return res.status(400).json({
+          error: 'role_mismatch',
+          message: `Role mismatch: account role is ${dbRole || 'UNKNOWN'} but request role is ${requested}.`,
         });
-        if (existingUser) {
-          userId = existingUser.id;
-        }
       }
     } catch (e) {
-      console.warn('Failed to decode token', e);
+      return res.status(503).json({ error: 'database_unavailable', message: 'Unable to save profile right now.' });
     }
+
+    // Get Socket.IO instance from app
+    const io: any = (req as any).app?.get?.('io');
 
     // Check for referral code and find referring driver
     let referredBy: string | number | null = null;
@@ -555,31 +786,94 @@ router.post('/profile', upload.any(), async (req, res) => {
       }
     }
 
-    // Update or create user with referral information
+    const cleanEmail = email ? String(email).trim().toLowerCase() : null;
     let updatedUser: any = null;
-    if (userId) {
+    const extractUnknownArg = (err: any): string | null => {
+      const msg = String(err?.message ?? '');
+      const m = msg.match(/Unknown argument `([^`]+)`/);
+      return m?.[1] ?? null;
+    };
+    try {
+      // Some environments may run with an older generated Prisma Client that doesn't
+      // include newer columns yet (e.g., gender/nationality/tin/address/etc).
+      // Avoid passing unknown fields (Prisma validates args before hitting the DB).
+      const meta = (prisma as any).user?._meta ?? {};
+      const hasField = (field: string) => Object.prototype.hasOwnProperty.call(meta, field);
+
+      const dataToUpdate: any = {
+        name: name ? String(name) : undefined,
+        email: cleanEmail || undefined,
+      };
+
+      // Owner fields
+      if (hasField('tin') && typeof tin === 'string') dataToUpdate.tin = tin;
+      if (hasField('address') && typeof address === 'string') dataToUpdate.address = address;
+
+      // Driver fields
+      if (hasField('gender') && typeof gender === 'string') dataToUpdate.gender = gender;
+      if (hasField('nationality') && typeof nationality === 'string') dataToUpdate.nationality = nationality;
+      if (hasField('nin') && typeof nin === 'string') dataToUpdate.nin = nin;
+      if (hasField('licenseNumber') && typeof licenseNumber === 'string') dataToUpdate.licenseNumber = licenseNumber;
+      if (hasField('plateNumber') && typeof plateNumber === 'string') dataToUpdate.plateNumber = plateNumber;
+      if (hasField('vehicleType') && typeof vehicleType === 'string') dataToUpdate.vehicleType = vehicleType;
+      if (hasField('operationArea') && typeof operationArea === 'string') dataToUpdate.operationArea = operationArea;
+      if (hasField('paymentPhone') && typeof paymentPhone === 'string') dataToUpdate.paymentPhone = paymentPhone;
+      if (hasField('paymentVerified') && typeof paymentVerified !== 'undefined') {
+        dataToUpdate.paymentVerified =
+          String(paymentVerified) === '1' || String(paymentVerified).toLowerCase() === 'true';
+      }
+
+      // Referral fields
+      if (hasField('referredBy')) dataToUpdate.referredBy = referredBy as any;
+      if (hasField('referralCode')) dataToUpdate.referralCode = referralCode || null;
+
       updatedUser = await prisma.user.update({
         where: { id: userId },
-        data: {
-          name: String(name),
-          email: String(email),
-          referredBy: referredBy as any,
-          referralCode: referralCode || null,
-        } as any,
+        data: dataToUpdate,
         select: { id: true, email: true, name: true, role: true }
       });
-    } else {
-      // If user doesn't exist, create it (fallback)
-      updatedUser = await prisma.user.create({
-        data: {
-          email: String(email),
-          name: String(name),
-          role: (role || 'USER').toUpperCase(),
-          referredBy: referredBy as any,
-          referralCode: referralCode || null,
-        } as any,
-        select: { id: true, email: true, name: true, role: true }
-      });
+    } catch (e: any) {
+      if (e?.code === 'P2002') {
+        return res.status(409).json({ error: 'email_or_phone_already_in_use' });
+      }
+
+      // Last line of defense: retry once by dropping the unknown field Prisma complains about.
+      const badField = (typeof (prisma as any).user?._meta === 'undefined') ? null : extractUnknownArg(e);
+      if (badField) {
+        try {
+          const retryData: any = {
+            name: name ? String(name) : undefined,
+            email: cleanEmail || undefined,
+            // Best-effort include common fields; we'll drop the bad one below.
+            tin: typeof tin === 'string' ? tin : undefined,
+            address: typeof address === 'string' ? address : undefined,
+            gender: typeof gender === 'string' ? gender : undefined,
+            nationality: typeof nationality === 'string' ? nationality : undefined,
+            nin: typeof nin === 'string' ? nin : undefined,
+            licenseNumber: typeof licenseNumber === 'string' ? licenseNumber : undefined,
+            plateNumber: typeof plateNumber === 'string' ? plateNumber : undefined,
+            vehicleType: typeof vehicleType === 'string' ? vehicleType : undefined,
+            operationArea: typeof operationArea === 'string' ? operationArea : undefined,
+            paymentPhone: typeof paymentPhone === 'string' ? paymentPhone : undefined,
+            paymentVerified:
+              typeof paymentVerified !== 'undefined'
+                ? (String(paymentVerified) === '1' || String(paymentVerified).toLowerCase() === 'true')
+                : undefined,
+            referredBy: referredBy as any,
+            referralCode: referralCode || null,
+          };
+          delete retryData[badField];
+          updatedUser = await prisma.user.update({
+            where: { id: userId },
+            data: retryData as any,
+            select: { id: true, email: true, name: true, role: true },
+          });
+        } catch (e2: any) {
+          throw e2;
+        }
+      } else {
+        throw e;
+      }
     }
 
     // Emit Socket.IO notification to referring driver if applicable
@@ -623,13 +917,22 @@ router.post('/forgot-password', async (req, res) => {
   const { email, phone } = req.body || {};
   if (!email && !phone) return res.status(400).json({ message: 'email or phone required' });
 
+  const normalizedPhone = phone ? normalizePhoneForAuth(String(phone)) : null;
+
   try {
     // try to find user by email or phone
-    const user = await prisma.user.findFirst({ where: email ? { email: String(email) } : { phone: String(phone) } });
-    // Always respond with 200 to avoid user enumeration
+    const user = await prisma.user.findFirst({
+      where: email ? { email: String(email).trim().toLowerCase() } : { phone: normalizedPhone || String(phone) },
+    });
+    
+    // Security: Always respond with 200 to avoid user enumeration
+    // Only send reset link if user actually exists in database
     if (!user) {
+      console.log(`[forgot-password] User not found for ${email ? 'email' : 'phone'}: ${email || phone} - No reset link sent`);
       return res.json({ ok: true, message: 'If an account exists, an email/SMS has been sent.' });
     }
+    
+    console.log(`[forgot-password] User found (ID: ${user.id}) for ${email ? 'email' : 'phone'}: ${email || phone} - Generating reset link`);
 
     // generate raw token and a hashed token for storage
     const raw = crypto.randomBytes(24).toString('hex');
@@ -674,8 +977,12 @@ router.post('/forgot-password', async (req, res) => {
 
 // POST /api/auth/reset-password
 router.post('/reset-password', async (req, res) => {
-  const { token, userId, password } = req.body || {};
-  if (!token || !userId || !password) return res.status(400).json({ message: 'token, userId and password required' });
+  const { token, userId, id, password } = req.body || {};
+  const rawUserId = typeof userId !== 'undefined' ? userId : id;
+  if (!token || !rawUserId || !password) return res.status(400).json({ message: 'token, userId and password required' });
+
+  const userIdStr = String(rawUserId);
+  const normalizedUserId: any = /^\d+$/.test(userIdStr) ? Number(userIdStr) : rawUserId;
 
   const hashed = crypto.createHash('sha256').update(String(token)).digest('hex');
 
@@ -683,7 +990,7 @@ router.post('/reset-password', async (req, res) => {
     // Check DB first
     let user: any = null;
     try {
-      user = await prisma.user.findUnique({ where: { id: userId as any } });
+      user = await prisma.user.findUnique({ where: { id: normalizedUserId as any } });
       if (user && user.resetPasswordToken) {
         const dbToken = String(user.resetPasswordToken);
         const expires = user.resetPasswordExpires ? new Date(user.resetPasswordExpires).getTime() : 0;
@@ -699,10 +1006,10 @@ router.post('/reset-password', async (req, res) => {
     // If not persisted, check in-memory store
     if (!user) {
       const rec = resetTokenStore[hashed];
-      if (!rec || String(rec.userId) !== String(userId)) return res.status(400).json({ message: 'invalid token' });
+      if (!rec || String(rec.userId) !== userIdStr) return res.status(400).json({ message: 'invalid token' });
       if (Date.now() > rec.expiresAt) { delete resetTokenStore[hashed]; return res.status(400).json({ message: 'token expired' }); }
       // fetch user record to update password
-      try { user = await prisma.user.findUnique({ where: { id: userId as any } }); } catch (e) { user = null; }
+      try { user = await prisma.user.findUnique({ where: { id: normalizedUserId as any } }); } catch (e) { user = null; }
     }
 
     if (!user) {
@@ -717,7 +1024,7 @@ router.post('/reset-password', async (req, res) => {
     // Hash and update password
     const pwHash = await hashPassword(String(password));
     try {
-      await prisma.user.update({ where: { id: userId as any }, data: { passwordHash: pwHash as any, resetPasswordToken: null as any, resetPasswordExpires: null as any } as any });
+      await prisma.user.update({ where: { id: normalizedUserId as any }, data: { passwordHash: pwHash as any, resetPasswordToken: null as any, resetPasswordExpires: null as any } as any });
     } catch (e) {
       // if DB update fails, still accept but do not persist
       console.warn('Failed to persist new password to DB', e);

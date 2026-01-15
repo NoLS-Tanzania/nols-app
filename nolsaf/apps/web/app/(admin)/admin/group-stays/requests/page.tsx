@@ -6,7 +6,7 @@ import axios from "axios";
 import Chart from "@/components/Chart";
 import type { ChartData } from "chart.js";
 
-// Use same-origin for HTTP calls so Next.js rewrites proxy to the API
+// Use same-origin for HTTP calls so Next.js rewrites (/api/*) proxy to the API
 const api = axios.create({ baseURL: "", withCredentials: true });
 function authify() {}
 
@@ -48,6 +48,8 @@ export default function AdminGroupStaysRequestsPage() {
   const [q, setQ] = useState("");
   const [list, setList] = useState<RequestRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedRequest, setSelectedRequest] = useState<RequestRow | null>(null);
+  const [showReviewModal, setShowReviewModal] = useState(false);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const pageSize = 30;
@@ -77,7 +79,8 @@ export default function AdminGroupStaysRequestsPage() {
       }
       if (q) params.q = q;
 
-      const r = await api.get<{ items: RequestRow[]; total: number }>("/admin/group-stays/requests", { params });
+      // IMPORTANT: call via /api/* so we hit the API proxy, not the Next.js page route.
+      const r = await api.get<{ items: RequestRow[]; total: number }>("/api/admin/group-stays/requests", { params });
       setList(r.data?.items ?? []);
       setTotal(r.data?.total ?? 0);
     } catch (err) {
@@ -92,7 +95,7 @@ export default function AdminGroupStaysRequestsPage() {
   const loadStats = useCallback(async () => {
     setStatsLoading(true);
     try {
-      const r = await api.get<RequestStats>("/admin/group-stays/requests/stats");
+      const r = await api.get<RequestStats>("/api/admin/group-stays/requests/stats");
       setStats(r.data);
     } catch (err) {
       console.error("Failed to load request statistics", err);
@@ -202,6 +205,11 @@ export default function AdminGroupStaysRequestsPage() {
       ],
     };
   }, [stats]);
+
+  function openReview(request: RequestRow) {
+    setSelectedRequest(request);
+    setShowReviewModal(true);
+  }
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -716,7 +724,9 @@ export default function AdminGroupStaysRequestsPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex items-center justify-end gap-2">
-                          <button className="text-amber-600 hover:text-amber-900">Review</button>
+                          <button type="button" onClick={() => openReview(request)} className="text-amber-600 hover:text-amber-900">
+                            Review
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -765,7 +775,9 @@ export default function AdminGroupStaysRequestsPage() {
                     </div>
                   </div>
                   <div className="mt-3 text-right">
-                    <button className="text-amber-600 hover:text-amber-900 text-sm">Review Request</button>
+                    <button type="button" onClick={() => openReview(request)} className="text-amber-600 hover:text-amber-900 text-sm">
+                      Review Request
+                    </button>
                   </div>
                 </div>
               ))}
@@ -773,6 +785,114 @@ export default function AdminGroupStaysRequestsPage() {
           </>
         )}
       </div>
+
+      {/* Review Modal */}
+      {showReviewModal && selectedRequest && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
+            onClick={() => setShowReviewModal(false)}
+          />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full my-8 max-h-[90vh] flex flex-col overflow-hidden">
+              <div className="sticky top-0 bg-gradient-to-r from-amber-50 to-white border-b border-gray-200 px-4 sm:px-6 py-4 flex items-center justify-between">
+                <div>
+                  <div className="text-xs text-gray-500">Group Stay Request</div>
+                  <div className="text-lg sm:text-xl font-bold text-gray-900">Review #{selectedRequest.id}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowReviewModal(false)}
+                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-white/80 rounded-lg transition-all"
+                  aria-label="Close modal"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-6 space-y-6">
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <div className="text-xs text-gray-500">Customer</div>
+                      <div className="font-semibold text-gray-900">{selectedRequest.user?.name || "N/A"}</div>
+                      {selectedRequest.user?.email && <div className="text-gray-700 break-words">{selectedRequest.user.email}</div>}
+                      {selectedRequest.user?.phone && <div className="text-gray-700">{selectedRequest.user.phone}</div>}
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-500">Created</div>
+                      <div className="font-semibold text-gray-900">{new Date(selectedRequest.createdAt).toLocaleString()}</div>
+                    </div>
+
+                    <div>
+                      <div className="text-xs text-gray-500">Group Type</div>
+                      <div className="font-semibold text-gray-900 capitalize">{selectedRequest.groupType}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-500">Accommodation</div>
+                      <div className="font-semibold text-gray-900 capitalize">{selectedRequest.accommodationType}</div>
+                    </div>
+
+                    <div>
+                      <div className="text-xs text-gray-500">Destination</div>
+                      <div className="font-semibold text-gray-900">
+                        {selectedRequest.toRegion}
+                        {selectedRequest.toDistrict ? `, ${selectedRequest.toDistrict}` : ""}
+                        {selectedRequest.toLocation ? `, ${selectedRequest.toLocation}` : ""}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-500">Headcount / Rooms</div>
+                      <div className="font-semibold text-gray-900">
+                        {selectedRequest.headcount} people ({selectedRequest.roomsNeeded} rooms)
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-xs text-gray-500">Dates</div>
+                      <div className="font-semibold text-gray-900">
+                        {selectedRequest.checkIn ? new Date(selectedRequest.checkIn).toLocaleDateString() : "Flexible"}
+                        {selectedRequest.checkOut ? ` → ${new Date(selectedRequest.checkOut).toLocaleDateString()}` : ""}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-500">Pickup</div>
+                      <div className="font-semibold text-gray-900">
+                        {selectedRequest.pickupLocation ? selectedRequest.pickupLocation : "N/A"}
+                        {selectedRequest.pickupTime ? ` (${selectedRequest.pickupTime})` : ""}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-xl p-4 border border-gray-200">
+                  <div className="text-sm font-semibold text-gray-900 mb-3">Arrangements</div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {selectedRequest.arrPickup && <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-700 rounded">Pickup</span>}
+                    {selectedRequest.arrTransport && <span className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded">Transport</span>}
+                    {selectedRequest.arrMeals && <span className="px-2 py-0.5 text-xs bg-purple-100 text-purple-700 rounded">Meals</span>}
+                    {selectedRequest.arrGuide && <span className="px-2 py-0.5 text-xs bg-amber-100 text-amber-700 rounded">Guide</span>}
+                    {selectedRequest.arrEquipment && <span className="px-2 py-0.5 text-xs bg-red-100 text-red-700 rounded">Equipment</span>}
+                    {!selectedRequest.arrPickup &&
+                      !selectedRequest.arrTransport &&
+                      !selectedRequest.arrMeals &&
+                      !selectedRequest.arrGuide &&
+                      !selectedRequest.arrEquipment && (
+                        <span className="text-gray-500 text-sm">No arrangements selected.</span>
+                      )}
+                  </div>
+                  {selectedRequest.arrangementNotes && (
+                    <div className="mt-3">
+                      <div className="text-xs text-gray-500 mb-1">Notes</div>
+                      <div className="text-sm text-gray-800 whitespace-pre-wrap">{selectedRequest.arrangementNotes}</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Pagination */}
       {list.length > 0 && (

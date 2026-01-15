@@ -8,6 +8,19 @@ export default [
   {
     files: ["**/*.{js,mjs,cjs}"],
     ...js.configs.recommended,
+    languageOptions: {
+      globals: {
+        console: "readonly",
+        process: "readonly",
+        Buffer: "readonly",
+        __dirname: "readonly",
+        __filename: "readonly",
+        module: "readonly",
+        require: "readonly",
+        exports: "readonly",
+        global: "readonly",
+      },
+    },
   },
   ...tseslint.configs.recommended,
   {

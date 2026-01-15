@@ -46,7 +46,13 @@ router.post("/verify", (async (req: AuthedRequest, res) => {
 
   await prisma.$transaction([
     prisma.phoneOtp.update({ where: { id: rec.id }, data: { usedAt: new Date() } }),
-    prisma.user.update({ where: { id: req.user!.id }, data: { phone: rec.phone } }),
+    prisma.user.update({ 
+      where: { id: req.user!.id }, 
+      data: { 
+        phone: rec.phone,
+        phoneVerifiedAt: new Date() 
+      } as any 
+    }),
   ]);
 
   res.json({ ok: true });

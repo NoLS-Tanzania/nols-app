@@ -10,6 +10,7 @@ import { validatePasswordWithSettings } from "../lib/securitySettings.js";
 import { authenticator } from "otplib";
 import QRCode from "qrcode";
 import rateLimit from "express-rate-limit";
+import { sendSms } from "../lib/sms.js";
 
 export const router = Router();
 router.use(requireAuth as unknown as RequestHandler);
@@ -25,6 +26,15 @@ const SENSITIVE_RATE_LIMIT_MAX = 50;
 const sensitive = rateLimit({ 
   windowMs: SENSITIVE_RATE_LIMIT_WINDOW_MS, 
   max: SENSITIVE_RATE_LIMIT_MAX 
+});
+
+// Rate limiter for payout updates (more restrictive - prevent unnecessary edits)
+const payoutUpdateLimit = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5, // Max 5 payout updates per hour
+  message: { error: "Too many payout updates. Please wait before making changes. This helps protect your account information." },
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 
 // Helper: Standardized error response
@@ -72,8 +82,41 @@ const updatePayoutsSchema = z.object({
 
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(1),
-  newPassword: z.string().min(1),
+  newPassword: z.string().min(8).max(12), // DoS protection: 8-12 characters
 }).strict();
+
+// DoS protection: Track password change attempts and cooldowns
+interface PasswordChangeAttempt {
+  failures: number;
+  lastFailure: number;
+  lockedUntil: number | null;
+  lastSuccess: number | null;
+}
+
+const passwordChangeAttempts = new Map<number, PasswordChangeAttempt>();
+
+// Get or create attempt tracker for user
+function getPasswordChangeAttempt(userId: number): PasswordChangeAttempt {
+  if (!passwordChangeAttempts.has(userId)) {
+    passwordChangeAttempts.set(userId, { failures: 0, lastFailure: 0, lockedUntil: null, lastSuccess: null });
+  }
+  return passwordChangeAttempts.get(userId)!;
+}
+
+// Clean up old entries (older than 1 hour)
+setInterval(() => {
+  const now = Date.now();
+  for (const [userId, attempt] of passwordChangeAttempts.entries()) {
+    if (attempt.lockedUntil && now > attempt.lockedUntil) {
+      attempt.failures = 0;
+      attempt.lockedUntil = null;
+    }
+    // Remove entries with no recent activity (older than 1 hour)
+    if (!attempt.lockedUntil && now - attempt.lastFailure > 3600000 && (!attempt.lastSuccess || now - attempt.lastSuccess > 3600000)) {
+      passwordChangeAttempts.delete(userId);
+    }
+  }
+}, 60000); // Clean up every minute
 
 const totpVerifySchema = z.object({
   code: z.string().length(6).regex(/^\d+$/),
@@ -81,6 +124,12 @@ const totpVerifySchema = z.object({
 
 const totpDisableSchema = z.object({
   code: z.string().min(1).optional(),
+}).strict();
+
+const smsSendSchema = z.object({}).strict();
+
+const smsVerifySchema = z.object({
+  code: z.string().length(6).regex(/^\d+$/),
 }).strict();
 
 const revokeSessionSchema = z.object({
@@ -102,53 +151,298 @@ const getMe: RequestHandler = async (req, res) => {
     // Fail-soft: some local DBs may be missing newer columns that exist in Prisma schema.
     // Avoid `findUnique()` without `select` (Prisma will select all columns and can crash with P2022).
     let user: any = null;
+    stage = 'user_select_full';
+    const meta = (prisma as any).user?._meta ?? {};
+    const hasField = (field: string) => Object.prototype.hasOwnProperty.call(meta, field);
+    const select: any = {
+      id: true,
+      role: true,
+      email: true,
+      phone: true,
+      name: true,
+      createdAt: true,
+    };
+    // Common/profile fields
+    if (hasField('fullName')) select.fullName = true;
+    if (hasField('avatarUrl')) select.avatarUrl = true;
+    if (hasField('emailVerifiedAt')) select.emailVerifiedAt = true;
+    if (hasField('phoneVerifiedAt')) select.phoneVerifiedAt = true;
+    if (hasField('twoFactorEnabled')) select.twoFactorEnabled = true;
+    if (hasField('twoFactorMethod')) select.twoFactorMethod = true;
+    if (hasField('suspendedAt')) select.suspendedAt = true;
+    if (hasField('isDisabled')) select.isDisabled = true;
+    if (hasField('timezone')) select.timezone = true;
+    if (hasField('dateOfBirth')) select.dateOfBirth = true;
+    if (hasField('region')) select.region = true;
+    if (hasField('district')) select.district = true;
+    // Always try to include payout (like tin and address)
+    select.payout = true;
+
+    // Owner fields - always try to include these fields
+    select.tin = true;
+    select.address = true;
+
+    // Driver fields
+    if (hasField('gender')) select.gender = true;
+    if (hasField('nationality')) select.nationality = true;
+    if (hasField('nin')) select.nin = true;
+    if (hasField('licenseNumber')) select.licenseNumber = true;
+    if (hasField('plateNumber')) select.plateNumber = true;
+    if (hasField('vehicleType')) select.vehicleType = true;
+    if (hasField('vehicleMake')) select.vehicleMake = true;
+    if (hasField('vehiclePlate')) select.vehiclePlate = true;
+    if (hasField('operationArea')) select.operationArea = true;
+    if (hasField('paymentPhone')) select.paymentPhone = true;
+    if (hasField('paymentVerified')) select.paymentVerified = true;
+
     try {
-      stage = 'user_select_full';
-      user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          id: true,
-          role: true,
-          email: true,
-          phone: true,
-          name: true,
-          fullName: true,
-          avatarUrl: true,
-          createdAt: true,
-          emailVerifiedAt: true,
-          phoneVerifiedAt: true,
-          twoFactorEnabled: true,
-          suspendedAt: true,
-          isDisabled: true,
-        } as any,
-      });
-    } catch (e) {
-      stage = 'user_select_minimal';
-      user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          id: true,
-          role: true,
-          email: true,
-          phone: true,
-          name: true,
-          createdAt: true,
-        } as any,
-      });
-      if (user) {
-        user.fullName = user.fullName ?? null;
-        user.avatarUrl = user.avatarUrl ?? null;
-        user.emailVerifiedAt = null;
-        user.phoneVerifiedAt = null;
-        user.twoFactorEnabled = false;
-        user.suspendedAt = null;
-        user.isDisabled = null;
+      user = await prisma.user.findUnique({ where: { id: userId }, select } as any);
+    } catch (e: any) {
+      // If error is due to missing columns (P2022), try again without tin/address
+      if (e?.code === 'P2022' || String(e?.message || '').includes('Unknown column') || String(e?.message || '').includes('Column')) {
+        stage = 'user_select_without_tin_address';
+        try {
+          const selectWithoutTinAddress = { ...select };
+          delete selectWithoutTinAddress.tin;
+          delete selectWithoutTinAddress.address;
+          // Ensure payout is still included (always try)
+          selectWithoutTinAddress.payout = true;
+          user = await prisma.user.findUnique({ where: { id: userId }, select: selectWithoutTinAddress } as any);
+          if (user) {
+            (user as any).tin = null;
+            (user as any).address = null;
+          }
+        } catch (e2) {
+          // Fall through to minimal select
+          stage = 'user_select_minimal';
+        }
+      }
+      
+      // If still no user, try minimal select
+      if (!user) {
+        stage = 'user_select_minimal';
+        try {
+          const minimalSelect: any = {
+            id: true,
+            role: true,
+            email: true,
+            phone: true,
+            name: true,
+            createdAt: true,
+          };
+          // Always try to include payout, twoFactorEnabled, and twoFactorMethod even in minimal select
+          minimalSelect.payout = true;
+          if (hasField('twoFactorEnabled')) minimalSelect.twoFactorEnabled = true;
+          if (hasField('twoFactorMethod')) minimalSelect.twoFactorMethod = true;
+          
+          user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: minimalSelect,
+          });
+          if (user) {
+            (user as any).fullName = (user as any).fullName ?? null;
+            (user as any).avatarUrl = (user as any).avatarUrl ?? null;
+            (user as any).emailVerifiedAt = null;
+            (user as any).phoneVerifiedAt = null;
+            // Only set to false if not already set from database
+            if (!hasField('twoFactorEnabled') || (user as any).twoFactorEnabled === undefined) {
+              (user as any).twoFactorEnabled = false;
+            }
+            (user as any).suspendedAt = null;
+            (user as any).isDisabled = null;
+            (user as any).tin = null;
+            (user as any).address = null;
+            // Try to fetch payout separately if not included
+            if (!(user as any).payout) {
+              try {
+                const userWithPayout = await prisma.user.findUnique({
+                  where: { id: userId },
+                  select: { payout: true } as any,
+                });
+                if (userWithPayout) {
+                  (user as any).payout = (userWithPayout as any).payout;
+                }
+              } catch (e4) {
+                // Ignore - payout might not exist
+              }
+            }
+          }
+        } catch (e3) {
+          // Last resort - ignore
+        }
+      }
+    }
+    
+    // Final fallback: if user exists but payout is missing, try to fetch it separately
+    if (user && !(user as any).payout) {
+      try {
+        const userWithPayout = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { payout: true } as any,
+        });
+        if (userWithPayout && (userWithPayout as any).payout) {
+          (user as any).payout = (userWithPayout as any).payout;
+        }
+      } catch (e) {
+        console.warn(`[account/me] Failed to fetch payout separately:`, e);
+      }
+    }
+    
+    // Ensure twoFactorEnabled and twoFactorMethod are always fetched, even if main query didn't include them
+    // Check if they're missing (undefined/null) or if we need to verify them from database
+    if (user && ((user as any).twoFactorEnabled === undefined || (user as any).twoFactorEnabled === null || (user as any).twoFactorMethod === undefined)) {
+      try {
+        // Always try to fetch twoFactorEnabled and twoFactorMethod - they're critical fields
+        const userWith2FA = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { twoFactorEnabled: true, twoFactorMethod: true } as any,
+        });
+        if (userWith2FA) {
+          if ((userWith2FA as any).twoFactorEnabled !== undefined) {
+            (user as any).twoFactorEnabled = !!(userWith2FA as any).twoFactorEnabled;
+          } else {
+            (user as any).twoFactorEnabled = false;
+          }
+          if ((userWith2FA as any).twoFactorMethod !== undefined) {
+            (user as any).twoFactorMethod = (userWith2FA as any).twoFactorMethod;
+          }
+        } else {
+          (user as any).twoFactorEnabled = false;
+        }
+      } catch (e) {
+        // If field doesn't exist in schema, default to false
+        console.warn(`[account/me] Failed to fetch twoFactorEnabled/twoFactorMethod separately (field may not exist):`, e);
+        (user as any).twoFactorEnabled = false;
       }
     }
     
     if (!user) {
       return sendError(res, 404, "User not found");
     }
+    
+    // Ensure payout is always attempted to be loaded, even if main query didn't include it
+    if (!(user as any).payout) {
+      try {
+        const payoutOnly = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { payout: true } as any,
+        });
+        if (payoutOnly && (payoutOnly as any).payout) {
+          (user as any).payout = (payoutOnly as any).payout;
+        }
+      } catch (e) {
+        console.warn(`[account/me] Failed to fetch payout directly:`, e);
+      }
+    }
+
+    // Best-effort: attach driver document URLs from UserDocument
+    try {
+      if ((prisma as any).userDocument) {
+        const docs = await prisma.userDocument.findMany({
+          where: { userId },
+          orderBy: { id: 'desc' },
+          take: 50,
+          select: { id: true, type: true, url: true, status: true, metadata: true, createdAt: true } as any,
+        });
+        const latestByType = new Map<string, any>();
+        for (const d of docs) {
+          const t = String((d as any).type ?? '').toUpperCase();
+          if (!t) continue;
+          if (!latestByType.has(t)) latestByType.set(t, d);
+        }
+        const lic = latestByType.get('DRIVER_LICENSE') || latestByType.get('DRIVING_LICENSE') || latestByType.get('LICENSE');
+        const nid = latestByType.get('NATIONAL_ID') || latestByType.get('ID') || latestByType.get('PASSPORT');
+        const reg = latestByType.get('VEHICLE_REGISTRATION') || latestByType.get('VEHICLE_REG');
+        const ins = latestByType.get('INSURANCE');
+        (user as any).drivingLicenseUrl = lic?.url ?? null;
+        (user as any).licenseFileUrl = lic?.url ?? null;
+        (user as any).nationalIdUrl = nid?.url ?? null;
+        (user as any).idFileUrl = nid?.url ?? null;
+        (user as any).vehicleRegistrationUrl = reg?.url ?? null;
+        (user as any).vehicleRegFileUrl = reg?.url ?? null;
+        (user as any).insuranceUrl = ins?.url ?? null;
+        (user as any).insuranceFileUrl = ins?.url ?? null;
+        (user as any).documents = docs;
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    // Best-effort: decrypt sensitive payout fields and attach extra profile fields
+    try {
+      let payout = (user as any).payout;
+      
+      // Handle case where payout might be a JSON string
+      if (typeof payout === 'string') {
+        try {
+          payout = JSON.parse(payout);
+        } catch (e) {
+          console.warn(`[account/me] Failed to parse payout JSON string:`, e);
+          payout = null;
+        }
+      }
+      
+      if (payout && typeof payout === 'object' && !Array.isArray(payout)) {
+        // Decrypt sensitive fields before returning to client
+        if (payout.bankAccountNumber && typeof payout.bankAccountNumber === 'string') {
+          try {
+            payout.bankAccountNumber = decrypt(payout.bankAccountNumber);
+          } catch (e) {
+            console.warn(`[account/me] Failed to decrypt bankAccountNumber, keeping as-is:`, e);
+            // If decryption fails, might be plain text (migration scenario)
+            // Keep as-is
+          }
+        }
+        if (payout.mobileMoneyNumber && typeof payout.mobileMoneyNumber === 'string') {
+          try {
+            payout.mobileMoneyNumber = decrypt(payout.mobileMoneyNumber);
+          } catch (e) {
+            console.warn(`[account/me] Failed to decrypt mobileMoneyNumber, keeping as-is:`, e);
+            // If decryption fails, might be plain text (migration scenario)
+            // Keep as-is
+          }
+        }
+        
+        // Attach payout fields directly to user object for easier access
+        // Preserve values even if they're empty strings (frontend will handle display)
+        (user as any).bankAccountName = payout.bankAccountName !== undefined && payout.bankAccountName !== null ? String(payout.bankAccountName) : null;
+        (user as any).bankName = payout.bankName !== undefined && payout.bankName !== null ? String(payout.bankName) : null;
+        (user as any).bankAccountNumber = payout.bankAccountNumber !== undefined && payout.bankAccountNumber !== null ? String(payout.bankAccountNumber) : null;
+        (user as any).bankBranch = payout.bankBranch !== undefined && payout.bankBranch !== null ? String(payout.bankBranch) : null;
+        (user as any).mobileMoneyProvider = payout.mobileMoneyProvider !== undefined && payout.mobileMoneyProvider !== null ? String(payout.mobileMoneyProvider) : null;
+        (user as any).mobileMoneyNumber = payout.mobileMoneyNumber !== undefined && payout.mobileMoneyNumber !== null ? String(payout.mobileMoneyNumber) : null;
+        (user as any).payoutPreferred = payout.payoutPreferred !== undefined && payout.payoutPreferred !== null ? String(payout.payoutPreferred) : null;
+        
+        // Attach extra profile fields stored in payout.profileExtras (used for environments without columns)
+        const extras = (payout as any).profileExtras;
+        if (extras && typeof extras === 'object') {
+          if ((user as any).region == null && typeof (extras as any).region !== 'undefined') (user as any).region = (extras as any).region;
+          if ((user as any).district == null && typeof (extras as any).district !== 'undefined') (user as any).district = (extras as any).district;
+          if ((user as any).timezone == null && typeof (extras as any).timezone !== 'undefined') (user as any).timezone = (extras as any).timezone;
+          if ((user as any).dateOfBirth == null && typeof (extras as any).dateOfBirth !== 'undefined') (user as any).dateOfBirth = (extras as any).dateOfBirth;
+        }
+      } else {
+        // Ensure payout fields are set to null if no payout data exists
+        (user as any).bankAccountName = null;
+        (user as any).bankName = null;
+        (user as any).bankAccountNumber = null;
+        (user as any).bankBranch = null;
+        (user as any).mobileMoneyProvider = null;
+        (user as any).mobileMoneyNumber = null;
+        (user as any).payoutPreferred = null;
+      }
+    } catch (e) {
+      console.error(`[account/me] Error processing payout data:`, e);
+      // Set defaults on error
+      (user as any).bankAccountName = null;
+      (user as any).bankName = null;
+      (user as any).bankAccountNumber = null;
+      (user as any).bankBranch = null;
+      (user as any).mobileMoneyProvider = null;
+      (user as any).mobileMoneyNumber = null;
+      (user as any).payoutPreferred = null;
+    }
+
     // `user` is already a safe select (no passwordHash/totpSecretEnc/etc)
     sendSuccess(res, user);
   } catch (error: any) {
@@ -196,29 +490,83 @@ const updateProfile: RequestHandler = async (req, res) => {
     }
 
     // Get before state for audit
-    const meta = (prisma as any).user?._meta ?? {};
     const beforeSelect: any = { fullName: true, name: true, phone: true, email: true, avatarUrl: true };
-    if (Object.prototype.hasOwnProperty.call(meta, 'tin')) beforeSelect.tin = true;
-    if (Object.prototype.hasOwnProperty.call(meta, 'address')) beforeSelect.address = true;
+    // Always try to include tin and address for audit
+    try {
+      beforeSelect.tin = true;
+    } catch (e) {}
+    try {
+      beforeSelect.address = true;
+    } catch (e) {}
 
     let before: any = null;
     try {
       before = await prisma.user.findUnique({ where: { id: userId }, select: beforeSelect });
     } catch (e) {
-      // Best-effort audit
+      // Best-effort audit - if tin/address cause issues, try without them
+      try {
+        before = await prisma.user.findUnique({ 
+          where: { id: userId }, 
+          select: { fullName: true, name: true, phone: true, email: true, avatarUrl: true } 
+        });
+      } catch (e2) {
+        // Ignore audit failures
+      }
     }
 
-    // Build update data
+    // Build update data - always include tin and address if provided
     const updateData: any = {};
     if (data.fullName !== undefined) updateData.fullName = data.fullName;
     if (data.name !== undefined) updateData.name = data.name;
     if (data.phone !== undefined) updateData.phone = data.phone;
     if (data.email !== undefined) updateData.email = data.email;
     if (data.avatarUrl !== undefined) updateData.avatarUrl = data.avatarUrl;
-    if (Object.prototype.hasOwnProperty.call(meta, 'tin') && data.tin !== undefined) updateData.tin = data.tin;
-    if (Object.prototype.hasOwnProperty.call(meta, 'address') && data.address !== undefined) updateData.address = data.address;
+    // Always try to save tin and address if provided
+    if (data.tin !== undefined) {
+      updateData.tin = data.tin;
+    }
+    if (data.address !== undefined) {
+      updateData.address = data.address;
+    }
 
-    const updated = await prisma.user.update({ where: { id: userId }, data: updateData } as any);
+    const extractUnknownArg = (err: any): string | null => {
+      const msg = String(err?.message ?? '');
+      const m = msg.match(/Unknown argument `([^`]+)`/);
+      return m?.[1] ?? null;
+    };
+
+    let updated: any;
+    try {
+      updated = await prisma.user.update({ where: { id: userId }, data: updateData } as any);
+    } catch (err: any) {
+      // Some environments may have an older generated Prisma Client that doesn't include
+      // newer fields yet (e.g., `fullName`, `tin`, `address`). Retry by dropping unsupported fields.
+      const badField = extractUnknownArg(err);
+      if (badField) {
+        console.warn(`[account/profile] Field '${badField}' not available in schema, retrying without it`);
+        // If `fullName` isn't supported, best-effort map it to `name`.
+        if (badField === 'fullName' && updateData.fullName !== undefined && updateData.name === undefined) {
+          updateData.name = updateData.fullName;
+        }
+        delete updateData[badField];
+        try {
+          updated = await prisma.user.update({ where: { id: userId }, data: updateData } as any);
+        } catch (err2: any) {
+          // If still fails, try removing tin/address specifically
+          if (badField === 'tin' || badField === 'address') {
+            const retryData = { ...updateData };
+            delete retryData.tin;
+            delete retryData.address;
+            updated = await prisma.user.update({ where: { id: userId }, data: retryData } as any);
+            console.warn(`[account/profile] tin/address fields not available, saved other fields only`);
+          } else {
+            throw err2;
+          }
+        }
+      } else {
+        throw err;
+      }
+    }
     
     try {
       await audit(req as AuthedRequest, 'USER_PROFILE_UPDATE', `user:${updated.id}`, before, updateData);
@@ -256,32 +604,156 @@ const updatePayouts: RequestHandler = async (req, res) => {
     const before = currentUser?.payout || null;
     
     // Merge new fields into payout JSON
-    const payoutData: Record<string, any> = {
-      ...(typeof before === 'object' && before !== null ? before : {}),
+    // Decrypt existing sensitive fields if they exist
+    const payoutData: Record<string, any> = {};
+    const currentDecrypted: Record<string, any> = {};
+    if (typeof before === 'object' && before !== null) {
+      // Decrypt sensitive fields from existing data
+      if (before.bankAccountNumber && typeof before.bankAccountNumber === 'string') {
+        try {
+          currentDecrypted.bankAccountNumber = decrypt(before.bankAccountNumber);
+          payoutData.bankAccountNumber = currentDecrypted.bankAccountNumber;
+        } catch (e) {
+          // If decryption fails, might be plain text (migration scenario)
+          currentDecrypted.bankAccountNumber = before.bankAccountNumber;
+          payoutData.bankAccountNumber = before.bankAccountNumber;
+        }
+      }
+      if (before.mobileMoneyNumber && typeof before.mobileMoneyNumber === 'string') {
+        try {
+          currentDecrypted.mobileMoneyNumber = decrypt(before.mobileMoneyNumber);
+          payoutData.mobileMoneyNumber = currentDecrypted.mobileMoneyNumber;
+        } catch (e) {
+          currentDecrypted.mobileMoneyNumber = before.mobileMoneyNumber;
+          payoutData.mobileMoneyNumber = before.mobileMoneyNumber;
+        }
+      }
+      // Copy non-sensitive fields as-is
+      if (before.bankAccountName) {
+        payoutData.bankAccountName = before.bankAccountName;
+        currentDecrypted.bankAccountName = before.bankAccountName;
+      }
+      if (before.bankName) {
+        payoutData.bankName = before.bankName;
+        currentDecrypted.bankName = before.bankName;
+      }
+      if (before.bankBranch) {
+        payoutData.bankBranch = before.bankBranch;
+        currentDecrypted.bankBranch = before.bankBranch;
+      }
+      if (before.mobileMoneyProvider) {
+        payoutData.mobileMoneyProvider = before.mobileMoneyProvider;
+        currentDecrypted.mobileMoneyProvider = before.mobileMoneyProvider;
+      }
+      if (before.payoutPreferred) {
+        payoutData.payoutPreferred = before.payoutPreferred;
+        currentDecrypted.payoutPreferred = before.payoutPreferred;
+      }
+    }
+    
+    // Validation: Check if any value actually changed (prevent unnecessary edits)
+    const changedFields: string[] = [];
+    const normalizeValue = (val: any): string => {
+      if (val === null || val === undefined) return '';
+      return String(val).trim().toLowerCase();
     };
     
-    // Only add fields that are provided
-    if (data.bankAccountName !== undefined) payoutData.bankAccountName = data.bankAccountName;
-    if (data.bankName !== undefined) payoutData.bankName = data.bankName;
-    if (data.bankAccountNumber !== undefined) payoutData.bankAccountNumber = data.bankAccountNumber;
-    if (data.bankBranch !== undefined) payoutData.bankBranch = data.bankBranch;
-    if (data.mobileMoneyProvider !== undefined) payoutData.mobileMoneyProvider = data.mobileMoneyProvider;
-    if (data.mobileMoneyNumber !== undefined) payoutData.mobileMoneyNumber = data.mobileMoneyNumber;
-    if (data.payoutPreferred !== undefined) payoutData.payoutPreferred = data.payoutPreferred;
+    // Prepare audit data (mask sensitive fields before encryption)
+    const auditPayoutData: Record<string, any> = {};
+    
+    // Only add/update fields that are provided and actually changed
+    if (data.bankAccountName !== undefined) {
+      const newVal = normalizeValue(data.bankAccountName);
+      const oldVal = normalizeValue(currentDecrypted.bankAccountName);
+      if (newVal !== oldVal) {
+        payoutData.bankAccountName = data.bankAccountName;
+        auditPayoutData.bankAccountName = data.bankAccountName;
+        changedFields.push('bankAccountName');
+      }
+    }
+    if (data.bankName !== undefined) {
+      const newVal = normalizeValue(data.bankName);
+      const oldVal = normalizeValue(currentDecrypted.bankName);
+      if (newVal !== oldVal) {
+        payoutData.bankName = data.bankName;
+        auditPayoutData.bankName = data.bankName;
+        changedFields.push('bankName');
+      }
+    }
+    if (data.bankAccountNumber !== undefined) {
+      const newVal = normalizeValue(data.bankAccountNumber);
+      const oldVal = normalizeValue(currentDecrypted.bankAccountNumber);
+      if (newVal !== oldVal) {
+        // Encrypt sensitive bank account number for storage
+        payoutData.bankAccountNumber = encrypt(data.bankAccountNumber);
+        // Mask for audit log
+        const masked = String(data.bankAccountNumber);
+        auditPayoutData.bankAccountNumber = masked.length > 4 
+          ? `${masked.slice(0, 2)}****${masked.slice(-2)}` 
+          : '****';
+        changedFields.push('bankAccountNumber');
+      }
+    }
+    if (data.bankBranch !== undefined) {
+      const newVal = normalizeValue(data.bankBranch);
+      const oldVal = normalizeValue(currentDecrypted.bankBranch);
+      if (newVal !== oldVal) {
+        payoutData.bankBranch = data.bankBranch;
+        auditPayoutData.bankBranch = data.bankBranch;
+        changedFields.push('bankBranch');
+      }
+    }
+    if (data.mobileMoneyProvider !== undefined) {
+      const newVal = normalizeValue(data.mobileMoneyProvider);
+      const oldVal = normalizeValue(currentDecrypted.mobileMoneyProvider);
+      if (newVal !== oldVal) {
+        payoutData.mobileMoneyProvider = data.mobileMoneyProvider;
+        auditPayoutData.mobileMoneyProvider = data.mobileMoneyProvider;
+        changedFields.push('mobileMoneyProvider');
+      }
+    }
+    if (data.mobileMoneyNumber !== undefined) {
+      const newVal = normalizeValue(data.mobileMoneyNumber);
+      const oldVal = normalizeValue(currentDecrypted.mobileMoneyNumber);
+      if (newVal !== oldVal) {
+        // Encrypt sensitive mobile money number for storage
+        payoutData.mobileMoneyNumber = encrypt(data.mobileMoneyNumber);
+        // Mask for audit log
+        const masked = String(data.mobileMoneyNumber);
+        auditPayoutData.mobileMoneyNumber = masked.length > 4 
+          ? `${masked.slice(0, 2)}****${masked.slice(-2)}` 
+          : '****';
+        changedFields.push('mobileMoneyNumber');
+      }
+    }
+    if (data.payoutPreferred !== undefined) {
+      const newVal = normalizeValue(data.payoutPreferred);
+      const oldVal = normalizeValue(currentDecrypted.payoutPreferred);
+      if (newVal !== oldVal) {
+        payoutData.payoutPreferred = data.payoutPreferred;
+        auditPayoutData.payoutPreferred = data.payoutPreferred;
+        changedFields.push('payoutPreferred');
+      }
+    }
+    
+    // If no fields actually changed, return early
+    if (changedFields.length === 0) {
+      return sendError(res, 400, "No changes detected. The values you entered are the same as the current values.");
+    }
     
     const updated = await prisma.user.update({
       where: { id: userId },
       data: { payout: payoutData },
     });
     
-    await audit(req as AuthedRequest, "USER_PAYOUT_UPDATE", `user:${updated.id}`, before, payoutData);
+    await audit(req as AuthedRequest, "USER_PAYOUT_UPDATE", `user:${updated.id}`, before, auditPayoutData);
     sendSuccess(res, null, "Payout information updated successfully");
   } catch (error: any) {
     console.error('account.payouts.update failed', error);
     sendError(res, 500, "Failed to update payout information");
   }
 };
-router.put("/payouts", updatePayouts as unknown as RequestHandler);
+router.put("/payouts", payoutUpdateLimit, updatePayouts as unknown as RequestHandler);
 
 /** POST /account/password/change */
 const changePassword: RequestHandler = async (req, res) => {
@@ -295,6 +767,13 @@ const changePassword: RequestHandler = async (req, res) => {
     const { currentPassword, newPassword } = validationResult.data;
     const userId = getUserId(req as AuthedRequest);
 
+    // DoS protection: Enforce 8-12 character limit
+    if (newPassword.length < 8 || newPassword.length > 12) {
+      return sendError(res, 400, "Password must be between 8 and 12 characters", { 
+        reasons: ['Password length must be between 8 and 12 characters to prevent DoS attacks'] 
+      });
+    }
+
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       return sendError(res, 404, "User not found");
@@ -304,22 +783,73 @@ const changePassword: RequestHandler = async (req, res) => {
       return sendError(res, 400, "No password set for this account");
     }
 
+    // DoS protection: Check for timeout/lockout
+    const attempt = getPasswordChangeAttempt(userId);
+    const now = Date.now();
+    
+    if (attempt.lockedUntil && now < attempt.lockedUntil) {
+      const remaining = Math.ceil((attempt.lockedUntil - now) / 1000);
+      return sendError(res, 429, `Too many failed attempts. Please wait ${remaining} seconds.`, {
+        reasons: [`Account temporarily locked. Try again in ${remaining} seconds.`],
+        lockedUntil: attempt.lockedUntil
+      });
+    }
+
+    // DoS protection: Check 30-minute cooldown after successful password change
+    if (attempt.lastSuccess && (now - attempt.lastSuccess) < (30 * 60 * 1000)) {
+      const remaining = Math.ceil((30 * 60 * 1000 - (now - attempt.lastSuccess)) / 60000);
+      return sendError(res, 429, `Password was recently changed. Please wait ${remaining} minute(s) before changing it again.`, {
+        reasons: [`Password change cooldown active. Try again in ${remaining} minute(s).`],
+        cooldownUntil: attempt.lastSuccess + (30 * 60 * 1000)
+      });
+    }
+
     // Verify current password
     const isValid = await verifyPassword(user.passwordHash, currentPassword);
     if (!isValid) {
-      return sendError(res, 400, "Current password incorrect");
+      // Track failure
+      attempt.failures += 1;
+      attempt.lastFailure = now;
+      
+      // Lock after 3 consecutive failures for 5 minutes
+      if (attempt.failures >= 3) {
+        attempt.lockedUntil = now + (5 * 60 * 1000); // 5 minutes
+        attempt.failures = 0; // Reset counter after lockout
+        return sendError(res, 429, "Too many failed attempts. Account locked for 5 minutes.", {
+          reasons: ['Account temporarily locked due to multiple failed password change attempts.'],
+          lockedUntil: attempt.lockedUntil
+        });
+      }
+      
+      return sendError(res, 400, "Current password incorrect", {
+        reasons: [`Incorrect current password. ${3 - attempt.failures} attempt(s) remaining before lockout.`]
+      });
     }
 
-    // Validate password strength using SystemSetting configuration
+    // Reset failure counter on successful password verification
+    attempt.failures = 0;
+    attempt.lockedUntil = null;
+
+    // Enforce policy: Prevent reusing the current/existing password
+    const isCurrentPassword = await verifyPassword(user.passwordHash, newPassword);
+    if (isCurrentPassword) {
+      return sendError(res, 400, "Cannot reuse current password", { 
+        reasons: ['The new password must be different from your current password. Please choose a different password.'] 
+      });
+    }
+
+    // Validate password strength (but with 8-12 limit already enforced)
     const { valid, reasons } = await validatePasswordWithSettings(newPassword, user.role || null);
     if (!valid) {
       return sendError(res, 400, "Password does not meet strength requirements", { reasons });
     }
 
-    // Prevent reuse of recent passwords
+    // Prevent reuse of recent passwords from history
     const reused = await isPasswordReused(user.id, newPassword);
     if (reused) {
-      return sendError(res, 400, "Password was used recently", { reasons: ['Do not reuse recent passwords'] });
+      return sendError(res, 400, "Password was used recently", { 
+        reasons: ['This password was used recently. Please choose a different password that has not been used before.'] 
+      });
     }
 
     // Update password
@@ -333,6 +863,11 @@ const changePassword: RequestHandler = async (req, res) => {
       // Best-effort
     }
 
+    // Record successful password change and set cooldown
+    attempt.lastSuccess = now;
+    attempt.failures = 0;
+    attempt.lockedUntil = null;
+
     // Check if force logout on password change is enabled
     const { shouldForceLogout, clearAuthCookie } = await import('../lib/sessionManager.js');
     const forceLogout = await shouldForceLogout();
@@ -342,7 +877,7 @@ const changePassword: RequestHandler = async (req, res) => {
     }
 
     await audit(req as AuthedRequest, "USER_PASSWORD_CHANGE", `user:${user.id}`);
-    sendSuccess(res, { forceLogout }, "Password changed successfully");
+    sendSuccess(res, { forceLogout, cooldownUntil: now + (30 * 60 * 1000) }, "Password changed successfully");
   } catch (error: any) {
     console.error('account.password.change failed', error);
     sendError(res, 500, "Failed to change password");
@@ -523,6 +1058,212 @@ const regenCodes: RequestHandler = async (req, res) => {
 };
 router.post("/2fa/codes/regenerate", sensitive as unknown as RequestHandler, regenCodes as unknown as RequestHandler);
 
+/** 2FA: SMS Send - Send OTP code via SMS */
+const sendSms2FA: RequestHandler = async (req, res) => {
+  try {
+    const validationResult = smsSendSchema.safeParse(req.body);
+    if (!validationResult.success) {
+      return sendError(res, 400, "Invalid input", validationResult.error.errors);
+    }
+
+    const userId = getUserId(req as AuthedRequest);
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    
+    if (!user) {
+      return sendError(res, 404, "User not found");
+    }
+
+    if (!user.phone) {
+      return sendError(res, 400, "Phone number is required for SMS 2FA. Please update your profile.");
+    }
+
+    // Generate 6-digit OTP code
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const codeHash = await hashCode(code);
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    // Store OTP in phoneOtp table
+    await prisma.phoneOtp.create({
+      data: {
+        userId: user.id,
+        phone: user.phone,
+        codeHash,
+        expiresAt,
+      },
+    });
+
+    // Send SMS
+    await sendSms(user.phone, `NoLSAF 2FA verification code: ${code}`);
+
+    await audit(req as AuthedRequest, "USER_2FA_SMS_SENT", `user:${user.id}`);
+    sendSuccess(res, { phoneMasked: maskPhone(user.phone) }, "SMS code sent successfully");
+  } catch (error: any) {
+    console.error('account.2fa.sms.send failed', error);
+    sendError(res, 500, "Failed to send SMS code");
+  }
+};
+
+function maskPhone(p: string | null): string {
+  if (!p) return "•••••••••";
+  const tail = p.slice(-3);
+  return `••••••${tail}`;
+}
+
+router.post("/2fa/sms/send", sensitive as unknown as RequestHandler, sendSms2FA as unknown as RequestHandler);
+
+/** 2FA: SMS Verify - Verify OTP code and enable SMS 2FA */
+const verifySms2FA: RequestHandler = async (req, res) => {
+  try {
+    const validationResult = smsVerifySchema.safeParse(req.body);
+    if (!validationResult.success) {
+      return sendError(res, 400, "Invalid input", validationResult.error.errors);
+    }
+
+    const { code } = validationResult.data;
+    const userId = getUserId(req as AuthedRequest);
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      return sendError(res, 404, "User not found");
+    }
+
+    if (!user.phone) {
+      return sendError(res, 400, "Phone number is required");
+    }
+
+    // Find active OTP
+    const otp = await prisma.phoneOtp.findFirst({
+      where: {
+        userId: user.id,
+        phone: user.phone,
+        usedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+      orderBy: { id: "desc" },
+    });
+
+    if (!otp) {
+      return sendError(res, 400, "No active code found. Please request a new one.");
+    }
+
+    // Verify code
+    const isValid = await verifyCode(otp.codeHash, code);
+    if (!isValid) {
+      return sendError(res, 400, "Invalid code");
+    }
+
+    // Mark OTP as used and enable SMS 2FA
+    await prisma.$transaction(async (tx: typeof prisma) => {
+      await tx.phoneOtp.update({
+        where: { id: otp.id },
+        data: { usedAt: new Date() },
+      });
+
+      await tx.user.update({
+        where: { id: user.id },
+        data: {
+          twoFactorEnabled: true,
+          twoFactorMethod: "SMS",
+        },
+      });
+    });
+
+    await audit(req as AuthedRequest, "USER_2FA_ENABLED", `user:${user.id}`, null, { method: "SMS" });
+    sendSuccess(res, null, "SMS 2FA enabled successfully");
+  } catch (error: any) {
+    console.error('account.2fa.sms.verify failed', error);
+    sendError(res, 500, "Failed to verify SMS code");
+  }
+};
+
+router.post("/2fa/sms/verify", sensitive as unknown as RequestHandler, verifySms2FA as unknown as RequestHandler);
+
+/** 2FA: SMS Disable - Disable SMS 2FA */
+const disableSms2FA: RequestHandler = async (req, res) => {
+  try {
+    const validationResult = smsVerifySchema.safeParse(req.body);
+    if (!validationResult.success) {
+      return sendError(res, 400, "Invalid input", validationResult.error.errors);
+    }
+
+    const { code } = validationResult.data;
+    const userId = getUserId(req as AuthedRequest);
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      return sendError(res, 404, "User not found");
+    }
+
+    if (!user.twoFactorEnabled || user.twoFactorMethod !== "SMS") {
+      return sendError(res, 400, "SMS 2FA is not enabled");
+    }
+
+    if (!user.phone) {
+      return sendError(res, 400, "Phone number not found");
+    }
+
+    // Find active OTP for verification
+    const otp = await prisma.phoneOtp.findFirst({
+      where: {
+        userId: user.id,
+        phone: user.phone,
+        usedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+      orderBy: { id: "desc" },
+    });
+
+    if (!otp) {
+      // If no active OTP, send a new one
+      const newCode = String(Math.floor(100000 + Math.random() * 900000));
+      const codeHash = await hashCode(newCode);
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+      await prisma.phoneOtp.create({
+        data: {
+          userId: user.id,
+          phone: user.phone,
+          codeHash,
+          expiresAt,
+        },
+      });
+
+      await sendSms(user.phone, `NoLSAF 2FA disable verification code: ${newCode}`);
+      return sendError(res, 400, "A new verification code has been sent to your phone. Please use it to disable 2FA.");
+    }
+
+    // Verify code
+    const isValid = await verifyCode(otp.codeHash, code);
+    if (!isValid) {
+      return sendError(res, 400, "Invalid code");
+    }
+
+    // Mark OTP as used and disable SMS 2FA
+    await prisma.$transaction(async (tx: typeof prisma) => {
+      await tx.phoneOtp.update({
+        where: { id: otp.id },
+        data: { usedAt: new Date() },
+      });
+
+      await tx.user.update({
+        where: { id: user.id },
+        data: {
+          twoFactorEnabled: false,
+          twoFactorMethod: null,
+        },
+      });
+    });
+
+    await audit(req as AuthedRequest, "USER_2FA_DISABLED", `user:${user.id}`, null, { method: "SMS" });
+    sendSuccess(res, null, "SMS 2FA disabled successfully");
+  } catch (error: any) {
+    console.error('account.2fa.sms.disable failed', error);
+    sendError(res, 500, "Failed to disable SMS 2FA");
+  }
+};
+
+router.post("/2fa/sms/disable", sensitive as unknown as RequestHandler, disableSms2FA as unknown as RequestHandler);
+
 /** DELETE /account - delete or soft-delete the current user account */
 const deleteAccount: RequestHandler = async (req, res) => {
   try {
@@ -666,14 +1407,35 @@ const getPaymentMethods: RequestHandler = async (req, res) => {
   try {
     const userId = getUserId(req as AuthedRequest);
     
-    // Get payout data
+    // Get payout data and decrypt sensitive fields
     let payout: any = null;
     try {
       const user = await prisma.user.findUnique({
         where: { id: userId },
         select: { payout: true },
       });
-      payout = user?.payout || null;
+      if (user?.payout && typeof user.payout === 'object') {
+        payout = { ...user.payout };
+        // Decrypt sensitive fields
+        if (payout.bankAccountNumber && typeof payout.bankAccountNumber === 'string') {
+          try {
+            payout.bankAccountNumber = decrypt(payout.bankAccountNumber);
+          } catch (e) {
+            // If decryption fails, might be plain text (migration scenario)
+            // Keep as-is
+          }
+        }
+        if (payout.mobileMoneyNumber && typeof payout.mobileMoneyNumber === 'string') {
+          try {
+            payout.mobileMoneyNumber = decrypt(payout.mobileMoneyNumber);
+          } catch (e) {
+            // If decryption fails, might be plain text (migration scenario)
+            // Keep as-is
+          }
+        }
+      } else {
+        payout = user?.payout || null;
+      }
     } catch (e) {
       // Best-effort
     }
@@ -710,5 +1472,179 @@ const getPaymentMethods: RequestHandler = async (req, res) => {
   }
 };
 router.get('/payment-methods', getPaymentMethods as unknown as RequestHandler);
+
+/** GET /account/audit-history - Get audit logs for current user's profile/payout changes */
+const getAuditHistory: RequestHandler = async (req, res) => {
+  try {
+    const userId = getUserId(req as AuthedRequest);
+    const page = Math.max(1, parseInt(String(req.query.page || '1'), 10));
+    const pageSize = Math.min(50, Math.max(1, parseInt(String(req.query.pageSize || '20'), 10)));
+    const skip = (page - 1) * pageSize;
+    
+    // Fetch audit logs related to this user's profile/payout changes
+    let logs: any[] = [];
+    let total = 0;
+    
+    try {
+      // Define all account-related actions
+      const accountActions = [
+        'USER_PROFILE_UPDATE',
+        'USER_PAYOUT_UPDATE',
+        'USER_PASSWORD_CHANGE',
+        'USER_LOGIN',
+        'USER_LOGOUT',
+        'USER_SESSION_REVOKE',
+        'USER_SESSION_REVOKE_OTHERS',
+      ];
+      
+      [logs, total] = await Promise.all([
+        prisma.auditLog.findMany({
+          where: {
+            OR: [
+              { actorId: userId, action: { in: accountActions } },
+              { entity: `user:${userId}`, action: { in: accountActions } },
+            ],
+          },
+          orderBy: { createdAt: 'desc' },
+          skip,
+          take: pageSize,
+          select: {
+            id: true,
+            action: true,
+            entity: true,
+            beforeJson: true,
+            afterJson: true,
+            createdAt: true,
+            ip: true,
+          },
+        }),
+        prisma.auditLog.count({
+          where: {
+            OR: [
+              { actorId: userId, action: { in: accountActions } },
+              { entity: `user:${userId}`, action: { in: accountActions } },
+            ],
+          },
+        }),
+      ]);
+    } catch (dbError: any) {
+      console.error('Database error fetching audit logs:', dbError);
+      // Return empty result instead of failing
+      logs = [];
+      total = 0;
+    }
+    
+    // Calculate impact score for each change
+    const logsWithImpact = logs.map((log: any) => {
+      try {
+        // Handle BigInt id conversion
+        const logId = typeof log.id === 'bigint' ? Number(log.id) : Number(log.id);
+        
+        // Safely parse JSON fields (they might already be objects or JSON strings)
+        let before: any = {};
+        let after: any = {};
+        try {
+          if (log.beforeJson) {
+            before = typeof log.beforeJson === 'string' ? JSON.parse(log.beforeJson) : log.beforeJson;
+          }
+          if (log.afterJson) {
+            after = typeof log.afterJson === 'string' ? JSON.parse(log.afterJson) : log.afterJson;
+          }
+        } catch (e) {
+          // If parsing fails, use empty objects
+          console.warn('Failed to parse audit log JSON fields', e);
+        }
+        
+        let impactScore = 0;
+        const changedFields: string[] = [];
+        
+        // Handle account actions that don't have before/after JSON
+        const actionImpactScores: Record<string, number> = {
+          'USER_PASSWORD_CHANGE': 15, // High impact - security critical
+          'USER_LOGIN': 2, // Low impact - routine
+          'USER_LOGOUT': 1, // Low impact - routine
+          'USER_SESSION_REVOKE': 5, // Medium impact - security action
+          'USER_SESSION_REVOKE_OTHERS': 8, // Medium-high impact - security action
+          'USER_PROFILE_UPDATE': 3, // Low-medium impact
+          'USER_PAYOUT_UPDATE': 5, // Medium impact
+        };
+        
+        // If this is an account action without before/after data, use predefined impact
+        if (actionImpactScores[log.action]) {
+          impactScore = actionImpactScores[log.action];
+        } else {
+          // Count changed fields for profile/payout updates
+          const allKeys = new Set([...Object.keys(before || {}), ...Object.keys(after || {})]);
+          for (const key of allKeys) {
+            const beforeVal = before?.[key];
+            const afterVal = after?.[key];
+            try {
+              if (JSON.stringify(beforeVal) !== JSON.stringify(afterVal)) {
+                changedFields.push(key);
+                // Sensitive fields have higher impact
+                if (key === 'bankAccountNumber' || key === 'mobileMoneyNumber') {
+                  impactScore += 10;
+                } else if (key === 'bankName' || key === 'bankAccountName' || key === 'mobileMoneyProvider') {
+                  impactScore += 5;
+                } else {
+                  impactScore += 1;
+                }
+              }
+            } catch (e) {
+              // Skip fields that can't be compared
+              console.warn(`Failed to compare field ${key}`, e);
+            }
+          }
+        }
+        
+        return {
+          id: logId,
+          action: log.action || 'UNKNOWN',
+          entity: log.entity || 'UNKNOWN',
+          changedFields,
+          impactScore,
+          impactLevel: impactScore >= 10 ? 'high' : impactScore >= 5 ? 'medium' : 'low',
+          before: before || null,
+          after: after || null,
+          createdAt: log.createdAt instanceof Date ? log.createdAt.toISOString() : (log.createdAt ? String(log.createdAt) : new Date().toISOString()),
+          ip: log.ip || null,
+        };
+      } catch (e: any) {
+        console.error('Error processing audit log entry', { error: e?.message, logId: log.id });
+        // Return a safe fallback entry
+        return {
+          id: typeof log.id === 'bigint' ? Number(log.id) : Number(log.id),
+          action: log.action || 'UNKNOWN',
+          entity: log.entity || 'UNKNOWN',
+          changedFields: [],
+          impactScore: 0,
+          impactLevel: 'low',
+          before: null,
+          after: null,
+          createdAt: log.createdAt instanceof Date ? log.createdAt.toISOString() : new Date().toISOString(),
+          ip: log.ip || null,
+        };
+      }
+    });
+    
+    sendSuccess(res, {
+      page,
+      pageSize,
+      total,
+      totalPages: Math.ceil(total / pageSize),
+      items: logsWithImpact,
+    });
+  } catch (error: any) {
+    console.error('account.audit-history.get failed', {
+      error: error?.message || String(error),
+      stack: error?.stack,
+      code: error?.code,
+    });
+    sendError(res, 500, "Failed to fetch audit history", { 
+      message: error?.message || String(error) 
+    });
+  }
+};
+router.get("/audit-history", getAuditHistory as unknown as RequestHandler);
 
 export default router;

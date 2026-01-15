@@ -9,7 +9,8 @@ import AuthPageFlip from "@/components/AuthPageFlip";
 export default function RegisterPage() {
   const searchParams = useSearchParams();
   const referralCode = searchParams?.get('ref') || null;
-  const api = axios.create();
+  const roleParam = (searchParams?.get('role') || '').toLowerCase();
+  const api = axios.create({ baseURL: "", withCredentials: true });
 
   // Register state
   const [role, setRole] = useState<'traveller' | 'driver' | 'owner'>('traveller');
@@ -49,6 +50,43 @@ export default function RegisterPage() {
   
   const router = useRouter();
   const [visible, setVisible] = useState<boolean>(true);
+
+  const normalizeLoginPhone = (raw: string) => {
+    const v = String(raw || '').trim();
+    if (!v) return '';
+    if (v.startsWith('+')) return v;
+    // Tanzania-friendly default for local numbers
+    if (v.startsWith('0')) return `+255${v.slice(1)}`;
+    if (/^\d+$/.test(v) && v.length <= 12) return `+255${v}`;
+    return v;
+  };
+
+  const resolveRoleHome = async () => {
+    try {
+      const meRes = await fetch('/api/account/me', { credentials: 'include' });
+      const meJson = await meRes.json().catch(() => ({}));
+      const role = String(meJson?.role || meJson?.data?.role || '').toUpperCase();
+      if (role === 'ADMIN') return '/admin/home';
+      if (role === 'OWNER') return '/owner';
+      if (role === 'DRIVER') return '/driver';
+      return '/account';
+    } catch {
+      return '/account';
+    }
+  };
+
+  const redirectAfterAuth = async () => {
+    // Give the browser a moment to persist the httpOnly cookie
+    await new Promise((r) => setTimeout(r, 100));
+    const dest = await resolveRoleHome();
+    window.location.href = dest;
+  };
+
+  useEffect(() => {
+    if (roleParam === 'driver') setRole('driver');
+    else if (roleParam === 'owner') setRole('owner');
+    else if (roleParam === 'traveller' || roleParam === 'customer' || roleParam === 'user') setRole('traveller');
+  }, [roleParam]);
 
   const sendOtp = async () => {
     setError(null);
@@ -483,7 +521,7 @@ export default function RegisterPage() {
                         // Call API to send login OTP
                         try {
                           const response = await api.post('/api/auth/send-otp', {
-                            phone: loginPhone.trim(),
+                            phone: normalizeLoginPhone(loginPhone),
                           });
                           if (response.status === 200) {
                             setSuccess('OTP sent to your phone. Please check and enter the code.');
@@ -550,9 +588,32 @@ export default function RegisterPage() {
                     <button
                       onClick={async () => {
                         setLoginLoading(true);
-                        await new Promise(r => setTimeout(r, 600));
-                        setLoginLoading(false);
-                        router.push('/');
+                        setError(null);
+                        try {
+                          const identifier = loginPhone.trim();
+                          if (!identifier || !loginPassword) {
+                            setError('Please enter your username and password');
+                            return;
+                          }
+
+                          const r = await fetch('/api/auth/login-password', {
+                            method: 'POST',
+                            credentials: 'include',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ email: identifier, password: loginPassword }),
+                          });
+                          const data = await r.json().catch(() => ({}));
+                          if (!r.ok) {
+                            const msg = data?.error || data?.message || 'Invalid login details';
+                            setError(String(msg));
+                            return;
+                          }
+                          await redirectAfterAuth();
+                        } catch (e: any) {
+                          setError(e?.message || 'Failed to sign in');
+                        } finally {
+                          setLoginLoading(false);
+                        }
                       }}
                       disabled={loginLoading}
                       className="w-full px-4 py-2.5 bg-[#02665e] text-white text-sm font-medium rounded-lg hover:bg-[#014e47] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -598,13 +659,13 @@ export default function RegisterPage() {
                         // Verify login OTP with API
                         try {
                           const response = await api.post('/api/auth/verify-otp', {
-                            phone: loginPhone.trim(),
+                            phone: normalizeLoginPhone(loginPhone),
                             otp: loginOtp.trim(),
                           });
                           
                           if (response.status === 200) {
-                            // Auth cookie is set httpOnly by the API; no localStorage token needed.
-                            router.push('/');
+                            // Auth cookie is set httpOnly by the API; redirect to authenticated area.
+                            await redirectAfterAuth();
                           }
                         } catch (err: any) {
                           setError(err?.response?.data?.error || 'Invalid OTP. Please try again.');

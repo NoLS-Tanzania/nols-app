@@ -11,6 +11,8 @@
 import { Router, type RequestHandler, type Response } from "express";
 import { prisma } from "@nolsaf/prisma";
 import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
+import { sanitizeText } from "../lib/sanitize.js";
+import { notifyUser } from "../lib/notifications.js";
 import {
   CreateGroupBookingInput,
   UpdateGroupBookingStatusInput,
@@ -18,6 +20,9 @@ import {
   type PassengerInput,
 } from "../schemas/groupBookingSchemas.js";
 import { z } from "zod";
+
+const AUTO_RECEIVED_MESSAGE =
+  "Thank you for your interest in using NoLSaf for your group stay! We have received your booking request and our team is currently reviewing it. We will get back to you soon with accommodation options and pricing tailored to your group's needs. We appreciate your patience!";
 
 const router = Router();
 
@@ -85,6 +90,7 @@ const createGroupBooking: RequestHandler = async (req, res) => {
         
         // Accommodation details
         accommodationType: validatedInput.accommodationType,
+        minHotelStarLabel: validatedInput.accommodationType === "hotel" ? (validatedInput.minHotelStarLabel ?? null) : null,
         headcount: validatedInput.headcount,
         maleCount: validatedInput.maleCount ?? null,
         femaleCount: validatedInput.femaleCount ?? null,
@@ -145,6 +151,60 @@ const createGroupBooking: RequestHandler = async (req, res) => {
         skipDuplicates: true,
       });
     }
+
+    // Auto-send "application received" message (system) so the customer immediately sees confirmation.
+    // Best-effort: should never block booking creation.
+    try {
+      const sanitizedBody = sanitizeText(AUTO_RECEIVED_MESSAGE);
+
+      await (prisma as any).groupBookingMessage.create({
+        data: {
+          groupBookingId: groupBooking.id,
+          senderId: null,
+          senderRole: "SYSTEM",
+          senderName: "NoLSaf",
+          messageType: "APPLICATION_RECEIVED",
+          body: sanitizedBody,
+          isInternal: false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      });
+
+      await notifyUser(groupBooking.userId, "group_stay_update", {
+        bookingId: groupBooking.id,
+        status: groupBooking.status,
+        title: "Booking request received",
+        body: AUTO_RECEIVED_MESSAGE,
+        message: AUTO_RECEIVED_MESSAGE,
+      });
+
+      // Best-effort realtime emit (if Socket.IO is configured)
+      try {
+        const io = (req.app as any)?.get?.("io") || (global as any).io;
+        if (io && typeof io.to === "function") {
+          io.to(`user:${groupBooking.userId}`).emit("group-booking:message:new", {
+            groupBookingId: groupBooking.id,
+            senderRole: "SYSTEM",
+            message: sanitizedBody,
+            messageType: "APPLICATION_RECEIVED",
+            createdAt: new Date().toISOString(),
+          });
+
+          io.to("admin").emit("group-booking:message:new", {
+            groupBookingId: groupBooking.id,
+            senderRole: "SYSTEM",
+            message: sanitizedBody,
+            messageType: "APPLICATION_RECEIVED",
+            createdAt: new Date().toISOString(),
+          });
+        }
+      } catch {
+        // ignore socket failures
+      }
+    } catch (e) {
+      console.warn("[GroupBooking] Failed to send auto-received message:", e);
+    }
     
     // Log successful creation
     console.log(`[GroupBooking] Created booking #${groupBooking.id} for user #${userId}`);
@@ -156,6 +216,8 @@ const createGroupBooking: RequestHandler = async (req, res) => {
       booking: {
         id: groupBooking.id,
         groupType: groupBooking.groupType,
+        accommodationType: groupBooking.accommodationType,
+        minHotelStarLabel: (groupBooking as any).minHotelStarLabel ?? null,
         destination: {
           region: groupBooking.toRegion,
           district: groupBooking.toDistrict,

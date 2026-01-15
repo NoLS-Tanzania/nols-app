@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react"
 import Link from "next/link"
-import { ChevronLeft, LogIn, Trash2 } from 'lucide-react'
+import { ChevronLeft, LogIn, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
 import axios from "axios"
 
 const api = axios.create({ baseURL: "", withCredentials: true })
@@ -11,16 +11,32 @@ export default function OwnerSessionsPage() {
   const [sessions, setSessions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [showAllSessions, setShowAllSessions] = useState(false)
 
   useEffect(() => {
     let mounted = true
     ;(async () => {
+      setLoading(true)
       try {
         const r = await api.get("/api/account/sessions")
         if (!mounted) return
-        setSessions(r.data || [])
+        // Handle response structure: { ok: true, data: { sessions: [...], pagination: {...} } }
+        // or legacy structure: array directly
+        let sessionsData: any[] = []
+        if (r.data?.data?.sessions && Array.isArray(r.data.data.sessions)) {
+          sessionsData = r.data.data.sessions
+        } else if (r.data?.sessions && Array.isArray(r.data.sessions)) {
+          sessionsData = r.data.sessions
+        } else if (Array.isArray(r.data)) {
+          sessionsData = r.data
+        }
+        setSessions(sessionsData)
+        setError(null)
       } catch (err: any) {
-        if (mounted) setError(err?.response?.data?.error || 'Failed to load sessions')
+        if (mounted) {
+          setError(err?.response?.data?.error || 'Failed to load sessions')
+          setSessions([]) // Ensure sessions is always an array
+        }
       } finally {
         if (mounted) setLoading(false)
       }
@@ -28,11 +44,32 @@ export default function OwnerSessionsPage() {
     return () => { mounted = false }
   }, [])
 
+  const loadSessions = async () => {
+    try {
+      const r = await api.get("/api/account/sessions")
+      // Handle response structure: { ok: true, data: { sessions: [...], pagination: {...} } }
+      // or legacy structure: array directly
+      let sessionsData: any[] = []
+      if (r.data?.data?.sessions && Array.isArray(r.data.data.sessions)) {
+        sessionsData = r.data.data.sessions
+      } else if (r.data?.sessions && Array.isArray(r.data.sessions)) {
+        sessionsData = r.data.sessions
+      } else if (Array.isArray(r.data)) {
+        sessionsData = r.data
+      }
+      setSessions(sessionsData)
+      setError(null)
+    } catch (err: any) {
+      setError(err?.response?.data?.error || 'Failed to load sessions')
+      setSessions([]) // Ensure sessions is always an array
+    }
+  }
+
   const revokeSession = async (sessionId: string) => {
     if (!confirm('Are you sure you want to revoke this session?')) return
     try {
       await api.post("/api/account/sessions/revoke", { sessionId })
-      setSessions(sessions.filter(s => s.id !== sessionId))
+      await loadSessions() // Reload sessions to get updated list
       try { window.dispatchEvent(new CustomEvent('nols:toast', { detail: { type: 'success', title: 'Session revoked', message: 'The session has been revoked.', duration: 3000 } })); } catch (e) {}
     } catch (err: any) {
       const msg = err?.response?.data?.error || 'Failed to revoke session'
@@ -44,7 +81,7 @@ export default function OwnerSessionsPage() {
     if (!confirm('Are you sure you want to revoke all other sessions? You will remain logged in on this device.')) return
     try {
       await api.post("/api/account/sessions/revoke-others")
-      setSessions(sessions.filter(s => s.revokedAt === null))
+      await loadSessions() // Reload sessions to get updated list
       try { window.dispatchEvent(new CustomEvent('nols:toast', { detail: { type: 'success', title: 'Sessions revoked', message: 'All other sessions have been revoked.', duration: 3000 } })); } catch (e) {}
     } catch (err: any) {
       const msg = err?.response?.data?.error || 'Failed to revoke sessions'
@@ -106,7 +143,7 @@ export default function OwnerSessionsPage() {
                 </div>
               )}
               <div className="space-y-3">
-                {sessions.map((session) => (
+                {(showAllSessions ? sessions : sessions.slice(0, 2)).map((session) => (
                   <div
                     key={session.id}
                     className="p-4 border-2 border-slate-200 rounded-xl hover:border-emerald-300 transition-all duration-300 hover:shadow-md"
@@ -150,6 +187,28 @@ export default function OwnerSessionsPage() {
                   </div>
                 ))}
               </div>
+              
+              {/* View More/Less Button */}
+              {sessions.length > 2 && (
+                <div className="mt-4 pt-4 border-t border-slate-100">
+                  <button
+                    onClick={() => setShowAllSessions(!showAllSessions)}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-xl transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] border border-slate-200/60 shadow-sm hover:shadow"
+                  >
+                    {showAllSessions ? (
+                      <>
+                        <ChevronUp className="h-4 w-4" />
+                        <span>Show Less</span>
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="h-4 w-4" />
+                        <span>View More ({sessions.length - 2} more)</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
