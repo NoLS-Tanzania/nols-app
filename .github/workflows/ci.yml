@@ -1,0 +1,148 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  lint-and-typecheck:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npm run prisma:generate
+
+      - name: Lint API
+        run: npm run lint --workspace=@nolsaf/api
+
+      - name: Lint Web
+        run: npm run lint --workspace=@nolsaf/web
+
+      - name: Type check API
+        run: npm run typecheck --workspace=@nolsaf/api
+
+      - name: Type check Web
+        run: npm run typecheck --workspace=@nolsaf/web
+
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npm run prisma:generate
+
+      - name: Run API tests
+        run: npm run test --workspace=@nolsaf/api
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL || 'mysql://test:test@localhost:3306/test' }}
+
+  build:
+    name: Build Applications
+    runs-on: ubuntu-latest
+    needs: [lint-and-typecheck]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npm run prisma:generate
+
+      - name: Build shared packages
+        run: npm run --workspace=@nolsaf/shared build
+
+      - name: Build Prisma package
+        run: npm run --workspace=@nolsaf/prisma build
+
+      - name: Build API
+        run: npm run build --workspace=@nolsaf/api
+
+      - name: Build Web
+        run: npm run build --workspace=@nolsaf/web
+        env:
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL || 'http://localhost:4000' }}
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: |
+            apps/api/dist
+            apps/web/.next
+          retention-days: 7
+
+  docker-build:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub (if configured)
+        if: ${{ secrets.DOCKER_USERNAME }}
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build API Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          tags: nolsaf-api:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build Web Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./nolsaf/apps/web
+          file: ./nolsaf/apps/web/Dockerfile
+          push: false
+          tags: nolsaf-web:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

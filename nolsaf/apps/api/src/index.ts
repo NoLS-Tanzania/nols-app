@@ -1,8 +1,6 @@
 import "./env";
 import express from 'express';
 import http from 'http';
-import helmet from 'helmet';
-import cors from 'cors';
 import morgan from 'morgan';
 import { Server } from 'socket.io';
 import authRoutes from './routes/auth';
@@ -109,6 +107,7 @@ import customerCancellationsRouter from "./routes/customer.cancellations";
 import customerPlanRequestsRouter from "./routes/customer.planRequests";
 import chatbotRouter from "./routes/chatbot";
 import adminChatbotRouter from "./routes/admin.chatbot";
+import { healthRouter } from "./routes/health";
 import { socketAuthMiddleware, AuthenticatedSocket } from './middleware/socketAuth.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { adminOriginGuard } from "./middleware/adminOriginGuard.js";
@@ -118,67 +117,31 @@ import { performanceMiddleware } from './middleware/performance.js';
 // Create app and server before using them
 const app = express();
 
-// Allow local web origin (Next.js dev) to call the API
-const allowedOrigins = [
+// Socket.IO must handle CORS/origin itself (separate from Express middleware).
+// In production we keep it strict; in dev we allow localhost/127.0.0.1 on any port.
+const socketLocalOrigins = [
   'http://localhost:3000',
   'http://127.0.0.1:3000',
   'http://localhost:3001',
   'http://127.0.0.1:3001',
+];
+
+const socketEnvOrigins = [
   process.env.WEB_ORIGIN || '',
   process.env.APP_ORIGIN || '',
+  ...(process.env.CORS_ORIGIN || '').split(',').map((s) => s.trim()),
 ].filter(Boolean);
 
-app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    const isProduction = process.env.NODE_ENV === 'production';
-    
-    if (isProduction) {
-      // Strict in production - only allow configured origins
-      if (allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'), false);
-      }
-    } else {
-      // In development, allow localhost and configured origins
-      if (allowedOrigins.includes(origin) || /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'), false);
-      }
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-role'],
-}));
-app.options('*', cors({
-  origin: (origin, callback) => {
-    if (!origin) return callback(null, true);
-    
-    const isProduction = process.env.NODE_ENV === 'production';
-    
-    if (isProduction) {
-      if (allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'), false);
-      }
-    } else {
-      if (allowedOrigins.includes(origin) || /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'), false);
-      }
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-role'],
-}));
+const socketAllowedOrigins = Array.from(new Set([...socketLocalOrigins, ...socketEnvOrigins]));
+
+const isSocketOriginAllowed = (origin?: string | null): boolean => {
+  if (!origin) return true;
+  if (socketAllowedOrigins.includes(origin)) return true;
+  return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+};
+
+// Health check endpoints (must be before other routes for load balancer/probe access)
+app.use("/", healthRouter);
 
 // endpoint for codes search (uses rate-limit middleware)
 app.post("/codes/search", limitCodeSearch, async (req, res) => {
@@ -187,12 +150,21 @@ app.post("/codes/search", limitCodeSearch, async (req, res) => {
 });
 
 const server = http.createServer(app);
-const io = new Server(server, { 
-  cors: { 
-    origin: allowedOrigins.length > 0 ? allowedOrigins : '*',
+const io = new Server(server, {
+  cors: {
+    origin: (origin, callback) => {
+      const isProduction = process.env.NODE_ENV === 'production';
+      if (!origin) return callback(null, true);
+
+      if (isProduction) {
+        return callback(null, socketAllowedOrigins.includes(origin));
+      }
+
+      return callback(null, isSocketOriginAllowed(origin));
+    },
     credentials: true,
     methods: ['GET', 'POST'],
-  } 
+  },
 });
 
 // Make io globally available for webhook routes and app context
