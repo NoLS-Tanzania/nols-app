@@ -7,6 +7,8 @@
     "packages/*"
   ],
   "devDependencies": {
+    "@prisma/adapter-mariadb": "^7.2.0",
+    "@prisma/client": "^7.2.0",
     "cliui": "^9.0.1",
     "concurrently": "^9.0.1",
     "dotenv": "^17.2.3",
@@ -28,7 +30,6 @@
     "create:test-owners": "node scripts/create-test-owners.js"
   },
   "dependencies": {
-    "@prisma/client": "^7.0.0",
     "@prisma/debug": "^7.0.0",
     "yargs": "^18.0.0"
   }

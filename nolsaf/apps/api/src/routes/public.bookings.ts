@@ -10,6 +10,7 @@ import { checkPropertyAvailability, checkGuestCapacity } from "../lib/bookingAva
 import { sanitizeText } from "../lib/sanitize.js";
 import { notifyAdmins, notifyOwner } from "../lib/notifications.js";
 import { maybeAuth } from "../middleware/auth.js";
+import { MIN_TRANSPORT_LEAD_MS } from "../lib/transportPolicy.js";
 
 // Helper function to calculate distance (Haversine formula)
 function calculateDistance(origin: { latitude: number; longitude: number }, destination: { latitude: number; longitude: number }): number {
@@ -32,7 +33,91 @@ function toRadians(degrees: number): number {
   return degrees * (Math.PI / 180);
 }
 
+function toFiniteNumber(value: unknown, fallback: number): number {
+  const n = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function toFiniteInt(value: unknown, fallback: number): number {
+  const n = Math.floor(toFiniteNumber(value, fallback));
+  return Number.isFinite(n) ? n : fallback;
+}
+
+type TransportVehicleType = "BODA" | "BAJAJI" | "CAR" | "XL" | "PREMIUM";
+
+type VehiclePricingConfig = {
+  baseFare: number;
+  perKmRate: number;
+  perMinuteRate: number;
+  averageSpeedKmh: number;
+};
+
+const TRANSPORT_PRICING: Record<TransportVehicleType, VehiclePricingConfig> = {
+  BODA: { baseFare: 1500, perKmRate: 350, perMinuteRate: 35, averageSpeedKmh: 35 },
+  BAJAJI: { baseFare: 1800, perKmRate: 420, perMinuteRate: 40, averageSpeedKmh: 28 },
+  CAR: { baseFare: 2000, perKmRate: 500, perMinuteRate: 50, averageSpeedKmh: 30 },
+  XL: { baseFare: 2500, perKmRate: 650, perMinuteRate: 60, averageSpeedKmh: 30 },
+  // Premium: exceptional service tier
+  PREMIUM: { baseFare: 5000, perKmRate: 1200, perMinuteRate: 80, averageSpeedKmh: 30 },
+};
+
+function getTransportPricing(vehicleType: TransportVehicleType): VehiclePricingConfig {
+  return TRANSPORT_PRICING[vehicleType] || TRANSPORT_PRICING.CAR;
+}
+
+function estimateTravelTimeForVehicle(distanceKm: number, vehicleType: TransportVehicleType): number {
+  const cfg = getTransportPricing(vehicleType);
+  const averageSpeedKmh = cfg.averageSpeedKmh || 30;
+  const timeHours = distanceKm / averageSpeedKmh;
+  const timeMinutes = Math.ceil(timeHours * 60);
+  return Math.max(5, timeMinutes);
+}
+
+function calculateSurgeMultiplier(hourOfDay: number, dayOfWeek: number): number {
+  const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;
+  const isMorningRush = hourOfDay >= 7 && hourOfDay < 9;
+  const isEveningRush = hourOfDay >= 17 && hourOfDay < 19;
+
+  if (isWeekday && (isMorningRush || isEveningRush)) return 1.2;
+  if (!isWeekday && hourOfDay >= 18 && hourOfDay < 22) return 1.15;
+  return 1.0;
+}
+
+/** Derive room-type key from roomCode (e.g. "Suite-1" -> "Suite", "Suite" -> "Suite") for capacity by type */
+function roomCodeToTypeKey(roomCode: string | null | undefined): string {
+  const s = String(roomCode ?? "").trim();
+  if (!s) return "default";
+  return s.replace(/-\d+$/, "") || s;
+}
+
+/** Derive a stable room-type key from a roomsSpec entry across differing shapes (code/roomCode/name/label/etc). */
+function roomTypeKeyFromSpec(rt: any): string {
+  const rawKey = String(rt?.code ?? rt?.roomCode ?? rt?.roomType ?? rt?.type ?? rt?.name ?? rt?.label ?? "").trim();
+  return roomCodeToTypeKey(rawKey);
+}
+
+/** Find which availability bucket (room type) a roomCode belongs to. Uses prefix match so "Suite-1" maps to "Suite". */
+function findBucketKey(roomCode: string | null | undefined, keys: string[]): string | null {
+  const typeKey = roomCodeToTypeKey(roomCode);
+  if (keys.includes(typeKey)) return typeKey;
+  const rc = String(roomCode ?? "");
+  return keys.find((k) => rc === k || (k && rc.startsWith(k + "-"))) || null;
+}
+
+function isExplicitRoomUnitCode(roomCode: string | null | undefined): boolean {
+  return /-\d+$/.test(String(roomCode ?? "").trim());
+}
+
 const router = Router();
+
+class AvailabilityConflictError extends Error {
+  public readonly payload: Record<string, unknown>;
+  constructor(payload: Record<string, unknown>) {
+    super(String(payload.message || "Property not available for selected dates"));
+    this.name = "AvailabilityConflictError";
+    this.payload = payload;
+  }
+}
 
 function buildPhoneVariants(phoneRaw: string | null | undefined): string[] {
   const raw = String(phoneRaw ?? "").trim();
@@ -66,6 +151,24 @@ function buildPhoneVariants(phoneRaw: string | null | undefined): string[] {
   return Array.from(variants).filter(Boolean);
 }
 
+function parseOptionalDate(value: unknown): Date | null {
+  if (value == null) return null;
+  const d = new Date(String(value));
+  return Number.isFinite(d.getTime()) ? d : null;
+}
+
+function toDecimal6(n: unknown): number | null {
+  const v = typeof n === "number" ? n : typeof n === "string" ? Number(n) : NaN;
+  if (!Number.isFinite(v)) return null;
+  return Math.round(v * 1_000_000) / 1_000_000;
+}
+
+function isLikelyDomesticTanzania(nationality: unknown): boolean {
+  const n = String(nationality ?? "").trim().toLowerCase();
+  if (!n) return true; // unknown => don't enforce international-only rules
+  return n.includes("tanzania") || n.includes("tanzan") || n === "tz";
+}
+
 // Rate limiting for booking creation (5 requests per 15 minutes)
 const bookingLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -93,16 +196,77 @@ const createBookingSchema = z.object({
   pets: z.number().int().min(0).max(10).optional().default(0),
   // Transportation fields
   includeTransport: z.boolean().optional().default(false),
-  transportOriginLat: z.number().optional().nullable(),
-  transportOriginLng: z.number().optional().nullable(),
+  transportOriginLat: z.number().min(-90).max(90).optional().nullable(),
+  transportOriginLng: z.number().min(-180).max(180).optional().nullable(),
   transportOriginAddress: z.string().max(255).optional().nullable(),
-  transportFare: z.number().optional().nullable(), // Pre-calculated fare from frontend
+  transportFare: z.number().min(0).optional().nullable(), // Optional client hint; server computes authoritative fare
+  transportVehicleType: z.enum(["BODA", "BAJAJI", "CAR", "XL", "PREMIUM"]).optional().nullable(),
   // Flexible arrival fields
   arrivalType: z.enum(["FLIGHT", "BUS", "TRAIN", "FERRY", "OTHER"]).optional().nullable(),
   arrivalNumber: z.string().max(50).optional().nullable(),
   transportCompany: z.string().max(100).optional().nullable(),
   arrivalTime: z.string().datetime().optional().nullable(),
   pickupLocation: z.string().max(255).optional().nullable(),
+}).superRefine((data, ctx) => {
+  if (!data.includeTransport) return;
+
+  if (!data.transportVehicleType) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["transportVehicleType"],
+      message: "Transport type is required when transportation is included",
+    });
+  }
+
+  if (data.transportOriginLat == null || data.transportOriginLng == null) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["transportOriginLat"],
+      message: "Pickup coordinates are required when transportation is included",
+    });
+  }
+
+  const addr = String(data.transportOriginAddress ?? "").trim();
+  if (!addr) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["transportOriginAddress"],
+      message: "Pickup address is required when transportation is included",
+    });
+  }
+
+  // If the customer is outside Tanzania (e.g., traveling internationally), require explicit arrival date/time.
+  // Also require it whenever the user provides arrival/travel metadata (arrivalType/company/number/pickupLocation).
+  const isInternational = !isLikelyDomesticTanzania(data.nationality);
+  const hasArrivalMetadata =
+    !!data.arrivalType ||
+    !!String(data.arrivalNumber ?? "").trim() ||
+    !!String(data.transportCompany ?? "").trim() ||
+    !!String(data.pickupLocation ?? "").trim();
+
+  if (String(data.pickupLocation ?? "").trim() && !data.arrivalType) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["arrivalType"],
+      message: "Arrival type is required when a specific pickup location/terminal is provided",
+    });
+  }
+
+  if ((isInternational || hasArrivalMetadata) && !data.arrivalTime) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["arrivalTime"],
+      message: "Arrival date/time is required to schedule pickup for international/travel bookings",
+    });
+  }
+
+  if (data.arrivalType && !String(data.pickupLocation ?? "").trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["pickupLocation"],
+      message: "Pickup location is required when arrival type is provided",
+    });
+  }
 });
 
 /**
@@ -117,6 +281,10 @@ const createBookingSchema = z.object({
  * - Amount calculation (server-side only)
  */
 router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Response) => {
+  const requestId =
+    (crypto as any).randomUUID?.() ||
+    crypto.randomBytes(16).toString("hex");
+
   try {
     // Validate request body
     const validationResult = createBookingSchema.safeParse(req.body);
@@ -124,6 +292,7 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
       return res.status(400).json({
         error: "Invalid request data",
         details: validationResult.error.errors,
+        requestId,
       });
     }
 
@@ -135,15 +304,15 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
     const now = new Date();
 
     if (isNaN(checkIn.getTime()) || isNaN(checkOut.getTime())) {
-      return res.status(400).json({ error: "Invalid date format" });
+      return res.status(400).json({ error: "Invalid date format", requestId });
     }
 
     if (checkIn < now) {
-      return res.status(400).json({ error: "Check-in date cannot be in the past" });
+      return res.status(400).json({ error: "Check-in date cannot be in the past", requestId });
     }
 
     if (checkOut <= checkIn) {
-      return res.status(400).json({ error: "Check-out date must be after check-in date" });
+      return res.status(400).json({ error: "Check-out date must be after check-in date", requestId });
     }
 
     // Calculate nights
@@ -165,13 +334,14 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
     });
 
     if (!property) {
-      return res.status(404).json({ error: "Property not found" });
+      return res.status(404).json({ error: "Property not found", requestId });
     }
 
     if (property.status !== "APPROVED") {
       return res.status(400).json({
         error: "Property is not available for booking",
         reason: `Property status is ${property.status}`,
+        requestId,
       });
     }
 
@@ -187,6 +357,7 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
         error: "Guest capacity exceeded",
         message: capacityCheck.message,
         maxGuests: capacityCheck.maxGuests,
+        requestId,
       });
     }
 
@@ -219,7 +390,7 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
       }
 
       // Now check availability within the locked transaction
-      // We need to use the transaction client for the availability check
+      // Fetch ALL overlapping bookings (no roomCode filter) so we can count by room TYPE for capacity
       const conflictingBookings = await tx.booking.findMany({
         where: {
           propertyId: data.propertyId,
@@ -227,18 +398,9 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
             in: ["NEW", "CONFIRMED", "CHECKED_IN"],
           },
           AND: [
-            {
-              checkIn: {
-                lt: checkOut,
-              },
-            },
-            {
-              checkOut: {
-                gt: checkIn,
-              },
-            },
+            { checkIn: { lt: checkOut } },
+            { checkOut: { gt: checkIn } },
           ],
-          ...(data.roomCode && { roomCode: data.roomCode }),
         },
         select: {
           id: true,
@@ -250,23 +412,14 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
         },
       });
 
-      // Check availability blocks (external bookings from Airbnb, Booking.com, etc.)
+      // Check availability blocks (external bookings); fetch all overlapping to count by room TYPE
       const conflictingBlocks = await tx.propertyAvailabilityBlock.findMany({
         where: {
           propertyId: data.propertyId,
           AND: [
-            {
-              startDate: {
-                lt: checkOut,
-              },
-            },
-            {
-              endDate: {
-                gt: checkIn,
-              },
-            },
+            { startDate: { lt: checkOut } },
+            { endDate: { gt: checkIn } },
           ],
-          ...(data.roomCode && { roomCode: data.roomCode }),
         },
         select: {
           id: true,
@@ -303,97 +456,112 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
 
       // Initialize room types
       if (data.roomCode) {
-        // Check specific room - try to find by code first
-        let roomType = roomTypes.find((rt) => rt.code === data.roomCode || rt.roomCode === data.roomCode);
-        
-        // If not found by code, check if roomCode is actually an index
+        // Resolve room TYPE from roomCode: "Suite-1" -> "Suite" so we count by type for capacity
+        const typeFromCode = roomCodeToTypeKey(data.roomCode);
+        let roomType = roomTypes.find((rt) => roomTypeKeyFromSpec(rt) === typeFromCode);
         if (!roomType) {
-          const roomIndex = Number(data.roomCode);
-          if (!isNaN(roomIndex) && roomIndex >= 0 && roomIndex < roomTypes.length) {
-            roomType = roomTypes[roomIndex];
-          }
+          const ix = Number(data.roomCode);
+          if (!isNaN(ix) && ix >= 0 && ix < roomTypes.length) roomType = roomTypes[ix];
         }
-        
+        if (!roomType) {
+          roomType = roomTypes.find((rt) => {
+            const x: any = rt as any;
+            const c = String(x?.code ?? x?.roomCode ?? x?.roomType ?? x?.type ?? x?.name ?? x?.label ?? "").trim();
+            return c && (data.roomCode === c || (data.roomCode || "").startsWith(c + "-"));
+          });
+        }
         if (roomType) {
-          // Use the roomCode from data, or generate one from the room type
-          const code = data.roomCode;
+          const code = roomTypeKeyFromSpec(roomType) || typeFromCode;
+          const totalRooms = Math.max(1, toFiniteInt(roomType.rooms ?? roomType.roomsCount ?? 1, 1));
+          const bedsPerRoom = Math.max(1, toFiniteInt((roomType as any).beds ?? 1, 1));
           availabilityByRoomType[code] = {
-            totalRooms: roomType.rooms || roomType.roomsCount || 1,
-            totalBeds: (roomType.beds || 1) * (roomType.rooms || roomType.roomsCount || 1),
+            totalRooms,
+            totalBeds: bedsPerRoom * totalRooms,
             bookedRooms: 0,
             bookedBeds: 0,
             blockedRooms: 0,
             blockedBeds: 0,
-            availableRooms: roomType.rooms || roomType.roomsCount || 1,
-            availableBeds: (roomType.beds || 1) * (roomType.rooms || roomType.roomsCount || 1),
+            availableRooms: totalRooms,
+            availableBeds: bedsPerRoom * totalRooms,
           };
-        } else {
-          // Room not found - this shouldn't happen, but fallback to checking all rooms
-          // This handles edge cases where roomCode doesn't match
-          if (roomTypes.length > 0) {
-            roomTypes.forEach((rt) => {
-              const code = rt.code || rt.roomCode || "default";
-              if (!availabilityByRoomType[code]) {
-                availabilityByRoomType[code] = {
-                  totalRooms: rt.rooms || rt.roomsCount || propertyForCheck.totalBedrooms || 1,
-                  totalBeds: (rt.beds || 1) * (rt.rooms || rt.roomsCount || propertyForCheck.totalBedrooms || 1),
-                  bookedRooms: 0,
-                  bookedBeds: 0,
-                  blockedRooms: 0,
-                  blockedBeds: 0,
-                  availableRooms: rt.rooms || rt.roomsCount || propertyForCheck.totalBedrooms || 1,
-                  availableBeds: (rt.beds || 1) * (rt.rooms || rt.roomsCount || propertyForCheck.totalBedrooms || 1),
-                };
-              }
-            });
-          }
+        } else if (roomTypes.length > 0) {
+          roomTypes.forEach((rt) => {
+            const code = roomTypeKeyFromSpec(rt);
+            if (!availabilityByRoomType[code]) {
+              const totalRooms = Math.max(1, toFiniteInt(rt.rooms ?? rt.roomsCount ?? propertyForCheck.totalBedrooms ?? 1, 1));
+              const bedsPerRoom = Math.max(1, toFiniteInt((rt as any).beds ?? 1, 1));
+              availabilityByRoomType[code] = {
+                totalRooms,
+                totalBeds: bedsPerRoom * totalRooms,
+                bookedRooms: 0,
+                bookedBeds: 0,
+                blockedRooms: 0,
+                blockedBeds: 0,
+                availableRooms: totalRooms,
+                availableBeds: bedsPerRoom * totalRooms,
+              };
+            }
+          });
         }
       } else {
         // Check all room types
         if (roomTypes.length > 0) {
           roomTypes.forEach((rt) => {
-            const code = rt.code || "default";
+            const code = roomTypeKeyFromSpec(rt);
+            const totalRooms = Math.max(1, toFiniteInt(rt.rooms ?? propertyForCheck.totalBedrooms ?? 1, 1));
+            const bedsPerRoom = Math.max(1, toFiniteInt((rt as any).beds ?? 1, 1));
             availabilityByRoomType[code] = {
-              totalRooms: rt.rooms || propertyForCheck.totalBedrooms || 1,
-              totalBeds: (rt.beds || 1) * (rt.rooms || propertyForCheck.totalBedrooms || 1),
+              totalRooms,
+              totalBeds: bedsPerRoom * totalRooms,
               bookedRooms: 0,
               bookedBeds: 0,
               blockedRooms: 0,
               blockedBeds: 0,
-              availableRooms: rt.rooms || propertyForCheck.totalBedrooms || 1,
-              availableBeds: (rt.beds || 1) * (rt.rooms || propertyForCheck.totalBedrooms || 1),
+              availableRooms: totalRooms,
+              availableBeds: bedsPerRoom * totalRooms,
             };
           });
         } else {
           // Fallback: use totalBedrooms if no room spec
+          const totalRooms = Math.max(1, toFiniteInt(propertyForCheck.totalBedrooms ?? 1, 1));
           availabilityByRoomType["default"] = {
-            totalRooms: propertyForCheck.totalBedrooms || 1,
-            totalBeds: (propertyForCheck.totalBedrooms || 1) * 2, // Assume 2 beds per room
+            totalRooms,
+            totalBeds: totalRooms * 2, // Assume 2 beds per room
             bookedRooms: 0,
             bookedBeds: 0,
             blockedRooms: 0,
             blockedBeds: 0,
-            availableRooms: propertyForCheck.totalBedrooms || 1,
-            availableBeds: (propertyForCheck.totalBedrooms || 1) * 2,
+            availableRooms: totalRooms,
+            availableBeds: totalRooms * 2,
           };
         }
       }
 
-      // Count bookings by room code
+      const bedsPerRoomFor = (key: string) => {
+        const v = availabilityByRoomType[key];
+        if (!v) return 1;
+        return Math.max(1, Math.round((v.totalBeds || 1) / Math.max(1, v.totalRooms || 1)));
+      };
+
+      // Count bookings by room TYPE (e.g. "Suite-1","Suite-2" -> "Suite") so capacity is per type
+      const keys = Object.keys(availabilityByRoomType);
       conflictingBookings.forEach((booking: any) => {
-        const code = booking.roomCode || "default";
-        if (availabilityByRoomType[code]) {
+        const code = findBucketKey(booking.roomCode, keys) || (booking.roomCode ? null : keys[0] || null);
+        if (code && availabilityByRoomType[code]) {
+          const bedsPerRoom = bedsPerRoomFor(code);
           availabilityByRoomType[code].bookedRooms += 1;
-          availabilityByRoomType[code].bookedBeds += 1; // Assume 1 bed per booking
+          availabilityByRoomType[code].bookedBeds += bedsPerRoom;
         }
       });
 
-      // Count blocks by room code
+      // Count blocks by room TYPE; use bedsBlocked for rooms (not just += 1)
       conflictingBlocks.forEach((block: any) => {
-        const code = block.roomCode || "default";
-        if (availabilityByRoomType[code]) {
-          availabilityByRoomType[code].blockedRooms += 1;
-          availabilityByRoomType[code].blockedBeds += block.bedsBlocked || 1;
+        const code = findBucketKey(block.roomCode, keys) || (block.roomCode ? null : keys[0] || null);
+        if (code && availabilityByRoomType[code]) {
+          const roomsBlocked = Number(block.bedsBlocked ?? 1) || 1;
+          const bedsPerRoom = bedsPerRoomFor(code);
+          availabilityByRoomType[code].blockedRooms += roomsBlocked;
+          availabilityByRoomType[code].blockedBeds += roomsBlocked * bedsPerRoom;
         }
       });
 
@@ -404,17 +572,35 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
         avail.availableBeds = Math.max(0, avail.totalBeds - avail.bookedBeds - avail.blockedBeds);
       });
 
-      // Overall availability - check if there's still capacity
-      const totalAvailableRooms = Object.values(availabilityByRoomType).reduce(
-        (sum, a) => sum + a.availableRooms,
-        0
-      );
-      const totalAvailableBeds = Object.values(availabilityByRoomType).reduce(
-        (sum, a) => sum + a.availableBeds,
-        0
-      );
+      const totalAvailableRooms = Object.values(availabilityByRoomType).reduce((sum, a) => sum + (Number.isFinite(a.availableRooms) ? a.availableRooms : 0), 0);
+      const totalAvailableBeds = Object.values(availabilityByRoomType).reduce((sum, a) => sum + (Number.isFinite(a.availableBeds) ? a.availableBeds : 0), 0);
 
-      const isAvailable = totalAvailableRooms > 0 || totalAvailableBeds > 0;
+      const isRoomIndexSelection = !!(data.roomCode && /^\d+$/.test(String(data.roomCode)));
+      const roomCodeForBucket = (() => {
+        if (!data.roomCode) return null;
+        if (!isRoomIndexSelection) return data.roomCode;
+        const ix = Number(data.roomCode);
+        const rt = Number.isFinite(ix) && ix >= 0 && ix < roomTypes.length ? roomTypes[ix] : null;
+        const derived = rt ? String((rt as any).code ?? (rt as any).roomCode ?? (rt as any).roomType ?? (rt as any).type ?? (rt as any).name ?? (rt as any).label ?? "").trim() : "";
+        return derived || data.roomCode;
+      })();
+
+      // Same-room double-book only applies to explicit unit codes, not index-based type selection
+      const sameRoomConflict =
+        !!(
+          !isRoomIndexSelection &&
+          data.roomCode &&
+          isExplicitRoomUnitCode(data.roomCode) &&
+          conflictingBookings.some((b: any) => b.roomCode === data.roomCode)
+        );
+
+      // Type-level capacity: when roomCode is set, the selected TYPE must have at least 1 room available
+      const typeKey = data.roomCode ? findBucketKey(roomCodeForBucket, keys) : null;
+      const isAvailable =
+        !sameRoomConflict &&
+        (data.roomCode
+          ? !!(typeKey && (availabilityByRoomType[typeKey]?.availableRooms ?? 0) > 0)
+          : totalAvailableRooms > 0 || totalAvailableBeds > 0);
 
       return {
         available: isAvailable,
@@ -422,6 +608,8 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
         conflictingBlocks: conflictingBlocks.length > 0 ? conflictingBlocks : undefined,
         totalAvailableRooms,
         totalAvailableBeds,
+        selectedRoomType: typeKey || undefined,
+        availableForSelectedType: typeKey != null ? (availabilityByRoomType[typeKey]?.availableRooms ?? 0) : undefined,
       };
     });
 
@@ -435,12 +623,31 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
         conflictReasons.push(`Blocked by external booking(s) from: ${sources}`);
       }
 
-      const availableRooms = availabilityCheck.totalAvailableRooms ?? 0;
-      const availableBeds = availabilityCheck.totalAvailableBeds ?? 0;
+      const availableRooms = Number.isFinite(availabilityCheck.totalAvailableRooms as any) ? (availabilityCheck.totalAvailableRooms as any) : 0;
+      const availableBeds = Number.isFinite(availabilityCheck.totalAvailableBeds as any) ? (availabilityCheck.totalAvailableBeds as any) : 0;
 
+      const selType = (availabilityCheck as any).selectedRoomType;
+      const selAvail = (availabilityCheck as any).availableForSelectedType;
+      const typeMsg =
+        selType != null && typeof selAvail === "number"
+          ? selAvail <= 0
+            ? ` No ${selType} rooms available (${selAvail} left for this type).`
+            : ` Only ${selAvail} ${selType} room(s) left for this type.`
+          : "";
+
+      const leading = (() => {
+        if (selType != null && typeof selAvail === "number") {
+          if (selAvail <= 0) return `The selected room type (${selType}) is not available for the selected dates.`;
+          return `Limited availability for the selected room type (${selType}).`;
+        }
+        return "The property is fully booked for the selected dates.";
+      })();
       return res.status(409).json({
         error: "Property not available for selected dates",
-        message: `The property is fully booked for the selected dates. ${conflictReasons.join(". ")}. Available: ${availableRooms} rooms, ${availableBeds} beds.`,
+        message: `${leading}${typeMsg} ${conflictReasons.join(". ")}. Available: ${availableRooms} rooms, ${availableBeds} beds.`,
+        selectedRoomType: selType,
+        availableForSelectedType: selAvail,
+        requestId,
         conflictingBookings: availabilityCheck.conflictingBookings?.map((b: any) => ({
           id: b.id,
           checkIn: b.checkIn,
@@ -498,24 +705,44 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
     
     // Add transportation fare if included
     let transportFare = 0;
-    if (data.includeTransport && data.transportFare) {
-      // Validate transport fare (minimum 2000 TZS)
-      transportFare = Math.max(2000, Number(data.transportFare));
-      
-      // Verify transport fare calculation if origin coordinates provided
-      if (data.transportOriginLat && data.transportOriginLng && property.latitude && property.longitude) {
-        // Recalculate on server to verify (basic validation)
+    if (data.includeTransport) {
+      const vehicleType: TransportVehicleType = (data.transportVehicleType || "CAR") as TransportVehicleType;
+      const cfg = getTransportPricing(vehicleType);
+
+      // If we have coordinates + property coordinates, compute the server-side fare deterministically.
+      if (
+        data.transportOriginLat != null &&
+        data.transportOriginLng != null &&
+        property.latitude != null &&
+        property.longitude != null
+      ) {
         const distance = calculateDistance(
           { latitude: Number(data.transportOriginLat), longitude: Number(data.transportOriginLng) },
           { latitude: Number(property.latitude), longitude: Number(property.longitude) }
         );
-        const minFare = 2000;
-        const estimatedFare = minFare + (distance * 500); // Base + per km
-        
-        // Allow some variance (client might have surge multiplier), but ensure minimum
-        if (transportFare < estimatedFare * 0.8) {
-          transportFare = Math.max(minFare, estimatedFare);
-        }
+
+        const estimatedTime = estimateTravelTimeForVehicle(distance, vehicleType);
+
+        const pricingTime = (() => {
+          if (!data.arrivalTime) return new Date();
+          const d = new Date(data.arrivalTime);
+          return isNaN(d.getTime()) ? new Date() : d;
+        })();
+
+        const surgeMultiplier = calculateSurgeMultiplier(pricingTime.getHours(), pricingTime.getDay());
+
+        const baseFare = cfg.baseFare;
+        const distanceFare = distance * cfg.perKmRate;
+        const timeFare = estimatedTime * cfg.perMinuteRate;
+        const subtotal = baseFare + distanceFare + timeFare;
+        const computed = Math.max(baseFare, Math.ceil(subtotal * surgeMultiplier));
+
+        // Security: never trust client pricing. Use server-computed fare.
+        transportFare = computed;
+      } else {
+        // Fallback: if property coords are missing, accept a client hint but enforce minimum.
+        const clientHint = Number(data.transportFare ?? 0);
+        transportFare = Math.max(cfg.baseFare, Number.isFinite(clientHint) ? clientHint : 0);
       }
     }
     
@@ -553,46 +780,19 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
         SELECT id FROM Property WHERE id = ${data.propertyId} FOR UPDATE
       `;
 
-      // Final availability check within transaction using transaction client
-      // Include both bookings and availability blocks
+      // Final availability check: fetch ALL overlapping to count by room TYPE
       const finalConflictingBookings = await tx.booking.findMany({
         where: {
           propertyId: data.propertyId,
-          status: {
-            in: ["NEW", "CONFIRMED", "CHECKED_IN"],
-          },
-          AND: [
-            {
-              checkIn: {
-                lt: checkOut,
-              },
-            },
-            {
-              checkOut: {
-                gt: checkIn,
-              },
-            },
-          ],
-          ...(data.roomCode && { roomCode: data.roomCode }),
+          status: { in: ["NEW", "CONFIRMED", "CHECKED_IN"] },
+          AND: [{ checkIn: { lt: checkOut } }, { checkOut: { gt: checkIn } }],
         },
       });
 
       const finalConflictingBlocks = await tx.propertyAvailabilityBlock.findMany({
         where: {
           propertyId: data.propertyId,
-          AND: [
-            {
-              startDate: {
-                lt: checkOut,
-              },
-            },
-            {
-              endDate: {
-                gt: checkIn,
-              },
-            },
-          ],
-          ...(data.roomCode && { roomCode: data.roomCode }),
+          AND: [{ startDate: { lt: checkOut } }, { endDate: { gt: checkIn } }],
         },
       });
 
@@ -632,119 +832,213 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
         availableBeds: number;
       }> = {};
 
-      // Initialize room types
+      // Initialize room types (type-level key so "Suite-1"/"Suite-2" count toward "Suite")
       if (data.roomCode) {
-        // Check specific room - try to find by code first
-        let roomType = roomTypes.find((rt) => rt.code === data.roomCode || rt.roomCode === data.roomCode);
-        
-        // If not found by code, check if roomCode is actually an index
+        const typeFromCode = roomCodeToTypeKey(data.roomCode);
+        let roomType = roomTypes.find((rt) => roomTypeKeyFromSpec(rt) === typeFromCode);
         if (!roomType) {
-          const roomIndex = Number(data.roomCode);
-          if (!isNaN(roomIndex) && roomIndex >= 0 && roomIndex < roomTypes.length) {
-            roomType = roomTypes[roomIndex];
-          }
+          const ix = Number(data.roomCode);
+          if (!isNaN(ix) && ix >= 0 && ix < roomTypes.length) roomType = roomTypes[ix];
         }
-        
+        if (!roomType) {
+          roomType = roomTypes.find((rt) => {
+            const x: any = rt as any;
+            const c = String(x?.code ?? x?.roomCode ?? x?.roomType ?? x?.type ?? x?.name ?? x?.label ?? "").trim();
+            return c && (data.roomCode === c || (data.roomCode || "").startsWith(c + "-"));
+          });
+        }
         if (roomType) {
-          // Use the roomCode from data, or generate one from the room type
-          const code = data.roomCode;
+          const code = roomTypeKeyFromSpec(roomType) || typeFromCode;
+          const totalRooms = Math.max(1, toFiniteInt(roomType.rooms ?? roomType.roomsCount ?? 1, 1));
+          const bedsPerRoom = Math.max(1, toFiniteInt((roomType as any).beds ?? 1, 1));
           finalAvailabilityByRoomType[code] = {
-            totalRooms: roomType.rooms || roomType.roomsCount || 1,
-            totalBeds: (roomType.beds || 1) * (roomType.rooms || roomType.roomsCount || 1),
+            totalRooms,
+            totalBeds: bedsPerRoom * totalRooms,
             bookedRooms: 0,
             bookedBeds: 0,
             blockedRooms: 0,
             blockedBeds: 0,
-            availableRooms: roomType.rooms || roomType.roomsCount || 1,
-            availableBeds: (roomType.beds || 1) * (roomType.rooms || roomType.roomsCount || 1),
+            availableRooms: totalRooms,
+            availableBeds: bedsPerRoom * totalRooms,
           };
-        } else {
-          // Room not found - this shouldn't happen, but fallback to checking all rooms
-          if (roomTypes.length > 0) {
-            roomTypes.forEach((rt) => {
-              const code = rt.code || rt.roomCode || "default";
-              if (!finalAvailabilityByRoomType[code]) {
-                finalAvailabilityByRoomType[code] = {
-                  totalRooms: rt.rooms || rt.roomsCount || propertyForFinalCheck.totalBedrooms || 1,
-                  totalBeds: (rt.beds || 1) * (rt.rooms || rt.roomsCount || propertyForFinalCheck.totalBedrooms || 1),
-                  bookedRooms: 0,
-                  bookedBeds: 0,
-                  blockedRooms: 0,
-                  blockedBeds: 0,
-                  availableRooms: rt.rooms || rt.roomsCount || propertyForFinalCheck.totalBedrooms || 1,
-                  availableBeds: (rt.beds || 1) * (rt.rooms || rt.roomsCount || propertyForFinalCheck.totalBedrooms || 1),
-                };
-              }
-            });
-          }
+        } else if (roomTypes.length > 0) {
+          roomTypes.forEach((rt) => {
+            const code = roomTypeKeyFromSpec(rt);
+            if (!finalAvailabilityByRoomType[code]) {
+              const totalRooms = Math.max(1, toFiniteInt(rt.rooms ?? rt.roomsCount ?? propertyForFinalCheck.totalBedrooms ?? 1, 1));
+              const bedsPerRoom = Math.max(1, toFiniteInt((rt as any).beds ?? 1, 1));
+              finalAvailabilityByRoomType[code] = {
+                totalRooms,
+                totalBeds: bedsPerRoom * totalRooms,
+                bookedRooms: 0,
+                bookedBeds: 0,
+                blockedRooms: 0,
+                blockedBeds: 0,
+                availableRooms: totalRooms,
+                availableBeds: bedsPerRoom * totalRooms,
+              };
+            }
+          });
         }
       } else {
         if (roomTypes.length > 0) {
           roomTypes.forEach((rt) => {
-            const code = rt.code || "default";
+            const code = roomTypeKeyFromSpec(rt);
+            const totalRooms = Math.max(1, toFiniteInt(rt.rooms ?? propertyForFinalCheck.totalBedrooms ?? 1, 1));
+            const bedsPerRoom = Math.max(1, toFiniteInt((rt as any).beds ?? 1, 1));
             finalAvailabilityByRoomType[code] = {
-              totalRooms: rt.rooms || propertyForFinalCheck.totalBedrooms || 1,
-              totalBeds: (rt.beds || 1) * (rt.rooms || propertyForFinalCheck.totalBedrooms || 1),
+              totalRooms,
+              totalBeds: bedsPerRoom * totalRooms,
               bookedRooms: 0,
               bookedBeds: 0,
               blockedRooms: 0,
               blockedBeds: 0,
-              availableRooms: rt.rooms || propertyForFinalCheck.totalBedrooms || 1,
-              availableBeds: (rt.beds || 1) * (rt.rooms || propertyForFinalCheck.totalBedrooms || 1),
+              availableRooms: totalRooms,
+              availableBeds: bedsPerRoom * totalRooms,
             };
           });
         } else {
+          const totalRooms = Math.max(1, toFiniteInt(propertyForFinalCheck.totalBedrooms ?? 1, 1));
           finalAvailabilityByRoomType["default"] = {
-            totalRooms: propertyForFinalCheck.totalBedrooms || 1,
-            totalBeds: (propertyForFinalCheck.totalBedrooms || 1) * 2,
+            totalRooms,
+            totalBeds: totalRooms * 2,
             bookedRooms: 0,
             bookedBeds: 0,
             blockedRooms: 0,
             blockedBeds: 0,
-            availableRooms: propertyForFinalCheck.totalBedrooms || 1,
-            availableBeds: (propertyForFinalCheck.totalBedrooms || 1) * 2,
+            availableRooms: totalRooms,
+            availableBeds: totalRooms * 2,
           };
         }
       }
 
-      // Count bookings by room code
+      const finalBedsPerRoomFor = (key: string) => {
+        const v = finalAvailabilityByRoomType[key];
+        if (!v) return 1;
+        return Math.max(1, Math.round((v.totalBeds || 1) / Math.max(1, v.totalRooms || 1)));
+      };
+
+      // Count by room TYPE; blocks use bedsBlocked for rooms
+      const finalKeys = Object.keys(finalAvailabilityByRoomType);
       finalConflictingBookings.forEach((booking: any) => {
-        const code = booking.roomCode || "default";
-        if (finalAvailabilityByRoomType[code]) {
+        const code = findBucketKey(booking.roomCode, finalKeys) || (booking.roomCode ? null : finalKeys[0] || null);
+        if (code && finalAvailabilityByRoomType[code]) {
+          const bedsPerRoom = finalBedsPerRoomFor(code);
           finalAvailabilityByRoomType[code].bookedRooms += 1;
-          finalAvailabilityByRoomType[code].bookedBeds += 1;
+          finalAvailabilityByRoomType[code].bookedBeds += bedsPerRoom;
         }
       });
-
-      // Count blocks by room code
       finalConflictingBlocks.forEach((block: any) => {
-        const code = block.roomCode || "default";
-        if (finalAvailabilityByRoomType[code]) {
-          finalAvailabilityByRoomType[code].blockedRooms += 1;
-          finalAvailabilityByRoomType[code].blockedBeds += (block as any).bedsBlocked || 1;
+        const code = findBucketKey(block.roomCode, finalKeys) || (block.roomCode ? null : finalKeys[0] || null);
+        if (code && finalAvailabilityByRoomType[code]) {
+          const roomsBlocked = Number(block.bedsBlocked ?? 1) || 1;
+          const bedsPerRoom = finalBedsPerRoomFor(code);
+          finalAvailabilityByRoomType[code].blockedRooms += roomsBlocked;
+          finalAvailabilityByRoomType[code].blockedBeds += roomsBlocked * bedsPerRoom;
         }
       });
 
-      // Calculate available counts
       Object.keys(finalAvailabilityByRoomType).forEach((code) => {
         const avail = finalAvailabilityByRoomType[code];
         avail.availableRooms = Math.max(0, avail.totalRooms - avail.bookedRooms - avail.blockedRooms);
         avail.availableBeds = Math.max(0, avail.totalBeds - avail.bookedBeds - avail.blockedBeds);
       });
 
-      // Check if there's still capacity available
-      const finalTotalAvailableRooms = Object.values(finalAvailabilityByRoomType).reduce(
-        (sum, a) => sum + a.availableRooms,
-        0
-      );
-      const finalTotalAvailableBeds = Object.values(finalAvailabilityByRoomType).reduce(
-        (sum, a) => sum + a.availableBeds,
-        0
-      );
+      const finalTotalAvailableRooms = Object.values(finalAvailabilityByRoomType).reduce((sum, a) => sum + (Number.isFinite(a.availableRooms) ? a.availableRooms : 0), 0);
+      const finalTotalAvailableBeds = Object.values(finalAvailabilityByRoomType).reduce((sum, a) => sum + (Number.isFinite(a.availableBeds) ? a.availableBeds : 0), 0);
 
-      if (finalTotalAvailableRooms <= 0 && finalTotalAvailableBeds <= 0) {
-        throw new Error("Property became unavailable during booking process - no capacity remaining");
+      const finalIsRoomIndexSelection = !!(data.roomCode && /^\d+$/.test(String(data.roomCode)));
+      const finalRoomCodeForBucket = (() => {
+        if (!data.roomCode) return null;
+        if (!finalIsRoomIndexSelection) return data.roomCode;
+        const ix = Number(data.roomCode);
+        const rt = Number.isFinite(ix) && ix >= 0 && ix < roomTypes.length ? roomTypes[ix] : null;
+        const derived = rt ? String((rt as any).code ?? (rt as any).roomCode ?? (rt as any).roomType ?? (rt as any).type ?? (rt as any).name ?? (rt as any).label ?? "").trim() : "";
+        return derived || data.roomCode;
+      })();
+
+      const finalSameRoom =
+        !!(
+          !finalIsRoomIndexSelection &&
+          data.roomCode &&
+          isExplicitRoomUnitCode(data.roomCode) &&
+          finalConflictingBookings.some((b: any) => b.roomCode === data.roomCode)
+        );
+      const finalTypeKey = data.roomCode ? findBucketKey(finalRoomCodeForBucket, finalKeys) : null;
+      const finalTypeOk = data.roomCode ? !!(finalTypeKey && (finalAvailabilityByRoomType[finalTypeKey]?.availableRooms ?? 0) > 0) : true;
+      const finalTotalOk = finalTotalAvailableRooms > 0 || finalTotalAvailableBeds > 0;
+
+      if (finalSameRoom || !finalTypeOk || !finalTotalOk) {
+        const selAvail = finalTypeKey != null ? (finalAvailabilityByRoomType[finalTypeKey]?.availableRooms ?? 0) : undefined;
+        throw new AvailabilityConflictError({
+          error: "Property not available for selected dates",
+          code: "AVAILABILITY_CONFLICT",
+          message: "The property is no longer available for those dates. Please choose different dates and try again.",
+          selectedRoomType: finalTypeKey || undefined,
+          availableForSelectedType: typeof selAvail === "number" ? selAvail : undefined,
+          totalAvailableRooms: finalTotalAvailableRooms,
+          totalAvailableBeds: finalTotalAvailableBeds,
+        });
       }
+
+      // Ensure we have a userId when transport is included (TransportBooking requires userId)
+      if (data.includeTransport && !userId) {
+        if (sanitizedGuestEmail) {
+          const u = await tx.user.findUnique({ where: { email: sanitizedGuestEmail }, select: { id: true } });
+          if (u) userId = u.id;
+        }
+
+        if (!userId && sanitizedGuestPhone) {
+          const phoneVariants = buildPhoneVariants(sanitizedGuestPhone);
+          const u = await tx.user.findFirst({
+            where: { phone: { in: phoneVariants } },
+            select: { id: true },
+          });
+          if (u) userId = u.id;
+        }
+
+        if (!userId) {
+          // Create a minimal customer record so transport requests can be linked correctly.
+          const created = await tx.user.create({
+            data: {
+              role: "CUSTOMER",
+              name: sanitizedGuestName,
+              fullName: sanitizedGuestName,
+              email: sanitizedGuestEmail,
+              phone: sanitizedGuestPhone,
+              kycStatus: "PENDING_KYC",
+            } as any,
+            select: { id: true },
+          });
+          userId = created.id;
+        }
+      }
+
+      const transportSummary = (() => {
+        if (!data.includeTransport) return null;
+
+        const scheduledRaw = parseOptionalDate(data.arrivalTime) || checkIn;
+        const minLeadMs = MIN_TRANSPORT_LEAD_MS;
+        const effectiveScheduled =
+          scheduledRaw.getTime() >= Date.now() + minLeadMs
+            ? scheduledRaw
+            : new Date(Date.now() + minLeadMs);
+
+        const title = sanitizeText(String((property as any).title || "")) || "";
+        const ward = sanitizeText(String((property as any).ward || "")) || "";
+        const district = sanitizeText(String((property as any).district || "")) || "";
+        const region = sanitizeText(String((property as any).regionName || "")) || "";
+        const street = sanitizeText(String((property as any).street || "")) || "";
+        const city = sanitizeText(String((property as any).city || "")) || "";
+
+        const parts = [title, street, ward, district, region, city].filter((p) => !!p);
+        const toAddressLabel = (parts.join(" - ") || title).slice(0, 255) || null;
+
+        return {
+          effectiveScheduled,
+          toAddressLabel,
+        };
+      })();
 
       // Create booking with sanitized data
       const booking = await tx.booking.create({
@@ -761,8 +1055,54 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
           nationality: sanitizedNationality,
           sex: data.sex || null,
           ageGroup: data.ageGroup || null,
+          includeTransport: !!data.includeTransport,
+          transportVehicleType: data.includeTransport ? String(data.transportVehicleType || "CAR") : null,
+          transportScheduledDate: data.includeTransport ? (transportSummary?.effectiveScheduled ?? null) : null,
+          transportOriginAddress: data.includeTransport ? sanitizedTransportAddress : null,
+          transportFare: data.includeTransport ? (transportFare as any) : null,
         },
       });
+
+      // Persist scheduled transport request (hidden from drivers until payment is confirmed)
+      if (data.includeTransport && userId) {
+        const effectiveScheduled = transportSummary?.effectiveScheduled ?? (parseOptionalDate(data.arrivalTime) || checkIn);
+
+        const fromLat = toDecimal6(data.transportOriginLat);
+        const fromLng = toDecimal6(data.transportOriginLng);
+        const toLat = toDecimal6((property as any).latitude);
+        const toLng = toDecimal6((property as any).longitude);
+
+        await tx.transportBooking.create({
+          data: {
+            userId,
+            propertyId: data.propertyId,
+            // Cashless platform: if the property booking is successfully created, it is paid.
+            // Transport-inclusive bookings should be visible under Scheduled Trips.
+            status: "PENDING_ASSIGNMENT",
+            scheduledDate: effectiveScheduled,
+            fromLatitude: fromLat as any,
+            fromLongitude: fromLng as any,
+            fromAddress: sanitizedTransportAddress,
+            toLatitude: toLat as any,
+            toLongitude: toLng as any,
+            toAddress: transportSummary?.toAddressLabel ?? (sanitizeText(String((property as any).title || "")) || null),
+            vehicleType: (data.transportVehicleType || "CAR") as any,
+            amount: transportFare as any,
+            currency: (property as any).currency || "TZS",
+            arrivalType: (data.arrivalType as any) || null,
+            arrivalNumber: data.arrivalNumber ? sanitizeText(data.arrivalNumber) : null,
+            transportCompany: data.transportCompany ? sanitizeText(data.transportCompany) : null,
+            arrivalTime: parseOptionalDate(data.arrivalTime),
+            pickupLocation: data.pickupLocation ? sanitizeText(data.pickupLocation) : null,
+            numberOfPassengers: Math.max(1, Number(data.adults || 1) + Number(data.children || 0)),
+            notes: sanitizeText(
+              `NoLSAF Auction Policy: Claim only if you can commit to the pickup time. No-shows/cancellations after claiming may affect your driver rating.`
+            ),
+            paymentStatus: "PAID",
+            paymentRef: `BOOKING:${booking.id}`,
+          } as any,
+        });
+      }
 
       // Generate booking code within transaction
       // Check if code already exists
@@ -840,6 +1180,32 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
         status: "NEW",
       };
 
+      // Real-time availability refresh for owner UI + public availability listeners
+      try {
+        io?.to?.(`property:${property.id}:availability`)?.emit?.("availability:update", {
+          event: "booking_created",
+          propertyId: property.id,
+          data: {
+            bookingId: result.bookingId,
+            checkIn: checkInShort,
+            checkOut: checkOutShort,
+            status: "NEW",
+          },
+          timestamp: new Date().toISOString(),
+        });
+        io?.to?.(`property:${property.id}:availability:public`)?.emit?.("availability:update", {
+          event: "booking_created",
+          propertyId: property.id,
+          data: {
+            bookingId: result.bookingId,
+            checkIn: checkInShort,
+            checkOut: checkOutShort,
+            status: "NEW",
+          },
+          timestamp: new Date().toISOString(),
+        });
+      } catch {}
+
       if (ownerId) {
         await notifyOwner(ownerId, "booking_created", payload);
         try {
@@ -866,6 +1232,7 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
       checkIn: result.checkIn.toISOString(),
       checkOut: result.checkOut.toISOString(),
       currency: property.currency || "TZS",
+      requestId,
       property: {
         id: property.id,
         title: property.title,
@@ -880,11 +1247,35 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
       stack: error?.stack,
     });
 
+    if (error instanceof AvailabilityConflictError) {
+      return res.status(409).json({
+        ...(error.payload || {}),
+        requestId,
+      });
+    }
+
+    // Availability may disappear during the final locked transaction.
+    // Treat this as a booking conflict (409) so the client can block checkout.
+    const msg = String(error?.message || "");
+    if (
+      msg.includes("became unavailable") ||
+      msg.includes("no capacity remaining") ||
+      msg.includes("fully booked")
+    ) {
+      return res.status(409).json({
+        error: "Property not available for selected dates",
+        code: "AVAILABILITY_CONFLICT",
+        message: "The property is no longer available for those dates. Please choose different dates and try again.",
+        requestId,
+      });
+    }
+
     // Handle Prisma errors
     if (error?.code === "P2002") {
       return res.status(409).json({ 
         error: "Booking conflict detected",
         message: "A booking with similar details already exists",
+        requestId,
       });
     }
 
@@ -893,6 +1284,7 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
       return res.status(400).json({
         error: "Invalid request data",
         details: error.errors,
+        requestId,
       });
     }
 
@@ -906,6 +1298,7 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
           name: error?.name,
         }
       }),
+      requestId,
     });
   }
 });

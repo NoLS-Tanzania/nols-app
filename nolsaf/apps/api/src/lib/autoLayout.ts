@@ -41,14 +41,20 @@ export async function generateLayoutForProperty(p: PropertyWithRooms): Promise<T
     children: number;
   }> = [];
 
+  // Keep room ids stable + unique even if roomsSpec has repeated roomType entries.
+  const nextIndexByRoomType: Record<string, number> = {};
+
   for (const r of rooms) {
     const count = Number(r.roomsCount) || 0;
+    const roomType = String(r.roomType ?? "Room").trim() || "Room";
     for (let i=1;i<=count;i++){
-      const rid = `${r.roomType}-${i}`;
+      const nextIndex = (nextIndexByRoomType[roomType] ?? 0) + 1;
+      nextIndexByRoomType[roomType] = nextIndex;
+      const rid = `${roomType}-${nextIndex}`;
       expanded.push({
         id: rid,
         type: "GuestRoom",
-        name: r.roomType + " " + i,
+        name: roomType + " " + nextIndex,
         pricePerNight: Number(r.pricePerNight || 0),
         photos: Array.isArray(r.roomImages) ? r.roomImages : [],
         amenities: [

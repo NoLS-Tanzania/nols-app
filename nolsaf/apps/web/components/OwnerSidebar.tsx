@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { Calendar, Wallet, FileText, PlusSquare, LayoutDashboard, ChevronDown, ChevronRight, Users, HandHeart } from 'lucide-react';
+import { Calendar, Wallet, FileText, PlusSquare, LayoutDashboard, ChevronDown, ChevronRight, Users, HandHeart, CalendarDays } from 'lucide-react';
 
 // Use same-origin calls + secure httpOnly cookie session.
 const api = axios.create({ baseURL: "", withCredentials: true });
@@ -70,6 +70,7 @@ export default function OwnerSidebar({ collapsed = false }: { collapsed?: boolea
   useEffect(() => {
     let mounted = true;
     let intervalId: ReturnType<typeof setInterval> | null = null;
+    const abortController = new AbortController();
     const url = "/api/owner/bookings/checked-in";
     const urlOut = "/api/owner/bookings/for-checkout";
 
@@ -83,8 +84,13 @@ export default function OwnerSidebar({ collapsed = false }: { collapsed?: boolea
             : []));
 
     const fetchCheckedInCount = async () => {
+      if (!mounted) return;
+      
       try {
-        const response = await api.get<unknown>(url);
+        const response = await api.get<unknown>(url, {
+          signal: abortController.signal,
+          timeout: 10000, // 10 second timeout
+        });
         if (!mounted) return;
 
         const raw: any = (response as any).data;
@@ -94,20 +100,38 @@ export default function OwnerSidebar({ collapsed = false }: { collapsed?: boolea
         setCheckedInCount(normalized.length);
       } catch (err: any) {
         if (!mounted) return;
+        
+        // Ignore aborted requests (expected when component unmounts)
+        if (err.code === 'ECONNABORTED' || err.name === 'AbortError' || err.message === 'Request aborted') {
+          return; // Silently ignore - component is unmounting
+        }
+        
         console.warn('Failed to load checked-in count', err);
         setCheckedInCount(0);
       }
     };
 
     const fetchCheckoutDueCount = async () => {
+      if (!mounted) return;
+      
       try {
-        const response = await api.get<unknown>(urlOut);
+        const response = await api.get<unknown>(urlOut, {
+          signal: abortController.signal,
+          timeout: 10000, // 10 second timeout
+        });
         if (!mounted) return;
+        
         const raw: any = (response as any).data;
         const normalized = normalizeArray(raw);
         setCheckoutDueCount(normalized.length);
       } catch (err: any) {
         if (!mounted) return;
+        
+        // Ignore aborted requests (expected when component unmounts)
+        if (err.code === 'ECONNABORTED' || err.name === 'AbortError' || err.message === 'Request aborted') {
+          return; // Silently ignore - component is unmounting
+        }
+        
         console.warn('Failed to load checked-out count', err);
         setCheckoutDueCount(0);
       }
@@ -118,22 +142,32 @@ export default function OwnerSidebar({ collapsed = false }: { collapsed?: boolea
     fetchCheckoutDueCount();
 
     // Refresh every 30 seconds to keep count updated
-    intervalId = setInterval(() => { fetchCheckedInCount(); fetchCheckoutDueCount(); }, 30000);
+    intervalId = setInterval(() => {
+      if (mounted) {
+        fetchCheckedInCount();
+        fetchCheckoutDueCount();
+      }
+    }, 30000);
 
     // Also refresh immediately after a successful validation/check-in (no wait for polling)
     const onCheckedInChanged = () => {
-      fetchCheckedInCount();
-      fetchCheckoutDueCount();
+      if (mounted) {
+        fetchCheckedInCount();
+        fetchCheckoutDueCount();
+      }
     };
     window.addEventListener("nols:checkedin-changed", onCheckedInChanged);
 
     const onCheckoutChanged = () => {
-      fetchCheckoutDueCount();
+      if (mounted) {
+        fetchCheckoutDueCount();
+      }
     };
     window.addEventListener("nols:checkout-changed", onCheckoutChanged);
 
     return () => {
       mounted = false;
+      abortController.abort(); // Cancel all pending requests
       window.removeEventListener("nols:checkedin-changed", onCheckedInChanged);
       window.removeEventListener("nols:checkout-changed", onCheckoutChanged);
       if (intervalId) clearInterval(intervalId);
@@ -209,6 +243,7 @@ export default function OwnerSidebar({ collapsed = false }: { collapsed?: boolea
               <div className="mt-2 space-y-2">
                 <Item href="/owner/properties/approved" label="Approved" Icon={FileText} isSubItem collapsed={collapsed} />
                 <Item href="/owner/properties/pending" label="Pending" Icon={FileText} isSubItem collapsed={collapsed} />
+                <Item href="/owner/properties/availability" label="Room Availability" Icon={CalendarDays} isSubItem collapsed={collapsed} />
                 <Item href="/owner/properties/add" label="Add New" Icon={PlusSquare} isSubItem collapsed={collapsed} />
               </div>
             )}

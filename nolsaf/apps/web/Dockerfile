@@ -5,10 +5,8 @@
 FROM node:20-bookworm-slim AS deps
 WORKDIR /app
 
-# Copy package files
-COPY package.json package-lock.json* ./
-COPY apps/web/package.json ./apps/web/
-COPY packages/*/package.json ./packages/*/
+# Copy the monorepo (this Dockerfile is intended to be built with the nolsaf/ folder as the build context)
+COPY . .
 
 # Install dependencies
 RUN npm ci
@@ -25,6 +23,7 @@ COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
 COPY . .
 
 # Generate Prisma client
+WORKDIR /app
 RUN npm run prisma:generate
 
 # Build shared packages
@@ -33,6 +32,7 @@ RUN npm run --workspace=@nolsaf/prisma build
 
 # Build Next.js app
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_OPTIONS=--max-old-space-size=2048
 WORKDIR /app/apps/web
 RUN npm run build
 
@@ -51,6 +51,10 @@ RUN adduser --system --uid 1001 nextjs
 COPY --from=builder /app/apps/web/public ./public
 COPY --from=builder /app/apps/web/.next/standalone ./
 COPY --from=builder /app/apps/web/.next/static ./.next/static
+
+# Copy node_modules if needed for standalone
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/apps/web/node_modules ./apps/web/node_modules
 
 # Set correct permissions
 RUN chown -R nextjs:nodejs /app

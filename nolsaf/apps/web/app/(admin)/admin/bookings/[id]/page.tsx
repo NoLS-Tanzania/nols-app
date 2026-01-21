@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { ArrowLeft, Home, User, Calendar, DollarSign, Key, AlertCircle, Loader2, RefreshCw } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 
@@ -179,8 +180,10 @@ function CancelReasonModal({
 }
 
 
-export default function AdminBookingDetail({ params }: { params: { id: string } }) {
-  const id = Number(params.id);
+export default function AdminBookingDetail() {
+  const params = useParams<{ id?: string | string[] }>();
+  const idParam = Array.isArray(params?.id) ? params?.id?.[0] : params?.id;
+  const id = Number(idParam);
   const [b, setB] = useState<any>(null);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);

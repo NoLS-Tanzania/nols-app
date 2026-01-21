@@ -37,7 +37,8 @@ export default function DriverProfile() {
 
   async function uploadToCloudinary(file: File, folder: string) {
     // Use relative path in browser to leverage Next.js rewrites and avoid CORS
-    const sig = await api.get(`/uploads/cloudinary/sign?folder=${encodeURIComponent(folder)}`);
+    // Use /api prefix so auth cookies scoped to /api are always included.
+    const sig = await api.get(`/api/uploads/cloudinary/sign?folder=${encodeURIComponent(folder)}`);
     const sigData = sig.data as CloudinarySig;
     const fd = new FormData();
     fd.append('file', file);

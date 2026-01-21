@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { ArrowLeft, FileText, DollarSign, Building2, Calendar, CheckCircle2, XCircle, Clock, Receipt, CreditCard, Edit2 } from "lucide-react";
 
 // Use same-origin calls + secure httpOnly cookie session.
@@ -17,8 +18,10 @@ type Inv = {
   paidByUser?:{id:number;name:string|null}|null;
 };
 
-export default function Page({ params }:{ params:{ id:string } }){
-  const id = Number(params.id);
+export default function Page(){
+  const routeParams = useParams<{ id?: string | string[] }>();
+  const idParam = Array.isArray(routeParams?.id) ? routeParams?.id?.[0] : routeParams?.id;
+  const id = Number(idParam);
   const [inv, setInv] = useState<Inv| null>(null);
   const [loading, setLoading] = useState(true);
   const [notes, setNotes] = useState("");

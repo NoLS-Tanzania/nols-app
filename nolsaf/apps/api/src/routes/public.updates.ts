@@ -9,11 +9,11 @@ function toStringArray(value: unknown): string[] {
 }
 
 /** GET /api/public/updates - Get public updates */
-router.get("/", async (_req, res) => {
+router.get("/", async (_req, res, next) => {
+  // Ensure we always return JSON, even on errors - set headers early
+  res.setHeader('Content-Type', 'application/json');
+  
   try {
-    // Ensure we always return JSON, even on errors
-    res.setHeader('Content-Type', 'application/json');
-    
     const rows = await prisma.siteUpdate.findMany({
       orderBy: { createdAt: "desc" },
       take: 20,
@@ -38,6 +38,11 @@ router.get("/", async (_req, res) => {
       stack: err?.stack,
       name: err?.name,
     });
+    
+    // Don't send response if already sent
+    if (res.headersSent) {
+      return next(err);
+    }
     
     // Ensure JSON response header is set
     res.setHeader('Content-Type', 'application/json');

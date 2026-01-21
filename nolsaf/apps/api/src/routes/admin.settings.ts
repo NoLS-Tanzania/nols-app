@@ -25,16 +25,65 @@ async function hasRoleTtlColumns(): Promise<boolean> {
   }
 }
 
+let currencyColumnAvailable: boolean | null = null;
+async function hasCurrencyColumn(): Promise<boolean> {
+  if (currencyColumnAvailable !== null) return currencyColumnAvailable;
+  try {
+    await prisma.systemSetting.findUnique({
+      where: { id: 1 },
+      select: { currency: true } as any,
+    });
+    currencyColumnAvailable = true;
+    return true;
+  } catch (err: any) {
+    // If DB isn't migrated yet (or schema/client drift), don't crash the API.
+    if (
+      err?.code === "P2022" ||
+      String(err?.message || "").includes("ColumnNotFound") ||
+      String(err?.message || "").includes("Unknown field")
+    ) {
+      currencyColumnAvailable = false;
+      return false;
+    }
+    throw err;
+  }
+}
+
+let supportColumnsAvailable: boolean | null = null;
+async function hasSupportColumns(): Promise<boolean> {
+  if (supportColumnsAvailable !== null) return supportColumnsAvailable;
+  try {
+    await prisma.systemSetting.findUnique({
+      where: { id: 1 },
+      select: { supportEmail: true } as any,
+    });
+    supportColumnsAvailable = true;
+    return true;
+  } catch (err: any) {
+    if (
+      err?.code === "P2022" ||
+      String(err?.message || "").includes("ColumnNotFound") ||
+      String(err?.message || "").includes("Unknown field")
+    ) {
+      supportColumnsAvailable = false;
+      return false;
+    }
+    throw err;
+  }
+}
+
 /** GET current settings */
 router.get("/", async (_req, res) => {
   const roleCols = await hasRoleTtlColumns();
+  const currencyCol = await hasCurrencyColumn();
+  const supportCols = await hasSupportColumns();
   const s =
     (await prisma.systemSetting.findUnique({
       where: { id: 1 },
       select: {
         commissionPercent: true,
         taxPercent: true,
-        currency: true,
+        ...(currencyCol ? { currency: true } : {}),
         invoicePrefix: true,
         receiptPrefix: true,
         emailEnabled: true,
@@ -56,8 +105,7 @@ router.get("/", async (_req, res) => {
         enableSecurityAuditLogging: true,
         logFailedLoginAttempts: true,
         alertOnSuspiciousActivity: true,
-        supportEmail: true,
-        supportPhone: true,
+        ...(supportCols ? { supportEmail: true, supportPhone: true } : {}),
         ...(roleCols
           ? {
               sessionMaxMinutesAdmin: true,
@@ -77,6 +125,14 @@ router.get("/", async (_req, res) => {
     out.sessionMaxMinutesOwner = null;
     out.sessionMaxMinutesDriver = null;
     out.sessionMaxMinutesCustomer = null;
+  }
+  if (!currencyCol) {
+    // Keep UI stable even if DB isn't migrated yet.
+    out.currency = out.currency ?? "TZS";
+  }
+  if (!supportCols) {
+    out.supportEmail = out.supportEmail ?? null;
+    out.supportPhone = out.supportPhone ?? null;
   }
   res.json(mask(out));
 });
@@ -115,6 +171,8 @@ router.get("/audit/session-policy", async (_req, res) => {
 /** PUT update settings */
 router.put("/", async (req, res) => {
   const roleCols = await hasRoleTtlColumns();
+  const currencyCol = await hasCurrencyColumn();
+  const supportCols = await hasSupportColumns();
   const before = await prisma.systemSetting.findUnique({
     where: { id: 1 },
     select: {
@@ -223,6 +281,16 @@ router.put("/", async (req, res) => {
     delete (sanitizedUpdate as any).sessionMaxMinutesOwner;
     delete (sanitizedUpdate as any).sessionMaxMinutesDriver;
     delete (sanitizedUpdate as any).sessionMaxMinutesCustomer;
+  }
+
+  // If the DB isn't migrated yet, drop currency so the update doesn't fail.
+  if (!currencyCol) {
+    delete (sanitizedUpdate as any).currency;
+  }
+
+  if (!supportCols) {
+    delete (sanitizedUpdate as any).supportEmail;
+    delete (sanitizedUpdate as any).supportPhone;
   }
 
   const s = await prisma.systemSetting.upsert({

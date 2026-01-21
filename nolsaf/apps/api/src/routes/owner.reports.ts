@@ -17,8 +17,33 @@ router.use(requireAuth as unknown as RequestHandler, requireRole("OWNER") as unk
 /** Parse common query params */
 function parseQuery(q: any) {
   const now = new Date();
-  const from = q.from ? new Date(String(q.from)) : new Date(now.getFullYear(), now.getMonth(), 1);
-  const to = q.to ? new Date(String(q.to)) : now;
+  let from: Date;
+  let to: Date;
+  
+  try {
+    from = q.from ? new Date(String(q.from)) : new Date(now.getFullYear(), now.getMonth(), 1);
+    to = q.to ? new Date(String(q.to)) : now;
+    
+    // Validate dates
+    if (isNaN(from.getTime())) {
+      from = new Date(now.getFullYear(), now.getMonth(), 1);
+    }
+    if (isNaN(to.getTime())) {
+      to = now;
+    }
+    
+    // Ensure to is after from
+    if (to < from) {
+      const temp = from;
+      from = to;
+      to = temp;
+    }
+  } catch (err) {
+    // Fallback to default dates on parse error
+    from = new Date(now.getFullYear(), now.getMonth(), 1);
+    to = now;
+  }
+  
   const groupBy = (q.groupBy as GroupBy) || "day";
   const propertyId = q.propertyId ? Number(q.propertyId) : undefined;
   return { from, to, groupBy, propertyId };
@@ -181,14 +206,16 @@ router.get("/revenue", revenueHandler);
 /** -------------------------
  *  /owner/reports/bookings
  *  ------------------------- */
-const bookingsHandler: RequestHandler = async (req, res) => {
+const bookingsHandler: RequestHandler = async (req, res, next) => {
+  // Set content type early to ensure JSON response
+  res.setHeader('Content-Type', 'application/json');
+  
   try {
     const r = req as AuthedRequest;
     const ownerId = r.user?.id;
     const { from, to, groupBy, propertyId } = parseQuery(req.query);
 
     if (!ownerId) {
-      res.setHeader('Content-Type', 'application/json');
       return res.status(401).json({ error: "Unauthorized", series: [], stacked: [], table: [] });
     }
 
@@ -201,22 +228,40 @@ const bookingsHandler: RequestHandler = async (req, res) => {
 
     const data = await withCache(key, async () => {
       const t0 = Date.now();
-      const bs: Booking[] = await prisma.booking.findMany({
-        where: {
-          property: { ownerId },
-          checkIn: { gte: from, lte: to },
-          ...(propertyId ? { propertyId } : {}),
-        },
-        include: { 
-          property: true,
-          code: {
-            select: {
-              usedAt: true,
-              status: true,
+      
+      // Try to include code relation, but handle gracefully if it fails
+      let bs: Booking[];
+      try {
+        bs = await prisma.booking.findMany({
+          where: {
+            property: { ownerId },
+            checkIn: { gte: from, lte: to },
+            ...(propertyId ? { propertyId } : {}),
+          },
+          include: { 
+            property: true,
+            code: {
+              select: {
+                usedAt: true,
+                status: true,
+              }
             }
-          }
-        },
-      });
+          },
+        });
+      } catch (includeErr: any) {
+        // If code relation fails, retry without it
+        console.warn('Failed to include code relation, retrying without it:', includeErr?.message);
+        bs = await prisma.booking.findMany({
+          where: {
+            property: { ownerId },
+            checkIn: { gte: from, lte: to },
+            ...(propertyId ? { propertyId } : {}),
+          },
+          include: { 
+            property: true,
+          },
+        });
+      }
 
       const series: Record<string, { count: number }> = {};
       const stack: Record<string, Record<string, number>> = {};
@@ -246,20 +291,23 @@ const bookingsHandler: RequestHandler = async (req, res) => {
           status: b.status,
           totalAmount: b.totalAmount,
           guestName: (b as any).guestName ?? null,
-          checkedInAt: b.code?.usedAt ?? null,
+          checkedInAt: (b.code?.usedAt ?? null),
         })),
       };
     });
 
-    res.setHeader('Content-Type', 'application/json');
     res.json(data);
   } catch (err: any) {
     console.error('Error in GET /owner/reports/bookings:', err);
     
+    // If headers already sent, pass to error handler
+    if (res.headersSent) {
+      return next(err);
+    }
+    
     // Handle Prisma schema mismatch errors (table/column not found)
     if (err instanceof Prisma.PrismaClientKnownRequestError && (err.code === 'P2021' || err.code === 'P2022')) {
       console.warn('Prisma schema mismatch in owner.reports.bookings:', err.message);
-      res.setHeader('Content-Type', 'application/json');
       return res.json({
         series: [],
         stacked: [],
@@ -267,8 +315,67 @@ const bookingsHandler: RequestHandler = async (req, res) => {
       });
     }
     
+    // Handle Prisma relation errors (relation not found)
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2017') {
+      console.warn('Prisma relation error in owner.reports.bookings:', err.message);
+      // Retry without the code relation
+      try {
+        const r = req as AuthedRequest;
+        const ownerId = r.user?.id;
+        const { from, to, groupBy, propertyId } = parseQuery(req.query);
+        
+        const bs: Booking[] = await prisma.booking.findMany({
+          where: {
+            property: { ownerId },
+            checkIn: { gte: from, lte: to },
+            ...(propertyId ? { propertyId } : {}),
+          },
+          include: { 
+            property: true,
+          },
+        });
+
+        const series: Record<string, { count: number }> = {};
+        const stack: Record<string, Record<string, number>> = {};
+        for (const d of eachDay(from, to)) {
+          const k = fmtKey(d, groupBy);
+          series[k] = { count: 0 };
+          stack[k] = {};
+        }
+        for (const b of bs) {
+          const k = fmtKey(startOfDayTZ(b.checkIn), groupBy);
+          if (!series[k]) { series[k] = { count: 0 }; stack[k] = stack[k] ?? {}; }
+          series[k].count += 1;
+          stack[k][b.status] = (stack[k][b.status] ?? 0) + 1;
+        }
+        const stacked = Object.entries(stack).map(([key, obj]) => ({ key, ...obj }));
+
+        return res.json({
+          series: Object.entries(series).map(([key, v]) => ({ key, ...v })),
+          stacked,
+          table: bs.map((b: any) => ({
+            id: b.id,
+            property: b.property?.title ?? `#${b.propertyId}`,
+            propertyId: b.propertyId,
+            checkIn: b.checkIn,
+            checkOut: b.checkOut,
+            status: b.status,
+            totalAmount: b.totalAmount,
+            guestName: (b as any).guestName ?? null,
+            checkedInAt: null, // code relation unavailable
+          })),
+        });
+      } catch (retryErr: any) {
+        console.error('Retry failed in owner.reports.bookings:', retryErr);
+        return res.json({
+          series: [],
+          stacked: [],
+          table: [],
+        });
+      }
+    }
+    
     // Handle other errors
-    res.setHeader('Content-Type', 'application/json');
     return res.status(500).json({
       error: 'Internal server error',
       message: err?.message || 'Unknown error',

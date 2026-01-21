@@ -585,14 +585,7 @@ export default function UserBookingsPage() {
                   onChange={(e) => setQ(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') load(); }}
                   placeholder="Search bookings..."
-                  className="
-                    w-full h-[42px] pl-10 pr-4 py-2.5 box-border
-                    border border-gray-200 rounded-xl
-                    bg-white text-sm font-medium
-                    focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400
-                    transition-all duration-200
-                    placeholder:text-gray-400
-                  "
+                  className={`w-full h-[42px] pl-10 pr-4 py-2.5 box-border border border-gray-200 rounded-xl bg-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 transition-all duration-200 placeholder:text-gray-400`}
                 />
               </div>
             </div>

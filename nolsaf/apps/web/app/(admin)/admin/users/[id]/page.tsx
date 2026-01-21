@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import axios from "axios";
 import Link from "next/link";
 import { 
@@ -78,8 +78,10 @@ type UserDetailResponse = {
   };
 };
 
-export default function AdminUserDetailPage({ params }: { params: { id: string } }) {
-  const userId = Number(params.id);
+export default function AdminUserDetailPage() {
+  const routeParams = useParams<{ id?: string | string[] }>();
+  const idParam = Array.isArray(routeParams?.id) ? routeParams?.id?.[0] : routeParams?.id;
+  const userId = Number(idParam);
   const isValidUserId = Number.isFinite(userId) && userId > 0;
   const router = useRouter();
   const [data, setData] = useState<UserDetailResponse | null>(null);

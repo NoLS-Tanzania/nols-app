@@ -8,6 +8,30 @@ import { regenerateAndSaveLayout } from "../lib/autoLayout.js";
 export const router = Router();
 router.use(requireAuth, requireRole("OWNER"));
 
+router.get("/:id/layout", async (req, res) => {
+  const ownerId = (req as AuthedRequest).user!.id;
+  const id = Number((req as any).params.id);
+  const prop = await prisma.property.findFirst({
+    where: { id, ownerId },
+    select: { id: true, layout: true }
+  });
+  if (!prop) return res.status(404).json({ error: "Not found" });
+  res.json(prop.layout ?? null);
+});
+
+router.post("/:id/layout/generate", async (req, res) => {
+  const ownerId = (req as AuthedRequest).user!.id;
+  const id = Number((req as any).params.id);
+  const prop = await prisma.property.findFirst({
+    where: { id, ownerId },
+    select: { id: true }
+  });
+  if (!prop) return res.status(404).json({ error: "Not found" });
+
+  const layout = await regenerateAndSaveLayout(id);
+  res.json(layout);
+});
+
 router.get("/:id/availability", async (req, res) => {
   const ownerId = (req as AuthedRequest).user!.id;
   const id = Number((req as any).params.id);
@@ -47,18 +71,18 @@ router.get("/:id/availability", async (req, res) => {
     // PENDING_CHECKIN is deprecated; treat as CHECKED_IN at UI/business-layer
     status: { in: ["CONFIRMED", "CHECKED_IN"] }
     },
-    select: { id: true, checkIn: true, checkOut: true, status: true, roomCode: true }
+    select: { id: true, checkIn: true, checkOut: true, status: true, roomCode: true, guestName: true, totalAmount: true }
   });
 
   // Index bookings by roomCode + compute overlapped nights
-  const byCode: Record<string, { id:number; checkIn:Date; checkOut:Date; status:string; nights:number }[]> = {};
+  const byCode: Record<string, { id:number; checkIn:Date; checkOut:Date; status:string; nights:number; guestName?: string | null; totalAmount?: any }[]> = {};
   for (const b of bookings) {
     const code = (b as any).roomCode ?? "";
     if (!code) continue;
     const n = overlapNights(clipStart, clipEnd, b.checkIn, b.checkOut);
     if (n <= 0) continue;
     if (!byCode[code]) byCode[code] = [];
-    byCode[code].push({ id: b.id, checkIn: b.checkIn, checkOut: b.checkOut, status: b.status, nights: n });
+    byCode[code].push({ id: b.id, checkIn: b.checkIn, checkOut: b.checkOut, status: b.status, nights: n, guestName: (b as any).guestName, totalAmount: (b as any).totalAmount });
   }
 
   // Build response for each code in the layout
@@ -79,7 +103,9 @@ router.get("/:id/availability", async (req, res) => {
         id: b.id, 
         checkIn: b.checkIn instanceof Date ? b.checkIn.toISOString() : b.checkIn, 
         checkOut: b.checkOut instanceof Date ? b.checkOut.toISOString() : b.checkOut, 
-        status: b.status 
+        status: b.status,
+        guestName: b.guestName,
+        totalAmount: b.totalAmount
       }))
     };
   });

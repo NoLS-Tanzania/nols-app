@@ -8,7 +8,7 @@ WORKDIR /app
 # Copy the monorepo (Render will build from the repo root you select)
 COPY . .
 
-# Install dependencies (uses the root package-lock.json)
+# Install dependencies (uses package-lock.json)
 RUN npm ci
 
 # Generate Prisma client + build workspace packages + build the API

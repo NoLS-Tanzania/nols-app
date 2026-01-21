@@ -9,7 +9,7 @@ const api = axios.create({ baseURL: "", withCredentials: true });
 export default function Customers() {
   const [filters, setFilters] = useState<ReportsFilters | null>(null);
   const [data, setData] = useState<any>(null);
-  useEffect(()=>{ if(!filters) return; api.get("/owner/reports/customers",{params:filters}).then(r=>setData(r.data));},[filters]);
+  useEffect(()=>{ if(!filters) return; api.get("/api/owner/reports/customers",{params:filters}).then(r=>setData(r.data));},[filters]);
 
   return (
     <div className="space-y-4">

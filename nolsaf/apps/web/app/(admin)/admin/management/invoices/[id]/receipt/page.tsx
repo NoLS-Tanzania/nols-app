@@ -2,11 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { ArrowLeft, Download, Loader2 } from "lucide-react";
 import { sanitizeTrustedHtml } from "@/utils/html";
 
-export default function AdminReceiptPdfPage({ params }: { params: { id: string } }) {
-  const invoiceId = Number(params.id);
+export default function AdminReceiptPdfPage() {
+  const routeParams = useParams<{ id?: string | string[] }>();
+  const idParam = Array.isArray(routeParams?.id) ? routeParams?.id?.[0] : routeParams?.id;
+  const invoiceId = Number(idParam);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [receiptHtml, setReceiptHtml] = useState<string>("");

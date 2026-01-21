@@ -112,6 +112,8 @@ import { socketAuthMiddleware, AuthenticatedSocket } from './middleware/socketAu
 import { errorHandler } from './middleware/errorHandler.js';
 import { adminOriginGuard } from "./middleware/adminOriginGuard.js";
 import { performanceMiddleware } from './middleware/performance.js';
+import { prisma } from "@nolsaf/prisma";
+import { startTransportAutoDispatch } from "./workers/transportAutoDispatch.js";
 
 // moved the POST handler to after the app is created
 // Create app and server before using them
@@ -171,6 +173,10 @@ const io = new Server(server, {
 (global as any).io = io;
 app.set('io', io);
 
+// Background worker: tries to auto-assign near-term paid transport bookings.
+// If no driver is assigned within the grace window, the trip will later become claimable.
+startTransportAutoDispatch({ io });
+
 // Socket.IO authentication middleware
 io.use(socketAuthMiddleware);
 
@@ -206,16 +212,77 @@ io.on('connection', (socket: AuthenticatedSocket) => {
       return;
     }
     
-    const driverId = Number(data.driverId);
-    // Verify user is the driver or an admin
-    if (!user || (user.id !== driverId && user.role !== 'ADMIN')) {
-      if (callback) callback({ error: 'Unauthorized' });
+    const room = `driver:${data.driverId}`;
+    socket.leave(room);
+    if (callback) callback({ status: 'ok' });
+  });
+
+  // Handle property availability room joining (for real-time updates)
+  socket.on('join-property-availability', async (data: { propertyId: string | number }, callback?: (response: any) => void) => {
+    if (!data.propertyId) {
+      if (callback) callback({ error: 'propertyId required' });
       return;
     }
     
-    const room = `driver:${driverId}`;
+    const propertyId = Number(data.propertyId);
+    if (isNaN(propertyId)) {
+      if (callback) callback({ error: 'Invalid propertyId' });
+      return;
+    }
+    
+    // Verify user is owner of property or admin
+    if (user) {
+      if (user.role === 'ADMIN') {
+        const room = `property:${propertyId}:availability`;
+        socket.join(room);
+        console.log(`User ${user.id} (${user.role}) joined property availability room ${room}`);
+        if (callback) callback({ status: 'ok', room });
+        return;
+      }
+      
+      if (user.role === 'OWNER') {
+        const property = await prisma.property.findFirst({
+          where: {
+            id: propertyId,
+            ownerId: user.id,
+          },
+          select: { id: true },
+        });
+        
+        if (property) {
+          const room = `property:${propertyId}:availability`;
+          socket.join(room);
+          console.log(`Owner ${user.id} joined property availability room ${room}`);
+          if (callback) callback({ status: 'ok', room });
+          return;
+        }
+      }
+    }
+    
+    // Allow public connections to property availability (for real-time checking)
+    const room = `property:${propertyId}:availability:public`;
+    socket.join(room);
+    console.log(`Public user joined property availability room ${room}`);
+    if (callback) callback({ status: 'ok', room, public: true });
+  });
+
+  // Handle property availability room leaving
+  socket.on('leave-property-availability', (data: { propertyId: string | number }, callback?: (response: any) => void) => {
+    if (!data.propertyId) {
+      if (callback) callback({ error: 'propertyId required' });
+      return;
+    }
+    
+    const propertyId = Number(data.propertyId);
+    if (isNaN(propertyId)) {
+      if (callback) callback({ error: 'Invalid propertyId' });
+      return;
+    }
+    
+    const room = `property:${propertyId}:availability`;
+    const publicRoom = `property:${propertyId}:availability:public`;
     socket.leave(room);
-    console.log(`Driver ${driverId} left room ${room}`);
+    socket.leave(publicRoom);
     if (callback) callback({ status: 'ok' });
   });
 
@@ -349,10 +416,10 @@ app.use(adminOriginGuard as express.RequestHandler);
 
 // Apply larger body size limit for property routes BEFORE global middleware
 // This allows property submissions with multiple images and room specs
-app.use("/owner/properties", express.json({ limit: "10mb", strict: true }));
-app.use("/owner/properties", express.urlencoded({ extended: true, limit: "10mb", parameterLimit: 200 }));
-app.use("/api/owner/properties", express.json({ limit: "10mb", strict: true }));
-app.use("/api/owner/properties", express.urlencoded({ extended: true, limit: "10mb", parameterLimit: 200 }));
+app.use("/owner/properties", express.json({ limit: "25mb", strict: true }));
+app.use("/owner/properties", express.urlencoded({ extended: true, limit: "25mb", parameterLimit: 200 }));
+app.use("/api/owner/properties", express.json({ limit: "25mb", strict: true }));
+app.use("/api/owner/properties", express.urlencoded({ extended: true, limit: "25mb", parameterLimit: 200 }));
 
 // JSON parser with size limits for security (applied after route-specific limits)
 app.use(express.json({ 
@@ -385,6 +452,10 @@ app.use("/api/account", account as express.RequestHandler);
 app.use("/api", publicEmailVerify);
 app.use('/api/auth', authRoutes);
 app.use('/api/owner/reports', requireRole('OWNER') as express.RequestHandler, ownerReports);
+
+// Optional but recommended: protect all admin endpoints behind IP allowlist (no-op unless configured).
+app.use('/api/admin', adminAllowlist as express.RequestHandler);
+app.use('/admin', adminAllowlist as express.RequestHandler);
 // Removed duplicate registration - using adminPropertiesRouter below instead
 // app.use('/api/admin/properties', requireRole('ADMIN') as express.RequestHandler, adminPropsRoutes);
 app.use('/api/conversations', requireRole() as express.RequestHandler, conversationsRoutes);
@@ -413,7 +484,7 @@ app.use('/api/admin/drivers/summary', adminDriversSummaryRouter as express.Reque
 app.use('/api/admin/drivers', adminDriversRouter as express.RequestHandler);
 app.use("/admin/drivers", adminDriversRouter);
 app.use('/admin/drivers/levels', adminDriversLevelsRouter);
-app.use('/api/admin/drivers/level-messages', adminAllowlist, requireRole('ADMIN') as express.RequestHandler, adminDriversLevelMessagesRouter);
+app.use('/api/admin/drivers/level-messages', requireRole('ADMIN') as express.RequestHandler, adminDriversLevelMessagesRouter);
 app.use('/admin/group-stays/summary', adminGroupStaysSummaryRouter);
 app.use('/api/admin/group-stays/summary', adminGroupStaysSummaryRouter);
 app.use('/admin/group-stays/bookings', adminGroupStaysBookingsRouter);
@@ -483,8 +554,9 @@ app.use('/api/owner/revenue', requireRole('OWNER') as express.RequestHandler, ow
 app.use('/api/owner/messages', requireRole('OWNER') as express.RequestHandler, ownerMessagesRouter as express.RequestHandler);
 app.use('/api/owner/notifications', requireRole('OWNER') as express.RequestHandler, ownerNotificationsRouter as express.RequestHandler);
 // Owner availability management (for external bookings)
+// Note: ownerAvailabilityRouter already has requireAuth and requireRole("OWNER") applied
 app.use('/api/owner/availability', ownerAvailabilityRouter as express.RequestHandler);
-app.use('/api/admin/email', adminAllowlist, adminEmail);
+app.use('/api/admin/email', adminEmail);
 // Driver-scoped endpoints (stats + map)
 app.use('/api/driver', requireRole('DRIVER') as express.RequestHandler, driverRouter as express.RequestHandler);
 // Driver reminders (list available to drivers; creation reserved for ADMIN)
@@ -576,10 +648,17 @@ export { app, server };
 // Start server (skip during tests so Vitest can import this module safely)
 if (process.env.NODE_ENV !== "test") {
   const PORT = Number(process.env.PORT) || 4000;
-  const HOST = process.env.HOST || "0.0.0.0";
-  server.listen(PORT, HOST, () => {
-    console.log(`Server listening on http://${HOST}:${PORT}`);
-  });
+  const HOST = process.env.HOST; // if unset, let Node bind appropriately (supports IPv6 localhost on many systems)
+
+  if (HOST) {
+    server.listen(PORT, HOST, () => {
+      console.log(`Server listening on http://${HOST}:${PORT}`);
+    });
+  } else {
+    server.listen(PORT, () => {
+      console.log(`Server listening on port ${PORT}`);
+    });
+  }
 
   server.on("error", (err) => {
     console.error("HTTP server error:", err);

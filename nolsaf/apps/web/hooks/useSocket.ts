@@ -13,9 +13,26 @@ const getSocketUrl = () => {
   if (process.env.NEXT_PUBLIC_API_URL) {
     return process.env.NEXT_PUBLIC_API_URL;
   }
-  // Default to localhost:4000 for development
-  return typeof window !== 'undefined' ? "http://localhost:4000" : "";
+  // Default to 127.0.0.1:4000 for development (more reliable than localhost on some systems due to IPv6 ::1 binding)
+  return typeof window !== 'undefined' ? "http://127.0.0.1:4000" : "";
 };
+
+// Helper function to get authentication token
+function getAuthToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  
+  // Try localStorage first
+  const lsToken =
+    window.localStorage.getItem("token") ||
+    window.localStorage.getItem("nolsaf_token") ||
+    window.localStorage.getItem("__Host-nolsaf_token");
+  
+  if (lsToken) return lsToken;
+  
+  // Fallback to cookies (for httpOnly cookies, they'll be sent automatically)
+  const m = String(document.cookie || "").match(/(?:^|;\s*)(?:nolsaf_token|__Host-nolsaf_token|token)=([^;]+)/);
+  return m?.[1] ? decodeURIComponent(m[1]) : null;
+}
 
 export function useSocket(userId?: string | number) {
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -31,6 +48,9 @@ export function useSocket(userId?: string | number) {
       return;
     }
 
+    // Get authentication token
+    const token = getAuthToken();
+    
     // Initialize socket connection - connect directly to API server
     // WebSocket upgrades don't work through Next.js rewrites
     const newSocket = io(socketUrl, {
@@ -39,6 +59,16 @@ export function useSocket(userId?: string | number) {
       reconnectionDelay: 1000,
       reconnectionAttempts: 5,
       autoConnect: true,
+      withCredentials: true, // Send cookies automatically
+      ...(token ? {
+        transportOptions: {
+          polling: {
+            extraHeaders: {
+              Authorization: `Bearer ${token}`
+            }
+          }
+        }
+      } : {}),
     });
 
     newSocket.on("connect", () => {

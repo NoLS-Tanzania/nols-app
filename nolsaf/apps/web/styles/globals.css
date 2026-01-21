@@ -1,3 +1,6 @@
+/* Mapbox GL CSS - Must be at the very top (CSS spec requirement) */
+@import "mapbox-gl/dist/mapbox-gl.css";
+
 /* Tailwind layers (preflight is disabled) */
 @tailwind base;
 @tailwind components;
@@ -80,9 +83,6 @@
 .scrollbar-hide::-webkit-scrollbar {
   display: none;  /* Chrome, Safari and Opera */
 }
-
-/* Mapbox GL CSS */
-@import "mapbox-gl/dist/mapbox-gl.css";
 
 /* ---------- Driver map: Mapbox control tweaks ---------- */
 /* Make Mapbox NavigationControl (+ / - / compass) horizontal in driver live map,
@@ -898,28 +898,28 @@ select[title="Room type"] {
 
 /* ---------- Bathroom Details (visual only) ---------- */
 /* Scope: targets the 'Bathroom Details' heading followed by the grid used in the form */
-.mt-2 > h4.font-semibold + .mt-2.grid {
+.mt-2 > h4[class*="font-semibold"] + .mt-2.grid {
   gap: 0.75rem;
 }
 
 /* Make the radio options for "Is the bathroom private?" clearer and pill-like */
-.mt-2 > h4.font-semibold + .mt-2.grid .inline-flex.items-center input[type="radio"] {
+.mt-2 > h4[class*="font-semibold"] + .mt-2.grid .inline-flex.items-center input[type="radio"] {
   width: 18px;
   height: 18px;
   margin-right: 0.5rem;
   accent-color: #0ea5a0;
 }
-.mt-2 > h4.font-semibold + .mt-2.grid .inline-flex.items-center {
+.mt-2 > h4[class*="font-semibold"] + .mt-2.grid .inline-flex.items-center {
   padding: 0.35rem 0.5rem;
   border-radius: 0.5rem;
   transition: background .12s ease, transform .08s ease;
 }
-.mt-2 > h4.font-semibold + .mt-2.grid .inline-flex.items-center:hover {
+.mt-2 > h4[class*="font-semibold"] + .mt-2.grid .inline-flex.items-center:hover {
   background: rgba(14,165,160,0.03);
 }
 
 /* Bathroom items checkbox grid */
-.mt-2 > h4.font-semibold + .mt-2.grid .grid.grid-cols-2.gap-2 label.flex.items-center {
+.mt-2 > h4[class*="font-semibold"] + .mt-2.grid .grid.grid-cols-2.gap-2 label.flex.items-center {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
@@ -929,36 +929,36 @@ select[title="Room type"] {
   background: #f8fafc; /* muted non-white background so selectable area is visible */
   transition: box-shadow .12s ease, transform .08s ease, background .12s ease, color .12s ease;
 }
-.mt-2 > h4.font-semibold + .mt-2.grid .grid.grid-cols-2.gap-2 label.flex.items-center:hover {
+.mt-2 > h4[class*="font-semibold"] + .mt-2.grid .grid.grid-cols-2.gap-2 label.flex.items-center:hover {
   box-shadow: 0 8px 20px rgba(2,6,23,0.04);
   transform: translateY(-2px);
   background: #eefdfa;
 }
-.mt-2 > h4.font-semibold + .mt-2.grid .grid.grid-cols-2.gap-2 input[type="checkbox"] {
+.mt-2 > h4[class*="font-semibold"] + .mt-2.grid .grid.grid-cols-2.gap-2 input[type="checkbox"] {
   width: 16px;
   height: 16px;
   accent-color: #0ea5a0;
 }
 
 /* Checked state: prefer :has() when available to style the whole label; fallback below changes just the text */
-.mt-2 > h4.font-semibold + .mt-2.grid .grid.grid-cols-2.gap-2 label.flex.items-center:has(input:checked) {
+.mt-2 > h4[class*="font-semibold"] + .mt-2.grid .grid.grid-cols-2.gap-2 label.flex.items-center:has(input:checked) {
   background: #0ea5a0;
   color: #ffffff;
   border-color: rgba(14,165,160,0.9);
   transform: translateY(-1px);
 }
-.mt-2 > h4.font-semibold + .mt-2.grid .grid.grid-cols-2.gap-2 label.flex.items-center:has(input:checked) input[type="checkbox"] {
+.mt-2 > h4[class*="font-semibold"] + .mt-2.grid .grid.grid-cols-2.gap-2 label.flex.items-center:has(input:checked) input[type="checkbox"] {
   filter: brightness(0) invert(1);
 }
 
 /* Fallback: if :has isn't supported, at least make the label text white when the checkbox is checked */
-.mt-2 > h4.font-semibold + .mt-2.grid .grid.grid-cols-2.gap-2 input[type="checkbox"]:checked + span {
+.mt-2 > h4[class*="font-semibold"] + .mt-2.grid .grid.grid-cols-2.gap-2 input[type="checkbox"]:checked + span {
   color: #ffffff;
   background: transparent; /* keep span background transparent since label is muted */
 }
 
 /* Towel color input (optional): slightly larger and prominent */
-.mt-2 > h4.font-semibold + .mt-2.grid .mt-2 input[placeholder] {
+.mt-2 > h4[class*="font-semibold"] + .mt-2.grid .mt-2 input[placeholder] {
   height: 2.5rem;
   padding: 0.5rem 0.75rem;
   border-radius: 0.5rem;
@@ -966,14 +966,14 @@ select[title="Room type"] {
   font-weight: 600;
   background: #fff;
 }
-.mt-2 > h4.font-semibold + .mt-2.grid .mt-2 input[placeholder]:focus {
+.mt-2 > h4[class*="font-semibold"] + .mt-2.grid .mt-2 input[placeholder]:focus {
   outline: none;
   box-shadow: 0 0 0 4px rgba(14,165,160,0.06);
   border-color: rgba(14,165,160,0.9);
 }
 
 @media (min-width: 768px) {
-  .mt-2 > h4.font-semibold + .mt-2.grid .grid.grid-cols-2.gap-2 label.flex.items-center {
+  .mt-2 > h4[class*="font-semibold"] + .mt-2.grid .grid.grid-cols-2.gap-2 label.flex.items-center {
     padding: 0.55rem 0.75rem;
   }
 }

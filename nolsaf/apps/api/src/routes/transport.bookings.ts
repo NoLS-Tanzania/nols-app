@@ -19,7 +19,7 @@ export const router = Router();
  *   guestPhone?: string,
  *   guestEmail?: string,
  *   propertyId?: number,
- *   vehicleType: "BODA" | "BAJAJI" | "CAR" | "XL",
+ *   vehicleType: "BODA" | "BAJAJI" | "CAR" | "XL" | "PREMIUM",
  *   scheduledDate: string, // ISO date string
  *   fromLatitude: number,
  *   fromLongitude: number,
@@ -45,7 +45,7 @@ router.post("/", limitTransportBooking, async (req: Request, res: Response) => {
       guestPhone: z.string().optional(),
       guestEmail: z.string().email().optional(),
       propertyId: z.number().optional(),
-      vehicleType: z.enum(["BODA", "BAJAJI", "CAR", "XL"]),
+      vehicleType: z.enum(["BODA", "BAJAJI", "CAR", "XL", "PREMIUM"]),
       scheduledDate: z.string().datetime(),
       fromLatitude: z.number().min(-90).max(90), // Validate latitude range
       fromLongitude: z.number().min(-180).max(180), // Validate longitude range

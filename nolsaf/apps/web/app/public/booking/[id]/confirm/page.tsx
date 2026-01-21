@@ -1,7 +1,7 @@
 import Link from "next/link";
 
-export default function BookingConfirm({ params }: { params: { id: string } }) {
-  const { id } = params;
+export default async function BookingConfirm({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   return (
     <main className="min-h-screen bg-gray-50">
       <div className="max-w-3xl mx-auto px-4 py-12 text-center">

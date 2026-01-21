@@ -512,49 +512,273 @@ router.get("/:id/audit-history", (async (req: AuthedRequest, res) => {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid property ID" });
 
+    const limitRaw = Number((req.query as any)?.limit ?? 100);
+    const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 200) : 100;
+    const includeDetailsRaw = String((req.query as any)?.includeDetails ?? "1");
+    const includeDetails = includeDetailsRaw === "1" || includeDetailsRaw.toLowerCase() === "true";
+
     console.log(`[audit-history] Fetching audit history for property ID: ${id}`);
-    
-    const audits = await prisma.auditLog.findMany({
-      where: {
-        entity: "PROPERTY",
-        entityId: id,
-      },
-      orderBy: { createdAt: "desc" },
-      take: 100,
-      include: {
-        actor: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
+
+    const where = {
+      entity: "PROPERTY" as const,
+      entityId: id,
+    };
+
+    const auditBaseSelect = {
+      id: true,
+      actorId: true,
+      actorRole: true,
+      action: true,
+      entity: true,
+      entityId: true,
+      ip: true,
+      ua: true,
+      createdAt: true,
+      actor: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
         },
       },
-    });
+    } as const;
 
-    console.log(`[audit-history] Found ${audits.length} audit logs for property ${id}`);
+    const fetchAuditBase = async (take: number) =>
+      prisma.auditLog.findMany({
+        where,
+        // Avoid MariaDB "Out of sort memory" by ordering on indexed PK.
+        // A composite index on (entity, entityId, id) makes this fast.
+        orderBy: { id: "desc" },
+        take,
+        select: auditBaseSelect,
+      });
+
+    let auditsBase: Array<(typeof fetchAuditBase extends (...args: any) => Promise<infer R> ? R : never)[number]> = [];
+    try {
+      auditsBase = await fetchAuditBase(limit);
+    } catch (dbErr: any) {
+      const msg = String(dbErr?.message || "");
+      const isSortBufferError = msg.toLowerCase().includes("out of sort memory") || msg.toLowerCase().includes("sort buffer");
+      if (!isSortBufferError) throw dbErr;
+
+      console.warn("[audit-history] sort-buffer error; retrying with smaller limit and no details", {
+        propertyId: id,
+        limit,
+        error: msg,
+      });
+
+      auditsBase = await fetchAuditBase(Math.min(20, limit));
+    }
+
+    let detailsById = new Map<
+      string,
+      {
+        beforeJson: any;
+        afterJson: any;
+        changes: Array<{ field: string; from: any; to: any }>;
+      }
+    >();
+    if (includeDetails && auditsBase.length > 0) {
+      const ids = auditsBase.map((a) => a.id);
+
+      try {
+        // Fetch raw JSON once (capped) and compute a safe, compact diff in JS.
+        const detailIds = ids.slice(0, Math.min(ids.length, 50));
+        const detailRows = await prisma.auditLog.findMany({
+          where: { id: { in: detailIds } },
+          select: { id: true, beforeJson: true, afterJson: true },
+        });
+
+        const allowedStatuses = new Set(["DRAFT", "PENDING", "APPROVED", "NEEDS_FIXES", "REJECTED", "SUSPENDED"]);
+        const normalizeNullableText = (v: any) => {
+          if (v === null || v === undefined) return null;
+          if (typeof v === "string") {
+            const t = v.trim();
+            return t.length ? t : null;
+          }
+          if (typeof v === "number" || typeof v === "boolean") return String(v);
+          return null;
+        };
+        const clip = (v: any) => {
+          if (v === null || v === undefined) return null;
+          const s = String(v);
+          return s.length > 140 ? s.slice(0, 140) + "…" : s;
+        };
+        const parseMaybeJson = (v: any) => {
+          if (v === null || v === undefined) return null;
+          if (typeof v === "object") return v;
+          if (typeof v === "string") {
+            try {
+              return JSON.parse(v);
+            } catch {
+              return null;
+            }
+          }
+          return null;
+        };
+        const get = (obj: any, key: string) => (obj && typeof obj === "object" ? (obj as any)[key] : undefined);
+        const has = (obj: any, key: string) =>
+          !!(obj && typeof obj === "object" && Object.prototype.hasOwnProperty.call(obj, key));
+
+        detailsById = new Map(
+          detailRows.map((row) => {
+            const before = parseMaybeJson(row.beforeJson);
+            const after = parseMaybeJson(row.afterJson);
+
+            const beforeStatusRaw = normalizeNullableText(get(before, "status"));
+            const afterStatusRaw = normalizeNullableText(get(after, "status"));
+            const safeBeforeStatus = beforeStatusRaw && allowedStatuses.has(beforeStatusRaw) ? beforeStatusRaw : null;
+            const safeAfterStatus = afterStatusRaw && allowedStatuses.has(afterStatusRaw) ? afterStatusRaw : null;
+            const afterReason = normalizeNullableText(get(after, "reason"));
+            const safeAfterReason = afterReason ? afterReason.slice(0, 500) : null;
+
+            const changes: Array<{ field: string; from: any; to: any }> = [];
+            const pushChange = (field: string, fromV: any, toV: any) => {
+              const fromN = normalizeNullableText(fromV);
+              const toN = normalizeNullableText(toV);
+              if (fromN === toN) return;
+              changes.push({ field, from: clip(fromN), to: clip(toN) });
+            };
+
+            // Many audits store afterJson as a patch (only changed keys). To avoid false removals,
+            // only compute diffs for fields that exist in afterJson.
+            const compareField = (key: string, label: string) => {
+              if (!has(after, key)) return;
+              if (key === "status") {
+                pushChange(label, safeBeforeStatus, safeAfterStatus);
+                return;
+              }
+              if (key === "reason") {
+                pushChange(label, null, safeAfterReason);
+                return;
+              }
+              const fromV = has(before, key) ? get(before, key) : null;
+              const toV = get(after, key);
+              pushChange(label, fromV, toV);
+            };
+
+            compareField("title", "Title");
+            compareField("description", "Description");
+            compareField("type", "Type");
+            compareField("status", "Status");
+            compareField("basePrice", "Base price");
+            compareField("currency", "Currency");
+            compareField("regionName", "Region");
+            compareField("district", "District");
+            compareField("ward", "Ward");
+            compareField("zip", "ZIP");
+            compareField("city", "City");
+            compareField("latitude", "Latitude");
+            compareField("longitude", "Longitude");
+            compareField("reason", "Reason");
+
+            // Photos: show count changes
+            if (has(after, "photos")) {
+              const photosBefore = Array.isArray(get(before, "photos")) ? (get(before, "photos") as any[]).length : null;
+              const photosAfter = Array.isArray(get(after, "photos")) ? (get(after, "photos") as any[]).length : null;
+              if (photosBefore !== photosAfter && (photosBefore !== null || photosAfter !== null)) {
+                changes.push({ field: "Photos", from: photosBefore, to: photosAfter });
+              }
+            }
+
+            // Services: surface a couple admin-relevant knobs.
+            if (has(after, "services")) {
+              const bServices = get(before, "services");
+              const aServices = get(after, "services");
+              if (bServices && aServices && typeof bServices === "object" && typeof aServices === "object") {
+                const bCommission = (bServices as any).commissionPercent;
+                const aCommission = (aServices as any).commissionPercent;
+                if (bCommission !== aCommission) {
+                  changes.push({ field: "Commission %", from: clip(bCommission), to: clip(aCommission) });
+                }
+
+                const bDiscount = (bServices as any).discountRules;
+                const aDiscount = (aServices as any).discountRules;
+                const bDiscStr = bDiscount === undefined ? undefined : JSON.stringify(bDiscount);
+                const aDiscStr = aDiscount === undefined ? undefined : JSON.stringify(aDiscount);
+                if (bDiscStr !== aDiscStr) {
+                  changes.push({ field: "Discount rules", from: clip(bDiscStr), to: clip(aDiscStr) });
+                }
+              }
+            }
+
+            // Rooms: show a few changed room prices if present.
+            if (has(after, "roomsSpec")) {
+              const bRooms = Array.isArray(get(before, "roomsSpec")) ? (get(before, "roomsSpec") as any[]) : null;
+              const aRooms = Array.isArray(get(after, "roomsSpec")) ? (get(after, "roomsSpec") as any[]) : null;
+              if (bRooms && aRooms) {
+                const bByKey = new Map<string, any>();
+                bRooms.forEach((room, idx) => {
+                  const key = room?.id ? String(room.id) : `#${idx}`;
+                  bByKey.set(key, room);
+                });
+
+                let roomDiffs = 0;
+                for (let idx = 0; idx < aRooms.length && roomDiffs < 8; idx++) {
+                  const room = aRooms[idx];
+                  const key = room?.id ? String(room.id) : `#${idx}`;
+                  const prev = bByKey.get(key);
+                  const prevPrice = prev?.pricePerNight ?? prev?.price;
+                  const nextPrice = room?.pricePerNight ?? room?.price;
+                  if (prevPrice !== nextPrice && (prevPrice !== undefined || nextPrice !== undefined)) {
+                    const label = room?.name ? `Room ${room.name} price` : `Room ${key} price`;
+                    changes.push({ field: label, from: clip(prevPrice), to: clip(nextPrice) });
+                    roomDiffs++;
+                  }
+                }
+              }
+            }
+
+            const beforeJson = safeBeforeStatus ? { status: safeBeforeStatus } : null;
+            const afterJson =
+              safeAfterStatus || safeAfterReason
+                ? {
+                    ...(safeAfterStatus ? { status: safeAfterStatus } : {}),
+                    ...(safeAfterReason ? { reason: safeAfterReason } : {}),
+                  }
+                : null;
+
+            return [row.id.toString(), { beforeJson, afterJson, changes: changes.slice(0, 20) }];
+          })
+        );
+      } catch (detailErr: any) {
+        console.warn("[audit-history] Failed to fetch audit details; returning base rows only", {
+          propertyId: id,
+          error: detailErr?.message || String(detailErr),
+        });
+      }
+    }
+
+    console.log(`[audit-history] Found ${auditsBase.length} audit logs for property ${id}`);
 
     // Transform to ensure consistent response format
-    const formattedAudits = audits.map((audit: any) => ({
-      id: audit.id.toString(),
-      actorId: audit.actorId,
-      actorRole: audit.actorRole,
-      action: audit.action,
-      entity: audit.entity,
-      entityId: audit.entityId,
-      beforeJson: audit.beforeJson,
-      afterJson: audit.afterJson,
-      ip: audit.ip,
-      ua: audit.ua,
-      createdAt: audit.createdAt.toISOString(),
-      actor: audit.actor ? {
-        id: audit.actor.id,
-        name: audit.actor.name,
-        email: audit.actor.email,
-      } : null,
-    }));
+    const formattedAudits = auditsBase.map((audit: any) => {
+      const detail = detailsById.get(audit.id.toString());
+      return {
+        id: audit.id.toString(),
+        actorId: audit.actorId,
+        actorRole: audit.actorRole,
+        action: audit.action,
+        entity: audit.entity,
+        entityId: audit.entityId,
+        beforeJson: detail?.beforeJson ?? null,
+        afterJson: detail?.afterJson ?? null,
+        changes: detail?.changes ?? [],
+        ip: audit.ip,
+        ua: audit.ua,
+        createdAt: audit.createdAt.toISOString(),
+        actor: audit.actor
+          ? {
+              id: audit.actor.id,
+              name: audit.actor.name,
+              email: audit.actor.email,
+            }
+          : null,
+      };
+    });
 
     console.log(`[audit-history] Returning ${formattedAudits.length} formatted audit logs`);
+    res.setHeader('Content-Type', 'application/json');
     res.json(formattedAudits);
   } catch (err: any) {
     console.error("Failed to fetch audit history:", {
@@ -562,8 +786,9 @@ router.get("/:id/audit-history", (async (req: AuthedRequest, res) => {
       stack: err?.stack,
       propertyId: req.params.id,
     });
+    // Fail-open for UI stability: return empty list instead of 500.
     res.setHeader('Content-Type', 'application/json');
-    return res.status(500).json({ error: "Failed to fetch audit history", message: err?.message || 'Unknown error' });
+    return res.status(200).json([]);
   }
 }) as RequestHandler);
 

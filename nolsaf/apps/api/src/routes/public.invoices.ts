@@ -33,6 +33,173 @@ function calculatePriceWithCommission(
 
 const router = Router();
 
+function buildPropertyTransportLabel(property: {
+  title?: string | null;
+  street?: string | null;
+  ward?: string | null;
+  district?: string | null;
+  regionName?: string | null;
+  city?: string | null;
+} | null | undefined) {
+  if (!property) return null;
+  const parts = [
+    String(property.title || "").trim(),
+    String(property.street || "").trim(),
+    String(property.ward || "").trim(),
+    String(property.district || "").trim(),
+    String(property.regionName || "").trim(),
+    String(property.city || "").trim(),
+  ].filter(Boolean);
+  const label = parts.join(" - ").slice(0, 255);
+  return label || null;
+}
+
+async function publishScheduledTripsForBooking(params: {
+  req: Request;
+  bookingId: number;
+  invoicePaymentRef: string | null | undefined;
+  paymentMethod: string | null | undefined;
+}) {
+  const { req, bookingId, invoicePaymentRef, paymentMethod } = params;
+  if (!Number.isFinite(bookingId) || bookingId <= 0) return;
+
+  const pending = await prisma.transportBooking.findMany({
+    where: {
+      paymentRef: `BOOKING:${bookingId}`,
+      status: { in: ["PAYMENT_PENDING", "PENDING_ASSIGNMENT"] },
+    },
+    select: {
+      id: true,
+      propertyId: true,
+      vehicleType: true,
+      scheduledDate: true,
+      fromAddress: true,
+      fromLatitude: true,
+      fromLongitude: true,
+      toAddress: true,
+      toLatitude: true,
+      toLongitude: true,
+      amount: true,
+      currency: true,
+      notes: true,
+    },
+  });
+
+  if (!pending.length) return;
+
+  const booking = await prisma.booking.findUnique({
+    where: { id: bookingId },
+    select: {
+      id: true,
+      propertyId: true,
+      includeTransport: true,
+      transportVehicleType: true,
+      transportScheduledDate: true,
+      transportOriginAddress: true,
+      transportFare: true,
+      property: {
+        select: {
+          title: true,
+          street: true,
+          ward: true,
+          district: true,
+          regionName: true,
+          city: true,
+          latitude: true,
+          longitude: true,
+          currency: true,
+        },
+      },
+    },
+  });
+
+  const propertyLabel = buildPropertyTransportLabel(booking?.property);
+
+  await prisma.transportBooking.updateMany({
+    where: {
+      paymentRef: `BOOKING:${bookingId}`,
+      status: { in: ["PAYMENT_PENDING", "PENDING_ASSIGNMENT"] },
+    },
+    data: {
+      status: "PENDING_ASSIGNMENT",
+      paymentStatus: "PAID",
+      paymentMethod: paymentMethod ?? "INVOICE",
+      paymentRef: invoicePaymentRef ?? `BOOKING:${bookingId}`,
+    },
+  });
+
+  // Hydrate any missing trip details from Booking/Property so drivers always see usable info.
+  if (booking) {
+    for (const trip of pending) {
+      const patch: any = {};
+
+      if (!trip.propertyId) patch.propertyId = booking.propertyId;
+
+      if (!trip.vehicleType && booking.transportVehicleType) {
+        patch.vehicleType = booking.transportVehicleType;
+      }
+
+      if (!trip.fromAddress && booking.transportOriginAddress) {
+        patch.fromAddress = booking.transportOriginAddress;
+      }
+
+      if (!trip.toAddress && propertyLabel) {
+        patch.toAddress = propertyLabel;
+      }
+
+      if (trip.amount == null && booking.transportFare != null) {
+        patch.amount = booking.transportFare as any;
+      }
+
+      if (!trip.currency && booking.property?.currency) {
+        patch.currency = booking.property.currency;
+      }
+
+      if ((trip.toLatitude == null || trip.toLongitude == null) && booking.property?.latitude != null && booking.property?.longitude != null) {
+        patch.toLatitude = booking.property.latitude as any;
+        patch.toLongitude = booking.property.longitude as any;
+      }
+
+      const basePolicy = `NoLSAF Auction Policy: Claim only if you can commit to the pickup time. No-shows/cancellations after claiming may affect your driver rating.`;
+      const existingNotes = String(trip.notes ?? "").trim();
+      if (!existingNotes) {
+        patch.notes = basePolicy;
+      } else if (/^Booking:\d+\s*(\|.*)?$/.test(existingNotes)) {
+        patch.notes = basePolicy;
+      }
+
+      if (Object.keys(patch).length) {
+        try {
+          await prisma.transportBooking.update({
+            where: { id: trip.id },
+            data: patch,
+          });
+        } catch {
+          // non-fatal
+        }
+      }
+    }
+  }
+
+  try {
+    const io = ((req.app as any)?.get?.("io") as any) || (global as any).io;
+    if (io && typeof io.to === "function") {
+      for (const trip of pending) {
+        io.to("drivers:available").emit("transport:booking:created", {
+          bookingId: trip.id,
+          vehicleType: trip.vehicleType ?? booking?.transportVehicleType ?? null,
+          scheduledDate: trip.scheduledDate,
+          fromAddress: trip.fromAddress ?? booking?.transportOriginAddress ?? null,
+          toAddress: trip.toAddress ?? propertyLabel ?? null,
+          amount: trip.amount ?? (booking?.transportFare as any) ?? null,
+        });
+      }
+    }
+  } catch {
+    // non-fatal
+  }
+}
+
 // Helper to format an invoice number
 function makeInvoiceNumber(bookingId: number, codeId: number) {
   const now = new Date();
@@ -113,6 +280,20 @@ router.post("/from-booking", async (req: Request, res: Response) => {
     });
 
     if (existingInvoice) {
+      // This endpoint historically creates a "customer-paid" receipt-like invoice.
+      // If transport was requested during booking, publish it for drivers to claim.
+      try {
+        const isPaidLike = existingInvoice.status === "PAID" || existingInvoice.status === "CUSTOMER_PAID";
+        if (isPaidLike) {
+          await publishScheduledTripsForBooking({
+            req,
+            bookingId: booking.id,
+            invoicePaymentRef: existingInvoice.paymentRef,
+            paymentMethod: (existingInvoice as any).paymentMethod,
+          });
+        }
+      } catch {}
+
       return res.status(200).json({
         ok: true,
         invoiceId: existingInvoice.id,
@@ -270,6 +451,19 @@ router.post("/from-booking", async (req: Request, res: Response) => {
     const invoice = await prisma.invoice.findUnique({
       where: { id: result.invoiceId },
     });
+
+    // Publish scheduled transport trips immediately for this flow (invoice is created as paid).
+    try {
+      const isPaidLike = invoice?.status === "PAID" || invoice?.status === "CUSTOMER_PAID";
+      if (isPaidLike) {
+        await publishScheduledTripsForBooking({
+          req,
+          bookingId: booking.id,
+          invoicePaymentRef: invoice?.paymentRef,
+          paymentMethod: (invoice as any)?.paymentMethod,
+        });
+      }
+    } catch {}
 
     return res.status(201).json({
       ok: true,

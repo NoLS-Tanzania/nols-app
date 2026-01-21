@@ -1,0 +1,1937 @@
+"use client";
+
+import { useEffect, useState, useCallback, useRef } from "react";
+import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
+import axios from "axios";
+import { 
+  Calendar, 
+  Plus, 
+  Edit, 
+  Trash2, 
+  X, 
+  CheckCircle2, 
+  AlertCircle, 
+  Clock,
+  Home,
+  BedDouble,
+  Users,
+  Save,
+  Loader2,
+  ChevronLeft,
+  ChevronRight,
+  Filter,
+  Download,
+  Upload,
+  RefreshCw,
+  Info,
+  AlertTriangle,
+  Layers,
+} from "lucide-react";
+import { io, Socket } from "socket.io-client";
+import DatePicker from "@/components/ui/DatePicker";
+
+const api = axios.create({ baseURL: "", withCredentials: true });
+
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
+}
+
+// Format date as "17 Jan 26" (day, short month, 2-digit year)
+function formatDateShort(dateStr: string | null | undefined): string {
+  if (!dateStr) return "Select date";
+  const d = new Date(dateStr + "T00:00:00");
+  if (isNaN(d.getTime())) return "Select date";
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear() % 100}`;
+}
+
+function formatLocalDateTime(iso: string | null | undefined) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString(undefined, {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+function formatConfirmDate(value: string | null | undefined) {
+  if (!value) return "";
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return String(value);
+  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "2-digit" });
+}
+
+function formatLocalYMD(d: Date) {
+  const year = d.getFullYear();
+  const month = pad2(d.getMonth() + 1);
+  const day = pad2(d.getDate());
+  return `${year}-${month}-${day}`;
+}
+
+function addDays(d: Date, days: number) {
+  const copy = new Date(d);
+  copy.setDate(copy.getDate() + days);
+  return copy;
+}
+
+// Helper to get auth token
+function getAuthToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  const lsToken =
+    window.localStorage.getItem("token") ||
+    window.localStorage.getItem("nolsaf_token") ||
+    window.localStorage.getItem("__Host-nolsaf_token");
+  if (lsToken) return lsToken;
+  const m = String(document.cookie || "").match(/(?:^|;\s*)(?:nolsaf_token|__Host-nolsaf_token|token)=([^;]+)/);
+  return m?.[1] ? decodeURIComponent(m[1]) : null;
+}
+
+type AvailabilityBlock = {
+  id: number;
+  propertyId: number;
+  propertyTitle: string;
+  startDate: string;
+  endDate: string;
+  roomCode: string | null;
+  source: string | null;
+  bedsBlocked: number | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type Booking = {
+  id: number;
+  checkIn: string;
+  checkOut: string;
+  status: string;
+  guestName: string;
+  guestPhone: string | null;
+  roomCode: string | null;
+  guests: { adults: number; children: number };
+};
+
+type RoomType = {
+  roomType: string;
+  roomCode: string | null;
+  roomsCount: number;
+};
+
+type CalendarData = {
+  property: {
+    id: number;
+    title: string;
+    roomTypes: RoomType[];
+  };
+  dateRange: {
+    start: string;
+    end: string;
+  };
+  bookings: Booking[];
+  blocks: AvailabilityBlock[];
+};
+
+const SOURCE_OPTIONS = [
+  { value: "AIRBNB", label: "Airbnb" },
+  { value: "BOOKING_COM", label: "Booking.com" },
+  { value: "WALK_IN", label: "Walk-in" },
+  { value: "PHONE", label: "Phone Booking" },
+  { value: "OTHER", label: "Other" },
+];
+
+export default function PropertyAvailabilityPage() {
+  const params = useParams();
+  const router = useRouter();
+  
+  // Safely extract propertyId from params
+  const propertyIdParam = params?.id;
+  const propertyId = propertyIdParam ? Number(propertyIdParam) : NaN;
+  
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [property, setProperty] = useState<any>(null);
+  const [calendarData, setCalendarData] = useState<CalendarData | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [viewMode, setViewMode] = useState<"month" | "week" | "day">("month");
+  const [selectedRoomCode, setSelectedRoomCode] = useState<string | null>(null);
+  const [showBlockForm, setShowBlockForm] = useState(false);
+  const [editingBlock, setEditingBlock] = useState<AvailabilityBlock | null>(null);
+  const [socket, setSocket] = useState<Socket | null>(null);
+  const [connected, setConnected] = useState(false);
+  const [showConflictModal, setShowConflictModal] = useState(false);
+  const [conflictData, setConflictData] = useState<{ conflictingBookings: any[]; conflictingBlocks: any[] } | null>(null);
+  const [pendingSubmit, setPendingSubmit] = useState<(() => Promise<void>) | null>(null);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [tosAccepted, setTosAccepted] = useState(false);
+  const [capacityError, setCapacityError] = useState<{
+    error: string;
+    message: string;
+    roomType: string;
+    roomsLeft: number;
+    totalRooms?: number;
+    bookedRooms?: number;
+    blockedRooms?: number;
+    bedsRequested?: number;
+    otherRoomTypes?: { type: string; roomsLeft: number }[];
+  } | null>(null);
+  
+  // Availability dashboard state
+  const [availabilitySummary, setAvailabilitySummary] = useState<any>(null);
+  const [filterStartDate, setFilterStartDate] = useState<string>(() => {
+    const d = new Date();
+    return d.toISOString().slice(0, 10);
+  });
+  const [filterEndDate, setFilterEndDate] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 30);
+    return d.toISOString().slice(0, 10);
+  });
+  const [loadingSummary, setLoadingSummary] = useState(false);
+  const [filterRangePickerOpen, setFilterRangePickerOpen] = useState(false);
+  
+  // Date picker states (block form)
+  const [blockRangePickerOpen, setBlockRangePickerOpen] = useState(false);
+  const [blockPicking, setBlockPicking] = useState<"checkin" | "checkout">("checkin");
+  const [startDateOnly, setStartDateOnly] = useState<string>("");
+  const [endDateOnly, setEndDateOnly] = useState<string>("");
+  
+  // Form state
+  const [formData, setFormData] = useState({
+    startDate: "",
+    endDate: "",
+    roomCode: "",
+    source: "",
+    bedsBlocked: 1,
+    notes: "",
+  });
+
+  // Load property details
+  useEffect(() => {
+    if (isNaN(propertyId)) {
+      setError("Invalid property ID");
+      setLoading(false);
+      return;
+    }
+
+    api.get(`/owner/properties/${propertyId}`)
+      .then((res) => {
+        setProperty(res.data);
+      })
+      .catch((err) => {
+        setError(err?.response?.data?.error || "Failed to load property");
+      });
+  }, [propertyId]);
+
+  // Load calendar data
+  const loadCalendarData = useCallback(async () => {
+    if (isNaN(propertyId)) return;
+
+    try {
+      const start = new Date(selectedDate);
+      start.setDate(1); // First day of month
+      const end = new Date(start);
+      end.setMonth(end.getMonth() + 3); // 3 months ahead
+
+      const res = await api.get("/api/owner/availability/calendar", {
+        params: {
+          propertyId,
+          startDate: start.toISOString(),
+          endDate: end.toISOString(),
+          ...(selectedRoomCode && { roomCode: selectedRoomCode }),
+        },
+      });
+
+      setCalendarData(res.data);
+      setError(null);
+    } catch (err: any) {
+      setError(err?.response?.data?.error || "Failed to load calendar data");
+    } finally {
+      setLoading(false);
+    }
+  }, [propertyId, selectedDate, selectedRoomCode]);
+
+  useEffect(() => {
+    loadCalendarData();
+  }, [loadCalendarData]);
+
+  // Load availability summary
+  const loadAvailabilitySummary = useCallback(async () => {
+    if (isNaN(propertyId) || !filterStartDate || !filterEndDate) return;
+    
+    setLoadingSummary(true);
+    try {
+      const res = await api.get("/api/owner/availability/calculate", {
+        params: {
+          propertyId,
+          startDate: `${filterStartDate}T00:00:00`,
+          endDate: `${filterEndDate}T00:00:00`,
+        },
+      });
+      setAvailabilitySummary(res.data);
+    } catch (err: any) {
+      console.error("Failed to load availability summary:", err);
+    } finally {
+      setLoadingSummary(false);
+    }
+  }, [propertyId, filterStartDate, filterEndDate]);
+
+  useEffect(() => {
+    loadAvailabilitySummary();
+  }, [loadAvailabilitySummary]);
+
+  // Socket.IO connection for real-time updates
+  useEffect(() => {
+    if (isNaN(propertyId)) return;
+
+    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000";
+    const token = getAuthToken();
+
+    const newSocket = io(socketUrl.replace(/\/$/, ""), {
+      transports: ["websocket", "polling"],
+      withCredentials: true,
+      ...(token ? {
+        transportOptions: {
+          polling: {
+            extraHeaders: {
+              Authorization: `Bearer ${token}`
+            }
+          }
+        }
+      } : {}),
+    });
+
+    newSocket.on("connect", () => {
+      setConnected(true);
+      newSocket.emit("join-property-availability", { propertyId });
+    });
+
+    newSocket.on("disconnect", () => {
+      setConnected(false);
+    });
+
+    newSocket.on("availability:update", (data: any) => {
+      // Reload calendar data and summary when availability changes
+      loadCalendarData();
+      loadAvailabilitySummary();
+    });
+
+    setSocket(newSocket);
+
+    return () => {
+      newSocket.emit("leave-property-availability", { propertyId });
+      newSocket.disconnect();
+    };
+  }, [propertyId, loadCalendarData, loadAvailabilitySummary]);
+
+  // Check for conflicts before saving
+  const checkConflicts = useCallback(async (startDate: string, endDate: string, roomCode: string | null, excludeBlockId?: number) => {
+    try {
+      const res = await api.get("/api/owner/availability/check-conflicts", {
+        params: {
+          propertyId,
+          startDate,
+          endDate,
+          ...(roomCode && { roomCode }),
+          ...(excludeBlockId && { excludeBlockId }),
+        },
+      });
+      return res.data;
+    } catch (err: any) {
+      return { hasConflicts: false, conflictingBookings: [], conflictingBlocks: [] };
+    }
+  }, [propertyId]);
+
+  const getRoomTypeLabel = useCallback((value: string) => {
+    const rt = (calendarData?.property.roomTypes || []).find((x) => {
+      const v = (x.roomCode && x.roomCode.trim() !== "") ? x.roomCode : x.roomType;
+      return String(v) === String(value);
+    });
+    if (!rt) return value;
+    return rt.roomCode ? `${rt.roomType} (${rt.roomCode})` : rt.roomType;
+  }, [calendarData?.property.roomTypes]);
+
+  const submitBlock = useCallback(async () => {
+    setSaving(true);
+    setError(null);
+
+    try {
+      const start = new Date(formData.startDate);
+      const end = new Date(formData.endDate);
+
+      if (!formData.startDate || !formData.endDate || isNaN(start.getTime()) || isNaN(end.getTime())) {
+        setError("Please select check-in and check-out dates");
+        return;
+      }
+
+      if (end <= start) {
+        setError("Check-out must be after check-in");
+        return;
+      }
+
+      // Check for conflicts
+      const conflictCheck = await checkConflicts(
+        formData.startDate,
+        formData.endDate,
+        formData.roomCode || null,
+        editingBlock?.id
+      );
+
+      if (conflictCheck.hasConflicts && conflictCheck.conflictingBookings.length > 0) {
+        // Store conflict data and show modal
+        setConflictData({
+          conflictingBookings: conflictCheck.conflictingBookings || [],
+          conflictingBlocks: conflictCheck.conflictingBlocks || [],
+        });
+        setPendingSubmit(() => async () => {
+          const startDateISO = formData.startDate ? new Date(formData.startDate).toISOString() : formData.startDate;
+          const endDateISO = formData.endDate ? new Date(formData.endDate).toISOString() : formData.endDate;
+
+          if (editingBlock) {
+            await api.put(`/api/owner/availability/blocks/${editingBlock.id}`, {
+              startDate: startDateISO,
+              endDate: endDateISO,
+              roomCode: formData.roomCode || null,
+              source: formData.source || null,
+              bedsBlocked: formData.bedsBlocked,
+              notes: formData.notes || null,
+            });
+          } else {
+            await api.post("/api/owner/availability/blocks", {
+              propertyId,
+              startDate: startDateISO,
+              endDate: endDateISO,
+              roomCode: formData.roomCode || null,
+              source: formData.source || null,
+              bedsBlocked: formData.bedsBlocked,
+              notes: formData.notes || null,
+            });
+          }
+
+          setShowBlockForm(false);
+          setEditingBlock(null);
+          setStartDateOnly("");
+          setEndDateOnly("");
+          setFormData({
+            startDate: "",
+            endDate: "",
+            roomCode: "",
+            source: "",
+            bedsBlocked: 1,
+            notes: "",
+          });
+          await loadCalendarData();
+          await loadAvailabilitySummary();
+        });
+        setShowConflictModal(true);
+        return;
+      }
+
+      // Convert dates to ISO format
+      const startDateISO = formData.startDate ? new Date(formData.startDate).toISOString() : formData.startDate;
+      const endDateISO = formData.endDate ? new Date(formData.endDate).toISOString() : formData.endDate;
+
+      if (editingBlock) {
+        await api.put(`/api/owner/availability/blocks/${editingBlock.id}`, {
+          startDate: startDateISO,
+          endDate: endDateISO,
+          roomCode: formData.roomCode || null,
+          source: formData.source || null,
+          bedsBlocked: formData.bedsBlocked,
+          notes: formData.notes || null,
+        });
+      } else {
+        await api.post("/api/owner/availability/blocks", {
+          propertyId,
+          startDate: startDateISO,
+          endDate: endDateISO,
+          roomCode: formData.roomCode || null,
+          source: formData.source || null,
+          bedsBlocked: formData.bedsBlocked,
+          notes: formData.notes || null,
+        });
+      }
+
+      setShowBlockForm(false);
+      setEditingBlock(null);
+      setStartDateOnly("");
+      setEndDateOnly("");
+      setFormData({
+        startDate: "",
+        endDate: "",
+        roomCode: "",
+        source: "",
+        bedsBlocked: 1,
+        notes: "",
+      });
+      await loadCalendarData();
+      await loadAvailabilitySummary();
+    } catch (err: any) {
+      const data = err?.response?.data;
+      if (data?.error === "ROOMS_AT_CAPACITY") {
+        setCapacityError(data);
+        setError(null);
+      } else {
+        setError(data?.error || "Failed to save availability block");
+      }
+    } finally {
+      setSaving(false);
+    }
+  }, [
+    checkConflicts,
+    editingBlock,
+    formData,
+    loadAvailabilitySummary,
+    loadCalendarData,
+    propertyId,
+  ]);
+
+  // Handle form submission
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    if (!formData.roomCode || !formData.source || !formData.startDate || !formData.endDate) {
+      setError("Please fill in all required fields");
+      return;
+    }
+
+    // Open confirmation modal before saving
+    setTosAccepted(false);
+    setShowConfirmModal(true);
+  };
+
+  // Handle conflict confirmation
+  const handleConflictConfirm = async () => {
+    setShowConflictModal(false);
+    setSaving(true);
+    setError(null);
+    
+    try {
+      if (pendingSubmit) {
+        await pendingSubmit();
+      }
+    } catch (err: any) {
+      const data = err?.response?.data;
+      if (data?.error === "ROOMS_AT_CAPACITY") {
+        setCapacityError(data);
+        setShowConflictModal(false);
+        setPendingSubmit(null);
+        setConflictData(null);
+      } else {
+        setError(data?.error || "Failed to save availability block");
+      }
+    } finally {
+      setSaving(false);
+      setPendingSubmit(null);
+      setConflictData(null);
+    }
+  };
+
+  const handleConflictCancel = () => {
+    setShowConflictModal(false);
+    setPendingSubmit(null);
+    setConflictData(null);
+    setSaving(false);
+  };
+
+  // Handle delete
+  const handleDelete = async (blockId: number) => {
+    if (!window.confirm("Are you sure you want to delete this availability block?")) {
+      return;
+    }
+
+    try {
+      await api.delete(`/api/owner/availability/blocks/${blockId}`);
+      await loadCalendarData();
+      await loadAvailabilitySummary();
+    } catch (err: any) {
+      setError(err?.response?.data?.error || "Failed to delete availability block");
+    }
+  };
+
+  // Sync date with formData (default time to 00:00:00 for ISO format)
+  useEffect(() => {
+    setFormData((prev) => ({
+      ...prev,
+      startDate: startDateOnly ? `${startDateOnly}T00:00:00` : "",
+    }));
+  }, [startDateOnly]);
+
+  useEffect(() => {
+    setFormData((prev) => ({
+      ...prev,
+      endDate: endDateOnly ? `${endDateOnly}T00:00:00` : "",
+    }));
+  }, [endDateOnly]);
+
+  // Handle edit
+  const handleEdit = (block: AvailabilityBlock) => {
+    setEditingBlock(block);
+    const start = new Date(block.startDate);
+    const end = new Date(block.endDate);
+    const startDateStr = start.toISOString().slice(0, 10);
+    const endDateStr = end.toISOString().slice(0, 10);
+    
+    setStartDateOnly(startDateStr);
+    setEndDateOnly(endDateStr);
+    
+    setFormData({
+      startDate: `${startDateStr}T00:00:00`,
+      endDate: `${endDateStr}T00:00:00`,
+      roomCode: block.roomCode || "",
+      source: block.source || "",
+      bedsBlocked: block.bedsBlocked || 1,
+      notes: block.notes || "",
+    });
+    setShowBlockForm(true);
+  };
+
+  const addOneDayYMD = (ymd: string) => {
+    // Use local date math to avoid timezone issues.
+    const m = String(ymd || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return ymd;
+    const y = Number(m[1]);
+    const mo = Number(m[2]);
+    const d = Number(m[3]);
+    const next = addDays(new Date(y, mo - 1, d), 1);
+    return formatLocalYMD(next);
+  };
+
+  // Generate calendar days
+  const generateCalendarDays = () => {
+    if (!calendarData) return [];
+
+    const start = new Date(selectedDate);
+    start.setDate(1);
+    const end = new Date(start);
+    end.setMonth(end.getMonth() + 1);
+    end.setDate(0); // Last day of month
+
+    const days: Array<{ date: Date; bookings: Booking[]; blocks: AvailabilityBlock[] }> = [];
+    const current = new Date(start);
+
+    while (current <= end) {
+      const dateStr = current.toISOString().split('T')[0];
+      const dayBookings = calendarData.bookings.filter((b) => {
+        const checkIn = new Date(b.checkIn).toISOString().split('T')[0];
+        const checkOut = new Date(b.checkOut).toISOString().split('T')[0];
+        return dateStr >= checkIn && dateStr < checkOut;
+      });
+      const dayBlocks = calendarData.blocks.filter((b) => {
+        const blockStart = new Date(b.startDate).toISOString().split('T')[0];
+        const blockEnd = new Date(b.endDate).toISOString().split('T')[0];
+        return dateStr >= blockStart && dateStr < blockEnd;
+      });
+
+      days.push({
+        date: new Date(current),
+        bookings: dayBookings,
+        blocks: dayBlocks,
+      });
+
+      current.setDate(current.getDate() + 1);
+    }
+
+    return days;
+  };
+
+  if (loading && !calendarData) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+      </div>
+    );
+  }
+
+  if (!property) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+          <p className="text-lg font-semibold text-gray-900">Property not found</p>
+          <button
+            onClick={() => router.push("/owner/properties/approved")}
+            className="mt-4 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
+          >
+            Back to Properties
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const calendarDays = generateCalendarDays();
+  const roomTypes = calendarData?.property.roomTypes || [];
+  const totalBookings = calendarData?.bookings.length || 0;
+  const totalBlocks = calendarData?.blocks.length || 0;
+
+  const selectRoomTypeFromCapacityModal = (roomTypeName: string) => {
+    const match = roomTypes.find(
+      (rt) => String(rt.roomType || "").toLowerCase() === String(roomTypeName || "").toLowerCase()
+    );
+    const key =
+      match?.roomCode && match.roomCode.trim() !== ""
+        ? match.roomCode
+        : (match?.roomType || roomTypeName);
+
+    setSelectedRoomCode(key || null);
+    setFormData((prev) => ({ ...prev, roomCode: key || "" }));
+    setCapacityError(null);
+  };
+
+  const openQuickBlock = (day: Date) => {
+    const startYmd = formatLocalYMD(day);
+    const endYmd = formatLocalYMD(addDays(day, 1));
+    setEditingBlock(null);
+    setStartDateOnly(startYmd);
+    setEndDateOnly(endYmd);
+    setFormData({
+      startDate: `${startYmd}T00:00:00`,
+      endDate: `${endYmd}T00:00:00`,
+      roomCode: selectedRoomCode || "",
+      source: "",
+      bedsBlocked: 1,
+      notes: "",
+    });
+    setShowBlockForm(true);
+  };
+
+  const openBlockFormFromSelectedDate = () => {
+    setEditingBlock(null);
+    setStartDateOnly("");
+    setEndDateOnly("");
+    setFormData({
+      startDate: "",
+      endDate: "",
+      roomCode: selectedRoomCode || "",
+      source: "",
+      bedsBlocked: 1,
+      notes: "",
+    });
+    setShowBlockForm(true);
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-950">
+      <div className="pointer-events-none fixed inset-0">
+        <div className="absolute -top-40 left-1/2 h-[560px] w-[860px] -translate-x-1/2 rounded-full bg-emerald-500/15 blur-3xl" />
+        <div className="absolute bottom-0 left-0 h-[420px] w-[520px] rounded-full bg-sky-500/10 blur-3xl" />
+      </div>
+
+      <div className="relative mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        {/* Header — clear hierarchy: nav bar, then title → property → status */}
+        <header className="mb-8">
+          {/* Top bar: Back (left) | Actions (right) */}
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+            <button
+              onClick={() => router.back()}
+              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white transition"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Back
+            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                href={`/owner/properties/${propertyId}/layout`}
+                className="no-underline inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white/80 hover:bg-white/10 hover:text-white transition"
+                title="Open building visualization"
+              >
+                <Home className="h-4 w-4" />
+                Floor plan
+              </Link>
+              <button
+                onClick={loadCalendarData}
+                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white/80 hover:bg-white/10 hover:text-white transition"
+                title="Refresh availability"
+                aria-label="Refresh availability"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Refresh
+              </button>
+              <button
+                onClick={() => {
+                  openBlockFormFromSelectedDate();
+                }}
+                className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 hover:bg-emerald-400 transition"
+              >
+                <Plus className="h-4 w-4" />
+                Add block
+              </button>
+            </div>
+          </div>
+
+          {/* Title block: primary title → property (context) → status & info */}
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">Room Availability</h1>
+            <p className="mt-1.5 text-base text-white/70">{property.title}</p>
+            <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+              {connected && (
+                <span className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-200">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-300 animate-pulse" />
+                  Live updates
+                </span>
+              )}
+              <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-white/70">
+                <Calendar className="h-3.5 w-3.5" />
+                {totalBookings} bookings · {totalBlocks} blocks
+              </span>
+              <span className="text-xs text-white/50 inline-flex items-center gap-1.5">
+                <Info className="h-3.5 w-3.5 flex-shrink-0" />
+                Updates here reflect public availability automatically.
+              </span>
+            </div>
+          </div>
+        </header>
+
+        {/* Error message */}
+        {error && (
+          <div className="mb-6 rounded-2xl border border-red-400/30 bg-red-500/10 p-4 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-300 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-red-100">Error</p>
+              <p className="text-sm text-red-100/80 mt-1">{error}</p>
+            </div>
+            <button
+              onClick={() => setError(null)}
+              className="text-red-200 hover:text-white"
+              title="Dismiss error"
+              aria-label="Dismiss error message"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {/* Availability Dashboard - Simple Cards */}
+        <div className="mb-8 space-y-6">
+          {/* Date Range Filter - Premium */}
+          <div className="relative overflow-hidden rounded-2xl border border-white/15 bg-gradient-to-br from-white/[0.08] via-white/5 to-white/[0.03] p-5 shadow-xl shadow-black/20 ring-1 ring-white/5">
+            <div className="absolute inset-0 pointer-events-none rounded-2xl bg-gradient-to-b from-white/[0.04] to-transparent" />
+            <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center ring-1 ring-emerald-400/20">
+                  <Calendar className="h-5 w-5 text-emerald-300" />
+                </div>
+                <div>
+                  <h2 className="text-base font-semibold text-white">Filter by Date Range</h2>
+                  <p className="text-xs text-white/50 mt-0.5">Select dates to see availability</p>
+                </div>
+              </div>
+              <button
+                onClick={loadAvailabilitySummary}
+                disabled={loadingSummary}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-400/30 bg-emerald-500/15 px-4 py-2 text-sm font-semibold text-emerald-100 hover:bg-emerald-500/25 hover:border-emerald-400/40 transition-all disabled:opacity-50 shrink-0"
+              >
+                <RefreshCw className={`h-4 w-4 ${loadingSummary ? "animate-spin" : ""}`} />
+                Update
+              </button>
+            </div>
+            <div className="relative grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* From - opens range picker (check-in); picker stays open until end date selected */}
+              <div className="space-y-2">
+                <label className="block text-xs font-semibold text-white/60 uppercase tracking-wider">From</label>
+                <button
+                  type="button"
+                  onClick={() => setFilterRangePickerOpen(true)}
+                  className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-white/15 bg-white/5 text-left text-white/90 hover:bg-white/10 hover:border-white/20 focus:outline-none focus:ring-2 focus:ring-emerald-400/60 focus:border-emerald-400/40 transition-all"
+                  aria-label="Select start date"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center">
+                      <Calendar className="w-4 h-4 text-emerald-300" />
+                    </div>
+                    <span className="font-medium">{formatDateShort(filterStartDate)}</span>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-white/40 rotate-90" />
+                </button>
+              </div>
+              {/* To - opens same range picker (checkout); picker stays open until end date selected */}
+              <div className="space-y-2">
+                <label className="block text-xs font-semibold text-white/60 uppercase tracking-wider">To</label>
+                <button
+                  type="button"
+                  onClick={() => setFilterRangePickerOpen(true)}
+                  className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-white/15 bg-white/5 text-left text-white/90 hover:bg-white/10 hover:border-white/20 focus:outline-none focus:ring-2 focus:ring-emerald-400/60 focus:border-emerald-400/40 transition-all"
+                  aria-label="Select end date"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center">
+                      <Calendar className="w-4 h-4 text-emerald-300" />
+                    </div>
+                    <span className="font-medium">{formatDateShort(filterEndDate)}</span>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-white/40 rotate-90" />
+                </button>
+              </div>
+            </div>
+            {/* Single range DatePicker: stays open after first click (start), closes only after second click (end/checkout) */}
+            {filterRangePickerOpen && (
+              <>
+                <div className="fixed inset-0 z-[100] bg-black/50" onClick={() => setFilterRangePickerOpen(false)} aria-hidden="true" />
+                <div className="fixed inset-0 z-[101] flex items-center justify-center p-4 pointer-events-none">
+                  <div className="pointer-events-auto">
+                    <DatePicker
+                      selected={filterStartDate && filterEndDate ? [filterStartDate, filterEndDate] : filterStartDate ? [filterStartDate] : undefined}
+                      onSelect={(s) => {
+                        if (Array.isArray(s) && s.length === 2) {
+                          setFilterStartDate(s[0]);
+                          setFilterEndDate(s[1]);
+                          setFilterRangePickerOpen(false);
+                        } else {
+                          const d = Array.isArray(s) ? s[0] : s;
+                          if (d) {
+                            setFilterStartDate(d);
+                            setFilterEndDate(d);
+                            // do NOT close — picker stays open until owner selects end/checkout date
+                          }
+                        }
+                      }}
+                      onClose={() => setFilterRangePickerOpen(false)}
+                      allowRange={true}
+                      minDate="2000-01-01"
+                      twoMonths
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Summary Cards */}
+          {availabilitySummary && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Total Rooms Card */}
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-xl shadow-black/20">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
+                    <Home className="h-5 w-5 text-blue-300" />
+                  </div>
+                </div>
+                <p className="text-xs font-semibold text-white/60 uppercase tracking-wider mb-1">Total Rooms</p>
+                <p className="text-3xl font-bold text-white">{availabilitySummary.summary.totalRooms}</p>
+              </div>
+
+              {/* Booked Rooms Card */}
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-xl shadow-black/20">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center">
+                    <BedDouble className="h-5 w-5 text-amber-300" />
+                  </div>
+                </div>
+                <p className="text-xs font-semibold text-white/60 uppercase tracking-wider mb-1">Booked</p>
+                <p className="text-3xl font-bold text-white">{availabilitySummary.summary.totalBookedRooms}</p>
+                <p className="text-xs text-white/50 mt-1">Nolsaf bookings</p>
+              </div>
+
+              {/* Blocked Rooms Card */}
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-xl shadow-black/20">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center">
+                    <AlertTriangle className="h-5 w-5 text-red-300" />
+                  </div>
+                </div>
+                <p className="text-xs font-semibold text-white/60 uppercase tracking-wider mb-1">Blocked</p>
+                <p className="text-3xl font-bold text-white">{availabilitySummary.summary.totalBlockedRooms}</p>
+                <p className="text-xs text-white/50 mt-1">External bookings</p>
+              </div>
+
+              {/* Available Rooms Card */}
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-xl shadow-black/20">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
+                    <CheckCircle2 className="h-5 w-5 text-emerald-300" />
+                  </div>
+                </div>
+                <p className="text-xs font-semibold text-white/60 uppercase tracking-wider mb-1">Available</p>
+                <p className="text-3xl font-bold text-white">{availabilitySummary.summary.totalAvailableRooms}</p>
+                <p className="text-xs text-white/50 mt-1">{availabilitySummary.summary.overallAvailabilityPercentage}% free</p>
+              </div>
+            </div>
+          )}
+
+          {/* Room Type Breakdown */}
+          {availabilitySummary && Object.keys(availabilitySummary.byRoomType || {}).length > 0 && (
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-xl shadow-black/20">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Layers className="h-5 w-5 text-white/70" />
+                  <h2 className="text-base font-semibold text-white">Room Classifications</h2>
+                </div>
+                <button
+                  onClick={() => {
+                    setEditingBlock(null);
+                    setStartDateOnly(filterStartDate);
+                    setEndDateOnly(filterEndDate);
+                    setFormData({
+                      startDate: `${filterStartDate}T00:00:00`,
+                      endDate: `${filterEndDate}T00:00:00`,
+                      roomCode: "",
+                      source: "",
+                      bedsBlocked: 1,
+                      notes: "",
+                    });
+                    setShowBlockForm(true);
+                  }}
+                  className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white shadow-lg shadow-emerald-500/20 hover:bg-emerald-400 transition"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Add External Booking
+                </button>
+              </div>
+              <div className="mb-4 rounded-lg border border-emerald-400/30 bg-emerald-500/10 p-3">
+                <div className="flex items-start gap-2">
+                  <Info className="h-4 w-4 text-emerald-300 flex-shrink-0 mt-0.5" />
+                  <div className="text-xs text-emerald-100">
+                    <p className="font-semibold mb-1">Quick Update External Bookings:</p>
+                    <p className="text-emerald-100/80">When you receive a booking from Airbnb, Booking.com, or other platforms, click "Add External Booking" above, select the room type, dates, and source. This prevents double-booking and keeps your calendar accurate.</p>
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {Object.entries(availabilitySummary.byRoomType).map(([roomType, data]: [string, any]) => (
+                  <div key={roomType} className="rounded-xl border border-white/10 bg-white/5 p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm font-semibold text-white">{roomType}</h3>
+                      <span className="text-xs text-white/50">{data.availabilityPercentage}%</span>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-white/60">Total:</span>
+                        <span className="text-white font-semibold">{data.totalRooms}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-white/60">Booked:</span>
+                        <span className="text-amber-300 font-semibold">{data.bookedRooms}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-white/60">Blocked:</span>
+                        <span className="text-red-300 font-semibold">{data.blockedRooms}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs pt-2 border-t border-white/10">
+                        <span className="text-white/60">Available:</span>
+                        <span className="text-emerald-300 font-bold">{data.availableRooms}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+          {/* Sidebar */}
+          <aside className="lg:col-span-4 space-y-6">
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-xl shadow-black/20">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold text-white/60">Property</p>
+                  <p className="mt-1 text-lg font-semibold text-white">{property.title}</p>
+                  <p className="mt-1 text-sm text-white/60">Tap a day in the calendar to quickly add a block.</p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                  <p className="text-xs text-white/60">Live</p>
+                  <p className={`text-sm font-semibold ${connected ? "text-emerald-200" : "text-white/70"}`}>
+                    {connected ? "Connected" : "Offline"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                  <p className="text-xs text-white/60">Bookings</p>
+                  <p className="mt-1 text-xl font-semibold text-white">{totalBookings}</p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                  <p className="text-xs text-white/60">Blocks</p>
+                  <p className="mt-1 text-xl font-semibold text-white">{totalBlocks}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-xl shadow-black/20">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <BedDouble className="h-4 w-4 text-white/70" />
+                  <h2 className="text-sm font-semibold text-white">Rooms & Types</h2>
+                </div>
+                <span className="text-xs text-white/50">Filter the calendar</span>
+              </div>
+
+              <div className="mt-4 space-y-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedRoomCode(null)}
+                  className={`w-full rounded-xl border px-4 py-3 text-left transition ${
+                    !selectedRoomCode
+                      ? "border-emerald-400/30 bg-emerald-400/10 text-white"
+                      : "border-white/10 bg-white/5 text-white/80 hover:bg-white/10"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold">All rooms</p>
+                      <p className="text-xs text-white/60">NoLSAF & non‑NoLSAF sources</p>
+                    </div>
+                    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-white/70">
+                      {roomTypes.length}
+                    </span>
+                  </div>
+                </button>
+
+                {roomTypes.map((rt, index) => {
+                  // Some properties don't have explicit room codes; fall back to roomType as the selection key.
+                  const key = (rt.roomCode && rt.roomCode.trim() !== "") ? rt.roomCode : rt.roomType;
+                  const active = selectedRoomCode === key;
+                  return (
+                    <button
+                      key={rt.roomCode ? `room-${rt.roomCode}` : `room-type-${rt.roomType}-${index}`}
+                      type="button"
+                      onClick={() => setSelectedRoomCode(key || null)}
+                      className={`w-full rounded-xl border px-4 py-3 text-left transition ${
+                        active
+                          ? "border-emerald-400/30 bg-emerald-400/10 text-white"
+                          : "border-white/10 bg-white/5 text-white/80 hover:bg-white/10"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold">{rt.roomType}</p>
+                          <p className="text-xs text-white/60">{rt.roomCode ? `Code: ${rt.roomCode}` : "No code (uses type name)"}</p>
+                        </div>
+                        <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-white/70">
+                          {rt.roomsCount}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-xl shadow-black/20">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Filter className="h-4 w-4 text-white/70" />
+                  <h2 className="text-sm font-semibold text-white">Window</h2>
+                </div>
+                <button
+                  onClick={loadCalendarData}
+                  className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white/70 hover:bg-white/10 hover:text-white transition"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  Refresh
+                </button>
+              </div>
+              <div className="mt-4 flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    const prev = new Date(selectedDate);
+                    prev.setMonth(prev.getMonth() - 1);
+                    setSelectedDate(prev);
+                  }}
+                  className="rounded-lg border border-white/10 bg-white/5 p-2 text-white/80 hover:bg-white/10 hover:text-white transition"
+                  title="Previous month"
+                  aria-label="Previous month"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <label className="sr-only" htmlFor="availability-month-picker">Select month</label>
+                <input
+                  id="availability-month-picker"
+                  type="month"
+                  value={`${selectedDate.getFullYear()}-${pad2(selectedDate.getMonth() + 1)}`}
+                  onChange={(e) => {
+                    const [year, month] = e.target.value.split("-").map(Number);
+                    setSelectedDate(new Date(year, month - 1));
+                  }}
+                  className="flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                  aria-label="Select month for availability calendar"
+                />
+                <button
+                  onClick={() => {
+                    const next = new Date(selectedDate);
+                    next.setMonth(next.getMonth() + 1);
+                    setSelectedDate(next);
+                  }}
+                  className="rounded-lg border border-white/10 bg-white/5 p-2 text-white/80 hover:bg-white/10 hover:text-white transition"
+                  title="Next month"
+                  aria-label="Next month"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          </aside>
+
+          {/* Main */}
+          <main className="lg:col-span-8 space-y-6">
+            <div className="rounded-2xl border border-white/10 bg-white/5 shadow-xl shadow-black/20 overflow-hidden">
+              <div className="p-5 flex items-center justify-between gap-4 flex-wrap">
+                <div>
+                  <h2 className="text-sm font-semibold text-white">Calendar</h2>
+                  <p className="mt-1 text-xs text-white/60">
+                    Showing {selectedRoomCode ? `room code ${selectedRoomCode}` : "all rooms"} • Click a date to add a block
+                  </p>
+                </div>
+                <div className="flex items-center gap-3 text-xs text-white/60">
+                  <span className="inline-flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-blue-400" /> Bookings
+                  </span>
+                  <span className="inline-flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-orange-300" /> Blocks
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-5">
+                <div className="grid grid-cols-7 gap-2 mb-3">
+                  {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
+                    <div key={day} className="text-center text-xs font-semibold text-white/60 py-2">
+                      {day}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-7 gap-2">
+                  {calendarDays.map((day, idx) => {
+                    const isToday = day.date.toDateString() === new Date().toDateString();
+                    const isPast = day.date < new Date() && !isToday;
+                    const hasBookings = day.bookings.length > 0;
+                    const hasBlocks = day.blocks.length > 0;
+
+                    return (
+                      <button
+                        type="button"
+                        key={idx}
+                        onClick={() => openQuickBlock(day.date)}
+                        className={`min-h-[110px] text-left rounded-2xl border p-3 transition focus:outline-none focus:ring-2 focus:ring-emerald-400/60 ${
+                          isToday
+                            ? "border-emerald-400/30 bg-emerald-400/10"
+                            : "border-white/10 bg-white/5 hover:bg-white/10"
+                        } ${isPast ? "opacity-60" : ""}`}
+                        title="Click to add a block"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className={`text-sm font-semibold ${isToday ? "text-emerald-200" : "text-white"}`}>
+                            {day.date.getDate()}
+                          </span>
+                          {(hasBookings || hasBlocks) && (
+                            <div className="flex gap-1">
+                              {hasBookings && (
+                                <div className="w-2 h-2 bg-blue-400 rounded-full" title="Bookings" />
+                              )}
+                              {hasBlocks && (
+                                <div className="w-2 h-2 bg-orange-300 rounded-full" title="Blocks" />
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <div className="space-y-1">
+                          {day.bookings.slice(0, 2).map((booking) => (
+                            <div
+                              key={booking.id}
+                              className="text-[11px] px-2 py-1 rounded-lg bg-blue-500/15 text-blue-100 border border-blue-400/20 truncate"
+                              title={`Booking: ${booking.guestName}`}
+                            >
+                              {booking.guestName}
+                            </div>
+                          ))}
+                          {day.blocks.slice(0, 2).map((block) => (
+                            <div
+                              key={block.id}
+                              className="text-[11px] px-2 py-1 rounded-lg bg-orange-500/15 text-orange-100 border border-orange-400/20 truncate"
+                              title={`Block: ${block.source || "External"}`}
+                            >
+                              {block.source || "Blocked"}
+                            </div>
+                          ))}
+                          {(day.bookings.length > 2 || day.blocks.length > 2) && (
+                            <div className="text-[11px] text-white/60">
+                              +{day.bookings.length + day.blocks.length - 2} more
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/5 shadow-xl shadow-black/20">
+              <div className="p-5 flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  <h2 className="text-sm font-semibold text-white">Availability Blocks</h2>
+                  <p className="mt-1 text-xs text-white/60">
+                    {selectedRoomCode ? `Filtered to ${selectedRoomCode}` : "All rooms"} • Manage blocks and OTA holds
+                  </p>
+                </div>
+              </div>
+
+              <div className="px-5 pb-5">
+                {calendarData && calendarData.blocks.length === 0 ? (
+                  <div className="text-center py-12 text-white/60">
+                    <Calendar className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                    <p>No availability blocks found for this period</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {calendarData?.blocks.map((block) => (
+                      <div
+                        key={block.id}
+                        className="rounded-2xl border border-white/10 bg-white/5 p-4 hover:bg-white/10 transition"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1">
+                            <div className="flex flex-wrap items-center gap-2 mb-2">
+                              <span className="text-sm font-semibold text-white">
+                                {new Date(block.startDate).toLocaleDateString()} - {new Date(block.endDate).toLocaleDateString()}
+                              </span>
+                              {block.source && (
+                                <span className="px-2 py-1 text-xs font-semibold rounded-full border border-orange-400/20 bg-orange-500/15 text-orange-100">
+                                  {block.source}
+                                </span>
+                              )}
+                              {block.roomCode && (
+                                <span className="px-2 py-1 text-xs font-semibold rounded-full border border-white/10 bg-white/5 text-white/70">
+                                  {block.roomCode}
+                                </span>
+                              )}
+                            </div>
+                            {block.notes && (
+                              <p className="text-sm text-white/70 mb-2">{block.notes}</p>
+                            )}
+                            <div className="flex flex-wrap items-center gap-4 text-xs text-white/50">
+                              <span>Beds: {block.bedsBlocked || 1}</span>
+                              <span>Created: {formatLocalDateTime(block.createdAt)}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleEdit(block)}
+                              className="p-2 rounded-xl border border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white transition"
+                              title="Edit"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(block.id)}
+                              className="p-2 rounded-xl border border-red-400/20 bg-red-500/10 text-red-200 hover:bg-red-500/15 transition"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+
+      {/* Block Form Modal */}
+      {showBlockForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl max-w-2xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="px-4 sm:px-6 md:px-8 py-4 sm:py-5 md:py-6 border-b border-slate-200/60 bg-gradient-to-br from-white via-slate-50/30 to-white">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start gap-3 min-w-0 flex-1">
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-sm shadow-emerald-500/20 flex-shrink-0">
+                    <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-lg sm:text-xl font-bold text-slate-900 leading-tight">
+                      {editingBlock ? "Edit Availability Block" : "Add Availability Block"}
+                    </h2>
+                    <p className="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed">
+                      {editingBlock ? "Update block details" : "Block rooms for a specific period"}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowBlockForm(false);
+                    setEditingBlock(null);
+                    setStartDateOnly("");
+                    setEndDateOnly("");
+                    setFormData({
+                      startDate: "",
+                      endDate: "",
+                      roomCode: "",
+                      source: "",
+                      bedsBlocked: 1,
+                      notes: "",
+                    });
+                  }}
+                  className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg hover:bg-slate-100 active:bg-slate-200 text-slate-500 hover:text-slate-700 transition-all flex-shrink-0"
+                  title="Close form"
+                  aria-label="Close availability block form"
+                >
+                  <X className="w-4 h-4 sm:w-5 sm:h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Form Content */}
+            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto">
+              <div className="p-4 sm:p-6 md:p-8 space-y-5 sm:space-y-6">
+                {/* Date Range Section */}
+                <div className="space-y-3 sm:space-y-4">
+                  <div className="flex items-center gap-2 pb-1">
+                    <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center">
+                      <Clock className="w-3.5 h-3.5 text-slate-600" />
+                    </div>
+                    <h3 className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wider">Date Range</h3>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                    {/* Start Date */}
+                    <div className="space-y-1.5 sm:space-y-2">
+                      <label className="block text-xs sm:text-sm font-semibold text-slate-700">
+                        Check-in <span className="text-red-500 font-normal">*</span>
+                      </label>
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBlockPicking("checkin");
+                            setBlockRangePickerOpen(true);
+                          }}
+                          className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm sm:text-base border border-slate-300 rounded-lg sm:rounded-xl bg-white text-slate-900 hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all flex items-center justify-between"
+                        >
+                          <div className="flex items-center gap-2">
+                            <Calendar className="w-4 h-4 text-emerald-600" />
+                            <span>{startDateOnly ? new Date(startDateOnly + "T00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "Select date"}</span>
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-slate-400 rotate-90" />
+                        </button>
+                      </div>
+                    </div>
+                    {/* End Date */}
+                    <div className="space-y-1.5 sm:space-y-2">
+                      <label className="block text-xs sm:text-sm font-semibold text-slate-700">
+                        Check-out <span className="text-red-500 font-normal">*</span>
+                      </label>
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBlockPicking(startDateOnly ? "checkout" : "checkin");
+                            setBlockRangePickerOpen(true);
+                          }}
+                          className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm sm:text-base border border-slate-300 rounded-lg sm:rounded-xl bg-white text-slate-900 hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all flex items-center justify-between"
+                        >
+                          <div className="flex items-center gap-2">
+                            <Calendar className="w-4 h-4 text-emerald-600" />
+                            <span>{endDateOnly ? new Date(endDateOnly + "T00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "Select date"}</span>
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-slate-400 rotate-90" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* One range picker for the block form: first click sets check-in, second click sets check-out */}
+                  {blockRangePickerOpen && (
+                    <>
+                      <div className="fixed inset-0 z-[100] bg-black/40" onClick={() => setBlockRangePickerOpen(false)} aria-hidden="true" />
+                      <div className="fixed inset-0 z-[101] flex items-center justify-center p-4 pointer-events-none">
+                        <div className="pointer-events-auto">
+                          <DatePicker
+                            selected={
+                              startDateOnly && endDateOnly
+                                ? [startDateOnly, endDateOnly]
+                                : startDateOnly
+                                  ? [startDateOnly]
+                                  : undefined
+                            }
+                            onSelect={(s) => {
+                              if (Array.isArray(s) && s.length === 2) {
+                                const a = s[0];
+                                let b = s[1];
+                                if (b <= a) b = addOneDayYMD(a);
+                                setStartDateOnly(a);
+                                setEndDateOnly(b);
+                                setBlockRangePickerOpen(false);
+                              } else {
+                                const d = Array.isArray(s) ? s[0] : s;
+                                if (d) {
+                                  if (blockPicking === "checkout" && startDateOnly) {
+                                    let b = d;
+                                    if (b <= startDateOnly) b = addOneDayYMD(startDateOnly);
+                                    setEndDateOnly(b);
+                                    setBlockRangePickerOpen(false);
+                                    return;
+                                  }
+                                  setStartDateOnly(d);
+                                  setEndDateOnly("");
+                                  // keep open until owner chooses a check-out date
+                                }
+                              }
+                            }}
+                            onClose={() => setBlockRangePickerOpen(false)}
+                            allowRange={true}
+                            minDate="2000-01-01"
+                            twoMonths
+                            initialViewDate={formatLocalYMD(selectedDate)}
+                            resetRangeAnchor={blockPicking === "checkin"}
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Room & Source Section */}
+                <div className="space-y-4 sm:space-y-5">
+                  <div className="flex items-center gap-2 pb-2">
+                    <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center">
+                      <Home className="w-3.5 h-3.5 text-slate-600" />
+                    </div>
+                    <h3 className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wider">Room & Source</h3>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                    <div className="space-y-2">
+                      <label htmlFor="block-room-code-modal" className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1.5">
+                        Room Type <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <select
+                          id="block-room-code-modal"
+                          value={formData.roomCode}
+                          onChange={(e) => {
+                            const selectedValue = e.target.value;
+                            setFormData({ ...formData, roomCode: selectedValue });
+                          }}
+                          required
+                          className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm sm:text-base border border-slate-300 rounded-lg sm:rounded-xl bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all cursor-pointer shadow-sm hover:border-slate-400"
+                          aria-label="Select room type for availability block"
+                          aria-required="true"
+                        >
+                          <option value="" disabled>Select Room Type</option>
+                          {roomTypes.map((rt, index) => {
+                            const value = (rt.roomCode && rt.roomCode.trim() !== "") ? rt.roomCode : rt.roomType;
+                            if (!value) return null;
+                            return (
+                              <option key={`room-${value}-${index}`} value={value}>
+                                {rt.roomType} {rt.roomCode ? `(${rt.roomCode})` : "(no code)"}
+                              </option>
+                            );
+                          })}
+                        </select>
+                        <ChevronRight className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none rotate-90" />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label htmlFor="block-source" className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1.5">
+                        Source <span className="text-red-500 font-normal">*</span>
+                      </label>
+                      <div className="relative">
+                        <select
+                          id="block-source"
+                          value={formData.source}
+                          onChange={(e) => setFormData({ ...formData, source: e.target.value })}
+                          required
+                          className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm sm:text-base border border-slate-300 rounded-lg sm:rounded-xl bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all appearance-none cursor-pointer shadow-sm hover:border-slate-400 pr-8 sm:pr-10"
+                          aria-label="Select booking source"
+                        >
+                          <option value="">Select source</option>
+                          {SOURCE_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronRight className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none rotate-90" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quantity Section */}
+                <div className="space-y-3 sm:space-y-4">
+                  <div className="flex items-center gap-2 pb-1">
+                    <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center">
+                      <BedDouble className="w-3.5 h-3.5 text-slate-600" />
+                    </div>
+                    <h3 className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wider">Quantity</h3>
+                  </div>
+                  <div className="space-y-1.5 sm:space-y-2">
+                    <label htmlFor="block-beds" className="block text-xs sm:text-sm font-semibold text-slate-700">
+                      Beds/Rooms Blocked <span className="text-red-500 font-normal">*</span>
+                    </label>
+                    <input
+                      id="block-beds"
+                      type="number"
+                      min="1"
+                      value={formData.bedsBlocked}
+                      onChange={(e) => setFormData({ ...formData, bedsBlocked: Number(e.target.value) || 1 })}
+                      required
+                      className="w-24 px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                      aria-label="Number of beds or rooms blocked"
+                    />
+                  </div>
+                </div>
+
+                {/* Error Message */}
+                {error && (
+                  <div className="rounded-xl border border-red-200 bg-red-50/80 p-3 sm:p-4 flex items-start gap-2 sm:gap-3 animate-in slide-in-from-top-2 duration-200">
+                    <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                    <p className="text-xs sm:text-sm text-red-700 leading-relaxed">{error}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer Actions */}
+              <div className="px-4 sm:px-6 md:px-8 py-4 sm:py-5 md:py-6 border-t border-slate-200/60 bg-gradient-to-b from-slate-50/50 to-white">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="flex-1 inline-flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-emerald-600 text-white rounded-lg sm:rounded-xl text-sm sm:text-base font-semibold shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 hover:shadow-xl hover:shadow-emerald-700/30 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                  >
+                    {saving ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Saving...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4" />
+                        <span>{editingBlock ? "Update Block" : "Create Block"}</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowBlockForm(false);
+                      setEditingBlock(null);
+                      setFormData({
+                        startDate: "",
+                        endDate: "",
+                        roomCode: "",
+                        source: "",
+                        bedsBlocked: 1,
+                        notes: "",
+                      });
+                    }}
+                    className="px-4 sm:px-6 py-2.5 sm:py-3 border border-slate-300 text-slate-700 rounded-lg sm:rounded-xl text-sm sm:text-base font-semibold bg-white hover:bg-slate-50 active:scale-[0.98] transition-all"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Conflict Confirmation Modal */}
+      {showConflictModal && conflictData && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
+          <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl max-w-md sm:max-w-lg w-full my-auto animate-in zoom-in-95 duration-200 max-h-[95vh] flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-200 bg-gradient-to-r from-amber-50 to-orange-50 flex-shrink-0 rounded-t-2xl sm:rounded-t-3xl">
+              <div className="flex items-start gap-2 sm:gap-3">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-amber-500 flex items-center justify-center shadow-sm flex-shrink-0">
+                  <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-base sm:text-lg font-bold text-slate-900 leading-tight">Booking Conflict Detected</h2>
+                  <p className="text-xs sm:text-sm text-slate-600 mt-1 leading-relaxed">
+                    This availability block conflicts with existing bookings
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="px-4 sm:px-6 py-4 sm:py-5 flex-1 overflow-y-auto">
+              <div className="mb-4">
+                <p className="text-xs sm:text-sm text-slate-700 mb-4 leading-relaxed">
+                  Creating this block will overlap with <strong>{conflictData.conflictingBookings.length}</strong> existing booking{conflictData.conflictingBookings.length !== 1 ? 's' : ''}. This may cause double-booking issues.
+                </p>
+
+                {/* Conflicting Bookings List */}
+                {conflictData.conflictingBookings.length > 0 && (
+                  <div className="bg-slate-50 rounded-lg border border-slate-200 p-3 sm:p-4 mb-4">
+                    <h3 className="text-[10px] sm:text-xs font-semibold text-slate-700 uppercase tracking-wide mb-2 sm:mb-3">Conflicting Bookings</h3>
+                    <div className="space-y-1.5 sm:space-y-2 max-h-40 sm:max-h-48 overflow-y-auto">
+                      {conflictData.conflictingBookings.slice(0, 5).map((booking: any, idx: number) => (
+                        <div key={idx} className="flex items-start gap-2 sm:gap-3 p-1.5 sm:p-2 bg-white rounded-lg border border-slate-200">
+                          <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-amber-500 mt-1 sm:mt-1.5 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs sm:text-sm font-medium text-slate-900 truncate">
+                              {booking.guestName || "Guest"}
+                            </p>
+                            <p className="text-[10px] sm:text-xs text-slate-600 mt-0.5 leading-relaxed break-words">
+                              {new Date(booking.checkIn).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })} - {new Date(booking.checkOut).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                            </p>
+                            <div className="flex items-center gap-2 mt-1 flex-wrap">
+                              {booking.roomCode && (
+                                <span className="text-[10px] sm:text-xs text-slate-500">Room: {booking.roomCode}</span>
+                              )}
+                              {booking.totalAmount !== undefined && booking.totalAmount !== null && Number(booking.totalAmount) > 0 && (
+                                <span className="text-[10px] sm:text-xs font-semibold text-emerald-700">
+                                  Amount: TZS {typeof booking.totalAmount === 'number' ? booking.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : Number(booking.totalAmount).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      {conflictData.conflictingBookings.length > 5 && (
+                        <p className="text-[10px] sm:text-xs text-slate-500 text-center pt-1 sm:pt-2">
+                          + {conflictData.conflictingBookings.length - 5} more booking{conflictData.conflictingBookings.length - 5 !== 1 ? 's' : ''}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 sm:p-3 flex items-start gap-2">
+                <AlertCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                <p className="text-[10px] sm:text-xs text-amber-800 leading-relaxed">
+                  <strong>Warning:</strong> Proceeding will create a conflict. Please review your calendar to avoid double-booking.
+                </p>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:gap-3 flex-shrink-0 rounded-b-2xl sm:rounded-b-3xl">
+              <button
+                type="button"
+                onClick={handleConflictCancel}
+                className="w-full sm:w-auto px-4 py-2.5 border border-slate-300 text-slate-700 rounded-lg text-sm font-semibold bg-white hover:bg-slate-50 active:scale-[0.98] transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConflictConfirm}
+                className="w-full sm:w-auto px-4 py-2.5 bg-amber-600 text-white rounded-lg text-sm font-semibold shadow-md hover:bg-amber-700 active:scale-[0.98] transition-all"
+              >
+                Continue Anyway
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Capacity Exceeded Modal — rooms at capacity for selected type */}
+      {capacityError && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
+          <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl max-w-md sm:max-w-lg w-full my-auto animate-in zoom-in-95 duration-200 max-h-[95vh] flex flex-col overflow-hidden">
+            <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-200 bg-gradient-to-r from-rose-50 to-red-50 flex-shrink-0 rounded-t-2xl sm:rounded-t-3xl">
+              <div className="flex items-start gap-2 sm:gap-3">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-rose-500 flex items-center justify-center shadow-sm flex-shrink-0">
+                  <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-base sm:text-lg font-bold text-slate-900 leading-tight">Rooms at capacity</h2>
+                  <p className="text-xs sm:text-sm text-slate-600 mt-1 leading-relaxed">
+                    The room(s) you intend to assign are occupied on the selected dates
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-4 sm:px-6 py-4 sm:py-5 flex-1 overflow-y-auto">
+              <p className="text-sm text-slate-700 mb-4">{capacityError.message}</p>
+
+              <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 mb-4">
+                <p className="text-sm font-semibold text-slate-800 mb-1">
+                  Rooms left for <strong>{capacityError.roomType}</strong>:{" "}
+                  <span className="text-rose-600">{capacityError.roomsLeft}</span>
+                </p>
+                {capacityError.totalRooms != null && (
+                  <p className="text-xs text-slate-600">
+                    Total: {capacityError.totalRooms} · Booked: {capacityError.bookedRooms ?? 0} · Blocked: {capacityError.blockedRooms ?? 0}
+                    {capacityError.bedsRequested != null && ` · You requested: ${capacityError.bedsRequested}`}
+                  </p>
+                )}
+              </div>
+
+              <p className="text-sm text-slate-700 mb-3">
+                Consider choosing another room type that has availability for this period.
+              </p>
+
+              {(capacityError.otherRoomTypes?.length ?? 0) > 0 && (
+                <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-4">
+                  <p className="text-xs font-semibold text-emerald-800 uppercase tracking-wide mb-2">Other room types with availability</p>
+                  <ul className="space-y-1.5">
+                    {capacityError.otherRoomTypes!.map((o, i) => (
+                      <li key={`${o.type}-${o.roomsLeft}-${i}`}>
+                        <button
+                          type="button"
+                          onClick={() => selectRoomTypeFromCapacityModal(o.type)}
+                          className="w-full text-left rounded-lg border border-emerald-200 bg-white/70 px-3 py-2 text-sm text-slate-800 hover:bg-white hover:border-emerald-300 transition flex items-center justify-between gap-3"
+                        >
+                          <span>
+                            <strong>{o.type}</strong>: {o.roomsLeft} room{o.roomsLeft !== 1 ? "s" : ""} left
+                          </span>
+                          <span className="text-[11px] font-semibold text-emerald-700">Select</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-200 bg-slate-50/50 flex justify-end flex-shrink-0 rounded-b-2xl sm:rounded-b-3xl">
+              <button
+                type="button"
+                onClick={() => setCapacityError(null)}
+                className="px-4 py-2.5 bg-slate-800 text-white rounded-lg text-sm font-semibold hover:bg-slate-700 active:scale-[0.98] transition-all"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showConfirmModal && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl max-w-lg w-full max-h-[95vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-200 bg-gradient-to-r from-emerald-50 via-white to-sky-50 flex-shrink-0 rounded-t-2xl sm:rounded-t-3xl">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center shadow-sm shadow-emerald-600/20 flex-shrink-0">
+                  <CheckCircle2 className="w-5 h-5 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-base sm:text-lg font-bold text-slate-900 leading-tight">
+                    {editingBlock ? "Confirm update" : "Confirm creation"}
+                  </h3>
+                  <p className="mt-1 text-xs sm:text-sm text-slate-600 leading-relaxed">
+                    {editingBlock
+                      ? "Please confirm you want to update this availability block."
+                      : "Please confirm you want to create this availability block."}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmModal(false)}
+                  className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-slate-100 active:bg-slate-200 text-slate-500 hover:text-slate-700 transition-all flex-shrink-0"
+                  aria-label="Close confirmation"
+                  title="Close"
+                  disabled={saving}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="px-4 sm:px-6 py-4 sm:py-5 flex-1 overflow-y-auto">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="rounded-xl border border-slate-200 bg-white/80 p-3">
+                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Room type</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-900 break-words">
+                      {getRoomTypeLabel(formData.roomCode || "")}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white/80 p-3">
+                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Source</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-900 break-words">
+                      {formData.source || "—"}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white/80 p-3">
+                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Check-in</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-900">
+                      {formatConfirmDate(formData.startDate)}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white/80 p-3">
+                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Check-out</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-900">
+                      {formatConfirmDate(formData.endDate)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] font-semibold text-emerald-700 uppercase tracking-wider">Beds/rooms blocked</p>
+                    <p className="mt-1 text-sm font-bold text-emerald-900">{formData.bedsBlocked}</p>
+                  </div>
+                  <div className="text-[11px] text-emerald-800/80 text-right">
+                    This affects availability
+                    <br />
+                    on your public calendar.
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+                <label className="flex cursor-pointer items-start gap-3 text-sm text-slate-800">
+                  <input
+                    type="checkbox"
+                    className="mt-1 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-2 focus:ring-emerald-500/40"
+                    checked={tosAccepted}
+                    onChange={(e) => setTosAccepted(e.target.checked)}
+                  />
+                  <span className="leading-relaxed">
+                    I agree to the{" "}
+                    <Link href="/terms" target="_blank" className="font-semibold text-emerald-700 underline hover:text-emerald-800">
+                      Terms of Service
+                    </Link>
+                    .
+                    <span className="block text-xs text-slate-500 mt-1">
+                      Required before you can {editingBlock ? "update" : "create"} this block.
+                    </span>
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-200 bg-slate-50/60 flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:gap-3 flex-shrink-0 rounded-b-2xl sm:rounded-b-3xl">
+              <button
+                type="button"
+                className="w-full sm:w-auto px-4 py-2.5 border border-slate-300 text-slate-700 rounded-lg text-sm font-semibold bg-white hover:bg-slate-50 active:scale-[0.98] transition-all disabled:opacity-60"
+                onClick={() => setShowConfirmModal(false)}
+                disabled={saving}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={`w-full sm:w-auto px-4 py-2.5 rounded-lg text-sm font-semibold text-white shadow-md active:scale-[0.98] transition-all ${
+                  tosAccepted
+                    ? "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20"
+                    : "bg-emerald-300 cursor-not-allowed"
+                }`}
+                onClick={async () => {
+                  if (!tosAccepted) return;
+                  setShowConfirmModal(false);
+                  await submitBlock();
+                }}
+                disabled={!tosAccepted || saving}
+              >
+                {saving ? "Processing…" : (editingBlock ? "Yes, update" : "Yes, create")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

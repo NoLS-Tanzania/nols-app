@@ -126,7 +126,7 @@ function Financial({s,setS}:{s:any;setS:any}){
   return <div className="bg-white border rounded-2xl p-3 grid md:grid-cols-3 gap-3">
     <Num label="Commission %" value={s.commissionPercent} onChange={v=>setS({...s, commissionPercent:v})}/>
     <Num label="Tax %" value={s.taxPercent} onChange={v=>setS({...s, taxPercent:v})}/>
-    <Input label="Currency" value={s.currency} onChange={v=>setS({...s, currency:v})}/>
+    <Input label="Currency" value={s.currency || ""} onChange={v=>setS({...s, currency:v})}/>
   </div>;
 }
 function Numbering({s,setS}:{s:any;setS:any}){

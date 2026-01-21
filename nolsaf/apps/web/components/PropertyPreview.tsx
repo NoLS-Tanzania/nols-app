@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { 
   MapPin, 
   Star, 
@@ -49,6 +50,7 @@ import {
   DoorClosed,
   Tags,
   Building2,
+  Calendar,
 } from "lucide-react";
 import axios from "axios";
 import { motion } from "framer-motion";
@@ -81,6 +83,63 @@ import type {
 
 // Use same-origin calls + secure httpOnly cookie session.
 const api = axios.create({ baseURL: "", withCredentials: true });
+
+function canUseNextImageForSrc(src: string): boolean {
+  if (!src) return false;
+  if (src.startsWith("/")) return true;
+  if (!src.startsWith("http://") && !src.startsWith("https://")) return false;
+  try {
+    const url = new URL(src);
+    const host = url.hostname;
+    if (host === "localhost" || host === "127.0.0.1") return true;
+    if (host === "res.cloudinary.com") return true;
+    if (host === "img.youtube.com") return true;
+    if (host === "api.mapbox.com") return true;
+    if (host.endsWith(".mapbox.com")) return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+function FillImage({
+  src,
+  alt,
+  className,
+  sizes,
+  priority,
+  unoptimized,
+}: {
+  src: string;
+  alt: string;
+  className?: string;
+  sizes?: string;
+  priority?: boolean;
+  unoptimized?: boolean;
+}) {
+  if (canUseNextImageForSrc(src)) {
+    return (
+      <Image
+        src={src}
+        alt={alt}
+        fill
+        className={className}
+        sizes={sizes}
+        priority={priority}
+        unoptimized={unoptimized}
+      />
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className={className}
+      style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+    />
+  );
+}
 
 // Utility functions and types are now imported from lib/propertyUtils and lib/types/property
 
@@ -490,17 +549,55 @@ export default function PropertyPreview({
   // Must be called before early returns to maintain consistent hook order
   const allImages = useMemo(() => {
     if (!property) return [];
-    const propertyPhotos = displayPhotos.length > 0 ? displayPhotos : (property.photos || []);
+
+    const isSafeNextImageSrc = (value: unknown): value is string => {
+      if (typeof value !== "string") return false;
+      const v = value.trim();
+      if (!v) return false;
+      if (v.startsWith("/")) return true;
+      if (v.startsWith("http://") || v.startsWith("https://")) return true;
+      return false;
+    };
+
+    const normalizePhotoList = (value: unknown): string[] => {
+      if (Array.isArray(value)) {
+        return value.filter(isSafeNextImageSrc);
+      }
+
+      if (typeof value === "string") {
+        const raw = value.trim();
+        if (!raw) return [];
+
+        // Some APIs/DBs store arrays as JSON strings.
+        if (raw.startsWith("[")) {
+          try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              return parsed.filter(isSafeNextImageSrc);
+            }
+          } catch {
+            // ignore
+          }
+        }
+
+        return isSafeNextImageSrc(raw) ? [raw] : [];
+      }
+
+      return [];
+    };
+
+    const propertyPhotosRaw = displayPhotos.length > 0 ? displayPhotos : (property as any).photos;
+    const propertyPhotos = normalizePhotoList(propertyPhotosRaw);
     const roomPhotos: string[] = [];
     
     // Collect photos from all rooms
     if (Array.isArray(property.roomsSpec)) {
       property.roomsSpec.forEach((room: RoomSpec) => {
         if (room?.photos && Array.isArray(room.photos)) {
-          roomPhotos.push(...room.photos);
+          roomPhotos.push(...room.photos.filter(isSafeNextImageSrc));
         }
         if (room?.roomImages && Array.isArray(room.roomImages)) {
-          roomPhotos.push(...room.roomImages);
+          roomPhotos.push(...room.roomImages.filter(isSafeNextImageSrc));
         }
       });
     }
@@ -998,13 +1095,12 @@ export default function PropertyPreview({
                     }}
               aria-label="Open photo gallery"
                   >
-                    <Image
-                  src={photos[0]}
-                alt=""
-                      fill
+                    <FillImage
+                      src={photos[0]}
+                      alt=""
                       className="object-cover"
-                sizes="(min-width: 768px) 66vw, 100vw"
-                  priority
+                      sizes="(min-width: 768px) 66vw, 100vw"
+                      priority
                     />
               <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/0 to-black/0" />
               <div className="absolute left-4 bottom-4 inline-flex items-center gap-2 rounded-full bg-white/90 border border-white/70 px-3 py-1 text-xs font-semibold text-slate-900">
@@ -1028,13 +1124,12 @@ export default function PropertyPreview({
                     }}
                   aria-label="Open photo 2"
                     >
-                      <Image
-                    src={photos[1]}
-                    alt=""
-                        fill
-                    className="object-cover"
-                    sizes="(min-width: 768px) 22vw, 50vw"
-                  />
+                      <FillImage
+                        src={photos[1]}
+                        alt=""
+                        className="object-cover"
+                        sizes="(min-width: 768px) 22vw, 50vw"
+                      />
                   </button>
               ) : (
                 <div className="relative aspect-[16/10] bg-slate-100 rounded-xl overflow-hidden">
@@ -1068,13 +1163,12 @@ export default function PropertyPreview({
                     }}
                   aria-label={photos.length > 3 ? "View all photos" : "Open photo 3"}
                   >
-                    <Image
-                    src={photos[2]}
-                    alt=""
-                      fill
+                    <FillImage
+                      src={photos[2]}
+                      alt=""
                       className="object-cover"
-                    sizes="(min-width: 768px) 22vw, 50vw"
-                  />
+                      sizes="(min-width: 768px) 22vw, 50vw"
+                    />
                   {photos.length > 3 && (
                     <div className="absolute left-3 right-3 bottom-3 flex items-center justify-start">
                       <div
@@ -1794,6 +1888,40 @@ export default function PropertyPreview({
             {(mode === "admin" || mode === "owner") && (
               <section className="border-b border-gray-200 pb-6">
                 <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm space-y-6 motion-safe:transition-all motion-safe:duration-300 hover:shadow-md">
+                  {/* Owner Quick Actions */}
+                  {mode === "owner" && (
+                    <div className="pb-6 border-b border-slate-200/60">
+                      <div className="text-sm sm:text-base font-semibold text-slate-900 mb-4">Quick Actions</div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <Link
+                          href={`/owner/properties/${propertyId}/availability/manage`}
+                          className="group flex items-center gap-3 p-4 rounded-xl bg-gradient-to-br from-emerald-50 to-emerald-100/50 border-2 border-emerald-200 hover:border-emerald-300 hover:shadow-md transition-all duration-200"
+                        >
+                          <div className="w-10 h-10 rounded-lg bg-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                            <Calendar className="w-5 h-5 text-white" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-semibold text-emerald-900">Manage Availability</div>
+                            <div className="text-xs text-emerald-700 opacity-80">Update room availability calendar</div>
+                          </div>
+                          <ChevronRight className="w-5 h-5 text-emerald-600 group-hover:translate-x-1 transition-transform" />
+                        </Link>
+                        <Link
+                          href={`/owner/bookings`}
+                          className="group flex items-center gap-3 p-4 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100/50 border-2 border-blue-200 hover:border-blue-300 hover:shadow-md transition-all duration-200"
+                        >
+                          <div className="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                            <BedDouble className="w-5 h-5 text-white" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-semibold text-blue-900">View Bookings</div>
+                            <div className="text-xs text-blue-700 opacity-80">Manage all bookings</div>
+                          </div>
+                          <ChevronRight className="w-5 h-5 text-blue-600 group-hover:translate-x-1 transition-transform" />
+                        </Link>
+                      </div>
+                    </div>
+                  )}
                   {(property.basePrice !== null && property.basePrice !== undefined && property.basePrice > 0) && (
                     <div className="motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-2 motion-safe:duration-500">
                       <div className="text-sm sm:text-base text-slate-600 mb-2 font-medium">Base Price</div>
@@ -2291,6 +2419,45 @@ export default function PropertyPreview({
                         const actionColor = actionColors[audit.action] || "bg-gray-50 text-gray-700 border-gray-200";
                         const actorName = audit.actor?.name || audit.actor?.email || `Admin #${audit.actorId}`;
                         const auditDate = new Date(audit.createdAt).toLocaleString();
+
+                        const allowedStatuses = new Set([
+                          "DRAFT",
+                          "PENDING",
+                          "APPROVED",
+                          "NEEDS_FIXES",
+                          "REJECTED",
+                          "SUSPENDED",
+                        ]);
+
+                        const humanizeStatus = (s: string) => {
+                          const map: Record<string, string> = {
+                            DRAFT: "Draft",
+                            PENDING: "Pending",
+                            APPROVED: "Approved",
+                            NEEDS_FIXES: "Needs fixes",
+                            REJECTED: "Rejected",
+                            SUSPENDED: "Suspended",
+                          };
+                          return map[s] || s;
+                        };
+
+                        const beforeStatus =
+                          typeof audit.beforeJson?.status === "string" && allowedStatuses.has(audit.beforeJson.status)
+                            ? audit.beforeJson.status
+                            : null;
+                        const afterStatus =
+                          typeof audit.afterJson?.status === "string" && allowedStatuses.has(audit.afterJson.status)
+                            ? audit.afterJson.status
+                            : null;
+
+                        const changes: Array<{ field: string; from: any; to: any }> = Array.isArray((audit as any).changes)
+                          ? ((audit as any).changes as any[])
+                              .filter(Boolean)
+                              .filter((c) => typeof c.field === "string")
+                              .slice(0, 20)
+                          : [];
+
+                        const extraChanges = changes.filter((c) => c.field !== "Status");
                         
                         return (
                           <div
@@ -2311,18 +2478,41 @@ export default function PropertyPreview({
                                     <span className="text-gray-500 ml-1">({audit.actorRole})</span>
                                   )}
                                 </div>
-                                {audit.beforeJson && audit.afterJson && (
+                                {beforeStatus && afterStatus && beforeStatus !== afterStatus && (
                                   <div className="mt-2 space-y-1">
-                                    {audit.beforeJson.status && audit.afterJson.status && (
-                                      <div className="text-xs text-gray-600">
-                                        Status changed from <strong>{audit.beforeJson.status}</strong> to <strong>{audit.afterJson.status}</strong>
-                                      </div>
-                                    )}
-                                    {audit.afterJson.reason && (
+                                    <div className="text-xs text-gray-600">
+                                      Status changed from <strong>{humanizeStatus(beforeStatus)}</strong> to <strong>{humanizeStatus(afterStatus)}</strong>
+                                    </div>
+                                    {audit.afterJson?.reason && (
                                       <div className="text-xs text-gray-700 bg-gray-50 rounded px-2 py-1.5 border border-gray-200">
                                         <span className="font-medium">Reason:</span> {audit.afterJson.reason}
                                       </div>
                                     )}
+                                  </div>
+                                )}
+
+                                {audit.action === "PROPERTY_UPDATE" && extraChanges.length > 0 && (
+                                  <div className="mt-3 rounded-lg border border-slate-200 bg-white">
+                                    <div className="px-3 py-2 border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-700">
+                                      Changes
+                                    </div>
+                                    <div className="divide-y divide-slate-100">
+                                      {extraChanges.map((c, i) => (
+                                        <div key={`${audit.id}-chg-${i}`} className="px-3 py-2 text-xs">
+                                          <div className="flex items-start justify-between gap-3">
+                                            <div className="font-medium text-slate-700">{c.field}</div>
+                                            <div className="min-w-0 flex-1 text-right">
+                                              <div className="text-slate-500 truncate">
+                                                <span className="font-medium">From:</span> {c.from ?? "—"}
+                                              </div>
+                                              <div className="text-slate-700 truncate">
+                                                <span className="font-medium">To:</span> {c.to ?? "—"}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
                                   </div>
                                 )}
                               </div>
@@ -2367,13 +2557,12 @@ export default function PropertyPreview({
               {/* Main image */}
               <div className="mx-auto w-full max-w-[720px]">
                 <div className="relative rounded-2xl overflow-hidden bg-black h-[62vh] max-h-[520px] min-h-[320px]">
-              <Image
+              <FillImage
                 src={photos[selectedImageIndex]}
-                    alt=""
-                fill
+                alt=""
                 className="object-contain"
-                    sizes="(min-width: 1024px) 720px, 100vw"
-                    priority
+                sizes="(min-width: 1024px) 720px, 100vw"
+                priority
               />
 
                 <button
@@ -2425,7 +2614,7 @@ export default function PropertyPreview({
                     }}
                     aria-label={`View photo ${i + 1}`}
                   >
-                    <Image src={src} alt="" fill className="object-cover" sizes="120px" />
+                    <FillImage src={src} alt="" className="object-cover" sizes="120px" />
                   </button>
                 ))}
           </div>

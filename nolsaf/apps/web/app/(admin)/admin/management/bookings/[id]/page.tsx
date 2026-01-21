@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import Link from "next/link";
 import Image from "next/image";
+import { useParams } from "next/navigation";
 import { ArrowLeft, Mail, Phone, Calendar, User, Home, DollarSign, FileText, Star } from "lucide-react";
 
 const api = axios.create({ baseURL: "", withCredentials: true });
@@ -73,8 +74,10 @@ function InfoRow({ label, value }: { label: string; value: string | number | nul
   );
 }
 
-export default function ManagementBookingDetail({ params }: { params: { id: string } }) {
-  const id = Number(params.id);
+export default function ManagementBookingDetail() {
+  const routeParams = useParams<{ id?: string | string[] }>();
+  const idParam = Array.isArray(routeParams?.id) ? routeParams?.id?.[0] : routeParams?.id;
+  const id = Number(idParam);
   const [booking, setBooking] = useState<BookingDetail | null>(null);
   const [loading, setLoading] = useState(true);
 

@@ -12,6 +12,16 @@
 			"problemMatcher": [
 				"$tsc"
 			]
+		},
+		{
+			"label": "npm run build",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"run",
+				"build"
+			],
+			"isBackground": false
 		}
 	]
 }

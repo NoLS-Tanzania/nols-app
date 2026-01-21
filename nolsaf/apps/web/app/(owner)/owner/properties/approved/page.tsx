@@ -79,14 +79,23 @@ export default function ApprovedProps() {
   const [systemCommission, setSystemCommission] = useState<number>(0);
   const loadingReviewsRef = useRef<Record<number, boolean>>({});
 
+  function normalizeItems(payload: any): any[] {
+    if (Array.isArray(payload)) return payload;
+    if (Array.isArray(payload?.items)) return payload.items;
+    if (Array.isArray(payload?.data?.items)) return payload.data.items;
+    if (Array.isArray(payload?.data)) return payload.data;
+    return [];
+  }
+
   // Load system commission settings
   useEffect(() => {
     let mounted = true;
     const load = async () => {
       try {
-        const response = await api.get("/admin/settings");
-        if (mounted && response.data?.commissionPercent !== undefined) {
-          const commission = Number(response.data.commissionPercent);
+        const response = await api.get("/api/admin/settings");
+        const settings = response.data?.data ?? response.data;
+        if (mounted && settings?.commissionPercent !== undefined) {
+          const commission = Number(settings.commissionPercent);
           setSystemCommission(isNaN(commission) ? 0 : commission);
         }
       } catch (e) {
@@ -136,11 +145,10 @@ export default function ApprovedProps() {
 
     const timer = setTimeout(() => {
       if (!mounted) return;
-    api.get<any>("/owner/properties/mine", { params: { status: "APPROVED" } })
+    api.get<any>("/api/owner/properties/mine", { params: { status: "APPROVED" } })
       .then(r => {
         if (!mounted) return;
-        const data = r.data;
-          const properties = Array.isArray(data) ? data : (data?.items || []);
+        const properties = normalizeItems(r.data);
           
           // Add slugs to properties
           const propertiesWithSlugs = properties.map((p: any) => ({
@@ -179,10 +187,9 @@ export default function ApprovedProps() {
         mode="owner"
         onUpdated={() => {
           // Reload properties after update
-          api.get<any>("/owner/properties/mine", { params: { status: "APPROVED" } })
+          api.get<any>("/api/owner/properties/mine", { params: { status: "APPROVED" } })
             .then(r => {
-              const data = r.data;
-              const properties = Array.isArray(data) ? data : (data?.items || []);
+              const properties = normalizeItems(r.data);
               const propertiesWithSlugs = properties.map((p: any) => ({
                 ...p,
                 slug: buildPropertySlug(p.title, p.id),

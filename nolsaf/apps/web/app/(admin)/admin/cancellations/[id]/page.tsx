@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { ArrowLeft, Loader2, MessageSquare, Save, Send, CheckCircle, XCircle, AlertTriangle, CreditCard, FileText, Calendar, MapPin, User, Phone, Mail, Building, DollarSign, Shield, Clock, Lock } from "lucide-react";
 
 const api = axios.create({ baseURL: "", withCredentials: true });
@@ -80,8 +81,10 @@ function fmt(d: string) {
   }
 }
 
-export default function AdminCancellationDetailPage({ params }: { params: { id: string } }) {
-  const id = Number(params.id);
+export default function AdminCancellationDetailPage() {
+  const params = useParams<{ id?: string | string[] }>();
+  const idParam = Array.isArray(params?.id) ? params?.id?.[0] : params?.id;
+  const id = Number(idParam);
 
   const [item, setItem] = useState<Item | null>(null);
   const [paymentInfo, setPaymentInfo] = useState<PaymentInfo>(null);

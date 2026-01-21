@@ -8,13 +8,34 @@ import rateLimit from "express-rate-limit";
 
 export const router = Router();
 
+/** Derive room-type key from roomCode (e.g. "Suite-1" -> "Suite", "Suite" -> "Suite") */
+function roomCodeToTypeKey(roomCode: string | null | undefined): string {
+  const s = String(roomCode ?? "").trim();
+  if (!s) return "default";
+  return s.replace(/-\d+$/, "") || s;
+}
+
+/** Find which availability bucket (room type) a roomCode belongs to. Uses prefix match so "Suite-1" maps to "Suite". */
+function findBucketKey(roomCode: string | null | undefined, keys: string[]): string | null {
+  const typeKey = roomCodeToTypeKey(roomCode);
+  if (keys.includes(typeKey)) return typeKey;
+  const rc = String(roomCode ?? "");
+  return keys.find((k) => rc === k || (k && rc.startsWith(k + "-"))) || null;
+}
+
 // Rate limiter for availability checks
 const availabilityLimiter = rateLimit({
   windowMs: 60_000, // 1 minute
-  max: 60, // 60 requests per minute per IP
+  max: process.env.NODE_ENV === "production" ? 300 : 10_000,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many availability requests. Please wait a moment." },
+  // In local dev (or same-machine setups), we don't want rate limiting to block testing.
+  skip: (req) => {
+    if (process.env.NODE_ENV !== "production") return true;
+    const ip = String((req as any).ip || "");
+    return ip === "127.0.0.1" || ip === "::1";
+  },
 });
 
 // Validation schema
@@ -42,6 +63,9 @@ router.post("/check", availabilityLimiter, (async (req: Request, res: Response) 
     }
 
     const { propertyId, checkIn: checkInStr, checkOut: checkOutStr, roomCode } = validationResult.data;
+    const requestedRoomCode = roomCode ? String(roomCode).trim() : null;
+    const requestedIsSpecificRoom = !!(requestedRoomCode && /-\d+$/.test(requestedRoomCode));
+    const requestedTypeKey = requestedRoomCode ? roomCodeToTypeKey(requestedRoomCode) : null;
 
     // Validate dates
     const checkIn = new Date(checkInStr);
@@ -91,6 +115,8 @@ router.post("/check", availabilityLimiter, (async (req: Request, res: Response) 
     }
 
     // Get all bookings that overlap with the requested dates
+    // NOTE: We do not filter by roomCode unless a specific room instance (e.g. "Suite-1") is requested.
+    // For a type-level request (e.g. "Suite"), we bucket by prefix so "Suite-1" counts toward "Suite".
     const conflictingBookings = await prisma.booking.findMany({
       where: {
         propertyId,
@@ -105,7 +131,7 @@ router.post("/check", availabilityLimiter, (async (req: Request, res: Response) 
             checkOut: { gt: checkIn },
           },
         ],
-        ...(roomCode && { roomCode }),
+        ...(requestedIsSpecificRoom && requestedRoomCode ? { roomCode: requestedRoomCode } : {}),
       },
       select: {
         id: true,
@@ -128,7 +154,7 @@ router.post("/check", availabilityLimiter, (async (req: Request, res: Response) 
             endDate: { gt: checkIn },
           },
         ],
-        ...(roomCode && { roomCode }),
+        ...(requestedIsSpecificRoom && requestedRoomCode ? { roomCode: requestedRoomCode } : {}),
       },
       select: {
         id: true,
@@ -140,14 +166,57 @@ router.post("/check", availabilityLimiter, (async (req: Request, res: Response) 
       },
     });
 
-    // Parse roomsSpec to get room types and their capacities
-    let roomTypes: Array<{ code?: string; name?: string; beds?: number; rooms?: number }> = [];
+    // Parse roomsSpec to get room types and their capacities.
+    // Supports multiple shapes across the app: {code, rooms, beds} or {roomType, roomsCount, beds} etc.
+    let roomTypes: Array<any> = [];
     if (property.roomsSpec && typeof property.roomsSpec === "object") {
       const spec = property.roomsSpec as any;
-      if (Array.isArray(spec)) {
-        roomTypes = spec;
-      } else if (spec.rooms && Array.isArray(spec.rooms)) {
-        roomTypes = spec.rooms;
+      if (Array.isArray(spec)) roomTypes = spec;
+      else if (spec.rooms && Array.isArray(spec.rooms)) roomTypes = spec.rooms;
+    }
+
+    // Build type buckets: key = room type key (e.g., "Suite")
+    const buckets: Record<string, { totalRooms: number; totalBeds: number }> = {};
+    if (roomTypes.length > 0) {
+      for (const rt of roomTypes) {
+        const rawKey = String(rt?.code ?? rt?.roomCode ?? rt?.roomType ?? rt?.type ?? rt?.name ?? rt?.label ?? "").trim();
+        const key = roomCodeToTypeKey(rawKey) || "default";
+        const rooms = Number(rt?.rooms ?? rt?.roomsCount ?? rt?.count ?? 0) || 0;
+        const bedsPerRoom = Number(rt?.beds ?? rt?.bedsPerRoom ?? rt?.bedsCount ?? rt?.capacity ?? 0) || 0;
+
+        const effectiveRooms = rooms > 0 ? rooms : (property.totalBedrooms || 1);
+        const effectiveBedsPerRoom = bedsPerRoom > 0 ? bedsPerRoom : 1;
+
+        if (!buckets[key]) buckets[key] = { totalRooms: 0, totalBeds: 0 };
+        buckets[key].totalRooms += effectiveRooms;
+        buckets[key].totalBeds += effectiveRooms * effectiveBedsPerRoom;
+      }
+    }
+
+    if (Object.keys(buckets).length === 0) {
+      // Safe fallback
+      const totalRooms = property.totalBedrooms || 1;
+      const bedsPerRoom = 2;
+      buckets["default"] = { totalRooms, totalBeds: totalRooms * bedsPerRoom };
+    }
+
+    // If caller asked for a type key (e.g. "Suite"), restrict to that bucket.
+    // If caller asked for a specific room instance (e.g. "Suite-1"), treat it as a single room.
+    if (requestedRoomCode && requestedTypeKey) {
+      if (requestedIsSpecificRoom) {
+        const base = buckets[requestedTypeKey] || buckets["default"];
+        const bedsPerRoom = Math.max(1, Math.round((base?.totalBeds || 1) / Math.max(1, base?.totalRooms || 1)));
+        for (const k of Object.keys(buckets)) delete buckets[k];
+        buckets[requestedRoomCode] = { totalRooms: 1, totalBeds: bedsPerRoom };
+      } else {
+        const only = buckets[requestedTypeKey];
+        for (const k of Object.keys(buckets)) {
+          if (k !== requestedTypeKey) delete buckets[k];
+        }
+        if (!only) {
+          // Ensure a stable response even if roomsSpec is missing this key
+          buckets[requestedTypeKey] = { totalRooms: 0, totalBeds: 0 };
+        }
       }
     }
 
@@ -163,56 +232,50 @@ router.post("/check", availabilityLimiter, (async (req: Request, res: Response) 
       availableBeds: number;
     }> = {};
 
-    // Initialize room types
-    if (roomCode) {
-      // Check specific room
-      const roomType = roomTypes.find((rt) => rt.code === roomCode);
-      if (roomType) {
-        availabilityByRoomType[roomCode] = {
-          totalRooms: roomType.rooms || 1,
-          totalBeds: (roomType.beds || 1) * (roomType.rooms || 1),
-          bookedRooms: 0,
-          bookedBeds: 0,
-          blockedRooms: 0,
-          blockedBeds: 0,
-          availableRooms: roomType.rooms || 1,
-          availableBeds: (roomType.beds || 1) * (roomType.rooms || 1),
-        };
-      }
-    } else {
-      // Check all room types
-      roomTypes.forEach((rt) => {
-        const code = rt.code || "default";
-        availabilityByRoomType[code] = {
-          totalRooms: rt.rooms || property.totalBedrooms || 1,
-          totalBeds: (rt.beds || 1) * (rt.rooms || property.totalBedrooms || 1),
-          bookedRooms: 0,
-          bookedBeds: 0,
-          blockedRooms: 0,
-          blockedBeds: 0,
-          availableRooms: rt.rooms || property.totalBedrooms || 1,
-          availableBeds: (rt.beds || 1) * (rt.rooms || property.totalBedrooms || 1),
-        };
-      });
-    }
-
-    // Count bookings by room code
-    conflictingBookings.forEach((booking) => {
-      const code = booking.roomCode || "default";
-      if (availabilityByRoomType[code]) {
-        availabilityByRoomType[code].bookedRooms += 1;
-        // Assume 1 bed per booking if not specified
-        availabilityByRoomType[code].bookedBeds += 1;
-      }
+    // Initialize buckets
+    Object.entries(buckets).forEach(([key, b]) => {
+      availabilityByRoomType[key] = {
+        totalRooms: b.totalRooms,
+        totalBeds: b.totalBeds,
+        bookedRooms: 0,
+        bookedBeds: 0,
+        blockedRooms: 0,
+        blockedBeds: 0,
+        availableRooms: b.totalRooms,
+        availableBeds: b.totalBeds,
+      };
     });
 
-    // Count blocks by room code
+    const keys = Object.keys(availabilityByRoomType);
+    const bedsPerRoomFor = (key: string) => {
+      const v = availabilityByRoomType[key];
+      if (!v) return 1;
+      return Math.max(1, Math.round((v.totalBeds || 1) / Math.max(1, v.totalRooms || 1)));
+    };
+
+    // Count bookings by room type bucket
+    conflictingBookings.forEach((booking) => {
+      if (requestedRoomCode && requestedIsSpecificRoom && booking.roomCode !== requestedRoomCode) return;
+
+      const bucket = findBucketKey(booking.roomCode, keys) || (keys.length ? keys[0] : null);
+      if (!bucket || !availabilityByRoomType[bucket]) return;
+
+      const bedsPerRoom = bedsPerRoomFor(bucket);
+      availabilityByRoomType[bucket].bookedRooms += 1;
+      availabilityByRoomType[bucket].bookedBeds += bedsPerRoom;
+    });
+
+    // Count blocks by room type bucket (bedsBlocked represents number of rooms/beds blocked)
     availabilityBlocks.forEach((block) => {
-      const code = block.roomCode || "default";
-      if (availabilityByRoomType[code]) {
-        availabilityByRoomType[code].blockedRooms += 1;
-        availabilityByRoomType[code].blockedBeds += block.bedsBlocked || 1;
-      }
+      if (requestedRoomCode && requestedIsSpecificRoom && block.roomCode !== requestedRoomCode) return;
+
+      const bucket = findBucketKey(block.roomCode, keys) || (keys.length ? keys[0] : null);
+      if (!bucket || !availabilityByRoomType[bucket]) return;
+
+      const roomsBlocked = Number(block.bedsBlocked ?? 1) || 1;
+      const bedsPerRoom = bedsPerRoomFor(bucket);
+      availabilityByRoomType[bucket].blockedRooms += roomsBlocked;
+      availabilityByRoomType[bucket].blockedBeds += roomsBlocked * bedsPerRoom;
     });
 
     // Calculate available counts
@@ -239,7 +302,7 @@ router.post("/check", availabilityLimiter, (async (req: Request, res: Response) 
       propertyId,
       checkIn: checkIn.toISOString(),
       checkOut: checkOut.toISOString(),
-      roomCode: roomCode || null,
+      roomCode: requestedRoomCode || null,
       summary: {
         totalAvailableRooms,
         totalAvailableBeds,

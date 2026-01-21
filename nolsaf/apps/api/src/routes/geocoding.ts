@@ -28,6 +28,17 @@ const limitGeocoding = rateLimit({
   },
 });
 
+// Public geocoding is used by anonymous booking flows.
+// Keep stricter limits to reduce abuse/cost.
+const limitPublicGeocoding = rateLimit({
+  windowMs: 60_000, // 1 minute
+  max: 10, // 10 requests per minute per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests. Please wait a moment and try again." },
+  keyGenerator: (req) => req.ip || req.socket.remoteAddress || "unknown",
+});
+
 // Validation schemas
 const forwardGeocodingSchema = z.object({
   query: z.string().min(1).max(200), // Limit query length
@@ -38,6 +49,14 @@ const forwardGeocodingSchema = z.object({
   }).optional(),
   types: z.array(z.enum(["country", "region", "postcode", "district", "place", "locality", "neighborhood", "address", "poi"])).optional(),
   limit: z.number().int().min(1).max(10).optional().default(5), // Limit results
+});
+
+const publicForwardGeocodingSchema = z.object({
+  query: z.string().min(1).max(200),
+  // Public booking pickup is expected to be in Tanzania.
+  // We allow overriding, but only to TZ.
+  country: z.literal("TZ").optional().default("TZ"),
+  limit: z.number().int().min(1).max(5).optional().default(3),
 });
 
 const reverseGeocodingSchema = z.object({
@@ -127,6 +146,77 @@ router.post("/forward", requireAuth as RequestHandler, limitGeocoding, (async (r
       return;
     }
     console.error("POST /geocoding/forward error:", error);
+    res.status(500).json({ error: "Failed to geocode address" });
+  }
+}) as RequestHandler);
+
+/**
+ * POST /api/geocoding/public/forward
+ * Public forward geocoding for pickup location during booking.
+ * Body: { query: string, country?: "TZ", limit?: number }
+ *
+ * Security:
+ * - Strict rate limiting (per IP)
+ * - Input validation + sanitization
+ * - Country constrained to TZ
+ */
+router.post("/public/forward", limitPublicGeocoding, (async (req: Request, res: Response) => {
+  try {
+    if (!MAPBOX_TOKEN) {
+      res.status(503).json({ error: "Geocoding service not configured" });
+      return;
+    }
+
+    const body = publicForwardGeocodingSchema.parse(req.body);
+    const sanitizedQuery = sanitizeText(body.query);
+
+    const params = new URLSearchParams();
+    params.append("access_token", MAPBOX_TOKEN);
+    params.append("limit", String(body.limit));
+    params.append("country", "TZ");
+    // Keep results relevant for pickup points
+    params.append("types", "address,poi,place");
+
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(sanitizedQuery)}.json?${params.toString()}`;
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "User-Agent": "NoLS-API/1.0",
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => "Unknown error");
+      console.error("Mapbox geocoding error (public):", response.status, errorText);
+      res.status(response.status === 401 ? 503 : 502).json({
+        error: "Geocoding service error",
+        message: response.status === 401 ? "Invalid API key" : "Service temporarily unavailable",
+      });
+      return;
+    }
+
+    const data = await response.json();
+    const features = (data.features || []).map((feature: any) => ({
+      id: feature.id || null,
+      type: feature.geometry?.type || null,
+      coordinates: feature.geometry?.coordinates || null,
+      placeName: sanitizeText(feature.place_name || ""),
+      text: sanitizeText(feature.text || ""),
+      relevance: feature.relevance || 0,
+    }));
+
+    res.json({
+      query: sanitizedQuery,
+      features,
+      attribution: "© Mapbox © OpenStreetMap",
+    });
+  } catch (error: any) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({ error: "Invalid request", details: error.errors });
+      return;
+    }
+    console.error("POST /geocoding/public/forward error:", error);
     res.status(500).json({ error: "Failed to geocode address" });
   }
 }) as RequestHandler);

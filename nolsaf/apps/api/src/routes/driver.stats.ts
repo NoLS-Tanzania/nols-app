@@ -10,6 +10,7 @@ import { generateRegistrationOptions, verifyRegistrationResponse, generateAuthen
 import { validatePasswordStrength, isPasswordReused, addPasswordToHistory } from '../lib/security.js';
 import { validatePasswordWithSettings } from '../lib/securitySettings.js';
 import { requireAuth, AuthedRequest } from "../middleware/auth.js";
+import { limitDriverTripsList, limitDriverTripAction } from "../middleware/rateLimit.js";
 
 // local no-op audit helper to satisfy references to `audit`
 // If the application provides an audit function via req.app.get('audit'), delegate to it.
@@ -478,8 +479,21 @@ const getTrips: RequestHandler = async (req, res) => {
   const skip = (page - 1) * pageSize;
 
   try {
-    if ((prisma as any).booking) {
+    // This endpoint powers the DRIVER "Trips" table.
+    // Per product definition:
+    // - Scheduled Trips = future rides (drivers can claim/await assignment)
+    // - Trips = rides that need attention now or already happened (not future)
+    if ((prisma as any).transportBooking) {
+      const now = new Date();
       const where: any = { driverId: user.id };
+
+      // Trips = needs attention now OR already happened.
+      // Scheduled Trips = future rides not started yet.
+      where.OR = [
+        { scheduledDate: { lte: now } },
+        { status: { in: ["CONFIRMED", "IN_PROGRESS"] } },
+      ];
+
       const date = (req.query.date as string) || undefined;
       const start = (req.query.start as string) || undefined;
       const end = (req.query.end as string) || undefined;
@@ -487,26 +501,34 @@ const getTrips: RequestHandler = async (req, res) => {
         if (date) {
           const s = new Date(date + 'T00:00:00.000Z');
           const e = new Date(date + 'T23:59:59.999Z');
-          where.scheduledAt = { gte: s, lte: e };
+          // If user filters by date, honor it and don't apply the Trips/Scheduled split beyond that.
+          where.OR = undefined;
+          where.scheduledDate = { gte: s, lte: e };
         } else if (start || end) {
           const s = start ? new Date(start + 'T00:00:00.000Z') : new Date(0);
           const e = end ? new Date(end + 'T23:59:59.999Z') : new Date();
-          where.scheduledAt = { gte: s, lte: e };
+          where.OR = undefined;
+          where.scheduledDate = { gte: s, lte: e };
         }
       } catch (e) {
         // ignore date parsing errors
       }
 
-      const items = await (prisma as any).booking.findMany({ where, orderBy: { scheduledAt: 'desc' }, skip, take: pageSize });
-      const total = await (prisma as any).booking.count({ where });
+      const items = await (prisma as any).transportBooking.findMany({
+        where,
+        orderBy: { scheduledDate: 'desc' },
+        skip,
+        take: pageSize,
+      });
+      const total = await (prisma as any).transportBooking.count({ where });
 
       const mapped = (items || []).map((b: any) => ({
         id: b.id,
-        date: b.scheduledAt ?? b.date ?? b.createdAt,
-        pickup: b.pickup || b.pickupAddress || b.pickupLocation || null,
-        dropoff: b.dropoff || b.dropoffAddress || b.dropoffLocation || null,
-        tripCode: b.tripCode || b.code || b.reference || null,
-        amount: b.price ?? b.fare ?? b.total ?? null,
+        date: b.pickupTime ?? b.scheduledDate ?? b.createdAt,
+        pickup: b.fromAddress || b.pickupLocation || b.fromRegion || null,
+        dropoff: b.toAddress || b.toRegion || null,
+        tripCode: b.paymentRef || null,
+        amount: b.amount ?? null,
         status: b.status || null,
       }));
 
@@ -520,7 +542,6 @@ const getTrips: RequestHandler = async (req, res) => {
     return res.status(500).json({ error: 'failed' });
   }
 };
-router.get('/trips', getTrips as unknown as RequestHandler);
 
 /**
  * POST /driver/trips/:tripId/accept
@@ -539,6 +560,9 @@ const postAcceptTrip: RequestHandler = async (req, res) => {
       },
     });
     if (!existing) return res.status(404).json({ error: "not_found" });
+    if (existing.status === "PENDING_REVIEW") {
+      return res.status(409).json({ error: "trip_pending_review" });
+    }
     if (existing.status === "CANCELED" || existing.status === "COMPLETED") {
       return res.status(409).json({ error: "trip_not_active" });
     }
@@ -723,9 +747,11 @@ const postCancelTrip: RequestHandler = async (req, res) => {
   }
 };
 
-router.post("/trips/:tripId/accept", postAcceptTrip as unknown as RequestHandler);
-router.post("/trips/:tripId/decline", postDeclineTrip as unknown as RequestHandler);
-router.post("/trips/:tripId/cancel", postCancelTrip as unknown as RequestHandler);
+router.get('/trips', limitDriverTripsList, getTrips as unknown as RequestHandler);
+
+router.post("/trips/:tripId/accept", limitDriverTripAction, postAcceptTrip as unknown as RequestHandler);
+router.post("/trips/:tripId/decline", limitDriverTripAction, postDeclineTrip as unknown as RequestHandler);
+router.post("/trips/:tripId/cancel", limitDriverTripAction, postCancelTrip as unknown as RequestHandler);
 
 /**
  * GET /driver/safety?date=...&start=...&end=...

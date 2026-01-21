@@ -1,14 +1,17 @@
 "use client";
 import { useEffect, useState } from "react";
 import axios from "axios";
+import { useParams } from "next/navigation";
 // Use same-origin calls + secure httpOnly cookie session.
 const api = axios.create({ baseURL: "", withCredentials: true });
 
-export default function Receipt({ params }:{ params:{ id:string }}) {
+export default function Receipt() {
+  const routeParams = useParams<{ id?: string | string[] }>();
+  const idParam = Array.isArray(routeParams?.id) ? routeParams?.id?.[0] : routeParams?.id;
   const [data, setData] = useState<any>(null);
   useEffect(() => {
-    api.get(`/api/owner/revenue/invoices/${params.id}/receipt`).then(r => setData(r.data));
-  }, [params.id]);
+    api.get(`/api/owner/revenue/invoices/${idParam}/receipt`).then(r => setData(r.data));
+  }, [idParam]);
 
   if (!data) return <div>Loading...</div>;
   const { invoice: inv, qrPayload } = data;

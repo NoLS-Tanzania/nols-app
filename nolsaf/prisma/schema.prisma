@@ -95,6 +95,9 @@ model User {
   available   Boolean? @default(true) // Driver availability
   isAvailable Boolean? @default(true) // Alternative field name
 
+  /// VIP driver flag (required for PREMIUM/VIP transport claims)
+  isVipDriver Boolean @default(false)
+
   // Payout/Banking details for owners (JSON lets us store momo/bank variants)
   payout Json?
 
@@ -114,6 +117,12 @@ model User {
 
   // Bookings assigned to this user as a driver (optional)
   driverBookings Booking[] @relation("BookingDriver")
+
+  /// Claims submitted by this driver for transport bookings
+  transportBookingClaims TransportBookingClaim[] @relation("DriverTransportBookingClaims")
+
+  /// Transport booking claims reviewed by this user (admin)
+  reviewedTransportBookingClaims TransportBookingClaim[] @relation("TransportBookingClaimReviews")
 
   // Invoices for this user (if owner)
   invoices         Invoice[]
@@ -301,7 +310,11 @@ model Property {
   availabilityBlocks PropertyAvailabilityBlock[]
 
   @@index([ownerId])
+  // Supports: WHERE ownerId=? ORDER BY id DESC
+  @@index([ownerId, id], map: "idx_Property_ownerId_id")
   @@index([status])
+  // Supports: WHERE ownerId=? AND status=? ORDER BY id DESC
+  @@index([ownerId, status, id], map: "idx_Property_ownerId_status_id")
   @@index([type])
   @@index([regionId])
   @@index([regionName])
@@ -326,6 +339,13 @@ model Booking {
   userId     Int? // Customer account (optional if walk-in)
   driverId   Int? // Assigned driver (optional)
   status     String @default("NEW") // NEW, CONFIRMED, CHECKED_IN, CHECKED_OUT, CANCELED
+
+  // Transport summary (denormalized; authoritative trip data lives in TransportBooking)
+  includeTransport       Boolean   @default(false)
+  transportVehicleType   String?   @db.VarChar(20)
+  transportScheduledDate DateTime?
+  transportOriginAddress String?   @db.VarChar(255)
+  transportFare          Decimal?  @db.Decimal(12, 2)
 
   checkIn     DateTime
   checkOut    DateTime
@@ -361,6 +381,8 @@ model Booking {
   @@index([createdAt]) // For time-based queries (e.g., bookings in last 24h)
   @@index([status, checkIn])
   @@index([status, createdAt]) // For filtering by status and creation time
+  @@index([includeTransport])
+  @@index([includeTransport, transportScheduledDate])
   @@map("Booking")
 }
 
@@ -481,6 +503,7 @@ model AuditLog {
 
   @@index([actorId])
   @@index([entity, entityId])
+  @@index([entity, entityId, id], map: "idx_AuditLog_entity_entityId_id")
   @@index([createdAt])
   @@map("AuditLog")
 }
@@ -1010,7 +1033,7 @@ model TransportBooking {
   toLongitude Decimal? @db.Decimal(10, 6)
 
   // ==================== Ride Details ====================
-  /// Vehicle type: BODA, BAJAJI, CAR, XL
+  /// Vehicle type: BODA, BAJAJI, CAR, XL, PREMIUM
   vehicleType String? @db.VarChar(20)
 
   /// Total amount for the ride
@@ -1074,6 +1097,9 @@ model TransportBooking {
   // Messages between driver, passenger, and admin
   messages TransportMessage[]
 
+  /// Competitive claims from drivers (max 5 per booking enforced in API)
+  claims TransportBookingClaim[]
+
   @@index([userId])
   @@index([driverId])
   @@index([propertyId])
@@ -1082,6 +1108,40 @@ model TransportBooking {
   @@index([paymentStatus])
   @@index([vehicleType])
   @@map("TransportBooking")
+}
+
+// =========================================================
+//  TRANSPORT BOOKING CLAIM MODEL - Driver competitive claims
+// =========================================================
+model TransportBookingClaim {
+  id Int @id @default(autoincrement())
+
+  /// Transport booking being claimed
+  bookingId Int
+  /// Driver who submitted the claim
+  driverId Int
+
+  /// Claim status: PENDING, ACCEPTED, REJECTED, WITHDRAWN
+  status String @default("PENDING") @db.VarChar(40)
+
+  /// Timestamp when claim was accepted/rejected
+  reviewedAt DateTime?
+  /// Admin who reviewed the claim
+  reviewedBy Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  booking  TransportBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  driver   User            @relation("DriverTransportBookingClaims", fields: [driverId], references: [id], onDelete: Cascade)
+  reviewer User?           @relation("TransportBookingClaimReviews", fields: [reviewedBy], references: [id], onDelete: SetNull)
+
+  @@unique([bookingId, driverId])
+  @@index([bookingId])
+  @@index([driverId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("transport_booking_claims")
 }
 
 // =========================================================
@@ -1330,6 +1390,9 @@ model SystemSetting {
   /// Tax percentage (e.g., 0.00 for 0%)
   taxPercent Decimal? @default(0.00) @db.Decimal(5, 2)
 
+  /// Default currency for the platform (ISO 4217, e.g., "TZS")
+  currency String? @default("TZS") @db.VarChar(3)
+
   /// Invoice number prefix (e.g., "INV")
   invoicePrefix String? @default("INV")
 
@@ -1344,6 +1407,12 @@ model SystemSetting {
 
   /// Whether SMS notifications are enabled
   smsEnabled Boolean? @default(true)
+
+  /// Support contact email shown in UI/receipts (optional)
+  supportEmail String? @db.VarChar(191)
+
+  /// Support contact phone shown in UI/receipts (optional)
+  supportPhone String? @db.VarChar(40)
 
   // ==================== Security & Cybersecurity Fields ====================
   /// Require two-factor authentication for admin accounts

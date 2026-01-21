@@ -19,7 +19,7 @@ type Property = {
   title: string;
   status: string;
   type: string | null;
-  photos?: string[];
+  photos?: unknown;
   regionName?: string | null;
   district?: string | null;
   owner?: { id: number; name?: string | null; email?: string | null } | null;
@@ -33,6 +33,33 @@ type Property = {
     city?: string | null;
   } | null;
 };
+
+function isSafeNextImageSrc(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const v = value.trim();
+  if (!v) return false;
+  if (v.startsWith("/")) return true;
+  if (v.startsWith("http://") || v.startsWith("https://")) return true;
+  return false;
+}
+
+function canUseNextImageForSrc(src: string): boolean {
+  if (src.startsWith("/")) return true;
+
+  if (!src.startsWith("http://") && !src.startsWith("https://")) return false;
+  try {
+    const url = new URL(src);
+    const host = url.hostname;
+    if (host === "localhost" || host === "127.0.0.1") return true;
+    if (host === "res.cloudinary.com") return true;
+    if (host === "img.youtube.com") return true;
+    if (host === "api.mapbox.com") return true;
+    if (host.endsWith(".mapbox.com")) return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
 
 export default function PropertyPreviewsPage() {
   const [properties, setProperties] = useState<Property[]>([]);
@@ -406,6 +433,14 @@ export default function PropertyPreviewsPage() {
                 property.location?.regionName || property.regionName,
               ].filter(Boolean);
               const location = locationParts.join(", ") || "—";
+
+              const primaryPhoto = (() => {
+                if (Array.isArray(property.photos)) {
+                  return property.photos.find(isSafeNextImageSrc) ?? null;
+                }
+                if (isSafeNextImageSrc(property.photos)) return property.photos;
+                return null;
+              })();
               
               const hotelStarLabels: Record<string, string> = {
                 "basic": "1★",
@@ -430,14 +465,23 @@ export default function PropertyPreviewsPage() {
                   {/* Image */}
                   <div className="px-4 mt-3">
                     <div className="relative aspect-square bg-slate-100 rounded-2xl overflow-hidden" style={{ border: 'none' }}>
-                {property.photos && property.photos.length > 0 ? (
-                    <Image
-                      src={property.photos[0]}
-                      alt=""
-                      fill
-                      sizes="(min-width: 1536px) 16vw, (min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"
-                      className="object-cover group-hover:scale-105 transition-transform duration-200 rounded-2xl"
-                    />
+                {primaryPhoto ? (
+                    canUseNextImageForSrc(primaryPhoto) ? (
+                      <Image
+                        src={primaryPhoto}
+                        alt=""
+                        fill
+                        sizes="(min-width: 1536px) 16vw, (min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"
+                        className="object-cover group-hover:scale-105 transition-transform duration-200 rounded-2xl"
+                      />
+                    ) : (
+                      <img
+                        src={primaryPhoto}
+                        alt=""
+                        className="object-cover group-hover:scale-105 transition-transform duration-200 rounded-2xl"
+                        style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+                      />
+                    )
                       ) : (
                         <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 rounded-2xl">
                           <span className="text-slate-400 text-sm">No image</span>

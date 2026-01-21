@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -27,7 +27,41 @@ import {
   calculateTransportFare,
   getFareBreakdown,
   type Location,
+  type TransportVehicleType,
+  getVehicleTypeLabel,
 } from "../../../../lib/transportFareCalculator";
+
+type PickupPreset = {
+  id: string;
+  label: string;
+  lat: number;
+  lng: number;
+  arrivalType: "FLIGHT" | "BUS" | "TRAIN" | "FERRY" | "OTHER";
+};
+
+const PICKUP_PRESETS: PickupPreset[] = [
+  {
+    id: "JNIA",
+    label: "Julius Nyerere International Airport (DAR)",
+    lat: -6.878111,
+    lng: 39.202625,
+    arrivalType: "FLIGHT",
+  },
+  {
+    id: "ZNZ",
+    label: "Abeid Amani Karume International Airport (ZNZ)",
+    lat: -6.222025,
+    lng: 39.224886,
+    arrivalType: "FLIGHT",
+  },
+  {
+    id: "Ubungo",
+    label: "Ubungo Bus Terminal (Dar es Salaam)",
+    lat: -6.77239,
+    lng: 39.21432,
+    arrivalType: "BUS",
+  },
+];
 
 type Property = {
   id: number;
@@ -65,6 +99,13 @@ export default function BookingConfirmPage() {
   const [error, setError] = useState<string | null>(null);
   const [property, setProperty] = useState<Property | null>(null);
   const [bookingData, setBookingData] = useState<BookingData | null>(null);
+
+  const availabilityAbortRef = useRef<AbortController | null>(null);
+  const availabilityDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const [availabilityState, setAvailabilityState] = useState<{
+    status: "idle" | "checking" | "available" | "unavailable";
+    message?: string;
+  }>({ status: "idle" });
   
   // Guest information form
   const [guestName, setGuestName] = useState("");
@@ -77,11 +118,15 @@ export default function BookingConfirmPage() {
   
   // Transportation
   const [includeTransport, setIncludeTransport] = useState(false);
+  const [transportVehicleType, setTransportVehicleType] = useState<TransportVehicleType>("CAR");
+  const [pickupMode, setPickupMode] = useState<"current" | "arrival" | "manual">("current");
+  const [pickupPresetId, setPickupPresetId] = useState<string>("");
   const [transportOriginAddress, setTransportOriginAddress] = useState("");
   const [transportOriginLat, setTransportOriginLat] = useState<number | null>(null);
   const [transportOriginLng, setTransportOriginLng] = useState<number | null>(null);
   const [transportFare, setTransportFare] = useState<number | null>(null);
   const [calculatingFare, setCalculatingFare] = useState(false);
+  const [transportPickupError, setTransportPickupError] = useState<string | null>(null);
   // Flexible arrival fields
   const [arrivalType, setArrivalType] = useState<"FLIGHT" | "BUS" | "TRAIN" | "FERRY" | "OTHER" | "">("");
   const [arrivalNumber, setArrivalNumber] = useState("");
@@ -97,6 +142,25 @@ export default function BookingConfirmPage() {
 
   const [selectedRoomCode, setSelectedRoomCode] = useState<string | null>(null);
   const [selectedRoomIndex, setSelectedRoomIndex] = useState<number | null>(null);
+
+  const requiresArrivalInfo = includeTransport && pickupMode === "arrival" && !!pickupPresetId;
+  const arrivalTypeLocked = requiresArrivalInfo;
+
+  function getRoomCodeForAvailabilityCheck(): string | null {
+    if (selectedRoomCode) return selectedRoomCode;
+    if (selectedRoomIndex === null) return null;
+
+    const spec: any = (property as any)?.roomsSpec;
+    let roomTypes: any[] = [];
+    if (spec && typeof spec === "object") {
+      if (Array.isArray(spec)) roomTypes = spec;
+      else if (Array.isArray((spec as any).rooms)) roomTypes = (spec as any).rooms;
+    }
+
+    const rt = roomTypes?.[selectedRoomIndex];
+    const rawKey = String(rt?.code ?? rt?.roomCode ?? rt?.roomType ?? rt?.type ?? rt?.name ?? rt?.label ?? "").trim();
+    return rawKey || null;
+  }
 
   useEffect(() => {
     // Get booking data from URL params
@@ -144,6 +208,97 @@ export default function BookingConfirmPage() {
     // Fetch property details
     fetchProperty(numericPropertyId);
   }, [searchParams]);
+
+  // Cleanup availability checks on unmount
+  useEffect(() => {
+    return () => {
+      if (availabilityDebounceRef.current) clearTimeout(availabilityDebounceRef.current);
+      if (availabilityAbortRef.current) availabilityAbortRef.current.abort();
+    };
+  }, []);
+
+  // Re-check availability when dates/room selection changes (pre-payment validation)
+  useEffect(() => {
+    if (!bookingData?.propertyId) return;
+
+    const checkInRaw = bookingData.checkIn;
+    const checkOutRaw = bookingData.checkOut;
+
+    if (!checkInRaw || !checkOutRaw) {
+      setAvailabilityState({ status: "idle" });
+      return;
+    }
+
+    const checkInDate = new Date(checkInRaw);
+    const checkOutDate = new Date(checkOutRaw);
+    if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime()) || checkOutDate <= checkInDate) {
+      setAvailabilityState({ status: "idle" });
+      return;
+    }
+
+    if (availabilityDebounceRef.current) clearTimeout(availabilityDebounceRef.current);
+    if (availabilityAbortRef.current) availabilityAbortRef.current.abort();
+
+    setAvailabilityState({ status: "checking" });
+    availabilityDebounceRef.current = setTimeout(async () => {
+      const controller = new AbortController();
+      availabilityAbortRef.current = controller;
+
+      try {
+        const roomCode = getRoomCodeForAvailabilityCheck();
+        const response = await fetch("/api/public/availability/check", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({
+            propertyId: bookingData.propertyId,
+            checkIn: checkInDate.toISOString(),
+            checkOut: checkOutDate.toISOString(),
+            roomCode: roomCode || null,
+          }),
+        });
+
+        const contentType = response.headers.get("content-type") || "";
+        const payload = contentType.includes("application/json") ? await response.json() : null;
+
+        if (!response.ok) {
+          const msg =
+            payload?.error ||
+            payload?.message ||
+            `Availability check failed (HTTP ${response.status})`;
+          setAvailabilityState({ status: "unavailable", message: msg });
+          return;
+        }
+
+        const available = !!payload?.available;
+        if (available) {
+          setAvailabilityState({ status: "available" });
+        } else {
+          const summary = payload?.summary;
+          const msg =
+            typeof summary?.totalAvailableRooms === "number" && typeof summary?.totalAvailableBeds === "number"
+              ? summary.totalAvailableRooms === 0 && summary.totalAvailableBeds === 0
+                ? "No availability for these dates (0 rooms, 0 beds)."
+                : `Limited availability: ${summary.totalAvailableRooms} rooms, ${summary.totalAvailableBeds} beds.`
+              : "No availability for these dates.";
+          setAvailabilityState({ status: "unavailable", message: msg });
+        }
+      } catch (err: any) {
+        if (err?.name === "AbortError") return;
+        setAvailabilityState({
+          status: "unavailable",
+          message: "Could not verify availability right now. Please try again.",
+        });
+      }
+    }, 350);
+  }, [
+    bookingData?.propertyId,
+    bookingData?.checkIn,
+    bookingData?.checkOut,
+    selectedRoomCode,
+    selectedRoomIndex,
+    (property as any)?.roomsSpec,
+  ]);
 
   async function fetchProperty(propertyId: number) {
     // Validate propertyId is a valid number
@@ -274,6 +429,18 @@ export default function BookingConfirmPage() {
       return;
     }
 
+    // Pre-payment availability gate (server-side booking creation will still re-check under lock)
+    if (availabilityState.status === "checking") {
+      setError("Checking availability... please wait a moment.");
+      setSubmitting(false);
+      return;
+    }
+    if (availabilityState.status === "unavailable") {
+      setError(availabilityState.message || "Selected dates are no longer available. Please choose different dates.");
+      setSubmitting(false);
+      return;
+    }
+
     if (checkOutDate <= checkInDate) {
       setError("Check-out date must be after check-in date");
       setSubmitting(false);
@@ -291,6 +458,57 @@ export default function BookingConfirmPage() {
       setError("Please enter your phone number");
       setSubmitting(false);
       return;
+    }
+
+    if (includeTransport) {
+      if (calculatingFare) {
+        setError("Calculating transportation fare... please wait a moment.");
+        setSubmitting(false);
+        return;
+      }
+      if (transportOriginLat === null || transportOriginLng === null) {
+        setError("Please select a pickup location for transportation (Current / Arrival / Type).");
+        setSubmitting(false);
+        return;
+      }
+      if (!transportOriginAddress.trim()) {
+        setError("Please provide a pickup location name/address.");
+        setSubmitting(false);
+        return;
+      }
+      if (transportFare === null || !Number.isFinite(transportFare) || transportFare <= 0) {
+        setError("Transport fare is not ready yet. Please set a pickup location.");
+        setSubmitting(false);
+        return;
+      }
+
+      if (requiresArrivalInfo) {
+        if (!arrivalType) {
+          setError("Please confirm how you are arriving (Flight/Bus/etc).");
+          setSubmitting(false);
+          return;
+        }
+        if (!arrivalDate) {
+          setError("Please select your arrival date.");
+          setSubmitting(false);
+          return;
+        }
+        if (!arrivalTimeHour) {
+          setError("Please enter your arrival time (hour).");
+          setSubmitting(false);
+          return;
+        }
+        if (!arrivalTimeMinute) {
+          setError("Please enter your arrival time (minute).");
+          setSubmitting(false);
+          return;
+        }
+        if (!pickupLocation.trim()) {
+          setError("Please enter the specific pickup area/terminal (e.g., Terminal 1, Gate 3).");
+          setSubmitting(false);
+          return;
+        }
+      }
     }
 
     try {
@@ -312,13 +530,14 @@ export default function BookingConfirmPage() {
         adults: bookingData.adults || 1,
         children: bookingData.children || 0,
         pets: bookingData.pets || 0,
-        roomCode: selectedRoomCode || (selectedRoomIndex !== null ? String(selectedRoomIndex) : null), // Include selected room code or index
+        roomCode: selectedRoomCode || getRoomCodeForAvailabilityCheck(), // Keep consistent with live availability checks
         specialRequests: specialRequests.trim() || null,
         includeTransport: includeTransport || false,
-        transportOriginLat: includeTransport && transportOriginLat ? transportOriginLat : null,
-        transportOriginLng: includeTransport && transportOriginLng ? transportOriginLng : null,
+        transportOriginLat: includeTransport && transportOriginLat !== null ? transportOriginLat : null,
+        transportOriginLng: includeTransport && transportOriginLng !== null ? transportOriginLng : null,
         transportOriginAddress: includeTransport && transportOriginAddress.trim() ? transportOriginAddress.trim() : null,
         transportFare: includeTransport && transportFare ? transportFare : null,
+        transportVehicleType: includeTransport ? transportVehicleType : null,
         // Flexible arrival fields
         arrivalType: includeTransport && arrivalType ? arrivalType : null,
         arrivalNumber: includeTransport && arrivalNumber.trim() ? arrivalNumber.trim() : null,
@@ -326,8 +545,8 @@ export default function BookingConfirmPage() {
         arrivalTime: includeTransport && arrivalDate && (arrivalTimeHour || arrivalTimeMinute) 
           ? (() => {
               const date = new Date(arrivalDate);
-              if (arrivalTimeHour) date.setHours(parseInt(arrivalTimeHour) || 0);
-              if (arrivalTimeMinute) date.setMinutes(parseInt(arrivalTimeMinute) || 0);
+              date.setHours(parseInt(arrivalTimeHour || "0") || 0);
+              date.setMinutes(parseInt(arrivalTimeMinute || "0") || 0);
               return date.toISOString();
             })()
           : includeTransport && arrivalDate
@@ -344,41 +563,67 @@ export default function BookingConfirmPage() {
         body: JSON.stringify(requestBody),
       });
 
-      // Check if response is JSON
-      const contentType = bookingResponse.headers.get("content-type");
-      let bookingResult;
-      
-      if (contentType && contentType.includes("application/json")) {
-        bookingResult = await bookingResponse.json();
-      } else {
-        const text = await bookingResponse.text();
-        throw new Error(`Server error: ${text || `HTTP ${bookingResponse.status}`}`);
-      }
+      const isDev = process.env.NODE_ENV === "development";
+
+      // Read body once as text, then try to parse JSON (more reliable for error handling).
+      const bookingContentType = bookingResponse.headers.get("content-type") || "";
+      const bookingBodyText = await bookingResponse.text();
+      const bookingResult = (() => {
+        if (!bookingBodyText) return null;
+        if (!bookingContentType.includes("application/json")) return null;
+        try {
+          return JSON.parse(bookingBodyText);
+        } catch {
+          return null;
+        }
+      })();
 
       if (!bookingResponse.ok) {
         // Show detailed error message if available
-        let errorMessage = bookingResult.error || "Failed to create booking";
+        let errorMessage = (bookingResult as any)?.error || "Failed to create booking";
         
         // Add validation details if available
-        if (bookingResult.details && Array.isArray(bookingResult.details)) {
-          const details = bookingResult.details.map((d: any) => 
+        if ((bookingResult as any)?.details && Array.isArray((bookingResult as any).details)) {
+          const details = (bookingResult as any).details.map((d: any) => 
             `${d.path?.join('.') || 'field'}: ${d.message}`
           ).join(', ');
           errorMessage = `${errorMessage}. ${details}`;
         }
         
         // Add development message if available
-        if (bookingResult.message) {
-          errorMessage = `${errorMessage}. ${bookingResult.message}`;
+        if ((bookingResult as any)?.message) {
+          errorMessage = `${errorMessage}. ${(bookingResult as any).message}`;
+        }
+
+        // If server returned non-JSON or empty JSON, include HTTP status + raw body.
+        if (!bookingResult) {
+          const statusMsg = `HTTP ${bookingResponse.status}${bookingResponse.statusText ? ` ${bookingResponse.statusText}` : ""}`;
+          const bodyMsg = bookingBodyText ? `Response: ${bookingBodyText}` : "";
+          errorMessage = `${errorMessage}. ${statusMsg}${bodyMsg ? `. ${bodyMsg}` : ""}`;
         }
         
-        console.error("Booking creation failed:", {
-          status: bookingResponse.status,
-          error: bookingResult,
-          requestBody: requestBody,
-        });
+        if (isDev) {
+          console.error("Booking creation failed:", {
+            status: bookingResponse.status,
+            statusText: bookingResponse.statusText,
+            contentType: bookingContentType,
+            error: bookingResult,
+            bodyText: bookingBodyText,
+            requestBody,
+          });
+        } else {
+          console.error("Booking creation failed:", {
+            status: bookingResponse.status,
+            statusText: bookingResponse.statusText,
+          });
+        }
         
         throw new Error(errorMessage);
+      }
+
+      if (!bookingResult) {
+        const statusMsg = `HTTP ${bookingResponse.status}${bookingResponse.statusText ? ` ${bookingResponse.statusText}` : ""}`;
+        throw new Error(`Booking response was not valid JSON. ${statusMsg}${bookingBodyText ? ` Response: ${bookingBodyText}` : ""}`);
       }
 
       // Create invoice from booking
@@ -391,44 +636,65 @@ export default function BookingConfirmPage() {
         }),
       });
 
-      // Check if response is JSON
-      const invoiceContentType = invoiceResponse.headers.get("content-type");
-      let invoiceResult;
-      
-      if (invoiceContentType && invoiceContentType.includes("application/json")) {
-        invoiceResult = await invoiceResponse.json();
-      } else {
-        const text = await invoiceResponse.text();
-        throw new Error(`Server error: ${text || `HTTP ${invoiceResponse.status}`}`);
-      }
+      // Read body once as text, then try to parse JSON.
+      const invoiceContentType = invoiceResponse.headers.get("content-type") || "";
+      const invoiceBodyText = await invoiceResponse.text();
+      const invoiceResult = (() => {
+        if (!invoiceBodyText) return null;
+        if (!invoiceContentType.includes("application/json")) return null;
+        try {
+          return JSON.parse(invoiceBodyText);
+        } catch {
+          return null;
+        }
+      })();
 
       if (!invoiceResponse.ok) {
         // Show detailed error message if available
-        let errorMessage = invoiceResult.error || "Failed to create invoice";
+        let errorMessage = (invoiceResult as any)?.error || "Failed to create invoice";
         
         // Add validation details if available
-        if (invoiceResult.details && Array.isArray(invoiceResult.details)) {
-          const details = invoiceResult.details.map((d: any) => 
+        if ((invoiceResult as any)?.details && Array.isArray((invoiceResult as any).details)) {
+          const details = (invoiceResult as any).details.map((d: any) => 
             `${d.path?.join('.') || 'field'}: ${d.message}`
           ).join(', ');
           errorMessage = `${errorMessage}. ${details}`;
         }
         
         // Add development message if available
-        if (invoiceResult.message) {
-          errorMessage = `${errorMessage}. ${invoiceResult.message}`;
+        if ((invoiceResult as any)?.message) {
+          errorMessage = `${errorMessage}. ${(invoiceResult as any).message}`;
+        }
+
+        if (!invoiceResult) {
+          const statusMsg = `HTTP ${invoiceResponse.status}${invoiceResponse.statusText ? ` ${invoiceResponse.statusText}` : ""}`;
+          const bodyMsg = invoiceBodyText ? `Response: ${invoiceBodyText}` : "";
+          errorMessage = `${errorMessage}. ${statusMsg}${bodyMsg ? `. ${bodyMsg}` : ""}`;
         }
         
         // Log full error details for debugging
-        console.error("Invoice creation failed:", {
-          status: invoiceResponse.status,
-          statusText: invoiceResponse.statusText,
-          error: invoiceResult,
-          bookingId: bookingResult.bookingId,
-          fullResponse: invoiceResult,
-        });
+        if (isDev) {
+          console.error("Invoice creation failed:", {
+            status: invoiceResponse.status,
+            statusText: invoiceResponse.statusText,
+            contentType: invoiceContentType,
+            error: invoiceResult,
+            bodyText: invoiceBodyText,
+            bookingId: bookingResult.bookingId,
+          });
+        } else {
+          console.error("Invoice creation failed:", {
+            status: invoiceResponse.status,
+            statusText: invoiceResponse.statusText,
+          });
+        }
         
         throw new Error(errorMessage);
+      }
+
+      if (!invoiceResult) {
+        const statusMsg = `HTTP ${invoiceResponse.status}${invoiceResponse.statusText ? ` ${invoiceResponse.statusText}` : ""}`;
+        throw new Error(`Invoice response was not valid JSON. ${statusMsg}${invoiceBodyText ? ` Response: ${invoiceBodyText}` : ""}`);
       }
 
       // Redirect to payment page with invoice ID
@@ -640,7 +906,16 @@ export default function BookingConfirmPage() {
   
   // Auto-calculate fare when transport is enabled and location is available
   useEffect(() => {
-    if (includeTransport && transportOriginLat && transportOriginLng && property?.latitude && property?.longitude) {
+    const propertyLat = property?.latitude ?? null;
+    const propertyLng = property?.longitude ?? null;
+    const propertyCurrency = property?.currency || "TZS";
+    if (
+      includeTransport &&
+      transportOriginLat !== null &&
+      transportOriginLng !== null &&
+      propertyLat !== null &&
+      propertyLng !== null
+    ) {
       const origin: Location = {
         latitude: transportOriginLat,
         longitude: transportOriginLng,
@@ -648,14 +923,22 @@ export default function BookingConfirmPage() {
       };
 
       const destination: Location = {
-        latitude: property.latitude,
-        longitude: property.longitude,
+        latitude: propertyLat,
+        longitude: propertyLng,
       };
 
-      const currentCurrency = property?.currency || "TZS";
+      let fareAt: Date | undefined;
+      if (arrivalDate) {
+        const d = new Date(arrivalDate);
+        if (!isNaN(d.getTime())) {
+          if (arrivalTimeHour) d.setHours(parseInt(arrivalTimeHour) || 0);
+          if (arrivalTimeMinute) d.setMinutes(parseInt(arrivalTimeMinute) || 0);
+          fareAt = d;
+        }
+      }
 
       try {
-        const fare = calculateTransportFare(origin, destination, currentCurrency);
+        const fare = calculateTransportFare(origin, destination, propertyCurrency, fareAt, transportVehicleType);
         setTransportFare(fare.total);
       } catch (err: any) {
         console.error("Fare calculation error:", err);
@@ -665,8 +948,35 @@ export default function BookingConfirmPage() {
       setTransportOriginAddress("");
       setTransportOriginLat(null);
       setTransportOriginLng(null);
+      setTransportVehicleType("CAR");
+      setPickupMode("current");
+      setPickupPresetId("");
+      setTransportPickupError(null);
     }
-  }, [includeTransport, transportOriginLat, transportOriginLng, property?.latitude, property?.longitude, property?.currency, transportOriginAddress]);
+  }, [
+    includeTransport,
+    transportOriginLat,
+    transportOriginLng,
+    transportOriginAddress,
+    transportVehicleType,
+    property?.id,
+    property?.latitude,
+    property?.longitude,
+    property?.currency,
+    arrivalDate,
+    arrivalTimeHour,
+    arrivalTimeMinute,
+  ]);
+
+  // When switching pickup mode, reset coordinates so fare is recalculated from the chosen method
+  useEffect(() => {
+    if (!includeTransport) return;
+    setTransportPickupError(null);
+    setTransportFare(null);
+    setTransportOriginLat(null);
+    setTransportOriginLng(null);
+    if (pickupMode !== "arrival") setPickupPresetId("");
+  }, [pickupMode, includeTransport]);
   
   // Function to calculate transport fare manually (when user clicks calculate)
   // (manual fare calculation removed; fare is auto-calculated when location is available)
@@ -679,6 +989,7 @@ export default function BookingConfirmPage() {
     }
 
     setCalculatingFare(true);
+    setTransportPickupError(null);
     navigator.geolocation.getCurrentPosition(
       (position) => {
         setTransportOriginLat(position.coords.latitude);
@@ -687,10 +998,75 @@ export default function BookingConfirmPage() {
         // Auto-calculate fare will be triggered by useEffect
       },
       () => {
-        setError("Unable to get your location. Please enter your address manually.");
+        setTransportPickupError("Unable to get your current location. You can select an arrival point (airport) or type a pickup address.");
         setCalculatingFare(false);
       }
     );
+  }
+
+  async function handleGeocodePickupAddress() {
+    const q = transportOriginAddress.trim();
+    if (!q) {
+      setTransportPickupError("Please enter a pickup address or place name.");
+      return;
+    }
+
+    setCalculatingFare(true);
+    setTransportPickupError(null);
+    try {
+      const resp = await fetch("/api/geocoding/public/forward", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: q, country: "TZ", limit: 3 }),
+      });
+
+      const contentType = resp.headers.get("content-type") || "";
+      const payload = contentType.includes("application/json") ? await resp.json() : null;
+
+      if (!resp.ok) {
+        const msg = payload?.error || payload?.message || `Geocoding failed (HTTP ${resp.status})`;
+        setTransportPickupError(msg);
+        return;
+      }
+
+      const best = payload?.features?.[0];
+      const coords = best?.coordinates;
+      const lng = Array.isArray(coords) ? Number(coords[0]) : NaN;
+      const lat = Array.isArray(coords) ? Number(coords[1]) : NaN;
+
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        setTransportPickupError("We couldn't find that pickup location. Try a more specific place (e.g., street + area + city).");
+        return;
+      }
+
+      setTransportOriginLat(lat);
+      setTransportOriginLng(lng);
+      const placeName = String(best?.placeName || "").trim();
+      if (placeName) setTransportOriginAddress(placeName);
+    } catch (e) {
+      setTransportPickupError("Unable to look up that pickup location right now. Please try again.");
+    } finally {
+      setCalculatingFare(false);
+    }
+  }
+
+  function handleSelectPickupPreset(id: string) {
+    setPickupPresetId(id);
+    const preset = PICKUP_PRESETS.find((p) => p.id === id);
+    if (!preset) {
+      setTransportOriginLat(null);
+      setTransportOriginLng(null);
+      setTransportOriginAddress("");
+      setArrivalType("");
+      return;
+    }
+    setTransportOriginLat(preset.lat);
+    setTransportOriginLng(preset.lng);
+    setTransportOriginAddress(preset.label);
+    setTransportPickupError(null);
+
+    // Auto-fill arrival type based on selected pickup point.
+    setArrivalType(preset.arrivalType);
   }
 
   if (loading) {
@@ -1108,6 +1484,95 @@ export default function BookingConfirmPage() {
                       </div>
                     </div>
                   </div>
+
+                  {/* Availability status card (near date + guest selection) */}
+                  {bookingData?.checkIn && bookingData?.checkOut && (
+                    <div
+                      className={[
+                        "mt-4 rounded-2xl border p-4 shadow-sm",
+                        availabilityState.status === "available"
+                          ? "bg-emerald-50/70 border-emerald-200"
+                          : availabilityState.status === "checking"
+                          ? "bg-slate-50 border-slate-200"
+                          : availabilityState.status === "unavailable"
+                          ? "bg-amber-50/70 border-amber-200"
+                          : "bg-white border-slate-200",
+                      ].join(" ")}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div
+                          className={[
+                            "h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0",
+                            availabilityState.status === "available"
+                              ? "bg-emerald-100 text-emerald-700"
+                              : availabilityState.status === "checking"
+                              ? "bg-slate-100 text-slate-700"
+                              : availabilityState.status === "unavailable"
+                              ? "bg-amber-100 text-amber-800"
+                              : "bg-slate-100 text-slate-700",
+                          ].join(" ")}
+                        >
+                          {availabilityState.status === "available" ? (
+                            <CheckCircle2 className="w-5 h-5" />
+                          ) : availabilityState.status === "checking" ? (
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                          ) : availabilityState.status === "unavailable" ? (
+                            <AlertCircle className="w-5 h-5" />
+                          ) : (
+                            <Info className="w-5 h-5" />
+                          )}
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <div className="text-sm font-semibold text-slate-900">Availability status</div>
+                            <span
+                              className={[
+                                "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold border",
+                                availabilityState.status === "available"
+                                  ? "bg-emerald-100 text-emerald-800 border-emerald-200"
+                                  : availabilityState.status === "checking"
+                                  ? "bg-slate-100 text-slate-700 border-slate-200"
+                                  : availabilityState.status === "unavailable"
+                                  ? "bg-amber-100 text-amber-800 border-amber-200"
+                                  : "bg-slate-100 text-slate-700 border-slate-200",
+                              ].join(" ")}
+                            >
+                              {availabilityState.status === "available"
+                                ? "Available"
+                                : availabilityState.status === "checking"
+                                ? "Checking"
+                                : availabilityState.status === "unavailable"
+                                ? "Not available"
+                                : "Select dates"}
+                            </span>
+                          </div>
+
+                          <div className="mt-1 text-sm text-slate-700">
+                            {availabilityState.status === "available"
+                              ? "Your selected dates look open right now. To secure it, continue to payment as soon as possible."
+                              : availabilityState.status === "checking"
+                              ? "Verifying your dates in real-time…"
+                              : availabilityState.status === "unavailable"
+                              ? availabilityState.message || "No availability for these dates."
+                              : "Select check-in and check-out to verify availability."}
+                          </div>
+
+                          {availabilityState.status === "unavailable" && (
+                            <div className="mt-3 rounded-xl border border-amber-200 bg-white/70 p-3">
+                              <div className="text-xs font-semibold text-amber-900 uppercase tracking-wide">Recommendation</div>
+                              <ul className="mt-2 space-y-1 text-sm text-amber-900/90">
+                                <li>Select different dates, then re-check availability.</li>
+                                <li>If this property has multiple room options, try another room type if available.</li>
+                                <li>Browse similar properties nearby and compare availability.</li>
+                                <li>When it shows “Available”, continue immediately to secure it.</li>
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1233,31 +1698,155 @@ export default function BookingConfirmPage() {
                     <div className="space-y-4 mt-4 p-5 bg-gradient-to-br from-blue-50/50 to-slate-50 rounded-xl border-2 border-[#02665e]/20 shadow-sm animate-in fade-in slide-in-from-top-2 duration-300">
                       <div className="space-y-2">
                         <label className="block text-sm font-semibold text-slate-700">
-                          Pickup Location <span className="text-red-500">*</span>
+                          Transport Type <span className="text-red-500">*</span>
                         </label>
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            value={transportOriginAddress}
-                            onChange={(e) => setTransportOriginAddress(e.target.value)}
-                            placeholder="Enter your address or location"
-                            className="flex-1 px-4 py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm"
-                            required={includeTransport}
-                          />
-                          <button
-                            type="button"
-                            onClick={handleGetLocation}
-                            disabled={calculatingFare}
-                            className="px-4 py-3 bg-gradient-to-r from-[#02665e] to-[#014e47] text-white rounded-xl hover:from-[#014e47] hover:to-[#02665e] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95"
-                            title="Use current location"
-                          >
-                            <Navigation className="w-4 h-4" />
-                          </button>
-                        </div>
-                        <p className="text-xs text-slate-600 mt-1.5 flex items-center gap-1">
-                          <Info className="w-3.5 h-3.5" />
-                          Click the location icon to use your current location
+                        <select
+                          value={transportVehicleType}
+                          onChange={(e) => setTransportVehicleType(e.target.value as TransportVehicleType)}
+                          aria-label="Transport type"
+                          title="Transport type"
+                          className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm cursor-pointer"
+                        >
+                          <option value="BODA">Boda</option>
+                          <option value="BAJAJI">Bajaji</option>
+                          <option value="CAR">Car</option>
+                          <option value="XL">XL</option>
+                          <option value="PREMIUM">Premium</option>
+                        </select>
+                        <p className="text-xs text-slate-600 flex items-start gap-1">
+                          <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                          Different transport types have different pricing.
                         </p>
+                      </div>
+
+                      <div className="space-y-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <label className="block text-sm font-semibold text-slate-700">
+                            Pickup Location <span className="text-red-500">*</span>
+                          </label>
+
+                          <div className="inline-flex rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                            <button
+                              type="button"
+                              onClick={() => setPickupMode("current")}
+                              className={[
+                                "px-3 py-2 text-xs font-semibold transition-colors",
+                                pickupMode === "current" ? "bg-[#02665e] text-white" : "text-slate-700 hover:bg-slate-50",
+                              ].join(" ")}
+                              aria-pressed={pickupMode === "current"}
+                              title="Use my current location"
+                            >
+                              Current
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPickupMode("arrival")}
+                              className={[
+                                "px-3 py-2 text-xs font-semibold transition-colors border-l border-slate-200",
+                                pickupMode === "arrival" ? "bg-[#02665e] text-white" : "text-slate-700 hover:bg-slate-50",
+                              ].join(" ")}
+                              aria-pressed={pickupMode === "arrival"}
+                              title="Select an arrival point (airport/bus terminal)"
+                            >
+                              Arrival
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPickupMode("manual")}
+                              className={[
+                                "px-3 py-2 text-xs font-semibold transition-colors border-l border-slate-200",
+                                pickupMode === "manual" ? "bg-[#02665e] text-white" : "text-slate-700 hover:bg-slate-50",
+                              ].join(" ")}
+                              aria-pressed={pickupMode === "manual"}
+                              title="Type an address and search"
+                            >
+                              Type
+                            </button>
+                          </div>
+                        </div>
+
+                        {pickupMode === "arrival" ? (
+                          <div className="space-y-2">
+                            <select
+                              value={pickupPresetId}
+                              onChange={(e) => handleSelectPickupPreset(e.target.value)}
+                              aria-label="Select arrival pickup point"
+                              title="Select arrival pickup point"
+                              className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm cursor-pointer"
+                            >
+                              <option value="">Select pickup point</option>
+                              {PICKUP_PRESETS.map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.label}
+                                </option>
+                              ))}
+                            </select>
+                            <p className="text-xs text-slate-600 flex items-start gap-1">
+                              <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                              If you're currently outside Tanzania (e.g., Dubai), choose your arrival pickup point here.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                value={transportOriginAddress}
+                                onChange={(e) => setTransportOriginAddress(e.target.value)}
+                                placeholder={pickupMode === "manual" ? "Type pickup address/place (Tanzania)" : "Optional: add a pickup note"}
+                                className="flex-1 px-4 py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm"
+                                required={includeTransport}
+                              />
+                              {pickupMode === "current" ? (
+                                <button
+                                  type="button"
+                                  onClick={handleGetLocation}
+                                  disabled={calculatingFare}
+                                  className="px-4 py-3 bg-gradient-to-r from-[#02665e] to-[#014e47] text-white rounded-xl hover:from-[#014e47] hover:to-[#02665e] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95"
+                                  title="Use current location"
+                                >
+                                  <Navigation className="w-4 h-4" />
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={handleGeocodePickupAddress}
+                                  disabled={calculatingFare}
+                                  className="px-4 py-3 bg-gradient-to-r from-[#02665e] to-[#014e47] text-white rounded-xl hover:from-[#014e47] hover:to-[#02665e] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95"
+                                  title="Find this location"
+                                >
+                                  <MapPin className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+
+                            {pickupMode === "current" ? (
+                              <p className="text-xs text-slate-600 flex items-center gap-1">
+                                <Info className="w-3.5 h-3.5" />
+                                Click the location icon to use your current location.
+                              </p>
+                            ) : (
+                              <p className="text-xs text-slate-600 flex items-start gap-1">
+                                <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                                We’ll calculate transport from the place you search (within Tanzania) to the property.
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        {transportPickupError && (
+                          <div className="bg-red-50/80 border-2 border-red-200 rounded-xl p-3 flex items-start gap-2 animate-in fade-in slide-in-from-top-2">
+                            <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                            <p className="text-xs font-semibold text-red-700">{transportPickupError}</p>
+                          </div>
+                        )}
+
+                        {transportOriginLat !== null && transportOriginLng !== null && (
+                          <div className="flex items-center justify-between gap-2 text-xs bg-white/80 border border-emerald-200 rounded-xl px-3 py-2">
+                            <span className="font-semibold text-emerald-700">Pickup location ready</span>
+                            <span className="text-slate-500">{transportOriginLat.toFixed(5)}, {transportOriginLng.toFixed(5)}</span>
+                          </div>
+                        )}
                       </div>
 
                       {/* Arrival Information Section */}
@@ -1265,7 +1854,10 @@ export default function BookingConfirmPage() {
                         <h3 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
                           <Plane className="w-4 h-4 text-[#02665e] flex-shrink-0" />
                           <span>Arrival Information</span>
-                          <span className="text-slate-400 text-xs font-normal">(Optional)</span>
+                          {requiresArrivalInfo && <span className="text-red-500">*</span>}
+                          {!requiresArrivalInfo && (
+                            <span className="text-slate-400 text-xs font-normal">(Optional)</span>
+                          )}
                         </h3>
                         <p className="text-xs text-slate-600 mb-4">
                           Help us coordinate your pickup by providing your arrival details
@@ -1276,13 +1868,18 @@ export default function BookingConfirmPage() {
                           <div className="space-y-2 w-full min-w-0">
                             <label className="block text-sm font-semibold text-slate-700">
                               How are you arriving?
+                              {requiresArrivalInfo && <span className="text-red-500"> *</span>}
                             </label>
                             <select
                               value={arrivalType}
                               onChange={(e) => setArrivalType(e.target.value as any)}
                               aria-label="Arrival type"
                               title="Arrival type"
-                              className="w-full min-w-0 px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm cursor-pointer max-w-full box-border"
+                              disabled={arrivalTypeLocked}
+                              className={[
+                                "w-full min-w-0 px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm cursor-pointer max-w-full box-border",
+                                arrivalTypeLocked ? "opacity-80 cursor-not-allowed" : "",
+                              ].join(" ")}
                             >
                               <option value="">Select arrival type</option>
                               <option value="FLIGHT">Flight</option>
@@ -1291,6 +1888,12 @@ export default function BookingConfirmPage() {
                               <option value="FERRY">Ferry</option>
                               <option value="OTHER">Other</option>
                             </select>
+                            {arrivalTypeLocked && (
+                              <p className="text-xs text-slate-600 flex items-start gap-1">
+                                <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                                Auto-selected from your pickup point. Switch pickup point to change.
+                              </p>
+                            )}
                           </div>
 
                           {/* Arrival Number & Company - shown when arrival type is selected */}
@@ -1346,6 +1949,7 @@ export default function BookingConfirmPage() {
                               <div className="space-y-2 w-full min-w-0">
                                 <label className="block text-sm font-semibold text-slate-700">
                                   Arrival Time
+                                  {requiresArrivalInfo && <span className="text-red-500"> *</span>}
                                 </label>
                                 <div className="space-y-2 sm:space-y-3">
                                   {/* Date Picker Button */}
@@ -1405,6 +2009,8 @@ export default function BookingConfirmPage() {
                                           }
                                         }}
                                         placeholder="--"
+                                        required={requiresArrivalInfo}
+                                        aria-required={requiresArrivalInfo}
                                         className="w-full min-w-0 px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-3 border-2 border-slate-300 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm text-center max-w-full box-border"
                                       />
                                     </div>
@@ -1422,6 +2028,8 @@ export default function BookingConfirmPage() {
                                           }
                                         }}
                                         placeholder="--"
+                                        required={requiresArrivalInfo}
+                                        aria-required={requiresArrivalInfo}
                                         className="w-full min-w-0 px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-3 border-2 border-slate-300 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm text-center max-w-full box-border"
                                       />
                                     </div>
@@ -1433,6 +2041,7 @@ export default function BookingConfirmPage() {
                               <div className="space-y-2 w-full min-w-0">
                                 <label className="block text-sm font-semibold text-slate-700">
                                   Specific Pickup Area/Terminal
+                                  {requiresArrivalInfo && <span className="text-red-500"> *</span>}
                                 </label>
                                 <input
                                   type="text"
@@ -1443,6 +2052,7 @@ export default function BookingConfirmPage() {
                                                arrivalType === "TRAIN" ? "e.g., Central Station, Platform 2" :
                                                arrivalType === "FERRY" ? "e.g., Ferry Terminal, Dock A" :
                                                "Specific pickup location"}
+                                  required={requiresArrivalInfo}
                                   className="w-full min-w-0 px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm max-w-full box-border"
                                 />
                                 <p className="text-xs text-slate-600 mt-1.5">
@@ -1459,13 +2069,14 @@ export default function BookingConfirmPage() {
                           <div className="flex items-center justify-between mb-3">
                             <div>
                               <span className="text-sm font-bold text-slate-800">Transport Fare</span>
+                              <span className="ml-2 text-xs text-slate-500 font-medium">({getVehicleTypeLabel(transportVehicleType)})</span>
                               <span className="ml-2 text-xs text-slate-500 font-medium">(Fixed upfront price)</span>
                             </div>
                             <span className="text-xl font-bold text-[#02665e]">
                               {transportFare.toLocaleString()} {currency}
                             </span>
                           </div>
-                          {transportOriginLat && transportOriginLng && property?.latitude && property?.longitude && (
+                          {transportOriginLat !== null && transportOriginLng !== null && !!property && property.latitude !== null && property.longitude !== null && (
                             <>
                               <p className="text-xs text-slate-600 mb-1">
                                 {getFareBreakdown(
@@ -1479,7 +2090,17 @@ export default function BookingConfirmPage() {
                                       latitude: property.latitude,
                                       longitude: property.longitude,
                                     },
-                                    currency
+                                    currency,
+                                    arrivalDate
+                                      ? (() => {
+                                          const d = new Date(arrivalDate);
+                                          if (isNaN(d.getTime())) return undefined;
+                                          if (arrivalTimeHour) d.setHours(parseInt(arrivalTimeHour) || 0);
+                                          if (arrivalTimeMinute) d.setMinutes(parseInt(arrivalTimeMinute) || 0);
+                                          return d;
+                                        })()
+                                      : undefined,
+                                    transportVehicleType
                                   )
                                 )}
                               </p>
@@ -1523,7 +2144,17 @@ export default function BookingConfirmPage() {
 
                 <button
                   type="submit"
-                  disabled={submitting}
+                  disabled={
+                    submitting ||
+                    availabilityState.status === "checking" ||
+                    availabilityState.status === "unavailable" ||
+                    (includeTransport && (
+                      calculatingFare ||
+                      transportOriginLat === null ||
+                      transportOriginLng === null ||
+                      transportFare === null
+                    ))
+                  }
                   className="w-full py-4 px-6 rounded-xl bg-gradient-to-r from-[#02665e] to-[#014e47] text-white font-bold text-base hover:from-[#014e47] hover:to-[#02665e] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98]"
                 >
                   {submitting ? (
@@ -1595,7 +2226,7 @@ export default function BookingConfirmPage() {
                   <div className="flex justify-between items-center text-slate-600 text-sm pt-2 p-3 bg-blue-50/50 rounded-xl border border-blue-200/60">
                     <span className="flex items-center gap-2 font-medium">
                       <Car className="w-4 h-4 text-[#02665e]" />
-                      Transportation
+                      Transportation ({getVehicleTypeLabel(transportVehicleType)})
                     </span>
                     <span className="font-bold text-[#02665e]">
                       {transportFare.toLocaleString()} {currency}

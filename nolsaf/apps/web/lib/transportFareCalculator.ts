@@ -30,6 +30,45 @@ export interface Location {
   address?: string;
 }
 
+export type TransportVehicleType = "BODA" | "BAJAJI" | "CAR" | "XL" | "PREMIUM";
+
+export interface VehiclePricingConfig {
+  baseFare: number;
+  perKmRate: number;
+  perMinuteRate: number;
+  averageSpeedKmh: number;
+}
+
+const VEHICLE_PRICING: Record<TransportVehicleType, VehiclePricingConfig> = {
+  // Note: these defaults can be tuned later via config.
+  BODA: { baseFare: 1500, perKmRate: 350, perMinuteRate: 35, averageSpeedKmh: 35 },
+  BAJAJI: { baseFare: 1800, perKmRate: 420, perMinuteRate: 40, averageSpeedKmh: 28 },
+  CAR: { baseFare: 2000, perKmRate: 500, perMinuteRate: 50, averageSpeedKmh: 30 },
+  XL: { baseFare: 2500, perKmRate: 650, perMinuteRate: 60, averageSpeedKmh: 30 },
+  PREMIUM: { baseFare: 5000, perKmRate: 1200, perMinuteRate: 80, averageSpeedKmh: 30 },
+};
+
+export function getVehiclePricingConfig(vehicleType: TransportVehicleType): VehiclePricingConfig {
+  return VEHICLE_PRICING[vehicleType] || VEHICLE_PRICING.CAR;
+}
+
+export function getVehicleTypeLabel(vehicleType: TransportVehicleType): string {
+  switch (vehicleType) {
+    case "BODA":
+      return "Boda";
+    case "BAJAJI":
+      return "Bajaji";
+    case "CAR":
+      return "Car";
+    case "XL":
+      return "XL";
+    case "PREMIUM":
+      return "Premium";
+    default:
+      return "Car";
+  }
+}
+
 export interface FareCalculation {
   baseFare: number;
   distanceFare: number;
@@ -40,6 +79,7 @@ export interface FareCalculation {
   distance: number; // in kilometers
   estimatedTime: number; // in minutes
   currency: string;
+  vehicleType?: TransportVehicleType;
 }
 
 /**
@@ -83,6 +123,14 @@ export function estimateTravelTime(distanceKm: number): number {
   return Math.max(5, timeMinutes); // Minimum 5 minutes
 }
 
+export function estimateTravelTimeForVehicle(distanceKm: number, vehicleType: TransportVehicleType): number {
+  const cfg = getVehiclePricingConfig(vehicleType);
+  const averageSpeedKmh = cfg.averageSpeedKmh || 30;
+  const timeHours = distanceKm / averageSpeedKmh;
+  const timeMinutes = Math.ceil(timeHours * 60);
+  return Math.max(5, timeMinutes);
+}
+
 /**
  * Calculate surge multiplier based on time and demand
  * For now, we use a simple time-based surge
@@ -120,28 +168,31 @@ export function calculateSurgeMultiplier(
  * @param origin - Pickup location
  * @param destination - Drop-off location (property)
  * @param currency - Currency code (default: TZS)
+ * @param at - Optional date/time to price against (e.g., scheduled arrival)
  * @returns Fare calculation breakdown (fixed upfront price)
  */
 export function calculateTransportFare(
   origin: Location,
   destination: Location,
-  currency: string = "TZS"
+  currency: string = "TZS",
+  at?: Date,
+  vehicleType: TransportVehicleType = "CAR"
 ): FareCalculation {
-  // Pricing constants
-  const BASE_FARE = 2000; // Minimum fare in TZS
-  const PER_KM_RATE = 500; // Per kilometer rate
-  const PER_MINUTE_RATE = 50; // Per minute rate (for traffic/waiting)
+  const cfg = getVehiclePricingConfig(vehicleType);
+  const BASE_FARE = cfg.baseFare; // Minimum fare in TZS
+  const PER_KM_RATE = cfg.perKmRate; // Per kilometer rate
+  const PER_MINUTE_RATE = cfg.perMinuteRate; // Per minute rate (for traffic/waiting)
 
   // Calculate distance
   const distance = calculateDistance(origin, destination);
 
   // Estimate travel time
-  const estimatedTime = estimateTravelTime(distance);
+  const estimatedTime = estimateTravelTimeForVehicle(distance, vehicleType);
 
   // Calculate surge multiplier
-  const now = new Date();
-  const hourOfDay = now.getHours();
-  const dayOfWeek = now.getDay();
+  const pricingTime = at instanceof Date && !isNaN(at.getTime()) ? at : new Date();
+  const hourOfDay = pricingTime.getHours();
+  const dayOfWeek = pricingTime.getDay();
   const surgeMultiplier = calculateSurgeMultiplier(hourOfDay, dayOfWeek);
 
   // Calculate fare components
@@ -168,6 +219,7 @@ export function calculateTransportFare(
     distance,
     estimatedTime,
     currency,
+    vehicleType,
   };
 }
 

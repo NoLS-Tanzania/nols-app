@@ -2,12 +2,15 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { ArrowLeft, FileText, Send, CheckCircle2 } from "lucide-react";
 
 // Use same-origin calls + secure httpOnly cookie session.
 const api = axios.create({ baseURL: "", withCredentials: true });
 
-export default function InvoiceView({ params }: { params: { id: string } }) {
+export default function InvoiceView() {
+  const routeParams = useParams<{ id?: string | string[] }>();
+  const idParam = Array.isArray(routeParams?.id) ? routeParams?.id?.[0] : routeParams?.id;
   const [inv, setInv] = useState<any>(null);
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -17,15 +20,15 @@ export default function InvoiceView({ params }: { params: { id: string } }) {
   const [agreeDisbursement, setAgreeDisbursement] = useState(false);
 
   useEffect(() => {
-    api.get(`/api/owner/invoices/${params.id}`).then(r => setInv(r.data));
-  }, [params.id]);
+    api.get(`/api/owner/invoices/${idParam}`).then(r => setInv(r.data));
+  }, [idParam]);
 
   const submit = async () => {
     setSubmitting(true);
     setErr(null);
     setSuccessMsg(null);
     try {
-      const r = await api.post(`/api/owner/invoices/${params.id}/submit`);
+      const r = await api.post(`/api/owner/invoices/${idParam}/submit`);
       const alreadySubmitted = Boolean((r as any)?.data?.alreadySubmitted);
       const nextStatus = String((r as any)?.data?.status ?? "REQUESTED");
       const msg = alreadySubmitted

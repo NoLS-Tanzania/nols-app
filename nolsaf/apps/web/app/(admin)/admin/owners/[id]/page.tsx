@@ -4,6 +4,7 @@ import axios from "axios";
 import { io, Socket } from "socket.io-client";
 import Link from "next/link";
 import Image from "next/image";
+import { useParams } from "next/navigation";
 import { ArrowLeft, User, Building2, FileText, DollarSign, Mail, Phone, Calendar, CheckCircle2, XCircle, Clock, Eye, Shield, Ban, Copy, MapPin, ImageIcon, Bell, Send, X, History, Activity, FileCheck, Home, Search, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import VerifiedIcon from "@/components/VerifiedIcon";
 import TableRow from "@/components/TableRow";
@@ -42,8 +43,10 @@ type Property = {
   maxGuests: number;
 };
 
-export default function OwnerDetailPage({ params }: { params: { id: string }}) {
-  const ownerId = Number(params.id);
+export default function OwnerDetailPage() {
+  const routeParams = useParams<{ id?: string | string[] }>();
+  const idParam = Array.isArray(routeParams?.id) ? routeParams?.id?.[0] : routeParams?.id;
+  const ownerId = Number(idParam);
   const [owner, setOwner] = useState<Owner|null>(null);
   const [snap, setSnap] = useState<Snapshot|null>(null);
   const [docs, setDocs] = useState<Doc[]>([]);

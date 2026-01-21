@@ -153,8 +153,29 @@ export default function DriverDashboard({ className }: { className?: string }) {
 
   // Setup Socket.IO for real-time reminder updates
   useEffect(() => {
+    // Get authentication token
+    const token = typeof window !== 'undefined' ? (
+      window.localStorage.getItem("token") ||
+      window.localStorage.getItem("nolsaf_token") ||
+      window.localStorage.getItem("__Host-nolsaf_token") ||
+      (() => {
+        const m = String(document.cookie || "").match(/(?:^|;\s*)(?:nolsaf_token|__Host-nolsaf_token|token)=([^;]+)/);
+        return m?.[1] ? decodeURIComponent(m[1]) : null;
+      })()
+    ) : null;
+    
     const socket = io(process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000", {
       transports: ["websocket"],
+      withCredentials: true, // Send cookies automatically
+      ...(token ? {
+        transportOptions: {
+          polling: {
+            extraHeaders: {
+              Authorization: `Bearer ${token}`
+            }
+          }
+        }
+      } : {}),
     });
 
     socket.on("connect", async () => {

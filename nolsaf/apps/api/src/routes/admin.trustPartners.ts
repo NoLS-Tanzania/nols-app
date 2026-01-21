@@ -36,11 +36,11 @@ router.get("/", requireAdmin, async (req, res) => {
 });
 
 // Get active trust partners (public endpoint)
-router.get("/public", async (req, res) => {
+router.get("/public", async (req, res, next) => {
+  // Ensure we always return JSON, even on errors - set headers early
+  res.setHeader('Content-Type', 'application/json');
+  
   try {
-    // Ensure we always return JSON, even on errors
-    res.setHeader('Content-Type', 'application/json');
-    
     const partners = await prisma.trustPartner.findMany({
       where: { isActive: true },
       orderBy: [{ displayOrder: "asc" }, { createdAt: "asc" }],
@@ -51,6 +51,7 @@ router.get("/public", async (req, res) => {
         href: true,
       },
     });
+    
     res.status(200).json({ items: partners });
   } catch (err: any) {
     console.error("Failed to fetch public trust partners", err);
@@ -60,6 +61,11 @@ router.get("/public", async (req, res) => {
       stack: err?.stack,
       name: err?.name,
     });
+    
+    // Don't send response if already sent
+    if (res.headersSent) {
+      return next(err);
+    }
     
     // Ensure JSON response header is set
     res.setHeader('Content-Type', 'application/json');

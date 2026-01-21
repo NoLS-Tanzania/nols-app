@@ -1,12 +1,13 @@
 import { redirect } from "next/navigation";
 
-export default function AdminPropertiesRedirectPage({
+export default async function AdminPropertiesRedirectPage({
   searchParams,
 }: {
-  searchParams?: Record<string, string | string[] | undefined>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const sp = new URLSearchParams();
-  for (const [key, value] of Object.entries(searchParams ?? {})) {
+  for (const [key, value] of Object.entries(resolvedSearchParams ?? {})) {
     if (value === undefined) continue;
     if (Array.isArray(value)) {
       for (const v of value) {

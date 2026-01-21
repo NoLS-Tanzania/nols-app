@@ -13,8 +13,8 @@ import { invalidateCache, cacheKeys } from "../lib/performance.js";
 // Minimal Zod schema for property body used by create/update
 const baseBodySchema = z.object({
   // basics
-  title: z.string().min(3, "title must be at least 3 characters"),
-  type: z.string(), // e.g. VILLA | APARTMENT | HOTEL | ...
+  title: z.string().trim().min(3, "title must be at least 3 characters").max(200, "title must be at most 200 characters"),
+  type: z.string().trim().min(1).max(50), // e.g. VILLA | APARTMENT | HOTEL | ...
   description: z.string().max(10_000).optional().nullable(),
 
   // building / structure
@@ -24,15 +24,15 @@ const baseBodySchema = z.object({
   // location
   // regionId: Accept string (slug like "dar-es-salaam") or number (code like 11)
   // Database stores as VARCHAR(50), so both formats work
-  regionId: z.union([z.string().min(1), z.number().int().positive()]).optional(),
-  regionName: z.string().optional(),
-  district: z.string().optional(),
-  ward: z.string().optional().nullable(),
-  street: z.string().optional().nullable(),
-  apartment: z.string().optional().nullable(),
-  city: z.string().optional(),
-  zip: z.string().optional(),
-  country: z.string().optional(),
+  regionId: z.union([z.string().trim().min(1).max(50), z.number().int().positive()]).optional(),
+  regionName: z.string().trim().max(120).optional(),
+  district: z.string().trim().max(120).optional(),
+  ward: z.string().trim().max(120).optional().nullable(),
+  street: z.string().trim().max(200).optional().nullable(),
+  apartment: z.string().trim().max(120).optional().nullable(),
+  city: z.string().trim().max(120).optional(),
+  zip: z.string().trim().max(30).optional(),
+  country: z.string().trim().max(120).optional(),
   latitude: z.number().optional().nullable(),
   longitude: z.number().optional().nullable(),
 
@@ -55,7 +55,7 @@ const baseBodySchema = z.object({
     z.object({
       tags: z.array(z.string()).optional(),
       nearbyFacilities: z.array(z.any()).optional(),
-    }),
+    }).passthrough(),
   ]).default([]),
   // house rules captured in the creation flow (stored into `services.houseRules` for now)
   houseRules: z.any().optional().nullable(),
@@ -195,7 +195,26 @@ router.get("/mine", (async (req: AuthedRequest, res) => {
           orderBy: { id: "desc" },
           skip,
           take,
-          // Don't use select - we need all fields, but we'll serialize safely below
+          // Keep payload small and predictable for list pages
+          select: {
+            id: true,
+            ownerId: true,
+            status: true,
+            title: true,
+            type: true,
+            photos: true,
+            regionName: true,
+            district: true,
+            ward: true,
+            city: true,
+            basePrice: true,
+            currency: true,
+            services: true,
+            rejectionReasons: true,
+            lastSubmittedAt: true,
+            createdAt: true,
+            updatedAt: true,
+          },
         }),
         prisma.property.count({ where }),
       ]);
@@ -317,7 +336,9 @@ router.get("/mine", (async (req: AuthedRequest, res) => {
                 entityId: item.id,
                 action: "PROPERTY_SUSPEND",
               },
-              orderBy: { createdAt: "desc" },
+              // Use PK ordering to avoid sort-buffer issues; id is monotonic.
+              orderBy: { id: "desc" },
+              select: { afterJson: true },
             });
 
             if (lastSuspendAudit) {
@@ -543,7 +564,13 @@ router.post("/", (async (req: AuthedRequest, res) => {
       const photos: string[] = Array.isArray(parsed.photos) ? parsed.photos : [];
       await Promise.all(
         photos.map(async (p) => {
+          if (typeof p !== "string") return;
+          // Never persist local preview/base64 strings into DB
+          if (p.startsWith("blob:") || p.startsWith("data:")) return;
+          // Keep URLs within reasonable size to avoid DB driver length mismatches
+          if (p.length > 2048) return;
           const storageKey = p.split("/").pop() || p;
+          if (storageKey.length > 190) return;
           await prisma.propertyImage.upsert({
             where: { storageKey },
             create: { propertyId: created.id, storageKey, url: p, status: "PENDING" },
@@ -565,6 +592,13 @@ router.post("/", (async (req: AuthedRequest, res) => {
 
     res.status(201).json({ id: created.id });
   } catch (e: any) {
+    console.error("Error in POST /api/owner/properties:", e);
+    console.error("Error details:", {
+      message: e?.message,
+      code: e?.code,
+      meta: e?.meta,
+      stack: e?.stack,
+    });
     res.status(400).json({ error: e?.errors ?? e?.message ?? "Invalid payload" });
   }
 }) as RequestHandler);
@@ -635,7 +669,11 @@ router.put("/:id", (async (req: AuthedRequest, res) => {
       const photos: string[] = Array.isArray(parsed.photos) ? parsed.photos : [];
       await Promise.all(
         photos.map(async (p) => {
+          if (typeof p !== "string") return;
+          if (p.startsWith("blob:") || p.startsWith("data:")) return;
+          if (p.length > 2048) return;
           const storageKey = p.split("/").pop() || p;
+          if (storageKey.length > 190) return;
           await prisma.propertyImage.upsert({
             where: { storageKey },
             create: { propertyId: updated.id, storageKey, url: p, status: "PENDING" },
@@ -660,6 +698,13 @@ router.put("/:id", (async (req: AuthedRequest, res) => {
 
     res.json({ id: updated.id });
   } catch (e: any) {
+    console.error("Error in PUT /api/owner/properties/:id:", e);
+    console.error("Error details:", {
+      message: e?.message,
+      code: e?.code,
+      meta: e?.meta,
+      stack: e?.stack,
+    });
     res.status(400).json({ error: e?.errors ?? e?.message ?? "Update failed" });
   }
 }) as RequestHandler);

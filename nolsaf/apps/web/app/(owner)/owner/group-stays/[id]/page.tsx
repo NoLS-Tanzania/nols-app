@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { ArrowLeft, CheckCircle, Calendar, User, Phone, Mail, Building2, MapPin, Users, X, Search, MessageSquare, Send, CheckCircle2, Info, Sparkles, Car, UtensilsCrossed, UserCheck, Wrench, FileText } from "lucide-react";
 
 const api = axios.create({ baseURL: "", withCredentials: true });
@@ -55,7 +56,9 @@ type GroupStayDetail = {
   arrangementNotes?: string | null;
 };
 
-export default function GroupStayDetail({ params }: { params: { id: string } }) {
+export default function GroupStayDetail() {
+  const routeParams = useParams<{ id?: string | string[] }>();
+  const idParam = Array.isArray(routeParams?.id) ? routeParams?.id?.[0] : routeParams?.id;
   const [groupStay, setGroupStay] = useState<GroupStayDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +73,7 @@ export default function GroupStayDetail({ params }: { params: { id: string } }) 
 
   useEffect(() => {
     let mounted = true;
-    api.get(`/api/owner/group-stays/${params.id}`)
+    api.get(`/api/owner/group-stays/${idParam}`)
       .then((response) => {
         if (!mounted) return;
         setGroupStay(response.data);
@@ -84,7 +87,7 @@ export default function GroupStayDetail({ params }: { params: { id: string } }) 
       });
 
     return () => { mounted = false; };
-  }, [params.id]);
+  }, [idParam]);
 
   // Handle keyboard navigation for modal
   useEffect(() => {
@@ -846,7 +849,7 @@ export default function GroupStayDetail({ params }: { params: { id: string } }) 
 
                       while (retryCount <= maxRetries) {
                         try {
-                          const response = await api.post(`/api/owner/group-stays/${params.id}/message`, {
+                          const response = await api.post(`/api/owner/group-stays/${idParam}/message`, {
                             message: trimmedMessage,
                             messageType,
                           });
@@ -861,7 +864,7 @@ export default function GroupStayDetail({ params }: { params: { id: string } }) 
                             );
                             // Reload group stay data to get updated messages
                             try {
-                              const updatedResponse = await api.get(`/api/owner/group-stays/${params.id}`);
+                              const updatedResponse = await api.get(`/api/owner/group-stays/${idParam}`);
                               if (updatedResponse.data) {
                                 setGroupStay(updatedResponse.data);
                               }

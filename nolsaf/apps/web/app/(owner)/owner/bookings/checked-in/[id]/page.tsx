@@ -2,12 +2,15 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { ArrowLeft, Clock, CheckCircle, Calendar, User, Phone, DollarSign, FileText, Building2, Lock } from "lucide-react";
 
 // Use same-origin calls + secure httpOnly cookie session.
 const api = axios.create({ baseURL: "", withCredentials: true });
 
-export default function BookingDetail({ params }: { params: { id: string } }) {
+export default function BookingDetail() {
+  const routeParams = useParams<{ id?: string | string[] }>();
+  const idParam = Array.isArray(routeParams?.id) ? routeParams?.id?.[0] : routeParams?.id;
   const [b, setB] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [invMeta, setInvMeta] = useState<{ exists: boolean; invoiceId: number | null; status?: string | null } | null>(null);
@@ -15,8 +18,8 @@ export default function BookingDetail({ params }: { params: { id: string } }) {
   useEffect(() => {
     let mounted = true;
     Promise.all([
-      api.get(`/owner/bookings/${params.id}`),
-      api.get(`/api/owner/invoices/for-booking/${params.id}`),
+      api.get(`/owner/bookings/${idParam}`),
+      api.get(`/api/owner/invoices/for-booking/${idParam}`),
     ])
       .then(([br, ir]) => {
         if (!mounted) return;
@@ -35,7 +38,7 @@ export default function BookingDetail({ params }: { params: { id: string } }) {
       });
 
     return () => { mounted = false; };
-  }, [params.id]);
+  }, [idParam]);
 
   if (loading) {
     return (

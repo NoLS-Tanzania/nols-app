@@ -135,6 +135,63 @@ async function markInvoicePaid(invId: number, method: string, paymentRef: string
     include: { booking: true },
   });
 
+  // If the booking included scheduled transport, publish it to drivers now.
+  try {
+    const bookingId = Number(updated.bookingId);
+    if (Number.isFinite(bookingId) && bookingId > 0) {
+      const pending = await prisma.transportBooking.findMany({
+        where: {
+          paymentRef: `BOOKING:${bookingId}`,
+          status: "PAYMENT_PENDING",
+        },
+        select: {
+          id: true,
+          vehicleType: true,
+          scheduledDate: true,
+          fromAddress: true,
+          toAddress: true,
+          amount: true,
+        },
+      });
+
+      if (pending.length) {
+        const activated = await prisma.transportBooking.updateMany({
+          where: {
+            paymentRef: `BOOKING:${bookingId}`,
+            status: "PAYMENT_PENDING",
+          },
+          data: {
+            status: "PENDING_ASSIGNMENT",
+            paymentStatus: "PAID",
+            paymentMethod: updated.paymentMethod ?? method ?? null,
+            paymentRef: updated.paymentRef ?? paymentRef ?? `BOOKING:${bookingId}`,
+          },
+        });
+
+        const io = (global as any).io;
+        if (io && typeof io.to === "function") {
+          // Emit one event per trip for existing driver UI subscriptions.
+          for (const trip of pending) {
+            io.to("drivers:available").emit("transport:booking:created", {
+              bookingId: trip.id,
+              vehicleType: trip.vehicleType,
+              scheduledDate: trip.scheduledDate,
+              fromAddress: trip.fromAddress,
+              toAddress: trip.toAddress,
+              amount: trip.amount,
+            });
+          }
+        }
+
+        if (activated.count) {
+          // no-op; activation succeeded
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("Failed to activate scheduled transport booking on invoice paid:", e);
+  }
+
   await invalidateOwnerReports(updated.ownerId);
   // Notify owner ASAP (in-app notification + realtime refresh)
   try {

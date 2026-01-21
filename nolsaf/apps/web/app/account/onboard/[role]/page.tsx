@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import * as Icons from 'lucide-react';
 import { User, Mail, UserCircle, Globe, CreditCard, FileText, Upload, CheckCircle2, Truck, MapPin, Phone, ChevronDown, AlertCircle, ChevronLeft, ChevronRight, Loader2, Car, X, Clock, Building2, UserCircle2, ArrowLeft } from 'lucide-react';
 
-export default function OnboardRole({ params }: { params: { role: string } }) {
-  const role = (params.role || '').toLowerCase();
+export default function OnboardRole() {
+  const routeParams = useParams<{ role?: string | string[] }>();
+  const roleParam = Array.isArray(routeParams?.role) ? routeParams?.role?.[0] : routeParams?.role;
+  const role = String(roleParam || '').toLowerCase();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   

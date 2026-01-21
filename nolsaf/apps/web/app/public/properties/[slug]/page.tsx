@@ -4,6 +4,7 @@ import "mapbox-gl/dist/mapbox-gl.css";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
+import { io, Socket } from "socket.io-client";
 import type { ReactNode, ComponentType } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -632,15 +633,32 @@ function formatDateLabel(dateString: string) {
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+function formatTimeAgo(ms: number): string {
+  if (!ms || ms <= 0) return "—";
+  const diff = Date.now() - ms;
+  if (diff < 10 * 1000) return "just now";
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return "< 1m ago";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
 // Availability Checker Component
 function PropertyAvailabilityChecker({
   propertyId,
   onAvailability,
   onDatesChange,
+  refreshSignal,
+  dates,
 }: {
   propertyId: number;
   onAvailability?: (data: any | null) => void;
   onDatesChange?: (checkIn: string, checkOut: string) => void;
+  refreshSignal?: number;
+  dates?: { checkIn: string; checkOut: string };
 }) {
   const [checkIn, setCheckIn] = useState<string>("");
   const [checkOut, setCheckOut] = useState<string>("");
@@ -650,26 +668,45 @@ function PropertyAvailabilityChecker({
   const [checkInPickerOpen, setCheckInPickerOpen] = useState(false);
   const [checkOutPickerOpen, setCheckOutPickerOpen] = useState(false);
 
-  const checkAvailability = async () => {
-    if (!checkIn || !checkOut) {
-      setError("Please select both check-in and check-out dates");
-      return;
-    }
+  const inFlightRef = useRef(false);
+  const debounceTimerRef = useRef<any>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const lastRunAtRef = useRef<number>(0);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<number>(0);
+  const [nowTick, setNowTick] = useState(0);
+
+  const runCheckNow = useCallback(async () => {
+    if (inFlightRef.current) return;
+    if (!checkIn || !checkOut) return;
 
     const checkInDate = new Date(checkIn);
     const checkOutDate = new Date(checkOut);
     const now = new Date();
 
+    if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime())) {
+      setError("Please select valid dates");
+      return;
+    }
     if (checkInDate < now) {
       setError("Check-in date cannot be in the past");
       return;
     }
-
     if (checkOutDate <= checkInDate) {
       setError("Check-out date must be after check-in date");
       return;
     }
 
+    // Simple throttle: avoid bursts when both date pickers fire quickly.
+    const nowMs = Date.now();
+    if (nowMs - lastRunAtRef.current < 800) return;
+    lastRunAtRef.current = nowMs;
+
+    // Cancel any previous request (date changes)
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    inFlightRef.current = true;
     setLoading(true);
     setError(null);
 
@@ -678,6 +715,7 @@ function PropertyAvailabilityChecker({
       const response = await fetch(`${API}/api/public/availability/check`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({
           propertyId,
           checkIn: checkInDate.toISOString(),
@@ -686,20 +724,66 @@ function PropertyAvailabilityChecker({
       });
 
       const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to check availability");
-      }
+      if (!response.ok) throw new Error(data.error || "Failed to check availability");
 
       setAvailability(data);
       onAvailability?.(data);
+      setLastUpdatedAt(Date.now());
     } catch (err: any) {
-      setError(err?.message || "Failed to check availability");
-      setAvailability(null);
-      onAvailability?.(null);
+      if (err?.name === "AbortError") return;
+      const msg = err?.message || "Failed to check availability";
+      setError(msg);
+
+      // If we get rate-limited, keep the last known availability visible.
+      if (!/Too many availability requests/i.test(msg)) {
+        setAvailability(null);
+        onAvailability?.(null);
+      }
     } finally {
       setLoading(false);
+      inFlightRef.current = false;
     }
-  };
+  }, [checkIn, checkOut, onAvailability, propertyId]);
+
+  const scheduleCheck = useCallback(() => {
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      debounceTimerRef.current = null;
+      void runCheckNow();
+    }, 450);
+  }, [runCheckNow]);
+
+  // Keep local inputs in sync if parent provides date values.
+  useEffect(() => {
+    if (!dates) return;
+    if ((dates.checkIn || "") !== checkIn) setCheckIn(dates.checkIn || "");
+    if ((dates.checkOut || "") !== checkOut) setCheckOut(dates.checkOut || "");
+  }, [dates?.checkIn, dates?.checkOut]);
+
+  // Live updates: whenever the date range changes, auto-check (debounced).
+  useEffect(() => {
+    if (!checkIn || !checkOut) return;
+    scheduleCheck();
+  }, [checkIn, checkOut, scheduleCheck]);
+
+  // Live updates: socket/parent can bump refreshSignal to re-check (debounced).
+  useEffect(() => {
+    if (refreshSignal == null) return;
+    if (!checkIn || !checkOut) return;
+    scheduleCheck();
+  }, [refreshSignal, checkIn, checkOut, scheduleCheck]);
+
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      if (abortRef.current) abortRef.current.abort();
+    };
+  }, []);
+
+  useEffect(() => {
+    const id = setInterval(() => setNowTick((t) => t + 1), 30 * 1000);
+    return () => clearInterval(id);
+  }, []);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -716,7 +800,13 @@ function PropertyAvailabilityChecker({
         <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#02665e]/10 text-[#02665e]">
           <Calendar className="w-5 h-5" aria-hidden />
         </span>
-        <h2 className="text-lg font-semibold text-slate-900">Check Availability</h2>
+        <div className="min-w-0">
+          <h2 className="text-lg font-semibold text-slate-900">Availability Live Updates</h2>
+          <div className="text-xs text-slate-500">
+            Select check-in and check-out dates to see live availability • Last updated: {formatTimeAgo(lastUpdatedAt)}
+            <span className="text-slate-400"> (refreshes up to every 4 minutes)</span>
+          </div>
+        </div>
       </div>
 
       <div className="space-y-4">
@@ -813,25 +903,12 @@ function PropertyAvailabilityChecker({
           </div>
         </div>
 
-        {/* Check Button */}
-        <button
-          type="button"
-          onClick={checkAvailability}
-          disabled={loading || !checkIn || !checkOut}
-          className="w-full px-4 py-3 rounded-xl bg-[#02665e] text-white font-semibold hover:bg-[#014e47] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm hover:shadow-md"
-        >
-          {loading ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span>Checking...</span>
-            </>
-          ) : (
-            <>
-              <Info className="w-4 h-4" />
-              <span>Check Availability</span>
-            </>
-          )}
-        </button>
+        {loading ? (
+          <div className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 font-semibold flex items-center justify-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span>Updating availability…</span>
+          </div>
+        ) : null}
 
         {/* Error Message */}
         {error && (
@@ -843,82 +920,165 @@ function PropertyAvailabilityChecker({
 
         {/* Availability Results */}
         {availability && !error && (
-          <div className="mt-4 p-4 rounded-xl bg-gradient-to-br from-emerald-50 to-slate-50 border-2 border-emerald-200/60 shadow-sm">
-            <div className="flex items-center gap-2 mb-3">
-              <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-              <h3 className="text-base font-bold text-slate-900">Availability Results</h3>
-            </div>
-
-            {availability.available ? (
-              <div className="space-y-3">
-                {/* Summary */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="p-3 rounded-lg bg-white border border-emerald-200">
-                    <div className="text-xs text-slate-600 mb-1">Available Rooms</div>
-                    <div className="text-2xl font-bold text-emerald-700">
-                      {availability.summary.totalAvailableRooms}
-                    </div>
-                  </div>
-                  <div className="p-3 rounded-lg bg-white border border-emerald-200">
-                    <div className="text-xs text-slate-600 mb-1">Available Beds</div>
-                    <div className="text-2xl font-bold text-emerald-700">
-                      {availability.summary.totalAvailableBeds}
+          <div className="mt-4 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_12px_30px_rgba(15,23,42,0.06)]">
+            <div className="px-5 py-4 border-b border-slate-200 bg-gradient-to-r from-white via-white to-emerald-50/40">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-3">
+                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-600/10 text-emerald-800 ring-1 ring-emerald-600/15">
+                      <CheckCircle2 className="w-5 h-5" aria-hidden />
+                    </span>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-base font-extrabold tracking-tight text-slate-900">Availability</h3>
+                        <span className="inline-flex items-center rounded-full bg-emerald-600 text-white px-2.5 py-0.5 text-[10px] font-extrabold tracking-wide shadow-sm">LIVE</span>
+                      </div>
+                      <div className="mt-0.5 text-[12px] text-slate-600">
+                        <span className="font-semibold text-slate-800">{formatDate(checkIn)} - {formatDate(checkOut)}</span>
+                        <span className="text-slate-300"> • </span>
+                        <span className="text-slate-500">Updated {formatTimeAgo(lastUpdatedAt)}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Details by Room Type */}
-                {availability.byRoomType && Object.keys(availability.byRoomType).length > 0 && (
-                  <div className="mt-4 space-y-2">
-                    <div className="text-sm font-semibold text-slate-700">By Room Type:</div>
-                    {Object.entries(availability.byRoomType).map(([roomCode, data]: [string, any]) => (
-                      <div key={roomCode} className="p-3 rounded-lg bg-white border border-slate-200">
-                        <div className="text-sm font-semibold text-slate-900 mb-2">
-                          {roomCode === "default" ? "All Rooms" : roomCode}
-                        </div>
-                        <div className="grid grid-cols-2 gap-2 text-xs">
-                          <div>
-                            <span className="text-slate-600">Rooms: </span>
-                            <span className="font-semibold text-slate-900">
-                              {data.availableRooms} / {data.totalRooms}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-slate-600">Beds: </span>
-                            <span className="font-semibold text-slate-900">
-                              {data.availableBeds} / {data.totalBeds}
-                            </span>
-                          </div>
-                        </div>
-                        {data.bookedRooms > 0 && (
-                          <div className="mt-2 text-xs text-amber-600">
-                            {data.bookedRooms} room(s) booked
-                          </div>
-                        )}
-                        {data.blockedRooms > 0 && (
-                          <div className="mt-1 text-xs text-slate-500">
-                            {data.blockedRooms} room(s) blocked (external bookings)
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <div className="hidden sm:flex items-center gap-2">
+                  <span className="inline-flex items-center rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-slate-700 ring-1 ring-slate-200 shadow-sm">
+                    Refreshes up to every 4 minutes
+                  </span>
+                </div>
+              </div>
+            </div>
 
-                <div className="mt-3 pt-3 border-t border-emerald-200">
-                  <div className="text-xs text-slate-600">
-                    Dates: {formatDate(checkIn)} - {formatDate(checkOut)}
+            {availability.available ? (
+              <div className="p-5">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                  {/* Premium summary */}
+                  <div className="lg:col-span-1">
+                    <div className="rounded-3xl border border-slate-200 bg-gradient-to-br from-white via-white to-emerald-50/30 p-4 shadow-[0_8px_22px_rgba(15,23,42,0.06)]">
+                      <div className="text-[11px] font-medium tracking-wide text-slate-500 uppercase">Available now</div>
+                      <div className="mt-3 grid grid-cols-2 gap-3">
+                        <div className="rounded-2xl bg-white ring-1 ring-slate-200 p-3">
+                          <div className="text-[11px] font-medium text-slate-500">Rooms</div>
+                          <div className="mt-1 text-3xl font-semibold tracking-tight text-slate-900">{availability.summary.totalAvailableRooms}</div>
+                        </div>
+                        <div className="rounded-2xl bg-white ring-1 ring-slate-200 p-3">
+                          <div className="text-[11px] font-medium text-slate-500">Beds</div>
+                          <div className="mt-1 text-3xl font-semibold tracking-tight text-slate-900">{availability.summary.totalAvailableBeds}</div>
+                        </div>
+                      </div>
+                      <div className="mt-3 text-[11px] text-slate-500">
+                        Numbers reflect the selected date range.
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Clean breakdown table */}
+                  <div className="lg:col-span-2">
+                    <div className="rounded-3xl border border-slate-200 overflow-hidden">
+                      <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
+                        <div className="hidden md:grid grid-cols-12 gap-3 text-[11px] font-bold tracking-wide text-slate-500 uppercase">
+                          <div className="col-span-4">Room type</div>
+                          <div className="col-span-3 text-right">Rooms</div>
+                          <div className="col-span-3 text-right">Beds</div>
+                          <div className="col-span-2 text-right">Status</div>
+                        </div>
+                        <div className="md:hidden text-xs font-bold tracking-wide text-slate-600 uppercase">By room type</div>
+                      </div>
+
+                      <div className="divide-y divide-slate-200">
+                        {(availability.byRoomType && Object.keys(availability.byRoomType).length > 0
+                          ? Object.entries(availability.byRoomType)
+                          : [])
+                          .map(([roomCode, data]: [string, any]) => {
+                            const availableRooms = Number(data?.availableRooms ?? 0);
+                            const totalRooms = Math.max(0, Number(data?.totalRooms ?? 0));
+                            const availableBeds = Number(data?.availableBeds ?? 0);
+                            const totalBeds = Math.max(0, Number(data?.totalBeds ?? 0));
+                            const bookedRooms = Math.max(0, Number(data?.bookedRooms ?? 0));
+                            const blockedRooms = Math.max(0, Number(data?.blockedRooms ?? 0));
+                            const roomsPct = totalRooms > 0 ? Math.round((availableRooms / totalRooms) * 100) : 0;
+                            const bedsPct = totalBeds > 0 ? Math.round((availableBeds / totalBeds) * 100) : 0;
+
+                            return (
+                              <div key={roomCode} className="px-4 py-3">
+                                <div className="grid grid-cols-12 gap-3 items-center">
+                                  <div className="col-span-12 md:col-span-4 min-w-0">
+                                    <div className="text-sm font-extrabold text-slate-900 truncate">
+                                      {roomCode === "default" ? "All Rooms" : roomCode}
+                                    </div>
+                                    <div className="mt-1 flex md:hidden items-center gap-2 text-[11px] text-slate-500">
+                                      <span className="font-semibold">{availableRooms}</span>/{totalRooms} rooms
+                                      <span className="text-slate-300">•</span>
+                                      <span className="font-semibold">{availableBeds}</span>/{totalBeds} beds
+                                    </div>
+                                  </div>
+
+                                  <div className="col-span-6 md:col-span-3 md:text-right">
+                                    <div className="md:hidden text-[10px] font-bold tracking-wide text-slate-500 uppercase">Rooms</div>
+                                    <div className="text-sm font-extrabold text-slate-900">
+                                      {availableRooms}
+                                      <span className="text-slate-300">/</span>
+                                      <span className="text-slate-600 font-bold">{totalRooms}</span>
+                                    </div>
+                                    <div className="mt-1 h-1.5 rounded-full bg-slate-100 overflow-hidden ring-1 ring-slate-200">
+                                      <div className="h-full bg-gradient-to-r from-emerald-500 to-emerald-600" style={{ width: `${roomsPct}%` }} />
+                                    </div>
+                                  </div>
+
+                                  <div className="col-span-6 md:col-span-3 md:text-right">
+                                    <div className="md:hidden text-[10px] font-bold tracking-wide text-slate-500 uppercase">Beds</div>
+                                    <div className="text-sm font-extrabold text-slate-900">
+                                      {availableBeds}
+                                      <span className="text-slate-300">/</span>
+                                      <span className="text-slate-600 font-bold">{totalBeds}</span>
+                                    </div>
+                                    <div className="mt-1 h-1.5 rounded-full bg-slate-100 overflow-hidden ring-1 ring-slate-200">
+                                      <div className="h-full bg-gradient-to-r from-emerald-500 to-emerald-600" style={{ width: `${bedsPct}%` }} />
+                                    </div>
+                                  </div>
+
+                                  <div className="col-span-12 md:col-span-2 md:flex md:justify-end">
+                                    <div className="flex flex-wrap gap-2 md:justify-end">
+                                      {bookedRooms > 0 ? (
+                                        <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-900 ring-1 ring-amber-200">
+                                          {bookedRooms} booked
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-800 ring-1 ring-emerald-200">
+                                          Available
+                                        </span>
+                                      )}
+                                      {blockedRooms > 0 ? (
+                                        <span
+                                          className="inline-flex items-center rounded-full bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-slate-700 ring-1 ring-slate-200"
+                                          title="These rooms are already booked or reserved for the selected dates."
+                                        >
+                                          {blockedRooms} booked
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="p-3 rounded-lg bg-amber-50 border border-amber-200">
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="w-5 h-5 text-amber-600" />
-                  <div>
-                    <div className="text-sm font-semibold text-amber-900">Not Available</div>
-                    <div className="text-xs text-amber-700 mt-1">
-                      No rooms or beds available for the selected dates.
+              <div className="p-5">
+                <div className="rounded-3xl border border-amber-200 bg-amber-50 p-4">
+                  <div className="flex items-start gap-3">
+                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-800 ring-1 ring-amber-500/20">
+                      <AlertCircle className="w-5 h-5" aria-hidden />
+                    </span>
+                    <div className="min-w-0">
+                      <div className="text-base font-extrabold tracking-tight text-amber-950">Not available</div>
+                      <div className="mt-1 text-sm text-amber-800">No rooms or beds are available for the selected dates.</div>
+                      <div className="mt-2 text-[12px] text-amber-700">Try a different date range.</div>
                     </div>
                   </div>
                 </div>
@@ -982,9 +1142,25 @@ export default function PublicPropertyDetailPage() {
   const [modalRoomsQty, setModalRoomsQty] = useState(1);
   const [modalGuests, setModalGuests] = useState<{ adults: number; children: number; pets: number }>({ adults: 1, children: 0, pets: 0 });
   const [quickBookingPage, setQuickBookingPage] = useState<"details" | "availability">("details");
+  const [availabilitySocket, setAvailabilitySocket] = useState<Socket | null>(null);
+  const [availabilityConnected, setAvailabilityConnected] = useState(false);
+  const [availabilityRefreshTick, setAvailabilityRefreshTick] = useState(0);
+  const selectedDatesRef = useRef(selectedDates);
+
+  const modalInFlightRef = useRef(false);
+
+  // Throttle socket-driven refresh signals so we don't spam the availability endpoint.
+  const socketRefreshTimerRef = useRef<any>(null);
+  const lastSocketRefreshAtRef = useRef<number>(0);
+
+  useEffect(() => {
+    selectedDatesRef.current = selectedDates;
+  }, [selectedDates]);
 
   const runAvailabilityCheck = useCallback(
-    async (propertyId: number, checkInStr: string, checkOutStr: string) => {
+    async (propertyId: number, checkInStr: string, checkOutStr: string, roomCode?: string | null) => {
+      // Guard against double-fires (e.g., fast UI interactions)
+      if (modalInFlightRef.current) return;
       if (!checkInStr || !checkOutStr) {
         setModalAvailError("Select both check-in and check-out dates");
         return;
@@ -1000,6 +1176,7 @@ export default function PublicPropertyDetailPage() {
         return;
       }
 
+      modalInFlightRef.current = true;
       setModalAvailLoading(true);
       setModalAvailError(null);
       try {
@@ -1011,6 +1188,7 @@ export default function PublicPropertyDetailPage() {
             propertyId,
             checkIn: checkInDate.toISOString(),
             checkOut: checkOutDate.toISOString(),
+            roomCode: roomCode ? String(roomCode).trim() : null,
           }),
         });
         const data = await response.json();
@@ -1020,14 +1198,90 @@ export default function PublicPropertyDetailPage() {
         setAvailabilityData(data);
         setSelectedDates({ checkIn: checkInStr, checkOut: checkOutStr });
       } catch (e: any) {
-        setAvailabilityData(null);
-        setModalAvailError(e?.message || "Failed to check availability");
+        const msg = e?.message || "Failed to check availability";
+        setModalAvailError(msg);
+
+        // Keep last-known availability on 429 so the UI can still show room status.
+        if (!/Too many availability requests/i.test(msg)) {
+          setAvailabilityData(null);
+        }
       } finally {
         setModalAvailLoading(false);
+        modalInFlightRef.current = false;
       }
     },
     []
   );
+
+  // Live updates: socket updates bump a refresh signal.
+
+  // Socket.IO connection for real-time availability updates
+  useEffect(() => {
+    if (!property?.id) return;
+
+    const socketUrl = (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000").replace(/\/$/, "");
+    
+    (async () => {
+      try {
+        const { io } = await import("socket.io-client");
+        const newSocket = io(socketUrl, {
+          transports: ["websocket", "polling"],
+          withCredentials: true,
+        });
+
+        newSocket.on("connect", () => {
+          setAvailabilityConnected(true);
+          newSocket.emit("join-property-availability", { propertyId: property.id });
+        });
+
+        newSocket.on("disconnect", () => {
+          setAvailabilityConnected(false);
+        });
+
+        newSocket.on("availability:update", (data: any) => {
+          if (Number(data?.propertyId) !== Number(property.id)) return;
+
+          const { checkIn, checkOut } = selectedDatesRef.current;
+          if (!checkIn || !checkOut) return;
+
+          const nowMs = Date.now();
+          const minGapMs = 4 * 60 * 1000; // at most one refresh signal per 4 minutes
+          const since = nowMs - lastSocketRefreshAtRef.current;
+
+          if (since >= minGapMs) {
+            lastSocketRefreshAtRef.current = nowMs;
+            setAvailabilityRefreshTick((t) => t + 1);
+            return;
+          }
+
+          if (socketRefreshTimerRef.current) return;
+          socketRefreshTimerRef.current = setTimeout(() => {
+            socketRefreshTimerRef.current = null;
+            lastSocketRefreshAtRef.current = Date.now();
+            setAvailabilityRefreshTick((t) => t + 1);
+          }, minGapMs - Math.max(0, since));
+        });
+
+        setAvailabilitySocket(newSocket);
+
+        return () => {
+          newSocket.emit("leave-property-availability", { propertyId: property.id });
+          newSocket.disconnect();
+        };
+      } catch (e) {
+        console.warn("Socket.IO client failed to initialize for availability", e);
+      }
+    })();
+  }, [property?.id]);
+
+  useEffect(() => {
+    return () => {
+      if (socketRefreshTimerRef.current) {
+        clearTimeout(socketRefreshTimerRef.current);
+        socketRefreshTimerRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const key = roomQuickView ? `${roomQuickView.roomType}|${roomQuickView.floor}` : "";
@@ -2086,6 +2340,8 @@ export default function PublicPropertyDetailPage() {
           propertyId={property.id}
           onAvailability={(data) => setAvailabilityData(data)}
           onDatesChange={(checkIn, checkOut) => setSelectedDates({ checkIn, checkOut })}
+          refreshSignal={availabilityRefreshTick}
+          dates={selectedDates}
         />
 
         {/* Building visualization (owner-declared) */}
@@ -2205,10 +2461,21 @@ export default function PublicPropertyDetailPage() {
                       .map((r: any) => String(r?.code || r?.roomCode || "").trim())
                       .filter(Boolean);
 
+                    // Availability API buckets are room-type based (e.g. "Single-1" -> "Single")
+                    const bucketKeyFromCode = (s: string) => String(s || "").trim().replace(/-\d+$/, "");
+                    const bucketKeysForType = Array.from(
+                      new Set(
+                        [roomQuickView.roomType, ...codesForType]
+                          .map(bucketKeyFromCode)
+                          .map((k) => k.trim())
+                          .filter(Boolean)
+                      )
+                    );
+
                     const byCode = availabilityData?.byRoomType || null;
                     // Keep original calculation for debug log (do not change previously added log)
                     const availableCodes = byCode
-                      ? codesForType.filter((c: string) => Number(byCode?.[c]?.availableRooms ?? 0) > 0)
+                      ? bucketKeysForType.filter((c: string) => Number(byCode?.[c]?.availableRooms ?? 0) > 0)
                       : [];
 
                     const effectiveDates =
@@ -2228,7 +2495,7 @@ export default function PublicPropertyDetailPage() {
 
                     const defaultAvail = byCode?.default || null;
                     const availabilityMode: "none" | "per_code" | "default" =
-                      !byCode ? "none" : codesForType.length ? "per_code" : defaultAvail ? "default" : "none";
+                      !byCode ? "none" : bucketKeysForType.length ? "per_code" : defaultAvail ? "default" : "none";
 
                     const computedAvailableRooms =
                       !byCode
@@ -2236,7 +2503,7 @@ export default function PublicPropertyDetailPage() {
                         : !availabilityMatchesDates
                           ? null
                           : availabilityMode === "per_code"
-                            ? codesForType.reduce((sum: number, c: string) => sum + Number(byCode?.[c]?.availableRooms ?? 0), 0)
+                            ? bucketKeysForType.reduce((sum: number, c: string) => sum + Number(byCode?.[c]?.availableRooms ?? 0), 0)
                             : availabilityMode === "default"
                               ? Number(defaultAvail?.availableRooms ?? 0)
                               : 0;
@@ -2254,11 +2521,11 @@ export default function PublicPropertyDetailPage() {
                       )}&children=${encodeURIComponent(String(Math.max(0, Number(modalGuests.children || 0))))}&pets=${encodeURIComponent(
                         String(Math.max(0, Number(modalGuests.pets || 0)))
                       )}&rooms=${encodeURIComponent(String(Math.max(1, Number(modalRoomsQty || 1))))}`;
-                      if (codesForType.length > 0) {
-                        // Prefer roomCode when the listing provides it
+                      if (bucketKeysForType.length > 0) {
+                        // Use room-type key so availability + booking capacity stay consistent
                         const code = availabilityMode === "per_code"
-                          ? (availableCodes[0] || codesForType[0])
-                          : codesForType[0];
+                          ? (availableCodes[0] || bucketKeysForType[0])
+                          : bucketKeysForType[0];
                         return `${base}&roomCode=${encodeURIComponent(code)}`;
                       }
                       if (roomIndex >= 0) {
@@ -2541,7 +2808,7 @@ export default function PublicPropertyDetailPage() {
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      runAvailabilityCheck(property.id, modalDates.checkIn, modalDates.checkOut);
+                                      runAvailabilityCheck(property.id, modalDates.checkIn, modalDates.checkOut, roomQuickView.roomType);
                                     }}
                                     disabled={modalAvailLoading}
                                     className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"

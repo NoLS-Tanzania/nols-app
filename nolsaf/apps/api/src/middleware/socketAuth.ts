@@ -97,18 +97,24 @@ function getTokenFromSocket(socket: Socket): string | null {
 /**
  * Socket.io authentication middleware
  * Validates JWT token from Authorization header or cookies
+ * Allows unauthenticated connections but restricts their functionality
  */
 export function socketAuthMiddleware(socket: AuthenticatedSocket, next: (err?: Error) => void) {
   const token = getTokenFromSocket(socket);
 
+  // If no token, allow connection but mark as unauthenticated
+  // The socket handlers should check socket.data.user before allowing sensitive operations
   if (!token) {
-    return next(new Error("Authentication error: No token provided"));
+    socket.data.user = undefined;
+    return next(); // Allow connection but without user data
   }
 
   verifyToken(token)
     .then((user) => {
       if (!user) {
-        return next(new Error("Authentication error: Invalid token"));
+        // Invalid token - allow connection but mark as unauthenticated
+        socket.data.user = undefined;
+        return next();
       }
 
       // Attach user to socket data
@@ -116,7 +122,9 @@ export function socketAuthMiddleware(socket: AuthenticatedSocket, next: (err?: E
       next();
     })
     .catch(() => {
-      next(new Error("Authentication error: Token verification failed"));
+      // Token verification failed - allow connection but mark as unauthenticated
+      socket.data.user = undefined;
+      next();
     });
 }
 

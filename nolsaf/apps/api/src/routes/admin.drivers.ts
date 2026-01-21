@@ -3,9 +3,116 @@ import { Router, RequestHandler } from "express";
 import { prisma } from "@nolsaf/prisma";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { Prisma } from "@prisma/client";
+import rateLimit from "express-rate-limit";
 
 export const router = Router();
 router.use(requireAuth as unknown as RequestHandler, requireRole("ADMIN") as unknown as RequestHandler);
+
+const adminRateKey = (req: any) => {
+  const id = req?.user?.id;
+  if (id != null) return `admin:${String(id)}`;
+  return req.ip || req.socket?.remoteAddress || "unknown";
+};
+
+// Admin pages can be chatty (polling, filtering). Keep this permissive but not unlimited.
+const limitAdminTripsRead = rateLimit({
+  windowMs: 60_000,
+  max: 240,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: adminRateKey,
+  message: { error: "Too many requests. Please wait a moment and try again." },
+});
+
+// Writes should be significantly tighter.
+const limitAdminTripsWrite = rateLimit({
+  windowMs: 10 * 60_000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: adminRateKey,
+  message: { error: "Too many admin actions. Please wait and try again." },
+});
+
+const normalizeSearchTerm = (v: unknown, maxLen = 80) =>
+  String(v ?? "")
+    .replace(/[\u0000-\u001F\u007F]/g, " ")
+    .trim()
+    .slice(0, maxLen);
+
+const normalizeReason = (v: unknown, maxLen = 500) => {
+  const s = String(v ?? "")
+    .replace(/\u0000/g, "")
+    .trim();
+  return s.length > maxLen ? s.slice(0, maxLen) : s;
+};
+
+type DriverEligibilityResult = { eligible: boolean; reasons: string[] };
+
+const normalizeArea = (v: unknown) => String(v ?? "").trim().toLowerCase();
+const parseAreas = (v: unknown) =>
+  String(v ?? "")
+    .split(/[;,|]/g)
+    .map((x) => normalizeArea(x))
+    .filter(Boolean);
+
+const allowedAreasForDriver = (driver: any) => {
+  const areas = new Set<string>();
+  const region = normalizeArea(driver?.region);
+  if (region) areas.add(region);
+  for (const a of parseAreas(driver?.operationArea)) areas.add(a);
+  return Array.from(areas);
+};
+
+const bookingAreasForBooking = (booking: any) =>
+  [normalizeArea(booking?.fromRegion), normalizeArea(booking?.toRegion), normalizeArea(booking?.property?.regionName)].filter(Boolean);
+
+const isAreaMatch = (driver: any, booking: any) => {
+  const allowed = allowedAreasForDriver(driver);
+  const bookingAreas = bookingAreasForBooking(booking);
+  if (!bookingAreas.length) return true; // can't enforce if booking has no region data
+  if (!allowed.length) return false;
+  return bookingAreas.some((a) => allowed.includes(a));
+};
+
+const normalizeVehicleType = (v: unknown): "BODA" | "BAJAJI" | "CAR" | "XL" | "PREMIUM" | null => {
+  const s = String(v ?? "").toLowerCase();
+  if (!s) return null;
+  if (s.includes("premium") || s.includes("vip")) return "PREMIUM";
+  if (s.includes("motor") || s.includes("boda") || s.includes("bike")) return "BODA";
+  if (s.includes("tuktuk") || s.includes("bajaji") || s.includes("tuk") || s.includes("auto")) return "BAJAJI";
+  if (s.includes("xl") || s.includes("van") || s.includes("hiace") || s.includes("coaster") || s.includes("minibus")) return "XL";
+  if (s.includes("car") || s.includes("sedan") || s.includes("suv")) return "CAR";
+  return null;
+};
+
+const isDriverAvailable = (driver: any) => {
+  if (driver?.available === false) return false;
+  if (driver?.isAvailable === false) return false;
+  return true;
+};
+
+const driverEligibilityForBooking = (driver: any, booking: any): DriverEligibilityResult => {
+  const reasons: string[] = [];
+
+  if (!driver) return { eligible: false, reasons: ["Driver not found"] };
+  if (String(driver?.role ?? "").toUpperCase() !== "DRIVER") reasons.push("Not a driver");
+  if (driver?.isDisabled) reasons.push("Driver disabled");
+  if (driver?.suspendedAt) reasons.push("Driver suspended");
+  if (!isDriverAvailable(driver)) reasons.push("Driver unavailable");
+
+  const bookingVehicleType = String(booking?.vehicleType ?? "").toUpperCase().trim();
+  if (bookingVehicleType === "PREMIUM" && !Boolean(driver?.isVipDriver)) reasons.push("VIP required");
+  if (bookingVehicleType && ["BODA", "BAJAJI", "CAR", "XL"].includes(bookingVehicleType)) {
+    const driverNorm = normalizeVehicleType(driver?.vehicleType);
+    if (!driverNorm) reasons.push("Vehicle type not set");
+    else if (driverNorm !== bookingVehicleType) reasons.push("Vehicle mismatch");
+  }
+
+  if (!isAreaMatch(driver, booking)) reasons.push("Outside service area");
+
+  return { eligible: reasons.length === 0, reasons };
+};
 
 /** GET /admin/drivers?q=&status=&page=&pageSize= */
 router.get("/", async (req, res) => {
@@ -120,9 +227,102 @@ router.get("/", async (req, res) => {
   }
 });
 
+/**
+ * GET /admin/drivers/trips/:id/eligible-drivers?q=&page=&pageSize=
+ * Returns only eligible drivers for a direct-admin-assigned trip.
+ */
+router.get("/trips/:id(\\d+)/eligible-drivers", limitAdminTripsRead, async (req, res) => {
+  try {
+    const bookingId = Number(req.params.id);
+    const { q = "", page = "1", pageSize = "10" } = req.query as any;
+
+    if (!Number.isFinite(bookingId) || bookingId <= 0) return res.status(400).json({ error: "Invalid id" });
+    if (!(prisma as any).transportBooking) return res.status(409).json({ error: "Transport model not available" });
+
+    const booking = await (prisma as any).transportBooking.findUnique({
+      where: { id: bookingId },
+      select: {
+        id: true,
+        status: true,
+        fromRegion: true,
+        toRegion: true,
+        vehicleType: true,
+        property: { select: { regionName: true } },
+      },
+    });
+    if (!booking) return res.status(404).json({ error: "Trip not found" });
+
+    const p = Math.max(1, Number(page) || 1);
+    const ps = Math.min(Math.max(1, Number(pageSize) || 10), 50);
+    const term = normalizeSearchTerm(q);
+
+    const where: any = {
+      role: "DRIVER",
+      suspendedAt: null,
+      AND: [{ OR: [{ isDisabled: false }, { isDisabled: null }] }],
+    };
+
+    if (term) {
+      where.AND.push({
+        OR: [{ name: { contains: term } }, { email: { contains: term } }, { phone: { contains: term } }],
+      });
+    }
+
+    // Best-effort prefilter by booking regions to avoid scanning all drivers.
+    const rawAreas = [booking?.fromRegion, booking?.toRegion, booking?.property?.regionName].map((x) => String(x ?? "").trim()).filter(Boolean);
+    if (rawAreas.length) {
+      where.AND.push({
+        OR: [
+          { region: { in: rawAreas } },
+          ...rawAreas.map((a) => ({ operationArea: { contains: a } })),
+        ],
+      });
+    }
+
+    const candidates = await prisma.user.findMany({
+      where,
+      select: {
+        id: true,
+        name: true,
+        fullName: true,
+        email: true,
+        phone: true,
+        role: true,
+        region: true,
+        operationArea: true,
+        vehicleType: true,
+        isVipDriver: true,
+        suspendedAt: true,
+        isDisabled: true,
+        available: true,
+        isAvailable: true,
+      },
+      orderBy: { id: "desc" },
+      take: term ? 400 : 600,
+    });
+
+    const eligible = (candidates ?? []).filter((d: any) => driverEligibilityForBooking(d, booking).eligible);
+    const total = eligible.length;
+    const items = eligible.slice((p - 1) * ps, (p - 1) * ps + ps).map((d: any) => ({
+      id: d.id,
+      name: String(d.fullName || d.name || `Driver #${d.id}`),
+      email: String(d.email || ""),
+      phone: d.phone ?? null,
+    }));
+
+    return res.json({ total, page: p, pageSize: ps, items });
+  } catch (err: any) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && (err.code === "P2021" || err.code === "P2022")) {
+      return res.status(404).json({ error: "Not found" });
+    }
+    console.error("Unhandled error in GET /admin/drivers/trips/:id/eligible-drivers:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 /** GET /admin/drivers/trips?driverId=&status=&date=&start=&end=&page=&pageSize=&q= */
 /** GET /admin/drivers/trips/stats?period=7d|30d|month|year */
-router.get("/trips/stats", async (req, res) => {
+router.get("/trips/stats", limitAdminTripsRead, async (req, res) => {
   try {
     const { period = "30d" } = req.query as any;
     
@@ -227,18 +427,50 @@ router.get("/trips/stats", async (req, res) => {
   }
 });
 
-router.get("/trips", async (req, res) => {
+router.get("/trips", limitAdminTripsRead, async (req, res) => {
   try {
-    const { driverId, status, date, start, end, page = "1", pageSize = "50", q = "" } = req.query as any;
+    const {
+      driverId,
+      status,
+      assignment = "assigned", // assigned|unassigned|all
+      date,
+      start,
+      end,
+      page = "1",
+      pageSize = "50",
+      q = "",
+    } = req.query as any;
     
     const where: any = {};
+
+    // This endpoint powers the admin "Trips" page for direct-accept/dispatch trips.
+    // Scheduled claim-based trips are handled separately under /trips/scheduled.
+    // Exclude any transport bookings that have at least one claim.
+    (where as any).claims = { none: {} };
+
+    // Keep "Trips" focused on rides that need attention now / already happened.
+    // Future rides belong in /trips/scheduled.
+    (where as any).OR = [
+      { scheduledDate: { lte: new Date() } },
+      { status: { in: ["CONFIRMED", "IN_PROGRESS"] } },
+    ];
     
     // Filter by driver if specified
-    if (driverId) {
-      (where as any).driverId = Number(driverId);
+    if (typeof driverId !== "undefined" && String(driverId).trim() !== "") {
+      const did = Number(driverId);
+      if (Number.isFinite(did) && did > 0) {
+        (where as any).driverId = did;
+      }
     } else {
-      // Only show trips that have a driver assigned
-      (where as any).driverId = { not: null };
+      // Assignment filtering (default stays backwards-compatible: assigned)
+      const a = String(assignment || "assigned").toLowerCase();
+      if (a === "all") {
+        // no driverId constraint
+      } else if (a === "unassigned") {
+        (where as any).driverId = null;
+      } else {
+        (where as any).driverId = { not: null };
+      }
     }
     
     // Filter by status
@@ -298,6 +530,25 @@ router.get("/trips", async (req, res) => {
       }),
       (prisma as any).transportBooking.count({ where }),
     ]);
+
+    // Map TransportBooking.paymentRef -> Invoice.id (used for linking to the existing invoice/payment templates)
+    const paymentRefs = Array.from(
+      new Set(
+        (items as any[])
+          .map((b: any) => (b?.paymentRef ? String(b.paymentRef) : ""))
+          .filter((v: string) => v.trim() !== "")
+      )
+    );
+    const invoiceIdByPaymentRef = new Map<string, number>();
+    if (paymentRefs.length > 0) {
+      const invoices = await prisma.invoice.findMany({
+        where: { paymentRef: { in: paymentRefs } },
+        select: { id: true, paymentRef: true },
+      });
+      for (const inv of invoices) {
+        if (inv.paymentRef) invoiceIdByPaymentRef.set(String(inv.paymentRef), inv.id);
+      }
+    }
     
     const fmtLoc = (kind: "from" | "to", row: any) => {
       const addr = kind === "from" ? row.fromAddress : row.toAddress;
@@ -324,6 +575,11 @@ router.get("/trips", async (req, res) => {
       dropoff: fmtLoc("to", b),
       scheduledAt: (b.scheduledDate ?? b.createdAt)?.toISOString?.() ?? String(b.scheduledDate ?? b.createdAt ?? ""),
       amount: Number(b.amount ?? 0),
+      vehicleType: b.vehicleType ?? null,
+      paymentStatus: b.paymentStatus ?? null,
+      paymentMethod: b.paymentMethod ?? null,
+      paymentRef: b.paymentRef ?? null,
+      invoiceId: b.paymentRef ? invoiceIdByPaymentRef.get(String(b.paymentRef)) ?? null : null,
       status: b.status || "PENDING",
       createdAt: (b.createdAt ?? b.updatedAt)?.toISOString?.() ?? String(b.createdAt ?? b.updatedAt ?? ""),
     }));
@@ -341,6 +597,1325 @@ router.get("/trips", async (req, res) => {
   }
 });
 
+/**
+ * POST /admin/drivers/trips/:id/assign
+ * Body: { driverId: number, reason: string }
+ * Assigns a driver to a transport booking (direct admin control; non-claim based).
+ */
+router.post("/trips/:id(\\d+)/assign", limitAdminTripsWrite, async (req, res) => {
+  try {
+    const r = req as any;
+    const adminId = Number(r?.user?.id);
+    const bookingId = Number(req.params.id);
+    const driverId = Number((req.body as any)?.driverId);
+    const reason = normalizeReason((req.body as any)?.reason, 500);
+
+    if (!Number.isFinite(bookingId) || bookingId <= 0) return res.status(400).json({ error: "Invalid id" });
+    if (!Number.isFinite(driverId) || driverId <= 0) return res.status(400).json({ error: "driverId is required" });
+    if (!reason) return res.status(400).json({ error: "reason is required" });
+    if (reason.length > 500) return res.status(400).json({ error: "reason is too long" });
+
+    if (!(prisma as any).transportBooking) return res.status(409).json({ error: "Transport model not available" });
+
+    const result = await prisma.$transaction(async (tx) => {
+      const booking = await (tx as any).transportBooking.findUnique({
+        where: { id: bookingId },
+        select: {
+          id: true,
+          driverId: true,
+          status: true,
+          fromRegion: true,
+          toRegion: true,
+          vehicleType: true,
+          property: { select: { regionName: true } },
+        },
+      });
+      if (!booking) {
+        const err: any = new Error("Booking not found");
+        err.code = "NOT_FOUND";
+        throw err;
+      }
+      if (booking.status === "COMPLETED" || booking.status === "CANCELED") {
+        const err: any = new Error("Trip is not active");
+        err.code = "NOT_ACTIVE";
+        throw err;
+      }
+      if (booking.driverId != null) {
+        const err: any = new Error("Booking already assigned");
+        err.code = "ALREADY_ASSIGNED";
+        throw err;
+      }
+
+      // Ensure target user exists (best-effort; schema differs between deployments)
+      const driver = await (tx as any).user?.findUnique?.({
+        where: { id: driverId },
+        select: {
+          id: true,
+          role: true,
+          name: true,
+          email: true,
+          phone: true,
+          region: true,
+          operationArea: true,
+          vehicleType: true,
+          isVipDriver: true,
+          suspendedAt: true,
+          isDisabled: true,
+          available: true,
+          isAvailable: true,
+        },
+      });
+      if (!driver) {
+        const err: any = new Error("Driver not found");
+        err.code = "DRIVER_NOT_FOUND";
+        throw err;
+      }
+
+      const eligibility = driverEligibilityForBooking(driver, booking);
+      if (!eligibility.eligible) {
+        const err: any = new Error(
+          eligibility.reasons.length ? `Driver not eligible: ${eligibility.reasons.join(", ")}` : "Driver not eligible"
+        );
+        err.code = "DRIVER_NOT_ELIGIBLE";
+        throw err;
+      }
+
+      const updated = await (tx as any).transportBooking.update({
+        where: { id: bookingId },
+        data: {
+          driverId,
+          status: booking.status === "PENDING" ? "CONFIRMED" : booking.status,
+        },
+        include: {
+          user: { select: { id: true, name: true, email: true, phone: true } },
+          driver: { select: { id: true, name: true, email: true, phone: true } },
+        },
+      });
+
+      await (tx as any).auditLog?.create?.({
+        data: {
+          actorId: Number.isFinite(adminId) ? adminId : null,
+          actorRole: "ADMIN",
+          action: "TRANSPORT_ADMIN_ASSIGN_DRIVER",
+          entity: "TRANSPORT_BOOKING",
+          entityId: bookingId,
+          beforeJson: { driverId: null },
+          afterJson: { bookingId, driverId, reason },
+          ip: (req.headers["x-forwarded-for"] as string) || (req.socket as any)?.remoteAddress || null,
+          ua: String(req.headers["user-agent"] || ""),
+        },
+      });
+
+      if (Number.isFinite(adminId)) {
+        await (tx as any).adminAudit?.create?.({
+          data: {
+            adminId,
+            targetUserId: driverId,
+            action: "TRANSPORT_ADMIN_ASSIGN_DRIVER",
+            details: { bookingId, driverId, reason },
+          },
+        });
+      }
+
+      return updated;
+    });
+
+    return res.json({ success: true, booking: result });
+  } catch (error: any) {
+    const status =
+      error?.code === "NOT_FOUND" ? 404 :
+      error?.code === "DRIVER_NOT_FOUND" ? 404 :
+      error?.code === "ALREADY_ASSIGNED" ? 409 :
+      error?.code === "NOT_ACTIVE" ? 409 :
+      error?.code === "DRIVER_NOT_ELIGIBLE" ? 409 :
+      500;
+    console.error("POST /admin/drivers/trips/:id/assign error:", error);
+    return res.status(status).json({ error: error?.message || "Failed to assign" });
+  }
+});
+
+/**
+ * POST /admin/drivers/trips/:id/unassign
+ * Body: { reason: string }
+ */
+router.post("/trips/:id(\\d+)/unassign", limitAdminTripsWrite, async (req, res) => {
+  try {
+    const r = req as any;
+    const adminId = Number(r?.user?.id);
+    const bookingId = Number(req.params.id);
+    const reason = normalizeReason((req.body as any)?.reason, 500);
+
+    if (!Number.isFinite(bookingId) || bookingId <= 0) return res.status(400).json({ error: "Invalid id" });
+    if (!reason) return res.status(400).json({ error: "reason is required" });
+    if (reason.length > 500) return res.status(400).json({ error: "reason is too long" });
+    if (!(prisma as any).transportBooking) return res.status(409).json({ error: "Transport model not available" });
+
+    const result = await prisma.$transaction(async (tx) => {
+      const booking = await (tx as any).transportBooking.findUnique({
+        where: { id: bookingId },
+        select: { id: true, driverId: true, status: true },
+      });
+      if (!booking) {
+        const err: any = new Error("Booking not found");
+        err.code = "NOT_FOUND";
+        throw err;
+      }
+      if (booking.driverId == null) {
+        const err: any = new Error("Trip is already unassigned");
+        err.code = "ALREADY_UNASSIGNED";
+        throw err;
+      }
+      if (booking.status === "COMPLETED" || booking.status === "CANCELED") {
+        const err: any = new Error("Trip is not active");
+        err.code = "NOT_ACTIVE";
+        throw err;
+      }
+      if (booking.status === "IN_PROGRESS") {
+        const err: any = new Error("Trip is in progress");
+        err.code = "IN_PROGRESS";
+        throw err;
+      }
+
+      const prevDriverId = booking.driverId;
+
+      const updated = await (tx as any).transportBooking.update({
+        where: { id: bookingId },
+        data: {
+          driverId: null,
+          status: "PENDING",
+        },
+        include: {
+          user: { select: { id: true, name: true, email: true, phone: true } },
+          driver: { select: { id: true, name: true, email: true, phone: true } },
+        },
+      });
+
+      await (tx as any).auditLog?.create?.({
+        data: {
+          actorId: Number.isFinite(adminId) ? adminId : null,
+          actorRole: "ADMIN",
+          action: "TRANSPORT_ADMIN_UNASSIGN_DRIVER",
+          entity: "TRANSPORT_BOOKING",
+          entityId: bookingId,
+          beforeJson: { driverId: prevDriverId },
+          afterJson: { bookingId, driverId: null, reason },
+          ip: (req.headers["x-forwarded-for"] as string) || (req.socket as any)?.remoteAddress || null,
+          ua: String(req.headers["user-agent"] || ""),
+        },
+      });
+
+      if (Number.isFinite(adminId) && Number.isFinite(Number(prevDriverId))) {
+        await (tx as any).adminAudit?.create?.({
+          data: {
+            adminId,
+            targetUserId: Number(prevDriverId),
+            action: "TRANSPORT_ADMIN_UNASSIGN_DRIVER",
+            details: { bookingId, prevDriverId, reason },
+          },
+        });
+      }
+
+      return updated;
+    });
+
+    return res.json({ success: true, booking: result });
+  } catch (error: any) {
+    const status =
+      error?.code === "NOT_FOUND" ? 404 :
+      error?.code === "ALREADY_UNASSIGNED" ? 409 :
+      error?.code === "IN_PROGRESS" ? 409 :
+      error?.code === "NOT_ACTIVE" ? 409 :
+      500;
+    console.error("POST /admin/drivers/trips/:id/unassign error:", error);
+    return res.status(status).json({ error: error?.message || "Failed to unassign" });
+  }
+});
+
+/**
+ * POST /admin/drivers/trips/:id/cancel
+ * Body: { reason: string }
+ */
+router.post("/trips/:id(\\d+)/cancel", limitAdminTripsWrite, async (req, res) => {
+  try {
+    const r = req as any;
+    const adminId = Number(r?.user?.id);
+    const bookingId = Number(req.params.id);
+    const reason = normalizeReason((req.body as any)?.reason, 800);
+
+    if (!Number.isFinite(bookingId) || bookingId <= 0) return res.status(400).json({ error: "Invalid id" });
+    if (!reason) return res.status(400).json({ error: "reason is required" });
+    if (reason.length < 40) return res.status(400).json({ error: "reason must be at least 40 characters" });
+    if (reason.length > 800) return res.status(400).json({ error: "reason is too long" });
+    if (!(prisma as any).transportBooking) return res.status(409).json({ error: "Transport model not available" });
+
+    const result = await prisma.$transaction(async (tx) => {
+      const booking = await (tx as any).transportBooking.findUnique({
+        where: { id: bookingId },
+        select: { id: true, driverId: true, status: true, notes: true },
+      });
+      if (!booking) {
+        const err: any = new Error("Booking not found");
+        err.code = "NOT_FOUND";
+        throw err;
+      }
+      if (booking.status === "COMPLETED" || booking.status === "CANCELED") {
+        const err: any = new Error("Trip is not active");
+        err.code = "NOT_ACTIVE";
+        throw err;
+      }
+
+      const newNotes =
+        (booking.notes ? String(booking.notes) + "\n" : "") +
+        `Admin cancelled: ${reason}`;
+
+      const updated = await (tx as any).transportBooking.update({
+        where: { id: bookingId },
+        data: { status: "CANCELED", notes: newNotes },
+        include: {
+          user: { select: { id: true, name: true, email: true, phone: true } },
+          driver: { select: { id: true, name: true, email: true, phone: true } },
+        },
+      });
+
+      await (tx as any).auditLog?.create?.({
+        data: {
+          actorId: Number.isFinite(adminId) ? adminId : null,
+          actorRole: "ADMIN",
+          action: "TRANSPORT_ADMIN_CANCEL_TRIP",
+          entity: "TRANSPORT_BOOKING",
+          entityId: bookingId,
+          beforeJson: { status: booking.status, driverId: booking.driverId ?? null },
+          afterJson: { bookingId, status: "CANCELED", reason },
+          ip: (req.headers["x-forwarded-for"] as string) || (req.socket as any)?.remoteAddress || null,
+          ua: String(req.headers["user-agent"] || ""),
+        },
+      });
+
+      if (Number.isFinite(adminId)) {
+        await (tx as any).adminAudit?.create?.({
+          data: {
+            adminId,
+            targetUserId: booking.driverId ?? null,
+            action: "TRANSPORT_ADMIN_CANCEL_TRIP",
+            details: { bookingId, status: "CANCELED", reason, previousStatus: booking.status },
+          },
+        });
+      }
+
+      return updated;
+    });
+
+    return res.json({ success: true, booking: result });
+  } catch (error: any) {
+    const status =
+      error?.code === "NOT_FOUND" ? 404 :
+      error?.code === "NOT_ACTIVE" ? 409 :
+      500;
+    console.error("POST /admin/drivers/trips/:id/cancel error:", error);
+    return res.status(status).json({ error: error?.message || "Failed to cancel" });
+  }
+});
+
+/**
+ * GET /admin/drivers/trips/:id
+ * Returns details for a transport trip (TransportBooking) so admins can manage direct-accept flows.
+ */
+router.get("/trips/:id(\\d+)", async (req, res) => {
+  try {
+    const bookingId = Number(req.params.id);
+    if (!Number.isFinite(bookingId) || bookingId <= 0) return res.status(400).json({ error: "Invalid id" });
+
+    if (!(prisma as any).transportBooking) return res.status(404).json({ error: "Not found" });
+
+    const booking = await (prisma as any).transportBooking.findUnique({
+      where: { id: bookingId },
+      include: {
+        user: { select: { id: true, name: true, email: true, phone: true } },
+        driver: { select: { id: true, name: true, email: true, phone: true } },
+      },
+    });
+
+    if (!booking) return res.status(404).json({ error: "Not found" });
+
+    const trip = {
+      id: booking.id,
+      tripCode: booking.paymentRef || `TRIP-${booking.id}`,
+      status: booking.status || "PENDING",
+      scheduledAt: (booking.scheduledDate ?? booking.createdAt)?.toISOString?.() ?? String(booking.scheduledDate ?? booking.createdAt ?? ""),
+      pickupTime: booking.pickupTime ? new Date(booking.pickupTime).toISOString() : null,
+      dropoffTime: booking.dropoffTime ? new Date(booking.dropoffTime).toISOString() : null,
+      pickup: booking.fromAddress || [booking.fromWard, booking.fromDistrict, booking.fromRegion].filter(Boolean).join(", ") || "N/A",
+      dropoff: booking.toAddress || [booking.toWard, booking.toDistrict, booking.toRegion].filter(Boolean).join(", ") || "N/A",
+      vehicleType: booking.vehicleType ?? null,
+      amount: booking.amount != null ? Number(booking.amount) : 0,
+      currency: booking.currency ?? "TZS",
+      paymentStatus: booking.paymentStatus ?? null,
+      paymentMethod: booking.paymentMethod ?? null,
+      paymentRef: booking.paymentRef ?? null,
+      notes: booking.notes ?? null,
+      createdAt: booking.createdAt ? new Date(booking.createdAt).toISOString() : null,
+      updatedAt: booking.updatedAt ? new Date(booking.updatedAt).toISOString() : null,
+      user: booking.user
+        ? {
+            id: booking.user.id,
+            name: booking.user.name ?? "",
+            email: booking.user.email ?? "",
+            phone: booking.user.phone ?? null,
+          }
+        : null,
+      driver: booking.driver
+        ? {
+            id: booking.driver.id,
+            name: booking.driver.name ?? "",
+            email: booking.driver.email ?? "",
+            phone: booking.driver.phone ?? null,
+          }
+        : null,
+    };
+
+    let audits: any[] = [];
+    try {
+      if ((prisma as any).auditLog) {
+        audits = await (prisma as any).auditLog.findMany({
+          where: {
+            entity: "TRANSPORT_BOOKING",
+            entityId: bookingId,
+            action: {
+              in: [
+                "TRANSPORT_ASSIGN_DRIVER",
+                "TRANSPORT_ADMIN_ASSIGN_DRIVER",
+                "TRANSPORT_ADMIN_UNASSIGN_DRIVER",
+                "TRANSPORT_ADMIN_CANCEL_TRIP",
+              ],
+            },
+          },
+          orderBy: { createdAt: "desc" },
+          take: 50,
+        });
+      }
+    } catch {
+      audits = [];
+    }
+
+    const assignmentAudits = (audits || []).map((a: any) => {
+      const afterJson = a?.afterJson;
+      const reason = typeof afterJson === "object" && afterJson ? (afterJson.reason ?? null) : null;
+      return {
+        id: a.id,
+        action: a.action,
+        actorId: a.actorId ?? null,
+        createdAt: a.createdAt ? new Date(a.createdAt).toISOString() : null,
+        reason,
+      };
+    });
+
+    return res.json({ trip, assignmentAudits });
+  } catch (err: any) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && (err.code === "P2021" || err.code === "P2022")) {
+      return res.status(404).json({ error: "Not found" });
+    }
+    console.error("Unhandled error in GET /admin/drivers/trips/:id:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * GET /admin/drivers/trips/scheduled
+ * List scheduled transport bookings (paid by default) for operational control.
+ * Query:
+ * - bucket=unassigned|assigned|all (default: unassigned)
+ * - futureOnly=true|false (default: true)
+ * - paymentStatus=PAID|PENDING|REFUNDED (default: PAID)
+ * - vehicleType=BODA|BAJAJI|CAR|XL|PREMIUM
+ * - q=search
+ * - page/pageSize
+ */
+router.get("/trips/scheduled", async (req, res) => {
+  try {
+    const {
+      stage,
+      bucket = "unassigned",
+      futureOnly = "true",
+      paymentStatus = "PAID",
+      vehicleType,
+      q = "",
+      page = "1",
+      pageSize = "50",
+    } = req.query as any;
+
+    if (!(prisma as any).transportBooking) {
+      return res.json({ total: 0, page: Number(page), pageSize: Math.min(Number(pageSize) || 50, 100), items: [] });
+    }
+
+    const now = new Date();
+    const CLAIM_WINDOW_HOURS = 72;
+    const claimWindowMs = CLAIM_WINDOW_HOURS * 60 * 60 * 1000;
+    const claimOpenCutoff = new Date(now.getTime() + claimWindowMs);
+
+    const where: any = {
+      paymentStatus: paymentStatus ? String(paymentStatus) : undefined,
+    };
+
+    // Stage is a higher-level filter for ops workflows.
+    // If stage is provided, it takes precedence over bucket/futureOnly.
+    const stageValue = stage ? String(stage) : "";
+    if (stageValue) {
+      switch (stageValue) {
+        case "waiting": {
+          // Paid, unassigned, future, but claim window not open yet (scheduled > now+72h)
+          where.driverId = null;
+          where.scheduledDate = { gt: claimOpenCutoff };
+          break;
+        }
+        case "claim_open": {
+          // Paid, unassigned, future, and within claim window (scheduled <= now+72h)
+          where.driverId = null;
+          where.scheduledDate = { gte: now, lte: claimOpenCutoff };
+          break;
+        }
+        case "assigned": {
+          // Driver assigned but trip not completed.
+          where.driverId = { not: null };
+          where.scheduledDate = { gte: now };
+          where.status = { in: ["ASSIGNED", "CONFIRMED", "PENDING"] };
+          break;
+        }
+        case "in_progress": {
+          where.status = "IN_PROGRESS";
+          break;
+        }
+        case "completed": {
+          where.status = "COMPLETED";
+          break;
+        }
+        case "all": {
+          // no extra filtering
+          break;
+        }
+        default: {
+          // fall back to legacy behavior
+          break;
+        }
+      }
+    } else {
+      const wantFutureOnly = String(futureOnly).toLowerCase() !== "false";
+      if (wantFutureOnly) {
+        where.scheduledDate = { gte: now };
+      }
+
+      if (bucket === "unassigned") where.driverId = null;
+      else if (bucket === "assigned") where.driverId = { not: null };
+    }
+
+    if (vehicleType) {
+      where.vehicleType = String(vehicleType);
+    }
+
+    const term = String(q).trim();
+    if (term) {
+      where.OR = [
+        { fromAddress: { contains: term } },
+        { toAddress: { contains: term } },
+        { fromDistrict: { contains: term } },
+        { toDistrict: { contains: term } },
+        { fromRegion: { contains: term } },
+        { toRegion: { contains: term } },
+        { paymentRef: { contains: term } },
+        { user: { is: { name: { contains: term } } } },
+        { user: { is: { email: { contains: term } } } },
+      ];
+    }
+
+    const p = Math.max(1, Number(page) || 1);
+    const ps = Math.max(1, Math.min(100, Number(pageSize) || 50));
+    const skip = (p - 1) * ps;
+
+    const [items, total] = await Promise.all([
+      (prisma as any).transportBooking.findMany({
+        where,
+        include: {
+          user: { select: { id: true, name: true, email: true, phone: true } },
+          driver: { select: { id: true, name: true, email: true, phone: true } },
+          _count: { select: { claims: true } },
+        },
+        orderBy: { scheduledDate: "asc" },
+        skip,
+        take: ps,
+      }),
+      (prisma as any).transportBooking.count({ where }),
+    ]);
+
+    const fmtLoc = (kind: "from" | "to", row: any) => {
+      const addr = kind === "from" ? row.fromAddress : row.toAddress;
+      if (addr) return addr;
+      const ward = kind === "from" ? row.fromWard : row.toWard;
+      const district = kind === "from" ? row.fromDistrict : row.toDistrict;
+      const region = kind === "from" ? row.fromRegion : row.toRegion;
+      const parts = [ward, district, region].filter(Boolean);
+      return parts.length ? parts.join(", ") : "N/A";
+    };
+
+    const claimLimit = 5;
+
+    const computeClaimOpensAt = (scheduledDate: Date) => new Date(scheduledDate.getTime() - claimWindowMs);
+
+    const mapped = (items as any[]).map((b: any) => {
+      const claimCount = Number(b?._count?.claims ?? 0);
+      const scheduledDate = new Date(b.scheduledDate);
+      const claimOpensAt = computeClaimOpensAt(scheduledDate);
+      const canClaimNow = now >= claimOpensAt && now <= scheduledDate && b.driverId == null;
+
+      const derivedStage = (() => {
+        if (b.status === "COMPLETED") return "completed";
+        if (b.status === "IN_PROGRESS") return "in_progress";
+        if (b.driverId != null) return "assigned";
+        if (scheduledDate > claimOpenCutoff) return "waiting";
+        if (scheduledDate >= now && scheduledDate <= claimOpenCutoff) return "claim_open";
+        return "all";
+      })();
+
+      return {
+        id: b.id,
+        tripCode: b.paymentRef || `TRIP-${b.id}`,
+        passenger: b.user
+          ? { id: b.user.id, name: b.user.name, email: b.user.email, phone: b.user.phone }
+          : null,
+        driver: b.driver
+          ? { id: b.driver.id, name: b.driver.name || "Unknown Driver", email: b.driver.email, phone: b.driver.phone }
+          : null,
+        pickup: fmtLoc("from", b),
+        dropoff: fmtLoc("to", b),
+        scheduledAt: (b.scheduledDate ?? b.createdAt)?.toISOString?.() ?? String(b.scheduledDate ?? b.createdAt ?? ""),
+        vehicleType: b.vehicleType ?? null,
+        amount: Number(b.amount ?? 0),
+        currency: b.currency ?? "TZS",
+        status: b.status || "PENDING",
+        paymentStatus: b.paymentStatus || "PENDING",
+        stage: derivedStage,
+        claimWindowHours: CLAIM_WINDOW_HOURS,
+        claimOpensAt: claimOpensAt.toISOString(),
+        canClaimNow,
+        claimCount,
+        claimLimit,
+        claimsRemaining: Math.max(0, claimLimit - claimCount),
+        createdAt: (b.createdAt ?? b.updatedAt)?.toISOString?.() ?? String(b.createdAt ?? b.updatedAt ?? ""),
+      };
+    });
+
+    return res.json({ total, page: p, pageSize: ps, items: mapped });
+  } catch (err: any) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && (err.code === "P2021" || err.code === "P2022")) {
+      const p = Number((req.query as any).page ?? 1);
+      const ps = Math.min(Number((req.query as any).pageSize ?? 50), 100);
+      return res.json({ total: 0, page: p, pageSize: ps, items: [] });
+    }
+    console.error("Unhandled error in GET /admin/drivers/trips/scheduled:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * GET /admin/drivers/trips/scheduled/:id
+ * Fetch one scheduled transport booking with claims.
+ */
+router.get("/trips/scheduled/:id", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ error: "Invalid id" });
+    if (!(prisma as any).transportBooking) return res.status(404).json({ error: "Not found" });
+
+    const booking = await (prisma as any).transportBooking.findUnique({
+      where: { id },
+      include: {
+        user: { select: { id: true, name: true, email: true, phone: true } },
+        driver: { select: { id: true, name: true, email: true, phone: true } },
+        property: { select: { id: true, title: true, regionName: true, district: true, ward: true } },
+        claims: {
+          include: {
+            driver: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                phone: true,
+                isVipDriver: true,
+                vehicleType: true,
+                region: true,
+                operationArea: true,
+                suspendedAt: true,
+                isDisabled: true,
+              },
+            },
+            reviewer: { select: { id: true, name: true, email: true } },
+          },
+          orderBy: [{ status: "asc" }, { createdAt: "asc" }],
+        },
+      },
+    });
+
+    if (!booking) return res.status(404).json({ error: "Not found" });
+
+    const audits = await prisma.auditLog.findMany({
+      where: {
+        entity: "TRANSPORT_BOOKING",
+        entityId: id,
+        action: "TRANSPORT_ASSIGN_DRIVER",
+      },
+      include: {
+        actor: { select: { id: true, name: true, email: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    });
+
+    const afterJson = audits[0]?.afterJson as any;
+    const latestAssignmentAudit = audits[0]
+      ? {
+          assignedAt: audits[0].createdAt.toISOString(),
+          assignedBy: audits[0].actor,
+          kind: typeof afterJson === "object" && afterJson ? (afterJson.kind ?? "ASSIGN") : "ASSIGN",
+          reason: typeof afterJson === "object" && afterJson ? afterJson.reason ?? null : null,
+          claimId: typeof afterJson === "object" && afterJson ? afterJson.claimId ?? null : null,
+          driverId: typeof afterJson === "object" && afterJson ? afterJson.driverId ?? null : null,
+        }
+      : null;
+
+    const assignmentAudits = audits.map((a) => {
+      const aj = a.afterJson as any;
+      return {
+        assignedAt: a.createdAt.toISOString(),
+        assignedBy: a.actor,
+        kind: typeof aj === "object" && aj ? (aj.kind ?? "ASSIGN") : "ASSIGN",
+        reason: typeof aj === "object" && aj ? aj.reason ?? null : null,
+        claimId: typeof aj === "object" && aj ? aj.claimId ?? null : null,
+        driverId: typeof aj === "object" && aj ? aj.driverId ?? null : null,
+      };
+    });
+
+    // Recommendation scoring is server-side only (admins just receive a recommended flag + short reasons).
+    const rawClaims = ((booking as any).claims ?? []) as any[];
+    const pendingClaims = rawClaims.filter((c) => String(c.status ?? "").toUpperCase() === "PENDING");
+    const pendingDriverIds = Array.from(new Set(pendingClaims.map((c) => Number(c.driverId)).filter((x) => Number.isFinite(x) && x > 0)));
+
+    const normalizeArea = (v: unknown) => String(v ?? "").trim().toLowerCase();
+    const parseAreas = (v: unknown) =>
+      String(v ?? "")
+        .split(/[;,|]/g)
+        .map((x) => normalizeArea(x))
+        .filter(Boolean);
+    const allowedAreasForDriver = (d: any) => {
+      const areas = new Set<string>();
+      const region = normalizeArea(d?.region);
+      if (region) areas.add(region);
+      for (const a of parseAreas(d?.operationArea)) areas.add(a);
+      return Array.from(areas);
+    };
+    const bookingAreas = [
+      normalizeArea((booking as any)?.fromRegion),
+      normalizeArea((booking as any)?.toRegion),
+      normalizeArea((booking as any)?.property?.regionName),
+    ].filter(Boolean);
+    const isAreaMatch = (d: any) => {
+      const allowed = allowedAreasForDriver(d);
+      if (!allowed.length || !bookingAreas.length) return false;
+      return bookingAreas.some((a) => allowed.includes(a));
+    };
+
+    const normalizeVehicleType = (v: unknown): "BODA" | "BAJAJI" | "CAR" | "XL" | null => {
+      const s = String(v ?? "").toLowerCase();
+      if (!s) return null;
+      if (s.includes("motor") || s.includes("boda") || s.includes("bike")) return "BODA";
+      if (s.includes("tuktuk") || s.includes("bajaji") || s.includes("tuk") || s.includes("auto")) return "BAJAJI";
+      if (s.includes("xl") || s.includes("van") || s.includes("hiace") || s.includes("coaster") || s.includes("minibus")) return "XL";
+      if (s.includes("car") || s.includes("sedan") || s.includes("suv")) return "CAR";
+      return null;
+    };
+
+    const recommendationByClaimId = new Map<number, { recommended: boolean; score: number; reasons: string[] }>();
+    if (pendingDriverIds.length > 0 && (prisma as any).transportBooking?.groupBy) {
+      const now = new Date();
+      const days = (n: number) => new Date(now.getTime() - n * 24 * 60 * 60 * 1000);
+      const since90 = days(90);
+      const since180 = days(180);
+      const since7 = days(7);
+
+      const [statusRows, ratingRows, workloadRows] = await Promise.all([
+        (prisma as any).transportBooking.groupBy({
+          by: ["driverId", "status"],
+          where: {
+            driverId: { in: pendingDriverIds },
+            scheduledDate: { gte: since90 },
+            status: { in: ["COMPLETED", "CANCELED", "CANCELLED"] },
+          },
+          _count: { _all: true },
+        }),
+        (prisma as any).transportBooking.groupBy({
+          by: ["driverId"],
+          where: {
+            driverId: { in: pendingDriverIds },
+            scheduledDate: { gte: since180 },
+            status: "COMPLETED",
+            userRating: { not: null },
+          },
+          _avg: { userRating: true },
+        }),
+        (prisma as any).transportBooking.groupBy({
+          by: ["driverId"],
+          where: {
+            driverId: { in: pendingDriverIds },
+            scheduledDate: { gte: since7 },
+            status: { in: ["CONFIRMED", "IN_PROGRESS", "COMPLETED"] },
+          },
+          _count: { _all: true },
+        }),
+      ]);
+
+      const statsByDriverId = new Map<number, { completed: number; canceled: number }>();
+      for (const r of statusRows ?? []) {
+        const driverId = Number((r as any).driverId);
+        if (!Number.isFinite(driverId)) continue;
+        const status = String((r as any).status ?? "").toUpperCase();
+        const count = Number((r as any)?._count?._all ?? 0);
+        const prev = statsByDriverId.get(driverId) || { completed: 0, canceled: 0 };
+        if (status === "COMPLETED") prev.completed += count;
+        if (status === "CANCELED" || status === "CANCELLED") prev.canceled += count;
+        statsByDriverId.set(driverId, prev);
+      }
+
+      const avgRatingByDriverId = new Map<number, number>();
+      for (const r of ratingRows ?? []) {
+        const driverId = Number((r as any).driverId);
+        const avg = (r as any)?._avg?.userRating;
+        const n = typeof avg === "number" ? avg : Number(avg);
+        if (Number.isFinite(driverId) && Number.isFinite(n)) avgRatingByDriverId.set(driverId, n);
+      }
+
+      const workloadByDriverId = new Map<number, number>();
+      for (const r of workloadRows ?? []) {
+        const driverId = Number((r as any).driverId);
+        const cnt = Number((r as any)?._count?._all ?? 0);
+        if (Number.isFinite(driverId)) workloadByDriverId.set(driverId, cnt);
+      }
+
+      const claimOrder = [...pendingClaims]
+        .sort((a, b) => new Date(String(a.createdAt ?? 0)).getTime() - new Date(String(b.createdAt ?? 0)).getTime())
+        .map((c) => Number(c.id));
+      const rankByClaimId = new Map<number, number>();
+      claimOrder.forEach((id, idx) => rankByClaimId.set(id, idx));
+      const denom = Math.max(1, claimOrder.length - 1);
+
+      const bookingVehicleType = String((booking as any).vehicleType ?? "").toUpperCase();
+
+      let best: { claimId: number; score: number; reasons: string[] } | null = null;
+
+      for (const c of pendingClaims) {
+        const claimId = Number(c.id);
+        const driver = c.driver;
+        const driverId = Number(driver?.id);
+        if (!Number.isFinite(claimId) || !Number.isFinite(driverId)) continue;
+
+        const reasons: string[] = [];
+
+        // Hard disqualifiers (premium/security posture): disabled/suspended drivers should never be recommended.
+        if (driver?.isDisabled || driver?.suspendedAt) {
+          recommendationByClaimId.set(claimId, { recommended: false, score: -999, reasons: ["Driver not eligible"] });
+          continue;
+        }
+
+        if (bookingVehicleType === "PREMIUM" && !Boolean(driver?.isVipDriver)) {
+          recommendationByClaimId.set(claimId, { recommended: false, score: -999, reasons: ["VIP required"] });
+          continue;
+        }
+
+        if (bookingVehicleType && ["BODA", "BAJAJI", "CAR", "XL"].includes(bookingVehicleType)) {
+          const driverNorm = normalizeVehicleType(driver?.vehicleType);
+          if (!driverNorm) {
+            recommendationByClaimId.set(claimId, { recommended: false, score: -999, reasons: ["Vehicle type not set"] });
+            continue;
+          }
+          if (driverNorm !== bookingVehicleType) {
+            recommendationByClaimId.set(claimId, { recommended: false, score: -999, reasons: ["Vehicle mismatch"] });
+            continue;
+          }
+        }
+
+        const { completed, canceled } = statsByDriverId.get(driverId) || { completed: 0, canceled: 0 };
+        const totalReviewed = completed + canceled;
+        const completionRate = totalReviewed > 0 ? completed / totalReviewed : 0.75;
+        const reliability = 45 * Math.max(0, Math.min(1, completionRate));
+        if (reliability >= 35) reasons.push("High reliability");
+
+        const experienceBonus = 5 * Math.max(0, Math.min(1, completed / 20));
+        if (completed >= 10) reasons.push("Experienced");
+
+        const avgRatingRaw = avgRatingByDriverId.get(driverId);
+        const hasAvgRating = typeof avgRatingRaw === "number" && Number.isFinite(avgRatingRaw);
+        const avgRating = hasAvgRating ? avgRatingRaw : null;
+        const ratingScore = avgRating != null ? (Math.max(0, Math.min(5, avgRating)) / 5) * 10 : 6;
+        if (avgRating != null && avgRating >= 4.5) reasons.push("Top rated");
+
+        const workload7d = workloadByDriverId.get(driverId) ?? 0;
+        const fairness = 5 * Math.max(0, 1 - Math.min(1, workload7d / 10));
+        if (workload7d <= 2) reasons.push("Low recent workload");
+
+        const area = isAreaMatch(driver) ? 8 : 0;
+        if (area > 0) reasons.push("In service area");
+
+        const rank = rankByClaimId.get(claimId) ?? 0;
+        const claimSpeed = 2 * (1 - rank / denom);
+        if (claimSpeed > 1.5) reasons.push("Fast response");
+
+        const score = reliability + experienceBonus + ratingScore + fairness + area + claimSpeed;
+        recommendationByClaimId.set(claimId, { recommended: false, score, reasons: reasons.slice(0, 3) });
+
+        if (!best || score > best.score) {
+          best = { claimId, score, reasons: reasons.slice(0, 3) };
+        }
+      }
+
+      if (best) {
+        const prev = recommendationByClaimId.get(best.claimId);
+        if (prev) recommendationByClaimId.set(best.claimId, { ...prev, recommended: true });
+      }
+    }
+
+    return res.json({
+      booking: {
+        id: booking.id,
+        tripCode: booking.paymentRef || `TRIP-${booking.id}`,
+        scheduledAt: (booking.scheduledDate ?? booking.createdAt)?.toISOString?.() ?? String(booking.scheduledDate ?? booking.createdAt ?? ""),
+        vehicleType: booking.vehicleType ?? null,
+        amount: Number((booking as any).amount ?? 0),
+        currency: (booking as any).currency ?? "TZS",
+        status: (booking as any).status || "PENDING",
+        paymentStatus: (booking as any).paymentStatus || "PENDING",
+        pickup: {
+          address: (booking as any).fromAddress ?? null,
+          ward: (booking as any).fromWard ?? null,
+          district: (booking as any).fromDistrict ?? null,
+          region: (booking as any).fromRegion ?? null,
+        },
+        dropoff: {
+          address: (booking as any).toAddress ?? null,
+          ward: (booking as any).toWard ?? null,
+          district: (booking as any).toDistrict ?? null,
+          region: (booking as any).toRegion ?? null,
+        },
+        passenger: booking.user,
+        driver: booking.driver,
+        property: booking.property,
+        createdAt: (booking.createdAt ?? (booking as any).updatedAt)?.toISOString?.() ?? String(booking.createdAt ?? (booking as any).updatedAt ?? ""),
+      },
+      assignmentAudit: latestAssignmentAudit,
+      assignmentAudits,
+      claims: (booking as any).claims.map((c: any) => ({
+        id: c.id,
+        status: c.status,
+        createdAt: (c.createdAt ?? c.updatedAt)?.toISOString?.() ?? String(c.createdAt ?? c.updatedAt ?? ""),
+        reviewedAt: c.reviewedAt ? new Date(c.reviewedAt).toISOString() : null,
+        driver: c.driver,
+        reviewer: c.reviewer,
+        recommendation: (() => {
+          const id = Number(c.id);
+          if (!Number.isFinite(id)) return null;
+          const r = recommendationByClaimId.get(id);
+          if (!r) return null;
+          return { recommended: r.recommended, score: Math.round(r.score * 10) / 10, reasons: r.reasons };
+        })(),
+      })),
+    });
+  } catch (err: any) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && (err.code === "P2021" || err.code === "P2022")) {
+      return res.status(404).json({ error: "Not found" });
+    }
+    console.error("Unhandled error in GET /admin/drivers/trips/scheduled/:id:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * POST /admin/drivers/trips/scheduled/:id/award
+ * Body: { claimId: number }
+ * Assigns the booking to the claim's driver and accepts/rejects claims.
+ */
+router.post("/trips/scheduled/:id/award", async (req, res) => {
+  try {
+    const r = req as any;
+    const adminId = Number(r?.user?.id);
+    const bookingId = Number(req.params.id);
+    const claimId = Number((req.body as any)?.claimId);
+    const reason = String((req.body as any)?.reason ?? "").trim();
+
+    if (!Number.isFinite(bookingId) || bookingId <= 0) return res.status(400).json({ error: "Invalid id" });
+    if (!Number.isFinite(claimId) || claimId <= 0) return res.status(400).json({ error: "claimId is required" });
+    if (!reason) return res.status(400).json({ error: "reason is required" });
+
+    if (!(prisma as any).transportBooking || !(prisma as any).transportBookingClaim) {
+      return res.status(409).json({ error: "Claims model not available" });
+    }
+
+    const now = new Date();
+
+    const result = await prisma.$transaction(async (tx) => {
+      const booking = await (tx as any).transportBooking.findUnique({
+        where: { id: bookingId },
+        select: { id: true, driverId: true, paymentStatus: true, status: true },
+      });
+      if (!booking) throw new Error("Booking not found");
+      if (booking.driverId != null) {
+        const err: any = new Error("Booking already assigned");
+        err.code = "ALREADY_ASSIGNED";
+        throw err;
+      }
+      if (String(booking.paymentStatus ?? "").toUpperCase() !== "PAID") {
+        const err: any = new Error("Booking is not paid");
+        err.code = "NOT_PAID";
+        throw err;
+      }
+
+      const claim = await (tx as any).transportBookingClaim.findUnique({
+        where: { id: claimId },
+        select: { id: true, bookingId: true, driverId: true, status: true },
+      });
+      if (!claim || claim.bookingId !== bookingId) throw new Error("Claim not found");
+      if (claim.status !== "PENDING") {
+        const err: any = new Error("Claim is not pending");
+        err.code = "CLAIM_NOT_PENDING";
+        throw err;
+      }
+
+      const updatedBooking = await (tx as any).transportBooking.update({
+        where: { id: bookingId },
+        data: {
+          driverId: claim.driverId,
+          status: "CONFIRMED",
+        },
+        include: {
+          user: { select: { id: true, name: true, email: true, phone: true } },
+          driver: { select: { id: true, name: true, email: true, phone: true } },
+        },
+      });
+
+      await (tx as any).transportBookingClaim.update({
+        where: { id: claimId },
+        data: {
+          status: "ACCEPTED",
+          reviewedAt: now,
+          reviewedBy: Number.isFinite(adminId) ? adminId : null,
+        },
+      });
+
+      await (tx as any).transportBookingClaim.updateMany({
+        where: { bookingId, id: { not: claimId }, status: "PENDING" },
+        data: {
+          status: "REJECTED",
+          reviewedAt: now,
+          reviewedBy: Number.isFinite(adminId) ? adminId : null,
+        },
+      });
+
+      // Persist assignment audit trail using existing audit tables (no schema changes required).
+      await (tx as any).auditLog.create({
+        data: {
+          actorId: Number.isFinite(adminId) ? adminId : null,
+          actorRole: "ADMIN",
+          action: "TRANSPORT_ASSIGN_DRIVER",
+          entity: "TRANSPORT_BOOKING",
+          entityId: bookingId,
+          beforeJson: { driverId: null },
+          afterJson: { bookingId, claimId, driverId: claim.driverId, reason },
+          ip: (req.headers["x-forwarded-for"] as string) || (req.socket as any)?.remoteAddress || null,
+          ua: String(req.headers["user-agent"] || ""),
+        },
+      });
+
+      if (Number.isFinite(adminId)) {
+        await (tx as any).adminAudit.create({
+          data: {
+            adminId,
+            targetUserId: claim.driverId,
+            action: "TRANSPORT_ASSIGN_DRIVER",
+            details: { bookingId, claimId, driverId: claim.driverId, reason },
+          },
+        });
+      }
+
+      return updatedBooking;
+    });
+
+    return res.json({ success: true, booking: result });
+  } catch (error: any) {
+    const status =
+      error?.code === "ALREADY_ASSIGNED" ? 409 :
+      error?.code === "NOT_PAID" ? 409 :
+      error?.code === "CLAIM_NOT_PENDING" ? 409 :
+      error?.message?.includes("not found") ? 404 :
+      500;
+    console.error("POST /admin/drivers/trips/scheduled/:id/award error:", error);
+    return res.status(status).json({ error: error?.message || "Failed to award" });
+  }
+});
+
+/**
+ * POST /admin/drivers/trips/scheduled/:id/reassign
+ * Body: { claimId: number, reason: string }
+ * Reassigns an already-assigned booking to a different claim's driver.
+ */
+router.post("/trips/scheduled/:id/reassign", async (req, res) => {
+  try {
+    const r = req as any;
+    const adminId = Number(r?.user?.id);
+    const bookingId = Number(req.params.id);
+    const claimId = Number((req.body as any)?.claimId);
+    const reason = String((req.body as any)?.reason ?? "").trim();
+
+    if (!Number.isFinite(bookingId) || bookingId <= 0) return res.status(400).json({ error: "Invalid id" });
+    if (!Number.isFinite(claimId) || claimId <= 0) return res.status(400).json({ error: "claimId is required" });
+    if (!reason) return res.status(400).json({ error: "reason is required" });
+
+    if (!(prisma as any).transportBooking || !(prisma as any).transportBookingClaim) {
+      return res.status(409).json({ error: "Claims model not available" });
+    }
+
+    const now = new Date();
+
+    const result = await prisma.$transaction(async (tx) => {
+      const booking = await (tx as any).transportBooking.findUnique({
+        where: { id: bookingId },
+        select: { id: true, driverId: true, paymentStatus: true, status: true },
+      });
+      if (!booking) throw new Error("Booking not found");
+      if (booking.driverId == null) {
+        const err: any = new Error("Booking is not assigned yet");
+        err.code = "NOT_ASSIGNED";
+        throw err;
+      }
+
+      const bookingStatus = String(booking.status ?? "").toUpperCase();
+      if (["IN_PROGRESS", "COMPLETED", "CANCELED", "CANCELLED"].includes(bookingStatus)) {
+        const err: any = new Error("Cannot reassign this booking at its current status");
+        err.code = "BAD_STATUS";
+        throw err;
+      }
+
+      if (String(booking.paymentStatus ?? "").toUpperCase() !== "PAID") {
+        const err: any = new Error("Booking is not paid");
+        err.code = "NOT_PAID";
+        throw err;
+      }
+
+      const claim = await (tx as any).transportBookingClaim.findUnique({
+        where: { id: claimId },
+        select: { id: true, bookingId: true, driverId: true },
+      });
+      if (!claim || claim.bookingId !== bookingId) throw new Error("Claim not found");
+
+      if (Number(claim.driverId) === Number(booking.driverId)) {
+        const err: any = new Error("Selected driver is already assigned");
+        err.code = "SAME_DRIVER";
+        throw err;
+      }
+
+      const updatedBooking = await (tx as any).transportBooking.update({
+        where: { id: bookingId },
+        data: {
+          driverId: claim.driverId,
+          status: "CONFIRMED",
+        },
+        include: {
+          user: { select: { id: true, name: true, email: true, phone: true } },
+          driver: { select: { id: true, name: true, email: true, phone: true } },
+        },
+      });
+
+      // Make the selected claim accepted and ensure no other claim remains accepted.
+      await (tx as any).transportBookingClaim.update({
+        where: { id: claimId },
+        data: {
+          status: "ACCEPTED",
+          reviewedAt: now,
+          reviewedBy: Number.isFinite(adminId) ? adminId : null,
+        },
+      });
+
+      await (tx as any).transportBookingClaim.updateMany({
+        where: {
+          bookingId,
+          id: { not: claimId },
+          status: { in: ["PENDING", "ACCEPTED"] },
+        },
+        data: {
+          status: "REJECTED",
+          reviewedAt: now,
+          reviewedBy: Number.isFinite(adminId) ? adminId : null,
+        },
+      });
+
+      await (tx as any).auditLog.create({
+        data: {
+          actorId: Number.isFinite(adminId) ? adminId : null,
+          actorRole: "ADMIN",
+          action: "TRANSPORT_ASSIGN_DRIVER",
+          entity: "TRANSPORT_BOOKING",
+          entityId: bookingId,
+          beforeJson: { driverId: booking.driverId },
+          afterJson: {
+            bookingId,
+            claimId,
+            driverId: claim.driverId,
+            reason,
+            kind: "REASSIGN",
+            reassignedFromDriverId: booking.driverId,
+          },
+          ip: (req.headers["x-forwarded-for"] as string) || (req.socket as any)?.remoteAddress || null,
+          ua: String(req.headers["user-agent"] || ""),
+        },
+      });
+
+      if (Number.isFinite(adminId)) {
+        await (tx as any).adminAudit.create({
+          data: {
+            adminId,
+            targetUserId: claim.driverId,
+            action: "TRANSPORT_ASSIGN_DRIVER",
+            details: {
+              bookingId,
+              claimId,
+              driverId: claim.driverId,
+              reason,
+              kind: "REASSIGN",
+              reassignedFromDriverId: booking.driverId,
+            },
+          },
+        });
+      }
+
+      return updatedBooking;
+    });
+
+    return res.json({ success: true, booking: result });
+  } catch (error: any) {
+    const status =
+      error?.code === "NOT_ASSIGNED" ? 409 :
+      error?.code === "NOT_PAID" ? 409 :
+      error?.code === "SAME_DRIVER" ? 409 :
+      error?.code === "BAD_STATUS" ? 409 :
+      error?.message?.includes("not found") ? 404 :
+      500;
+    console.error("POST /admin/drivers/trips/scheduled/:id/reassign error:", error);
+    return res.status(status).json({ error: error?.message || "Failed to reassign" });
+  }
+});
+
+/**
+ * POST /admin/drivers/trips/scheduled/:id/unassign
+ * Body: { reason: string }
+ * Removes assigned driver and reopens claims.
+ */
+router.post("/trips/scheduled/:id/unassign", async (req, res) => {
+  try {
+    const r = req as any;
+    const adminId = Number(r?.user?.id);
+    const bookingId = Number(req.params.id);
+    const reason = String((req.body as any)?.reason ?? "").trim();
+
+    if (!Number.isFinite(bookingId) || bookingId <= 0) return res.status(400).json({ error: "Invalid id" });
+    if (!reason) return res.status(400).json({ error: "reason is required" });
+
+    if (!(prisma as any).transportBooking || !(prisma as any).transportBookingClaim) {
+      return res.status(409).json({ error: "Claims model not available" });
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const booking = await (tx as any).transportBooking.findUnique({
+        where: { id: bookingId },
+        select: { id: true, driverId: true, paymentStatus: true, status: true },
+      });
+      if (!booking) throw new Error("Booking not found");
+      if (booking.driverId == null) {
+        const err: any = new Error("Booking is not assigned");
+        err.code = "NOT_ASSIGNED";
+        throw err;
+      }
+
+      const bookingStatus = String(booking.status ?? "").toUpperCase();
+      if (["IN_PROGRESS", "COMPLETED", "CANCELED", "CANCELLED"].includes(bookingStatus)) {
+        const err: any = new Error("Cannot unassign this booking at its current status");
+        err.code = "BAD_STATUS";
+        throw err;
+      }
+
+      if (String(booking.paymentStatus ?? "").toUpperCase() !== "PAID") {
+        const err: any = new Error("Booking is not paid");
+        err.code = "NOT_PAID";
+        throw err;
+      }
+
+      const prevDriverId = booking.driverId;
+
+      const updatedBooking = await (tx as any).transportBooking.update({
+        where: { id: bookingId },
+        data: {
+          driverId: null,
+          status: "PENDING",
+        },
+        include: {
+          user: { select: { id: true, name: true, email: true, phone: true } },
+          driver: { select: { id: true, name: true, email: true, phone: true } },
+        },
+      });
+
+      // Reopen claims for re-awarding.
+      await (tx as any).transportBookingClaim.updateMany({
+        where: { bookingId },
+        data: {
+          status: "PENDING",
+          reviewedAt: null,
+          reviewedBy: null,
+        },
+      });
+
+      await (tx as any).auditLog.create({
+        data: {
+          actorId: Number.isFinite(adminId) ? adminId : null,
+          actorRole: "ADMIN",
+          action: "TRANSPORT_ASSIGN_DRIVER",
+          entity: "TRANSPORT_BOOKING",
+          entityId: bookingId,
+          beforeJson: { driverId: prevDriverId },
+          afterJson: { bookingId, driverId: null, reason, kind: "UNASSIGN", unassignedDriverId: prevDriverId },
+          ip: (req.headers["x-forwarded-for"] as string) || (req.socket as any)?.remoteAddress || null,
+          ua: String(req.headers["user-agent"] || ""),
+        },
+      });
+
+      if (Number.isFinite(adminId)) {
+        await (tx as any).adminAudit.create({
+          data: {
+            adminId,
+            targetUserId: prevDriverId,
+            action: "TRANSPORT_ASSIGN_DRIVER",
+            details: { bookingId, driverId: null, reason, kind: "UNASSIGN", unassignedDriverId: prevDriverId },
+          },
+        });
+      }
+
+      return updatedBooking;
+    });
+
+    return res.json({ success: true, booking: result });
+  } catch (error: any) {
+    const status =
+      error?.code === "NOT_ASSIGNED" ? 409 :
+      error?.code === "NOT_PAID" ? 409 :
+      error?.code === "BAD_STATUS" ? 409 :
+      error?.message?.includes("not found") ? 404 :
+      500;
+    console.error("POST /admin/drivers/trips/scheduled/:id/unassign error:", error);
+    return res.status(status).json({ error: error?.message || "Failed to unassign" });
+  }
+});
+
 /** GET /admin/drivers/invoices?driverId=&status=&date=&start=&end=&page=&pageSize=&q= */
 router.get("/invoices", async (req, res) => {
   try {
@@ -349,11 +1924,11 @@ router.get("/invoices", async (req, res) => {
     const where: any = {};
     
     // Filter by driver if specified
-    if (driverId) {
-      where.driverId = Number(driverId);
-    } else {
-      // Only show withdrawals for drivers
-      where.driverId = { not: null };
+    if (typeof driverId !== "undefined" && String(driverId).trim() !== "") {
+      const did = Number(driverId);
+      if (Number.isFinite(did) && did > 0) {
+        where.driverId = did;
+      }
     }
     
     // Filter by status
@@ -1061,7 +2636,7 @@ router.get("/revenues/stats", async (req, res) => {
 });
 
 /** GET /admin/drivers/:id */
-router.get("/:id", async (req, res) => {
+router.get("/:id(\\d+)", async (req, res) => {
   try {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) {
@@ -1137,7 +2712,7 @@ router.post("/:id/unsuspend", async (req, res) => {
 /** GET /admin/drivers/:id/referrals
  * Returns referral information for a specific driver
  */
-router.get("/:id/referrals", async (req, res) => {
+router.get("/:id(\\d+)/referrals", async (req, res) => {
   try {
     const driverId = Number(req.params.id);
     
@@ -1469,7 +3044,7 @@ router.get("/:id/referrals", async (req, res) => {
 /** GET /admin/drivers/:id/bonuses
  * Returns bonus history for a specific driver
  */
-router.get("/:id/bonuses", async (req, res) => {
+router.get("/:id(\\d+)/bonuses", async (req, res) => {
   try {
     const driverId = Number(req.params.id);
     const { page = "1", pageSize = "50" } = req.query as any;
@@ -1596,7 +3171,7 @@ router.get("/:id/bonuses", async (req, res) => {
 /** GET /admin/drivers/:id/level
  * Returns driver level information and progress
  */
-router.get("/:id/level", async (req, res) => {
+router.get("/:id(\\d+)/level", async (req, res) => {
   try {
     const driverId = Number(req.params.id);
     
@@ -1784,7 +3359,7 @@ router.get("/:id/level", async (req, res) => {
 /** GET /admin/drivers/:id/reminders
  * Returns reminders for a specific driver
  */
-router.get("/:id/reminders", async (req, res) => {
+router.get("/:id(\\d+)/reminders", async (req, res) => {
   try {
     const driverId = Number(req.params.id);
     const { page = "1", pageSize = "50" } = req.query as any;
@@ -2593,7 +4168,7 @@ router.post("/auto-create-reminders", async (req, res) => {
 /** GET /admin/drivers/:id/stats
  * Returns comprehensive stats for a specific driver
  */
-router.get("/:id/stats", async (req, res) => {
+router.get("/:id(\\d+)/stats", async (req, res) => {
   try {
     const driverId = Number(req.params.id);
     const { date } = req.query as any;
@@ -2679,7 +4254,7 @@ router.get("/:id/stats", async (req, res) => {
 /** GET /admin/drivers/:id/activities
  * Returns a comprehensive summary of all driver activities
  */
-router.get("/:id/activities", async (req, res) => {
+router.get("/:id(\\d+)/activities", async (req, res) => {
   try {
     const driverId = Number(req.params.id);
     if (!Number.isFinite(driverId)) {

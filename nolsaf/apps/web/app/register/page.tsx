@@ -1,12 +1,13 @@
 import { redirect } from "next/navigation";
 
-export default function RegisterRedirectPage({
+export default async function RegisterRedirectPage({
   searchParams,
 }: {
-  searchParams?: Record<string, string | string[] | undefined>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const role = typeof searchParams?.role === "string" ? searchParams.role : undefined;
-  const ref = typeof searchParams?.ref === "string" ? searchParams.ref : undefined;
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const role = typeof resolvedSearchParams?.role === "string" ? resolvedSearchParams.role : undefined;
+  const ref = typeof resolvedSearchParams?.ref === "string" ? resolvedSearchParams.ref : undefined;
 
   const params = new URLSearchParams();
   if (role) params.set("role", role);

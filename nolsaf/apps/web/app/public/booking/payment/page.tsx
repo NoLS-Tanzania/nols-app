@@ -396,7 +396,7 @@ export default function PaymentPage() {
 
                     <div className="space-y-4">
                       <div className="min-w-0">
-                        <label className="block text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                        <label className="flex w-full text-sm font-semibold text-slate-700 mb-3 items-center gap-2">
                           <Smartphone className="w-4 h-4 text-[#02665e] flex-shrink-0" />
                           <span>Phone Number <span className="text-red-500">*</span></span>
                         </label>

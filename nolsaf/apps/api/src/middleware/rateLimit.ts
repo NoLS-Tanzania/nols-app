@@ -184,3 +184,45 @@ export const limitTransportBooking = rateLimit({
     return req.ip || req.socket.remoteAddress || "unknown";
   },
 });
+
+// Rate limiter for authenticated driver trip list endpoints (prevents scraping/spam)
+export const limitDriverTripsList = rateLimit({
+  windowMs: 60_000, // 1 minute
+  max: 120, // 120 requests/minute per driver
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests. Please wait a moment and try again." },
+  keyGenerator: (req) => {
+    const driverId = (req as any).user?.id || (req as any).userId;
+    if (driverId) return `driver-trips-list:${String(driverId)}`;
+    return req.ip || req.socket.remoteAddress || "unknown";
+  },
+});
+
+// Rate limiter for driver trip claim endpoint (prevents claim spamming / brute forcing)
+export const limitDriverTripClaim = rateLimit({
+  windowMs: 10 * 60_000, // 10 minutes
+  max: 15, // 15 claims/10 minutes per driver
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many claim attempts. Please wait and try again." },
+  keyGenerator: (req) => {
+    const driverId = (req as any).user?.id || (req as any).userId;
+    if (driverId) return `driver-trip-claim:${String(driverId)}`;
+    return req.ip || req.socket.remoteAddress || "unknown";
+  },
+});
+
+// Rate limiter for driver trip actions (accept/decline/cancel)
+export const limitDriverTripAction = rateLimit({
+  windowMs: 60_000, // 1 minute
+  max: 60, // 60 actions/minute per driver
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests. Please wait a moment and try again." },
+  keyGenerator: (req) => {
+    const driverId = (req as any).user?.id || (req as any).userId;
+    if (driverId) return `driver-trip-action:${String(driverId)}`;
+    return req.ip || req.socket.remoteAddress || "unknown";
+  },
+});
