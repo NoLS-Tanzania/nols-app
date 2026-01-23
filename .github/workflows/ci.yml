@@ -152,7 +152,7 @@ jobs:
       - name: Build Web Docker image
         uses: docker/build-push-action@v5
         with:
-          context: ./nolsaf/apps/web
+          context: ./nolsaf
           file: ./nolsaf/apps/web/Dockerfile
           push: false
           tags: nolsaf-web:latest
