@@ -33,6 +33,10 @@ secrets/
 *.swo
 *~
 
+# TypeScript incremental build cache
+*.tsbuildinfo
+**/*.tsbuildinfo
+
 # OS
 .DS_Store
 Thumbs.db

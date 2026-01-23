@@ -1,1 +1,8 @@
 .cursor/
+
+# IDE
+.vscode/
+
+# TypeScript incremental build cache
+*.tsbuildinfo
+**/*.tsbuildinfo
