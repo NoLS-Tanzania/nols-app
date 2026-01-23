@@ -839,7 +839,7 @@ function PropertyAvailabilityChecker({
                   <div className="absolute z-50 top-full left-0 mt-2 bg-white rounded-xl border-2 border-slate-200 shadow-xl">
                     <DatePicker
                       selected={checkIn}
-                      onSelect={(s) => {
+                      onSelectAction={(s) => {
                         const date = Array.isArray(s) ? s[0] : s;
                         setCheckIn(date);
                         onDatesChange?.(date, checkOut);
@@ -850,7 +850,7 @@ function PropertyAvailabilityChecker({
                           onDatesChange?.(date, "");
                         }
                       }}
-                      onClose={() => setCheckInPickerOpen(false)}
+                      onCloseAction={() => setCheckInPickerOpen(false)}
                       minDate={new Date().toISOString().split("T")[0]}
                     />
                   </div>
@@ -887,13 +887,13 @@ function PropertyAvailabilityChecker({
                   <div className="absolute z-50 top-full left-0 mt-2 bg-white rounded-xl border-2 border-slate-200 shadow-xl">
                     <DatePicker
                       selected={checkOut}
-                      onSelect={(s) => {
+                      onSelectAction={(s) => {
                         const date = Array.isArray(s) ? s[0] : s;
                         setCheckOut(date);
                         onDatesChange?.(checkIn, date);
                         setCheckOutPickerOpen(false);
                       }}
-                      onClose={() => setCheckOutPickerOpen(false)}
+                      onCloseAction={() => setCheckOutPickerOpen(false)}
                       minDate={checkIn || new Date().toISOString().split("T")[0]}
                     />
                   </div>
@@ -2661,7 +2661,7 @@ export default function PublicPropertyDetailPage() {
                                               <div className="relative mt-24 sm:mt-28 bg-white rounded-2xl border-2 border-slate-200 shadow-2xl p-3 transition-all duration-200">
                                                 <DatePicker
                                                   selected={modalDates.checkIn}
-                                                  onSelect={(s) => {
+                                                  onSelectAction={(s) => {
                                                     const date = Array.isArray(s) ? s[0] : s;
                                                     setModalDates((st) => ({ ...st, checkIn: date }));
                                                     setModalAvailError(null);
@@ -2671,7 +2671,7 @@ export default function PublicPropertyDetailPage() {
                                                       setModalDates((st) => ({ ...st, checkOut: "" }));
                                                     }
                                                   }}
-                                                  onClose={() => setModalCheckInPickerOpen(false)}
+                                                  onCloseAction={() => setModalCheckInPickerOpen(false)}
                                                   minDate={new Date().toISOString().split("T")[0]}
                                                 />
                                               </div>
@@ -2709,13 +2709,13 @@ export default function PublicPropertyDetailPage() {
                                               <div className="relative mt-24 sm:mt-28 bg-white rounded-2xl border-2 border-slate-200 shadow-2xl p-3 transition-all duration-200">
                                                 <DatePicker
                                                   selected={modalDates.checkOut}
-                                                  onSelect={(s) => {
+                                                  onSelectAction={(s) => {
                                                     const date = Array.isArray(s) ? s[0] : s;
                                                     setModalDates((st) => ({ ...st, checkOut: date }));
                                                     setModalAvailError(null);
                                                     setModalCheckOutPickerOpen(false);
                                                   }}
-                                                  onClose={() => setModalCheckOutPickerOpen(false)}
+                                                  onCloseAction={() => setModalCheckOutPickerOpen(false)}
                                                   minDate={modalDates.checkIn || new Date().toISOString().split("T")[0]}
                                                 />
                                               </div>
@@ -3062,7 +3062,7 @@ export default function PublicPropertyDetailPage() {
                                     <div className="relative mt-24 sm:mt-28 bg-white rounded-2xl border-2 border-slate-200 shadow-2xl p-3 transition-all duration-200">
                                       <DatePicker
                                         selected={modalDates.checkIn}
-                                        onSelect={(s) => {
+                                        onSelectAction={(s) => {
                                           const date = Array.isArray(s) ? s[0] : s;
                                           setModalDates((st) => ({ ...st, checkIn: date }));
                                           setModalAvailError(null);
@@ -3072,7 +3072,7 @@ export default function PublicPropertyDetailPage() {
                                             setModalDates((st) => ({ ...st, checkOut: "" }));
                                           }
                                         }}
-                                        onClose={() => setModalCheckInPickerOpen(false)}
+                                        onCloseAction={() => setModalCheckInPickerOpen(false)}
                                         minDate={new Date().toISOString().split("T")[0]}
                                       />
                                     </div>
@@ -3110,13 +3110,13 @@ export default function PublicPropertyDetailPage() {
                                     <div className="relative mt-24 sm:mt-28 bg-white rounded-2xl border-2 border-slate-200 shadow-2xl p-3 transition-all duration-200">
                                       <DatePicker
                                         selected={modalDates.checkOut}
-                                        onSelect={(s) => {
+                                        onSelectAction={(s) => {
                                           const date = Array.isArray(s) ? s[0] : s;
                                           setModalDates((st) => ({ ...st, checkOut: date }));
                                           setModalAvailError(null);
                                           setModalCheckOutPickerOpen(false);
                                         }}
-                                        onClose={() => setModalCheckOutPickerOpen(false)}
+                                        onCloseAction={() => setModalCheckOutPickerOpen(false)}
                                         minDate={modalDates.checkIn || new Date().toISOString().split("T")[0]}
                                       />
                                     </div>

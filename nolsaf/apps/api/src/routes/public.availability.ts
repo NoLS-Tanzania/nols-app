@@ -26,7 +26,7 @@ function findBucketKey(roomCode: string | null | undefined, keys: string[]): str
 // Rate limiter for availability checks
 const availabilityLimiter = rateLimit({
   windowMs: 60_000, // 1 minute
-  max: process.env.NODE_ENV === "production" ? 300 : 10_000,
+  limit: process.env.NODE_ENV === "production" ? 300 : 10_000,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many availability requests. Please wait a moment." },

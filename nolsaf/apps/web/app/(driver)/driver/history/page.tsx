@@ -319,11 +319,11 @@ export default function DriverHistoryPage() {
           <div className="bg-white rounded-lg p-4 border-2 border-slate-200 shadow-sm">
             <DatePicker
               selected={selected}
-              onSelect={(s) => {
+              onSelectAction={(s) => {
                 setSelected(s);
                 // keep picker open to allow further adjustments; close on explicit action
               }}
-              onClose={() => setShowPicker(false)}
+              onCloseAction={() => setShowPicker(false)}
               allowRange={true}
             />
           </div>

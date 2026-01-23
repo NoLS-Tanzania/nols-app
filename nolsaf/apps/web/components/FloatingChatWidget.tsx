@@ -996,7 +996,20 @@ export default function FloatingChatWidget({ hiddenRoutes = [], position = "bott
             }
             resetAutoCloseTimer();
           }}
-          className="bg-[#02665e] text-white rounded-full p-4 shadow-lg hover:bg-[#024a44] transition-all duration-300 hover:scale-110"
+          className={[
+            "group",
+            "relative",
+            "rounded-full",
+            "p-[2px]",
+            "text-white",
+            "shadow-[0_18px_60px_rgba(2,6,23,0.22)]",
+            "ring-1 ring-white/20",
+            "bg-gradient-to-br from-[#02b4f5]/95 via-[#02665e]/95 to-emerald-500/85",
+            "transition-all duration-300",
+            "hover:-translate-y-0.5 hover:shadow-[0_24px_80px_rgba(2,6,23,0.28)]",
+            "active:translate-y-0 active:scale-[0.98]",
+            "focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#02b4f5]/55",
+          ].join(" ")}
           aria-label="Open chat"
           style={{
             position: "fixed",
@@ -1005,7 +1018,16 @@ export default function FloatingChatWidget({ hiddenRoutes = [], position = "bott
               : { bottom: "16px", right: "16px" }),
           }}
         >
-          <MessageCircle className="w-6 h-6" />
+          <span
+            className="pointer-events-none absolute -inset-3 rounded-full bg-[#02b4f5]/18 blur-2xl opacity-60 transition-opacity duration-300 group-hover:opacity-85"
+            aria-hidden
+          />
+          <span
+            className="relative grid place-items-center rounded-full bg-[#02665e] p-4 ring-1 ring-white/25 shadow-[0_10px_30px_rgba(2,6,23,0.18)]"
+            aria-hidden
+          >
+            <MessageCircle className="w-6 h-6" />
+          </span>
         </button>
       )}
     </div>

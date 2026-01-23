@@ -7,8 +7,19 @@ import { invalidateOwnerReports } from "../lib/cache.js";
 import { sendSms } from "../lib/sms.js";
 import crypto from "crypto";
 import { generateBookingCodeForBooking, sendBookingCodeNotification } from "../lib/bookingCodeService.js";
+import rateLimit from "express-rate-limit";
+import { safeEq } from "../lib/signature.js";
 
 const router = Router();
+
+// Webhooks are authenticated via signature, but still rate-limit to reduce abuse/DoS.
+const webhookLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 300,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { ok: false, error: "Too many requests" },
+});
 
 async function notifyOwnerInvoicePaid(params: {
   ownerId: number;
@@ -294,9 +305,14 @@ function near(a: number, b: number, eps = 1) {
  * POST /webhooks/azampay
  * AzamPay webhook handler with signature verification
  */
-router.post("/azampay", async (req: any, res) => {
+router.post("/azampay", webhookLimiter, async (req: any, res) => {
   try {
-    const rawBody = req.rawBody?.toString?.("utf8") ?? req.body?.toString?.() ?? JSON.stringify(req.body);
+    const rawBody =
+      Buffer.isBuffer(req.body)
+        ? req.body.toString("utf8")
+        : typeof req.body === "string"
+          ? req.body
+          : JSON.stringify(req.body ?? {});
     const signature = req.header("X-Azampay-Signature") || req.header("x-azampay-signature");
     const secret = process.env.AZAMPAY_WEBHOOK_SECRET;
 
@@ -311,7 +327,8 @@ router.post("/azampay", async (req: any, res) => {
 
     // Verify signature
     const computed = crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
-    if (computed !== signature) {
+    const sig = String(signature).trim().toLowerCase();
+    if (!safeEq(computed, sig)) {
       console.warn("Invalid AzamPay webhook signature");
       return res.status(401).json({ ok: false, error: "Invalid signature" });
     }

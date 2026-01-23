@@ -565,10 +565,10 @@ export default function UserBookingsPage() {
                   <div className="fixed z-50 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 animate-in zoom-in-95 duration-200">
                     <DatePicker
                       selected={date || undefined}
-                      onSelect={(s) => {
+                      onSelectAction={(s) => {
                         setDate(s as string | string[]);
                       }}
-                      onClose={() => setPickerOpen(false)}
+                      onCloseAction={() => setPickerOpen(false)}
                     />
                   </div>
                 </>

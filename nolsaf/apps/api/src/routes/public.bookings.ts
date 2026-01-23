@@ -172,7 +172,7 @@ function isLikelyDomesticTanzania(nationality: unknown): boolean {
 // Rate limiting for booking creation (5 requests per 15 minutes)
 const bookingLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // 5 requests per window
+  limit: 5, // 5 requests per window
   message: "Too many booking requests, please try again later",
   standardHeaders: true,
   legacyHeaders: false,
@@ -189,6 +189,7 @@ const createBookingSchema = z.object({
   nationality: z.string().max(80).optional().nullable(),
   sex: z.enum(["Male", "Female", "Other"]).optional().nullable(),
   ageGroup: z.enum(["Adult", "Child"]).optional().nullable(),
+  rooms: z.number().int().min(1).max(20).optional().default(1),
   roomCode: z.string().max(60).optional().nullable(),
   specialRequests: z.string().max(1000).optional().nullable(),
   adults: z.number().int().min(1).max(100).optional().default(1),
@@ -208,6 +209,14 @@ const createBookingSchema = z.object({
   arrivalTime: z.string().datetime().optional().nullable(),
   pickupLocation: z.string().max(255).optional().nullable(),
 }).superRefine((data, ctx) => {
+  if (data.roomCode && isExplicitRoomUnitCode(data.roomCode) && (data.rooms ?? 1) > 1) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["rooms"],
+      message: "Multiple rooms are not supported when selecting a specific room unit",
+    });
+  }
+
   if (!data.includeTransport) return;
 
   if (!data.transportVehicleType) {
@@ -317,6 +326,7 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
 
     // Calculate nights
     const nights = Math.max(1, Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
+    const roomsQty = Math.max(1, Number(data.rooms ?? 1));
 
     // Fetch property and validate
     const property = await prisma.property.findUnique({
@@ -409,6 +419,7 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
           status: true,
           guestName: true,
           roomCode: true,
+          roomsQty: true,
         },
       });
 
@@ -549,8 +560,9 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
         const code = findBucketKey(booking.roomCode, keys) || (booking.roomCode ? null : keys[0] || null);
         if (code && availabilityByRoomType[code]) {
           const bedsPerRoom = bedsPerRoomFor(code);
-          availabilityByRoomType[code].bookedRooms += 1;
-          availabilityByRoomType[code].bookedBeds += bedsPerRoom;
+          const bookedRooms = Math.max(1, Number((booking as any).roomsQty ?? 1));
+          availabilityByRoomType[code].bookedRooms += bookedRooms;
+          availabilityByRoomType[code].bookedBeds += bedsPerRoom * bookedRooms;
         }
       });
 
@@ -599,8 +611,8 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
       const isAvailable =
         !sameRoomConflict &&
         (data.roomCode
-          ? !!(typeKey && (availabilityByRoomType[typeKey]?.availableRooms ?? 0) > 0)
-          : totalAvailableRooms > 0 || totalAvailableBeds > 0);
+          ? !!(typeKey && (availabilityByRoomType[typeKey]?.availableRooms ?? 0) >= roomsQty)
+          : totalAvailableRooms >= roomsQty || totalAvailableBeds > 0);
 
       return {
         available: isAvailable,
@@ -630,14 +642,14 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
       const selAvail = (availabilityCheck as any).availableForSelectedType;
       const typeMsg =
         selType != null && typeof selAvail === "number"
-          ? selAvail <= 0
-            ? ` No ${selType} rooms available (${selAvail} left for this type).`
-            : ` Only ${selAvail} ${selType} room(s) left for this type.`
+          ? selAvail < roomsQty
+            ? ` Only ${selAvail} ${selType} room(s) left for this type (need ${roomsQty}).`
+            : ` ${selAvail} ${selType} room(s) available for this type.`
           : "";
 
       const leading = (() => {
         if (selType != null && typeof selAvail === "number") {
-          if (selAvail <= 0) return `The selected room type (${selType}) is not available for the selected dates.`;
+          if (selAvail < roomsQty) return `The selected room type (${selType}) does not have enough rooms for the selected dates.`;
           return `Limited availability for the selected room type (${selType}).`;
         }
         return "The property is fully booked for the selected dates.";
@@ -701,7 +713,7 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
       }
     }
     
-    let accommodationAmount = pricePerNight * nights;
+    let accommodationAmount = pricePerNight * nights * roomsQty;
     
     // Add transportation fare if included
     let transportFare = 0;
@@ -748,28 +760,33 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
     
     const totalAmount = accommodationAmount + transportFare;
 
-    // If the request is authenticated, always link the booking to the account.
-    // This ensures bookings show in "My bookings" even if payment/guest phone differs.
+    // Ownership linking:
+    // - If authenticated, always link to the authenticated user.
+    // - If not authenticated, try best-effort linking by guest contact (email/phone).
+    // Security: never let guest-provided identifiers override an authenticated session.
     let userId: number | null = (req as any)?.user?.id ?? null;
-    if (data.guestEmail) {
-      const user = await prisma.user.findUnique({
-        where: { email: data.guestEmail },
-      });
-      if (user) userId = user.id;
-    }
-
-    // Fallback: link by phone when email is missing or doesn't match
-    if (!userId && (sanitizedGuestPhone || data.guestPhone)) {
-      const phoneVariants = buildPhoneVariants((sanitizedGuestPhone || data.guestPhone) as any);
-      if (phoneVariants.length) {
-        const user = await prisma.user.findFirst({
-          where: {
-            phone: { in: phoneVariants },
-          },
+    if (!userId) {
+      if (data.guestEmail) {
+        const user = await prisma.user.findUnique({
+          where: { email: data.guestEmail },
           select: { id: true },
         });
-
         if (user) userId = user.id;
+      }
+
+      // Fallback: link by phone when email is missing or doesn't match
+      if (!userId && (sanitizedGuestPhone || data.guestPhone)) {
+        const phoneVariants = buildPhoneVariants((sanitizedGuestPhone || data.guestPhone) as any);
+        if (phoneVariants.length) {
+          const user = await prisma.user.findFirst({
+            where: {
+              phone: { in: phoneVariants },
+            },
+            select: { id: true },
+          });
+
+          if (user) userId = user.id;
+        }
       }
     }
 
@@ -924,8 +941,9 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
         const code = findBucketKey(booking.roomCode, finalKeys) || (booking.roomCode ? null : finalKeys[0] || null);
         if (code && finalAvailabilityByRoomType[code]) {
           const bedsPerRoom = finalBedsPerRoomFor(code);
-          finalAvailabilityByRoomType[code].bookedRooms += 1;
-          finalAvailabilityByRoomType[code].bookedBeds += bedsPerRoom;
+          const bookedRooms = Math.max(1, Number((booking as any).roomsQty ?? 1));
+          finalAvailabilityByRoomType[code].bookedRooms += bookedRooms;
+          finalAvailabilityByRoomType[code].bookedBeds += bedsPerRoom * bookedRooms;
         }
       });
       finalConflictingBlocks.forEach((block: any) => {
@@ -965,8 +983,8 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
           finalConflictingBookings.some((b: any) => b.roomCode === data.roomCode)
         );
       const finalTypeKey = data.roomCode ? findBucketKey(finalRoomCodeForBucket, finalKeys) : null;
-      const finalTypeOk = data.roomCode ? !!(finalTypeKey && (finalAvailabilityByRoomType[finalTypeKey]?.availableRooms ?? 0) > 0) : true;
-      const finalTotalOk = finalTotalAvailableRooms > 0 || finalTotalAvailableBeds > 0;
+      const finalTypeOk = data.roomCode ? !!(finalTypeKey && (finalAvailabilityByRoomType[finalTypeKey]?.availableRooms ?? 0) >= roomsQty) : true;
+      const finalTotalOk = finalTotalAvailableRooms >= roomsQty || finalTotalAvailableBeds > 0;
 
       if (finalSameRoom || !finalTypeOk || !finalTotalOk) {
         const selAvail = finalTypeKey != null ? (finalAvailabilityByRoomType[finalTypeKey]?.availableRooms ?? 0) : undefined;
@@ -1049,6 +1067,7 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
           checkIn: checkIn,
           checkOut: checkOut,
           totalAmount: totalAmount,
+          roomsQty: roomsQty,
           roomCode: sanitizedRoomCode,
           guestName: sanitizedGuestName,
           guestPhone: sanitizedGuestPhone,

@@ -11,7 +11,7 @@ const router = Router();
 // Rate limiting for payment initiation (5 requests per 15 minutes)
 const paymentLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // 5 requests per window
+  limit: 5, // 5 requests per window
   message: "Too many payment requests, please try again later",
   standardHeaders: true,
   legacyHeaders: false,
@@ -66,6 +66,14 @@ function generateAzamPaySignature(data: string, secret: string): string {
  */
 router.post("/initiate", paymentLimiter, async (req, res) => {
   try {
+    // Fail fast if AzamPay is not configured (do not attempt outbound calls).
+    if (!AZAMPAY_API_KEY || !AZAMPAY_CLIENT_ID || !AZAMPAY_CLIENT_SECRET) {
+      return res.status(503).json({
+        error: "Payment provider not configured",
+        message: "AzamPay keys are missing on the server",
+      });
+    }
+
     // Validate request body
     const validationResult = initiatePaymentSchema.safeParse(req.body);
     if (!validationResult.success) {
@@ -118,6 +126,16 @@ router.post("/initiate", paymentLimiter, async (req, res) => {
       return res.status(404).json({ error: "Invoice not found" });
     }
 
+    // Safety: this endpoint is intended for customer payment invoices (INV-...).
+    // Prevent initiating payments against owner-submitted invoices (OINV-...).
+    if (invoice.invoiceNumber && String(invoice.invoiceNumber).startsWith("OINV-")) {
+      return res.status(400).json({ error: "This invoice cannot be paid via AzamPay" });
+    }
+
+    if (invoice.status === "DRAFT" || invoice.status === "REJECTED") {
+      return res.status(400).json({ error: "Invoice is not payable" });
+    }
+
     if (invoice.status === "PAID") {
       return res.status(400).json({ error: "Invoice is already paid" });
     }
@@ -133,13 +151,20 @@ router.post("/initiate", paymentLimiter, async (req, res) => {
           paymentRef,
           // Store selected payment method in paymentMethod field
           paymentMethod: selectedProvider,
+          status: invoice.status === "PROCESSING" ? invoice.status : "PROCESSING",
         },
       });
     } else if (provider) {
       // Update payment method if provider is specified
       await prisma.invoice.update({
         where: { id: invoice.id },
-        data: { paymentMethod: selectedProvider },
+        data: { paymentMethod: selectedProvider, status: invoice.status === "PROCESSING" ? invoice.status : "PROCESSING" },
+      });
+    } else if (invoice.status !== "PROCESSING") {
+      // Mark as processing when payment is initiated (helps UI/reporting).
+      await prisma.invoice.update({
+        where: { id: invoice.id },
+        data: { status: "PROCESSING" },
       });
     }
 

@@ -34,7 +34,7 @@ const getDriverLevel: RequestHandler = async (req, res) => {
             },
           },
           include: {
-            invoice: {
+            invoices: {
               where: {
                 status: {
                   in: ['PAID', 'APPROVED', 'VERIFIED'],
@@ -47,9 +47,10 @@ const getDriverLevel: RequestHandler = async (req, res) => {
         totalTrips = bookings.length;
         totalEarnings = bookings.reduce((sum: number, b: any) => {
           // Sum total amount from invoices (revenue generated for NoLSAF)
-          const invoiceTotal = b.invoice && b.invoice.length > 0 
-            ? Number(b.invoice[0].total || b.invoice[0].totalAmount || 0)
-            : 0;
+          const invoices: any[] = Array.isArray(b.invoices) ? b.invoices : [];
+          const invoiceTotal = invoices.reduce((invSum: number, inv: any) => {
+            return invSum + Number(inv?.total ?? inv?.totalAmount ?? 0);
+          }, 0);
           return sum + invoiceTotal;
         }, 0);
       } else if ((prisma as any).booking) {

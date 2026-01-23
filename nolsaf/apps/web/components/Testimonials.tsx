@@ -70,16 +70,64 @@ const SOCIAL_LINKS = {
   play: 'https://play.google.com/store/apps/details?id=com.nolsaf'
 };
 
-export default function Testimonials() {
+export default function Testimonials({ hideTitle = false }: { hideTitle?: boolean }) {
   const total = TESTIMONIALS.length;
   const [active, setActive] = useState(0);
+  const activeRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const [viewportW, setViewportW] = useState(0);
   const [disableTransition, setDisableTransition] = useState(false);
   const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const [isFading, setIsFading] = useState(false);
+  const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fadeInTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const slides = useMemo(() => TESTIMONIALS.map((t) => ({ ...t, snippet: stripHtml(t.text) })), []);
+
+  useEffect(() => {
+    activeRef.current = active;
+  }, [active]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mql = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+    const update = () => setPrefersReducedMotion(Boolean(mql?.matches));
+    update();
+    if (!mql?.addEventListener) return;
+    mql.addEventListener('change', update);
+    return () => mql.removeEventListener('change', update);
+  }, []);
+
+  const clearFadeTimers = () => {
+    if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
+    if (fadeInTimerRef.current) clearTimeout(fadeInTimerRef.current);
+    fadeTimerRef.current = null;
+    fadeInTimerRef.current = null;
+  };
+
+  const requestChange = (idx: number) => {
+    const safe = ((idx % total) + total) % total;
+    if (safe === activeRef.current) return;
+
+    // Reduced motion: switch instantly without fades.
+    if (prefersReducedMotion) {
+      clearFadeTimers();
+      setIsFading(false);
+      setActive(safe);
+      return;
+    }
+
+    // Fade-out → switch slide while hidden → fade-in.
+    clearFadeTimers();
+    setIsFading(true);
+    fadeTimerRef.current = setTimeout(() => {
+      setActive(safe);
+      // Keep hidden for a tick so the transform jump isn't visible.
+      fadeInTimerRef.current = setTimeout(() => setIsFading(false), 20);
+    }, 180);
+  };
 
   useEffect(() => {
     if (!viewportRef.current) return;
@@ -105,7 +153,7 @@ export default function Testimonials() {
   const start = () => {
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
-      setActive((a) => ((a + 1) % total));
+      requestChange(activeRef.current + 1);
     }, 9000);
   };
 
@@ -114,6 +162,7 @@ export default function Testimonials() {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
+    clearFadeTimers();
   };
 
   useEffect(() => {
@@ -123,39 +172,38 @@ export default function Testimonials() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [total]);
 
-  const goTo = (idx: number) => {
-    const safe = ((idx % total) + total) % total;
-    setActive(safe);
-  };
+  const goTo = (idx: number) => requestChange(idx);
 
   const goPrev = () => {
     stop();
-    goTo(active - 1);
+    goTo(activeRef.current - 1);
     start();
   };
 
   const goNext = () => {
     stop();
-    goTo(active + 1);
+    goTo(activeRef.current + 1);
     start();
   };
 
   return (
-    <section className="mt-8" aria-labelledby="testimonials-heading">
+    <section className="mt-8" aria-label={hideTitle ? "Testimonials" : undefined} aria-labelledby={hideTitle ? undefined : "testimonials-heading"}>
       <div className="public-container">
         <div className="rounded-xl border bg-gradient-to-b from-white via-slate-50 to-white p-5 sm:p-6 shadow-lg">
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-            <div>
-              <h3 id="testimonials-heading" className="text-xl sm:text-2xl font-semibold text-slate-900">
-                What our customers say
-              </h3>
-              <p className="mt-1 text-sm text-slate-600">
-                Real stories from travellers, drivers and{" "}
-                <strong className="text-emerald-700 font-semibold">hosts</strong> who use NoLSAF.
-              </p>
+          {hideTitle ? null : (
+            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+              <div>
+                <h3 id="testimonials-heading" className="text-xl sm:text-2xl font-semibold text-slate-900">
+                  What our customers say
+                </h3>
+                <p className="mt-1 text-sm text-slate-600">
+                  Real stories from travellers, drivers and{" "}
+                  <strong className="text-emerald-700 font-semibold">hosts</strong> who use NoLSAF.
+                </p>
+              </div>
+              <div className="hidden sm:block" aria-hidden="true" />
             </div>
-            <div className="hidden sm:block" aria-hidden="true" />
-          </div>
+          )}
 
           <div
             className="mt-5"
@@ -172,6 +220,9 @@ export default function Testimonials() {
                     // Responsive + accessible motion: no animation while resizing or when user prefers reduced motion
                     disableTransition ? "transition-none" : "transition-transform duration-500 ease-out",
                     "motion-reduce:transition-none",
+                    // Smooth cross-fade so the slide switch feels clean
+                    "transition-opacity duration-300 ease-out",
+                    isFading ? "opacity-0" : "opacity-100",
                   ].join(" ")}
                   style={{ transform: `translateX(-${active * viewportW}px)` }}
                   aria-live="polite"

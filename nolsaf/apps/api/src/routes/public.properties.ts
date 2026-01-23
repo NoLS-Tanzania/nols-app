@@ -199,40 +199,123 @@ const listPublicProperties: RequestHandler = async (req, res) => {
           let total = 0;
 
           try {
-            const res = await Promise.all([
-              prisma.property.findMany({
-                where,
-                skip,
-                take: pageSize,
-                orderBy,
-                select: {
-                  id: true,
-                  title: true,
-                  type: true,
-                  regionName: true,
-                  district: true,
-                  ward: true,
-                  street: true,
-                  city: true,
-                  country: true,
-                  services: true,
-                  basePrice: true,
-                  currency: true,
-                  maxGuests: true,
-                  totalBedrooms: true,
-                  totalBathrooms: true,
-                  photos: true,
-                  images: {
-                    select: { url: true, thumbnailUrl: true, status: true },
-                    orderBy: { createdAt: "asc" },
-                    take: 6,
+            const isSimpleBrowse =
+              !q &&
+              !region &&
+              !district &&
+              !ward &&
+              !street &&
+              !city &&
+              serviceTags.length === 0 &&
+              minPrice === undefined &&
+              maxPrice === undefined &&
+              guests === undefined &&
+              !(typeof nearLat === "number" && typeof nearLng === "number") &&
+              sort !== "price_asc" &&
+              sort !== "price_desc";
+
+            if (isSimpleBrowse) {
+              // MariaDB can throw "Out of sort memory" when it picks a non-PK index for filters
+              // and then needs a filesort for ORDER BY. Force a PK scan (descending) and apply
+              // filters as it scans until it collects enough ids.
+              const typeClause = types.length
+                ? Prisma.sql` AND type IN (${Prisma.join(types.map((t) => Prisma.sql`${t}`))})`
+                : Prisma.empty;
+
+              const idsRows = (await prisma.$queryRaw(
+                Prisma.sql`
+                  SELECT id
+                  FROM \`Property\`
+                  FORCE INDEX (PRIMARY)
+                  WHERE status = 'APPROVED'
+                  ${typeClause}
+                  ORDER BY id DESC
+                  LIMIT ${pageSize} OFFSET ${skip}
+                `
+              )) as Array<{ id: number }>;
+              const ids = (idsRows || []).map((r) => Number(r.id)).filter((n) => Number.isFinite(n));
+
+              const [rows, cnt] = await Promise.all([
+                ids.length
+                  ? prisma.property.findMany({
+                      where: { id: { in: ids } },
+                      select: {
+                        id: true,
+                        title: true,
+                        type: true,
+                        regionName: true,
+                        district: true,
+                        ward: true,
+                        street: true,
+                        city: true,
+                        country: true,
+                        services: true,
+                        basePrice: true,
+                        currency: true,
+                        maxGuests: true,
+                        totalBedrooms: true,
+                        totalBathrooms: true,
+                        photos: true,
+                        images: {
+                          where: {
+                            status: { in: ["READY", "PROCESSING"] },
+                            url: { not: null },
+                          },
+                          select: { url: true, thumbnailUrl: true, status: true },
+                          orderBy: { id: "asc" },
+                          take: 1,
+                        },
+                      },
+                    })
+                  : Promise.resolve([] as any[]),
+                prisma.property.count({ where }),
+              ]);
+
+              const byId = new Map<number, any>((rows as any[]).map((r) => [Number(r.id), r]));
+              items = ids.map((id) => byId.get(id)).filter(Boolean);
+              total = cnt as number;
+            } else {
+              const res = await Promise.all([
+                prisma.property.findMany({
+                  where,
+                  skip,
+                  take: pageSize,
+                  orderBy,
+                  select: {
+                    id: true,
+                    title: true,
+                    type: true,
+                    regionName: true,
+                    district: true,
+                    ward: true,
+                    street: true,
+                    city: true,
+                    country: true,
+                    services: true,
+                    basePrice: true,
+                    currency: true,
+                    maxGuests: true,
+                    totalBedrooms: true,
+                    totalBathrooms: true,
+                    photos: true,
+                    images: {
+                      where: {
+                        status: { in: ["READY", "PROCESSING"] },
+                        url: { not: null },
+                      },
+                      select: { url: true, thumbnailUrl: true, status: true },
+                      // Avoid MariaDB/MySQL sort buffer blowups on large image sets.
+                      // We only need a primary image for cards; order by PK which is indexed.
+                      orderBy: { id: "asc" },
+                      take: 1,
+                    },
                   },
-                },
-              }),
-              prisma.property.count({ where }),
-            ]);
-            items = res[0] as any[];
-            total = res[1] as number;
+                }),
+                prisma.property.count({ where }),
+              ]);
+              items = res[0] as any[];
+              total = res[1] as number;
+            }
           } catch (e) {
             // Fail-soft for environments where DB migrations aren't fully applied yet
             // (missing columns like ward/street or missing relations like images).

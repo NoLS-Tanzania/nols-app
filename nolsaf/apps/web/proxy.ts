@@ -1,8 +1,8 @@
-// apps/web/middleware.ts
+// apps/web/proxy.ts
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   // Check for both cookie names for compatibility
   const token = req.cookies.get("token")?.value || req.cookies.get("nolsaf_token")?.value || "";
   // Prefer an explicit role cookie; fallback to token decode stub

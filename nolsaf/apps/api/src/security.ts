@@ -83,8 +83,7 @@ export function configureSecurity(app: Express) {
       "Authorization",
       "Content-Type",
       "X-Requested-With",
-      "x-role",
-      "x-user-id",
+      ...(process.env.NODE_ENV !== "production" ? ["x-role", "x-user-id"] : []),
     ],
     credentials: true,
   };

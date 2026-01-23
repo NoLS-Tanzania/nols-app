@@ -234,22 +234,12 @@ export default function BookingFlowCard() {
 
   return (
     <>
-      <section className="mt-6" aria-labelledby="booking-flow-heading">
+      <section className="mt-6" aria-label="Booking flow">
         <div className="public-container">
           <article
             ref={containerRef}
             className="rounded-xl border bg-gradient-to-b from-white via-slate-50 to-white p-4 sm:p-6 shadow-lg"
           >
-            <div className="text-center">
-              <h3 id="booking-flow-heading" className="inline-block text-lg sm:text-xl font-semibold text-slate-800 tracking-tight transition-all duration-300 hover:text-[#02665e] relative group">
-                <span className="relative z-10">How booking works</span>
-                <span className="absolute bottom-0.5 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-[#02665e]/40 to-transparent transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 ease-out" />
-              </h3>
-              <p className="mt-1 text-sm text-slate-600">
-                Book accommodation and a safe ride in one smooth flow.
-              </p>
-            </div>
-
             {/* Stepper */}
             <nav aria-label="Booking steps" className="mt-5">
               <div

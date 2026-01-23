@@ -49,7 +49,7 @@ function getYouTubeThumbnailUrl(videoId: string): string {
   return `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
 }
 
-export default function LatestUpdate() {
+export default function LatestUpdate({ hideTitle = false }: { hideTitle?: boolean }) {
   const [updates, setUpdates] = useState<Update[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -92,10 +92,12 @@ export default function LatestUpdate() {
     return (
       <aside className="mt-6">
         <div className="public-container">
-          <div className="mb-4 flex items-center gap-2">
-            <Megaphone className="w-5 h-5 text-emerald-700" />
-            <h2 className="text-xl font-bold text-slate-900">Latest Updates</h2>
-          </div>
+          {hideTitle ? null : (
+            <div className="mb-4 flex items-center gap-2">
+              <Megaphone className="w-5 h-5 text-emerald-700" />
+              <h2 className="text-xl font-bold text-slate-900">Latest Updates</h2>
+            </div>
+          )}
           <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
             <p className="text-sm text-slate-700 font-medium">No updates yet.</p>
             <p className="text-xs text-slate-500 mt-1">
@@ -113,10 +115,12 @@ export default function LatestUpdate() {
   return (
     <aside className="mt-6">
       <div className="public-container">
-        <div className="mb-4 flex items-center gap-2">
-          <Megaphone className="w-5 h-5 text-emerald-700" />
-          <h2 className="text-xl font-bold text-slate-900">Latest Updates</h2>
-        </div>
+        {hideTitle ? null : (
+          <div className="mb-4 flex items-center gap-2">
+            <Megaphone className="w-5 h-5 text-emerald-700" />
+            <h2 className="text-xl font-bold text-slate-900">Latest Updates</h2>
+          </div>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {latestUpdates.map((update) => {
             const firstVideo = update.videos?.[0];

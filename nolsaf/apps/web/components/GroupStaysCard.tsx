@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { Calendar, ChevronDown, ChevronLeft, ChevronRight, Check, Truck, Bus, Coffee, Users, Wrench, Download, ArrowLeft, CheckCircle, ArrowRight, Trash2 } from 'lucide-react';
 import Spinner from './Spinner';
 
-export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
+export default function GroupStaysCard({ onCloseAction }: { onCloseAction?: () => void }) {
   const DRAFT_KEY = 'groupStaysDraft.v1';
   const [groupType, setGroupType] = useState<string>('');
   const [accommodationType, setAccommodationType] = useState<string>('');
@@ -684,7 +684,7 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
                   href="/account/group-stays"
                   className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-3 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 active:scale-[0.98] no-underline group"
                   onClick={() => {
-                    if (onClose) onClose();
+                    if (onCloseAction) onCloseAction();
                   }}
                 >
                   <span>View My Group Stays</span>
@@ -722,7 +722,9 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
             <div className="ml-4">
               <Link 
                 href="/public" 
-                onClick={onClose} 
+                onClick={() => {
+                  if (onCloseAction) onCloseAction();
+                }}
                 className="flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:text-[#02665e] hover:bg-slate-50 rounded-lg transition-all duration-200 font-medium group no-underline"
               >
                 <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
@@ -1215,7 +1217,7 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
                                   <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                                     <DatePicker
                                       selected={checkInIso || undefined}
-                                      onSelect={(s) => {
+                                      onSelectAction={(s) => {
                                         const date = Array.isArray(s) ? s[0] : s;
                                         if (date) {
                                           setCheckInIso(date);
@@ -1223,7 +1225,7 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
                                         }
                                         setCheckInPickerOpen(false);
                                       }}
-                                      onClose={() => setCheckInPickerOpen(false)}
+                                      onCloseAction={() => setCheckInPickerOpen(false)}
                                       allowRange={false}
                                     />
                                   </div>
@@ -1250,12 +1252,12 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
                                   <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                                     <DatePicker
                                       selected={checkOutIso || undefined}
-                                      onSelect={(s) => {
+                                      onSelectAction={(s) => {
                                         const date = Array.isArray(s) ? s[0] : s;
                                         if (date) setCheckOutIso(date);
                                         setCheckOutPickerOpen(false);
                                       }}
-                                      onClose={() => setCheckOutPickerOpen(false)}
+                                      onCloseAction={() => setCheckOutPickerOpen(false)}
                                       allowRange={false}
                                       minDate={checkInIso ? addDaysIso(checkInIso, 1) : undefined}
                                     />
@@ -1744,18 +1746,22 @@ export default function GroupStaysCard({ onClose }: { onClose?: () => void }) {
                                 <button
                                   type="button"
                                   onClick={() => setShowAllPassengers(true)}
-                                  className="w-full text-xs text-blue-600 hover:text-blue-700 text-center pt-2 italic hover:underline focus:outline-none focus:ring-2 focus:ring-blue-200 rounded p-1 transition-colors"
+                                  className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:shadow focus:outline-none focus:ring-2 focus:ring-emerald-200"
                                 >
-                                  ... and {roster.length - 3} more passenger{roster.length - 3 !== 1 ? 's' : ''} (click to view all)
+                                  <span>
+                                    Show {roster.length - 3} more passenger{roster.length - 3 !== 1 ? 's' : ''}
+                                  </span>
+                                  <ChevronDown className="h-4 w-4 text-slate-500" aria-hidden />
                                 </button>
                               )}
                               {showAllPassengers && roster.length > 3 && (
                                 <button
                                   type="button"
                                   onClick={() => setShowAllPassengers(false)}
-                                  className="w-full text-xs text-slate-600 hover:text-slate-700 text-center pt-2 italic hover:underline focus:outline-none focus:ring-2 focus:ring-slate-200 rounded p-1 transition-colors"
+                                  className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:shadow focus:outline-none focus:ring-2 focus:ring-emerald-200"
                                 >
-                                  Show less
+                                  <span>Show less</span>
+                                  <ChevronDown className="h-4 w-4 rotate-180 text-slate-500" aria-hidden />
                                 </button>
                               )}
                             </div>

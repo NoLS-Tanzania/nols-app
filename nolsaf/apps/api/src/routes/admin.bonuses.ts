@@ -33,7 +33,7 @@ const BONUS_PAYMENT_REF_DRIVER_PREFIX = "BONUS-DRIVER";
 // Rate limiters
 const limitBonusOperations = rateLimit({
   windowMs: 15 * 60_000, // 15 minutes
-  max: 10, // 10 bonus operations per user per 15 minutes
+  limit: 10, // 10 bonus operations per user per 15 minutes
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many bonus operations. Please wait 15 minutes before trying again." },

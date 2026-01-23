@@ -158,9 +158,10 @@ export default function PublicHeader({
   // - Non-public pages: always use dark variant with strong contrast for maximum visibility
   const overHero = isPublicPath && pathname === "/public" && isOverHero && !scrolled;
   // For readability, the top of the header needs more white than the bottom.
-  // This keeps hero photos visible but guarantees nav text/icons stay legible.
-  const heroTopAlpha = Math.min(0.74 + heroBlend * 0.18, 0.95); // 0.74 -> 0.92
-  const heroBottomAlpha = Math.min(0.42 + heroBlend * 0.16, 0.70); // 0.42 -> 0.58
+  // On very dark (near-black) hero imagery, low-alpha glass can make the nav look faint.
+  // Use a slightly stronger glass while over the hero so text/icons stay crisp.
+  const heroTopAlpha = Math.min(0.72 + heroBlend * 0.16, 0.92); // 0.72 -> 0.88
+  const heroBottomAlpha = Math.min(0.30 + heroBlend * 0.18, 0.72); // 0.30 -> 0.48
   // Non-public pages should always use dark variant for strong visibility
   const headerVariant: "light" | "dark" = (overHero && !isNonPublicPage) ? "light" : "dark";
 
@@ -197,6 +198,7 @@ export default function PublicHeader({
     { href: '/public/properties', label: 'Properties' },
     { href: '/public/group-stays', label: 'Group Stays' },
     { href: '/public/plan-with-us', label: 'Plan With Us' },
+    { href: '/public/no4p-ai', label: 'No4P AI' },
   ], []);
 
   const NavLink = ({ href, children, onClick }: { href: string; children: React.ReactNode; onClick?: () => void }) => {
@@ -281,7 +283,7 @@ export default function PublicHeader({
             ? `blur(${16 + scrollProgress * 6}px) saturate(${160 + scrollProgress * 20}%)`
             : `blur(${6 + heroBlend * 10}px) saturate(${120 + heroBlend * 40}%)`,
           boxShadow: (overHero && !isNonPublicPage)
-            ? "0 14px 36px rgba(15,23,42,0.14), 0 1px 0 rgba(255,255,255,0.45), inset 0 -1px 0 rgba(2,102,94,0.06)"
+            ? "0 10px 28px rgba(15,23,42,0.12), 0 1px 0 rgba(255,255,255,0.22), inset 0 -1px 0 rgba(2,102,94,0.10)"
             : scrolled
             ? `0 10px 28px rgba(0,0,0,0.18), 0 0 0 1px rgba(255,255,255,0.10), inset 0 1px 0 rgba(255,255,255,0.10)`
             : isNonPublicPage
@@ -290,7 +292,7 @@ export default function PublicHeader({
             ? `0 10px 30px rgba(0,0,0,0.18), 0 0 0 1px rgba(255,255,255,0.08)`
             : 'none',
           border: (overHero && !isNonPublicPage)
-            ? "1px solid rgba(255,255,255,0.55)"
+            ? "1px solid rgba(255,255,255,0.35)"
             : scrolled
             ? '1px solid rgba(255, 255, 255, 0.12)'
             : isNonPublicPage

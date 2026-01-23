@@ -35,7 +35,14 @@ export function verifyCsrfToken(sessionId: string, token: string): boolean {
   if (!stored || stored.expiresAt < Date.now()) {
     return false;
   }
-  return stored.token === token;
+  try {
+    const a = Buffer.from(stored.token);
+    const b = Buffer.from(token);
+    if (a.length !== b.length) return false;
+    return crypto.timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
 }
 
 /**

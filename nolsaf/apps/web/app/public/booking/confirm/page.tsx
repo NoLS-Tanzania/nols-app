@@ -111,6 +111,8 @@ export default function BookingConfirmPage() {
   const [guestName, setGuestName] = useState("");
   const [guestPhone, setGuestPhone] = useState("");
   const [guestEmail, setGuestEmail] = useState("");
+  const [phoneTouched, setPhoneTouched] = useState(false);
+  const [emailTouched, setEmailTouched] = useState(false);
   const [nationality, setNationality] = useState("");
   const [sex, setSex] = useState<"Male" | "Female" | "Other" | "">("");
   const [ageGroup] = useState<"Adult" | "Child" | "">("Adult");
@@ -145,6 +147,53 @@ export default function BookingConfirmPage() {
 
   const requiresArrivalInfo = includeTransport && pickupMode === "arrival" && !!pickupPresetId;
   const arrivalTypeLocked = requiresArrivalInfo;
+
+  function sanitizePhoneInput(value: string): string {
+    const raw = String(value ?? "");
+    const keep = raw.replace(/[^0-9+\s-]/g, "");
+    const compact = keep.replace(/-/g, " ").replace(/\s+/g, " ");
+    // Allow '+' only at the first character.
+    return compact.replace(/\+/g, (m, offset) => (offset === 0 ? m : ""));
+  }
+
+  function normalizeTzPhoneForApi(value: string): string | null {
+    const raw = String(value ?? "").trim();
+    if (!raw) return null;
+
+    // Keep only digits (+ allowed but removed for digit parsing)
+    const compact = raw.replace(/\s+/g, "").replace(/-/g, "");
+    const digits = compact.replace(/^\+/, "").replace(/\D+/g, "");
+
+    // Accept: 9 digits => assume TZ local without leading 0
+    if (digits.length === 9) return `+255${digits}`;
+
+    // Accept: 0XXXXXXXXX
+    if (digits.length === 10 && digits.startsWith("0")) return `+255${digits.slice(1)}`;
+
+    // Accept: 255XXXXXXXXX or +255XXXXXXXXX
+    if (digits.length === 12 && digits.startsWith("255")) return `+255${digits.slice(3)}`;
+
+    return null;
+  }
+
+  function isValidEmail(value: string): boolean {
+    const v = String(value ?? "").trim();
+    if (!v) return true;
+    // Simple, practical email validation (server still validates).
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+  }
+
+  function sanitizeNationalityInput(value: string): string {
+    const raw = String(value ?? "");
+    // Remove digits; keep letters/spaces/punctuation the user might reasonably type.
+    const noDigits = raw.replace(/\d+/g, "");
+    return noDigits.replace(/\s+/g, " ");
+  }
+
+  const normalizedPhoneForApi = normalizeTzPhoneForApi(guestPhone);
+  const normalizedEmailForApi = guestEmail.trim().replace(/\s+/g, "");
+  const phoneInlineError = phoneTouched && !normalizedPhoneForApi ? "Enter a valid phone (e.g., +2557XXXXXXXX, 07XXXXXXXX, or 7XXXXXXXX)." : null;
+  const emailInlineError = emailTouched && normalizedEmailForApi && !isValidEmail(normalizedEmailForApi) ? "Enter a valid email address." : null;
 
   function getRoomCodeForAvailabilityCheck(): string | null {
     if (selectedRoomCode) return selectedRoomCode;
@@ -460,6 +509,22 @@ export default function BookingConfirmPage() {
       return;
     }
 
+    // Phone: normalize to TZ (+255XXXXXXXXX) and block invalid/short numbers before API
+    const phoneForApi = normalizeTzPhoneForApi(guestPhone);
+    if (!phoneForApi) {
+      setError("Please enter a valid phone number. Example: +255 7XX XXX XXX or 07XX XXX XXX.");
+      setSubmitting(false);
+      return;
+    }
+
+    // Email: optional, but if provided it must be valid
+    const emailForApi = guestEmail.trim().replace(/\s+/g, "");
+    if (emailForApi && !isValidEmail(emailForApi)) {
+      setError("Please enter a valid email address.");
+      setSubmitting(false);
+      return;
+    }
+
     if (includeTransport) {
       if (calculatingFare) {
         setError("Calculating transportation fare... please wait a moment.");
@@ -522,14 +587,15 @@ export default function BookingConfirmPage() {
         checkIn: checkInISO,
         checkOut: checkOutISO,
         guestName: guestName.trim(),
-        guestPhone: guestPhone.trim(),
-        guestEmail: guestEmail.trim() || null,
-        nationality: nationality.trim() || null,
+        guestPhone: phoneForApi,
+        guestEmail: emailForApi || null,
+        nationality: sanitizeNationalityInput(nationality).trim() || null,
         sex: sex || null,
         ageGroup: ageGroup || null,
         adults: bookingData.adults || 1,
         children: bookingData.children || 0,
         pets: bookingData.pets || 0,
+        rooms: Math.max(1, Number(bookingData.rooms ?? 1)),
         roomCode: selectedRoomCode || getRoomCodeForAvailabilityCheck(), // Keep consistent with live availability checks
         specialRequests: specialRequests.trim() || null,
         includeTransport: includeTransport || false,
@@ -1199,7 +1265,7 @@ export default function BookingConfirmPage() {
                             <div className="absolute z-50 top-full left-0 mt-2">
                               <DatePicker
                                 selected={bookingData?.checkIn || undefined}
-                                onSelect={(s) => {
+                                onSelectAction={(s) => {
                                   const date = Array.isArray(s) ? s[0] : s;
                                   if (bookingData && date) {
                                     const newCheckIn = date;
@@ -1212,7 +1278,7 @@ export default function BookingConfirmPage() {
                                   }
                                   setCheckInPickerOpen(false);
                                 }}
-                                onClose={() => setCheckInPickerOpen(false)}
+                                onCloseAction={() => setCheckInPickerOpen(false)}
                                 allowRange={false}
                               />
                             </div>
@@ -1253,7 +1319,7 @@ export default function BookingConfirmPage() {
                             <div className="absolute z-50 top-full left-0 mt-2">
                               <DatePicker
                                 selected={bookingData?.checkOut || undefined}
-                                onSelect={(s) => {
+                                onSelectAction={(s) => {
                                   const date = Array.isArray(s) ? s[0] : s;
                                   if (bookingData && date) {
                                     // Validate that check-out is after check-in
@@ -1268,7 +1334,7 @@ export default function BookingConfirmPage() {
                                   }
                                   setCheckOutPickerOpen(false);
                                 }}
-                                onClose={() => setCheckOutPickerOpen(false)}
+                                onCloseAction={() => setCheckOutPickerOpen(false)}
                                 allowRange={false}
                                 minDate={bookingData?.checkIn ? (() => {
                                   // Set minimum date to check-in date + 1 day
@@ -1606,11 +1672,26 @@ export default function BookingConfirmPage() {
                     <input
                       type="tel"
                       value={guestPhone}
-                      onChange={(e) => setGuestPhone(e.target.value)}
+                      inputMode="tel"
+                      autoComplete="tel"
+                      onChange={(e) => {
+                        setError(null);
+                        setGuestPhone(sanitizePhoneInput(e.target.value));
+                      }}
+                      onBlur={() => {
+                        setPhoneTouched(true);
+                        const normalized = normalizeTzPhoneForApi(guestPhone);
+                        if (normalized) setGuestPhone(normalized);
+                      }}
                       required
                       className="w-full min-w-0 px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm max-w-full box-border"
                       placeholder="+255 XXX XXX XXX"
                     />
+                    {phoneInlineError ? (
+                      <p className="text-xs font-semibold text-red-600">{phoneInlineError}</p>
+                    ) : (
+                      <p className="text-xs text-slate-500">Accepted: +2557XXXXXXXX, 07XXXXXXXX, or 7XXXXXXXX.</p>
+                    )}
                   </div>
                 </div>
 
@@ -1622,10 +1703,19 @@ export default function BookingConfirmPage() {
                     <input
                       type="email"
                       value={guestEmail}
-                      onChange={(e) => setGuestEmail(e.target.value)}
+                      inputMode="email"
+                      autoComplete="email"
+                      onChange={(e) => {
+                        setError(null);
+                        setGuestEmail(e.target.value.replace(/\s+/g, ""));
+                      }}
+                      onBlur={() => setEmailTouched(true)}
                       className="w-full min-w-0 px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm max-w-full box-border"
                       placeholder="your.email@example.com"
                     />
+                    {emailInlineError && (
+                      <p className="text-xs font-semibold text-red-600">{emailInlineError}</p>
+                    )}
                   </div>
 
                   <div className="space-y-2 min-w-0 w-full">
@@ -1635,7 +1725,12 @@ export default function BookingConfirmPage() {
                     <input
                       type="text"
                       value={nationality}
-                      onChange={(e) => setNationality(e.target.value)}
+                      inputMode="text"
+                      autoComplete="country-name"
+                      onChange={(e) => {
+                        setError(null);
+                        setNationality(sanitizeNationalityInput(e.target.value));
+                      }}
                       className="w-full min-w-0 px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm max-w-full box-border"
                       placeholder="e.g., Tanzanian"
                     />
@@ -1981,12 +2076,12 @@ export default function BookingConfirmPage() {
                                         <div className="absolute z-[101] top-full left-0 mt-2 bg-white rounded-xl border-2 border-slate-200 shadow-2xl max-h-[calc(100vh-200px)] overflow-y-auto">
                                           <DatePicker
                                             selected={arrivalDate}
-                                            onSelect={(s) => {
+                                            onSelectAction={(s) => {
                                               const date = Array.isArray(s) ? s[0] : s;
                                               setArrivalDate(date || "");
                                               setArrivalDatePickerOpen(false);
                                             }}
-                                            onClose={() => setArrivalDatePickerOpen(false)}
+                                            onCloseAction={() => setArrivalDatePickerOpen(false)}
                                             allowRange={false}
                                             minDate={new Date().toISOString().split("T")[0]}
                                           />

@@ -81,7 +81,7 @@ interface AnalyticsEventResponse {
 // ============================================================
 const limitAnalyticsEvents = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 100, // 100 events per admin per minute
+  limit: 100, // 100 events per admin per minute
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many analytics events. Please wait before sending another event." },

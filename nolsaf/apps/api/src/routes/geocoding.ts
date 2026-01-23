@@ -14,7 +14,7 @@ const MAPBOX_TOKEN = process.env.MAPBOX_ACCESS_TOKEN || process.env.NEXT_PUBLIC_
 // Rate limiter for geocoding requests (prevents abuse and API cost)
 const limitGeocoding = rateLimit({
   windowMs: 60_000, // 1 minute
-  max: 30, // 30 requests per minute per user/IP
+  limit: 30, // 30 requests per minute per user/IP
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many geocoding requests. Please wait a moment and try again." },
@@ -32,7 +32,7 @@ const limitGeocoding = rateLimit({
 // Keep stricter limits to reduce abuse/cost.
 const limitPublicGeocoding = rateLimit({
   windowMs: 60_000, // 1 minute
-  max: 10, // 10 requests per minute per IP
+  limit: 10, // 10 requests per minute per IP
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many requests. Please wait a moment and try again." },

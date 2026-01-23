@@ -24,7 +24,7 @@ const CLEANUP_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 // Rate limiters
 const limitEmailSend = rateLimit({
   windowMs: 15 * 60_000, // 15 minutes
-  max: 3, // 3 requests per user per 15 minutes
+  limit: 3, // 3 requests per user per 15 minutes
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many email verification requests. Please wait 15 minutes before requesting another." },

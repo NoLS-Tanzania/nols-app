@@ -1525,12 +1525,12 @@ export default function AdminGroupStayAssignmentsPage() {
                           <div className="absolute z-[70] top-full left-0 mt-2">
                             <DatePicker
                               selected={claimsDeadline || undefined}
-                              onSelect={(s) => {
+                              onSelectAction={(s) => {
                                 const dateStr = Array.isArray(s) ? s[0] : s;
                                 setClaimsDeadline(dateStr);
                                 setDeadlinePickerOpen(false);
                               }}
-                              onClose={() => setDeadlinePickerOpen(false)}
+                              onCloseAction={() => setDeadlinePickerOpen(false)}
                               allowRange={false}
                               minDate={new Date().toISOString().split('T')[0]}
                             />

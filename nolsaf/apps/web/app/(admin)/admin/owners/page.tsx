@@ -442,10 +442,10 @@ export default function AdminOwnersPage() {
                         <div className="fixed z-50 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
                           <DatePicker
                             selected={dateFromPicker || undefined}
-                            onSelect={(s) => {
+                            onSelectAction={(s) => {
                               setDateFromPicker(s as string | string[]);
                             }}
-                            onClose={() => setPickerFromOpen(false)}
+                            onCloseAction={() => setPickerFromOpen(false)}
                           />
                         </div>
                       </>
@@ -479,10 +479,10 @@ export default function AdminOwnersPage() {
                         <div className="fixed z-50 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
                           <DatePicker
                             selected={dateToPicker || undefined}
-                            onSelect={(s) => {
+                            onSelectAction={(s) => {
                               setDateToPicker(s as string | string[]);
                             }}
-                            onClose={() => setPickerToOpen(false)}
+                            onCloseAction={() => setPickerToOpen(false)}
                           />
                         </div>
               </>

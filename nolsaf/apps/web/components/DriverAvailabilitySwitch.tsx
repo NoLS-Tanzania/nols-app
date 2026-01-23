@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { Power } from "lucide-react";
+import { useSocket } from "@/hooks/useSocket";
 
 // Use same-origin calls + secure httpOnly cookie session.
 const api = axios.create({ baseURL: "", withCredentials: true });
@@ -10,6 +11,9 @@ export default function DriverAvailabilitySwitch({ className = "" }: { className
   // Start with false to match server-side render (prevents hydration mismatch)
   const [available, setAvailable] = useState<boolean>(false);
   const [isClient, setIsClient] = useState(false);
+  const [meId, setMeId] = useState<string | number | undefined>(undefined);
+
+  const { socket } = useSocket(meId);
 
   // Mark as client-side after mount to prevent hydration mismatch
   useEffect(() => {
@@ -30,6 +34,25 @@ export default function DriverAvailabilitySwitch({ className = "" }: { className
         try { localStorage.setItem("driver_available", w ? "1" : "0"); } catch (e) {}
       }
     } catch (e) { /* ignore */ }
+  }, []);
+
+  // Resolve current user id for socket room scoping.
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const r = await fetch("/api/account/me", { credentials: "include" });
+        if (!r.ok) return;
+        const me = await r.json();
+        if (!mounted) return;
+        if (me?.id) setMeId(me.id);
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
   }, []);
   // transient status control: idle | pending | success | error
   const [status, setStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle');
@@ -57,7 +80,26 @@ export default function DriverAvailabilitySwitch({ className = "" }: { className
     const start = Date.now();
     const desiredDelay = 3000; // fixed 3000ms as requested
     try {
-      await api.post("/api/driver/availability", { available: next });
+      // Prefer socket path (also manages offer-room membership); fallback to REST.
+      let socketOk = false;
+      try {
+        if (socket && socket.connected) {
+          socketOk = await new Promise<boolean>((resolve) => {
+            try {
+              socket.emit('driver:availability:set', { available: next }, (resp: any) => {
+                resolve(Boolean(resp && resp.status === 'ok'));
+              });
+            } catch {
+              resolve(false);
+            }
+          });
+        }
+      } catch {
+        socketOk = false;
+      }
+      if (!socketOk) {
+        await api.post("/api/driver/availability", { available: next });
+      }
       // success: ensure pending lasts at least desiredDelay
       const elapsed = Date.now() - start;
       const remaining = Math.max(0, desiredDelay - elapsed);

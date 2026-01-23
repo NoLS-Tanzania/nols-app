@@ -19,7 +19,7 @@ router.use(requireAuth as unknown as RequestHandler, requireRole("ADMIN") as unk
 // Rate limiters
 const limitPlanRequestList = rateLimit({
   windowMs: 60_000, // 1 minute
-  max: 30, // 30 requests per minute per IP
+  limit: 30, // 30 requests per minute per IP
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many requests. Please wait a moment and try again." },
@@ -27,7 +27,7 @@ const limitPlanRequestList = rateLimit({
 
 const limitPlanRequestUpdate = rateLimit({
   windowMs: 60_000, // 1 minute
-  max: 10, // 10 updates per minute per IP
+  limit: 10, // 10 updates per minute per IP
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many update requests. Please wait a moment and try again." },

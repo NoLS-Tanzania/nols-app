@@ -157,7 +157,6 @@ const getDriverReferral: RequestHandler = async (req, res) => {
             OR: [
               { referredBy: driverId },
               { referralCode: referralCode },
-              { referralId: driverId },
             ],
           },
           select: {

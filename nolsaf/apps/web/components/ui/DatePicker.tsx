@@ -47,8 +47,8 @@ function buildDays(year: number, month: number): DayCell[] {
 
 export default function DatePicker({
   selected,
-  onSelect,
-  onClose,
+  onSelectAction,
+  onCloseAction,
   allowRange = true,
   minDate,
   twoMonths = false,
@@ -56,8 +56,8 @@ export default function DatePicker({
   resetRangeAnchor = false,
 }: {
   selected?: string | string[];
-  onSelect: (s: string | string[]) => void;
-  onClose?: () => void;
+  onSelectAction: (s: string | string[]) => void;
+  onCloseAction?: () => void;
   allowRange?: boolean;
   minDate?: string; // ISO date string (YYYY-MM-DD)
   twoMonths?: boolean; // show current month and next month side by side
@@ -92,12 +92,12 @@ export default function DatePicker({
     function onDoc(e: MouseEvent) {
       if (!rootRef.current) return;
       if (e.target && (e.target as Node) && !rootRef.current.contains(e.target as Node)) {
-        onClose?.();
+        onCloseAction?.();
       }
     }
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
-  }, [onClose]);
+  }, [onCloseAction]);
 
   const view2 = twoMonths
     ? { year: view.month === 11 ? view.year + 1 : view.year, month: (view.month + 1) % 12 }
@@ -136,7 +136,7 @@ export default function DatePicker({
     function onKey(e: KeyboardEvent) {
       if (!rootRef.current) return;
       if (e.key === "Escape") {
-        onClose?.();
+        onCloseAction?.();
         return;
       }
       // arrow navigation
@@ -238,21 +238,21 @@ export default function DatePicker({
               selectedDays.push(`${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`);
             }
             setLastClicked(null);
-            onSelect(selectedDays);
-            onClose?.();
+            onSelectAction(selectedDays);
+            onCloseAction?.();
             return;
           }
           // Second click (no Shift): treat as end date, build [start, end] and close. Picker stays open after first click.
           if (allowRange && lastClicked) {
             const [a, b] = [lastClicked, iso].sort();
             setLastClicked(null);
-            onSelect([a, b]);
-            onClose?.();
+            onSelectAction([a, b]);
+            onCloseAction?.();
             return;
           }
           // First click: set start, do NOT close — picker stays open until end date is selected
           setLastClicked(iso);
-          onSelect(iso);
+          onSelectAction(iso);
         }}
         onFocus={() => setFocusedIdx(idx + refOffset)}
         className={`

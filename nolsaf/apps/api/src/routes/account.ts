@@ -25,13 +25,13 @@ const SENSITIVE_RATE_LIMIT_MAX = 50;
 // Rate limiter for sensitive endpoints
 const sensitive = rateLimit({ 
   windowMs: SENSITIVE_RATE_LIMIT_WINDOW_MS, 
-  max: SENSITIVE_RATE_LIMIT_MAX 
+  limit: SENSITIVE_RATE_LIMIT_MAX 
 });
 
 // Rate limiter for payout updates (more restrictive - prevent unnecessary edits)
 const payoutUpdateLimit = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 5, // Max 5 payout updates per hour
+  limit: 5, // Max 5 payout updates per hour
   message: { error: "Too many payout updates. Please wait before making changes. This helps protect your account information." },
   standardHeaders: true,
   legacyHeaders: false,

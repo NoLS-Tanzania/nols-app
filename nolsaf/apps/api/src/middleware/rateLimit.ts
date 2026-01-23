@@ -2,7 +2,7 @@ import rateLimit from "express-rate-limit";
 
 export const limitCodeSearch = rateLimit({
   windowMs: 60_000, // 1 min
-  max: 20,
+  limit: 20,
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -10,7 +10,7 @@ export const limitCodeSearch = rateLimit({
 // Rate limiter for cancellation lookups (prevents abuse of code validation)
 export const limitCancellationLookup = rateLimit({
   windowMs: 60_000, // 1 minute
-  max: 30, // 30 lookups per minute per IP
+  limit: 30, // 30 lookups per minute per IP
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many cancellation code lookups. Please wait a moment and try again." },
@@ -19,7 +19,7 @@ export const limitCancellationLookup = rateLimit({
 // Rate limiter for cancellation submissions (prevents spam submissions)
 export const limitCancellationSubmit = rateLimit({
   windowMs: 15 * 60_000, // 15 minutes
-  max: 5, // 5 submissions per 15 minutes per IP
+  limit: 5, // 5 submissions per 15 minutes per IP
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many cancellation requests. Please wait before submitting another request." },
@@ -28,7 +28,7 @@ export const limitCancellationSubmit = rateLimit({
 // Rate limiter for cancellation messages (prevents spam messaging)
 export const limitCancellationMessages = rateLimit({
   windowMs: 60_000, // 1 minute
-  max: 10, // 10 messages per minute per IP
+  limit: 10, // 10 messages per minute per IP
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many messages. Please wait a moment before sending another message." },
@@ -37,7 +37,7 @@ export const limitCancellationMessages = rateLimit({
 // Rate limiter for plan request submissions (prevents spam)
 export const limitPlanRequestSubmit = rateLimit({
   windowMs: 15 * 60_000, // 15 minutes
-  max: 3, // 3 submissions per 15 minutes per IP
+  limit: 3, // 3 submissions per 15 minutes per IP
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many plan request submissions. Please wait before submitting another request." },
@@ -46,7 +46,7 @@ export const limitPlanRequestSubmit = rateLimit({
 // Rate limiter for plan request messages (follow-up messages)
 export const limitPlanRequestMessages = rateLimit({
   windowMs: 60_000, // 1 minute
-  max: 5, // 5 messages per minute per IP
+  limit: 5, // 5 messages per minute per IP
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many messages. Please wait a moment before sending another message." },
@@ -55,7 +55,7 @@ export const limitPlanRequestMessages = rateLimit({
 // Rate limiter for owner group stay messages (prevents spam/abuse)
 export const limitOwnerGroupStayMessages = rateLimit({
   windowMs: 60_000, // 1 minute
-  max: 10, // 10 messages per minute per owner
+  limit: 10, // 10 messages per minute per owner
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many messages. Please wait a moment before sending another message." },
@@ -73,7 +73,7 @@ export const limitOwnerGroupStayMessages = rateLimit({
 // Rate limiter for chatbot messages (prevents spam/abuse)
 export const limitChatbotMessages = rateLimit({
   windowMs: 60_000, // 1 minute
-  max: 30, // 30 messages per minute per IP/session
+  limit: 30, // 30 messages per minute per IP/session
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many messages. Please wait a moment before sending another message." },
@@ -91,7 +91,7 @@ export const limitChatbotMessages = rateLimit({
 // Rate limiter for chatbot conversation history requests
 export const limitChatbotConversations = rateLimit({
   windowMs: 60_000, // 1 minute
-  max: 20, // 20 requests per minute per IP
+  limit: 20, // 20 requests per minute per IP
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many requests. Please wait a moment and try again." },
@@ -100,7 +100,7 @@ export const limitChatbotConversations = rateLimit({
 // Rate limiter for chatbot language changes
 export const limitChatbotLanguageChange = rateLimit({
   windowMs: 60_000, // 1 minute
-  max: 10, // 10 language changes per minute per IP
+  limit: 10, // 10 language changes per minute per IP
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many language changes. Please wait a moment and try again." },
@@ -109,7 +109,7 @@ export const limitChatbotLanguageChange = rateLimit({
 // Rate limiter for OTP sending (prevents SMS spam and cost abuse)
 export const limitOtpSend = rateLimit({
   windowMs: 15 * 60_000, // 15 minutes
-  max: 3, // 3 OTP requests per phone number per 15 minutes
+  limit: 3, // 3 OTP requests per phone number per 15 minutes
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many OTP requests. Please wait 15 minutes before requesting another code." },
@@ -127,7 +127,7 @@ export const limitOtpSend = rateLimit({
 // Rate limiter for OTP verification attempts (prevents brute force)
 export const limitOtpVerify = rateLimit({
   windowMs: 15 * 60_000, // 15 minutes
-  max: 10, // 10 verification attempts per phone number per 15 minutes
+  limit: 10, // 10 verification attempts per phone number per 15 minutes
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many verification attempts. Please wait 15 minutes before trying again." },
@@ -143,7 +143,7 @@ export const limitOtpVerify = rateLimit({
 // Rate limiter for login attempts (IP-based to prevent brute force)
 export const limitLoginAttempts = rateLimit({
   windowMs: 15 * 60_000, // 15 minutes
-  max: 10, // 10 login attempts per IP per 15 minutes
+  limit: 10, // 10 login attempts per IP per 15 minutes
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many login attempts. Please wait 15 minutes before trying again." },
@@ -153,7 +153,7 @@ export const limitLoginAttempts = rateLimit({
 // Rate limiter for registration attempts (prevents account creation abuse)
 export const limitRegisterAttempts = rateLimit({
   windowMs: 15 * 60_000, // 15 minutes
-  max: 5, // 5 registration attempts per 15 minutes
+  limit: 5, // 5 registration attempts per 15 minutes
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many registration attempts. Please wait 15 minutes before trying again." },
@@ -167,7 +167,7 @@ export const limitRegisterAttempts = rateLimit({
 // Rate limiter for public transport booking creation (prevents spam/abuse)
 export const limitTransportBooking = rateLimit({
   windowMs: 15 * 60_000, // 15 minutes
-  max: 10, // 10 bookings per IP per 15 minutes
+  limit: 10, // 10 bookings per IP per 15 minutes
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many booking requests. Please wait 15 minutes before creating another booking." },
@@ -188,7 +188,7 @@ export const limitTransportBooking = rateLimit({
 // Rate limiter for authenticated driver trip list endpoints (prevents scraping/spam)
 export const limitDriverTripsList = rateLimit({
   windowMs: 60_000, // 1 minute
-  max: 120, // 120 requests/minute per driver
+  limit: 120, // 120 requests/minute per driver
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many requests. Please wait a moment and try again." },
@@ -202,7 +202,7 @@ export const limitDriverTripsList = rateLimit({
 // Rate limiter for driver trip claim endpoint (prevents claim spamming / brute forcing)
 export const limitDriverTripClaim = rateLimit({
   windowMs: 10 * 60_000, // 10 minutes
-  max: 15, // 15 claims/10 minutes per driver
+  limit: 15, // 15 claims/10 minutes per driver
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many claim attempts. Please wait and try again." },
@@ -216,13 +216,41 @@ export const limitDriverTripClaim = rateLimit({
 // Rate limiter for driver trip actions (accept/decline/cancel)
 export const limitDriverTripAction = rateLimit({
   windowMs: 60_000, // 1 minute
-  max: 60, // 60 actions/minute per driver
+  limit: 60, // 60 actions/minute per driver
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many requests. Please wait a moment and try again." },
   keyGenerator: (req) => {
     const driverId = (req as any).user?.id || (req as any).userId;
     if (driverId) return `driver-trip-action:${String(driverId)}`;
+    return req.ip || req.socket.remoteAddress || "unknown";
+  },
+});
+
+// Rate limiter for driver location updates (high-frequency but must be bounded)
+export const limitDriverLocationUpdate = rateLimit({
+  windowMs: 60_000, // 1 minute
+  limit: 240, // ~4 updates/sec per driver
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many location updates. Please slow down." },
+  keyGenerator: (req) => {
+    const driverId = (req as any).user?.id || (req as any).userId;
+    if (driverId) return `driver-location:${String(driverId)}`;
+    return req.ip || req.socket.remoteAddress || "unknown";
+  },
+});
+
+// Rate limiter for driver availability toggles (prevents spam/flapping)
+export const limitDriverAvailabilityToggle = rateLimit({
+  windowMs: 60_000, // 1 minute
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many availability changes. Please wait a moment." },
+  keyGenerator: (req) => {
+    const driverId = (req as any).user?.id || (req as any).userId;
+    if (driverId) return `driver-availability:${String(driverId)}`;
     return req.ip || req.socket.remoteAddress || "unknown";
   },
 });

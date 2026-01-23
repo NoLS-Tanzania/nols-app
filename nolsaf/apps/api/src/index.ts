@@ -184,6 +184,80 @@ io.use(socketAuthMiddleware);
 io.on('connection', (socket: AuthenticatedSocket) => {
   const user = socket.data.user;
   console.log('Socket connected', socket.id, user ? `(user: ${user.id}, role: ${user.role})` : '(unauthenticated)');
+
+  // Auto-join basic rooms for authenticated users so server-side emits can be scoped safely.
+  // This avoids relying on every client to explicitly call join events.
+  if (user?.id) {
+    try { socket.join(`user:${user.id}`); } catch {}
+    if (user.role === 'DRIVER') {
+      try { socket.join(`driver:${user.id}`); } catch {}
+      // Best-effort: join/leave the available-drivers room from DB state on connect.
+      (async () => {
+        try {
+          const row = await prisma.user.findUnique({ where: { id: user.id }, select: { available: true, isAvailable: true } });
+          const isAvailable = Boolean(row?.available ?? row?.isAvailable ?? false);
+          if (isAvailable) socket.join('drivers:available');
+          else socket.leave('drivers:available');
+        } catch {
+          // ignore
+        }
+      })();
+    }
+  }
+
+  // Driver availability (socket): persists + updates room membership for offer broadcasts.
+  // Payload: { available: boolean }
+  socket.on('driver:availability:set', async (data: { available: boolean }, callback?: (response: any) => void) => {
+    try {
+      if (!user || user.role !== 'DRIVER') {
+        if (callback) callback({ error: 'Unauthorized' });
+        return;
+      }
+      const available = (data as any)?.available;
+      if (typeof available !== 'boolean') {
+        if (callback) callback({ error: 'available must be boolean' });
+        return;
+      }
+
+      // Best-effort persistence.
+      try {
+        if ((prisma as any).driverAvailability) {
+          await (prisma as any).driverAvailability.upsert({
+            where: { driverId: user.id },
+            update: { available, updatedAt: new Date() },
+            create: { driverId: user.id, available, updatedAt: new Date() },
+          });
+        } else {
+          try {
+            await prisma.user.update({ where: { id: user.id }, data: { available } as any });
+          } catch {
+            try {
+              await prisma.user.update({ where: { id: user.id }, data: { isAvailable: available } as any });
+            } catch {
+              // ignore
+            }
+          }
+        }
+      } catch {
+        // ignore persistence errors
+      }
+
+      // Maintain room membership used for offer broadcasts.
+      if (available) socket.join('drivers:available');
+      else socket.leave('drivers:available');
+
+      // Notify interested clients (maps/admin dashboards).
+      try {
+        io.emit('driver:availability:update', { driverId: user.id, available });
+      } catch {
+        // ignore
+      }
+
+      if (callback) callback({ status: 'ok', available });
+    } catch (e) {
+      if (callback) callback({ error: 'failed' });
+    }
+  });
   
   // Handle driver room joining for referral updates
   socket.on('join-driver-room', async (data: { driverId: string | number }, callback?: (response: any) => void) => {

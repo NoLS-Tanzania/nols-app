@@ -2,6 +2,7 @@
 import { Router, Request, Response } from "express";
 import { prisma } from "@nolsaf/prisma";
 import { z } from "zod";
+import rateLimit from "express-rate-limit";
 // Commission calculation helpers (duplicated from web app to avoid dependency)
 function getPropertyCommission(propertyType: string, systemCommission: number = 0): number {
   // For now, use a simple commission structure
@@ -32,6 +33,31 @@ function calculatePriceWithCommission(
 }
 
 const router = Router();
+
+// Public endpoints: rate limit to reduce abuse/DoS.
+const publicInvoiceLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 30,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { ok: false, error: "Too many requests" },
+});
+
+const publicInvoiceReadLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 120,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { ok: false, error: "Too many requests" },
+});
+
+function isPaidLikeInvoice(invoice: { status?: string | null; receiptNumber?: string | null } | null | undefined) {
+  if (!invoice) return false;
+  if (invoice.status === "PAID") return true;
+  // Legacy safety: treat CUSTOMER_PAID as paid only if we have receipt evidence.
+  if (invoice.status === "CUSTOMER_PAID" && Boolean(invoice.receiptNumber)) return true;
+  return false;
+}
 
 function buildPropertyTransportLabel(property: {
   title?: string | null;
@@ -222,7 +248,7 @@ const createInvoiceSchema = z.object({
  * - Server-side amount calculation
  * - Duplicate prevention
  */
-router.post("/from-booking", async (req: Request, res: Response) => {
+router.post("/from-booking", publicInvoiceLimiter, async (req: Request, res: Response) => {
   try {
     // Validate request body
     const validationResult = createInvoiceSchema.safeParse(req.body);
@@ -280,11 +306,9 @@ router.post("/from-booking", async (req: Request, res: Response) => {
     });
 
     if (existingInvoice) {
-      // This endpoint historically creates a "customer-paid" receipt-like invoice.
-      // If transport was requested during booking, publish it for drivers to claim.
       try {
-        const isPaidLike = existingInvoice.status === "PAID" || existingInvoice.status === "CUSTOMER_PAID";
-        if (isPaidLike) {
+        // Only activate/publish transport once payment is actually confirmed.
+        if (isPaidLikeInvoice(existingInvoice)) {
           await publishScheduledTripsForBooking({
             req,
             bookingId: booking.id,
@@ -314,18 +338,32 @@ router.post("/from-booking", async (req: Request, res: Response) => {
       )
     );
 
-    // Extract transport info from specialRequests if present
+    // Prefer authoritative transportFare from the booking record (set at booking creation).
+    // Fall back to legacy parsing from specialRequests for older records.
     let transportFare = 0;
-    const specialRequests = (booking as any).specialRequests as string | null | undefined;
-    const transportInfo = specialRequests?.match(/TRANSPORT_INCLUDED\|fare:(\d+)/);
-    if (transportInfo) {
-      transportFare = Number(transportInfo[1]) || 0;
+    if ((booking as any).includeTransport) {
+      const tf = (booking as any).transportFare != null ? Number((booking as any).transportFare) : NaN;
+      if (Number.isFinite(tf) && tf > 0) transportFare = tf;
     }
 
-    const basePrice = booking.property.basePrice
-      ? Number(booking.property.basePrice)
-      : 0;
-    const accommodationSubtotal = basePrice * nights;
+    if (!transportFare) {
+      const specialRequests = (booking as any).specialRequests as string | null | undefined;
+      const transportInfo = specialRequests?.match(/TRANSPORT_INCLUDED\|fare:(\d+)/);
+      if (transportInfo) {
+        transportFare = Number(transportInfo[1]) || 0;
+      }
+    }
+
+    // Use booking.totalAmount if present (authoritative, includes roomsQty + selected room price + transportFare).
+    const totalAmount = booking.totalAmount ? Number(booking.totalAmount) : 0;
+
+    // Derive accommodation subtotal for notes/commission. (Avoid recomputing from basePrice; can be wrong for roomsSpec.)
+    const accommodationSubtotal = booking.totalAmount
+      ? Math.max(0, Number(totalAmount) - Number(transportFare || 0))
+      : (() => {
+          const basePrice = booking.property.basePrice ? Number(booking.property.basePrice) : 0;
+          return basePrice * nights;
+        })();
 
     // Calculate commission (default 0% for now, can be configured)
     const commissionPercent = getPropertyCommission(booking.property.type, 0);
@@ -334,10 +372,8 @@ router.post("/from-booking", async (req: Request, res: Response) => {
       commissionPercent
     );
 
-    // Use booking.totalAmount if it exists (includes transport), otherwise calculate
-    const totalAmount = booking.totalAmount 
-      ? Number(booking.totalAmount) 
-      : accommodationTotal + transportFare;
+    // If booking.totalAmount is missing, fall back to computed accommodation + transport.
+    const effectiveTotalAmount = booking.totalAmount ? totalAmount : accommodationTotal + transportFare;
 
     // Generate booking code if it doesn't exist
     let codeId: number;
@@ -402,27 +438,29 @@ router.post("/from-booking", async (req: Request, res: Response) => {
       // Format notes safely
       const accommodationStr = Number(accommodationSubtotal).toLocaleString();
       const transportStr = Number(transportFare).toLocaleString();
-      const totalStr = Number(totalAmount).toLocaleString();
+      const totalStr = Number(effectiveTotalAmount).toLocaleString();
       
-      const notes = transportFare > 0 
-        ? `Accommodation: ${accommodationStr} TZS. Transportation: ${transportStr} TZS. Total: ${totalStr} TZS.`
-        : `Accommodation for ${nights} night${nights !== 1 ? 's' : ''} at ${booking.property.title}. Total: ${totalStr} TZS.`;
+      const roomsQty = Math.max(1, Number((booking as any).roomsQty ?? 1));
+      const roomLabel = roomsQty > 1 ? ` × ${roomsQty} rooms` : "";
+
+      const notes = transportFare > 0
+        ? `Accommodation: ${accommodationStr} TZS${roomLabel}. Transportation: ${transportStr} TZS. Total: ${totalStr} TZS.`
+        : `Accommodation for ${nights} night${nights !== 1 ? 's' : ''}${roomLabel} at ${booking.property.title}. Total: ${totalStr} TZS.`;
 
       const invoice = await tx.invoice.create({
         data: {
           invoiceNumber: makeInvoiceNumber(booking.id, codeId),
           ownerId: booking.property.ownerId,
           bookingId: booking.id,
-          total: totalAmount,
-          netPayable: totalAmount, // Amount to be paid (includes transport if applicable)
+          total: effectiveTotalAmount,
+          netPayable: effectiveTotalAmount, // Amount to be paid (includes transport if applicable)
           commissionPercent: commissionPercent > 0 ? commissionPercent : null,
           commissionAmount: commission > 0 ? commission : null,
           taxPercent: 0,
-          // This record represents a customer-paid booking receipt, not an owner-submitted invoice claim.
-          // It must NOT enter the owner-invoice verification pipeline.
-          status: "CUSTOMER_PAID",
+          // Payment lifecycle (production-safe):
+          // - Create invoice as REQUESTED (default)
+          // - Mark as PAID only from the AzamPay webhook
           paymentRef: `INVREF-${booking.id}-${Date.now()}`,
-          paidAt: new Date(),
           notes: notes,
         },
       });
@@ -452,18 +490,7 @@ router.post("/from-booking", async (req: Request, res: Response) => {
       where: { id: result.invoiceId },
     });
 
-    // Publish scheduled transport trips immediately for this flow (invoice is created as paid).
-    try {
-      const isPaidLike = invoice?.status === "PAID" || invoice?.status === "CUSTOMER_PAID";
-      if (isPaidLike) {
-        await publishScheduledTripsForBooking({
-          req,
-          bookingId: booking.id,
-          invoicePaymentRef: invoice?.paymentRef,
-          paymentMethod: (invoice as any)?.paymentMethod,
-        });
-      }
-    } catch {}
+    // Transport activation happens only after webhook-confirmed payment.
 
     return res.status(201).json({
       ok: true,
@@ -471,7 +498,7 @@ router.post("/from-booking", async (req: Request, res: Response) => {
       invoiceNumber: result.invoiceNumber,
       paymentRef: invoice?.paymentRef,
       status: invoice?.status,
-      totalAmount: totalAmount,
+      totalAmount: effectiveTotalAmount,
       currency: booking.property.currency || "TZS",
       booking: {
         id: booking.id,
@@ -515,7 +542,7 @@ router.post("/from-booking", async (req: Request, res: Response) => {
  * GET /api/public/invoices/:id
  * Get invoice details (public endpoint, no authentication required)
  */
-router.get("/:id", async (req: Request, res: Response) => {
+router.get("/:id", publicInvoiceReadLimiter, async (req: Request, res: Response) => {
   try {
     const invoiceId = Number(req.params.id);
     if (!invoiceId || isNaN(invoiceId)) {
@@ -552,27 +579,51 @@ router.get("/:id", async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Invoice not found" });
     }
 
-    const nights = Math.ceil(
-      (new Date(invoice.booking.checkOut).getTime() -
-        new Date(invoice.booking.checkIn).getTime()) /
-        (1000 * 60 * 60 * 24)
+    const transportBooking = await prisma.transportBooking.findFirst({
+      where: {
+        paymentRef: `BOOKING:${invoice.booking.id}`,
+      },
+      select: {
+        amount: true,
+        currency: true,
+        paymentStatus: true,
+        status: true,
+      },
+    });
+
+    const nights = Math.max(
+      1,
+      Math.ceil(
+        (new Date(invoice.booking.checkOut).getTime() -
+          new Date(invoice.booking.checkIn).getTime()) /
+          (1000 * 60 * 60 * 24)
+      )
     );
 
-    // Calculate price breakdown
+    // Price breakdown: keep it consistent with the authoritative total on the invoice.
+    // Avoid recomputing accommodation from basePrice because bookings may use roomsSpec pricing and roomsQty.
     const basePrice = invoice.booking.property.basePrice ? Number(invoice.booking.property.basePrice) : 0;
-    const accommodationSubtotal = basePrice * nights;
     const totalAmount = Number(invoice.total || 0);
     const taxPercent = invoice.taxPercent ? Number(invoice.taxPercent) : 0;
-    const taxAmount = taxPercent > 0 ? (accommodationSubtotal * taxPercent) / 100 : 0;
     const commission = invoice.commissionAmount ? Number(invoice.commissionAmount) : 0;
-    
-    // Calculate subtotal (accommodation + tax + commission)
-    const subtotalBeforeTransport = accommodationSubtotal + taxAmount + commission;
-    const transportFare = totalAmount > subtotalBeforeTransport ? totalAmount - subtotalBeforeTransport : 0;
-    
-    // Calculate discount if total is less than expected
-    const expectedTotal = accommodationSubtotal + taxAmount + commission + transportFare;
-    const discount = expectedTotal > totalAmount ? expectedTotal - totalAmount : 0;
+
+    const rawTransportFare = (() => {
+      const fromTransportBooking = transportBooking?.amount != null ? Number(transportBooking.amount) : NaN;
+      if (Number.isFinite(fromTransportBooking) && fromTransportBooking > 0) return fromTransportBooking;
+
+      if (!invoice.booking.includeTransport) return 0;
+      const fromBooking = (invoice.booking as any).transportFare != null ? Number((invoice.booking as any).transportFare) : NaN;
+      if (Number.isFinite(fromBooking) && fromBooking > 0) return fromBooking;
+
+      return 0;
+    })();
+
+    const transportFare = Math.max(0, Math.min(Number.isFinite(rawTransportFare) ? rawTransportFare : 0, totalAmount));
+
+    const accommodationSubtotal = Math.max(0, totalAmount - transportFare);
+    const taxAmount = taxPercent > 0 ? (accommodationSubtotal * taxPercent) / 100 : 0;
+    const subtotal = accommodationSubtotal + taxAmount + transportFare;
+    const discount = 0;
 
     return res.json({
       id: invoice.id,
@@ -593,6 +644,8 @@ router.get("/:id", async (req: Request, res: Response) => {
         guestName: invoice.booking.guestName || null,
         guestPhone: invoice.booking.guestPhone || null,
         roomCode: invoice.booking.roomCode || null,
+        roomsQty: Math.max(1, Number((invoice.booking as any).roomsQty ?? 1)),
+        includeTransport: !!(invoice.booking as any).includeTransport,
         totalAmount: Number(invoice.booking.totalAmount || 0),
       },
       property: {
@@ -613,9 +666,9 @@ router.get("/:id", async (req: Request, res: Response) => {
         taxPercent: taxPercent,
         taxAmount: taxAmount,
         discount: discount,
-        transportFare: transportFare > 0 ? transportFare : 0,
+        transportFare: transportFare,
         commission: commission,
-        subtotal: subtotalBeforeTransport + transportFare,
+        subtotal: subtotal,
         total: totalAmount,
       },
     });

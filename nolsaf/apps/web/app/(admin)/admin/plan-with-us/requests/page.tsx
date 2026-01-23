@@ -701,11 +701,11 @@ export default function AdminPlanWithUsRequestsPage() {
                   <div className="fixed z-40 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
                     <DatePicker
                       selected={date || undefined}
-                      onSelect={(s) => {
+                      onSelectAction={(s) => {
                         setDate(s as string | string[]);
                         setPage(1);
                       }}
-                      onClose={() => setPickerOpen(false)}
+                      onCloseAction={() => setPickerOpen(false)}
                     />
                   </div>
                 </>

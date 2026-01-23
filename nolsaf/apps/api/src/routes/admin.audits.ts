@@ -43,7 +43,7 @@ interface PaginatedAuditResponse {
 // ============================================================
 const limitAuditAccess = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // 100 requests per admin per 15 minutes
+  limit: 100, // 100 requests per admin per 15 minutes
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many audit log requests. Please wait before trying again." },

@@ -813,14 +813,14 @@ export default function CareersManagement() {
                           <div className="absolute z-50 top-full left-0 mt-2 sm:left-auto sm:right-0">
                             <DatePicker
                               selected={formData.applicationDeadline || undefined}
-                              onSelect={(date) => {
+                              onSelectAction={(date) => {
                                 const selectedDate = Array.isArray(date) ? date[0] : date;
                                 if (selectedDate) {
                                   setFormData({ ...formData, applicationDeadline: selectedDate });
                                 }
                                 setDeadlinePickerOpen(false);
                               }}
-                              onClose={() => setDeadlinePickerOpen(false)}
+                              onCloseAction={() => setDeadlinePickerOpen(false)}
                               allowRange={false}
                             />
                           </div>

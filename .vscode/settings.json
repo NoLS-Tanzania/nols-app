@@ -1,9 +1,39 @@
 {
     "terminal.integrated.sendKeybindingsToShell": true,
+    "terminal.integrated.scrollback": 2000,
+    "terminal.integrated.enablePersistentSessions": false,
     "css.lint.unknownAtRules": "ignore",
     "json.schemaDownload.enable": false,
-    "typescript.tsdk": "nolsaf/apps/web/node_modules/typescript/lib",
+    "typescript.tsdk": "nolsaf/node_modules/typescript/lib",
     "typescript.enablePromptUseWorkspaceTsdk": true,
+    "typescript.disableAutomaticTypeAcquisition": true,
+    "typescript.tsserver.maxTsServerMemory": 4096,
+    "files.watcherExclude": {
+        "**/.git/**": true,
+        "**/node_modules/**": true,
+        "**/.next/**": true,
+        "**/dist/**": true,
+        "**/build/**": true,
+        "**/coverage/**": true,
+        "**/.turbo/**": true,
+        "**/.vercel/**": true,
+        "**/.cache/**": true,
+        "**/prisma/migrations/**": true,
+        "**/nolsaf/prisma/migrations/**": true
+    },
+    "search.exclude": {
+        "**/.git/**": true,
+        "**/node_modules/**": true,
+        "**/.next/**": true,
+        "**/dist/**": true,
+        "**/build/**": true,
+        "**/coverage/**": true,
+        "**/.turbo/**": true,
+        "**/.vercel/**": true,
+        "**/.cache/**": true,
+        "**/prisma/migrations/**": true,
+        "**/nolsaf/prisma/migrations/**": true
+    },
     "sqltools.connections": [
         {
             "mysqlOptions": {
@@ -18,7 +48,7 @@
             "name": "nolsapp",
             "database": "nolsaf",
             "username": "root",
-            "password": "NoLSVersion@2",
+            "password": "",
             "connectionTimeout": 60
         }
     ]

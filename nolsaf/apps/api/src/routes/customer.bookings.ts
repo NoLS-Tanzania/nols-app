@@ -182,7 +182,9 @@ router.get("/", (async (req: AuthedRequest, res) => {
       const checkOut = new Date(booking.checkOut);
       const isValid = checkOut >= now && booking.status !== "CANCELED";
       const invoice = booking.invoices?.[0] || null;
-      const isPaid = invoice?.status === "PAID";
+      const isPaid =
+        invoice?.status === "PAID" ||
+        (invoice?.status === "CUSTOMER_PAID" && Boolean(invoice?.receiptNumber));
       
       return {
         id: booking.id,
@@ -273,7 +275,9 @@ router.get("/:id", (async (req: AuthedRequest, res) => {
     const checkOut = new Date(booking.checkOut);
     const isValid = checkOut >= now && booking.status !== "CANCELED";
     const invoice = (booking as any).invoices?.[0] || null;
-    const isPaid = invoice?.status === "PAID";
+    const isPaid =
+      invoice?.status === "PAID" ||
+      (invoice?.status === "CUSTOMER_PAID" && Boolean((invoice as any)?.receiptNumber));
 
     return res.json({
       ...booking,

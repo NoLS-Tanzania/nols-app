@@ -66,6 +66,8 @@ type InvoiceData = {
     guestName: string | null;
     guestPhone: string | null;
     roomCode: string | null;
+    roomsQty?: number;
+    includeTransport?: boolean;
     totalAmount: number;
   };
   property: {
@@ -552,7 +554,10 @@ export default function PaymentPage() {
                     <div className="space-y-2.5">
                       {/* Accommodation */}
                       <div className="flex justify-between text-sm">
-                        <span className="text-slate-600">Accommodation ({invoice.booking.nights} night{invoice.booking.nights !== 1 ? "s" : ""})</span>
+                        <span className="text-slate-600">
+                          Accommodation ({invoice.booking.nights} night{invoice.booking.nights !== 1 ? "s" : ""}
+                          {invoice.booking.roomsQty && invoice.booking.roomsQty > 1 ? ` × ${invoice.booking.roomsQty} rooms` : ""})
+                        </span>
                         <span className="font-semibold text-slate-900">
                           {invoice.priceBreakdown?.accommodationSubtotal.toLocaleString() || (invoice.property.basePrice * invoice.booking.nights).toLocaleString()} {invoice.currency}
                         </span>

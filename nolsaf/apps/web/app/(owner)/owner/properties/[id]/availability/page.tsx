@@ -879,7 +879,7 @@ export default function PropertyAvailabilityPage() {
                   <div className="pointer-events-auto">
                     <DatePicker
                       selected={filterStartDate && filterEndDate ? [filterStartDate, filterEndDate] : filterStartDate ? [filterStartDate] : undefined}
-                      onSelect={(s) => {
+                      onSelectAction={(s) => {
                         if (Array.isArray(s) && s.length === 2) {
                           setFilterStartDate(s[0]);
                           setFilterEndDate(s[1]);
@@ -893,7 +893,7 @@ export default function PropertyAvailabilityPage() {
                           }
                         }
                       }}
-                      onClose={() => setFilterRangePickerOpen(false)}
+                      onCloseAction={() => setFilterRangePickerOpen(false)}
                       allowRange={true}
                       minDate="2000-01-01"
                       twoMonths
@@ -1457,7 +1457,7 @@ export default function PropertyAvailabilityPage() {
                                   ? [startDateOnly]
                                   : undefined
                             }
-                            onSelect={(s) => {
+                            onSelectAction={(s) => {
                               if (Array.isArray(s) && s.length === 2) {
                                 const a = s[0];
                                 let b = s[1];
@@ -1481,7 +1481,7 @@ export default function PropertyAvailabilityPage() {
                                 }
                               }
                             }}
-                            onClose={() => setBlockRangePickerOpen(false)}
+                            onCloseAction={() => setBlockRangePickerOpen(false)}
                             allowRange={true}
                             minDate="2000-01-01"
                             twoMonths

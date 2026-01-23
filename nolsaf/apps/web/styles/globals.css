@@ -76,6 +76,91 @@
   }
 }
 
+/* ---------- Public: No4P AI hero motion ---------- */
+@keyframes nols-ai-hex-drift {
+  0% { transform: translate3d(-1.5%, -1.0%, 0) scale(1.03); opacity: 0.55; }
+  50% { transform: translate3d(1.2%, 0.8%, 0) scale(1.03); opacity: 0.62; }
+  100% { transform: translate3d(-1.5%, -1.0%, 0) scale(1.03); opacity: 0.55; }
+}
+
+@keyframes nols-ai-orbit-spin {
+  from { transform: translate3d(-50%, -50%, 0) rotate(0deg); }
+  to { transform: translate3d(-50%, -50%, 0) rotate(360deg); }
+}
+
+@keyframes nols-ai-scan {
+  0% { transform: translateY(-18vh); opacity: 0; }
+  10% { opacity: 0.55; }
+  40% { opacity: 0.20; }
+  70% { opacity: 0.55; }
+  100% { transform: translateY(40vh); opacity: 0; }
+}
+
+@keyframes nols-ai-stars-drift {
+  0% { background-position: 0 0, 0 0, 0 0; }
+  100% { background-position: 180px 240px, -220px 160px, 140px -200px; }
+}
+
+@keyframes nols-ai-stars-twinkle {
+  0%, 100% { opacity: 0.22; }
+  50% { opacity: 0.42; }
+}
+
+.nols-ai-hex-drift {
+  transform-origin: center;
+  animation: nols-ai-hex-drift 18s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+.nols-ai-orbit {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  transform: translate3d(-50%, -50%, 0) rotate(var(--orbitPhase, 0deg));
+  animation: nols-ai-orbit-spin var(--orbitDuration, 16s) linear infinite;
+  will-change: transform;
+}
+
+.nols-ai-orbit-inner {
+  transform: translateX(var(--orbitRadius, 92px));
+  animation: nols-ai-orbit-spin var(--orbitDuration, 16s) linear infinite reverse;
+  will-change: transform;
+}
+
+.nols-ai-scan {
+  animation: nols-ai-scan 7.5s cubic-bezier(.2,.8,.2,1) infinite;
+  will-change: transform, opacity;
+}
+
+.nols-ai-stars {
+  background-image:
+    /* small stars */
+    radial-gradient(circle, rgba(255,255,255,0.92) 1.4px, transparent 2.8px),
+    radial-gradient(circle, rgba(56,189,248,0.78) 1.3px, transparent 2.7px),
+    radial-gradient(circle, rgba(16,185,129,0.72) 1.2px, transparent 2.6px),
+    /* bigger highlight stars */
+    radial-gradient(circle, rgba(255,255,255,0.95) 2.2px, transparent 4.2px);
+  background-size: 220px 220px, 300px 300px, 380px 380px, 520px 520px;
+  background-repeat: repeat;
+  filter: drop-shadow(0 0 12px rgba(255,255,255,0.14));
+  animation:
+    nols-ai-stars-drift 24s linear infinite,
+    nols-ai-stars-twinkle 4.8s ease-in-out infinite;
+  will-change: background-position, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nols-ai-hex-drift,
+  .nols-ai-orbit,
+  .nols-ai-orbit-inner,
+  .nols-ai-scan,
+  .nols-ai-stars {
+    animation: none !important;
+  }
+}
+
 /* Hide scrollbar but keep functionality */
 .scrollbar-hide {
   -ms-overflow-style: none;  /* IE and Edge */

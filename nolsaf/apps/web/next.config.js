@@ -22,7 +22,6 @@ const nextConfig = {
       { protocol: 'http', hostname: 'localhost', pathname: '/**' },
       { protocol: 'http', hostname: '127.0.0.1', pathname: '/**' },
     ],
-    domains: ['img.youtube.com', 'res.cloudinary.com', 'api.mapbox.com'],
   },
   turbopack: {},
   webpack: (config, { dev, isServer }) => {

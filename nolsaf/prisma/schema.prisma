@@ -350,6 +350,7 @@ model Booking {
   checkIn     DateTime
   checkOut    DateTime
   totalAmount Decimal  @default(0.00) @db.Decimal(12, 2)
+  roomsQty    Int      @default(1)
   roomCode    String?  @db.VarChar(60) // Optional internal code/unit
 
   // Guest snapshot (for owners scanning codes)

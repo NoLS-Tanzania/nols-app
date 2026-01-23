@@ -133,7 +133,7 @@ setInterval(cleanupExpiredOtps, OTP_CLEANUP_INTERVAL_MS);
 // ============================================================
 const limitOtpSend = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // 10 OTP requests per admin per 15 minutes
+  limit: 10, // 10 OTP requests per admin per 15 minutes
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many OTP requests. Please wait before requesting another code." },
@@ -145,7 +145,7 @@ const limitOtpSend = rateLimit({
 
 const limitOtpVerify = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // 10 verification attempts per admin per 15 minutes
+  limit: 10, // 10 verification attempts per admin per 15 minutes
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many verification attempts. Please wait before trying again." },

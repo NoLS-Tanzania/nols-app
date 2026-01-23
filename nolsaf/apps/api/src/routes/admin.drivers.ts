@@ -17,7 +17,7 @@ const adminRateKey = (req: any) => {
 // Admin pages can be chatty (polling, filtering). Keep this permissive but not unlimited.
 const limitAdminTripsRead = rateLimit({
   windowMs: 60_000,
-  max: 240,
+  limit: 240,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: adminRateKey,
@@ -27,7 +27,7 @@ const limitAdminTripsRead = rateLimit({
 // Writes should be significantly tighter.
 const limitAdminTripsWrite = rateLimit({
   windowMs: 10 * 60_000,
-  max: 60,
+  limit: 60,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: adminRateKey,

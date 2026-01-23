@@ -10,7 +10,8 @@ import { generateRegistrationOptions, verifyRegistrationResponse, generateAuthen
 import { validatePasswordStrength, isPasswordReused, addPasswordToHistory } from '../lib/security.js';
 import { validatePasswordWithSettings } from '../lib/securitySettings.js';
 import { requireAuth, AuthedRequest } from "../middleware/auth.js";
-import { limitDriverTripsList, limitDriverTripAction } from "../middleware/rateLimit.js";
+import { z } from "zod";
+import { limitDriverTripsList, limitDriverTripAction, limitDriverLocationUpdate, limitDriverAvailabilityToggle } from "../middleware/rateLimit.js";
 
 // local no-op audit helper to satisfy references to `audit`
 // If the application provides an audit function via req.app.get('audit'), delegate to it.
@@ -806,24 +807,46 @@ const getSafety: RequestHandler = async (req, res) => {
     // Last-resort: try to synthesize from bookings if available (look for flags)
     if ((prisma as any).booking) {
       const where: any = { driverId: user.id };
+      let range: { gte: Date; lte: Date } | undefined;
       try {
         if (date) {
           const s = new Date(date + 'T00:00:00.000Z');
           const e = new Date(date + 'T23:59:59.999Z');
-          where.scheduledAt = { gte: s, lte: e };
+          range = { gte: s, lte: e };
         } else if (start || end) {
           const s = start ? new Date(start + 'T00:00:00.000Z') : new Date(0);
           const e = end ? new Date(end + 'T23:59:59.999Z') : new Date();
-          where.scheduledAt = { gte: s, lte: e };
+          range = { gte: s, lte: e };
         }
       } catch (e) { /* ignore */ }
 
-      const items = await (prisma as any).booking.findMany({ where, orderBy: { scheduledAt: 'desc' }, take: 1000 });
+      // Booking doesn't have `scheduledAt` in our schema; use the closest available fields.
+      if (range) {
+        where.OR = [
+          { transportScheduledDate: range },
+          { checkIn: range },
+          { createdAt: range },
+        ];
+      }
+
+      const items = await (prisma as any).booking.findMany({
+        where,
+        orderBy: [{ transportScheduledDate: 'desc' }, { checkIn: 'desc' }, { createdAt: 'desc' }],
+        take: 1000,
+      });
       // map bookings to simple safety-like events when flags exist
       const mapped = (items || []).flatMap((b: any) => {
         const out: any[] = [];
         if (b.hardBraking || b.harshAcceleration || b.speeding || b.ruleViolated) {
-          out.push({ id: `b-${b.id}`, date: b.scheduledAt ?? b.createdAt, hardBraking: !!b.hardBraking, harshAcceleration: !!b.harshAcceleration, speeding: !!b.speeding, ruleViolated: !!b.ruleViolated, bookingId: b.id });
+          out.push({
+            id: `b-${b.id}`,
+            date: b.transportScheduledDate ?? b.checkIn ?? b.createdAt,
+            hardBraking: !!b.hardBraking,
+            harshAcceleration: !!b.harshAcceleration,
+            speeding: !!b.speeding,
+            ruleViolated: !!b.ruleViolated,
+            bookingId: b.id,
+          });
         }
         return out;
       });
@@ -1003,8 +1026,26 @@ router.get('/invoices', getInvoices as unknown as RequestHandler);
  */
 const postLocation: RequestHandler = async (req, res) => {
   const user = (req as AuthedRequest).user!;
-  const { lat, lng, headingDeg, speedMps, accuracyM, transportBookingId } = req.body ?? {};
-  if (typeof lat !== 'number' || typeof lng !== 'number') { res.status(400).json({ error: 'lat and lng required' }); return; }
+  if (String(user.role || '').toUpperCase() !== 'DRIVER') {
+    return res.status(403).json({ error: 'Driver access required' });
+  }
+
+  const locationSchema = z
+    .object({
+      lat: z.number().min(-90).max(90),
+      lng: z.number().min(-180).max(180),
+      headingDeg: z.number().min(0).max(360).optional(),
+      speedMps: z.number().min(0).max(120).optional(),
+      accuracyM: z.number().min(0).max(10_000).optional(),
+      transportBookingId: z.number().int().positive().optional(),
+    })
+    .strict();
+
+  const parsed = locationSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
+  }
+  const { lat, lng, headingDeg, speedMps, accuracyM, transportBookingId } = parsed.data;
   try {
     if ((prisma as any).driverLiveLocation) {
       await (prisma as any).driverLiveLocation.upsert({
@@ -1049,8 +1090,11 @@ const postLocation: RequestHandler = async (req, res) => {
     // broadcast via socket.io if available
     try {
       const io = (req.app && (req.app as any).get && (req.app as any).get('io'));
-      if (io && typeof io.emit === 'function') {
-        io.emit('driver:location:update', { driverId: user.id, lat, lng, headingDeg, speedMps, accuracyM });
+      if (io && typeof io.to === 'function') {
+        // Admin dispatch/map views
+        io.to('admin').emit('driver:location:update', { driverId: user.id, lat, lng, headingDeg, speedMps, accuracyM });
+        // Driver can update their own UI if needed
+        io.to(`driver:${user.id}`).emit('driver:location:update', { driverId: user.id, lat, lng, headingDeg, speedMps, accuracyM });
       }
     } catch (e) { /* ignore */ }
     res.json({ ok: true });
@@ -1059,7 +1103,7 @@ const postLocation: RequestHandler = async (req, res) => {
     res.status(500).json({ error: 'failed' });
   }
 };
-router.post('/location', postLocation as unknown as RequestHandler);
+router.post('/location', limitDriverLocationUpdate, postLocation as unknown as RequestHandler);
 
 /**
  * POST /driver/availability
@@ -1068,30 +1112,62 @@ router.post('/location', postLocation as unknown as RequestHandler);
  */
 const postAvailability: RequestHandler = async (req, res) => {
   const user = (req as AuthedRequest).user!;
-  const { available } = req.body ?? {};
-  if (typeof available !== 'boolean') { res.status(400).json({ error: 'available must be boolean' }); return; }
+  if (String(user.role || '').toUpperCase() !== 'DRIVER') {
+    return res.status(403).json({ error: 'Driver access required' });
+  }
+
+  const availabilitySchema = z.object({ available: z.boolean() }).strict();
+  const parsed = availabilitySchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
+  }
+  const { available } = parsed.data;
   try {
-    // Try driverAvailability table if present
+    // Persist availability best-effort.
+    // Prefer dedicated availability table if present; otherwise try user fields.
     try {
       if ((prisma as any).driverAvailability) {
-        await (prisma as any).driverAvailability.upsert({ where: { driverId: user.id }, update: { available, updatedAt: new Date() }, create: { driverId: user.id, available, updatedAt: new Date() } });
+        await (prisma as any).driverAvailability.upsert({
+          where: { driverId: user.id },
+          update: { available, updatedAt: new Date() },
+          create: { driverId: user.id, available, updatedAt: new Date() },
+        });
       } else if ((prisma as any).user) {
-        // Try updating user.available or isAvailable fields if they exist
+        // Try user.available first, then fall back to user.isAvailable.
         try {
-          await prisma.user.update({ where: { id: user.id }, data: { ...(Object.prototype.hasOwnProperty.call((prisma as any).user._meta ?? {}, 'available') ? { available } : {}), ...(Object.prototype.hasOwnProperty.call((prisma as any).user._meta ?? {}, 'isAvailable') ? { isAvailable: available } : {}) } as any });
-        } catch (e) {
-          // ignore if fields don't exist
+          await prisma.user.update({ where: { id: user.id }, data: { available } as any });
+        } catch (e1) {
+          try {
+            await prisma.user.update({ where: { id: user.id }, data: { isAvailable: available } as any });
+          } catch {
+            // ignore if schema doesn't have these fields
+          }
         }
       }
-    } catch (e) {
+    } catch {
       // ignore persistence errors
     }
 
     // broadcast availability change via socket.io for interested clients
     try {
       const io = (req.app && (req.app as any).get && (req.app as any).get('io'));
-      if (io && typeof io.emit === 'function') {
-        io.emit('driver:availability:update', { driverId: user.id, available });
+      if (io && typeof io.to === 'function') {
+        // Also maintain the offer room membership for this driver (best-effort).
+        try {
+          const driverRoom = `driver:${user.id}`;
+          if (available) {
+            // Move all sockets for this driver into the available drivers room.
+            (io as any).in(driverRoom)?.socketsJoin?.('drivers:available');
+          } else {
+            (io as any).in(driverRoom)?.socketsLeave?.('drivers:available');
+          }
+        } catch {
+          // ignore
+        }
+        // Admin dispatch/map views
+        io.to('admin').emit('driver:availability:update', { driverId: user.id, available });
+        // Driver can update their own UI if needed
+        io.to(`driver:${user.id}`).emit('driver:availability:update', { driverId: user.id, available });
       }
     } catch (e) { /* ignore */ }
 
@@ -1101,7 +1177,7 @@ const postAvailability: RequestHandler = async (req, res) => {
     return res.status(500).json({ error: 'failed' });
   }
 };
-router.post('/availability', postAvailability as unknown as RequestHandler);
+router.post('/availability', limitDriverAvailabilityToggle, postAvailability as unknown as RequestHandler);
 
 /** PUT /driver/profile - update authenticated driver's profile (best-effort fields) */
 const updateDriverProfile: RequestHandler = async (req, res) => {

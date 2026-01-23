@@ -428,6 +428,31 @@ pm2 delete nolsaf-api
 
 ## Troubleshooting Commands
 
+### Port Already in Use (EADDRINUSE)
+
+```bash
+# Find process using port 3000 (Windows)
+netstat -ano | findstr :3000
+
+# Find process using port 4000 (Windows)
+netstat -ano | findstr :4000
+
+# Kill process by PID (Windows)
+taskkill /PID <PID> /F
+
+# Find and kill process (Linux/Mac)
+lsof -ti:3000 | xargs kill -9
+lsof -ti:4000 | xargs kill -9
+
+# Alternative: Use different port
+# Edit package.json dev script: "dev": "next dev -p 3001"
+```
+
+**What it does:** 
+- `netstat` - Shows which process is using a port
+- `taskkill` - Terminates the process (Windows)
+- `lsof` - Lists open files/ports (Linux/Mac)
+
 ### Check Server Status
 
 ```bash
@@ -487,20 +512,6 @@ systemctl status mysql
 - `db pull` - Tests Prisma connection
 - Direct MySQL connection verifies credentials
 - Service check confirms MySQL is running
-
-### Port Already in Use
-
-```bash
-# Find process using port 4000 (Windows)
-netstat -ano | findstr :4000
-# Note the PID, then:
-taskkill /PID <PID> /F
-
-# Find and kill process (Linux/Mac)
-lsof -ti:4000 | xargs kill -9
-```
-
-**What it does:** Identifies and terminates processes blocking required ports.
 
 ### Clear Build Artifacts
 
@@ -566,14 +577,40 @@ npm outdated
 # Check for security vulnerabilities
 npm audit
 
-# Fix vulnerabilities
+# Fix vulnerabilities (non-breaking)
 npm audit fix
+
+# Fix vulnerabilities (breaking changes - use with caution)
+npm audit fix --force
 ```
 
 **What it does:** 
 - `npm list` - Shows installed packages
 - `npm outdated` - Lists packages with updates
 - `npm audit` - Checks for security issues
+- `npm audit fix --force` - **WARNING:** May break things, use carefully
+
+### Fix Dependency Issues After npm audit fix --force
+
+```bash
+# If npm audit fix --force broke something:
+
+# 1. Check for duplicate dependencies
+npm list --depth=0
+
+# 2. Remove node_modules and reinstall
+rm -rf node_modules package-lock.json
+npm install
+
+# 3. Check for version conflicts
+npm ls <package-name>
+
+# 4. Restore from git if needed
+git checkout package.json package-lock.json
+npm install
+```
+
+**What it does:** Fixes issues caused by forced dependency updates.
 
 ---
 
@@ -703,19 +740,22 @@ npm run --workspace=@nolsaf/prisma build
 
 **What it does:** Regenerates and builds the Prisma package.
 
-### Issue: "Port 4000 already in use"
+### Issue: "Port 3000/4000 already in use" (EADDRINUSE)
 
 **Solution:**
 ```bash
-# Windows
-netstat -ano | findstr :4000
+# Windows - Find and kill process
+netstat -ano | findstr :3000
 taskkill /PID <PID> /F
 
-# Linux/Mac
-lsof -ti:4000 | xargs kill -9
+# Linux/Mac - Find and kill process
+lsof -ti:3000 | xargs kill -9
+
+# Or use different port
+# Edit package.json: "dev": "next dev -p 3001"
 ```
 
-**What it does:** Finds and kills the process using the port.
+**What it does:** Frees up the port or uses an alternative port.
 
 ### Issue: "Database connection failed"
 
@@ -774,6 +814,26 @@ docker build --no-cache -t nolsaf-api -f nolsaf/Dockerfile .
 
 **What it does:** Removes cached layers that might be causing issues.
 
+### Issue: "npm audit fix --force broke dependencies"
+
+**Solution:**
+```bash
+# 1. Check what changed
+git diff package.json
+
+# 2. Restore from git
+git checkout package.json package-lock.json
+
+# 3. Clean reinstall
+rm -rf node_modules
+npm install
+
+# 4. If needed, restore specific packages
+npm install <package>@<version>
+```
+
+**What it does:** Reverts unwanted dependency changes and restores working state.
+
 ---
 
 ## Quick Reference
@@ -829,6 +889,19 @@ npm run build
 pm2 start all
 # Or
 docker-compose up -d
+```
+
+### Fix Port Conflicts
+
+```bash
+# Find process using port
+netstat -ano | findstr :3000
+
+# Kill process (Windows)
+taskkill /PID <PID> /F
+
+# Or use different port
+# Change in package.json: "dev": "next dev -p 3001"
 ```
 
 ---
