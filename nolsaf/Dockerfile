@@ -3,6 +3,14 @@
 
 FROM node:20-bookworm-slim
 
+# Keep npm version consistent with the repo lockfile
+RUN npm i -g npm@11.6.1
+
+# Prisma on slim images expects OpenSSL to be present
+RUN apt-get update -y \
+	&& apt-get install -y openssl \
+	&& rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # Copy the monorepo (Render will build from the repo root you select)
@@ -17,8 +25,12 @@ RUN npm run --workspace=@nolsaf/shared build
 RUN npm run --workspace=@nolsaf/prisma build
 RUN npm run --workspace=@nolsaf/api build
 
+# Fail fast if build output is missing (prevents runtime MODULE_NOT_FOUND)
+RUN test -f /app/apps/api/dist/src/index.js
+
 ENV NODE_ENV=production
 
 EXPOSE 4000
 
-CMD ["node", "apps/api/dist/index.js"]
+WORKDIR /app/apps/api
+CMD ["node", "dist/src/index.js"]

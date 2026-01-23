@@ -5,6 +5,9 @@
 FROM node:20-bookworm-slim AS deps
 WORKDIR /app
 
+# Keep npm version consistent with the repo lockfile
+RUN npm i -g npm@11.6.1
+
 # Copy the monorepo (this Dockerfile is intended to be built with the nolsaf/ folder as the build context)
 COPY . .
 
@@ -14,6 +17,14 @@ RUN npm ci
 # Stage 2: Builder
 FROM node:20-bookworm-slim AS builder
 WORKDIR /app
+
+# Keep npm version consistent with the repo lockfile
+RUN npm i -g npm@11.6.1
+
+# Prisma on slim images expects OpenSSL to be present
+RUN apt-get update -y \
+	&& apt-get install -y openssl \
+	&& rm -rf /var/lib/apt/lists/*
 
 # Copy dependencies from deps stage
 COPY --from=deps /app/node_modules ./node_modules
