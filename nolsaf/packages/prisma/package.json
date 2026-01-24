@@ -19,8 +19,8 @@
     "generate": "prisma generate --schema ../../prisma/schema.prisma"
   },
   "dependencies": {
-    "@prisma/adapter-mariadb": "^7.0.0",
-    "@prisma/client": "^7.0.0"
+    "@prisma/adapter-mariadb": "^7.3.0",
+    "@prisma/client": "^7.3.0"
   },
   "devDependencies": {
     "prisma": "^7.0.0",

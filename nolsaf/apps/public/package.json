@@ -8,7 +8,7 @@
     "start": "next start -p 3001"
   },
   "dependencies": {
-    "next": "13.4.8",
+    "next": "16.1.4",
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "styled-jsx": "5.1.1"
