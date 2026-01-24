@@ -30,6 +30,9 @@ sudo service redis-server start
 # Run Redis in Docker container
 docker run -d --name redis-nolsaf -p 6379:6379 redis:7-alpine
 
+# Or (Windows PowerShell) use the helper script:
+pwsh -File .\start-redis.ps1
+
 # To stop:
 docker stop redis-nolsaf
 

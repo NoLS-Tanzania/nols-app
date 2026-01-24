@@ -2,29 +2,35 @@
 Write-Host "Starting NoLSAF development servers..." -ForegroundColor Green
 
 # Check if ports are in use
-$port3000 = Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue
-$port4000 = Get-NetTCPConnection -LocalPort 4000 -ErrorAction SilentlyContinue
+$portsToFree = @(3000, 4000)
+foreach ($port in $portsToFree) {
+    $listeners = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
+    if (-not $listeners) { continue }
 
-if ($port3000) {
-    Write-Host "Port 3000 is already in use. Stopping process..." -ForegroundColor Yellow
-    $process = Get-Process -Id $port3000.OwningProcess -ErrorAction SilentlyContinue
-    if ($process) {
-        Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-        Start-Sleep -Seconds 2
-    }
-}
+    $pids = @($listeners | Select-Object -ExpandProperty OwningProcess -Unique)
+    if ($pids.Count -eq 0) { continue }
 
-if ($port4000) {
-    Write-Host "Port 4000 is already in use. Stopping process..." -ForegroundColor Yellow
-    $process = Get-Process -Id $port4000.OwningProcess -ErrorAction SilentlyContinue
-    if ($process) {
-        Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-        Start-Sleep -Seconds 2
+    Write-Host "Port $port is already in use. Stopping PID(s): $($pids -join ', ')" -ForegroundColor Yellow
+    foreach ($pid in $pids) {
+        Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
     }
+    Start-Sleep -Seconds 2
 }
 
 # Change to project directory
 Set-Location $PSScriptRoot
+
+# Best-effort: ensure Redis is running in Docker for local caching.
+# If Docker isn't available, we continue (API already falls back gracefully).
+try {
+    $redisScript = Join-Path $PSScriptRoot 'start-redis.ps1'
+    if (Test-Path $redisScript) {
+        Write-Host "Ensuring Redis is running (Docker)..." -ForegroundColor Cyan
+        & $redisScript | Out-Host
+    }
+} catch {
+    Write-Host "Redis auto-start skipped: $($_.Exception.Message)" -ForegroundColor Yellow
+}
 
 # Clean Next.js build output to prevent stale asset references (e.g. /_next/static/css/app/layout.css errors)
 $webNextPath = Join-Path $PSScriptRoot "apps\web\.next"

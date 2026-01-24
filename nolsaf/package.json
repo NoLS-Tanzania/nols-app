@@ -3,7 +3,8 @@
   "private": true,
   "version": "0.1.0",
   "workspaces": [
-    "apps/*",
+    "apps/api",
+    "apps/web",
     "packages/*"
   ],
   "devDependencies": {
@@ -22,7 +23,6 @@
     "typecheck": "npm run --workspaces --if-present typecheck",
     "prisma:generate": "npm run --workspace=@nolsaf/prisma generate",
     "prisma:migrate": "npm run --workspace=@nolsaf/prisma db:migrate --",
-    "seed:test-accounts": "npm run --workspace=@nolsaf/api seed",
     "test:booking-codes": "node scripts/get-test-booking-code.js",
     "assign:bookings": "node scripts/assign-bookings-to-test-user.js",
     "create:test-booking": "node scripts/create-test-booking.js",
