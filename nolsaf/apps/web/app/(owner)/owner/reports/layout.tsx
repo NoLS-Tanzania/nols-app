@@ -1,24 +1,71 @@
 "use client";
 import React from "react";
-import { FileText } from "lucide-react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { FileText, ArrowUpRight } from "lucide-react";
 
 export default function ReportsLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const tabs = [
+    { href: "/owner/reports/overview", label: "Overview" },
+    { href: "/owner/reports/revenue", label: "Revenue" },
+    { href: "/owner/reports/bookings", label: "Bookings" },
+    { href: "/owner/reports/occupancy", label: "Occupancy" },
+    { href: "/owner/reports/customers", label: "Customers" },
+  ];
+
   return (
-    <div className="space-y-4">
-      <div className="max-w-4xl mx-auto px-4">
-        <div className="flex flex-col items-center text-center gap-2 py-3">
-          <div className="h-12 w-12 rounded-full bg-blue-50 flex items-center justify-center">
-            <FileText className="h-6 w-6 text-blue-600" />
+    <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-10">
+      <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+        <div className="p-6 sm:p-8">
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-4 items-start">
+            <div className="hidden sm:block" />
+
+            <div className="min-w-0 flex flex-col items-center text-center">
+              <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 border border-blue-200 px-3 py-1 text-xs font-semibold text-blue-700">
+                <FileText className="h-4 w-4" aria-hidden />
+                Analytics
+              </div>
+              <h1 className="mt-3 text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">Reports</h1>
+              <p className="mt-1 text-sm text-gray-600 max-w-2xl">Overview of reports and analytics</p>
+            </div>
+
+            <div className="flex items-center justify-start sm:justify-end">
+              <Link
+                href="/owner/revenue"
+                className="no-underline inline-flex items-center justify-center h-10 px-3 rounded-md border border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 active:scale-[0.99] transition"
+                aria-label="Open revenue pages"
+                title="Revenue"
+              >
+                <span className="text-sm font-semibold">Revenue</span>
+                <ArrowUpRight className="ml-2 h-4 w-4" aria-hidden />
+              </Link>
+            </div>
           </div>
-          <h1 className="text-2xl font-semibold text-gray-900">Reports</h1>
-          <p className="text-sm text-gray-600">Overview of reports and analytics</p>
+
+          <div className="mt-5 flex flex-wrap gap-2 justify-center">
+            {tabs.map((t) => {
+              const active = pathname === t.href || pathname?.startsWith(`${t.href}/`);
+              return (
+                <Link
+                  key={t.href}
+                  href={t.href}
+                  className={
+                    "no-underline inline-flex items-center h-9 px-3 rounded-md text-sm font-semibold border shadow-sm transition active:scale-[0.99] " +
+                    (active
+                      ? "bg-slate-900 border-slate-900 text-white"
+                      : "bg-white border-gray-200 text-gray-800 hover:bg-gray-50")
+                  }
+                >
+                  {t.label}
+                </Link>
+              );
+            })}
+          </div>
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-4">
-        {/* center the inner report content */}
-        <div className="w-full flex flex-col items-center text-center">{children}</div>
-      </div>
+      <div className="w-full">{children}</div>
     </div>
   );
 }

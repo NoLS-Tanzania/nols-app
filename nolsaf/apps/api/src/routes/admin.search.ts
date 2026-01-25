@@ -9,15 +9,16 @@ router.use(requireAuth as any, requireRole("ADMIN") as any);
 /** GET /admin/search?q=term */
 router.get("/", async (req, res) => {
   try {
-    const q = String((req.query as any).q ?? "").trim();
+    // MySQL doesn't support `mode: "insensitive"`; rely on default CI collations.
+    const q = String((req.query as any).q ?? "").trim().slice(0, 120);
     if (!q) return res.json([]);
 
     const whereText = (role?: string) => ({
       role,
       OR: [
-        { name: { contains: q, mode: "insensitive" } },
-        { email: { contains: q, mode: "insensitive" } },
-        { phone: { contains: q, mode: "insensitive" } },
+        { name: { contains: q } },
+        { email: { contains: q } },
+        { phone: { contains: q } },
       ],
     });
 
@@ -28,10 +29,10 @@ router.get("/", async (req, res) => {
       prisma.property.findMany({
         where: {
           OR: [
-            { title: { contains: q, mode: "insensitive" } },
-            { regionName: { contains: q, mode: "insensitive" } },
-            { district: { contains: q, mode: "insensitive" } },
-            { owner: { name: { contains: q, mode: "insensitive" } } },
+            { title: { contains: q } },
+            { regionName: { contains: q } },
+            { district: { contains: q } },
+            { owner: { is: { name: { contains: q } } } },
           ],
         },
         select: { id: true, title: true, regionName: true, district: true, owner: { select: { id: true, name: true } } },
@@ -40,9 +41,9 @@ router.get("/", async (req, res) => {
       prisma.booking.findMany({
         where: {
           OR: [
-            { guestName: { contains: q, mode: "insensitive" } },
-            { property: { title: { contains: q, mode: "insensitive" } } },
-            { code: { codeVisible: { contains: q, mode: "insensitive" } } },
+            { guestName: { contains: q } },
+            { property: { is: { title: { contains: q } } } },
+            { code: { is: { codeVisible: { contains: q } } } },
           ],
         },
         select: { id: true, guestName: true, property: { select: { id: true, title: true } }, code: { select: { codeVisible: true } } },

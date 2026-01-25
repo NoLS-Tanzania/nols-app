@@ -16,7 +16,7 @@ echo Press Ctrl+C to stop both servers
 echo.
 
 cd /d %~dp0
-call npm run dev
+call pnpm dev
 
 pause
 

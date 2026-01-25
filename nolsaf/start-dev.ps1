@@ -45,6 +45,6 @@ $env:NODE_NO_WARNINGS = "1"
 $env:NODE_OPTIONS = (($env:NODE_OPTIONS + ' ') + '--no-warnings').Trim()
 
 # Start the servers
-Write-Host "Starting npm run dev..." -ForegroundColor Cyan
-npm run dev
+Write-Host "Starting pnpm dev..." -ForegroundColor Cyan
+pnpm dev
 

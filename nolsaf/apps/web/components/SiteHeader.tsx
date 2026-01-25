@@ -114,7 +114,13 @@ export default function SiteHeader({
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const isAdmin = role === "ADMIN";
   const isOwner = role === "OWNER";
-  const logoutRedirect = isAdmin || isOwner || driverMode || role === "DRIVER" ? "/login" : "/public";
+  const logoutRedirect = isAdmin
+    ? "/admin/login"
+    : isOwner
+      ? "/owner/login"
+      : driverMode || role === "DRIVER"
+        ? "/driver/login"
+        : "/account/login";
   const [unreadCount, setUnreadCount] = useState<number | null>(null);
   const [touchedIcon, setTouchedIcon] = useState<string | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);

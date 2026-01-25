@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 function safeNextPath(raw: unknown): string | undefined {
   if (typeof raw !== "string") return undefined;
@@ -10,16 +10,18 @@ function safeNextPath(raw: unknown): string | undefined {
   return v;
 }
 
-export default async function ForgotPasswordRedirectPage({
+export default async function OwnerLoginPage({
   searchParams,
 }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const sp = searchParams ? await searchParams : undefined;
-  const next = safeNextPath(sp?.next);
+  const next = safeNextPath(sp?.next) ?? "/owner";
+
   const params = new URLSearchParams();
-  params.set("mode", "forgot");
-  if (next) params.set("next", next);
-  const qs = params.toString();
-  redirect(`/account/register${qs ? `?${qs}` : ""}`);
+  params.set("mode", "login");
+  params.set("role", "owner");
+  params.set("next", next);
+
+  redirect(`/account/register?${params.toString()}`);
 }

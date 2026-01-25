@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { Calendar, Wallet, FileText, PlusSquare, LayoutDashboard, ChevronDown, ChevronRight, Users, HandHeart, CalendarDays } from 'lucide-react';
+import { Calendar, Wallet, FileText, PlusSquare, LayoutDashboard, ChevronDown, ChevronRight, Users, HandHeart, CalendarDays, CheckCircle2 } from 'lucide-react';
 
 // Use same-origin calls + secure httpOnly cookie session.
 const api = axios.create({ baseURL: "", withCredentials: true });
@@ -267,6 +267,7 @@ export default function OwnerSidebar({ collapsed = false }: { collapsed?: boolea
                 <Item href="/owner/bookings/validate" label="Check-in" Icon={Calendar} isSubItem collapsed={collapsed} />
                 <Item href="/owner/bookings/checked-in" label="Checked-In" Icon={Calendar} isSubItem count={checkedInCount} collapsed={collapsed} />
                 <Item href="/owner/bookings/check-out" label="Check-out" Icon={Calendar} isSubItem count={checkoutDueCount} collapsed={collapsed} />
+                <Item href="/owner/bookings/checked-out" label="Checked-Out" Icon={CheckCircle2} isSubItem collapsed={collapsed} />
               </div>
             )}
           </div>

@@ -5,6 +5,7 @@ import axios from "axios";
 import { io, Socket } from "socket.io-client";
 import Link from "next/link";
 import Chart from "@/components/Chart";
+import TableRow from "@/components/TableRow";
 import type { ChartData } from "chart.js";
 
 const api = axios.create({ baseURL: "", withCredentials: true });
@@ -18,9 +19,20 @@ type CustomerRow = {
   emailVerifiedAt: string | null;
   phoneVerifiedAt: string | null;
   twoFactorEnabled: boolean;
+  suspendedAt?: string | null;
+  isDisabled?: boolean | null;
   bookingCount?: number;
   totalSpent?: number;
   lastBookingDate?: string | null;
+};
+
+type CustomersSummary = {
+  totalCustomers: number;
+  activeCustomers: number;
+  totalBookings: number;
+  totalRevenue: number;
+  verifiedEmailCount?: number;
+  verifiedPhoneCount?: number;
 };
 
 export default function AdminUsersListPage(){
@@ -46,26 +58,34 @@ export default function AdminUsersListPage(){
   const [showActionsMenu, setShowActionsMenu] = useState<number | null>(null);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
 
+  const isCustomerSuspended = useCallback((c: CustomerRow) => {
+    const disabled = (c.isDisabled as any) === true || (c.isDisabled as any) === 1;
+    return Boolean(c.suspendedAt) || disabled;
+  }, []);
+
   const load = useCallback(async ()=>{
     setLoading(true);
     try {
-      const r = await api.get<{ data: CustomerRow[]; meta: { total: number } }>('/admin/users', { params: { q, status, page, perPage: pageSize, role } });
-      setItems(r.data.data || []); 
-      setTotal(r.data.meta?.total || 0);
+      // IMPORTANT: Use /api/* to avoid colliding with Next pages under /admin/users/*
+      // (e.g. /admin/users is a page route, not an API route).
+      const [listRes, summaryRes] = await Promise.all([
+        api.get<{ data: CustomerRow[]; meta: { total: number } }>("/api/admin/users", {
+          params: { q, status, page, perPage: pageSize, role },
+        }),
+        api.get<CustomersSummary>("/api/admin/users/summary"),
+      ]);
 
-      // Calculate stats from current page data
-      const customers = r.data.data || [];
-      const activeCount = customers.filter(c => !c.emailVerifiedAt || c.emailVerifiedAt).length;
-      const totalBookings = customers.reduce((sum, c) => sum + (c.bookingCount || 0), 0);
-      const totalRevenue = customers.reduce((sum, c) => sum + (c.totalSpent || 0), 0);
-      const verifiedCount = customers.filter(c => c.emailVerifiedAt || c.phoneVerifiedAt).length;
+      setItems(listRes.data.data || []);
+      setTotal(listRes.data.meta?.total || 0);
 
+      const summary = summaryRes.data;
+      const verified = Number(summary.verifiedEmailCount || 0) + Number(summary.verifiedPhoneCount || 0);
       setStats({
-        totalCustomers: r.data.meta?.total || 0,
-        activeCustomers: activeCount,
-        totalBookings,
-        totalRevenue,
-        verifiedCustomers: verifiedCount,
+        totalCustomers: Number(summary.totalCustomers || 0),
+        activeCustomers: Number(summary.activeCustomers || 0),
+        totalBookings: Number(summary.totalBookings || 0),
+        totalRevenue: Number(summary.totalRevenue || 0),
+        verifiedCustomers: verified,
       });
     } catch (err) {
       console.error("Failed to load customers", err);
@@ -87,7 +107,7 @@ export default function AdminUsersListPage(){
     const t = setTimeout(()=>{ 
       (async ()=>{
         try{ 
-          const r = await api.get<{ data: CustomerRow[] }>("/admin/users", { params: { status, q: term, page:1, perPage:5, role } }); 
+          const r = await api.get<{ data: CustomerRow[] }>("/api/admin/users", { params: { status, q: term, page:1, perPage:5, role } }); 
           setSuggestions(r.data.data ?? []); 
         } catch(e){ 
           setSuggestions([]); 
@@ -135,7 +155,7 @@ export default function AdminUsersListPage(){
     if (!confirm("Are you sure you want to reset 2FA for this customer?")) return;
     setActionLoading(customerId);
     try {
-      await api.patch(`/admin/users/${customerId}`, { reset2FA: true });
+      await api.patch(`/api/admin/users/${customerId}`, { reset2FA: true });
       await load();
       setShowActionsMenu(null);
     } catch (err) {
@@ -151,7 +171,7 @@ export default function AdminUsersListPage(){
     setActionLoading(customerId);
     try {
       // Using disable endpoint if suspend endpoint doesn't exist
-      await api.patch(`/admin/users/${customerId}`, { disable: true });
+      await api.patch(`/api/admin/users/${customerId}`, { disable: true });
       await load();
       setShowActionsMenu(null);
     } catch (err: any) {
@@ -330,11 +350,13 @@ export default function AdminUsersListPage(){
             {/* Skeleton Table */}
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+                <thead className="sticky top-0 z-10 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Customer</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">ID</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Contact</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Verification</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Status</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Bookings</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Total Spent</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Last Booking</th>
@@ -344,16 +366,22 @@ export default function AdminUsersListPage(){
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {[...Array(5)].map((_, i) => (
-                    <tr key={i} className="animate-pulse">
+                    <TableRow key={i} hover={false} className="animate-pulse">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="h-4 bg-gray-200 rounded w-32 mb-2"></div>
                         <div className="h-3 bg-gray-200 rounded w-40"></div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="h-4 bg-gray-200 rounded w-16"></div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="h-4 bg-gray-200 rounded w-24"></div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="h-6 bg-gray-200 rounded w-16"></div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="h-6 bg-gray-200 rounded w-20"></div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="h-4 bg-gray-200 rounded w-12"></div>
@@ -370,7 +398,7 @@ export default function AdminUsersListPage(){
                       <td className="px-6 py-4 whitespace-nowrap text-right">
                         <div className="h-8 bg-gray-200 rounded w-8 ml-auto"></div>
                       </td>
-                    </tr>
+                    </TableRow>
                   ))}
                 </tbody>
               </table>
@@ -385,11 +413,13 @@ export default function AdminUsersListPage(){
           <>
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+                <thead className="sticky top-0 z-10 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Customer</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Account ID</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Contact</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Verification</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Status</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Bookings</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Total Spent</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Last Booking</th>
@@ -399,10 +429,13 @@ export default function AdminUsersListPage(){
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {items.map((customer) => (
-                    <tr key={customer.id} className="hover:bg-gray-50 transition-colors duration-150">
+                    <TableRow key={customer.id} className="align-middle">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="font-medium text-gray-900">{customer.name || "N/A"}</div>
                         <div className="text-sm text-gray-500">{customer.email}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-sm font-semibold text-gray-900">#{customer.id}</span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {customer.phone || "N/A"}
@@ -430,18 +463,28 @@ export default function AdminUsersListPage(){
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
+                        {isCustomerSuspended(customer) ? (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 text-red-700 px-2.5 py-1 text-xs font-semibold">
+                            <XCircle className="h-3.5 w-3.5" />
+                            Suspended
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 text-emerald-700 px-2.5 py-1 text-xs font-semibold">
+                            <CheckCircle className="h-3.5 w-3.5" />
+                            Active
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <ShoppingCart className="h-4 w-4 text-gray-400" />
                           <span className="text-sm font-medium text-gray-900">{customer.bookingCount || 0}</span>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <DollarSign className="h-4 w-4 text-gray-400" />
-                          <span className="text-sm font-medium text-gray-900">
-                            {customer.totalSpent ? `TZS ${customer.totalSpent.toLocaleString()}` : "TZS 0"}
-                          </span>
-                        </div>
+                        <span className="text-sm font-semibold text-gray-900">
+                          {customer.totalSpent ? `TZS ${customer.totalSpent.toLocaleString()}` : "TZS 0"}
+                        </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {customer.lastBookingDate ? new Date(customer.lastBookingDate).toLocaleDateString() : "Never"}
@@ -452,6 +495,7 @@ export default function AdminUsersListPage(){
                       <td className="px-6 py-4 whitespace-nowrap text-right">
                         <div className="relative">
                           <button
+                            aria-label="Customer actions"
                             onClick={() => setShowActionsMenu(showActionsMenu === customer.id ? null : customer.id)}
                             className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
                           >
@@ -464,27 +508,29 @@ export default function AdminUsersListPage(){
                           {showActionsMenu === customer.id && (
                             <>
                               <div className="fixed inset-0 z-10" onClick={() => setShowActionsMenu(null)} />
-                              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-20">
+                              <div className="absolute right-0 mt-2 w-52 bg-white rounded-lg shadow-xl border border-gray-200 z-20 overflow-hidden divide-y divide-gray-100">
                                 <Link
                                   href={`/admin/users/${customer.id}`}
-                                  className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                                  className="w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none flex items-center gap-2 no-underline hover:no-underline"
                                   onClick={() => setShowActionsMenu(null)}
                                 >
-                                  <Eye className="h-4 w-4" />
+                                  <Eye className="h-4 w-4 text-blue-600" />
                                   View Details
                                 </Link>
                                 <button
+                                  type="button"
                                   onClick={() => handleReset2FA(customer.id)}
-                                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                                  className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none flex items-center gap-2"
                                 >
-                                  <Lock className="h-4 w-4" />
+                                  <Lock className="h-4 w-4 text-amber-600" />
                                   Reset 2FA
                                 </button>
                                 <button
+                                  type="button"
                                   onClick={() => handleSuspend(customer.id)}
-                                  className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                                  className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 focus:bg-red-50 focus:outline-none flex items-center gap-2"
                                 >
-                                  <XCircle className="h-4 w-4" />
+                                  <XCircle className="h-4 w-4 text-red-600" />
                                   Suspend
                                 </button>
                               </div>
@@ -492,7 +538,7 @@ export default function AdminUsersListPage(){
                           )}
                         </div>
                       </td>
-                    </tr>
+                    </TableRow>
                   ))}
                 </tbody>
               </table>

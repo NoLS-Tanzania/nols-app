@@ -17,7 +17,8 @@
     "snyk": "^1.1300.0"
   },
   "scripts": {
-    "dev": "concurrently -n api,web -c green,cyan \"npm:dev --workspace=@nolsaf/api\" \"npm:dev --workspace=@nolsaf/web\"",
+    "dev": "concurrently -n api,web -c green,cyan \"pnpm --filter @nolsaf/api dev\" \"pnpm --filter @nolsaf/web dev\"",
+    "dev:npm": "concurrently -n api,web -c green,cyan \"npm:dev --workspace=@nolsaf/api\" \"npm:dev --workspace=@nolsaf/web\"",
     "build": "npm run --workspaces --if-present build",
     "lint": "npm run --workspaces --if-present lint",
     "typecheck": "npm run --workspaces --if-present typecheck",

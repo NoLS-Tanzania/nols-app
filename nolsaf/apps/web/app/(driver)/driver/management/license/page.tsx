@@ -81,7 +81,6 @@ export default function LicensePage() {
           <div className="py-12 text-center">
             <div className="dot-spinner dot-md mx-auto" aria-hidden>
               <span className="dot dot-blue" />
-              <span className="dot dot-black" />
               <span className="dot dot-yellow" />
               <span className="dot dot-green" />
             </div>
@@ -91,7 +90,7 @@ export default function LicensePage() {
           <div className="py-8 text-center">
             <p className="text-sm text-slate-700">You must be signed in to view your license.</p>
             <div className="mt-4">
-              <Link href="/login" className="text-sky-600">Sign in</Link>
+              <Link href="/driver/login" className="text-sky-600">Sign in</Link>
             </div>
           </div>
         ) : licenseUrl ? (

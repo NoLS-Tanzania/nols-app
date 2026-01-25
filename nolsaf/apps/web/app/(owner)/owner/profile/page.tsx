@@ -58,7 +58,7 @@ export default function OwnerProfile() {
         const meRole = String(meData?.role || '').toUpperCase();
         // Check if user is an owner
         if (meRole !== 'OWNER' && meRole !== 'ADMIN') {
-          window.location.href = '/login';
+          window.location.href = '/owner/login';
           return;
         }
         
@@ -90,7 +90,7 @@ export default function OwnerProfile() {
       } catch (err: any) {
         console.error('Failed to load profile', err);
         if (mounted) setError(String(err?.message ?? err));
-        if (typeof window !== 'undefined') window.location.href = '/login';
+        if (typeof window !== 'undefined') window.location.href = '/owner/login';
       } finally {
         if (mounted) setLoading(false);
       }
@@ -796,7 +796,7 @@ export default function OwnerProfile() {
                 try {
                   await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
                 } catch {}
-                window.location.href = "/login";
+                window.location.href = "/owner/login";
               }}
             >
               <LogOut className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />

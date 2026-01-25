@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import axios from 'axios';
-import { AlertCircle, Check, UserPlus, Lock, LogIn, User, Truck, Building2, Mail, ArrowLeft, Eye, EyeOff, Phone } from 'lucide-react';
+import { AlertCircle, Check, UserPlus, Lock, LogIn, User, Truck, Building2, Mail, ArrowLeft, Phone, Eye, EyeOff, Shield } from 'lucide-react';
 import { useRouter, useSearchParams } from "next/navigation";
 import AuthPageFlip from "@/components/AuthPageFlip";
 
@@ -10,7 +10,17 @@ export default function RegisterPage() {
   const searchParams = useSearchParams();
   const referralCode = searchParams?.get('ref') || null;
   const roleParam = (searchParams?.get('role') || '').toLowerCase();
+  const modeParam = (searchParams?.get('mode') || '').toLowerCase();
+  const nextParamRaw = searchParams?.get('next');
   const api = axios.create({ baseURL: "", withCredentials: true });
+
+  const safeNextPath = (raw: unknown): string | undefined => {
+    if (typeof raw !== 'string') return undefined;
+    const v = raw.trim();
+    if (!v) return undefined;
+    if (!v.startsWith('/') || v.startsWith('//')) return undefined;
+    return v;
+  };
 
   // Register state
   const [role, setRole] = useState<'traveller' | 'driver' | 'owner'>('traveller');
@@ -28,12 +38,17 @@ export default function RegisterPage() {
   // Login state
   const [authMode, setAuthMode] = useState<'register' | 'login' | 'forgot'>('register');
   const [loginPhone, setLoginPhone] = useState<string>('');
+  const [loginIdentifier, setLoginIdentifier] = useState<string>('');
   const [loginPassword, setLoginPassword] = useState<string>('');
   const [loginOtp, setLoginOtp] = useState<string>('');
   const [loginSent, setLoginSent] = useState<boolean>(false);
   const [loginLoading, setLoginLoading] = useState<boolean>(false);
   const [loginMethod, setLoginMethod] = useState<'phone' | 'credentials'>('phone');
   const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [lockoutUntil, setLockoutUntil] = useState<number | null>(null);
+  const [lockoutTotalSeconds, setLockoutTotalSeconds] = useState<number>(0);
+  const [lockoutRemainingSeconds, setLockoutRemainingSeconds] = useState<number>(0);
+  const [lockoutMessage, setLockoutMessage] = useState<string | null>(null);
   
   // Forgot password state
   const [forgotEmail, setForgotEmail] = useState<string>('');
@@ -61,6 +76,19 @@ export default function RegisterPage() {
     return v;
   };
 
+  const isLockedOut = lockoutRemainingSeconds > 0;
+
+  const formatRemaining = (seconds: number) => {
+    const s = Math.max(0, Math.floor(seconds));
+    const hrs = Math.floor(s / 3600);
+    const mins = Math.floor((s % 3600) / 60);
+    const secs = s % 60;
+    const mm = String(mins).padStart(2, '0');
+    const ss = String(secs).padStart(2, '0');
+    if (hrs > 0) return `${hrs}:${mm}:${ss}`;
+    return `${mm}:${ss}`;
+  };
+
   const resolveRoleHome = async () => {
     try {
       const meRes = await fetch('/api/account/me', { credentials: 'include' });
@@ -75,12 +103,45 @@ export default function RegisterPage() {
     }
   };
 
+  const resolvePostAuthDestination = async () => {
+    const safeNext = safeNextPath(nextParamRaw);
+    if (safeNext) return safeNext;
+    return await resolveRoleHome();
+  };
+
   const redirectAfterAuth = async () => {
     // Give the browser a moment to persist the httpOnly cookie
     await new Promise((r) => setTimeout(r, 100));
-    const dest = await resolveRoleHome();
+    const dest = await resolvePostAuthDestination();
     window.location.href = dest;
   };
+
+  useEffect(() => {
+    if (modeParam === 'login') setAuthMode('login');
+    else if (modeParam === 'forgot') setAuthMode('forgot');
+    else if (modeParam === 'register') setAuthMode('register');
+  }, [modeParam]);
+
+  useEffect(() => {
+    if (!lockoutUntil) {
+      setLockoutRemainingSeconds(0);
+      return;
+    }
+
+    const tick = () => {
+      const remaining = Math.max(0, Math.ceil((lockoutUntil - Date.now()) / 1000));
+      setLockoutRemainingSeconds(remaining);
+      if (remaining <= 0) {
+        setLockoutUntil(null);
+        setLockoutTotalSeconds(0);
+        setLockoutMessage(null);
+      }
+    };
+
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [lockoutUntil]);
 
   useEffect(() => {
     if (roleParam === 'driver') setRole('driver');
@@ -433,6 +494,9 @@ export default function RegisterPage() {
   const renderLoginPage = () => {
     return (
       <div className="w-full h-full flex flex-col bg-white relative overflow-hidden box-border">
+        {/* subtle background decoration */}
+        <div className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full bg-[#02665e]/10 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-32 -left-32 h-80 w-80 rounded-full bg-slate-900/5 blur-3xl" />
         <div className="h-1 bg-[#02665e]" />
         
         <div className="px-6 py-5 border-b border-slate-100">
@@ -442,13 +506,33 @@ export default function RegisterPage() {
             </div>
             <div className="flex-1">
               <h1 className="text-xl font-bold text-slate-900">Sign In</h1>
-              <p className="text-xs text-slate-600 mt-0.5">Welcome back</p>
+              <p className="text-xs text-slate-600 mt-0.5">Hello again — choose Phone or Email to continue.</p>
             </div>
             {loginSent && (
               <div className="px-2.5 py-1 rounded-md bg-slate-100 text-xs font-medium text-slate-700">
                 Enter OTP
               </div>
             )}
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 text-emerald-800 px-2.5 py-1 text-[11px] font-semibold border border-emerald-100">
+              <Shield className="h-3.5 w-3.5" />
+              <span>Secure sign-in</span>
+            </div>
+            {!!roleParam && (
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 text-slate-700 px-2.5 py-1 text-[11px] font-semibold border border-slate-200">
+                {roleParam === 'driver' ? (
+                  <Truck className="h-3.5 w-3.5" />
+                ) : roleParam === 'owner' ? (
+                  <Building2 className="h-3.5 w-3.5" />
+                ) : (
+                  <User className="h-3.5 w-3.5" />
+                )}
+                <span className="capitalize">{roleParam}</span>
+              </div>
+            )}
+            <div className="text-[11px] text-slate-500">We never share your details.</div>
           </div>
         </div>
 
@@ -461,6 +545,52 @@ export default function RegisterPage() {
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-5 min-w-0">
+          <div className="mb-4 rounded-xl border border-slate-200 bg-white/70 backdrop-blur-sm p-3">
+            <div className="text-sm font-semibold text-slate-900">Welcome back</div>
+            <div className="mt-1 text-xs text-slate-600 leading-relaxed">
+              Sign in to access your dashboard, bookings, and account settings. Use Phone for a one-time code, or Email for password sign-in.
+            </div>
+          </div>
+
+          {isLockedOut && (
+            <div className="mb-4 rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 to-white p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
+                  <Lock className="w-5 h-5 text-amber-700" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-slate-900">Account temporarily locked</div>
+                  <div className="mt-1 text-xs text-slate-700 leading-relaxed">
+                    {lockoutMessage ?? 'Too many failed login attempts. Please wait before trying again.'}
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between gap-3">
+                    <div className="text-xs text-slate-600">Time remaining</div>
+                    <div className="font-mono text-sm font-semibold text-amber-800 tabular-nums">
+                      {formatRemaining(lockoutRemainingSeconds)}
+                    </div>
+                  </div>
+
+                  <div className="mt-2 h-2 rounded-full bg-amber-100 overflow-hidden">
+                    <div
+                      className="h-full bg-amber-500 transition-all duration-500"
+                      style={{
+                        width:
+                          lockoutTotalSeconds > 0
+                            ? `${Math.max(0, Math.min(100, (lockoutRemainingSeconds / lockoutTotalSeconds) * 100))}%`
+                            : '100%',
+                      }}
+                    />
+                  </div>
+
+                  <div className="mt-2 text-[11px] text-slate-500">
+                    Tip: If you forgot your password, use “Forgot password?” below.
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2.5 text-sm text-red-800">
               <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
@@ -474,7 +604,12 @@ export default function RegisterPage() {
                 <div className="flex gap-2 p-1 bg-slate-100 rounded-lg">
                   <button
                     type="button"
-                    onClick={() => setLoginMethod('phone')}
+                    onClick={() => {
+                      setError(null);
+                      setLoginSent(false);
+                      setLoginMethod('phone');
+                    }}
+                    disabled={isLockedOut}
                     className={`flex-1 px-3 py-2 text-xs font-medium rounded-md transition-colors ${
                       loginMethod === 'phone'
                         ? 'bg-[#02665e] text-white'
@@ -485,40 +620,44 @@ export default function RegisterPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setLoginMethod('credentials')}
+                    onClick={() => {
+                      setError(null);
+                      setLoginSent(false);
+                      setLoginMethod('credentials');
+                    }}
+                    disabled={isLockedOut}
                     className={`flex-1 px-3 py-2 text-xs font-medium rounded-md transition-colors ${
                       loginMethod === 'credentials'
                         ? 'bg-[#02665e] text-white'
                         : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    Username
+                    Email
                   </button>
                 </div>
 
                 {loginMethod === 'phone' ? (
                   <>
-                      <div className="space-y-2.5 min-w-0">
-                        <label className="block text-sm font-semibold text-slate-900">Phone Number</label>
-                        <div className="relative w-full">
-                          <input
-                            type="tel"
-                            value={loginPhone}
-                            onChange={(e) => setLoginPhone(e.target.value.replace(/[^0-9]/g, ''))}
-                            placeholder="712345678"
-                            className="w-full max-w-full px-4 py-2.5 text-sm font-medium border-2 border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] transition-all duration-200 shadow-sm hover:shadow-md placeholder:text-slate-400 box-border"
-                          />
-                        </div>
-                        <p className="text-xs text-slate-500 flex items-center gap-1.5">
-                          <span className="w-1 h-1 bg-slate-400 rounded-full flex-shrink-0" />
-                          <span>We&apos;ll send you a verification code</span>
-                        </p>
+                    <div className="space-y-2.5 min-w-0">
+                      <label className="block text-sm font-semibold text-slate-900">Phone Number</label>
+                      <div className="relative w-full">
+                        <input
+                          type="tel"
+                          value={loginPhone}
+                          onChange={(e) => setLoginPhone(e.target.value.replace(/[^0-9]/g, ''))}
+                          placeholder="712345678"
+                          className="w-full max-w-full px-4 py-2.5 text-sm font-medium border-2 border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] transition-all duration-200 shadow-sm hover:shadow-md placeholder:text-slate-400 box-border"
+                        />
                       </div>
+                      <p className="text-xs text-slate-500 flex items-center gap-1.5">
+                        <span className="w-1 h-1 bg-slate-400 rounded-full flex-shrink-0" />
+                        <span>We&apos;ll send you a verification code</span>
+                      </p>
+                    </div>
+
                     <button
                       onClick={async () => {
                         setLoginLoading(true);
-                        // Test mode - skip API call
-                        // Call API to send login OTP
                         try {
                           const response = await api.post('/api/auth/send-otp', {
                             phone: normalizeLoginPhone(loginPhone),
@@ -543,12 +682,13 @@ export default function RegisterPage() {
                   <>
                     <div className="space-y-3 min-w-0">
                       <div className="space-y-2 min-w-0">
-                        <label className="block text-sm font-semibold text-slate-900">Username</label>
+                        <label className="block text-sm font-semibold text-slate-900">Email</label>
                         <input
-                          type="text"
-                          value={loginPhone}
-                          onChange={(e) => setLoginPhone(e.target.value)}
-                          placeholder="username"
+                          type="email"
+                          value={loginIdentifier}
+                          onChange={(e) => setLoginIdentifier(e.target.value)}
+                          placeholder="you@example.com"
+                          disabled={isLockedOut}
                           className="w-full max-w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] box-border"
                         />
                       </div>
@@ -556,17 +696,19 @@ export default function RegisterPage() {
                         <label className="block text-sm font-semibold text-slate-900">Password</label>
                         <div className="relative">
                           <input
-                            type={showPassword ? "text" : "password"}
+                            type={showPassword ? 'text' : 'password'}
                             value={loginPassword}
                             onChange={(e) => setLoginPassword(e.target.value)}
                             placeholder="••••••••"
+                            disabled={isLockedOut}
                             className="w-full max-w-full px-3 pr-10 py-2.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] box-border"
                           />
                           <button
                             type="button"
                             onClick={() => setShowPassword(!showPassword)}
+                            disabled={isLockedOut}
                             className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors focus:outline-none border-none bg-transparent p-0"
-                            aria-label={showPassword ? "Hide password" : "Show password"}
+                            aria-label={showPassword ? 'Hide password' : 'Show password'}
                           >
                             {showPassword ? (
                               <EyeOff className="w-4 h-4" />
@@ -575,24 +717,18 @@ export default function RegisterPage() {
                             )}
                           </button>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => setAuthMode('forgot')}
-                          className="text-xs text-[#02665e] hover:underline flex items-center gap-1.5"
-                        >
-                          <Lock className="w-3.5 h-3.5 flex-shrink-0" />
-                          <span>Forgot password?</span>
-                        </button>
                       </div>
                     </div>
+
                     <button
                       onClick={async () => {
+                        if (isLockedOut) return;
                         setLoginLoading(true);
                         setError(null);
                         try {
-                          const identifier = loginPhone.trim();
-                          if (!identifier || !loginPassword) {
-                            setError('Please enter your username and password');
+                          const email = loginIdentifier.trim();
+                          if (!email || !loginPassword) {
+                            setError('Please enter your email and password');
                             return;
                           }
 
@@ -600,14 +736,35 @@ export default function RegisterPage() {
                             method: 'POST',
                             credentials: 'include',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ email: identifier, password: loginPassword }),
+                            body: JSON.stringify({ email, password: loginPassword }),
                           });
                           const data = await r.json().catch(() => ({}));
                           if (!r.ok) {
-                            const msg = data?.error || data?.message || 'Invalid login details';
+                            const lockedUntil = Number((data as any)?.lockedUntil);
+                            const code = String((data as any)?.code || '');
+                            if (r.status === 423 || code === 'ACCOUNT_LOCKED' || (Number.isFinite(lockedUntil) && lockedUntil > Date.now())) {
+                              const until = Number.isFinite(lockedUntil) ? lockedUntil : Date.now() + 5 * 60 * 1000;
+                              const remaining = Math.max(0, Math.ceil((until - Date.now()) / 1000));
+                              setLockoutUntil(until);
+                              setLockoutTotalSeconds(remaining);
+                              setLockoutMessage(String((data as any)?.message || (data as any)?.error || 'Too many failed login attempts.'));
+                              setError(null);
+                              return;
+                            }
+
+                            const remainingAttempts = (data as any)?.remainingAttempts;
+                            if (r.status === 401 && typeof remainingAttempts === 'number') {
+                              setError(`Incorrect email or password. ${remainingAttempts} attempt(s) remaining before temporary lock.`);
+                              return;
+                            }
+
+                            const msg = data?.error || data?.message || `Login failed (${r.status})`;
                             setError(String(msg));
                             return;
                           }
+                          setLockoutUntil(null);
+                          setLockoutTotalSeconds(0);
+                          setLockoutMessage(null);
                           await redirectAfterAuth();
                         } catch (e: any) {
                           setError(e?.message || 'Failed to sign in');
@@ -615,13 +772,22 @@ export default function RegisterPage() {
                           setLoginLoading(false);
                         }
                       }}
-                      disabled={loginLoading}
+                      disabled={loginLoading || isLockedOut}
                       className="w-full px-4 py-2.5 bg-[#02665e] text-white text-sm font-medium rounded-lg hover:bg-[#014e47] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {loginLoading ? 'Signing in...' : 'Sign In'}
+                      {isLockedOut ? `Locked (${formatRemaining(lockoutRemainingSeconds)})` : loginLoading ? 'Signing in...' : 'Sign In'}
                     </button>
                   </>
                 )}
+
+                <button
+                  type="button"
+                  onClick={() => setAuthMode('forgot')}
+                  className="w-full text-xs text-[#02665e] hover:underline flex items-center justify-center gap-1.5"
+                >
+                  <Lock className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span>Forgot password?</span>
+                </button>
 
                 <button
                   type="button"

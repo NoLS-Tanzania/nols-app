@@ -3,10 +3,11 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import axios from "axios";
 import Link from "next/link";
+import TableRow from "@/components/TableRow";
 import { 
-  Mail, Phone, Calendar, Lock, CheckCircle, XCircle, 
+  Mail, Phone, Calendar, Lock, CheckCircle, XCircle,
   ShoppingCart, DollarSign, ArrowLeft, Ban, UserCheck, 
-  CreditCard, Eye, History, Activity, Clock, X
+  CreditCard, Eye, History, Activity, Clock, X, Coins, Home, Tag, MoreHorizontal
 } from "lucide-react";
 
 // IMPORTANT: Use same-origin requests so Next.js can proxy via `rewrites()`.
@@ -756,104 +757,244 @@ export default function AdminUserDetailPage() {
                     <p className="text-sm text-gray-500">This user hasn&apos;t made any bookings yet.</p>
                   </div>
                 ) : (
-                  <div className="overflow-x-auto -mx-6 px-6">
-                    <table className="w-full">
-                      <thead className="bg-gray-50 border-b-2 border-gray-200">
-                        <tr>
-                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Property</th>
-                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Check In/Out</th>
-                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Amount</th>
-                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Status</th>
-                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Code</th>
-                          <th className="px-6 py-4 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {bookings.map((booking) => (
-                          <tr key={booking.id} className="hover:bg-gray-50 transition-colors duration-150">
-                            <td className="px-6 py-5">
-                              {booking.property ? (
-                                <>
-                                  <div className="font-semibold text-gray-900 mb-1">{booking.property.title}</div>
-                                  <div className="text-sm text-gray-600">
-                                    {[booking.property.regionName, booking.property.city, booking.property.district]
-                                      .filter(Boolean)
-                                      .join(" • ")}
-                                  </div>
-                                  {booking.property.type && (
-                                    <span className="inline-block mt-2 px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-700 rounded">
-                                      {booking.property.type}
-                                    </span>
-                                  )}
-                                </>
-                              ) : (
-                                <div className="text-gray-400 italic">Property not found</div>
+                  <>
+                    {/* Mobile: card list */}
+                    <div className="md:hidden space-y-3">
+                      {bookings.map((booking) => (
+                        <div key={booking.id} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="text-sm font-semibold text-gray-900 truncate">
+                                {booking.property?.title || "Property not found"}
+                              </div>
+                              <div className="mt-1 text-xs text-gray-600">
+                                {[booking.property?.regionName, booking.property?.city, booking.property?.district]
+                                  .filter(Boolean)
+                                  .join(" • ") || "—"}
+                              </div>
+                              {booking.property?.type && (
+                                <div className="mt-2">
+                                  <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-700">
+                                    {booking.property.type}
+                                  </span>
+                                </div>
                               )}
-                            </td>
-                            <td className="px-6 py-5">
-                              <div className="text-sm font-semibold text-gray-900">
-                                {new Date(booking.checkIn).toLocaleDateString('en-US', { 
-                                  month: 'short', 
-                                  day: 'numeric',
-                                  year: 'numeric'
-                                })}
+                            </div>
+                            <Link
+                              href={`/admin/bookings/${booking.id}`}
+                              aria-label="View booking"
+                              title="View"
+                              className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-sm transition-colors hover:bg-emerald-700 no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Link>
+                          </div>
+
+                          <div className="mt-4 grid grid-cols-2 gap-3">
+                            <div className="rounded-lg bg-gray-50 p-3">
+                              <div className="flex items-center gap-2 text-[11px] font-semibold text-gray-600">
+                                <Calendar className="h-3.5 w-3.5" />
+                                Check In/Out
                               </div>
-                              <div className="text-sm text-gray-600 mt-1">
-                                to {new Date(booking.checkOut).toLocaleDateString('en-US', { 
-                                  month: 'short', 
-                                  day: 'numeric',
-                                  year: 'numeric'
-                                })}
+                              <div className="mt-1 text-xs font-semibold text-gray-900">
+                                {new Date(booking.checkIn).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                               </div>
-                            </td>
-                            <td className="px-6 py-5">
-                              <div className="font-bold text-gray-900">
+                              <div className="text-xs text-gray-600">
+                                to {new Date(booking.checkOut).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                              </div>
+                            </div>
+                            <div className="rounded-lg bg-gray-50 p-3 text-right">
+                              <div className="flex items-center justify-end gap-2 text-[11px] font-semibold text-gray-600">
+                                <Coins className="h-3.5 w-3.5" />
+                                Amount
+                              </div>
+                              <div className="mt-1 text-xs font-bold text-gray-900">
                                 {Number(booking.totalAmount).toLocaleString()} TZS
                               </div>
-                            </td>
-                            <td className="px-6 py-5">
-                              <span
-                                className={`inline-flex px-3 py-1.5 text-xs font-bold rounded-full ${
-                                  booking.status === "CONFIRMED"
-                                    ? "bg-blue-100 text-blue-800"
-                                    : booking.status === "CHECKED_IN"
-                                    ? "bg-emerald-100 text-emerald-800"
-                                    : booking.status === "CHECKED_OUT"
-                                    ? "bg-purple-100 text-purple-800"
-                                    : booking.status === "CANCELED"
-                                    ? "bg-red-100 text-red-800"
-                                    : "bg-gray-100 text-gray-800"
-                                }`}
-                              >
-                                {booking.status.replace(/_/g, ' ')}
-                              </span>
-                            </td>
-                            <td className="px-6 py-5">
-                              {booking.code ? (
-                                <div>
-                                  <div className="text-sm font-mono font-semibold text-gray-900 bg-gray-50 px-2 py-1 rounded">
-                                    {booking.code.codeVisible || "N/A"}
+                            </div>
+                            <div className="rounded-lg bg-gray-50 p-3">
+                              <div className="flex items-center gap-2 text-[11px] font-semibold text-gray-600">
+                                <Tag className="h-3.5 w-3.5" />
+                                Status
+                              </div>
+                              <div className="mt-2">
+                                <span
+                                  className={`inline-flex px-3 py-1 text-[11px] font-bold rounded-full ${
+                                    booking.status === "CONFIRMED"
+                                      ? "bg-blue-100 text-blue-800"
+                                      : booking.status === "CHECKED_IN"
+                                      ? "bg-emerald-100 text-emerald-800"
+                                      : booking.status === "CHECKED_OUT"
+                                      ? "bg-purple-100 text-purple-800"
+                                      : booking.status === "CANCELED"
+                                      ? "bg-red-100 text-red-800"
+                                      : "bg-gray-100 text-gray-800"
+                                  }`}
+                                >
+                                  {booking.status.replace(/_/g, ' ')}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="rounded-lg bg-gray-50 p-3">
+                              <div className="flex items-center gap-2 text-[11px] font-semibold text-gray-600">
+                                <Home className="h-3.5 w-3.5" />
+                                Code
+                              </div>
+                              <div className="mt-1">
+                                {booking.code ? (
+                                  <>
+                                    <div className="inline-flex rounded-md bg-white px-2 py-1 text-xs font-mono font-semibold text-gray-900 ring-1 ring-gray-200">
+                                      {booking.code.codeVisible || "N/A"}
+                                    </div>
+                                    <div className="mt-1 text-[11px] text-gray-500">{booking.code.status}</div>
+                                  </>
+                                ) : (
+                                  <span className="text-xs text-gray-400 italic">No code</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Desktop: table */}
+                    <div className="hidden md:block overflow-x-auto -mx-6 px-6">
+                      <div className="min-w-[980px] rounded-xl border border-gray-200 bg-white">
+                        <table className="w-full text-sm">
+                          <thead className="sticky top-0 z-10 bg-gray-50/90 backdrop-blur">
+                            <tr>
+                              <th className="px-6 py-3 text-left text-[11px] font-semibold text-gray-600 tracking-wide border-b border-gray-200">
+                                <span className="inline-flex items-center gap-2">
+                                  <Home className="h-3.5 w-3.5" />
+                                  Property
+                                </span>
+                              </th>
+                              <th className="px-6 py-3 text-left text-[11px] font-semibold text-gray-600 tracking-wide border-b border-gray-200 whitespace-nowrap">
+                                <span className="inline-flex items-center gap-2">
+                                  <Calendar className="h-3.5 w-3.5" />
+                                  Check In/Out
+                                </span>
+                              </th>
+                              <th className="px-6 py-3 text-right text-[11px] font-semibold text-gray-600 tracking-wide border-b border-gray-200 whitespace-nowrap">
+                                <span className="inline-flex items-center justify-end gap-2">
+                                  <Coins className="h-3.5 w-3.5" />
+                                  Amount
+                                </span>
+                              </th>
+                              <th className="px-6 py-3 text-left text-[11px] font-semibold text-gray-600 tracking-wide border-b border-gray-200 whitespace-nowrap">
+                                <span className="inline-flex items-center gap-2">
+                                  <Tag className="h-3.5 w-3.5" />
+                                  Status
+                                </span>
+                              </th>
+                              <th className="px-6 py-3 text-left text-[11px] font-semibold text-gray-600 tracking-wide border-b border-gray-200 whitespace-nowrap">
+                                <span className="inline-flex items-center gap-2">
+                                  <Home className="h-3.5 w-3.5" />
+                                  Code
+                                </span>
+                              </th>
+                              <th className="px-6 py-3 text-right text-[11px] font-semibold text-gray-600 tracking-wide border-b border-gray-200 whitespace-nowrap">
+                                <span className="inline-flex items-center justify-end gap-2">
+                                  <MoreHorizontal className="h-3.5 w-3.5" />
+                                  Actions
+                                </span>
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-100">
+                            {bookings.map((booking) => (
+                              <TableRow key={booking.id} className="hover:bg-gray-50">
+                                <td className="px-6 py-5">
+                                  {booking.property ? (
+                                    <>
+                                      <div className="font-semibold text-gray-900 mb-1">{booking.property.title}</div>
+                                      <div className="text-sm text-gray-600">
+                                        {[booking.property.regionName, booking.property.city, booking.property.district]
+                                          .filter(Boolean)
+                                          .join(" • ")}
+                                      </div>
+                                      {booking.property.type && (
+                                        <span className="inline-block mt-2 px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-700 rounded">
+                                          {booking.property.type}
+                                        </span>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <div className="text-gray-400 italic">Property not found</div>
+                                  )}
+                                </td>
+                                <td className="px-6 py-5">
+                                  <div className="text-sm font-semibold text-gray-900">
+                                    {new Date(booking.checkIn).toLocaleDateString('en-US', { 
+                                      month: 'short', 
+                                      day: 'numeric',
+                                      year: 'numeric'
+                                    })}
                                   </div>
-                                  <div className="text-xs text-gray-500 mt-1">{booking.code.status}</div>
-                                </div>
-                              ) : (
-                                <span className="text-sm text-gray-400 italic">No code</span>
-                              )}
-                            </td>
-                            <td className="px-6 py-5 text-right">
-                              <Link
-                                href={`/admin/bookings/${booking.id}`}
-                                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 transition-all duration-200 shadow-sm hover:shadow-md"
-                              >
-                                <Eye className="h-4 w-4" />
-                                View
-                              </Link>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                                  <div className="text-sm text-gray-600 mt-1">
+                                    to {new Date(booking.checkOut).toLocaleDateString('en-US', { 
+                                      month: 'short', 
+                                      day: 'numeric',
+                                      year: 'numeric'
+                                    })}
+                                  </div>
+                                </td>
+                                <td className="px-6 py-5 text-right">
+                                  <div className="font-bold text-gray-900">
+                                    {Number(booking.totalAmount).toLocaleString()} TZS
+                                  </div>
+                                </td>
+                                <td className="px-6 py-5">
+                                  <span
+                                    className={`inline-flex px-3 py-1.5 text-xs font-bold rounded-full ${
+                                      booking.status === "CONFIRMED"
+                                        ? "bg-blue-100 text-blue-800"
+                                        : booking.status === "CHECKED_IN"
+                                        ? "bg-emerald-100 text-emerald-800"
+                                        : booking.status === "CHECKED_OUT"
+                                        ? "bg-purple-100 text-purple-800"
+                                        : booking.status === "CANCELED"
+                                        ? "bg-red-100 text-red-800"
+                                        : "bg-gray-100 text-gray-800"
+                                    }`}
+                                  >
+                                    {booking.status.replace(/_/g, ' ')}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-5">
+                                  {booking.code ? (
+                                    <div>
+                                      <div className="text-sm font-mono font-semibold text-gray-900 bg-gray-50 px-2 py-1 rounded">
+                                        {booking.code.codeVisible || "N/A"}
+                                      </div>
+                                      <div className="text-xs text-gray-500 mt-1">{booking.code.status}</div>
+                                    </div>
+                                  ) : (
+                                    <span className="text-sm text-gray-400 italic">No code</span>
+                                  )}
+                                </td>
+                                <td className="px-6 py-5 text-right">
+                                  <Link
+                                    href={`/admin/bookings/${booking.id}`}
+                                    aria-label="View booking"
+                                    title="View"
+                                    className="group relative inline-flex h-10 w-10 items-center justify-center bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-all duration-200 shadow-sm hover:shadow-md no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                    <span className="sr-only">View</span>
+                                    <span className="pointer-events-none absolute -top-9 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-gray-900 px-2 py-1 text-xs font-semibold text-white opacity-0 shadow-sm transition-opacity duration-150 group-hover:opacity-100">
+                                      View
+                                    </span>
+                                  </Link>
+                                </td>
+                              </TableRow>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </>
                 )}
               </div>
             )}

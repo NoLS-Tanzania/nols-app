@@ -50,12 +50,17 @@ router.get("/", async (req, res) => {
 
     // Search query - only if q is a non-empty string
     if (q && String(q).trim() !== '') {
+      // MySQL doesn't support `mode: "insensitive"`; rely on default CI collations.
+      const search = String(q).trim().slice(0, 120);
+      if (!search) {
+        // no-op
+      } else
       where.OR = [
-        { user: { name: { contains: String(q).trim(), mode: "insensitive" } } },
-        { user: { email: { contains: String(q).trim(), mode: "insensitive" } } },
-        { toRegion: { contains: String(q).trim(), mode: "insensitive" } },
-        { toDistrict: { contains: String(q).trim(), mode: "insensitive" } },
-        { toLocation: { contains: String(q).trim(), mode: "insensitive" } },
+        { user: { is: { name: { contains: search } } } },
+        { user: { is: { email: { contains: search } } } },
+        { toRegion: { contains: search } },
+        { toDistrict: { contains: search } },
+        { toLocation: { contains: search } },
       ];
     }
 

@@ -199,10 +199,14 @@ router.get("/", async (req, res) => {
     const where: any = { role: "DRIVER" };
     
     if (search) {
+      const q = String(search).trim().slice(0, 120);
+      if (!q) {
+        // no-op
+      } else
       where.OR = [
-        { name: { contains: search, mode: "insensitive" } },
-        { email: { contains: search, mode: "insensitive" } },
-        { phone: { contains: search, mode: "insensitive" } },
+        { name: { contains: q } },
+        { email: { contains: q } },
+        { phone: { contains: q } },
       ];
     }
 

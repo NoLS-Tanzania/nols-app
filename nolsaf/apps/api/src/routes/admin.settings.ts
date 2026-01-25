@@ -328,11 +328,12 @@ router.post("/numbering/preview", async (req, res) => {
 /** Users & roles (list, change role, enable/disable) */
 router.get("/users", async (req, res) => {
   try {
-    const q = (req.query.q as string | undefined)?.trim();
-    const where: any = q ? { 
+    // MySQL doesn't support `mode: "insensitive"`; rely on default CI collations.
+    const q = (req.query.q as string | undefined)?.trim().slice(0, 120);
+    const where: any = q ? {
       OR: [
-        { email: { contains: q, mode: 'insensitive' } }, 
-        { name: { contains: q, mode: 'insensitive' } }
+        { email: { contains: q } },
+        { name: { contains: q } }
       ] 
     } : {};
     const users = await prisma.user.findMany({ 

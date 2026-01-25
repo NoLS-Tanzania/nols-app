@@ -20,7 +20,7 @@ export default function UserMenu({ variant = "dark" }: { variant?: "light" | "da
   const ref = useRef<HTMLDivElement | null>(null);
   const pathname = usePathname();
 
-  const logoutRedirect = "/public";
+  const logoutRedirect = "/account/login";
 
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {

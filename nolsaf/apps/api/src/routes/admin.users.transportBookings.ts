@@ -25,12 +25,17 @@ router.get("/", async (req, res) => {
     }
 
     if (q) {
+      // MySQL doesn't support `mode: "insensitive"`; rely on default CI collations.
+      const search = String(q).trim().slice(0, 120);
+      if (!search) {
+        // no-op
+      } else
       where.OR = [
-        { user: { name: { contains: String(q), mode: "insensitive" } } },
-        { user: { email: { contains: String(q), mode: "insensitive" } } },
-        { user: { phone: { contains: String(q), mode: "insensitive" } } },
-        { toRegion: { contains: String(q), mode: "insensitive" } },
-        { toLocation: { contains: String(q), mode: "insensitive" } },
+        { user: { is: { name: { contains: search } } } },
+        { user: { is: { email: { contains: search } } } },
+        { user: { is: { phone: { contains: search } } } },
+        { toRegion: { contains: search } },
+        { toLocation: { contains: search } },
       ];
     }
 

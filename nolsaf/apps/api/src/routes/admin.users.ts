@@ -87,26 +87,41 @@ function buildBookingWhereForUser(user: { id: number; phone?: string | null; ema
 
 /*
  * GET /admin/users
- * Query: { page?: string, perPage?: string, q?: string, role?: string }
+ * Query: { page?: string, perPage?: string, q?: string, role?: string, status?: "ACTIVE"|"SUSPENDED" }
  */
 router.get('/', async (req, res) => {
   try {
     // Explicitly set Content-Type to JSON
     res.setHeader('Content-Type', 'application/json');
     
-    const { page = '1', perPage = '25', q, role } = req.query as any;
+    const { page = '1', perPage = '25', q, role, status } = req.query as any;
     const p = Math.max(1, Number(page) || 1);
     const pp = Math.max(1, Math.min(200, Number(perPage) || 25));
 
     const where: any = {};
     if (role) where.role = String(role);
-    if (q) {
-      const like = `%${String(q).replace(/%/g, '\\%')}%`;
-      where.OR = [
-        { name: { contains: String(q), mode: 'insensitive' } },
-        { email: { contains: String(q), mode: 'insensitive' } },
-        { phone: { contains: String(q), mode: 'insensitive' } },
+    if (status === 'ACTIVE') {
+      where.AND = [
+        ...(where.AND ?? []),
+        { suspendedAt: null },
+        { OR: [{ isDisabled: null }, { isDisabled: false }] },
       ];
+    }
+    if (status === 'SUSPENDED') {
+      where.AND = [
+        ...(where.AND ?? []),
+        { OR: [{ suspendedAt: { not: null } }, { isDisabled: true }] },
+      ];
+    }
+    if (q) {
+      const search = String(q).trim().slice(0, 120);
+      if (search) {
+        where.OR = [
+          { name: { contains: search } },
+          { email: { contains: search } },
+          { phone: { contains: search } },
+        ];
+      }
     }
 
     const [total, users] = await Promise.all([
@@ -126,6 +141,8 @@ router.get('/', async (req, res) => {
           emailVerifiedAt: true,
           phoneVerifiedAt: true,
           twoFactorEnabled: true,
+          suspendedAt: true,
+          isDisabled: true,
           _count: {
             select: {
               bookings: true,
@@ -147,12 +164,14 @@ router.get('/', async (req, res) => {
         where: bookingWhere,
       });
 
-      const revenueResult = await prisma.invoice.aggregate({
+      // Total spent should reflect what the customer paid on bookings.
+      // In some environments an Invoice may not exist for a booking, so we sum Booking.totalAmount.
+      const totalSpentAgg = await prisma.booking.aggregate({
         where: {
-          booking: { userId: user.id },
-          status: { in: ['APPROVED', 'PAID'] },
+          ...(bookingWhere as any),
+          status: { not: 'CANCELED' },
         },
-        _sum: { total: true },
+        _sum: { totalAmount: true },
       });
 
       const lastBooking = await prisma.booking.findFirst({
@@ -164,7 +183,7 @@ router.get('/', async (req, res) => {
       return {
         ...user,
         bookingCount,
-        totalSpent: Number(revenueResult._sum.total || 0),
+        totalSpent: Number((totalSpentAgg as any)?._sum?.totalAmount || 0),
         lastBookingDate: lastBooking?.createdAt || null,
       };
     }));

@@ -258,11 +258,12 @@ router.get("/export.csv", async (req, res) => {
     const where: any = { role: "OWNER" };
     
     if (q && String(q).trim()) {
-      const searchTerm = String(q).trim();
+      // MySQL doesn't support `mode: "insensitive"`; rely on default CI collations.
+      const searchTerm = String(q).trim().slice(0, 120);
       where.OR = [
-        { name: { contains: searchTerm, mode: "insensitive" } },
-        { email: { contains: searchTerm, mode: "insensitive" } },
-        { phone: { contains: searchTerm, mode: "insensitive" } },
+        { name: { contains: searchTerm } },
+        { email: { contains: searchTerm } },
+        { phone: { contains: searchTerm } },
       ];
     }
     

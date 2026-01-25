@@ -1,12 +1,27 @@
 "use client";
 import "@/styles/globals.css";
 import type { ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import PublicHeader from "@/components/PublicHeader";
 import PublicFooter from "@/components/PublicFooter";
 import LayoutFrame from "@/components/LayoutFrame";
 import FloatingChatWidget from "@/components/FloatingChatWidget";
 
 export default function CustomerAccountLayout({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+
+  // Auth pages should not inherit the public marketing header/footer.
+  // Keep them isolated and minimal for security/clarity.
+  const isAuthRoute =
+    pathname === "/account/register" ||
+    pathname === "/account/login" ||
+    pathname === "/account/forgot-password" ||
+    pathname === "/account/reset-password";
+
+  if (isAuthRoute) {
+    return <div className="min-h-screen bg-neutral-50">{children}</div>;
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-neutral-50">
       <PublicHeader />

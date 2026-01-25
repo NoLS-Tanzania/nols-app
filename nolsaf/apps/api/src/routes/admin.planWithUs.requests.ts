@@ -98,12 +98,16 @@ router.get("/", limitPlanRequestList, async (req, res) => {
 
     // Search query
     if (q) {
+      const search = String(q).trim().slice(0, 120);
+      if (!search) {
+        // no-op
+      } else
       where.OR = [
-        { fullName: { contains: q, mode: "insensitive" } },
-        { email: { contains: q, mode: "insensitive" } },
-        { phone: { contains: q, mode: "insensitive" } },
-        { destinations: { contains: q, mode: "insensitive" } },
-        { notes: { contains: q, mode: "insensitive" } },
+        { fullName: { contains: search } },
+        { email: { contains: search } },
+        { phone: { contains: search } },
+        { destinations: { contains: search } },
+        { notes: { contains: search } },
       ];
     }
 

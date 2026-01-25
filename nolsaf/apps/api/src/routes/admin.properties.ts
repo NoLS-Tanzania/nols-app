@@ -52,7 +52,7 @@ router.get("/", (async (req: AuthedRequest, res) => {
       }
     }
     if (regionName) {
-      where.regionName = { contains: String(regionName), mode: "insensitive" };
+      where.regionName = { contains: String(regionName) };
     }
     if (type) {
       where.type = type;
@@ -66,7 +66,7 @@ router.get("/", (async (req: AuthedRequest, res) => {
     
     // If search query is provided, combine with existing filters using AND
     if (q) {
-      const searchTerm = String(q).trim();
+      const searchTerm = String(q).trim().slice(0, 120);
       if (searchTerm) {
         // Save regionName filter separately if it exists
         const savedRegionName = where.regionName;
@@ -82,9 +82,9 @@ router.get("/", (async (req: AuthedRequest, res) => {
         // Build the search conditions
         const searchConditions = {
           OR: [
-            { title: { contains: searchTerm, mode: "insensitive" } },
-            { regionName: { contains: searchTerm, mode: "insensitive" } },
-            { district: { contains: searchTerm, mode: "insensitive" } },
+            { title: { contains: searchTerm } },
+            { regionName: { contains: searchTerm } },
+            { district: { contains: searchTerm } },
           ],
         };
         

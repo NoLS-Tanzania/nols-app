@@ -1,8 +1,9 @@
 "use client";
-import { useEffect, useState } from "react";
-import { CheckCircle, Loader2, FileText, Receipt } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { CheckCircle2, Loader2, FileText, Receipt, RotateCw, Search, X, ArrowUpRight } from "lucide-react";
 import axios from "axios";
 import Link from "next/link";
+import TableRow from "@/components/TableRow";
 
 type RevenueFilters = { status?: string; [key: string]: any };
 
@@ -32,29 +33,38 @@ type Invoice = {
 export default function Paid() {
   const [items, setItems] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
   const [filters] = useState<RevenueFilters>({ status: "PAID" });
+
+  const load = async (opts?: { silent?: boolean }) => {
+    const silent = Boolean(opts?.silent);
+    if (silent) setRefreshing(true);
+    else setLoading(true);
+    setError(null);
+
+    try {
+      const r = await api.get<{ items: Invoice[] }>("/api/owner/revenue/invoices", { params: filters });
+      setItems(r.data.items || []);
+    } catch (err: any) {
+      console.error("Failed to load invoices", err);
+      if (!silent) setItems([]);
+      setError(err?.response?.data?.error ?? err?.message ?? "Failed to load paid invoices");
+    } finally {
+      if (silent) setRefreshing(false);
+      else setLoading(false);
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
-    setLoading(true);
-    
-    api
-      .get<{ items: Invoice[] }>("/api/owner/revenue/invoices", { params: filters })
-      .then((r) => { 
-        if (!mounted) return; 
-        setItems(r.data.items || []); 
-      })
-      .catch((err) => { 
-        if (!mounted) return; 
-        console.error("Failed to load invoices", err); 
-        setItems([]); 
-      })
-      .finally(() => { 
-        if (!mounted) return; 
-        setLoading(false); 
-      });
-
+    (async () => {
+      if (!mounted) return;
+      await load();
+    })();
     return () => { mounted = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters]);
 
   const formatCurrency = (amount: number) => {
@@ -64,6 +74,11 @@ export default function Paid() {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount);
+  };
+
+  const toNumber = (v: any) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
   };
 
   const formatDate = (dateStr: string) => {
@@ -78,6 +93,25 @@ export default function Paid() {
     }
   };
 
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter((inv) => {
+      const property = String(inv.booking?.property?.title ?? "").toLowerCase();
+      const invoiceNo = String(inv.invoiceNumber ?? "").toLowerCase();
+      const receiptNo = String(inv.receiptNumber ?? "").toLowerCase();
+      const bookingId = String(inv.booking?.id ?? "").toLowerCase();
+      return property.includes(q) || invoiceNo.includes(q) || receiptNo.includes(q) || bookingId.includes(q);
+    });
+  }, [items, search]);
+
+  const stats = useMemo(() => {
+    const totalCount = items.length;
+    const totalGross = items.reduce((sum, it) => sum + toNumber(it.total), 0);
+    const totalNet = items.reduce((sum, it) => sum + toNumber(it.netPayable), 0);
+    return { totalCount, totalGross, totalNet };
+  }, [items]);
+
   if (loading) {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center text-center px-4">
@@ -91,37 +125,145 @@ export default function Paid() {
   }
 
   return (
-    <div className="space-y-6 pb-6">
+    <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-10">
       {/* Header */}
-      <div className="flex flex-col items-center justify-center text-center px-4">
-        <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4 transition-all duration-300 hover:bg-green-200 hover:scale-105">
-          <CheckCircle className="h-8 w-8 text-green-600" />
-        </div>
-        <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight">Paid Invoices</h1>
-        <p className="text-sm sm:text-base text-slate-600 mt-2 max-w-2xl leading-relaxed">
-          View all invoices that have been paid and processed by NoLSAF.
-        </p>
-      </div>
+      <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+        <div className="p-6 sm:p-8">
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] items-start gap-4">
+            <div className="hidden sm:block" />
 
-      {/* Invoices List */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="p-4 sm:p-5 border-b border-slate-200">
-          <div className="flex items-center justify-between gap-3">
-            <div className="text-sm sm:text-base font-semibold text-slate-900">Invoices</div>
-            <div className="text-xs text-slate-500 font-medium">
-              {items.length} {items.length === 1 ? 'invoice' : 'invoices'}
+            <div className="min-w-0 flex flex-col items-center text-center">
+              <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-xs font-semibold text-emerald-700">
+                <CheckCircle2 className="h-4 w-4" aria-hidden />
+                Processed
+              </div>
+              <h1 className="mt-3 text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">Paid Invoices</h1>
+              <p className="mt-1 text-sm text-gray-600 max-w-2xl">
+                View all invoices that have been paid and processed by NoLSAF.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-start sm:justify-end gap-2">
+              <Link
+                href="/owner/revenue/requested"
+                className="no-underline inline-flex items-center justify-center h-10 px-3 rounded-md border border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 active:scale-[0.99] transition"
+                aria-label="Go to requested invoices"
+                title="Requested"
+              >
+                <span className="text-sm font-semibold">Requested</span>
+                <ArrowUpRight className="ml-2 h-4 w-4" aria-hidden />
+              </Link>
+              <button
+                type="button"
+                onClick={() => load({ silent: true })}
+                disabled={refreshing}
+                className="inline-flex items-center justify-center h-10 w-10 rounded-md border border-slate-900 bg-slate-900 text-white shadow-sm hover:bg-slate-800 active:scale-[0.99] transition disabled:opacity-60"
+                aria-label="Refresh"
+                title="Refresh"
+              >
+                <RotateCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} aria-hidden />
+              </button>
             </div>
           </div>
         </div>
+      </div>
 
-        {items.length === 0 ? (
-          <div className="p-12 sm:p-16 text-center">
-            <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4">
-              <CheckCircle className="h-8 w-8 text-green-600" />
+      {/* Summary */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
+          <div className="text-center text-xs font-medium text-gray-500">Invoices</div>
+          <div className="mt-1 text-center text-2xl font-bold text-gray-900">{stats.totalCount.toLocaleString()}</div>
+        </div>
+        <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
+          <div className="text-center text-xs font-medium text-gray-500">Total gross</div>
+          <div className="mt-1 text-center text-2xl font-bold text-gray-900">{formatCurrency(stats.totalGross)}</div>
+        </div>
+        <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
+          <div className="text-center text-xs font-medium text-gray-500">Net payable</div>
+          <div className="mt-1 text-center text-2xl font-bold text-emerald-700">{formatCurrency(stats.totalNet)}</div>
+        </div>
+      </div>
+
+      {error ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          {error}
+        </div>
+      ) : null}
+
+      {/* Invoices List */}
+      <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+        <div className="sticky top-0 z-10 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200 px-4 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-gray-900">Invoices</div>
+            <div className="text-xs text-gray-500 mt-0.5">{filtered.length} {filtered.length === 1 ? 'invoice' : 'invoices'} showing</div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+            <div className="relative">
+              <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                <Search className="h-4 w-4 text-gray-400" aria-hidden />
+              </div>
+              {search ? (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center justify-center h-7 w-7 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-200/50 active:scale-95 transition"
+                  aria-label="Clear search"
+                  title="Clear"
+                >
+                  <X className="h-4 w-4" aria-hidden />
+                </button>
+              ) : null}
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search invoice, receipt, property…"
+                className="h-10 w-full sm:w-72 pl-10 pr-10 rounded-md border border-gray-200 bg-white text-sm text-gray-900 placeholder:text-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                aria-label="Search paid invoices"
+              />
             </div>
-            <h2 className="text-xl sm:text-2xl font-bold text-slate-900 mb-2">Paid</h2>
-            <p className="text-sm sm:text-base text-slate-600 font-medium">No paid invoices yet.</p>
-            <p className="text-xs sm:text-sm text-slate-500 mt-2">Your paid invoices will appear here once payments are processed.</p>
+
+            <button
+              type="button"
+              onClick={() => load({ silent: true })}
+              disabled={refreshing}
+              className="inline-flex items-center justify-center h-10 w-10 rounded-md border border-slate-900 bg-slate-900 text-white shadow-sm hover:bg-slate-800 active:scale-[0.99] transition disabled:opacity-60"
+              aria-label="Refresh list"
+              title="Refresh"
+            >
+              <RotateCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} aria-hidden />
+            </button>
+          </div>
+        </div>
+
+        {filtered.length === 0 ? (
+          <div className="p-12 sm:p-16 text-center">
+            {/* Removed duplicate check icon; keep header icon only */}
+            <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-slate-100 mb-4">
+              <Receipt className="h-8 w-8 text-slate-600" aria-hidden />
+            </div>
+            <h2 className="text-xl sm:text-2xl font-bold text-slate-900 mb-2">No paid invoices yet</h2>
+            <p className="text-sm sm:text-base text-slate-600 font-medium">Once payments are processed, they’ll show up here.</p>
+            <p className="text-xs sm:text-sm text-slate-500 mt-2">You can also check invoices that are still pending.</p>
+            <div className="mt-5 flex items-center justify-center gap-2">
+              <Link
+                href="/owner/revenue/requested"
+                className="no-underline inline-flex items-center justify-center h-10 px-4 rounded-md bg-emerald-700 text-white shadow-sm hover:bg-emerald-800 active:scale-[0.99] transition"
+              >
+                View Requested
+                <ArrowUpRight className="ml-2 h-4 w-4" aria-hidden />
+              </Link>
+              <button
+                type="button"
+                onClick={() => load({ silent: true })}
+                disabled={refreshing}
+                className="inline-flex items-center justify-center h-10 w-10 rounded-md border border-slate-900 bg-slate-900 text-white shadow-sm hover:bg-slate-800 active:scale-[0.99] transition disabled:opacity-60"
+                aria-label="Refresh"
+                title="Refresh"
+              >
+                <RotateCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} aria-hidden />
+              </button>
+            </div>
           </div>
         ) : (
           <div className="w-full overflow-x-auto">
@@ -140,11 +282,11 @@ export default function Paid() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 bg-white">
-                {items.map((invoice) => {
+                {filtered.map((invoice) => {
                   const propertyTitle = invoice.booking?.property?.title || "Property";
                   const net = invoice.netPayable != null ? formatCurrency(Number(invoice.netPayable)) : "—";
                   return (
-                    <tr key={invoice.id} className="hover:bg-slate-50/60 transition-colors duration-150">
+                    <TableRow key={invoice.id} className="hover:bg-slate-50/60 transition-colors duration-150">
                       <td className="px-4 sm:px-6 py-3 sm:py-4">
                         <div className="flex items-center gap-2 min-w-0">
                           <FileText className="h-4 w-4 text-slate-400 flex-shrink-0" aria-hidden />
@@ -158,7 +300,7 @@ export default function Paid() {
                       </td>
                       <td className="px-4 sm:px-6 py-3 sm:py-4">
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-50 text-green-700 border border-green-200">
-                          <CheckCircle className="h-3 w-3" />
+                          <CheckCircle2 className="h-3 w-3" aria-hidden />
                           PAID
                         </span>
                       </td>
@@ -191,7 +333,7 @@ export default function Paid() {
                           </Link>
                         </div>
                       </td>
-                    </tr>
+                    </TableRow>
                   );
                 })}
               </tbody>

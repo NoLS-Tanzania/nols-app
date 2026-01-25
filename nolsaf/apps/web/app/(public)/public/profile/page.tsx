@@ -35,7 +35,7 @@ export default function PublicProfile() {
       } catch (err: any) {
         console.error('Failed to load profile', err);
         if (mounted) setError(String(err?.message ?? err));
-        if (typeof window !== 'undefined') window.location.href = '/login';
+        if (typeof window !== 'undefined') window.location.href = '/account/login';
       } finally {
         if (mounted) setLoading(false);
       }

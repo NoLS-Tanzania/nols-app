@@ -83,7 +83,7 @@ export default function ContractPage() {
           <div className="py-8 text-center">
             <p className="text-sm text-slate-700">You must be signed in to view your contract.</p>
             <div className="mt-4">
-              <Link href="/login" className="text-sky-600">Sign in</Link>
+              <Link href="/driver/login" className="text-sky-600">Sign in</Link>
             </div>
           </div>
         ) : contractUrl ? (

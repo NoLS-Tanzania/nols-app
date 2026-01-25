@@ -64,7 +64,7 @@ router.get("/", async (req, res) => {
     }
   }
   if (propertyId) where.propertyId = Number(propertyId);
-  if (ownerId) where.property = { ownerId: Number(ownerId) };
+  if (ownerId) where.property = { is: { ownerId: Number(ownerId) } };
   if (userId) where.userId = Number(userId);
 
   if (date) {
@@ -76,12 +76,14 @@ router.get("/", async (req, res) => {
     ];
   }
 
-  if (q) {
+  // MySQL doesn't support `mode: "insensitive"`; default collations are typically case-insensitive.
+  const search = typeof q === 'string' ? q.trim().slice(0, 120) : '';
+  if (search) {
     where.OR = [
-      { guestName: { contains: q, mode: "insensitive" } },
-      { property: { title: { contains: q, mode: "insensitive" } } },
-      { code: { codeVisible: { contains: q, mode: "insensitive" } } },
-      { user: { email: { contains: q, mode: "insensitive" } } },
+      { guestName: { contains: search } },
+      { property: { is: { title: { contains: search } } } },
+      { code: { is: { codeVisible: { contains: search } } } },
+      { user: { is: { email: { contains: search } } } },
     ];
   }
 

@@ -29,10 +29,10 @@ export default function DriverProfile() {
 
   type CloudinarySig = {
     timestamp: number;
-    apiKey: string;
     signature: string;
     folder: string;
     cloudName: string;
+    apiKey: string;
   };
 
   async function uploadToCloudinary(file: File, folder: string) {
@@ -86,7 +86,7 @@ export default function DriverProfile() {
       } catch (err: any) {
         console.error('Failed to load profile', err);
         if (mounted) setError(String(err?.message ?? err));
-        if (typeof window !== 'undefined') window.location.href = '/login';
+        if (typeof window !== 'undefined') window.location.href = '/driver/login';
       } finally {
         if (mounted) setLoading(false);
       }
@@ -740,7 +740,7 @@ export default function DriverProfile() {
               try {
                 await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
               } catch {}
-              window.location.href = "/login";
+              window.location.href = "/driver/login";
             }}
           >
             <LogOut className="h-4 w-4" />

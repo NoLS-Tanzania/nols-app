@@ -391,68 +391,89 @@ router.get("/bookings", bookingsHandler);
  *  /owner/reports/occupancy
  *  ------------------------- */
 const occupancyHandler: RequestHandler = async (req, res) => {
-  const r = req as AuthedRequest;
-  const ownerId = r.user!.id;
-  const { from, to, groupBy, propertyId } = parseQuery(req.query);
+  res.setHeader('Content-Type', 'application/json');
 
-  const key = makeKey(ownerId, "occupancy", {
-    from: from.toISOString(),
-    to: to.toISOString(),
-    groupBy,
-    propertyId,
-  });
+  try {
+    const r = req as AuthedRequest;
+    const ownerId = r.user?.id;
+    const { from, to, groupBy, propertyId } = parseQuery(req.query);
 
-  const data = await withCache(key, async () => {
-    const props = await prisma.property.findMany({
-      where: { ownerId, ...(propertyId ? { id: propertyId } : {}) },
-      select: { id: true, title: true, roomsCount: true },
+    if (!ownerId) {
+      return res.status(401).json({ error: 'Unauthorized', heat: [], byProperty: [] });
+    }
+
+    const key = makeKey(ownerId, "occupancy", {
+      from: from.toISOString(),
+      to: to.toISOString(),
+      groupBy,
+      propertyId,
     });
 
-    // Occupancy per day
-    const days = eachDay(from, to);
-    const occ: Array<{ date: string; occupancy: number }> = [];
-
-    for (const d of days) {
-      const sold = await prisma.booking.count({
-        where: {
-          property: { ownerId, ...(propertyId ? { id: propertyId } : {}) },
-          checkIn: { lte: d },
-          checkOut: { gt: d },
-        },
+    const data = await withCache(key, async () => {
+      const props = await prisma.property.findMany({
+        where: { ownerId, ...(propertyId ? { id: propertyId } : {}) },
+        // Property does not have roomsCount; use totalBedrooms as a best-available capacity proxy.
+        select: { id: true, title: true, totalBedrooms: true },
       });
 
-      const totalRooms = props.reduce((s: number, p: any) => s + (p.roomsCount ?? 1), 0);
+      const totalRooms = props.reduce((sum, p) => sum + (p.totalBedrooms ?? 1), 0);
       const available = Math.max(1, totalRooms);
-      const rate = Math.min(100, Math.round((sold / available) * 100));
-      occ.push({ date: fmtKey(d, groupBy), occupancy: rate });
-    }
 
-    // Net revenue by property in the window
-    const invoices: Invoice[] = await prisma.invoice.findMany({
-      where: {
-        ownerId,
-        issuedAt: { gte: from, lte: to },
-        ...(propertyId ? { booking: { propertyId } } : {}),
-      },
-      include: { booking: true },
+      // Occupancy per day (as a %). Use roomsQty rather than booking count.
+      const days = eachDay(from, to);
+      const occ: Array<{ date: string; occupancy: number }> = [];
+
+      for (const d of days) {
+        const agg = await prisma.booking.aggregate({
+          where: {
+            property: { ownerId, ...(propertyId ? { id: propertyId } : {}) },
+            checkIn: { lte: d },
+            checkOut: { gt: d },
+            status: { not: 'CANCELED' },
+          },
+          _sum: { roomsQty: true },
+        });
+
+        const soldRooms = Number(agg._sum.roomsQty ?? 0);
+        const rate = Math.min(100, Math.round((soldRooms / available) * 100));
+        occ.push({ date: fmtKey(d, groupBy), occupancy: rate });
+      }
+
+      // Net revenue by property in the window
+      const invoices: Invoice[] = await prisma.invoice.findMany({
+        where: {
+          ownerId,
+          issuedAt: { gte: from, lte: to },
+          ...(propertyId ? { booking: { propertyId } } : {}),
+        },
+        include: { booking: true },
+      });
+      const byProp: Record<number, { title: string; net: number }> = {};
+      for (const inv of invoices) {
+        const pid = inv.booking.propertyId;
+        const title = props.find((p) => p.id === pid)?.title ?? `#${pid}`;
+        if (!byProp[pid]) byProp[pid] = { title, net: 0 };
+        byProp[pid].net += Number(inv.netPayable);
+      }
+      const byProperty = Object.entries(byProp).map(([pid, v]) => ({
+        propertyId: Number(pid),
+        title: v.title,
+        net: v.net,
+      }));
+
+      return { heat: occ, byProperty };
     });
-    const byProp: Record<number, { title: string; net: number }> = {};
-    for (const inv of invoices) {
-      const pid = inv.booking.propertyId;
-      const title = props.find((p: any) => p.id === pid)?.title ?? `#${pid}`;
-      if (!byProp[pid]) byProp[pid] = { title, net: 0 };
-      byProp[pid].net += Number(inv.netPayable);
-    }
-    const byProperty = Object.entries(byProp).map(([pid, v]: [string, any]) => ({
-      propertyId: Number(pid),
-      title: v.title,
-      net: v.net,
-    }));
 
-    return { heat: occ, byProperty };
-  });
-
-  res.json(data);
+    return res.json(data);
+  } catch (err: any) {
+    console.error('owner.reports.occupancy error:', err);
+    return res.status(500).json({
+      error: 'Internal server error',
+      message: err?.message || 'Unknown error',
+      heat: [],
+      byProperty: [],
+    });
+  }
 };
 router.get("/occupancy", occupancyHandler);
 

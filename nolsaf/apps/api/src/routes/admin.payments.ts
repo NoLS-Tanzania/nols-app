@@ -167,11 +167,17 @@ router.get("/events", async (req, res) => {
   const { status, q, page = "1", pageSize = "50" } = req.query as any;
   const where: any = {};
   if (status) where.status = String(status);
-  if (q) where.OR = [
-    { provider: { contains: String(q), mode: "insensitive" } },
-    { eventId: { contains: String(q), mode: "insensitive" } },
-    { currency: { contains: String(q), mode: "insensitive" } },
-  ];
+  if (q) {
+    // MySQL doesn't support `mode: "insensitive"`; rely on default CI collations.
+    const search = String(q).trim().slice(0, 120);
+    if (search) {
+      where.OR = [
+        { provider: { contains: search } },
+        { eventId: { contains: search } },
+        { currency: { contains: search } },
+      ];
+    }
+  }
 
   const skip = (Number(page) - 1) * Number(pageSize);
   const take = Math.min(Number(pageSize), 100);

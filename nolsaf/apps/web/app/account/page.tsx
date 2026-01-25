@@ -89,7 +89,7 @@ export default function AccountIndex() {
     } catch (err) {
       console.error("Failed to load profile", err);
       try {
-        if (typeof window !== "undefined") window.location.href = "/login";
+        if (typeof window !== "undefined") window.location.href = "/account/login";
       } catch {}
     } finally {
       setLoading(false);

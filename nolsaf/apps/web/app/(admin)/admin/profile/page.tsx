@@ -27,7 +27,7 @@ export default function AdminProfile() {
         const user = (r as any)?.data?.data ?? (r as any)?.data;
         // Check if user is an admin
         if (user?.role !== 'ADMIN') {
-          window.location.href = '/login';
+          window.location.href = '/admin/login';
           return;
         }
         setForm(user);
@@ -36,7 +36,7 @@ export default function AdminProfile() {
       } catch (err: any) {
         console.error('Failed to load profile', err);
         if (mounted) setError(String(err?.message ?? err));
-        if (typeof window !== 'undefined') window.location.href = '/login';
+        if (typeof window !== 'undefined') window.location.href = '/admin/login';
       } finally {
         if (mounted) setLoading(false);
       }
@@ -304,7 +304,7 @@ export default function AdminProfile() {
                 try {
                   await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
                 } catch {}
-                window.location.href = "/login";
+                window.location.href = "/admin/login";
               }}
             >
               <LogOut className="h-4 w-4 flex-shrink-0" />

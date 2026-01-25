@@ -147,19 +147,29 @@ const confirmCheckin: RequestHandler = async (req, res) => {
   // Invoice creation is done once via /api/owner/invoices/from-booking (DRAFT), then submitted once via /api/owner/invoices/:id/submit.
   const invoiceId: number | null = null;
 
-  // attempt to persist confirmation to an audit table if it exists
+  // persist to AuditLog (preferred)
   try {
     const ip = (req as any).ip || req.headers['x-forwarded-for'] || null;
     const ua = req.get('user-agent') || null;
-    await prisma.$executeRaw`
-      INSERT INTO booking_checkin_confirmations
-        (booking_id, owner_id, confirmed_at, consent_accepted, consent_method, terms_version, client_snapshot, client_ip, client_ua, note)
-      VALUES
-        (${booking.id}, ${r.user!.id}, NOW(), ${consent?.accepted ? 1 : 0}, ${consent?.method ?? null}, ${consent?.termsVersion ?? null}, ${clientSnapshot ? JSON.stringify(clientSnapshot) : null}, ${ip}, ${ua}, ${null})
-    `;
+    await prisma.auditLog.create({
+      data: {
+        actorId: r.user!.id,
+        actorRole: 'OWNER',
+        action: 'BOOKING_CHECKIN_CONFIRMED',
+        entity: 'BOOKING',
+        entityId: booking.id,
+        beforeJson: { status: booking.status, checkIn: booking.checkIn, checkOut: booking.checkOut },
+        afterJson: {
+          status: updated?.status ?? 'CHECKED_IN',
+          consent: consent ?? null,
+          clientSnapshot: clientSnapshot ?? null,
+        },
+        ip: ip ? String(ip).slice(0, 64) : null,
+        ua: ua ? String(ua).slice(0, 255) : null,
+      } as any,
+    });
   } catch (err) {
-    // if the audit table does not exist or insert fails, log and continue
-    console.warn('Could not persist booking_checkin_confirmation audit row', err);
+    console.warn('Could not persist AuditLog for check-in', err);
   }
 
   await invalidateOwnerReports(r.user!.id);
@@ -336,7 +346,35 @@ const getCheckedOutBookings: RequestHandler = async (req, res) => {
       },
     });
 
-    const mapped = bookings.map((b: any) => ({
+    const calcOverdueHours = (scheduledCheckOut: any, confirmedAt: any) => {
+      const a = new Date(String(scheduledCheckOut ?? '')).getTime();
+      const b = new Date(String(confirmedAt ?? '')).getTime();
+      if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+      const diff = b - a;
+      if (diff <= 0) return 0;
+      // Count partial hours as an hour overdue.
+      return Math.ceil(diff / 3600000);
+    };
+
+    const calcOverdueDays = (scheduledCheckOut: any, confirmedAt: any) => {
+      const a = new Date(String(scheduledCheckOut ?? '')).getTime();
+      const b = new Date(String(confirmedAt ?? '')).getTime();
+      if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+      const diff = b - a;
+      if (diff <= 0) return 0;
+      // Count partial days as a day overdue.
+      return Math.ceil(diff / 86400000);
+    };
+
+    const mapped = bookings.map((b: any) => {
+      // NOTE: booking_checkin_confirmations table was removed in migrations.
+      // Use booking.updatedAt as the best-available "confirmed" timestamp.
+      const confirmedAt = b.updatedAt ?? null;
+      const overdueHours = confirmedAt ? calcOverdueHours(b.checkOut, confirmedAt) : null;
+      const overdueDays = confirmedAt ? calcOverdueDays(b.checkOut, confirmedAt) : null;
+      const timing = confirmedAt ? ((overdueHours ?? 0) > 0 ? 'OVERDUE' : 'NORMAL') : 'UNKNOWN';
+
+      return {
       id: b.id,
       property: b.property,
       code: b.code,
@@ -354,7 +392,12 @@ const getCheckedOutBookings: RequestHandler = async (req, res) => {
       totalAmount: b.totalAmount,
       createdAt: b.createdAt,
       user: b.user,
-    }));
+      checkoutConfirmedAt: confirmedAt,
+      overdueHours,
+      overdueDays,
+      checkoutTiming: timing,
+      };
+    });
     return (res as Response).json(mapped);
   } catch (err: any) {
     console.error("GET /owner/bookings/checked-out error:", err);
@@ -383,53 +426,128 @@ const getBookingAudit: RequestHandler = async (req, res) => {
   if (!Number.isFinite(id)) return (res as Response).status(400).json({ error: "booking id required" });
 
   // ensure booking belongs to this owner
-  const booking = await prisma.booking.findFirst({ where: { id, property: { ownerId: r.user!.id } }, select: { id: true } });
+  const booking = await prisma.booking.findFirst({ where: { id, property: { ownerId: r.user!.id } }, select: { id: true, status: true, checkOut: true, updatedAt: true } });
   if (!booking) return (res as Response).status(404).json({ error: "Not found" });
 
-  try {
-    const rows: any[] = await prisma.$queryRaw`
-      SELECT booking_id as bookingId,
-             owner_id as ownerId,
-             confirmed_at as confirmedAt,
-             consent_accepted as consentAccepted,
-             consent_method as consentMethod,
-             terms_version as termsVersion,
-             client_snapshot as clientSnapshot,
-             client_ip as clientIp,
-             client_ua as clientUa,
-             note as note
-      FROM booking_checkin_confirmations
-      WHERE booking_id = ${id} AND owner_id = ${r.user!.id}
-      ORDER BY confirmed_at DESC
-      LIMIT 100
-    `;
+  const items: any[] = [];
 
-    const items = (rows ?? []).map((x: any) => {
-      let snap: any = null;
-      try {
-        if (typeof x?.clientSnapshot === "string") snap = JSON.parse(x.clientSnapshot);
-        else snap = x?.clientSnapshot ?? null;
-      } catch {
-        snap = null;
-      }
-      const rating = Number(snap?.rating ?? snap?.checkoutRating ?? NaN);
-      return {
-        bookingId: x.bookingId,
-        ownerId: x.ownerId,
-        confirmedAt: x.confirmedAt,
-        note: x.note,
-        rating: Number.isFinite(rating) ? rating : null,
-        feedback: typeof snap?.feedback === "string" ? snap.feedback : null,
-        clientIp: x.clientIp ?? null,
-        clientUa: x.clientUa ?? null,
-      };
+  // Preferred: AuditLog
+  try {
+    const rows = await prisma.auditLog.findMany({
+      where: {
+        entity: 'BOOKING',
+        entityId: id,
+        action: { in: ['BOOKING_CHECKIN_CONFIRMED', 'BOOKING_CHECKOUT_CONFIRMED'] },
+      },
+      include: {
+        actor: { select: { id: true, name: true, email: true } },
+      },
+      orderBy: { id: 'desc' },
+      take: 100,
     });
 
-    return (res as Response).json({ ok: true, items });
-  } catch (err: any) {
-    // best-effort: return empty rather than failing the page if audit table is missing
-    return (res as Response).json({ ok: true, items: [] });
+    for (const row of rows) {
+      let after: any = (row as any).afterJson ?? null;
+      try {
+        if (typeof after === 'string') after = JSON.parse(after);
+      } catch {
+        // ignore
+      }
+      const action = String((row as any).action ?? '');
+      const isCheckout = action === 'BOOKING_CHECKOUT_CONFIRMED';
+      const rating = isCheckout ? Number(after?.rating ?? after?.checkoutRating ?? NaN) : NaN;
+
+      const actorId = (row as any).actorId ?? null;
+      const actorName = (row as any)?.actor?.name || (row as any)?.actor?.email || (actorId ? `User #${actorId}` : null);
+      const actorRole = (row as any)?.actorRole ?? null;
+      items.push({
+        bookingId: id,
+        ownerId: r.user!.id,
+        confirmedAt: (row as any).createdAt,
+        note: isCheckout ? 'checkout' : 'checkin',
+        rating: Number.isFinite(rating) ? rating : null,
+        feedback: isCheckout && typeof after?.feedback === 'string' ? after.feedback : null,
+        clientIp: (row as any).ip ?? null,
+        clientUa: (row as any).ua ?? null,
+        actorId,
+        actorName,
+        actorRole,
+      });
+    }
+  } catch (err) {
+    // ignore
   }
+
+  // Backward-compat: legacy booking_checkin_confirmations table (may not exist)
+  if (items.length === 0) {
+    try {
+      const rows: any[] = await prisma.$queryRaw`
+        SELECT booking_id as bookingId,
+               owner_id as ownerId,
+               confirmed_at as confirmedAt,
+               consent_accepted as consentAccepted,
+               consent_method as consentMethod,
+               terms_version as termsVersion,
+               client_snapshot as clientSnapshot,
+               client_ip as clientIp,
+               client_ua as clientUa,
+               note as note
+        FROM booking_checkin_confirmations
+        WHERE booking_id = ${id} AND owner_id = ${r.user!.id}
+        ORDER BY confirmed_at DESC
+        LIMIT 100
+      `;
+
+      for (const x of rows ?? []) {
+        let snap: any = null;
+        try {
+          if (typeof x?.clientSnapshot === "string") snap = JSON.parse(x.clientSnapshot);
+          else snap = x?.clientSnapshot ?? null;
+        } catch {
+          snap = null;
+        }
+        const rating = Number(snap?.rating ?? snap?.checkoutRating ?? NaN);
+        items.push({
+          bookingId: x.bookingId,
+          ownerId: x.ownerId,
+          confirmedAt: x.confirmedAt,
+          note: x.note,
+          rating: Number.isFinite(rating) ? rating : null,
+          feedback: typeof snap?.feedback === "string" ? snap.feedback : null,
+          clientIp: x.clientIp ?? null,
+          clientUa: x.clientUa ?? null,
+        });
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  // Final fallback: synthesize a checkout event from Booking.updatedAt if checked-out.
+  if (items.length === 0 && booking.status === 'CHECKED_OUT') {
+    let actorName: string | null = null;
+    try {
+      const u = await prisma.user.findUnique({ where: { id: r.user!.id }, select: { name: true, email: true } });
+      actorName = u?.name ?? u?.email ?? null;
+    } catch {
+      actorName = null;
+    }
+    items.push({
+      bookingId: id,
+      ownerId: r.user!.id,
+      confirmedAt: booking.updatedAt,
+      note: 'checkout',
+      rating: null,
+      feedback: null,
+      clientIp: null,
+      clientUa: null,
+      actorId: r.user!.id,
+      actorName,
+      actorRole: 'OWNER',
+    });
+  }
+
+  return (res as Response).json({ ok: true, items });
 };
 router.get("/:id/audit", getBookingAudit);
 
@@ -458,19 +576,31 @@ const confirmCheckout: RequestHandler = async (req, res) => {
 
   const updated = await prisma.booking.update({ where: { id: booking.id }, data: { status: "CHECKED_OUT" } });
 
-  // append a lightweight audit row (best-effort)
+  // AuditLog (preferred)
   try {
     const ip = (req as any).ip || req.headers['x-forwarded-for'] || null;
     const ua = req.get('user-agent') || null;
-    const snapshot = JSON.stringify({ action: "checkout", rating, feedback, ui: "owner-checkout", ts: new Date().toISOString() });
-    await prisma.$executeRaw`
-      INSERT INTO booking_checkin_confirmations
-        (booking_id, owner_id, confirmed_at, consent_accepted, consent_method, terms_version, client_snapshot, client_ip, client_ua, note)
-      VALUES
-        (${booking.id}, ${r.user!.id}, NOW(), ${0}, ${null}, ${null}, ${snapshot}, ${ip}, ${ua}, ${'checkout'})
-    `;
+    await prisma.auditLog.create({
+      data: {
+        actorId: r.user!.id,
+        actorRole: 'OWNER',
+        action: 'BOOKING_CHECKOUT_CONFIRMED',
+        entity: 'BOOKING',
+        entityId: booking.id,
+        beforeJson: { status: booking.status, checkOut: booking.checkOut },
+        afterJson: {
+          status: updated.status,
+          rating,
+          feedback,
+          ui: 'owner-checkout',
+          at: new Date().toISOString(),
+        },
+        ip: ip ? String(ip).slice(0, 64) : null,
+        ua: ua ? String(ua).slice(0, 255) : null,
+      } as any,
+    });
   } catch (err) {
-    console.warn('Could not persist booking checkout audit row', err);
+    console.warn('Could not persist AuditLog for checkout', err);
   }
 
   // notify admins in real-time

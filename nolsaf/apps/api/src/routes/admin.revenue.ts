@@ -57,11 +57,15 @@ router.get("/invoices", async (req, res) => {
       if (amountMax) where.netPayable.lte = Number(amountMax);
     }
     if (q) {
-      where.OR = [
-        { invoiceNumber: { contains: q, mode: "insensitive" } },
-        { receiptNumber: { contains: q, mode: "insensitive" } },
-        { booking: { property: { title: { contains: q, mode: "insensitive" } } } },
-      ];
+      // MySQL doesn't support `mode: "insensitive"`; rely on default CI collations.
+      const search = String(q).trim().slice(0, 120);
+      if (search) {
+        where.OR = [
+          { invoiceNumber: { contains: search } },
+          { receiptNumber: { contains: search } },
+          { booking: { is: { property: { is: { title: { contains: search } } } } } },
+        ];
+      }
     }
 
     const skip = (Number(page) - 1) * Number(pageSize);
@@ -592,12 +596,16 @@ router.get("/invoices/export.csv", async (req, res) => {
       if (to) where.issuedAt.lte = new Date(String(to));
     }
     if (q) {
-      where.OR = [
-        { invoiceNumber: { contains: q, mode: "insensitive" } },
-        { receiptNumber: { contains: q, mode: "insensitive" } },
-        { paymentRef: { contains: q, mode: "insensitive" } },
-        { booking: { property: { title: { contains: q, mode: "insensitive" } } } },
-      ];
+      // MySQL doesn't support `mode: "insensitive"`; rely on default CI collations.
+      const search = String(q).trim().slice(0, 120);
+      if (search) {
+        where.OR = [
+          { invoiceNumber: { contains: search } },
+          { receiptNumber: { contains: search } },
+          { paymentRef: { contains: search } },
+          { booking: { is: { property: { is: { title: { contains: search } } } } } },
+        ];
+      }
     }
 
     let rows: any[];

@@ -24,13 +24,6 @@ const nextConfig = {
     ],
   },
   turbopack: {},
-  webpack: (config, { dev, isServer }) => {
-    // Fix sourcemap warnings in development
-    if (dev && !isServer) {
-      config.devtool = 'eval-source-map';
-    }
-    return config;
-  },
   async headers() {
     const connectSrc = [
       "'self'",
