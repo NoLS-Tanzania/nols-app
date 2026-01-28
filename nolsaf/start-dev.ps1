@@ -11,8 +11,8 @@ foreach ($port in $portsToFree) {
     if ($pids.Count -eq 0) { continue }
 
     Write-Host "Port $port is already in use. Stopping PID(s): $($pids -join ', ')" -ForegroundColor Yellow
-    foreach ($pid in $pids) {
-        Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
+    foreach ($processId in $pids) {
+        Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue
     }
     Start-Sleep -Seconds 2
 }
