@@ -20,7 +20,7 @@ function Test-DockerAvailable {
 
 if (-not (Test-DockerAvailable)) {
   Write-Host 'Docker is not available. Start Docker Desktop and re-run.' -ForegroundColor Yellow
-  exit 1
+  return
 }
 
 # Create volume if missing (idempotent)
@@ -36,13 +36,13 @@ if ($existing -eq $containerName) {
   $running = docker ps --filter "name=^/${containerName}$" --format '{{.Names}}'
   if ($running -eq $containerName) {
     Write-Host "Redis already running: $containerName (localhost:$hostPort)" -ForegroundColor Green
-    exit 0
+    return
   }
 
   Write-Host "Starting existing Redis container: $containerName" -ForegroundColor Cyan
   docker start $containerName | Out-Null
   Write-Host "Redis started: localhost:$hostPort" -ForegroundColor Green
-  exit 0
+  return
 }
 
 Write-Host "Creating Redis container: $containerName" -ForegroundColor Cyan
