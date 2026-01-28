@@ -7,6 +7,10 @@ let redis: Redis | null = null;
 if (enabled && process.env.REDIS_URL) {
   try {
     redis = new Redis(process.env.REDIS_URL, { lazyConnect: true });
+    // ioredis emits 'error' events; without a listener Node treats it as unhandled and may crash.
+    redis.on("error", () => {
+      // Best-effort cache: ignore connection errors and let per-call fallbacks handle it.
+    });
     // connect in background, failures are handled per-call
     redis.connect().catch(() => { /* swallow here; fallback will kick in */ });
   } catch {
