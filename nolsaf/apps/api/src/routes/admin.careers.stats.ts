@@ -120,28 +120,39 @@ router.get("/", async (req, res) => {
     });
 
     // Average time to review
-    const reviewedApplications = await prisma.jobApplication.findMany({
-      where: {
-        ...dateFilter,
-        reviewedAt: { not: null },
-        submittedAt: { not: null }
-      },
-      select: {
-        submittedAt: true,
-        reviewedAt: true
-      }
-    });
+    // NOTE: submittedAt is non-nullable in Prisma schema, so filtering with { not: null } is invalid.
+    let reviewedApplications: Array<{ submittedAt: Date; reviewedAt: Date | null }> = [];
+    try {
+      reviewedApplications = await prisma.jobApplication.findMany({
+        where: {
+          ...dateFilter,
+          reviewedAt: { not: null }
+        },
+        select: {
+          submittedAt: true,
+          reviewedAt: true
+        }
+      });
+    } catch (findReviewedError: any) {
+      console.error("Error fetching reviewed applications:", findReviewedError);
+      reviewedApplications = [];
+    }
 
     let avgTimeToReview = 0;
     if (reviewedApplications.length > 0) {
-      const totalHours = reviewedApplications.reduce((sum, app) => {
-        if (app.submittedAt && app.reviewedAt) {
-          const hours = (new Date(app.reviewedAt).getTime() - new Date(app.submittedAt).getTime()) / (1000 * 60 * 60);
-          return sum + hours;
+      let totalHours = 0;
+      let totalSamples = 0;
+
+      for (const app of reviewedApplications) {
+        if (!app.reviewedAt) continue;
+        const hours = (new Date(app.reviewedAt).getTime() - new Date(app.submittedAt).getTime()) / (1000 * 60 * 60);
+        if (Number.isFinite(hours)) {
+          totalHours += hours;
+          totalSamples += 1;
         }
-        return sum;
-      }, 0);
-      avgTimeToReview = totalHours / reviewedApplications.length;
+      }
+
+      avgTimeToReview = totalSamples > 0 ? totalHours / totalSamples : 0;
     }
 
     // Status distribution
