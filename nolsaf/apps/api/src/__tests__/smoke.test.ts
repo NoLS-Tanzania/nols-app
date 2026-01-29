@@ -36,26 +36,26 @@ describe("API smoke", () => {
 
   it("mounts public updates endpoint (must not 404)", async () => {
     const res = await request(app).get("/api/public/updates");
-    expect(res.status).not.toBe(404);
+    expect(res.status === 404).toBe(false);
     expect(res.headers["content-type"] || "").toContain("application/json");
   });
 
   it("mounts public trust partners endpoint (must not 404)", async () => {
     const res = await request(app).get("/api/admin/trust-partners/public");
-    expect(res.status).not.toBe(404);
+    expect(res.status === 404).toBe(false);
     expect(res.headers["content-type"] || "").toContain("application/json");
   });
 
   it("mounts public properties endpoint (must not 404)", async () => {
     const res = await request(app).get("/api/public/properties");
-    expect(res.status).not.toBe(404);
+    expect(res.status === 404).toBe(false);
     expect(res.headers["content-type"] || "").toContain("application/json");
   });
 
   it("mounts plan request endpoint (must not 404)", async () => {
     // Send an intentionally minimal/invalid payload; we only care that the route exists.
     const res = await request(app).post("/api/plan-request").send({});
-    expect(res.status).not.toBe(404);
+    expect(res.status === 404).toBe(false);
     expect(res.headers["content-type"] || "").toContain("application/json");
   });
 });

@@ -13,7 +13,7 @@
     "cliui": "^9.0.1",
     "concurrently": "^9.0.1",
     "dotenv": "^17.2.3",
-    "prisma": "^7.0.0",
+    "prisma": "^7.3.0",
     "snyk": "^1.1300.0"
   },
   "scripts": {
@@ -32,9 +32,14 @@
   },
   "dependencies": {
     "@prisma/debug": "^7.0.0",
+    "@typescript-eslint/eslint-plugin": "8.54.0",
+    "@typescript-eslint/parser": "8.54.0",
+    "eslint": "9.39.2",
+    "eslint-plugin-react-hooks": "7.0.1",
     "yargs": "^18.0.0"
   },
   "overrides": {
+    "hono": "4.11.7",
     "lodash": "4.17.23"
   }
 }
