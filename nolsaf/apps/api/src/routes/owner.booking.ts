@@ -632,7 +632,10 @@ const sendInvoiceFromBooking: RequestHandler = async (req, res) => {
   // compute amount
   const nights = Math.max(1, Math.ceil((+booking.checkOut - +booking.checkIn) / (1000*60*60*24)));
   const pricePerNight = (booking as any).pricePerNight ?? booking.property?.pricePerNight ?? null;
-  const amount = booking.totalAmount ?? (pricePerNight ? (pricePerNight as any) * nights : 0);
+  const transportFare = (booking as any).includeTransport ? Number((booking as any).transportFare || 0) : 0;
+  const amount = booking.totalAmount
+    ? Math.max(0, Number(booking.totalAmount) - transportFare)
+    : (pricePerNight ? (pricePerNight as any) * nights : 0);
 
   // One-time flow shortcut:
   // - Create DRAFT invoice if missing

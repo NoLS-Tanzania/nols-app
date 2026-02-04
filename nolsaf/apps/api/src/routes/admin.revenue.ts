@@ -96,7 +96,32 @@ router.get("/invoices", async (req, res) => {
     const [items, total] = await Promise.all([
       prisma.invoice.findMany({
         where,
-        include: { booking: { include: { property: true } } },
+        // IMPORTANT: avoid returning heavy/binary fields (e.g., receiptQrPng) in list responses.
+        // The admin revenue UI only needs a small subset for the table.
+        select: {
+          id: true,
+          invoiceNumber: true,
+          receiptNumber: true,
+          status: true,
+          issuedAt: true,
+          total: true,
+          commissionPercent: true,
+          commissionAmount: true,
+          taxPercent: true,
+          netPayable: true,
+          ownerId: true,
+          booking: {
+            select: {
+              id: true,
+              property: {
+                select: {
+                  id: true,
+                  title: true,
+                },
+              },
+            },
+          },
+        },
         orderBy,
         skip, take,
       }),
@@ -771,7 +796,7 @@ router.get('/properties', async (req, res) => {
       SELECT p.id AS id, p.title AS name,
         COALESCE(SUM(i.total), 0) AS total,
         COALESCE(SUM(i.commissionAmount), 0) AS commission_total,
-        COALESCE(SUM(i.subscriptionAmount), 0) AS subscription_total
+        0 AS subscription_total
       FROM Invoice i
       JOIN Booking b ON i.bookingId = b.id
       JOIN Property p ON b.propertyId = p.id

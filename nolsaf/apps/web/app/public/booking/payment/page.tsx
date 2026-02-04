@@ -573,13 +573,7 @@ export default function PaymentPage() {
                         </span>
                       </div>
                       
-                      {/* Service Fee/Commission - Always shown */}
-                      <div className="flex justify-between text-sm">
-                        <span className="text-slate-600">Service Fee</span>
-                        <span className={`font-semibold ${invoice.priceBreakdown?.commission && invoice.priceBreakdown.commission > 0 ? "text-slate-900" : "text-slate-400"}`}>
-                          {invoice.priceBreakdown?.commission ? invoice.priceBreakdown.commission.toLocaleString() : "0"} {invoice.currency}
-                        </span>
-                      </div>
+                      {/* Service fee intentionally not shown here. */}
                       
                       {/* Transportation - Always shown */}
                       <div className="flex justify-between text-sm">

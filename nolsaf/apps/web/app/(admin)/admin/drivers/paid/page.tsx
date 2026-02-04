@@ -9,6 +9,26 @@ import type { ChartData } from "chart.js";
 // Use same-origin for HTTP calls so Next.js rewrites proxy to the API
 const api = axios.create({ baseURL: "", withCredentials: true });
 
+function authify() {
+  if (typeof window === "undefined") return;
+
+  const lsToken =
+    window.localStorage.getItem("token") ||
+    window.localStorage.getItem("nolsaf_token") ||
+    window.localStorage.getItem("__Host-nolsaf_token");
+
+  if (lsToken) {
+    api.defaults.headers.common["Authorization"] = `Bearer ${lsToken}`;
+    return;
+  }
+
+  const m = String(document.cookie || "").match(/(?:^|;\s*)(?:nolsaf_token|__Host-nolsaf_token)=([^;]+)/);
+  const cookieToken = m?.[1] ? decodeURIComponent(m[1]) : "";
+  if (cookieToken) {
+    api.defaults.headers.common["Authorization"] = `Bearer ${cookieToken}`;
+  }
+}
+
 type PaidRow = {
   id: number;
   invoiceId: number;
@@ -78,7 +98,7 @@ export default function AdminDriversPaidPage() {
       }
       if (q) params.q = q;
 
-      const r = await api.get<{ items: PaidRow[]; total: number }>("/admin/drivers/paid", { params });
+      const r = await api.get<{ items: PaidRow[]; total: number }>("/api/admin/drivers/paid", { params });
       setList(r.data?.items ?? []);
       setTotal(r.data?.total ?? 0);
     } catch (err) {
@@ -93,7 +113,7 @@ export default function AdminDriversPaidPage() {
   const loadStats = useCallback(async () => {
     setStatsLoading(true);
     try {
-      const r = await api.get<PaidStatsResponse>("/admin/drivers/paid/stats", {
+      const r = await api.get<PaidStatsResponse>("/api/admin/drivers/paid/stats", {
         params: { period: statsPeriod },
       });
       setStatsData(r.data);
@@ -106,6 +126,7 @@ export default function AdminDriversPaidPage() {
   }, [statsPeriod]);
 
   useEffect(() => {
+    authify();
     load();
   }, [load]);
 

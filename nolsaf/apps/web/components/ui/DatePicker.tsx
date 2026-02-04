@@ -50,6 +50,7 @@ export default function DatePicker({
   onSelectAction,
   onCloseAction,
   allowRange = true,
+  allowPast = false,
   minDate,
   twoMonths = false,
   initialViewDate,
@@ -59,6 +60,7 @@ export default function DatePicker({
   onSelectAction: (s: string | string[]) => void;
   onCloseAction?: () => void;
   allowRange?: boolean;
+  allowPast?: boolean; // if true, allow selecting dates before today (unless limited by minDate)
   minDate?: string; // ISO date string (YYYY-MM-DD)
   twoMonths?: boolean; // show current month and next month side by side
   initialViewDate?: string; // ISO date string (YYYY-MM-DD) to set the initial month/year when nothing selected
@@ -214,7 +216,7 @@ export default function DatePicker({
       if (cellDateY < minY) isBeforeMin = true;
       else if (cellDateY === minY && cellDateM < minM) isBeforeMin = true;
       else if (cellDateY === minY && cellDateM === minM && cellDateD < minD) isBeforeMin = true;
-    } else {
+    } else if (!allowPast) {
       if (cellDateY < todayY) isPast = true;
       else if (cellDateY === todayY && cellDateM < todayM) isPast = true;
       else if (cellDateY === todayY && cellDateM === todayM && cellDateD < todayD) isPast = true;
@@ -251,6 +253,13 @@ export default function DatePicker({
             return;
           }
           // First click: set start, do NOT close — picker stays open until end date is selected
+          if (!allowRange) {
+            setLastClicked(null);
+            onSelectAction(iso);
+            onCloseAction?.();
+            return;
+          }
+
           setLastClicked(iso);
           onSelectAction(iso);
         }}

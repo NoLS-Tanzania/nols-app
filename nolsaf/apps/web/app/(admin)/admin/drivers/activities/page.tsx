@@ -3,9 +3,28 @@ import { useEffect, useState } from "react";
 import { Activity, Truck, UserPlus, Award, Trophy, Calendar, FileText,  ArrowRight } from "lucide-react";
 import Link from "next/link";
 import axios from "axios";
+import { useSearchParams } from "next/navigation";
 
 const api = axios.create({ baseURL: "", withCredentials: true });
-function authify() {}
+function authify() {
+  if (typeof window === "undefined") return;
+
+  const lsToken =
+    window.localStorage.getItem("token") ||
+    window.localStorage.getItem("nolsaf_token") ||
+    window.localStorage.getItem("__Host-nolsaf_token");
+
+  if (lsToken) {
+    api.defaults.headers.common["Authorization"] = `Bearer ${lsToken}`;
+    return;
+  }
+
+  const m = String(document.cookie || "").match(/(?:^|;\s*)(?:nolsaf_token|__Host-nolsaf_token)=([^;]+)/);
+  const cookieToken = m?.[1] ? decodeURIComponent(m[1]) : "";
+  if (cookieToken) {
+    api.defaults.headers.common["Authorization"] = `Bearer ${cookieToken}`;
+  }
+}
 
 type Driver = {
   id: number;
@@ -29,6 +48,7 @@ type DriverActivities = {
 };
 
 export default function AdminDriversActivitiesPage() {
+  const searchParams = useSearchParams();
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [activities, setActivities] = useState<Map<number, DriverActivities["activities"]>>(new Map());
   const [loading, setLoading] = useState(true);
@@ -40,17 +60,28 @@ export default function AdminDriversActivitiesPage() {
     loadDrivers();
   }, []);
 
+  useEffect(() => {
+    const raw = searchParams?.get("driverId") || "";
+    const id = Number(raw);
+    if (!Number.isFinite(id) || id <= 0) return;
+    if (!drivers.length) return;
+    if (selectedDriver === id) return;
+    const exists = drivers.some((d) => d.id === id);
+    if (!exists) return;
+    void loadDriverActivity(id);
+  }, [searchParams, drivers, selectedDriver]);
+
   async function loadDrivers() {
     setLoading(true);
     try {
-      const r = await api.get<{ items: Driver[]; total: number }>("/admin/drivers", { params: { page: 1, pageSize: 100 } });
+      const r = await api.get<{ items: Driver[]; total: number }>("/api/admin/drivers", { params: { page: 1, pageSize: 100 } });
       setDrivers(r.data?.items ?? []);
       
       // Load activities for all drivers
       const activitiesMap = new Map<number, DriverActivities["activities"]>();
       for (const driver of r.data?.items ?? []) {
         try {
-          const act = await api.get<DriverActivities>(`/admin/drivers/${driver.id}/activities`);
+          const act = await api.get<DriverActivities>(`/api/admin/drivers/${driver.id}/activities`);
           if (act.data?.activities) {
             activitiesMap.set(driver.id, act.data.activities);
           }
@@ -68,7 +99,7 @@ export default function AdminDriversActivitiesPage() {
 
   async function loadDriverActivity(driverId: number) {
     try {
-      const r = await api.get<DriverActivities>(`/admin/drivers/${driverId}/activities`);
+      const r = await api.get<DriverActivities>(`/api/admin/drivers/${driverId}/activities`);
       setDriverActivity(r.data);
       setSelectedDriver(driverId);
     } catch (err) {

@@ -8,7 +8,25 @@ import type { ChartData } from "chart.js";
 
 // Use same-origin for HTTP calls so Next.js rewrites proxy to the API
 const api = axios.create({ baseURL: "", withCredentials: true });
-function authify() {}
+function authify() {
+  if (typeof window === "undefined") return;
+
+  const lsToken =
+    window.localStorage.getItem("token") ||
+    window.localStorage.getItem("nolsaf_token") ||
+    window.localStorage.getItem("__Host-nolsaf_token");
+
+  if (lsToken) {
+    api.defaults.headers.common["Authorization"] = `Bearer ${lsToken}`;
+    return;
+  }
+
+  const m = String(document.cookie || "").match(/(?:^|;\s*)(?:nolsaf_token|__Host-nolsaf_token)=([^;]+)/);
+  const cookieToken = m?.[1] ? decodeURIComponent(m[1]) : "";
+  if (cookieToken) {
+    api.defaults.headers.common["Authorization"] = `Bearer ${cookieToken}`;
+  }
+}
 
 type RevenueRow = {
   id: number;
@@ -85,7 +103,7 @@ export default function AdminDriversRevenuesPage() {
       }
       if (q) params.q = q;
 
-      const r = await api.get<{ items: RevenueRow[]; total: number }>("/admin/drivers/revenues", { params });
+      const r = await api.get<{ items: RevenueRow[]; total: number }>("/api/admin/drivers/revenues", { params });
       setList(r.data?.items ?? []);
       setTotal(r.data?.total ?? 0);
     } catch (err) {
@@ -100,7 +118,7 @@ export default function AdminDriversRevenuesPage() {
   const loadStats = useCallback(async () => {
     setStatsLoading(true);
     try {
-      const r = await api.get<RevenueStatsResponse>("/admin/drivers/revenues/stats", {
+      const r = await api.get<RevenueStatsResponse>("/api/admin/drivers/revenues/stats", {
         params: { period: statsPeriod },
       });
       setStatsData(r.data);

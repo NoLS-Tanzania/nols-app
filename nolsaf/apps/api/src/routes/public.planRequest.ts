@@ -1,7 +1,9 @@
 import { Router, Request, Response } from "express";
+import type { RequestHandler } from "express";
 import { prisma } from "@nolsaf/prisma";
 import multer from "multer";
 import { limitPlanRequestSubmit } from "../middleware/rateLimit.js";
+import { maybeAuth, AuthedRequest } from "../middleware/auth.js";
 import { sendMail } from "../lib/mailer.js";
 import { getNewPlanRequestCustomerEmail, getNewPlanRequestAdminEmail } from "../lib/planRequestEmailTemplates.js";
 import { notifyAdmins } from "../lib/notifications.js";
@@ -68,6 +70,9 @@ router.post("/", limitPlanRequestSubmit, upload.none(), async (req: Request, res
     const vehiclesNeeded = formData.vehiclesNeeded || null;
     const passengerCount = formData.passengerCount || null;
     const vehicleRequirements = formData.vehicleRequirements || null;
+
+    const touristMustHavesRaw = formData.touristMustHaves || null;
+    const touristInterestsRaw = formData.touristInterests || null;
     
     // Role-specific fields (Event planner, School, University, Community, Other)
     const roleSpecificData: any = {};
@@ -113,10 +118,22 @@ router.post("/", limitPlanRequestSubmit, upload.none(), async (req: Request, res
       if (formData.localPartners) roleSpecificData.localPartners = formData.localPartners;
     }
     
-    // Other fields
-    if (role === "Other") {
+    // Other / Tourist fields
+    if (role === "Other" || role === "Tourist") {
       if (formData.otherDetails) roleSpecificData.otherDetails = formData.otherDetails;
-      if (formData.attachments) roleSpecificData.attachments = formData.attachments;
+    }
+
+    // Tourist preference capture (sent as comma-separated strings from the web app)
+    if (role === "Tourist") {
+      const parseCommaList = (v: any) =>
+        String(v || '')
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+          .slice(0, 80);
+
+      if (touristMustHavesRaw) roleSpecificData.touristMustHaves = parseCommaList(touristMustHavesRaw);
+      if (touristInterestsRaw) roleSpecificData.touristInterests = parseCommaList(touristInterestsRaw);
     }
     
     // Validate required fields
@@ -151,7 +168,8 @@ router.post("/", limitPlanRequestSubmit, upload.none(), async (req: Request, res
     
     // Validate email - it's required by the schema
     // Normalize email to lowercase for consistent matching
-    const finalEmail = (email && typeof email === 'string') ? email.trim().toLowerCase() : null;
+    const emailRaw = (email && typeof email === 'string') ? email.trim() : null;
+    const finalEmail = emailRaw ? emailRaw.toLowerCase() : null;
     if (!finalEmail || finalEmail === '') {
       return res.status(400).json({
         error: "Email is required",
@@ -159,27 +177,57 @@ router.post("/", limitPlanRequestSubmit, upload.none(), async (req: Request, res
       });
     }
     
-    // Try to find existing user by email or phone (to link request to user account)
-    let userId: number | null = null;
+    // Attach user if a valid session cookie is present (non-blocking)
+    // This makes logged-in submissions reliably appear under the user's account.
+    await (maybeAuth as RequestHandler)(req, res, () => {});
+
+    // Prefer authenticated user id if available; otherwise fall back to lookup.
+    let userId: number | null = ((req as AuthedRequest).user?.id ?? null);
+
+    // Try to find existing user by email or phone (fallback for anonymous submissions)
     try {
-      if (finalEmail) {
-        const userByEmail = await prisma.user.findUnique({
-          where: { email: finalEmail },
-          select: { id: true },
-        });
-        if (userByEmail) {
-          userId = userByEmail.id;
+      if (!userId) {
+        // Some deployments store email with original casing; try raw first, then normalized.
+        const emailCandidates = Array.from(
+          new Set([emailRaw, finalEmail].filter((v): v is string => typeof v === 'string' && v.trim().length > 0))
+        );
+
+        for (const candidate of emailCandidates) {
+          const userByEmail = await prisma.user.findUnique({
+            where: { email: candidate },
+            select: { id: true },
+          });
+          if (userByEmail) {
+            userId = userByEmail.id;
+            break;
+          }
         }
       }
+
       // If not found by email, try phone
       if (!userId && phone) {
-        const normalizedPhone = phone.trim().replace(/[-\s]/g, '');
-        const userByPhone = await prisma.user.findUnique({
-          where: { phone: normalizedPhone },
-          select: { id: true },
-        });
-        if (userByPhone) {
-          userId = userByPhone.id;
+        const raw = phone.trim();
+        const normalizedPhone = raw.replace(/[\s-]/g, '');
+        const digitsOnly = raw.replace(/\D/g, '');
+        const last9 = digitsOnly.length >= 9 ? digitsOnly.slice(-9) : '';
+        const last10 = digitsOnly.length >= 10 ? digitsOnly.slice(-10) : '';
+
+        const phoneOr: any[] = [];
+        for (const candidate of Array.from(new Set([raw, normalizedPhone, digitsOnly].filter(Boolean)))) {
+          phoneOr.push({ phone: candidate });
+        }
+        // Heuristic match for country-code differences
+        if (last9) phoneOr.push({ phone: { endsWith: last9 } });
+        if (last10) phoneOr.push({ phone: { endsWith: last10 } });
+
+        if (phoneOr.length > 0) {
+          const userByPhone = await prisma.user.findFirst({
+            where: { OR: phoneOr },
+            select: { id: true },
+          });
+          if (userByPhone) {
+            userId = userByPhone.id;
+          }
         }
       }
     } catch (userLookupError) {
@@ -197,10 +245,26 @@ router.post("/", limitPlanRequestSubmit, upload.none(), async (req: Request, res
     
     // Validate and convert types to match Prisma schema
     const groupSizeNum = groupSize ? parseInt(String(groupSize), 10) : null;
-    const budgetDecimal = budget ? parseFloat(String(budget)) : null;
+
+    const budgetStr = budget ? String(budget).trim() : '';
+    const budgetNumberMatch = budgetStr.replace(/,/g, '').match(/-?\d+(?:\.\d+)?/);
+    const budgetDecimal = budgetNumberMatch ? parseFloat(budgetNumberMatch[0]) : null;
+    if (budgetStr) {
+      const currencyMatch = budgetStr.match(/^[A-Za-z]{2,5}/);
+      const currency = currencyMatch ? currencyMatch[0].toUpperCase() : null;
+      roleSpecificData.budgetDisplay = budgetStr;
+      if (currency) roleSpecificData.budgetCurrency = currency;
+    }
+
     const vehiclesNeededNum = vehiclesNeeded ? parseInt(String(vehiclesNeeded), 10) : null;
     const passengerCountNum = passengerCount ? parseInt(String(passengerCount), 10) : null;
     
+    const storedPhoneRaw = phone ? phone.trim() : null;
+    const storedPhone = storedPhoneRaw ? storedPhoneRaw.replace(/[\s-]/g, '') : null;
+    if (storedPhoneRaw && storedPhone && storedPhone !== storedPhoneRaw) {
+      roleSpecificData.phoneDisplay = storedPhoneRaw;
+    }
+
     const planRequest = await (prisma as any).planRequest.create({
       data: {
         role,
@@ -209,16 +273,17 @@ router.post("/", limitPlanRequestSubmit, upload.none(), async (req: Request, res
         dateFrom: dateFrom ? new Date(dateFrom) : null,
         dateTo: dateTo ? new Date(dateTo) : null,
         groupSize: groupSizeNum && !isNaN(groupSizeNum) ? groupSizeNum : null,
-        budget: budgetDecimal && !isNaN(budgetDecimal) ? budgetDecimal : null,
+        budget: budgetDecimal !== null && !isNaN(budgetDecimal) ? budgetDecimal : null,
         notes,
         fullName: finalFullName, // Use validated fullName - always a non-empty string
         email: finalEmail, // Use validated email - always a non-empty string
-        phone: phone ? phone.trim() : null,
+        phone: storedPhone,
         userId, // Link to user if found, null for anonymous submissions
         transportRequired: transportRequired === "yes" || transportRequired === true || transportRequired === "true" ? true : transportRequired === "no" || transportRequired === "false" ? false : null,
         vehicleType,
-        pickupLocation,
-        dropoffLocation,
+        // For Tourists we plan pickup/dropoff after destination/itinerary confirmation
+        pickupLocation: role === 'Tourist' ? null : pickupLocation,
+        dropoffLocation: role === 'Tourist' ? null : dropoffLocation,
         vehiclesNeeded: vehiclesNeededNum && !isNaN(vehiclesNeededNum) ? vehiclesNeededNum : null,
         passengerCount: passengerCountNum && !isNaN(passengerCountNum) ? passengerCountNum : null,
         vehicleRequirements,

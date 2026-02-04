@@ -31,25 +31,35 @@ router.get("/", (async (req: AuthedRequest, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
+    const normalizeEmail = (v?: string | null) => (v ? v.trim().toLowerCase() : null);
+    const phoneDigits = (v?: string | null) => (v ? v.replace(/\D/g, "") : "");
+    const phoneTail = (digits: string, n: number) => (digits.length >= n ? digits.slice(-n) : "");
+
+    const emailRaw = user.email || null;
+    const emailNormalized = normalizeEmail(emailRaw);
+    const phoneRaw = user.phone || null;
+    const phoneDigitsRaw = phoneDigits(phoneRaw);
+    const phoneLast9 = phoneTail(phoneDigitsRaw, 9);
+    const phoneLast10 = phoneTail(phoneDigitsRaw, 10);
+
     // Build efficient query: primary match by userId, fallback to email/phone for legacy requests
+    // NOTE: legacy requests may have normalized email/phone (or not), so include variants.
     const whereClause: any = {
-      OR: [
-        { userId: userId }, // Primary: direct user ID match (most efficient)
-      ],
+      OR: [{ userId }],
     };
-    
-    // Add email/phone fallback for legacy requests (submitted before userId was added)
-    if (user.email || user.phone) {
-      const orConditions: any[] = [];
-      if (user.email) {
-        orConditions.push({ email: user.email });
-      }
-      if (user.phone) {
-        orConditions.push({ phone: user.phone });
-      }
-      if (orConditions.length > 0) {
-        whereClause.OR.push(...orConditions);
-      }
+
+    const orConditions: any[] = [];
+    if (emailRaw) orConditions.push({ email: emailRaw });
+    if (emailNormalized && emailNormalized !== emailRaw) orConditions.push({ email: emailNormalized });
+
+    if (phoneRaw) orConditions.push({ phone: phoneRaw });
+    if (phoneDigitsRaw) orConditions.push({ phone: phoneDigitsRaw });
+    // Heuristic match: last digits catch 0xxx vs 255xxx vs +255xxx formatting.
+    if (phoneLast9) orConditions.push({ phone: { endsWith: phoneLast9 } });
+    if (phoneLast10) orConditions.push({ phone: { endsWith: phoneLast10 } });
+
+    if (orConditions.length > 0) {
+      whereClause.OR.push(...orConditions);
     }
     
     // Apply status filter if provided
@@ -130,6 +140,90 @@ router.get("/", (async (req: AuthedRequest, res) => {
 }) as RequestHandler);
 
 /**
+ * POST /api/customer/plan-requests/:id/claim
+ * Attach a plan request to the currently authenticated user.
+ *
+ * Why: Some legacy submissions may not have userId set (or may have email/phone formatting differences).
+ * This endpoint lets a logged-in user reliably “claim” their own request so it appears in /account/event-plans.
+ */
+router.post("/:id/claim", (async (req: AuthedRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const requestId = parseInt(String(req.params.id), 10);
+
+    if (!Number.isFinite(requestId)) {
+      return res.status(400).json({ error: "Invalid request id" });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, phone: true },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const normalizeEmail = (v?: string | null) => (v ? v.trim().toLowerCase() : null);
+    const phoneDigits = (v?: string | null) => (v ? v.replace(/\D/g, "") : "");
+    const phoneTail = (digits: string, n: number) => (digits.length >= n ? digits.slice(-n) : "");
+
+    const emailRaw = user.email || null;
+    const emailNormalized = normalizeEmail(emailRaw);
+    const phoneRaw = user.phone || null;
+    const phoneDigitsRaw = phoneDigits(phoneRaw);
+    const phoneLast9 = phoneTail(phoneDigitsRaw, 9);
+    const phoneLast10 = phoneTail(phoneDigitsRaw, 10);
+
+    if (!emailRaw && !phoneRaw) {
+      return res.status(400).json({ error: "Your account has no email/phone to verify this request" });
+    }
+
+    const whereClause: any = {
+      id: requestId,
+      OR: [{ userId }],
+    };
+
+    const orConditions: any[] = [];
+    if (emailRaw) orConditions.push({ email: emailRaw });
+    if (emailNormalized && emailNormalized !== emailRaw) orConditions.push({ email: emailNormalized });
+    if (phoneRaw) orConditions.push({ phone: phoneRaw });
+    if (phoneDigitsRaw) orConditions.push({ phone: phoneDigitsRaw });
+    if (phoneLast9) orConditions.push({ phone: { endsWith: phoneLast9 } });
+    if (phoneLast10) orConditions.push({ phone: { endsWith: phoneLast10 } });
+    if (orConditions.length > 0) {
+      whereClause.OR.push(...orConditions);
+    }
+
+    const planRequest = await (prisma as any).planRequest.findFirst({
+      where: whereClause,
+      select: { id: true, userId: true },
+    });
+
+    if (!planRequest) {
+      return res.status(404).json({ error: "Plan request not found or access denied" });
+    }
+
+    if (planRequest.userId && planRequest.userId !== userId) {
+      return res.status(409).json({ error: "This request is already linked to another account" });
+    }
+
+    await (prisma as any).planRequest.update({
+      where: { id: requestId },
+      data: {
+        userId,
+        updatedAt: new Date(),
+      },
+    });
+
+    return res.json({ success: true });
+  } catch (error: any) {
+    console.error("POST /customer/plan-requests/:id/claim error:", error);
+    return res.status(500).json({ error: "Failed to claim plan request" });
+  }
+}) as RequestHandler);
+
+/**
  * POST /api/customer/plan-requests/:id/follow-up
  * Send a follow-up message for a plan request
  * Uses new PlanRequestMessage model for proper conversation storage
@@ -154,22 +248,33 @@ router.post("/:id/follow-up", limitPlanRequestMessages, (async (req: AuthedReque
       return res.status(404).json({ error: "User not found" });
     }
 
-    // Verify the plan request belongs to this user (efficient query using userId or email/phone)
+    const normalizeEmail = (v?: string | null) => (v ? v.trim().toLowerCase() : null);
+    const phoneDigits = (v?: string | null) => (v ? v.replace(/\D/g, "") : "");
+    const phoneTail = (digits: string, n: number) => (digits.length >= n ? digits.slice(-n) : "");
+
+    const emailRaw = user.email || null;
+    const emailNormalized = normalizeEmail(emailRaw);
+    const phoneRaw = user.phone || null;
+    const phoneDigitsRaw = phoneDigits(phoneRaw);
+    const phoneLast9 = phoneTail(phoneDigitsRaw, 9);
+    const phoneLast10 = phoneTail(phoneDigitsRaw, 10);
+
+    // Verify the plan request belongs to this user (efficient query using userId or robust email/phone fallback)
     const whereClause: any = {
       id: requestId,
-      OR: [
-        { userId: userId }, // Primary: direct user ID match
-      ],
+      OR: [{ userId }],
     };
-    
-    // Add email/phone fallback for legacy requests
-    if (user.email || user.phone) {
-      const orConditions: any[] = [];
-      if (user.email) orConditions.push({ email: user.email });
-      if (user.phone) orConditions.push({ phone: user.phone });
-      if (orConditions.length > 0) {
-        whereClause.OR.push(...orConditions);
-      }
+
+    const orConditions: any[] = [];
+    if (emailRaw) orConditions.push({ email: emailRaw });
+    if (emailNormalized && emailNormalized !== emailRaw) orConditions.push({ email: emailNormalized });
+    if (phoneRaw) orConditions.push({ phone: phoneRaw });
+    if (phoneDigitsRaw) orConditions.push({ phone: phoneDigitsRaw });
+    if (phoneLast9) orConditions.push({ phone: { endsWith: phoneLast9 } });
+    if (phoneLast10) orConditions.push({ phone: { endsWith: phoneLast10 } });
+
+    if (orConditions.length > 0) {
+      whereClause.OR.push(...orConditions);
     }
     
     const planRequest = await (prisma as any).planRequest.findFirst({
@@ -263,22 +368,32 @@ router.get("/:id/messages", (async (req: AuthedRequest, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    // Verify the plan request belongs to this user (efficient query using userId or email/phone)
+    const normalizeEmail = (v?: string | null) => (v ? v.trim().toLowerCase() : null);
+    const phoneDigits = (v?: string | null) => (v ? v.replace(/\D/g, "") : "");
+    const phoneTail = (digits: string, n: number) => (digits.length >= n ? digits.slice(-n) : "");
+
+    const emailRaw = user.email || null;
+    const emailNormalized = normalizeEmail(emailRaw);
+    const phoneRaw = user.phone || null;
+    const phoneDigitsRaw = phoneDigits(phoneRaw);
+    const phoneLast9 = phoneTail(phoneDigitsRaw, 9);
+    const phoneLast10 = phoneTail(phoneDigitsRaw, 10);
+
+    // Verify the plan request belongs to this user (efficient query using userId + robust email/phone fallback)
     const whereClause: any = {
       id: requestId,
-      OR: [
-        { userId: userId }, // Primary: direct user ID match
-      ],
+      OR: [{ userId }],
     };
-    
-    // Add email/phone fallback for legacy requests
-    if (user.email || user.phone) {
-      const orConditions: any[] = [];
-      if (user.email) orConditions.push({ email: user.email });
-      if (user.phone) orConditions.push({ phone: user.phone });
-      if (orConditions.length > 0) {
-        whereClause.OR.push(...orConditions);
-      }
+
+    const orConditions: any[] = [];
+    if (emailRaw) orConditions.push({ email: emailRaw });
+    if (emailNormalized && emailNormalized !== emailRaw) orConditions.push({ email: emailNormalized });
+    if (phoneRaw) orConditions.push({ phone: phoneRaw });
+    if (phoneDigitsRaw) orConditions.push({ phone: phoneDigitsRaw });
+    if (phoneLast9) orConditions.push({ phone: { endsWith: phoneLast9 } });
+    if (phoneLast10) orConditions.push({ phone: { endsWith: phoneLast10 } });
+    if (orConditions.length > 0) {
+      whereClause.OR.push(...orConditions);
     }
     
     const planRequest = await (prisma as any).planRequest.findFirst({

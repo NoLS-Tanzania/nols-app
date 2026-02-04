@@ -18,8 +18,6 @@ type Invoice = {
   paidAt?: string | null;
   total: number | string;
   netPayable: number | string;
-  commissionAmount: number | string;
-  commissionPercent?: number | string;
   receiptNumber?: string | null;
   booking?: {
     id: number;
@@ -107,9 +105,11 @@ export default function Paid() {
 
   const stats = useMemo(() => {
     const totalCount = items.length;
-    const totalGross = items.reduce((sum, it) => sum + toNumber(it.total), 0);
-    const totalNet = items.reduce((sum, it) => sum + toNumber(it.netPayable), 0);
-    return { totalCount, totalGross, totalNet };
+    const totalAmount = items.reduce((sum, it) => {
+      const net = toNumber(it.netPayable);
+      return sum + (net > 0 ? net : toNumber(it.total));
+    }, 0);
+    return { totalCount, totalAmount };
   }, [items]);
 
   if (loading) {
@@ -169,18 +169,14 @@ export default function Paid() {
       </div>
 
       {/* Summary */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
           <div className="text-center text-xs font-medium text-gray-500">Invoices</div>
           <div className="mt-1 text-center text-2xl font-bold text-gray-900">{stats.totalCount.toLocaleString()}</div>
         </div>
         <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
-          <div className="text-center text-xs font-medium text-gray-500">Total gross</div>
-          <div className="mt-1 text-center text-2xl font-bold text-gray-900">{formatCurrency(stats.totalGross)}</div>
-        </div>
-        <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
-          <div className="text-center text-xs font-medium text-gray-500">Net payable</div>
-          <div className="mt-1 text-center text-2xl font-bold text-emerald-700">{formatCurrency(stats.totalNet)}</div>
+          <div className="text-center text-xs font-medium text-gray-500">Total amount</div>
+          <div className="mt-1 text-center text-2xl font-bold text-emerald-700">{formatCurrency(stats.totalAmount)}</div>
         </div>
       </div>
 
@@ -267,7 +263,7 @@ export default function Paid() {
           </div>
         ) : (
           <div className="w-full overflow-x-auto">
-            <table className="min-w-[860px] w-full text-sm">
+            <table className="min-w-[820px] w-full text-sm">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr className="text-left">
                   <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">Invoice</th>
@@ -276,15 +272,19 @@ export default function Paid() {
                   <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">Paid</th>
                   <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">Status</th>
                   <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">Receipt</th>
-                  <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600 text-right">Total</th>
-                  <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600 text-right">Net Payable</th>
+                  <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600 text-right">Amount</th>
                   <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 bg-white">
                 {filtered.map((invoice) => {
                   const propertyTitle = invoice.booking?.property?.title || "Property";
-                  const net = invoice.netPayable != null ? formatCurrency(Number(invoice.netPayable)) : "—";
+                  const payout = (() => {
+                    const net = Number(invoice.netPayable);
+                    if (Number.isFinite(net) && net > 0) return net;
+                    const gross = Number(invoice.total);
+                    return Number.isFinite(gross) ? gross : 0;
+                  })();
                   return (
                     <TableRow key={invoice.id} className="hover:bg-slate-50/60 transition-colors duration-150">
                       <td className="px-4 sm:px-6 py-3 sm:py-4">
@@ -311,10 +311,7 @@ export default function Paid() {
                           <span className="text-slate-400">—</span>
                         )}
                       </td>
-                      <td className="px-4 sm:px-6 py-3 sm:py-4 text-right font-semibold text-slate-900 whitespace-nowrap">
-                        {formatCurrency(Number(invoice.total))}
-                      </td>
-                      <td className="px-4 sm:px-6 py-3 sm:py-4 text-right font-bold text-emerald-600 whitespace-nowrap">{net}</td>
+                      <td className="px-4 sm:px-6 py-3 sm:py-4 text-right font-bold text-emerald-600 whitespace-nowrap">{formatCurrency(payout)}</td>
                       <td className="px-4 sm:px-6 py-3 sm:py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <Link

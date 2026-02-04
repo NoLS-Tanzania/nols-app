@@ -125,7 +125,9 @@ const listAgentsQuerySchema = z.object({
     EDUCATION_LEVEL.PHD,
     EDUCATION_LEVEL.OTHER,
   ]).optional(),
-  available: z.enum(["true", "false"]).optional().transform((val) => val === "true"),
+  // NOTE: Apply `optional()` AFTER `transform()` so missing `available` stays `undefined`
+  // (otherwise Zod would transform `undefined` into `false`, unintentionally filtering results).
+  available: z.enum(["true", "false"]).transform((val) => val === "true").optional(),
   areasOfOperation: z.string().optional(),
   specializations: z.string().optional(),
   languages: z.string().optional(),
@@ -232,6 +234,170 @@ function formatAgentResponse(agent: any): AgentResponse {
   };
 }
 
+function normalizeEmail(email: unknown): string | null {
+  const normalized = String(email ?? "").trim().toLowerCase();
+  return normalized ? normalized : null;
+}
+
+function normalizePhone(phone: unknown): string | null {
+  const normalized = String(phone ?? "").trim();
+  return normalized ? normalized : null;
+}
+
+async function ensureAgentsFromHiredApplications(req: AuthedRequest): Promise<void> {
+  // Source of truth for recruiting: Job applications.
+  // When an application is marked HIRED, ensure it has an Agent profile linked.
+  const hiredWithoutAgent = await prisma.jobApplication.findMany({
+    where: {
+      status: "HIRED",
+      agentId: null,
+    },
+    select: {
+      id: true,
+      fullName: true,
+      email: true,
+      phone: true,
+      agentApplicationData: true,
+    },
+    orderBy: { id: "asc" },
+    take: 50,
+  });
+
+  if (hiredWithoutAgent.length === 0) return;
+
+  const createdAgentIds: number[] = [];
+  const linkedApplicationIds: number[] = [];
+
+  for (const app of hiredWithoutAgent) {
+    const email = normalizeEmail(app.email);
+    const phone = normalizePhone(app.phone);
+
+    if (!email && !phone) continue;
+
+    const userOr: Prisma.UserWhereInput[] = [];
+    if (email) userOr.push({ email });
+    if (phone) userOr.push({ phone });
+
+    let user = await prisma.user.findFirst({
+      where: userOr.length > 0 ? { OR: userOr } : undefined,
+      select: { id: true, role: true },
+    });
+
+    if (!user) {
+      try {
+        user = await prisma.user.create({
+          data: {
+            email,
+            phone,
+            name: app.fullName,
+            role: "AGENT",
+          } as any,
+          select: { id: true, role: true },
+        });
+      } catch (e: any) {
+        // Raced with another request, re-read by unique fields.
+        if (e?.code === "P2002") {
+          user = await prisma.user.findFirst({
+            where: { OR: userOr },
+            select: { id: true, role: true },
+          });
+        } else {
+          console.warn("[ensureAgentsFromHiredApplications] Failed to create user", {
+            applicationId: app.id,
+            message: e?.message,
+          });
+          continue;
+        }
+      }
+    }
+
+    if (!user) continue;
+
+    if (user.role !== "AGENT") {
+      try {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { role: "AGENT" },
+          select: { id: true },
+        });
+      } catch {
+        // do not block provisioning
+      }
+    }
+
+    let agent = await prisma.agent.findUnique({
+      where: { userId: user.id },
+      select: { id: true },
+    });
+
+    if (!agent) {
+      const d = (app.agentApplicationData ?? {}) as any;
+      try {
+        agent = await prisma.agent.create({
+          data: {
+            user: { connect: { id: user.id } },
+            status: d.status || DEFAULT_AGENT_STATUS,
+            educationLevel: d.educationLevel || null,
+            yearsOfExperience: d.yearsOfExperience != null ? Number(d.yearsOfExperience) : null,
+            bio: d.bio || null,
+            maxActiveRequests: d.maxActiveRequests != null ? Number(d.maxActiveRequests) : DEFAULT_MAX_ACTIVE_REQUESTS,
+            isAvailable: d.isAvailable !== undefined ? Boolean(d.isAvailable) : true,
+            currentActiveRequests: 0,
+            areasOfOperation: Array.isArray(d.areasOfOperation) && d.areasOfOperation.length > 0 ? d.areasOfOperation : null,
+            certifications: Array.isArray(d.certifications) && d.certifications.length > 0 ? d.certifications : null,
+            languages: Array.isArray(d.languages) && d.languages.length > 0 ? d.languages : null,
+            specializations: Array.isArray(d.specializations) && d.specializations.length > 0 ? d.specializations : null,
+          } as any,
+          select: { id: true },
+        });
+        createdAgentIds.push(agent.id);
+      } catch (e: any) {
+        if (e?.code === "P2002") {
+          agent = await prisma.agent.findUnique({
+            where: { userId: user.id },
+            select: { id: true },
+          });
+        } else {
+          console.warn("[ensureAgentsFromHiredApplications] Failed to create agent", {
+            applicationId: app.id,
+            userId: user.id,
+            message: e?.message,
+          });
+          continue;
+        }
+      }
+    }
+
+    if (!agent) continue;
+
+    try {
+      await prisma.jobApplication.update({
+        where: { id: app.id },
+        data: { agentId: agent.id },
+        select: { id: true },
+      });
+      linkedApplicationIds.push(app.id);
+    } catch (e: any) {
+      console.warn("[ensureAgentsFromHiredApplications] Failed to link application to agent", {
+        applicationId: app.id,
+        agentId: agent.id,
+        message: e?.message,
+      });
+    }
+  }
+
+  if (createdAgentIds.length > 0 || linkedApplicationIds.length > 0) {
+    try {
+      await audit(req as any, "AGENT_PROVISIONED_FROM_HIRED_APPLICATION", "agents", null, {
+        createdAgentIds,
+        linkedApplicationIds,
+      });
+    } catch {
+      // ignore
+    }
+  }
+}
+
 // Validation middleware helper
 function validate<T extends z.ZodTypeAny>(schema: T, source: "body" | "query" | "params" = "body") {
   return (req: any, res: Response, next: any) => {
@@ -281,12 +447,13 @@ router.get("/", validate(listAgentsQuerySchema, "query"), async (req: any, res) 
     const skip = (pageNum - 1) * pageSizeNum;
     const take = pageSizeNum;
 
+    // Auto-provision agents strictly from HIRED job applications.
+    await ensureAgentsFromHiredApplications(req as AuthedRequest);
+
     // Build where clause with proper Prisma types
-    const where: Prisma.AgentWhereInput = {
-      user: {
-        role: "AGENT",
-      },
-    };
+    // Note: do NOT filter by user.role here. The Agent table is the source of truth;
+    // legacy/hired agents might have a user role not set to "AGENT" yet.
+    const where: Prisma.AgentWhereInput = {};
 
     if (status) {
       where.status = status;
@@ -304,7 +471,6 @@ router.get("/", validate(listAgentsQuerySchema, "query"), async (req: any, res) 
     if (q) {
       const sanitizedQ = sanitizeText(q);
       where.user = {
-        role: "AGENT",
         OR: [
           { name: { contains: sanitizedQ } },
           { email: { contains: sanitizedQ } },
@@ -532,6 +698,13 @@ router.get("/:id", validate(getAgentParamsSchema, "params"), async (req: any, re
 // POST /api/admin/agents
 // ============================================================
 router.post("/", validate(createAgentSchema), async (req: any, res) => {
+  const allowManual = String(process.env.ALLOW_MANUAL_AGENT_CREATION || "").toLowerCase() === "true";
+  if (!allowManual) {
+    return sendError(res, 410, "Manual agent creation is disabled. Hire agents via Careers job applications (set application status to HIRED).", {
+      hint: "Use /api/admin/careers/applications/:id status=HIRED",
+    });
+  }
+
   try {
     const validatedData = req.validatedData;
     const adminId = getAdminId(req as AuthedRequest);

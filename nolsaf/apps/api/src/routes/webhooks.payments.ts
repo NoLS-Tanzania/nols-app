@@ -95,6 +95,85 @@ async function notifyOwnerInvoicePaid(params: {
 
 }
 
+async function notifyAdminsInvoicePaid(params: {
+  invoiceId: number;
+  invoiceNumber?: string | null;
+  bookingId: number;
+  ownerId?: number | null;
+  receiptNumber?: string | null;
+  propertyTitle?: string | null;
+  totalPaid?: number | null;
+  ownerPayout?: number | null;
+  commissionAmount?: number | null;
+  transportFare?: number | null;
+  currency?: string | null;
+}) {
+  const {
+    invoiceId,
+    invoiceNumber,
+    bookingId,
+    ownerId,
+    receiptNumber,
+    propertyTitle,
+    totalPaid,
+    ownerPayout,
+    commissionAmount,
+    transportFare,
+    currency,
+  } = params;
+
+  const admins = await prisma.user.findMany({
+    where: { role: "ADMIN", isDisabled: { not: true } },
+    select: { id: true },
+  });
+  if (!admins.length) return;
+
+  const fmt = (v?: number | null) =>
+    typeof v === "number" && Number.isFinite(v) ? `${Math.round(v).toLocaleString()} ${currency || "TZS"}` : null;
+
+  const title = "Invoice paid";
+  const body =
+    `${invoiceNumber ? `Invoice ${invoiceNumber}` : `Invoice #${invoiceId}`} paid` +
+    ` for Booking #${bookingId}` +
+    (propertyTitle ? ` (${propertyTitle})` : "") +
+    (receiptNumber ? `. Receipt: ${receiptNumber}` : ".") +
+    (fmt(totalPaid) ? ` Customer paid: ${fmt(totalPaid)}.` : "") +
+    (fmt(ownerPayout) ? ` Owner payout: ${fmt(ownerPayout)}.` : "") +
+    (fmt(commissionAmount) ? ` NoLSAF commission: ${fmt(commissionAmount)}.` : "") +
+    (fmt(transportFare) ? ` Transport: ${fmt(transportFare)}.` : "") +
+    (ownerId ? ` OwnerId: ${ownerId}.` : "");
+
+  try {
+    await prisma.notification.createMany({
+      data: admins.map((a) => ({
+        userId: a.id,
+        title,
+        body,
+        type: "invoice",
+        meta: {
+          kind: "invoice_paid_admin",
+          invoiceId,
+          invoiceNumber: invoiceNumber ?? null,
+          bookingId,
+          ownerId: ownerId ?? null,
+          receiptNumber: receiptNumber ?? null,
+          propertyTitle: propertyTitle ?? null,
+          totals: {
+            customerPaid: totalPaid ?? null,
+            ownerPayout: ownerPayout ?? null,
+            commission: commissionAmount ?? null,
+            transport: transportFare ?? null,
+            currency: currency ?? "TZS",
+          },
+          actionUrl: "/admin/invoices",
+        },
+      })),
+    });
+  } catch {
+    // Best-effort.
+  }
+}
+
 // raw parser just for webhooks
 router.use(bodyParser.raw({ type: "*/*", limit: "1mb" }));
 
@@ -118,7 +197,8 @@ async function markInvoicePaid(invId: number, method: string, paymentRef: string
   const payload = JSON.stringify({
     receipt: receiptNumber,
     invoice: inv.invoiceNumber,
-    amount: inv.netPayable,
+    // Receipt/QR should reflect what the customer actually paid.
+    amount: (inv as any).total ?? inv.netPayable,
     property: inv.booking.property?.title,
     bookingId: inv.bookingId,
     issuedAt: inv.issuedAt,
@@ -214,7 +294,30 @@ async function markInvoicePaid(invId: number, method: string, paymentRef: string
       propertyTitle: (inv as any).booking?.property?.title ?? null,
       checkIn: (inv as any).booking?.checkIn ?? null,
       checkOut: (inv as any).booking?.checkOut ?? null,
-      amount: Number((updated as any).total || (updated as any).netPayable || 0),
+      // Notify owners with the amount they actually receive.
+      amount:
+        (updated as any).netPayable != null
+          ? Number((updated as any).netPayable)
+          : null,
+    });
+  } catch {}
+
+  // Notify admins (classified breakdown: customer paid vs payout vs commission vs transport)
+  try {
+    const bookingAny = (inv as any).booking;
+    await notifyAdminsInvoicePaid({
+      invoiceId: updated.id,
+      invoiceNumber: updated.invoiceNumber ?? null,
+      bookingId: updated.bookingId,
+      ownerId: updated.ownerId,
+      receiptNumber: updated.receiptNumber ?? null,
+      propertyTitle: bookingAny?.property?.title ?? null,
+      totalPaid: (updated as any).total != null ? Number((updated as any).total) : null,
+      ownerPayout: (updated as any).netPayable != null ? Number((updated as any).netPayable) : null,
+      commissionAmount:
+        (updated as any).commissionAmount != null ? Number((updated as any).commissionAmount) : null,
+      transportFare: bookingAny?.transportFare != null ? Number(bookingAny.transportFare) : null,
+      currency: "TZS",
     });
   } catch {}
   // Best-effort: create a payout record so paid invoices show up in payouts views.
@@ -249,6 +352,12 @@ async function markInvoicePaid(invId: number, method: string, paymentRef: string
     io.emit("admin:invoice:paid", {
       invoiceId: updated.id,
       ownerId: updated.ownerId,
+      bookingId: updated.bookingId,
+      receiptNumber: updated.receiptNumber ?? null,
+      totalPaid: (updated as any).total ?? null,
+      ownerPayout: (updated as any).netPayable ?? null,
+      commissionAmount: (updated as any).commissionAmount ?? null,
+      transportFare: (inv as any).booking?.transportFare ?? null,
     });
     
     // Emit referral credit update if booking belongs to a referred user
@@ -389,7 +498,7 @@ router.post("/azampay", webhookLimiter, async (req: any, res) => {
 
     // If payment is successful, mark invoice as paid
     if (invoice && normalizedStatus === "SUCCESS") {
-      const want = Number(invoice.netPayable || invoice.total || 0);
+      const want = Number(invoice.total || invoice.netPayable || 0);
       
       // Extract phone number and provider from payment event payload or invoice
       const eventPayload = recorded.payload as any;

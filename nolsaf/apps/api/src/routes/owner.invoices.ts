@@ -65,7 +65,10 @@ router.post("/from-booking", async (req, res) => {
   const nights = Math.max(1, Math.ceil((+booking.checkOut - +booking.checkIn) / (1000*60*60*24)));
   // Prefer totalAmount if you already computed; otherwise fallback to nights * pricePerNight
   const pricePerNight = (booking as any).pricePerNight ?? booking.property?.pricePerNight ?? null;
-  const amount = booking.totalAmount ?? (pricePerNight ? (pricePerNight as any) * nights : 0);
+  const transportFare = (booking as any).includeTransport ? Number((booking as any).transportFare || 0) : 0;
+  const amount = booking.totalAmount
+    ? Math.max(0, Number(booking.totalAmount) - transportFare)
+    : (pricePerNight ? (pricePerNight as any) * nights : 0);
 
   // Create invoice + item atomically
   type MinimalInvoice = Prisma.InvoiceGetPayload<{ select: { id: true } }>;
@@ -157,7 +160,7 @@ router.get("/:id", async (req: Request, res: Response) => {
   const authReq = req as AuthedRequest;
   const id = Number(authReq.params.id);
   const inv = await prisma.invoice.findFirst({
-    where: { id, ownerId: authReq.user!.id },
+    where: { id, ownerId: authReq.user!.id, invoiceNumber: { startsWith: "OINV-" } } as any,
     include: { booking: { include: { property: true, user: true, code: true } } },
   });
   if (!inv) return res.status(404).json({ error: "Not found" });
@@ -201,7 +204,7 @@ router.post("/:id/submit", async (req, res) => {
   const id = Number(authReq.params.id);
   const ownerId = authReq.user!.id;
 
-  const inv = await prisma.invoice.findFirst({ where: { id, ownerId } });
+  const inv = await prisma.invoice.findFirst({ where: { id, ownerId, invoiceNumber: { startsWith: "OINV-" } } as any });
   if (!inv) return res.status(404).json({ error: "Not found" });
 
   // Idempotent: if already submitted/processed, do nothing (prevents repeats + duplicate admin events).

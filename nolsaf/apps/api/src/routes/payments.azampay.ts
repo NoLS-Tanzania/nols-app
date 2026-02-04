@@ -192,7 +192,9 @@ router.post("/initiate", paymentLimiter, async (req, res) => {
     const normalizedPhone = normalizePhone(userPhone);
 
     // Prepare AzamPay payment request
-    const amount = Number(invoice.netPayable || invoice.total || 0);
+    // Customer payment invoices (INV-...) may have `netPayable` representing owner receivable.
+    // Always charge the customer using the invoice `total`.
+    const amount = Number(invoice.total || invoice.netPayable || 0);
     const currency = invoice.booking?.property?.currency || "TZS";
     
     const paymentData = {
@@ -329,7 +331,7 @@ router.get("/status/:paymentRef", async (req, res) => {
       invoiceStatus: invoice.status,
       paymentRef,
       paymentStatus: paymentEvent?.status || "UNKNOWN",
-      amount: invoice.netPayable || invoice.total,
+      amount: invoice.total || invoice.netPayable,
       currency: invoice.booking?.property?.currency || "TZS",
       lastEvent: paymentEvent ? {
         status: paymentEvent.status,

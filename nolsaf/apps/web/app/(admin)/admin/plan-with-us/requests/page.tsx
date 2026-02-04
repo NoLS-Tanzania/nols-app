@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
-import { Search, X, Calendar, MapPin, Clock, User, BarChart3, TrendingUp, Loader2, FileText, AlertTriangle, Edit, Send, Eye, MessageSquare, ChevronDown } from "lucide-react";
+import { Search, X, Calendar, MapPin, Clock, User, BarChart3, TrendingUp, Loader2, FileText, AlertTriangle, Edit, Send, Eye, MessageSquare, ChevronDown, Star } from "lucide-react";
 import DatePicker from "@/components/ui/DatePicker";
 import axios from "axios";
 import Chart from "@/components/Chart";
@@ -9,7 +9,25 @@ import type { ChartData } from "chart.js";
 
 // Use same-origin for HTTP calls so Next.js rewrites proxy to the API
 const api = axios.create({ baseURL: "", withCredentials: true });
-function authify() {}
+function authify() {
+  if (typeof window === "undefined") return;
+
+  const lsToken =
+    window.localStorage.getItem("token") ||
+    window.localStorage.getItem("nolsaf_token") ||
+    window.localStorage.getItem("__Host-nolsaf_token");
+
+  if (lsToken) {
+    api.defaults.headers.common["Authorization"] = `Bearer ${lsToken}`;
+    return;
+  }
+
+  const m = String(document.cookie || "").match(/(?:^|;\s*)(?:nolsaf_token|__Host-nolsaf_token)=([^;]+)/);
+  const cookieToken = m?.[1] ? decodeURIComponent(m[1]) : "";
+  if (cookieToken) {
+    api.defaults.headers.common["Authorization"] = `Bearer ${cookieToken}`;
+  }
+}
 
 type ConversationMessage = {
   type: string;
@@ -129,6 +147,7 @@ type PlanRequestRow = {
   suggestedItineraries?: string | null;
   requiredPermits?: string | null;
   estimatedTimeline?: string | null;
+  assignedAgentId?: number | null;
   assignedAgent?: string | null;
   respondedAt?: string | null;
   createdAt: string;
@@ -200,6 +219,8 @@ export default function AdminPlanWithUsRequestsPage() {
   });
   const [quickMessage, setQuickMessage] = useState("");
   const [sendingMessage, setSendingMessage] = useState(false);
+
+  const [assignmentSaving, setAssignmentSaving] = useState(false);
   
   // Agent selection state
   const [agents, setAgents] = useState<any[]>([]);
@@ -312,12 +333,60 @@ export default function AdminPlanWithUsRequestsPage() {
         params.q = searchQuery.trim();
       }
       const response = await api.get("/api/admin/agents", { params });
-      setAgents(response.data.items || []);
+      const body = response.data as any;
+      const items = body?.data?.items ?? body?.items ?? [];
+      setAgents(Array.isArray(items) ? items : []);
     } catch (err) {
       console.error("Failed to load agents", err);
       setAgents([]);
     } finally {
       setAgentsLoading(false);
+    }
+  };
+
+  const handleSaveAssignment = async () => {
+    if (!selectedRequest) return;
+    if (!responseForm.assignedAgentId) {
+      alert("Please select an agent first.");
+      return;
+    }
+
+    setAssignmentSaving(true);
+    try {
+      const selectedAgent = agents.find((a) => Number(a?.id) === Number(responseForm.assignedAgentId));
+
+      const submitData: any = {
+        assignedAgentId: responseForm.assignedAgentId,
+        assignedAgent: selectedAgent?.user?.name || responseForm.assignedAgent || "",
+      };
+
+      // Nice default: when assigning an agent to a pending request, mark it in-progress.
+      if (String(selectedRequest.status || "").toUpperCase() === "PENDING") {
+        submitData.status = "IN_PROGRESS";
+      }
+
+      await api.patch(`/api/admin/plan-with-us/requests/${selectedRequest.id}`, submitData);
+
+      // Refresh list + selected request details
+      await load();
+      const refreshed = await api.get(`/api/admin/plan-with-us/requests/${selectedRequest.id}`);
+      setSelectedRequest(refreshed.data);
+      setResponseForm((prev) => ({
+        ...prev,
+        assignedAgent: refreshed.data?.assignedAgent || prev.assignedAgent,
+        assignedAgentId: refreshed.data?.assignedAgentId ?? prev.assignedAgentId,
+      }));
+
+      window.dispatchEvent(
+        new CustomEvent("nols:toast", {
+          detail: { type: "success", title: "Agent Assigned", message: "Agent assignment saved successfully.", duration: 3000 },
+        })
+      );
+    } catch (err) {
+      console.error("Failed to save assignment", err);
+      alert("Failed to save assignment. Please try again.");
+    } finally {
+      setAssignmentSaving(false);
     }
   };
 
@@ -413,6 +482,39 @@ export default function AdminPlanWithUsRequestsPage() {
     });
     setShowAgentDropdown(false);
     setAgentSearchQuery(agent.user?.name || "");
+  };
+
+  const getAgentRatingSummary = (agent: any): { avg: number | null; totalReviews: number | null } => {
+    const performanceMetrics = agent?.performanceMetrics ?? {};
+    const punctuality = typeof performanceMetrics?.punctualityRating === "number" ? performanceMetrics.punctualityRating : null;
+    const customerCare = typeof performanceMetrics?.customerCareRating === "number" ? performanceMetrics.customerCareRating : null;
+    const communication = typeof performanceMetrics?.communicationRating === "number" ? performanceMetrics.communicationRating : null;
+    const totalReviews = typeof performanceMetrics?.totalReviews === "number" ? performanceMetrics.totalReviews : null;
+
+    const parts = [punctuality, customerCare, communication].filter((n): n is number => typeof n === "number" && n > 0);
+    if (parts.length === 0) return { avg: null, totalReviews };
+    const avg = parts.reduce((sum, n) => sum + n, 0) / parts.length;
+    return { avg, totalReviews };
+  };
+
+  const renderStars = (avg: number | null) => {
+    const rounded = typeof avg === "number" ? Math.max(0, Math.min(5, Math.round(avg))) : 0;
+    return (
+      <div className="flex items-center gap-0.5" aria-label={avg ? `Rating ${avg.toFixed(1)} out of 5` : "No rating"}>
+        {Array.from({ length: 5 }).map((_, i) => {
+          const filled = i + 1 <= rounded;
+          return (
+            <Star
+              key={i}
+              className={
+                "h-3.5 w-3.5 " +
+                (filled ? "text-yellow-500 fill-yellow-500" : "text-gray-300")
+              }
+            />
+          );
+        })}
+      </div>
+    );
   };
   
   // Initialize agent search query when modal opens with existing agent
@@ -639,6 +741,7 @@ export default function AdminPlanWithUsRequestsPage() {
                 <option value="School / Teacher">School / Teacher</option>
                 <option value="University">University</option>
                 <option value="Community group">Community Group</option>
+                <option value="Tourist">Tourist</option>
                 <option value="Other">Other</option>
               </select>
             </div>
@@ -1499,7 +1602,7 @@ export default function AdminPlanWithUsRequestsPage() {
                     </div>
                   </div>
 
-                  <div className="bg-white rounded-xl p-4 sm:p-5 border border-gray-200 shadow-sm transition-all duration-300 hover:shadow-md overflow-hidden">
+                  <div className="bg-white rounded-xl p-4 sm:p-5 border border-gray-200 shadow-sm transition-all duration-300 hover:shadow-md overflow-visible">
                     <label className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
                       <User className="h-4 w-4 text-blue-600" />
                       Assign Agent
@@ -1533,52 +1636,86 @@ export default function AdminPlanWithUsRequestsPage() {
                       
                       {/* Agent Dropdown */}
                       {showAgentDropdown && !selectedRequest.status.includes("COMPLETED") && (
-                        <div className="absolute z-50 w-full mt-1 bg-white border-2 border-gray-200 rounded-xl shadow-xl max-h-80 overflow-y-auto">
+                        <div className="absolute z-50 w-full mt-1 bg-white border-2 border-gray-200 rounded-xl shadow-xl max-h-96 overflow-y-auto">
                           {agentsLoading ? (
                             <div className="p-4 text-center text-sm text-gray-500">Loading agents...</div>
                           ) : agents.length === 0 ? (
                             <div className="p-4 text-center text-sm text-gray-500">No agents found. Try a different search.</div>
                           ) : (
-                            <>
-                              {agents.map((agent) => (
-                                <button
-                                  key={agent.id}
-                                  type="button"
-                                  onClick={() => handleSelectAgent(agent)}
-                                  className={`w-full text-left px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0 transition-colors ${
-                                    responseForm.assignedAgentId === agent.id ? 'bg-blue-50' : ''
-                                  }`}
-                                >
-                                  <div className="flex items-center justify-between">
-                                    <div>
-                                      <div className="font-medium text-gray-900">{agent.user?.name || "N/A"}</div>
-                                      <div className="text-sm text-gray-500">{agent.user?.email}</div>
-                                      <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                        {agent.yearsOfExperience && (
-                                          <span className="text-xs text-gray-400">{agent.yearsOfExperience} years exp.</span>
-                                        )}
-                                        {agent.areasOfOperation && Array.isArray(agent.areasOfOperation) && agent.areasOfOperation.length > 0 && (
-                                          <span className="text-xs text-gray-400">
-                                            {agent.areasOfOperation.slice(0, 2).join(", ")}
-                                          </span>
-                                        )}
+                            <div className="p-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {agents.map((agent) => {
+                                const name = agent.user?.name || "N/A";
+                                const email = agent.user?.email || "";
+                                const initials = String(name)
+                                  .split(" ")
+                                  .filter(Boolean)
+                                  .slice(0, 2)
+                                  .map((p: string) => p[0]?.toUpperCase())
+                                  .join("") || "A";
+                                const { avg, totalReviews } = getAgentRatingSummary(agent);
+                                const selected = Number(responseForm.assignedAgentId) === Number(agent.id);
+                                const capacityClass =
+                                  agent.currentActiveRequests >= agent.maxActiveRequests
+                                    ? "bg-red-100 text-red-700"
+                                    : agent.currentActiveRequests >= agent.maxActiveRequests * 0.8
+                                      ? "bg-yellow-100 text-yellow-700"
+                                      : "bg-green-100 text-green-700";
+
+                                return (
+                                  <button
+                                    key={agent.id}
+                                    type="button"
+                                    onClick={() => handleSelectAgent(agent)}
+                                    className={
+                                      "group w-full text-left rounded-xl border p-3 transition-all hover:shadow-md hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 " +
+                                      (selected ? "border-blue-300 bg-blue-50" : "border-gray-200 bg-white")
+                                    }
+                                  >
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="min-w-0">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                          <div className="h-8 w-8 shrink-0 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 text-white text-xs font-bold flex items-center justify-center">
+                                            {initials}
+                                          </div>
+                                          <div className="min-w-0">
+                                            <div className="font-semibold text-gray-900 truncate">{name}</div>
+                                            <div className="text-xs text-gray-500 truncate">{email}</div>
+                                          </div>
+                                        </div>
+
+                                        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                                          {agent.yearsOfExperience ? (
+                                            <span className="rounded-md bg-gray-100 px-2 py-0.5 text-gray-700">
+                                              {agent.yearsOfExperience} yrs exp.
+                                            </span>
+                                          ) : null}
+                                          {Array.isArray(agent.areasOfOperation) && agent.areasOfOperation.length > 0 ? (
+                                            <span className="rounded-md bg-gray-100 px-2 py-0.5 text-gray-700">
+                                              {agent.areasOfOperation.slice(0, 2).join(", ")}
+                                            </span>
+                                          ) : null}
+                                        </div>
+                                      </div>
+
+                                      <div className="shrink-0 flex flex-col items-end gap-1">
+                                        <div className={`text-xs px-2 py-1 rounded-md font-semibold ${capacityClass}`}>
+                                          {agent.currentActiveRequests}/{agent.maxActiveRequests}
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          {renderStars(avg)}
+                                          <div className="text-xs text-gray-700 font-semibold">
+                                            {typeof avg === "number" ? avg.toFixed(1) : "—"}
+                                            <span className="text-gray-400 font-normal">
+                                              {typeof totalReviews === "number" ? ` (${totalReviews})` : ""}
+                                            </span>
+                                          </div>
+                                        </div>
                                       </div>
                                     </div>
-                                    <div className="text-right ml-2">
-                                      <div className={`text-xs px-2 py-1 rounded ${
-                                        agent.currentActiveRequests >= agent.maxActiveRequests
-                                          ? "bg-red-100 text-red-700"
-                                          : agent.currentActiveRequests >= agent.maxActiveRequests * 0.8
-                                          ? "bg-yellow-100 text-yellow-700"
-                                          : "bg-green-100 text-green-700"
-                                      }`}>
-                                        {agent.currentActiveRequests}/{agent.maxActiveRequests}
-                                      </div>
-                                    </div>
-                                  </div>
-                                </button>
-                              ))}
-                            </>
+                                  </button>
+                                );
+                              })}
+                            </div>
                           )}
                         </div>
                       )}
@@ -1629,6 +1766,36 @@ export default function AdminPlanWithUsRequestsPage() {
                     >
                       Cancel
                     </button>
+
+                    <button
+                      onClick={handleSaveAssignment}
+                      disabled={
+                        assignmentSaving ||
+                        !responseForm.assignedAgentId ||
+                        Number(responseForm.assignedAgentId) === Number(selectedRequest.assignedAgentId ?? 0)
+                      }
+                      className="w-full sm:w-auto px-5 py-2.5 border-2 border-blue-200 bg-blue-50 text-blue-700 rounded-xl text-sm font-semibold hover:bg-blue-100 hover:border-blue-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all duration-200 active:scale-95 disabled:active:scale-100"
+                      title={
+                        !responseForm.assignedAgentId
+                          ? "Select an agent to assign"
+                          : Number(responseForm.assignedAgentId) === Number(selectedRequest.assignedAgentId ?? 0)
+                            ? "Assignment is already saved"
+                            : "Save agent assignment"
+                      }
+                    >
+                      {assignmentSaving ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Saving…
+                        </>
+                      ) : (
+                        <>
+                          <User className="h-4 w-4" />
+                          Save Assignment
+                        </>
+                      )}
+                    </button>
+
                     <button
                       onClick={handleSubmitResponse}
                       disabled={submitting || !responseForm.suggestedItineraries || !responseForm.requiredPermits || !responseForm.estimatedTimeline}

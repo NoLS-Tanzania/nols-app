@@ -18,8 +18,10 @@ export default function AccountLoginRedirectPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  const nextPath = useMemo(() => safeNextPath(searchParams.get("next")), [searchParams]);
+
   const targetHref = useMemo(() => {
-    const next = safeNextPath(searchParams.get("next"));
+    const next = nextPath;
     const role = searchParams.get("role")?.trim() || undefined;
     const ref = searchParams.get("ref")?.trim() || undefined;
 
@@ -38,28 +40,38 @@ export default function AccountLoginRedirectPage() {
   }, [router, targetHref]);
 
   return (
-    <div className="min-h-[70vh] flex items-center justify-center px-4 py-14 bg-gradient-to-b from-white to-slate-50">
-      <div className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+    <div className="min-h-[70vh] flex items-center justify-center px-4 py-14 bg-gradient-to-b from-white via-emerald-50/30 to-slate-50">
+      <div className="w-full max-w-xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="p-8">
           <div className="flex items-start gap-4">
-            <div className="h-11 w-11 rounded-xl bg-slate-900 text-white flex items-center justify-center font-semibold tracking-wide">
+            <div className="h-11 w-11 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-semibold tracking-wide shadow-sm">
               N
             </div>
-            <div className="min-w-0">
-              <h1 className="text-2xl font-semibold text-slate-900">Hello</h1>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-3">
+                <h1 className="text-2xl font-semibold text-slate-900">Secure sign-in</h1>
+                <div className="h-5 w-5 rounded-full border-2 border-emerald-200 border-t-emerald-600 animate-spin" aria-label="Loading" />
+              </div>
               <p className="mt-1 text-sm text-slate-600">
-                Redirecting you to secure sign-in.
+                Redirecting you to the unified sign-in experience.
               </p>
             </div>
           </div>
 
-          <div className="mt-6 space-y-3">
-            <p className="text-sm text-slate-700 leading-6">
-              We use a single, modern sign-in experience for everyone. You can continue with phone OTP or
-              email and password, then we’ll take you back to where you were.
-            </p>
+          <div className="mt-6 space-y-4">
+            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/40 px-5 py-4">
+              <p className="text-sm text-slate-700 leading-6">
+                Continue with phone OTP or email + password. After signing in, we’ll bring you back automatically.
+              </p>
+              {nextPath ? (
+                <p className="mt-2 text-xs text-slate-500">
+                  Return to: <span className="font-medium text-slate-700">{nextPath}</span>
+                </p>
+              ) : null}
+            </div>
+
             <div className="flex items-center gap-3">
-              <div className="h-2.5 w-2.5 rounded-full bg-slate-900 animate-pulse" />
+              <div className="h-2.5 w-2.5 rounded-full bg-emerald-600 animate-pulse" />
               <span className="text-xs text-slate-500">If this takes more than a moment, use the button below.</span>
             </div>
           </div>
@@ -67,13 +79,13 @@ export default function AccountLoginRedirectPage() {
           <div className="mt-8 flex flex-col sm:flex-row gap-3">
             <Link
               href={targetHref}
-              className="inline-flex items-center justify-center rounded-lg bg-slate-900 px-4 py-3 text-sm font-medium text-white hover:bg-slate-800 transition"
+              className="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700 transition"
             >
               Continue to Sign In
             </Link>
             <Link
               href="/"
-              className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50 transition"
+              className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition"
             >
               Go Home
             </Link>
@@ -82,7 +94,7 @@ export default function AccountLoginRedirectPage() {
 
         <div className="px-8 py-4 bg-slate-50 border-t border-slate-200">
           <p className="text-xs text-slate-500">
-            Tip: Bookmark your role portal (Owner, Driver, Admin) for the fastest access.
+            Tip: Use your account area for bookings, group stays, and plan requests.
           </p>
         </div>
       </div>

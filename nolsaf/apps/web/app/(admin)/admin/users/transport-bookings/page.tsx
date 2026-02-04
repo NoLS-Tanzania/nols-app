@@ -1,12 +1,58 @@
 "use client";
 
 import { useEffect, useState, useMemo, useRef } from "react";
-import { Truck, Search, X, User, MapPin, Calendar, Clock, AlertTriangle, CheckCircle, FileText, Filter, Eye } from "lucide-react";
+import {
+  Truck,
+  Search,
+  X,
+  User,
+  MapPin,
+  Calendar,
+  Clock,
+  AlertTriangle,
+  CheckCircle,
+  Filter,
+  Eye,
+  Hourglass,
+  XCircle,
+  BadgeCheck,
+  CircleDashed,
+  CircleCheck,
+  FileSearch,
+  Mail,
+  Phone,
+  Bookmark,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+} from "lucide-react";
 import axios from "axios";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 const api = axios.create({ baseURL: "", withCredentials: true });
-function authify() {}
+function authify() {
+  if (typeof window === "undefined") return;
+
+  // Most of the app uses a Bearer token (often stored in localStorage).
+  // The admin endpoints are protected by requireAuth/requireRole, so we must attach it.
+  const lsToken =
+    window.localStorage.getItem("token") ||
+    window.localStorage.getItem("nolsaf_token") ||
+    window.localStorage.getItem("__Host-nolsaf_token");
+
+  if (lsToken) {
+    api.defaults.headers.common["Authorization"] = `Bearer ${lsToken}`;
+    return;
+  }
+
+  // Fallback: non-httpOnly cookie (if present)
+  const m = String(document.cookie || "").match(/(?:^|;\s*)(?:nolsaf_token|__Host-nolsaf_token)=([^;]+)/);
+  const cookieToken = m?.[1] ? decodeURIComponent(m[1]) : "";
+  if (cookieToken) {
+    api.defaults.headers.common["Authorization"] = `Bearer ${cookieToken}`;
+  }
+}
 
 type TransportBooking = {
   id: number;
@@ -18,10 +64,12 @@ type TransportBooking = {
   checkIn: string | null;
   checkOut: string | null;
   useDates: boolean;
-  headcount: number;
+  kind: "group" | "individual";
+  headcount: number | null;
+  roomsQty: number | null;
   status: string;
   totalAmount: number | null;
-  currency: string;
+  currency: string | null;
   pickupLocation: string | null;
   pickupTime: string | null;
   arrangementNotes: string | null;
@@ -29,36 +77,177 @@ type TransportBooking = {
   urgency: "urgent" | "later" | "specified" | "flexible";
   urgencyReason: string;
   user: {
-    id: number;
+    id: number | null;
     name: string | null;
-    email: string;
+    email: string | null;
     phone: string | null;
   };
 };
 
+function formatPickupTime(pickupTime: string | null) {
+  if (!pickupTime) return null;
+
+  const trimmed = String(pickupTime).trim();
+
+  // Many transport times come back as ISO strings.
+  // Some also come back as parseable date strings; format them compactly.
+  const maybeDate = new Date(trimmed);
+  if (!Number.isNaN(maybeDate.getTime())) {
+    const date = maybeDate.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "2-digit" });
+    const time = maybeDate.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+    return `${date} • ${time}`;
+  }
+
+  // Otherwise, keep it as-is (e.g. "10:00 AM").
+  return trimmed;
+}
+
+function shortenText(text: string, max = 42) {
+  const t = String(text || "").trim();
+  if (t.length <= max) return t;
+  return `${t.slice(0, Math.max(0, max - 1)).trimEnd()}…`;
+}
+
+function formatDateShort(value: string | null) {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleDateString(undefined, { year: "numeric", month: "2-digit", day: "2-digit" });
+}
+
+function formatDateTimeShort(value: string | null) {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return {
+    date: d.toLocaleDateString(undefined, { year: "numeric", month: "2-digit", day: "2-digit" }),
+    time: d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }),
+  };
+}
+
+const MARKS_STORAGE_KEY = "admin_transport_bookings_marks_v1";
+
+type SortKey = "date" | "pickup" | "created" | "destination" | "customer" | "status" | "urgency";
+type SortDir = "asc" | "desc";
+
 export default function TransportBookingsPage() {
+  const router = useRouter();
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("date");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [page, setPage] = useState(1);
   const [items, setItems] = useState<TransportBooking[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string>("");
+  const [markedKeys, setMarkedKeys] = useState<string[]>([]);
+  const [markedOnly, setMarkedOnly] = useState(false);
   const pageSize = 30;
   const searchRef = useRef<HTMLInputElement | null>(null);
 
+  const markedSet = useMemo(() => new Set(markedKeys), [markedKeys]);
+
+  const bookingKey = (booking: TransportBooking) => `${booking.kind}:${booking.id}`;
+
+  const toggleMark = (key: string) => {
+    setMarkedKeys((prev) => {
+      if (prev.includes(key)) return prev.filter((k) => k !== key);
+      return [key, ...prev].slice(0, 500);
+    });
+  };
+
+  const toggleSort = (key: SortKey) => {
+    setSortKey((prev) => {
+      if (prev !== key) {
+        setSortDir("asc");
+        return key;
+      }
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+      return prev;
+    });
+    setPage(1);
+  };
+
+  const SortIcon = ({ active }: { active: boolean }) => {
+    if (!active) return <ArrowUpDown className="h-3.5 w-3.5 text-gray-400" />;
+    return sortDir === "asc" ? <ArrowUp className="h-3.5 w-3.5 text-gray-700" /> : <ArrowDown className="h-3.5 w-3.5 text-gray-700" />;
+  };
+
+  const SortableHeader = ({ label, keyName, align = "left" }: { label: string; keyName: SortKey; align?: "left" | "right" }) => {
+    const isActive = sortKey === keyName;
+    return (
+      <th className={`px-6 py-3 text-${align} text-xs font-semibold text-gray-700`}>
+        <button
+          type="button"
+          onClick={() => toggleSort(keyName)}
+          className="inline-flex items-center gap-1.5 border-0 bg-transparent p-0 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors focus:outline-none"
+          aria-label={`Sort by ${label}`}
+          title={`Sort by ${label}`}
+        >
+          <span>{label}</span>
+          <SortIcon active={isActive} />
+        </button>
+      </th>
+    );
+  };
+
+  const getViewHref = (booking: TransportBooking) =>
+    booking.kind === "group"
+      ? `/admin/group-stays/bookings?bookingId=${booking.id}`
+      : `/admin/bookings/${booking.id}`;
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(MARKS_STORAGE_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(parsed)) {
+        setMarkedKeys(parsed.filter((x) => typeof x === "string").slice(0, 500));
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(MARKS_STORAGE_KEY, JSON.stringify(markedKeys));
+    } catch {
+      // ignore
+    }
+  }, [markedKeys]);
+
   async function load() {
     setLoading(true);
+    setError("");
     try {
       authify();
       const params: any = { page, pageSize };
       if (status) params.status = status;
       if (q) params.q = q;
+      if (sortKey) params.sort = sortKey;
+      if (sortDir) params.dir = sortDir;
 
-      const r = await api.get<{ items: TransportBooking[]; total: number }>("/admin/users/transport-bookings", { params });
-      setItems(r.data?.items ?? []);
-      setTotal(r.data?.total ?? 0);
+      // NOTE: do NOT call `/admin/users/transport-bookings` here.
+      // That path is a Next.js page route (this page), so XHR would receive HTML.
+      // Use a non-page path that rewrites/proxies to the API server.
+      const r = await api.get<{ items: TransportBooking[]; total: number }>("/api/admin/users/transport-bookings", { params });
+
+      const data: any = r.data;
+      const nextItems = Array.isArray(data?.items) ? (data.items as TransportBooking[]) : [];
+      const nextTotal = typeof data?.total === "number" ? data.total : 0;
+
+      setItems(nextItems);
+      setTotal(nextTotal);
+
+      if (!Array.isArray(data?.items)) {
+        setError("Unexpected response while loading transport bookings.");
+      }
     } catch (err) {
       console.error("Failed to load transport bookings", err);
+      setError("Failed to load transport bookings. Please refresh and try again.");
       setItems([]);
       setTotal(0);
     } finally {
@@ -69,7 +258,7 @@ export default function TransportBookingsPage() {
   useEffect(() => {
     authify();
     load();
-  }, [page, status, q]);
+  }, [page, status, q, sortKey, sortDir]);
 
   const pages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -106,21 +295,62 @@ export default function TransportBookingsPage() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    const statusMap: Record<string, { bg: string; text: string }> = {
-      PENDING: { bg: "bg-gray-100", text: "text-gray-800" },
-      CONFIRMED: { bg: "bg-blue-100", text: "text-blue-800" },
-      PROCESSING: { bg: "bg-amber-100", text: "text-amber-800" },
-      COMPLETED: { bg: "bg-emerald-100", text: "text-emerald-800" },
-      CANCELED: { bg: "bg-red-100", text: "text-red-800" },
+  const normalizeStatusForFilter = (rawStatus: string) => {
+    const s = String(rawStatus || "").toUpperCase();
+    if (s === "CANCELLED") return "CANCELED";
+    return s;
+  };
+
+  const getStatusIndicator = (rawStatus: string) => {
+    const map: Record<
+      string,
+      {
+        label: string;
+        Icon: React.ComponentType<{ className?: string }>;
+        color: string;
+      }
+    > = {
+      NEW: { label: "New", Icon: CircleDashed, color: "text-gray-600" },
+      PENDING: { label: "Pending", Icon: Hourglass, color: "text-gray-600" },
+      REVIEWING: { label: "Reviewing", Icon: FileSearch, color: "text-blue-600" },
+      CONFIRMED: { label: "Confirmed", Icon: BadgeCheck, color: "text-blue-600" },
+      PROCESSING: { label: "Processing", Icon: Clock, color: "text-amber-600" },
+      CHECKED_IN: { label: "Checked in", Icon: CircleCheck, color: "text-emerald-600" },
+      CHECKED_OUT: { label: "Checked out", Icon: CheckCircle, color: "text-gray-600" },
+      COMPLETED: { label: "Completed", Icon: CheckCircle, color: "text-emerald-600" },
+      CANCELED: { label: "Canceled", Icon: XCircle, color: "text-red-600" },
+      CANCELLED: { label: "Cancelled", Icon: XCircle, color: "text-red-600" },
     };
-    const colors = statusMap[status] || { bg: "bg-gray-100", text: "text-gray-800" };
+
+    const bookingStatus = String(rawStatus || "").toUpperCase();
+    const entry = map[bookingStatus] || { label: bookingStatus || "Unknown", Icon: CircleDashed, color: "text-gray-600" };
+    const Icon = entry.Icon;
+    const filterValue = normalizeStatusForFilter(bookingStatus);
+    const isActive = normalizeStatusForFilter(status) === filterValue;
+
     return (
-      <span className={`px-2 py-1 rounded text-xs font-medium ${colors.bg} ${colors.text}`}>
-        {status}
-      </span>
+      <button
+        type="button"
+        title={`Filter: ${entry.label}`}
+        aria-label={`Filter by status: ${entry.label}`}
+        onClick={() => {
+          setStatus((prev) => (normalizeStatusForFilter(prev) === filterValue ? "" : filterValue));
+          setPage(1);
+        }}
+        className={`inline-flex items-center justify-center border-0 bg-transparent p-1 transition duration-150 hover:scale-110 hover:opacity-90 focus:outline-none ${
+          isActive ? "scale-110" : ""
+        }`}
+      >
+        <Icon className={`h-4 w-4 ${entry.color}`} />
+        <span className="sr-only">Filter by status: {entry.label}</span>
+      </button>
     );
   };
+
+  const visibleItems = useMemo(() => {
+    if (!markedOnly) return items;
+    return items.filter((b) => markedSet.has(bookingKey(b)));
+  }, [items, markedOnly, markedSet]);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -131,7 +361,7 @@ export default function TransportBookingsPage() {
             <Truck className="h-8 w-8 text-blue-600" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900">Transport Bookings</h1>
-          <p className="text-sm text-gray-500 mt-1">Customers who booked properties with transport services</p>
+          <p className="text-sm text-gray-500 mt-1">Customers who booked accommodation with transport requested (group stays + individual bookings)</p>
         </div>
       </div>
 
@@ -183,18 +413,57 @@ export default function TransportBookingsPage() {
               className="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none text-sm bg-white box-border min-w-[140px]"
             >
               <option value="">All Status</option>
+              <option value="NEW">New</option>
               <option value="PENDING">Pending</option>
+              <option value="REVIEWING">Reviewing</option>
               <option value="CONFIRMED">Confirmed</option>
               <option value="PROCESSING">Processing</option>
+              <option value="CHECKED_IN">Checked in</option>
+              <option value="CHECKED_OUT">Checked out</option>
               <option value="COMPLETED">Completed</option>
               <option value="CANCELED">Canceled</option>
             </select>
+          </div>
+
+          {/* Marked */}
+          <div className="flex items-center gap-2 w-full sm:w-auto sm:flex-shrink-0">
+            <button
+              type="button"
+              onClick={() => setMarkedOnly((v) => !v)}
+              className={`inline-flex items-center gap-2 px-3 py-2 border rounded-lg text-sm transition-colors ${
+                markedOnly
+                  ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+                  : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+              }`}
+              title={markedOnly ? "Showing marked only (current page)" : "Show marked only (current page)"}
+              aria-pressed={markedOnly}
+            >
+              <Bookmark className="h-4 w-4" />
+              <span className="whitespace-nowrap">Marked</span>
+              <span className="text-xs text-gray-500">({markedKeys.length})</span>
+            </button>
+            {markedKeys.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setMarkedKeys([])}
+                className="px-3 py-2 border border-gray-300 bg-white rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                title="Clear all marks"
+              >
+                Clear
+              </button>
+            )}
           </div>
         </div>
       </div>
 
       {/* Bookings Table */}
       <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+        {error && (
+          <div className="px-6 py-4 border-b border-gray-200 bg-amber-50 text-amber-900 text-sm flex items-start gap-2">
+            <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+            <div>{error}</div>
+          </div>
+        )}
         {loading ? (
           <>
             {/* Skeleton Table */}
@@ -202,12 +471,14 @@ export default function TransportBookingsPage() {
               <table className="w-full">
                 <thead className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
                   <tr>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">&nbsp;</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Customer</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Destination</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Dates</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Urgency</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Group Details</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Pickup Info</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Created</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Status</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-600 uppercase tracking-wider">Actions</th>
                   </tr>
@@ -248,35 +519,72 @@ export default function TransportBookingsPage() {
               </table>
             </div>
           </>
-        ) : items.length === 0 ? (
+        ) : visibleItems.length === 0 ? (
           <div className="px-6 py-12 text-center">
             <Truck className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-            <p className="text-sm text-gray-500">No transport bookings found.</p>
+            <p className="text-sm text-gray-500">{markedOnly ? "No marked transport bookings on this page." : "No transport bookings found."}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+              <thead className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200 sticky top-0 z-10">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Customer</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Destination</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Dates</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Urgency</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">&nbsp;</th>
+                  <SortableHeader label="Customer" keyName="customer" />
+                  <SortableHeader label="Destination" keyName="destination" />
+                  <SortableHeader label="Dates" keyName="date" />
+                  <SortableHeader label="Urgency" keyName="urgency" />
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Group Details</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Pickup Info</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Status</th>
+                  <SortableHeader label="Pickup Info" keyName="pickup" />
+                  <SortableHeader label="Created" keyName="created" />
+                  <SortableHeader label="Status" keyName="status" />
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-600 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {items.map((booking) => (
-                  <tr key={booking.id} className="hover:bg-gray-50 transition-colors duration-150">
+                {visibleItems.map((booking) => (
+                  <tr
+                    key={`${booking.kind}:${booking.id}`}
+                    className="group hover:bg-gray-50 transition-colors duration-150 cursor-pointer"
+                    onClick={(e) => {
+                      const el = e.target as HTMLElement | null;
+                      if (el?.closest("a,button,input,select,textarea")) return;
+                      router.push(getViewHref(booking));
+                    }}
+                  >
+                    <td className="px-3 py-4 whitespace-nowrap">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          toggleMark(bookingKey(booking));
+                        }}
+                        aria-label={markedSet.has(bookingKey(booking)) ? "Unmark" : "Mark"}
+                        title={markedSet.has(bookingKey(booking)) ? "Unmark" : "Mark"}
+                        className="inline-flex items-center justify-center p-1 text-gray-400 hover:text-emerald-700 transition-colors"
+                      >
+                        <Bookmark
+                          className={`h-4 w-4 ${markedSet.has(bookingKey(booking)) ? "text-emerald-700" : "text-gray-400"}`}
+                          fill={markedSet.has(bookingKey(booking)) ? "currentColor" : "none"}
+                        />
+                      </button>
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="font-medium text-gray-900">{booking.user.name || "N/A"}</div>
-                      <div className="text-sm text-gray-500">{booking.user.email}</div>
-                      {booking.user.phone && (
-                        <div className="text-xs text-gray-400">{booking.user.phone}</div>
-                      )}
+                      <div className="text-sm text-gray-500 flex items-center gap-2">
+                        <Mail className="h-3.5 w-3.5 text-gray-400" />
+                        <span className="max-w-[240px] truncate" title={booking.user.email || ""}>
+                          {booking.user.email || "N/A"}
+                        </span>
+                      </div>
+
+                      <div className="text-xs text-gray-400 flex items-center gap-2">
+                        <Phone className="h-3.5 w-3.5 text-gray-300" />
+                        <span className="max-w-[240px] truncate" title={booking.user.phone || ""}>
+                          {booking.user.phone || "—"}
+                        </span>
+                      </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
@@ -284,18 +592,30 @@ export default function TransportBookingsPage() {
                         <div>
                           <div className="text-sm font-medium text-gray-900">{booking.toRegion}</div>
                           {booking.toLocation && (
-                            <div className="text-xs text-gray-500">{booking.toLocation}</div>
+                            <div
+                              className="text-xs text-gray-500 max-w-[220px] sm:max-w-[320px] overflow-hidden"
+                              title={booking.toLocation}
+                              style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}
+                            >
+                              {shortenText(booking.toLocation, 48)}
+                            </div>
                           )}
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {booking.checkIn && booking.checkOut ? (
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-4 w-4 text-gray-400" />
-                          <div className="text-sm">
-                            <div>{new Date(booking.checkIn).toLocaleDateString()}</div>
-                            <div className="text-xs text-gray-500">to {new Date(booking.checkOut).toLocaleDateString()}</div>
+                        <div className="flex items-start gap-2">
+                          <Calendar className="h-4 w-4 text-gray-400 mt-0.5" />
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden="true" />
+                              <span className="text-sm font-medium text-gray-900">{formatDateShort(booking.checkIn)}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="h-2 w-2 rounded-full bg-rose-500" aria-hidden="true" />
+                              <span className="text-sm text-gray-700">{formatDateShort(booking.checkOut)}</span>
+                            </div>
                           </div>
                         </div>
                       ) : (
@@ -307,32 +627,81 @@ export default function TransportBookingsPage() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="text-sm">
-                        <div className="font-medium text-gray-900">{booking.groupType}</div>
-                        <div className="text-xs text-gray-500">{booking.headcount} people</div>
+                        <div className="font-medium text-gray-900">{booking.kind === "individual" ? "Individual" : booking.groupType}</div>
+                        <div className="text-xs text-gray-500">
+                          {booking.kind === "individual"
+                            ? `${booking.roomsQty ?? 1} room(s)`
+                            : `${booking.headcount ?? 0} people`}
+                        </div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       {booking.pickupLocation ? (
-                        <div className="text-sm">
-                          <div className="font-medium text-gray-900">{booking.pickupLocation}</div>
+                        <div className="text-sm space-y-1">
+                          <div className="flex items-start gap-2">
+                            <MapPin className="h-4 w-4 text-gray-400 flex-shrink-0 mt-0.5" />
+                            <div
+                              className="font-medium text-gray-900 leading-snug max-w-[240px] sm:max-w-[340px] overflow-hidden"
+                              title={booking.pickupLocation}
+                              style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}
+                            >
+                              {shortenText(booking.pickupLocation, 50)}
+                            </div>
+                          </div>
+
                           {booking.pickupTime && (
-                            <div className="text-xs text-gray-500">{booking.pickupTime}</div>
+                            <div className="flex items-center gap-2 text-xs text-gray-500">
+                              <Clock className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
+                              <span className="leading-snug">{formatPickupTime(booking.pickupTime)}</span>
+                            </div>
+                          )}
+
+                          {booking.arrangementNotes && booking.kind === "individual" && (
+                            <div className="text-xs text-gray-500">
+                              <span className="font-medium text-gray-600">Vehicle:</span> {booking.arrangementNotes}
+                            </div>
                           )}
                         </div>
                       ) : (
-                        <span className="text-sm text-gray-400">N/A</span>
+                        <span className="text-sm text-gray-400">—</span>
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {getStatusBadge(booking.status)}
+                      {(() => {
+                        const v = formatDateTimeShort(booking.createdAt);
+                        if (!v) return <span className="text-sm text-gray-400">—</span>;
+                        return (
+                          <div className="text-sm leading-snug">
+                            <div className="font-medium text-gray-900">{v.date}</div>
+                            <div className="text-xs text-gray-500">{v.time}</div>
+                          </div>
+                        );
+                      })()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {getStatusIndicator(booking.status)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right">
+                      <button
+                        type="button"
+                        onClick={() => toggleMark(bookingKey(booking))}
+                        aria-label={markedSet.has(bookingKey(booking)) ? "Unmark" : "Mark"}
+                        title={markedSet.has(bookingKey(booking)) ? "Unmark" : "Mark"}
+                        className="inline-flex items-center justify-center text-gray-400 hover:text-amber-600 transition-colors mr-3"
+                      >
+                        <Bookmark
+                          className={`h-4 w-4 ${markedSet.has(bookingKey(booking)) ? "text-amber-600" : ""}`}
+                          fill={markedSet.has(bookingKey(booking)) ? "currentColor" : "none"}
+                        />
+                      </button>
                       <Link
-                        href={`/admin/group-stays/bookings?bookingId=${booking.id}`}
-                        className="inline-flex items-center gap-1 text-emerald-600 hover:text-emerald-900 text-sm font-medium"
+                        href={getViewHref(booking)}
+                        aria-label="View"
+                        title="View"
+                        className="inline-flex items-center text-emerald-600 hover:text-emerald-900 text-sm font-medium"
                       >
                         <Eye className="h-4 w-4" />
-                        View
+                        <span className="sr-only">View</span>
                       </Link>
                     </td>
                   </tr>

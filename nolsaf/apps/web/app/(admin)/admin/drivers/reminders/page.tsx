@@ -4,9 +4,28 @@
 import { useEffect, useState, useMemo } from "react";
 import { Bell, Truck, Search, AlertCircle, Info, AlertTriangle, Plus, X, Shield, FileWarning, Calendar, Car, Bike, CarTaxiFront, Target, RefreshCw, XCircle } from "lucide-react";
 import axios from "axios";
+import { useSearchParams } from "next/navigation";
 
 const api = axios.create({ baseURL: "", withCredentials: true });
-function authify() {}
+function authify() {
+  if (typeof window === "undefined") return;
+
+  const lsToken =
+    window.localStorage.getItem("token") ||
+    window.localStorage.getItem("nolsaf_token") ||
+    window.localStorage.getItem("__Host-nolsaf_token");
+
+  if (lsToken) {
+    api.defaults.headers.common["Authorization"] = `Bearer ${lsToken}`;
+    return;
+  }
+
+  const m = String(document.cookie || "").match(/(?:^|;\s*)(?:nolsaf_token|__Host-nolsaf_token)=([^;]+)/);
+  const cookieToken = m?.[1] ? decodeURIComponent(m[1]) : "";
+  if (cookieToken) {
+    api.defaults.headers.common["Authorization"] = `Bearer ${cookieToken}`;
+  }
+}
 
 type Driver = {
   id: number;
@@ -27,7 +46,8 @@ type ReminderData = {
     action: string | null;
     actionLink: string | null;
     expiresAt: string | null;
-    isRead: boolean;
+    isRead?: boolean;
+    read?: boolean;
     createdAt: string;
   }>;
 };
@@ -55,6 +75,7 @@ const getReminderColor = (type: string) => {
 };
 
 export default function AdminDriversRemindersPage() {
+  const searchParams = useSearchParams();
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [selectedDriver, setSelectedDriver] = useState<number | null>(null);
   const [reminderData, setReminderData] = useState<ReminderData | null>(null);
@@ -89,6 +110,18 @@ export default function AdminDriversRemindersPage() {
     loadDrivers();
     loadExpiringDocuments();
   }, []);
+
+  useEffect(() => {
+    const raw = searchParams?.get("driverId") || "";
+    const id = Number(raw);
+    if (!Number.isFinite(id) || id <= 0) return;
+    if (!drivers.length) return;
+    if (selectedDriver === id) return;
+    const exists = drivers.some((d) => d.id === id);
+    if (!exists) return;
+    loadDriverReminders(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, drivers]);
 
   async function loadExpiringDocuments() {
     try {
@@ -145,7 +178,14 @@ export default function AdminDriversRemindersPage() {
     try {
       const r = await api.get<ReminderData>(`/api/admin/drivers/${driverId}/reminders`, { params: { page: 1, pageSize: 50 } });
       if (r.data) {
-        setReminderData(r.data);
+        const normalized = {
+          ...r.data,
+          items: (r.data.items || []).map((it: any) => ({
+            ...it,
+            isRead: Boolean(it?.isRead ?? it?.read),
+          })),
+        };
+        setReminderData(normalized);
       } else {
         const driver = drivers.find(d => d.id === driverId);
         if (driver) {

@@ -371,95 +371,94 @@ router.patch("/:id", async (req, res) => {
       }
     });
 
-    // If status changed to HIRED and this is a Travel Agent application, create Agent profile
+    // If status changed to HIRED, provision/link Agent profile from the job application.
+    // This is the only supported recruitment method for agents.
     if (statusChanged && newStatus === "HIRED") {
       try {
-        const agentData = existingApplication.agentApplicationData as any;
-        
-        // Check if this is a Travel Agent position and has agent data
-        const isTravelAgentJob = existingApplication.job.title?.toLowerCase().includes('agent') || 
-                                  existingApplication.job.title?.toLowerCase().includes('travel');
-        
-        if (isTravelAgentJob && agentData) {
-          // Find or create user account
-          let user = await prisma.user.findFirst({
-            where: {
-              OR: [
-                { email: existingApplication.email?.toLowerCase().trim() },
-                { phone: existingApplication.phone?.trim() }
-              ]
-            }
-          });
+        if (existingApplication.agentId) {
+          // Already linked to an agent profile.
+        } else {
+          const agentData = (existingApplication.agentApplicationData ?? {}) as any;
 
-          if (!user) {
-            // Create new user account
-            user = await prisma.user.create({
-              data: {
-                email: existingApplication.email?.toLowerCase().trim(),
-                phone: existingApplication.phone?.trim(),
-                name: existingApplication.fullName,
-                role: "AGENT"
-              } as any
-            });
-          } else {
-            // Update existing user role to AGENT if not already
-            if (user.role !== "AGENT") {
-              user = await prisma.user.update({
-                where: { id: user.id },
-                data: { role: "AGENT" } as any
+          const title = String(existingApplication.job.title || "").toLowerCase();
+          const dept = String(existingApplication.job.department || "").toLowerCase();
+          const category = String(existingApplication.job.category || "").toLowerCase();
+          const looksLikeAgentRole = /agent|travel/.test(title) || /agent|travel/.test(dept) || /agent|travel/.test(category);
+
+          // Prefer explicit agentApplicationData (best signal), but allow the job metadata heuristic.
+          const shouldProvisionAgent = existingApplication.agentApplicationData != null || looksLikeAgentRole;
+          if (shouldProvisionAgent) {
+            const email = String(existingApplication.email || "").trim().toLowerCase();
+            const phone = String(existingApplication.phone || "").trim();
+
+            const userOr: any[] = [];
+            if (email) userOr.push({ email });
+            if (phone) userOr.push({ phone });
+
+            await prisma.$transaction(async (tx) => {
+              // Find or create user account
+              let user = await tx.user.findFirst({
+                where: userOr.length > 0 ? { OR: userOr } : undefined,
               });
-            }
-          }
 
-          // Check if agent profile already exists for this user
-          const existingAgent = await (prisma as any).agent.findUnique({
-            where: { userId: user.id }
-          });
-
-          if (!existingAgent) {
-            // Create Agent profile from application data
-            const agentProfile = await (prisma as any).agent.create({
-              data: {
-                userId: user.id,
-                status: agentData.status || "ACTIVE",
-                educationLevel: agentData.educationLevel || null,
-                yearsOfExperience: agentData.yearsOfExperience ? Number(agentData.yearsOfExperience) : null,
-                bio: agentData.bio || null,
-                maxActiveRequests: agentData.maxActiveRequests ? Number(agentData.maxActiveRequests) : 10,
-                isAvailable: agentData.isAvailable !== undefined ? Boolean(agentData.isAvailable) : true,
-                currentActiveRequests: 0,
-                areasOfOperation: (agentData.areasOfOperation && Array.isArray(agentData.areasOfOperation) && agentData.areasOfOperation.length > 0) 
-                  ? agentData.areasOfOperation 
-                  : null,
-                certifications: (agentData.certifications && Array.isArray(agentData.certifications) && agentData.certifications.length > 0)
-                  ? agentData.certifications
-                  : null,
-                languages: (agentData.languages && Array.isArray(agentData.languages) && agentData.languages.length > 0)
-                  ? agentData.languages
-                  : null,
-                specializations: (agentData.specializations && Array.isArray(agentData.specializations) && agentData.specializations.length > 0)
-                  ? agentData.specializations
-                  : null,
+              if (!user) {
+                user = await tx.user.create({
+                  data: {
+                    email: email || undefined,
+                    phone: phone || undefined,
+                    name: existingApplication.fullName,
+                    role: "AGENT",
+                  } as any,
+                });
+              } else if (user.role !== "AGENT") {
+                user = await tx.user.update({
+                  where: { id: user.id },
+                  data: { role: "AGENT" } as any,
+                });
               }
-            });
 
-            // Link application to agent
-            await prisma.jobApplication.update({
-              where: { id: parsedId },
-              data: { agentId: agentProfile.id }
-            });
+              // Ensure agent profile exists
+              let agentProfile = await tx.agent.findUnique({
+                where: { userId: user.id },
+              });
 
-            console.log(`Created Agent profile (ID: ${agentProfile.id}) for application ${parsedId} (User ID: ${user.id})`);
+              if (!agentProfile) {
+                agentProfile = await tx.agent.create({
+                  data: {
+                    user: { connect: { id: user.id } },
+                    status: agentData.status || "ACTIVE",
+                    educationLevel: agentData.educationLevel || null,
+                    yearsOfExperience: agentData.yearsOfExperience != null ? Number(agentData.yearsOfExperience) : null,
+                    bio: agentData.bio || null,
+                    maxActiveRequests: agentData.maxActiveRequests != null ? Number(agentData.maxActiveRequests) : 10,
+                    isAvailable: agentData.isAvailable !== undefined ? Boolean(agentData.isAvailable) : true,
+                    currentActiveRequests: 0,
+                    areasOfOperation: Array.isArray(agentData.areasOfOperation) && agentData.areasOfOperation.length > 0 ? agentData.areasOfOperation : null,
+                    certifications: Array.isArray(agentData.certifications) && agentData.certifications.length > 0 ? agentData.certifications : null,
+                    languages: Array.isArray(agentData.languages) && agentData.languages.length > 0 ? agentData.languages : null,
+                    specializations: Array.isArray(agentData.specializations) && agentData.specializations.length > 0 ? agentData.specializations : null,
+                  } as any,
+                });
+              }
+
+              // Link application to agent
+              await tx.jobApplication.update({
+                where: { id: parsedId },
+                data: { agentId: agentProfile.id },
+              });
+
+              console.log(`Provisioned Agent profile (ID: ${agentProfile.id}) for HIRED application ${parsedId} (User ID: ${user.id})`);
+            });
           }
         }
       } catch (agentError: any) {
         // Log error but don't fail the request - status update was successful
-        console.error("Error creating Agent profile from application:", agentError);
-        console.error("Agent creation error details:", {
+        console.error("Error provisioning Agent profile from HIRED application:", agentError);
+        console.error("Agent provisioning error details:", {
           message: agentError.message,
           code: agentError.code,
           applicationId: parsedId,
-          email: existingApplication.email
+          email: existingApplication.email,
         });
       }
     }

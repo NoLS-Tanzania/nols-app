@@ -11,25 +11,63 @@ type Item = {
   Icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
 };
 
-function Item({ href, label, Icon, isSubItem = false, collapsed = false }: { href: string; label: string; Icon?: React.ComponentType<React.SVGProps<SVGSVGElement>>; isSubItem?: boolean; collapsed?: boolean }) {
-  const path = usePathname();
+type SidebarVariant = "light" | "dark";
+
+function Item({
+  href,
+  label,
+  Icon,
+  isSubItem = false,
+  collapsed = false,
+  path,
+  variant,
+}: {
+  href: string;
+  label: string;
+  Icon?: React.ComponentType<React.SVGProps<SVGSVGElement>>;
+  isSubItem?: boolean;
+  collapsed?: boolean;
+  path: string | null;
+  variant: SidebarVariant;
+}) {
   const active = path === href || path?.startsWith(href + "/");
+  const dark = variant === "dark";
+
+  const iconWrapClass = dark
+    ? active
+      ? "bg-white/10 border-white/15"
+      : "bg-white/5 border-white/10"
+    : active
+      ? "bg-[#02665e]/10 border-[#02665e]/15"
+      : "bg-[#02665e]/5 border-[#02665e]/10";
+
+  const iconClass = dark
+    ? "text-teal-200"
+    : "text-[#02665e]";
   
   if (collapsed) {
     return (
       <Link
         href={href}
         title={label}
-        className={`group relative no-underline flex items-center justify-center rounded-lg p-3 text-sm font-medium transition-all duration-200 bg-white border border-transparent
-          ${active ? "text-[#02665e] border-[#02665e]/20 bg-[#02665e]/5" : "text-[#02665e] hover:bg-gray-50"}
-          active:scale-95 hover:scale-105
-          [backface-visibility:hidden] [transform:translateZ(0)]`}
+        className={`group relative no-underline flex items-center justify-center rounded-2xl p-3 text-sm font-medium transition-colors duration-200
+          ${dark ? "bg-white/5 border border-white/10" : "bg-white/70 border shadow-sm backdrop-blur-[2px]"}
+          ${dark
+            ? active
+              ? "text-slate-100 bg-white/10 border-white/15"
+              : "text-slate-200 hover:bg-white/10 hover:border-white/15"
+            : active
+              ? "text-[#02665e] border-[#02665e]/20 bg-[#02665e]/5"
+              : "text-[#02665e] border-[#02665e]/10 hover:bg-[#02665e]/5 hover:border-[#02665e]/20"}
+          focus:outline-none focus-visible:ring-2 ${dark ? "focus-visible:ring-white/20" : "focus-visible:ring-[#02665e]/25"}`}
       >
         {Icon ? (
-          <Icon className="h-5 w-5 text-[#02665e] flex-shrink-0" aria-hidden />
+          <span className={`grid place-items-center rounded-xl h-11 w-11 border ${iconWrapClass}`}>
+            <Icon className={`h-[22px] w-[22px] ${iconClass}`} aria-hidden />
+          </span>
         ) : null}
         {/* Tooltip for collapsed state */}
-        <span className="absolute left-full ml-2 px-2 py-1 text-xs font-medium text-white bg-gray-900 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 transition-opacity duration-200">
+        <span className={`absolute left-full ml-2 px-2 py-1 text-xs font-medium rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 transition-opacity duration-200 ${dark ? "text-white bg-black/70 border border-white/10" : "text-white bg-gray-900"}`}>
           {label}
         </span>
       </Link>
@@ -39,18 +77,31 @@ function Item({ href, label, Icon, isSubItem = false, collapsed = false }: { hre
   return (
     <Link
       href={href}
-      className={`no-underline flex items-center justify-between rounded-lg px-4 py-3 text-sm font-medium transition-all duration-200 bg-white border border-transparent
-        ${active ? "text-[#02665e] border-[#02665e]/20" : "text-[#02665e] hover:bg-gray-50"}
-        active:scale-[0.98] hover:scale-[1.02]
-        ${isSubItem ? "ml-4" : ""} [backface-visibility:hidden] [transform:translateZ(0)]`}
+      className={`group no-underline flex items-center justify-between gap-3 rounded-2xl px-4 py-3 text-sm font-medium
+        transition-colors duration-200 border
+        ${dark ? "bg-white/5 border-white/10" : "bg-white/90 shadow-sm border-[#02665e]/10"}
+        ${dark
+          ? active
+            ? "text-slate-100 bg-white/10 border-white/15"
+            : "text-slate-200 hover:bg-white/10 hover:border-white/15"
+          : active
+            ? "text-[#02665e] border-[#02665e]/20 bg-[#02665e]/5"
+            : "text-[#02665e] border-[#02665e]/10 hover:bg-[#02665e]/5 hover:border-[#02665e]/20"}
+        focus:outline-none focus-visible:ring-2 ${dark ? "focus-visible:ring-white/20" : "focus-visible:ring-[#02665e]/25"}
+        ${isSubItem ? "ml-3 pl-3" : ""}`}
     >
       <div className="flex items-center gap-3">
         {Icon ? (
-          <Icon className="h-4 w-4 text-[#02665e] flex-shrink-0" aria-hidden />
+          <span className={`grid place-items-center rounded-xl h-9 w-9 border ${iconWrapClass}`}>
+            <Icon className={`h-4 w-4 ${iconClass}`} aria-hidden />
+          </span>
         ) : null}
-        <span>{label}</span>
+        <span className={isSubItem ? "text-[13px]" : ""}>{label}</span>
       </div>
-      <ChevronRight className="h-4 w-4 text-[#02665e] opacity-60 flex-shrink-0" aria-hidden />
+      <ChevronRight
+        className={`h-4 w-4 opacity-60 flex-shrink-0 transition-opacity ${dark ? "text-slate-200" : "text-[#02665e]"} ${active ? "opacity-85" : "group-hover:opacity-85"}`}
+        aria-hidden
+      />
     </Link>
   );
 }
@@ -65,6 +116,7 @@ const adminDetails: Item[] = [
 
 const driverDetails: Item[] = [
   { href: "/admin/drivers", label: "Dashboard", Icon: LayoutDashboard },
+  { href: "/admin/drivers/all", label: "All Drivers", Icon: Truck },
   { href: "/admin/drivers/trips", label: "Trips", Icon: Calendar },
   { href: "/admin/drivers/trips/scheduled", label: "Scheduled Trips", Icon: Calendar },
   { href: "/admin/drivers/invoices", label: "Invoices", Icon: FileText },
@@ -130,6 +182,7 @@ const managementDetails: Item[] = [
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export default function AdminNav({ variant = "light", collapsed = false }: { variant?: "light" | "dark"; collapsed?: boolean }) {
   const path = usePathname();
+  const dark = variant === "dark";
   const [adminOpen, setAdminOpen] = useState(false);
   const [driverOpen, setDriverOpen] = useState(false);
   const [managementOpen, setManagementOpen] = useState(false);
@@ -138,6 +191,57 @@ export default function AdminNav({ variant = "light", collapsed = false }: { var
   const [planWithUsOpen, setPlanWithUsOpen] = useState(false);
   const [agentsOpen, setAgentsOpen] = useState(false);
   const [cancellationsOpen, setCancellationsOpen] = useState(false);
+
+  const activeSection = (() => {
+    if (!path) return null;
+    if (path === "/admin/home") return "Home";
+    if (path.startsWith("/admin/drivers")) return "Drivers";
+    if (path.startsWith("/admin/users")) return "Users";
+    if (path.startsWith("/admin/group-stays")) return "Group Stay";
+    if (path.startsWith("/admin/plan-with-us")) return "Plan with US";
+    if (path.startsWith("/admin/agents")) return "IoT & AI Agents";
+    if (path.startsWith("/admin/cancellations")) return "Cancellations";
+    if (path.startsWith("/admin/management")) return "Management";
+    if (
+      path === "/admin" ||
+      path === "/admin/owners" ||
+      path.startsWith("/admin/owners/") ||
+      path === "/admin/bookings" ||
+      path.startsWith("/admin/bookings/") ||
+      path === "/admin/properties" ||
+      path.startsWith("/admin/properties/") ||
+      path === "/admin/payments" ||
+      path.startsWith("/admin/payments/") ||
+      path === "/admin/revenue" ||
+      path.startsWith("/admin/revenue/")
+    ) {
+      return "Owners";
+    }
+    return null;
+  })();
+
+  const SectionHeader = ({ title, active }: { title: string; active: boolean }) => (
+    <div className="px-1">
+      <div className="flex items-center gap-3 px-3">
+        <span className={`h-1.5 w-1.5 rounded-full ${dark ? (active ? "bg-teal-200" : "bg-white/25") : (active ? "bg-[#02665e]" : "bg-[#02665e]/35")}`} />
+        <div className={`text-[10px] font-semibold tracking-[0.22em] uppercase ${dark ? "text-white/45" : "text-[#02665e]/55"}`}>
+          {title}
+        </div>
+        <div className={`h-px flex-1 ${dark ? "bg-white/10" : "bg-[#02665e]/10"}`} />
+      </div>
+    </div>
+  );
+
+  const GroupHeader = ({ title }: { title: string }) => {
+    if (collapsed) return null;
+    return (
+      <div className="pt-2">
+        <div className={`px-3 text-[10px] font-semibold tracking-[0.26em] uppercase ${dark ? "text-white/35" : "text-[#02665e]/45"}`}>
+          {title}
+        </div>
+      </div>
+    );
+  };
 
   useEffect(() => {
     // Auto-open sections only when navigating to routes within that section
@@ -189,24 +293,39 @@ export default function AdminNav({ variant = "light", collapsed = false }: { var
     Icon, 
     isOpen, 
     onClick, 
-    collapsed 
+    collapsed,
+    active,
   }: { 
     label: string; 
     Icon: React.ComponentType<React.SVGProps<SVGSVGElement>>; 
     isOpen: boolean; 
     onClick: () => void;
     collapsed: boolean;
+    active: boolean;
   }) => {
     if (collapsed) {
       return (
-        <button 
+        <button
           onClick={onClick}
           title={label}
-          className="group relative w-full flex items-center justify-center rounded-lg p-3 text-sm font-medium text-[#02665e] bg-white border border-gray-300 hover:bg-gray-50 active:scale-95 hover:scale-105 transition-all duration-200 [backface-visibility:hidden] [transform:translateZ(0)]"
+          className={`group relative w-full flex items-center justify-center rounded-2xl p-3 text-sm font-medium border transition-colors duration-200 focus:outline-none focus-visible:ring-2
+            ${dark ? "text-slate-200 bg-white/5 border-white/10" : "text-[#02665e] bg-white/70 border-[#02665e]/10"}
+            ${dark
+              ? active
+                ? "bg-white/10 border-white/15"
+                : "hover:bg-white/10 hover:border-white/15"
+              : active
+                ? "bg-[#02665e]/6 border-[#02665e]/25"
+                : "hover:bg-[#02665e]/5 hover:border-[#02665e]/20"}
+            ${dark ? "focus-visible:ring-white/20" : "focus-visible:ring-[#02665e]/25"}`}
         >
-          <Icon className="h-5 w-5 text-[#02665e] flex-shrink-0" aria-hidden />
+          <span
+            className={`grid place-items-center rounded-xl h-11 w-11 border ${dark ? (active ? "bg-white/10 border-white/15" : "bg-white/5 border-white/10") : (active ? "bg-[#02665e]/10 border-[#02665e]/20" : "bg-[#02665e]/5 border-[#02665e]/10")}`}
+          >
+            <Icon className={`h-[22px] w-[22px] ${dark ? "text-teal-200" : "text-[#02665e]"}`} aria-hidden />
+          </span>
           {/* Tooltip for collapsed state */}
-          <span className="absolute left-full ml-2 px-2 py-1 text-xs font-medium text-white bg-gray-900 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 transition-opacity duration-200">
+          <span className={`absolute left-full ml-2 px-2 py-1 text-xs font-medium rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 transition-opacity duration-200 ${dark ? "text-white bg-black/70 border border-white/10" : "text-white bg-gray-900"}`}>
             {label}
           </span>
         </button>
@@ -214,29 +333,51 @@ export default function AdminNav({ variant = "light", collapsed = false }: { var
     }
     
     return (
-      <button 
+      <button
         onClick={onClick}
-        className="w-full flex items-center justify-between rounded-lg px-4 py-3 text-sm font-medium text-[#02665e] bg-white border border-gray-300 hover:bg-gray-50 active:scale-[0.98] hover:scale-[1.02] transition-all duration-200 [backface-visibility:hidden] [transform:translateZ(0)]"
+        className={`group w-full flex items-center justify-between gap-3 rounded-2xl px-4 py-3 text-sm font-semibold border transition-colors duration-200 focus:outline-none focus-visible:ring-2
+          ${dark ? "text-slate-200 bg-white/5 border-white/10" : "text-[#02665e] bg-white/90 border-[#02665e]/10 shadow-sm"}
+          ${dark
+            ? active
+              ? "bg-white/10 border-white/15"
+              : "hover:bg-white/10 hover:border-white/15"
+            : active
+              ? "bg-[#02665e]/6 border-[#02665e]/25"
+              : "hover:bg-[#02665e]/5 hover:border-[#02665e]/20"}
+          ${dark ? "focus-visible:ring-white/20" : "focus-visible:ring-[#02665e]/25"}`}
       >
-        <span>{label}</span>
+        <span className="flex items-center gap-3">
+          <span className={`grid place-items-center rounded-xl h-9 w-9 border ${dark ? (active ? "bg-white/10 border-white/15" : "bg-white/5 border-white/10") : (active ? "bg-[#02665e]/10 border-[#02665e]/20" : "bg-[#02665e]/5 border-[#02665e]/10")}`}>
+            <Icon className={`h-4 w-4 ${dark ? "text-teal-200" : "text-[#02665e]"}`} aria-hidden />
+          </span>
+          <span className={dark ? "text-slate-100" : ""}>{label}</span>
+        </span>
         {isOpen ? (
-          <ChevronDown className="h-4 w-4 text-[#02665e] opacity-60" aria-hidden />
+          <ChevronDown className={`h-4 w-4 ${dark ? "text-slate-200" : "text-[#02665e]"} ${active ? "opacity-90" : "opacity-70"}`} aria-hidden />
         ) : (
-          <ChevronRight className="h-4 w-4 text-[#02665e] opacity-60" aria-hidden />
+          <ChevronRight className={`h-4 w-4 ${dark ? "text-slate-200" : "text-[#02665e]"} ${active ? "opacity-90" : "opacity-70"}`} aria-hidden />
         )}
       </button>
     );
   };
 
   return (
-    <div className={`bg-gray-50 rounded-2xl border border-gray-200 ${collapsed ? 'p-2' : 'p-3'}`}>
-      <div className={`space-y-2 ${collapsed ? 'space-y-1' : ''}`}>
+    <div
+      className={
+        dark
+          ? `rounded-3xl border border-white/10 bg-gradient-to-b from-[#0b1220] via-[#0a1624] to-[#070f1a] shadow-[0_20px_60px_rgba(0,0,0,0.35)] ${collapsed ? "p-2" : "p-3"}`
+          : `rounded-3xl border border-[#02665e]/10 shadow-[0_12px_30px_rgba(2,102,94,0.08)] ${collapsed ? "p-2 bg-gradient-to-b from-white via-white to-[#02665e]/[0.09]" : "p-3 bg-white"}`
+      }
+    >
+      <div className={`space-y-2 ${collapsed ? "space-y-1" : ""}`}>
+        <GroupHeader title="PAGES" />
+
         {/* Home */}
-        <Item href="/admin/home" label="Home" Icon={Home} collapsed={collapsed} />
+        <Item href="/admin/home" label="Home" Icon={Home} collapsed={collapsed} path={path} variant={variant} />
 
         {/* Admin/Owners */}
         {collapsed ? (
-          <Item href="/admin" label="Owners" Icon={Building2} collapsed={collapsed} />
+          <Item href="/admin" label="Owners" Icon={Building2} collapsed={collapsed} path={path} variant={variant} />
         ) : (
           <div>
             <CollapsibleButton 
@@ -245,12 +386,16 @@ export default function AdminNav({ variant = "light", collapsed = false }: { var
               isOpen={adminOpen} 
               onClick={() => setAdminOpen(v => !v)}
               collapsed={collapsed}
+              active={activeSection === "Owners"}
             />
             {adminOpen && (
-              <div className="mt-2 space-y-2">
-                {adminDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => (
-                  <Item key={dHref} href={dHref} label={dLabel} Icon={DIcon} isSubItem collapsed={collapsed} />
-                ))}
+              <div className="mt-2">
+                <SectionHeader title="Owners" active={activeSection === "Owners"} />
+                <div className="mt-2 space-y-2">
+                  {adminDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => (
+                    <Item key={dHref} href={dHref} label={dLabel} Icon={DIcon} isSubItem collapsed={collapsed} path={path} variant={variant} />
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -258,7 +403,7 @@ export default function AdminNav({ variant = "light", collapsed = false }: { var
 
         {/* Drivers */}
         {collapsed ? (
-          <Item href="/admin/drivers" label="Drivers" Icon={Truck} collapsed={collapsed} />
+          <Item href="/admin/drivers" label="Drivers" Icon={Truck} collapsed={collapsed} path={path} variant={variant} />
         ) : (
           <div>
             <CollapsibleButton 
@@ -267,12 +412,16 @@ export default function AdminNav({ variant = "light", collapsed = false }: { var
               isOpen={driverOpen} 
               onClick={() => setDriverOpen(v => !v)}
               collapsed={collapsed}
+              active={activeSection === "Drivers"}
             />
             {driverOpen && (
-              <div className="mt-2 space-y-2">
-                {driverDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => (
-                  <Item key={dHref} href={dHref} label={dLabel} Icon={DIcon} isSubItem collapsed={collapsed} />
-                ))}
+              <div className="mt-2">
+                <SectionHeader title="Drivers" active={activeSection === "Drivers"} />
+                <div className="mt-2 space-y-2">
+                  {driverDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => (
+                    <Item key={dHref} href={dHref} label={dLabel} Icon={DIcon} isSubItem collapsed={collapsed} path={path} variant={variant} />
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -280,7 +429,7 @@ export default function AdminNav({ variant = "light", collapsed = false }: { var
 
         {/* Users */}
         {collapsed ? (
-          <Item href="/admin/users" label="Users" Icon={Users} collapsed={collapsed} />
+          <Item href="/admin/users" label="Users" Icon={Users} collapsed={collapsed} path={path} variant={variant} />
         ) : (
           <div>
             <CollapsibleButton 
@@ -289,20 +438,26 @@ export default function AdminNav({ variant = "light", collapsed = false }: { var
               isOpen={usersOpen} 
               onClick={() => setUsersOpen(v => !v)}
               collapsed={collapsed}
+              active={activeSection === "Users"}
             />
             {usersOpen && (
-              <div className="mt-2 space-y-2">
-                {userDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => (
-                  <Item key={dHref} href={dHref} label={dLabel} Icon={DIcon} isSubItem collapsed={collapsed} />
-                ))}
+              <div className="mt-2">
+                <SectionHeader title="Users" active={activeSection === "Users"} />
+                <div className="mt-2 space-y-2">
+                  {userDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => (
+                    <Item key={dHref} href={dHref} label={dLabel} Icon={DIcon} isSubItem collapsed={collapsed} path={path} variant={variant} />
+                  ))}
+                </div>
               </div>
             )}
           </div>
         )}
 
+        <GroupHeader title="PROGRAMS" />
+
         {/* Group Stay */}
         {collapsed ? (
-          <Item href="/admin/group-stays" label="Group Stay" Icon={Users} collapsed={collapsed} />
+          <Item href="/admin/group-stays" label="Group Stay" Icon={Users} collapsed={collapsed} path={path} variant={variant} />
         ) : (
           <div>
             <CollapsibleButton 
@@ -311,12 +466,16 @@ export default function AdminNav({ variant = "light", collapsed = false }: { var
               isOpen={groupStayOpen} 
               onClick={() => setGroupStayOpen(v => !v)}
               collapsed={collapsed}
+              active={activeSection === "Group Stay"}
             />
             {groupStayOpen && (
-              <div className="mt-2 space-y-2">
-                {groupStayDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => (
-                  <Item key={dHref} href={dHref} label={dLabel} Icon={DIcon} isSubItem collapsed={collapsed} />
-                ))}
+              <div className="mt-2">
+                <SectionHeader title="Group Stay" active={activeSection === "Group Stay"} />
+                <div className="mt-2 space-y-2">
+                  {groupStayDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => (
+                    <Item key={dHref} href={dHref} label={dLabel} Icon={DIcon} isSubItem collapsed={collapsed} path={path} variant={variant} />
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -324,7 +483,7 @@ export default function AdminNav({ variant = "light", collapsed = false }: { var
 
         {/* Plan with US */}
         {collapsed ? (
-          <Item href="/admin/plan-with-us" label="Plan with US" Icon={ListFilter} collapsed={collapsed} />
+          <Item href="/admin/plan-with-us" label="Plan with US" Icon={ListFilter} collapsed={collapsed} path={path} variant={variant} />
         ) : (
           <div>
             <CollapsibleButton 
@@ -333,12 +492,16 @@ export default function AdminNav({ variant = "light", collapsed = false }: { var
               isOpen={planWithUsOpen} 
               onClick={() => setPlanWithUsOpen(v => !v)}
               collapsed={collapsed}
+              active={activeSection === "Plan with US"}
             />
             {planWithUsOpen && (
-              <div className="mt-2 space-y-2">
-                {planWithUsDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => (
-                  <Item key={dHref} href={dHref} label={dLabel} Icon={DIcon} isSubItem collapsed={collapsed} />
-                ))}
+              <div className="mt-2">
+                <SectionHeader title="Plan with US" active={activeSection === "Plan with US"} />
+                <div className="mt-2 space-y-2">
+                  {planWithUsDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => (
+                    <Item key={dHref} href={dHref} label={dLabel} Icon={DIcon} isSubItem collapsed={collapsed} path={path} variant={variant} />
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -346,7 +509,7 @@ export default function AdminNav({ variant = "light", collapsed = false }: { var
 
         {/* Agents */}
         {collapsed ? (
-          <Item href="/admin/agents" label="IoT & AI Agents" Icon={Bot} collapsed={collapsed} />
+          <Item href="/admin/agents" label="IoT & AI Agents" Icon={Bot} collapsed={collapsed} path={path} variant={variant} />
         ) : (
           <div>
             <CollapsibleButton 
@@ -355,20 +518,26 @@ export default function AdminNav({ variant = "light", collapsed = false }: { var
               isOpen={agentsOpen} 
               onClick={() => setAgentsOpen(v => !v)}
               collapsed={collapsed}
+              active={activeSection === "IoT & AI Agents"}
             />
             {agentsOpen && (
-              <div className="mt-2 space-y-2">
-                {agentsDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => (
-                  <Item key={dHref} href={dHref} label={dLabel} Icon={DIcon} isSubItem collapsed={collapsed} />
-                ))}
+              <div className="mt-2">
+                <SectionHeader title="IoT & AI Agents" active={activeSection === "IoT & AI Agents"} />
+                <div className="mt-2 space-y-2">
+                  {agentsDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => (
+                    <Item key={dHref} href={dHref} label={dLabel} Icon={DIcon} isSubItem collapsed={collapsed} path={path} variant={variant} />
+                  ))}
+                </div>
               </div>
             )}
           </div>
         )}
 
+        <GroupHeader title="ADMIN" />
+
         {/* Cancellations */}
         {collapsed ? (
-          <Item href="/admin/cancellations" label="Cancellations" Icon={Ban} collapsed={collapsed} />
+          <Item href="/admin/cancellations" label="Cancellations" Icon={Ban} collapsed={collapsed} path={path} variant={variant} />
         ) : (
           <div>
             <CollapsibleButton 
@@ -377,12 +546,16 @@ export default function AdminNav({ variant = "light", collapsed = false }: { var
               isOpen={cancellationsOpen} 
               onClick={() => setCancellationsOpen(v => !v)}
               collapsed={collapsed}
+              active={activeSection === "Cancellations"}
             />
             {cancellationsOpen && (
-              <div className="mt-2 space-y-2">
-                {cancellationsDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => (
-                  <Item key={dHref} href={dHref} label={dLabel} Icon={DIcon} isSubItem collapsed={collapsed} />
-                ))}
+              <div className="mt-2">
+                <SectionHeader title="Cancellations" active={activeSection === "Cancellations"} />
+                <div className="mt-2 space-y-2">
+                  {cancellationsDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => (
+                    <Item key={dHref} href={dHref} label={dLabel} Icon={DIcon} isSubItem collapsed={collapsed} path={path} variant={variant} />
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -390,7 +563,7 @@ export default function AdminNav({ variant = "light", collapsed = false }: { var
 
         {/* Management */}
         {collapsed ? (
-          <Item href="/admin/management" label="Management" Icon={Settings} collapsed={collapsed} />
+          <Item href="/admin/management" label="Management" Icon={Settings} collapsed={collapsed} path={path} variant={variant} />
         ) : (
           <div>
             <CollapsibleButton 
@@ -399,12 +572,16 @@ export default function AdminNav({ variant = "light", collapsed = false }: { var
               isOpen={managementOpen} 
               onClick={() => setManagementOpen(v => !v)}
               collapsed={collapsed}
+              active={activeSection === "Management"}
             />
             {managementOpen && (
-              <div className="mt-2 space-y-2">
-                {managementDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => (
-                  <Item key={dHref} href={dHref} label={dLabel} Icon={DIcon} isSubItem collapsed={collapsed} />
-                ))}
+              <div className="mt-2">
+                <SectionHeader title="Management" active={activeSection === "Management"} />
+                <div className="mt-2 space-y-2">
+                  {managementDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => (
+                    <Item key={dHref} href={dHref} label={dLabel} Icon={DIcon} isSubItem collapsed={collapsed} path={path} variant={variant} />
+                  ))}
+                </div>
               </div>
             )}
           </div>

@@ -34,31 +34,59 @@ async function calculateDriverLevel(driverId: number): Promise<{
   try {
     // Calculate total earnings from completed bookings with invoices
     if ((prisma as any).booking && (prisma as any).invoice) {
-      const bookings = await (prisma as any).booking.findMany({
-        where: {
-          driverId,
-          status: {
-            in: ['COMPLETED', 'FINISHED', 'PAID', 'CONFIRMED'],
-          },
+      const where = {
+        driverId,
+        status: {
+          in: ['COMPLETED', 'FINISHED', 'PAID', 'CONFIRMED'],
         },
-        include: {
-          invoice: {
-            where: {
-              status: {
-                in: ['PAID', 'APPROVED', 'VERIFIED'],
+      };
+
+      let bookings: any[] = [];
+      try {
+        // Current schema uses Booking.invoices (plural)
+        bookings = await (prisma as any).booking.findMany({
+          where,
+          include: {
+            invoices: {
+              where: {
+                status: {
+                  in: ['PAID', 'APPROVED', 'VERIFIED'],
+                },
               },
             },
           },
-        },
-      });
+        });
+      } catch (e: any) {
+        const message = String(e?.message || '');
+        if (message.includes('Unknown field `invoices`') || message.includes('Unknown field "invoices"')) {
+          // Older schema used Booking.invoice
+          bookings = await (prisma as any).booking.findMany({
+            where,
+            include: {
+              invoice: {
+                where: {
+                  status: {
+                    in: ['PAID', 'APPROVED', 'VERIFIED'],
+                  },
+                },
+              },
+            },
+          });
+        } else {
+          throw e;
+        }
+      }
 
       totalTrips = bookings.length;
       totalEarnings = bookings.reduce((sum: number, b: any) => {
-        // Sum total amount from invoices (revenue generated for NoLSAF)
-        const invoiceTotal = b.invoice && b.invoice.length > 0 
-          ? Number(b.invoice[0].total || b.invoice[0].totalAmount || 0)
-          : 0;
-        return sum + invoiceTotal;
+        const invoicesRaw = (b as any).invoices ?? (b as any).invoice;
+        const invoices = Array.isArray(invoicesRaw) ? invoicesRaw : invoicesRaw ? [invoicesRaw] : [];
+
+        const bookingInvoiceTotal = invoices.reduce((invoiceSum: number, inv: any) => {
+          return invoiceSum + Number(inv?.total ?? inv?.totalAmount ?? inv?.amount ?? 0);
+        }, 0);
+
+        return sum + bookingInvoiceTotal;
       }, 0);
     } else if ((prisma as any).booking) {
       // Fallback: if no invoice model, try to get price from booking

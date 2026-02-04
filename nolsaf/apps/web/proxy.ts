@@ -33,6 +33,25 @@ export function proxy(req: NextRequest) {
     }
   }
 
+  // Customer account pages should require auth (like Group Stays).
+  // Allow auth routes under /account/* to remain public.
+  if (path.startsWith("/account")) {
+    const isAccountAuthRoute =
+      path === "/account/login" ||
+      path === "/account/register" ||
+      path === "/account/forgot-password" ||
+      path === "/account/reset-password";
+
+    if (!isAccountAuthRoute) {
+      // Use token presence as the primary auth signal.
+      // If missing, redirect to customer login to avoid confusing empty states.
+      if (!token) {
+        url.pathname = "/account/login";
+        return NextResponse.redirect(url);
+      }
+    }
+  }
+
   // If logged in and on /login, bounce to role home
   if (path === "/login" && role) {
     if (role === "ADMIN") url.pathname = "/admin/home";
@@ -46,7 +65,7 @@ export function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/owner/:path*", "/driver/:path*", "/login"],
+  matcher: ["/admin/:path*", "/owner/:path*", "/driver/:path*", "/account/:path*", "/login"],
 };
 
 // stub — replace with real decode

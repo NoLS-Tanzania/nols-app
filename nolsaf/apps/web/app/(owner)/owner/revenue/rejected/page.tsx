@@ -104,8 +104,11 @@ export default function Rejected() {
 
   const stats = useMemo(() => {
     const totalCount = items.length;
-    const totalGross = items.reduce((sum, it) => sum + toNumber(it.total), 0);
-    return { totalCount, totalGross };
+    const totalAmount = items.reduce((sum, it) => {
+      const net = toNumber(it.netPayable);
+      return sum + (net > 0 ? net : toNumber(it.total));
+    }, 0);
+    return { totalCount, totalAmount };
   }, [items]);
 
   if (loading) {
@@ -180,8 +183,8 @@ export default function Rejected() {
           <div className="mt-1 text-center text-2xl font-bold text-gray-900">{stats.totalCount.toLocaleString()}</div>
         </div>
         <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
-          <div className="text-center text-xs font-medium text-gray-500">Total gross (rejected)</div>
-          <div className="mt-1 text-center text-2xl font-bold text-gray-900">{formatCurrency(stats.totalGross)}</div>
+          <div className="text-center text-xs font-medium text-gray-500">Total amount (rejected)</div>
+          <div className="mt-1 text-center text-2xl font-bold text-gray-900">{formatCurrency(stats.totalAmount)}</div>
         </div>
       </div>
 
@@ -267,7 +270,7 @@ export default function Rejected() {
           </div>
         ) : (
           <div className="w-full overflow-x-auto">
-            <table className="min-w-[860px] w-full text-sm">
+            <table className="min-w-[820px] w-full text-sm">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr className="text-left">
                   <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">Invoice</th>
@@ -275,13 +278,19 @@ export default function Rejected() {
                   <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">Issued</th>
                   <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">Status</th>
                   <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">Reason</th>
-                  <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600 text-right">Total</th>
+                  <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600 text-right">Amount</th>
                   <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 bg-white">
                 {filtered.map((invoice) => {
                   const propertyTitle = invoice.booking?.property?.title || "Property";
+                  const payout = (() => {
+                    const net = Number(invoice.netPayable);
+                    if (Number.isFinite(net) && net > 0) return net;
+                    const gross = Number(invoice.total);
+                    return Number.isFinite(gross) ? gross : 0;
+                  })();
                   return (
                     <TableRow key={invoice.id} className="hover:bg-slate-50/60 transition-colors duration-150">
                       <td className="px-4 sm:px-6 py-3 sm:py-4">
@@ -304,7 +313,7 @@ export default function Rejected() {
                         </div>
                       </td>
                       <td className="px-4 sm:px-6 py-3 sm:py-4 text-right font-semibold text-slate-900 whitespace-nowrap">
-                        {formatCurrency(Number(invoice.total))}
+                        {formatCurrency(payout)}
                       </td>
                       <td className="px-4 sm:px-6 py-3 sm:py-4 text-right">
                         <Link

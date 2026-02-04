@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Calendar, BookOpen, GraduationCap, Users, MoreHorizontal, Check, Clock, MapPin, FileText, Phone } from 'lucide-react';
+import { Calendar, BookOpen, GraduationCap, Users, Plane, MoreHorizontal, Check, Clock, MapPin, FileText, Phone } from 'lucide-react';
 import PlanRequestForm from "../../../components/PlanRequestForm";
 
 export default function PlanWithUsPage() {
@@ -16,6 +16,8 @@ export default function PlanWithUsPage() {
         return <GraduationCap className="w-5 h-5 mr-2 flex-shrink-0" />;
       case 'Community group':
         return <Users className="w-5 h-5 mr-2 flex-shrink-0" />;
+      case 'Tourist':
+        return <Plane className="w-5 h-5 mr-2 flex-shrink-0" />;
       default:
         return <MoreHorizontal className="w-5 h-5 mr-2 flex-shrink-0" />;
     }
@@ -39,7 +41,7 @@ export default function PlanWithUsPage() {
               <div className="mt-5 flex flex-col items-center">
                 <div className="text-sm text-slate-500 mb-2 text-center font-medium">Are you?</div>
                 <div className="flex flex-wrap gap-2 sm:gap-3 justify-center">
-                  {['Event planner', 'School / Teacher', 'University', 'Community group', 'Other'].map((p) => (
+                  {['Event planner', 'School / Teacher', 'University', 'Community group', 'Tourist', 'Other'].map((p) => (
                     <button
                       key={p}
                       type="button"

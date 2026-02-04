@@ -2,8 +2,29 @@
 import { useEffect, useState, useCallback } from "react";
 import { BarChart3, Truck, Search, Calendar, DollarSign, Star, Loader2 } from "lucide-react";
 import axios from "axios";
+import { useSearchParams } from "next/navigation";
+import DatePicker from "@/components/ui/DatePicker";
 
 const api = axios.create({ baseURL: "", withCredentials: true });
+function authify() {
+  if (typeof window === "undefined") return;
+
+  const lsToken =
+    window.localStorage.getItem("token") ||
+    window.localStorage.getItem("nolsaf_token") ||
+    window.localStorage.getItem("__Host-nolsaf_token");
+
+  if (lsToken) {
+    api.defaults.headers.common["Authorization"] = `Bearer ${lsToken}`;
+    return;
+  }
+
+  const m = String(document.cookie || "").match(/(?:^|;\s*)(?:nolsaf_token|__Host-nolsaf_token)=([^;]+)/);
+  const cookieToken = m?.[1] ? decodeURIComponent(m[1]) : "";
+  if (cookieToken) {
+    api.defaults.headers.common["Authorization"] = `Bearer ${cookieToken}`;
+  }
+}
 
 type Driver = {
   id: number;
@@ -19,21 +40,43 @@ type StatsData = {
   rating: number;
 };
 
+function formatDisplayDate(iso: string) {
+  if (!iso) return "Date";
+  const d = new Date(iso + "T00:00:00");
+  if (Number.isNaN(d.getTime())) return "Date";
+  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
+
 export default function AdminDriversStatsPage() {
+  const searchParams = useSearchParams();
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [selectedDriver, setSelectedDriver] = useState<number | null>(null);
   const [statsData, setStatsData] = useState<StatsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerAnim, setPickerAnim] = useState(false);
 
   useEffect(() => {
+    authify();
     loadDrivers();
   }, []);
 
+  useEffect(() => {
+    const raw = searchParams?.get("driverId") || "";
+    const id = Number(raw);
+    if (!Number.isFinite(id) || id <= 0) return;
+    if (!drivers.length) return;
+    if (selectedDriver === id) return;
+    const exists = drivers.some((d) => d.id === id);
+    if (!exists) return;
+    setSelectedDriver(id);
+  }, [searchParams, drivers, selectedDriver]);
+
   const loadDriverStats = useCallback(async (driverId: number) => {
     try {
-      const r = await api.get<StatsData>(`/admin/drivers/${driverId}/stats`, { params: { date: selectedDate } });
+      const r = await api.get<StatsData>(`/api/admin/drivers/${driverId}/stats`, { params: { date: selectedDate } });
       setStatsData(r.data);
     } catch (err) {
       console.error("Failed to load driver stats", err);
@@ -49,7 +92,7 @@ export default function AdminDriversStatsPage() {
   async function loadDrivers() {
     setLoading(true);
     try {
-      const r = await api.get<{ items: Driver[]; total: number }>("/admin/drivers", { params: { page: 1, pageSize: 100 } });
+      const r = await api.get<{ items: Driver[]; total: number }>("/api/admin/drivers", { params: { page: 1, pageSize: 100 } });
       setDrivers(r.data?.items ?? []);
     } catch (err) {
       console.error("Failed to load drivers", err);
@@ -140,15 +183,43 @@ export default function AdminDriversStatsPage() {
                 <h2 className="text-xl font-bold text-gray-900 mb-2">{statsData.driver.name}</h2>
                 <p className="text-sm text-gray-500 mb-4">{statsData.driver.email}</p>
                 <div className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-gray-400" aria-hidden="true" />
-                  <input
-                    type="date"
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    aria-label="Select date for statistics"
-                    title="Select date for statistics"
-                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                  />
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPickerAnim(true);
+                        setTimeout(() => setPickerAnim(false), 350);
+                        setPickerOpen((v) => !v);
+                      }}
+                      className={`w-full box-border px-3 py-2 rounded-lg border border-gray-300 text-sm flex items-center justify-center gap-2 text-gray-700 bg-white transition-all ${
+                        pickerAnim ? "ring-2 ring-emerald-100" : "hover:bg-gray-50"
+                      }`}
+                      aria-label="Open date picker"
+                      title="Select date for statistics"
+                    >
+                      <Calendar className="h-4 w-4 text-gray-500" aria-hidden="true" />
+                      <span className="tabular-nums">{formatDisplayDate(selectedDate)}</span>
+                    </button>
+
+                    {pickerOpen && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setPickerOpen(false)} />
+                        <div className="fixed z-50 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                          <DatePicker
+                            selected={selectedDate}
+                            allowRange={false}
+                            allowPast={true}
+                            onSelectAction={(s) => {
+                              const iso = Array.isArray(s) ? (s[0] as string) : (s as string);
+                              if (iso) setSelectedDate(iso);
+                              setPickerOpen(false);
+                            }}
+                            onCloseAction={() => setPickerOpen(false)}
+                          />
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
 

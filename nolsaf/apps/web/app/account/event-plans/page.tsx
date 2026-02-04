@@ -84,6 +84,7 @@ export default function MyEventPlansPage() {
   const [filter, setFilter] = useState<"all" | "active" | "pending" | "completed" | "expired">("all");
   const [entered, setEntered] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorStatus, setErrorStatus] = useState<number | null>(null);
 
   useEffect(() => {
     loadPlanRequests();
@@ -99,15 +100,18 @@ export default function MyEventPlansPage() {
     try {
       setLoading(true);
       setError(null);
+      setErrorStatus(null);
       const response = await api.get("/api/customer/plan-requests");
       setPlanRequests(response.data.items || []);
     } catch (err: any) {
-      const msg = err?.response?.data?.error || "Failed to fetch event plans";
+      const status = err?.response?.status ?? null;
+      const msg = err?.response?.data?.error || (status === 401 ? "Please sign in to view your plan requests." : "Failed to fetch plan requests");
       setError(msg);
+      setErrorStatus(status);
       try {
         window.dispatchEvent(
           new CustomEvent("nols:toast", {
-            detail: { type: "error", title: "Event Plans", message: msg, duration: 4500 },
+            detail: { type: "error", title: "Plan Requests", message: msg, duration: 4500 },
           })
         );
       } catch {}
@@ -201,10 +205,38 @@ export default function MyEventPlansPage() {
           <div className="h-16 w-16 rounded-full bg-gradient-to-br from-[#02665e]/10 to-[#014d47]/10 flex items-center justify-center mb-4">
             <ClipboardList className="h-8 w-8 text-[#02665e]" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">My Event Plan</h1>
-          <p className="text-sm text-gray-500 mt-1">View all your Plan with Us requests</p>
+          <h1 className="text-2xl font-bold text-gray-900">My Plan Requests</h1>
+          <p className="text-sm text-gray-500 mt-1">Track progress for your “Plan with Us” requests</p>
         </div>
       </div>
+
+      {error && (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 shadow-sm">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <div className="text-sm font-bold text-rose-900">We couldn’t load your plan requests</div>
+              <div className="mt-1 text-sm text-rose-800">{error}</div>
+            </div>
+            <div className="flex items-center gap-2">
+              {errorStatus === 401 && (
+                <Link
+                  href="/account/login"
+                  className="no-underline inline-flex items-center justify-center rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-rose-700 transition"
+                >
+                  Sign in
+                </Link>
+              )}
+              <button
+                type="button"
+                onClick={loadPlanRequests}
+                className="inline-flex items-center justify-center rounded-xl border border-rose-200 bg-white px-4 py-2 text-sm font-semibold text-rose-900 shadow-sm hover:bg-rose-100/60 transition"
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Filter tabs */}
       <div className="flex justify-center">
@@ -252,7 +284,7 @@ export default function MyEventPlansPage() {
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#02665e]/10 transition-transform duration-200 hover:scale-[1.03]">
             <ClipboardList className="h-7 w-7 text-[#02665e]" />
           </div>
-          <div className="mt-4 text-lg font-bold text-slate-900">No event plans found</div>
+          <div className="mt-4 text-lg font-bold text-slate-900">No plan requests found</div>
           <div className="mt-1 text-sm text-slate-600">
             {filter === "pending"
               ? "You don't have any pending event plans at the moment."
@@ -281,44 +313,54 @@ export default function MyEventPlansPage() {
           {filteredRequests.map((request) => (
             <div
               key={request.id}
-              className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-[2px]"
+              className="relative overflow-hidden rounded-3xl border border-slate-200/70 bg-white p-5 sm:p-6 shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-[2px]"
             >
+              <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500" />
+              <div className="pointer-events-none absolute -right-24 -top-24 h-56 w-56 rounded-full bg-gradient-to-br from-emerald-100/70 to-cyan-100/40 blur-2xl" />
+              <div className="pointer-events-none absolute -left-24 -bottom-24 h-56 w-56 rounded-full bg-gradient-to-br from-slate-100/70 to-emerald-100/40 blur-2xl" />
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0 flex-1">
                   {/* Header with role/trip type and status */}
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-[#02665e]/10 rounded-xl">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex items-start gap-3 min-w-0">
+                      <div className="mt-0.5 rounded-2xl bg-emerald-50 border border-emerald-100 p-2.5 shadow-sm">
                         <ClipboardList className="h-5 w-5 text-[#02665e]" />
                       </div>
-                      <div>
-                        <h3 className="text-lg font-bold text-slate-900">
-                          {request.role} • {request.tripType}
-                        </h3>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight">
+                            {request.role} • {request.tripType}
+                          </h3>
+                          <span className="text-xs font-medium text-slate-500">Request #{request.id}</span>
+                        </div>
                         {request.destinations && (
-                          <div className="mt-1 text-sm text-slate-600 line-clamp-1">
+                          <div className="mt-1 text-sm text-slate-600 line-clamp-2">
                             {request.destinations}
                           </div>
                         )}
+                        <div className="mt-1.5 text-xs text-slate-500">
+                          Updated {formatDate(request.updatedAt)}
+                        </div>
                       </div>
                     </div>
+
                     <span
-                      className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${getStatusColor(request)}`}
+                      className={[
+                        "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 ring-inset shadow-sm",
+                        getStatusColor(request),
+                      ].join(" ")}
                     >
-                      {request.isValid ? (
-                        <CheckCircle className="h-4 w-4" />
-                      ) : (
-                        <Clock className="h-4 w-4" />
-                      )}
+                      <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" aria-hidden />
+                      {request.isValid ? <CheckCircle className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
                       {getStatusLabel(request)}
                     </span>
                   </div>
 
                   {/* Request Information Grid */}
-                  <div className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-2">
+                  <div className="mt-5 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
                     {/* Date Range */}
                     {(request.dateFrom || request.dateTo) && (
-                      <div className="rounded-xl bg-slate-50/70 border border-slate-200 p-3">
+                      <div className="rounded-2xl bg-slate-50/60 border border-slate-200/70 p-4 shadow-sm">
                         <div className="flex items-center gap-2 text-xs font-medium text-slate-500 mb-1">
                           <Calendar className="h-3.5 w-3.5 text-[#02665e]" />
                           Date Range
@@ -337,7 +379,7 @@ export default function MyEventPlansPage() {
 
                     {/* Group Size */}
                     {request.groupSize && (
-                      <div className="rounded-xl bg-slate-50/70 border border-slate-200 p-3">
+                      <div className="rounded-2xl bg-slate-50/60 border border-slate-200/70 p-4 shadow-sm">
                         <div className="flex items-center gap-2 text-xs font-medium text-slate-500 mb-1">
                           <Users className="h-3.5 w-3.5 text-[#02665e]" />
                           Group Size
@@ -350,7 +392,7 @@ export default function MyEventPlansPage() {
 
                     {/* Budget */}
                     {request.budget && (
-                      <div className="rounded-xl bg-slate-50/70 border border-slate-200 p-3">
+                      <div className="rounded-2xl bg-slate-50/60 border border-slate-200/70 p-4 shadow-sm">
                         <div className="flex items-center gap-2 text-xs font-medium text-slate-500 mb-1">
                           <DollarSign className="h-3.5 w-3.5 text-[#02665e]" />
                           Budget
@@ -363,7 +405,7 @@ export default function MyEventPlansPage() {
 
                     {/* Transport Required */}
                     {request.transportRequired && (
-                      <div className="rounded-xl bg-slate-50/70 border border-slate-200 p-3">
+                      <div className="rounded-2xl bg-slate-50/60 border border-slate-200/70 p-4 shadow-sm">
                         <div className="flex items-center gap-2 text-xs font-medium text-slate-500 mb-1">
                           <Truck className="h-3.5 w-3.5 text-[#02665e]" />
                           Transport
@@ -474,9 +516,14 @@ export default function MyEventPlansPage() {
 
                   {/* Notes - Only show if there are notes and no follow-up messages to avoid duplication */}
                   {request.notes && !request.notes.includes("--- Follow-up") && (
-                    <div className="mt-4 rounded-lg bg-slate-50 border border-slate-200 p-3">
-                      <div className="text-xs font-medium text-slate-500 mb-1">Notes</div>
-                      <p className="text-sm text-slate-700 whitespace-pre-wrap">{request.notes}</p>
+                    <div className="mt-5 rounded-2xl border border-slate-200/70 bg-white shadow-sm">
+                      <div className="flex items-center gap-2 border-b border-slate-200/70 px-4 py-3">
+                        <FileText className="h-4 w-4 text-[#02665e]" />
+                        <div className="text-xs font-semibold text-slate-700">Notes</div>
+                      </div>
+                      <div className="px-4 py-3">
+                        <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{request.notes}</p>
+                      </div>
                     </div>
                   )}
 

@@ -30,7 +30,7 @@ export default function CustomerSidebar() {
     },
     {
       href: "/account/event-plans",
-      label: "My Event Plan",
+      label: "My Plan Requests",
       icon: ClipboardList,
     },
     {

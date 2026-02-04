@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Briefcase, Plus, Edit, Trash2, Eye, X, Calendar, MapPin, DollarSign, Clock, CheckCircle2, AlertCircle, FileText, Users, Mail, Phone, ExternalLink, Download, CheckSquare, Square, GraduationCap, Languages } from "lucide-react";
 import PDFViewer from "@/components/PDFViewer";
 import DatePicker from "@/components/ui/DatePicker";
+import { useSearchParams } from "next/navigation";
 
 type Job = {
   id: number;
@@ -60,6 +61,7 @@ const LOCATIONS = ["REMOTE", "ONSITE", "HYBRID"];
 const EXPERIENCE_LEVELS = ["ENTRY", "MID", "SENIOR", "LEAD"];
 
 export default function CareersManagement() {
+  const searchParams = useSearchParams();
   const apiBase = typeof window === 'undefined'
     ? (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000")
     : '';
@@ -89,6 +91,12 @@ export default function CareersManagement() {
   const [, setStatisticsLoading] = useState(false);
   const [resumeViewUrl, setResumeViewUrl] = useState<string | null>(null);
   const [viewingResume, setViewingResume] = useState(false);
+
+  useEffect(() => {
+    const tab = String(searchParams?.get("tab") || "").toLowerCase();
+    if (tab === "applications") setActiveTab("applications");
+    if (tab === "jobs") setActiveTab("jobs");
+  }, [searchParams]);
 
   const [formData, setFormData] = useState<JobFormData>({
     title: "",

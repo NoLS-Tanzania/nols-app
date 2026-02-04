@@ -4,6 +4,7 @@ import { UserPlus, Truck, Search, ExternalLink, X, MapPin, Eye, AlertCircle, Ref
 import Link from "next/link";
 import axios from "axios";
 import TableRow from "@/components/TableRow";
+import { useSearchParams } from "next/navigation";
 
 const api = axios.create({ baseURL: "", withCredentials: true });
 
@@ -81,6 +82,7 @@ type FilterType = "all" | "active" | "suspended" | "recent" | "high_rated";
 type SortType = "name_asc" | "name_desc" | "newest" | "oldest";
 
 export default function AdminDriversReferralsPage() {
+  const searchParams = useSearchParams();
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [selectedDriver, setSelectedDriver] = useState<number | null>(null);
   const [referralData, setReferralData] = useState<ReferralData | null>(null);
@@ -115,12 +117,23 @@ export default function AdminDriversReferralsPage() {
     loadDrivers();
   }, []);
 
+  useEffect(() => {
+    const raw = searchParams?.get("driverId") || "";
+    const id = Number(raw);
+    if (!Number.isFinite(id) || id <= 0) return;
+    if (!drivers.length) return;
+    if (selectedDriver === id) return;
+    const exists = drivers.some((d) => d.id === id);
+    if (!exists) return;
+    void loadDriverReferrals(id);
+  }, [searchParams, drivers, selectedDriver]);
+
   async function loadDrivers() {
     setLoading(true);
     setError(null);
     try {
-      const r = await api.get<{ items: Driver[]; total: number }>("/admin/drivers", { 
-        params: { page: 1, pageSize: 100, status: "" } 
+        const r = await api.get<{ items: Driver[]; total: number }>("/api/admin/drivers", { 
+          params: { page: 1, pageSize: 500 }
       });
       const driversList = r.data?.items ?? [];
       setDrivers(driversList);
@@ -143,7 +156,7 @@ export default function AdminDriversReferralsPage() {
     setLoadingReferrals(true);
     setReferralsError(null);
     try {
-      const r = await api.get<ReferralData>(`/admin/drivers/${driverId}/referrals`);
+      const r = await api.get<ReferralData>(`/api/admin/drivers/${driverId}/referrals`);
       setReferralData(r.data);
       setSelectedDriver(driverId);
     } catch (err: any) {

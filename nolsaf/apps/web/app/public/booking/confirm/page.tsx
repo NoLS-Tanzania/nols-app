@@ -801,9 +801,11 @@ export default function BookingConfirmPage() {
       )
     : 0;
 
+  const commissionPercent = getPropertyCommission(property, 0);
+
   // Calculate price based on selected room or base price
   // Always show the room's price even when nights is 0, so users can see the price while selecting dates
-  let pricePerNight = property?.basePrice ? Number(property.basePrice) : 0;
+  let basePricePerNight = property?.basePrice ? Number(property.basePrice) : 0;
   
   // Debug logging - enhanced to help diagnose issues
   if (process.env.NODE_ENV === 'development') {
@@ -908,28 +910,15 @@ export default function BookingConfirmPage() {
         const numPrice = Number(priceRaw);
         // Check if price is valid and greater than 0
         if (Number.isFinite(numPrice) && numPrice > 0) {
-          // Apply commission calculation to match what's displayed on property page
-          const commissionPercent = getPropertyCommission(property.type || "", 0);
-          pricePerNight = calculatePriceWithCommission(numPrice, commissionPercent);
-          if (process.env.NODE_ENV === 'development') {
-            console.log('Price calculated with commission:', { numPrice, commissionPercent, finalPrice: pricePerNight });
-          }
+          basePricePerNight = numPrice;
         } else if (Number.isFinite(numPrice) && numPrice === 0 && property?.basePrice) {
           // If room price is 0, fall back to basePrice
-          const commissionPercent = getPropertyCommission(property.type || "", 0);
-          pricePerNight = calculatePriceWithCommission(Number(property.basePrice), commissionPercent);
-          if (process.env.NODE_ENV === 'development') {
-            console.log('Room price is 0, using basePrice:', { basePrice: property.basePrice, finalPrice: pricePerNight });
-          }
+          basePricePerNight = Number(property.basePrice);
         }
       } else {
         // If no price found in room, fall back to basePrice
         if (property?.basePrice) {
-          const commissionPercent = getPropertyCommission(property.type || "", 0);
-          pricePerNight = calculatePriceWithCommission(Number(property.basePrice), commissionPercent);
-          if (process.env.NODE_ENV === 'development') {
-            console.log('No price in room, using basePrice:', { basePrice: property.basePrice, finalPrice: pricePerNight });
-          }
+          basePricePerNight = Number(property.basePrice);
         }
       }
     } else {
@@ -942,15 +931,12 @@ export default function BookingConfirmPage() {
         });
       }
       if (property?.basePrice) {
-        const commissionPercent = getPropertyCommission(property.type || "", 0);
-        pricePerNight = calculatePriceWithCommission(Number(property.basePrice), commissionPercent);
+        basePricePerNight = Number(property.basePrice);
       }
     }
-  } else if (property?.basePrice) {
-    // Apply commission to basePrice as well for consistency
-    const commissionPercent = getPropertyCommission(property.type || "", 0);
-    pricePerNight = calculatePriceWithCommission(Number(property.basePrice), commissionPercent);
   }
+
+  const pricePerNight = calculatePriceWithCommission(basePricePerNight, commissionPercent);
   
   // Final debug
   if (process.env.NODE_ENV === 'development') {
@@ -959,12 +945,7 @@ export default function BookingConfirmPage() {
   
   const roomsQty = Math.max(1, Number(bookingData?.rooms ?? 1));
   const subtotal = pricePerNight * nights * roomsQty;
-  const commissionPercent = getPropertyCommission(property?.type || "", 0);
-  const totalAmount = calculatePriceWithCommission(
-    subtotal,
-    commissionPercent
-  );
-  const commission = (subtotal * commissionPercent) / 100;
+  const totalAmount = subtotal;
   const currency = property?.currency || "TZS";
   
   // Calculate total including transport
@@ -2309,13 +2290,6 @@ export default function BookingConfirmPage() {
                     {subtotal.toLocaleString()} {currency}
                   </span>
                 </div>
-
-                {commission > 0 && (
-                  <div className="flex justify-between items-center text-slate-600 text-sm p-2">
-                    <span className="font-medium">Service fee</span>
-                    <span className="font-semibold text-slate-800">{commission.toLocaleString()} {currency}</span>
-                  </div>
-                )}
 
                 {includeTransport && transportFare && (
                   <div className="flex justify-between items-center text-slate-600 text-sm pt-2 p-3 bg-blue-50/50 rounded-xl border border-blue-200/60">

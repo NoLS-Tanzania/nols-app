@@ -114,6 +114,71 @@ const driverEligibilityForBooking = (driver: any, booking: any): DriverEligibili
   return { eligible: reasons.length === 0, reasons };
 };
 
+/** GET /admin/drivers/bonuses/drivers
+ * Returns drivers that have bonus history (auto-filter for the bonuses page)
+ */
+router.get("/bonuses/drivers", async (req, res) => {
+  try {
+    const take = Math.min(Number((req.query as any).take || 500), 1000);
+
+    let driverIds: number[] = [];
+
+    // Preferred source: AdminAudit bonus grants
+    try {
+      const rows = await prisma.adminAudit.findMany({
+        where: {
+          action: "GRANT_BONUS",
+          targetUserId: { not: null },
+        },
+        distinct: ["targetUserId"],
+        select: { targetUserId: true },
+        orderBy: { createdAt: "desc" },
+        take,
+      });
+
+      driverIds = rows
+        .map((r: any) => Number(r.targetUserId))
+        .filter((id: number) => Number.isFinite(id) && id > 0);
+    } catch (e) {
+      console.warn("AdminAudit distinct targetUserId failed for bonuses/drivers", e);
+    }
+
+    // Fallback: Bonus table (if present)
+    if (driverIds.length === 0) {
+      try {
+        if ((prisma as any).bonus) {
+          const rows = await (prisma as any).bonus.findMany({
+            distinct: ["driverId"],
+            select: { driverId: true },
+            orderBy: { createdAt: "desc" },
+            take,
+          });
+          driverIds = rows
+            .map((r: any) => Number(r.driverId))
+            .filter((id: number) => Number.isFinite(id) && id > 0);
+        }
+      } catch (e) {
+        console.warn("Bonus table distinct driverId failed for bonuses/drivers", e);
+      }
+    }
+
+    if (driverIds.length === 0) {
+      return res.json({ items: [], total: 0 });
+    }
+
+    const drivers = await prisma.user.findMany({
+      where: { id: { in: driverIds }, role: "DRIVER" },
+      select: { id: true, name: true, email: true },
+      orderBy: { name: "asc" },
+    });
+
+    return res.json({ items: drivers, total: drivers.length });
+  } catch (err: any) {
+    console.error("Unhandled error in GET /admin/drivers/bonuses/drivers:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 /** GET /admin/drivers?q=&status=&page=&pageSize= */
 router.get("/", async (req, res) => {
   try {
@@ -130,7 +195,18 @@ router.get("/", async (req, res) => {
     }
     if (status) {
       if (status === "SUSPENDED") where.suspendedAt = { not: null };
-      if (status === "ACTIVE") where.suspendedAt = null;
+      if (status === "ACTIVE") {
+        where.suspendedAt = null;
+        where.isDisabled = false;
+      }
+      if (status === "DISABLED") where.isDisabled = true;
+      if (status === "UNAVAILABLE") {
+        where.AND = [
+          { suspendedAt: null },
+          { isDisabled: false },
+          { OR: [{ available: false }, { isAvailable: false }] },
+        ];
+      }
     }
 
     const skip = (Number(page) - 1) * Number(pageSize);
@@ -152,7 +228,16 @@ router.get("/", async (req, res) => {
             name: true, 
             email: true, 
             phone: true,
-            suspendedAt: true, 
+            suspendedAt: true,
+            isDisabled: true,
+            available: true,
+            isAvailable: true,
+            isVipDriver: true,
+            rating: true,
+            vehicleType: true,
+            plateNumber: true,
+            operationArea: true,
+            region: true,
             createdAt: true,
           },
           orderBy: { id: "desc" },
@@ -191,13 +276,82 @@ router.get("/", async (req, res) => {
       }
     }
 
+    const numOrNull = (v: any): number | null => {
+      if (v == null) return null;
+      const n = Number(v);
+      return Number.isFinite(n) ? n : null;
+    };
+
+    // Aggregate transport performance for this page of drivers
+    const driverIds = (items ?? []).map((x: any) => x?.id).filter((x: any) => Number.isFinite(Number(x))) as number[];
+    const perfByDriver = new Map<number, { totalTrips: number; completedTrips: number; canceledTrips: number; avgRating: number | null; lastTripAt: string | null }>();
+    if (driverIds.length && (prisma as any).transportBooking) {
+      const [overall, completed, canceled] = await Promise.all([
+        (prisma as any).transportBooking.groupBy({
+          by: ["driverId"],
+          where: { driverId: { in: driverIds } },
+          _count: { _all: true },
+          _avg: { userRating: true, rating: true },
+          _max: { scheduledDate: true },
+        }),
+        (prisma as any).transportBooking.groupBy({
+          by: ["driverId"],
+          where: { driverId: { in: driverIds }, status: "COMPLETED" },
+          _count: { _all: true },
+        }),
+        (prisma as any).transportBooking.groupBy({
+          by: ["driverId"],
+          where: { driverId: { in: driverIds }, status: "CANCELED" },
+          _count: { _all: true },
+        }),
+      ]);
+
+      const completedMap = new Map<number, number>();
+      for (const row of completed ?? []) {
+        const id = Number((row as any).driverId);
+        if (!Number.isFinite(id)) continue;
+        completedMap.set(id, Number((row as any)?._count?._all ?? 0));
+      }
+      const canceledMap = new Map<number, number>();
+      for (const row of canceled ?? []) {
+        const id = Number((row as any).driverId);
+        if (!Number.isFinite(id)) continue;
+        canceledMap.set(id, Number((row as any)?._count?._all ?? 0));
+      }
+
+      for (const row of overall ?? []) {
+        const id = Number((row as any).driverId);
+        if (!Number.isFinite(id)) continue;
+        const totalTrips = Number((row as any)?._count?._all ?? 0);
+        const completedTrips = completedMap.get(id) ?? 0;
+        const canceledTrips = canceledMap.get(id) ?? 0;
+        const avgUser = numOrNull((row as any)?._avg?.userRating);
+        const avgLegacy = numOrNull((row as any)?._avg?.rating);
+        const avgRating = avgUser ?? avgLegacy;
+        const lastTripAtRaw = (row as any)?._max?.scheduledDate;
+        const lastTripAt = lastTripAtRaw ? new Date(lastTripAtRaw).toISOString() : null;
+        perfByDriver.set(id, { totalTrips, completedTrips, canceledTrips, avgRating, lastTripAt });
+      }
+    }
+
     // Format items to ensure dates are strings and handle nulls
     const formattedItems = items.map((item: any) => ({
       id: item.id,
       name: item.name || `Driver #${item.id}`,
-      email: item.email || '',
+      email: item.email || "",
       phone: item.phone || null,
+      suspendedAt: item.suspendedAt ? new Date(item.suspendedAt).toISOString() : null,
+      isDisabled: Boolean(item.isDisabled ?? false),
+      available: item.available ?? null,
+      isAvailable: item.isAvailable ?? null,
+      isVipDriver: Boolean(item.isVipDriver ?? false),
+      rating: numOrNull(item.rating),
+      vehicleType: item.vehicleType ?? null,
+      plateNumber: item.plateNumber ?? null,
+      operationArea: item.operationArea ?? null,
+      region: item.region ?? null,
       createdAt: item.createdAt ? new Date(item.createdAt).toISOString() : new Date().toISOString(),
+      performance: perfByDriver.get(Number(item.id)) ?? { totalTrips: 0, completedTrips: 0, canceledTrips: 0, avgRating: null, lastTripAt: null },
     }));
 
     console.log('[GET /admin/drivers] Returning:', formattedItems.length, 'formatted items');
@@ -2856,25 +3010,53 @@ router.get("/:id(\\d+)/referrals", async (req, res) => {
 
       // Fallback: check user table for referredBy field
       if (referrals.length === 0 && (prisma as any).user) {
-        const referredUsers = await (prisma as any).user.findMany({
-          where: {
-            OR: [
-              { referredBy: driverId },
-              { referralCode: referralCode },
-              { referralId: driverId },
-            ],
-          },
-          select: {
-            id: true,
-            fullName: true,
-            name: true,
-            email: true,
-            createdAt: true,
-            region: true,
-            district: true,
-          },
-          orderBy: { createdAt: 'desc' },
-        });
+        const userSelect = {
+          id: true,
+          fullName: true,
+          name: true,
+          email: true,
+          createdAt: true,
+          region: true,
+          district: true,
+        };
+
+        let referredUsers: any[] = [];
+        try {
+          let ors: any[] = [
+            { referredBy: driverId },
+            { referralCode: referralCode },
+            { referralId: driverId },
+          ];
+
+          // Some deployments have slightly different Prisma schemas.
+          // Retry by stripping unknown fields (e.g., `referralId`) if Prisma rejects them.
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              referredUsers = await (prisma as any).user.findMany({
+                where: { OR: ors },
+                select: userSelect,
+                orderBy: { createdAt: 'desc' },
+              });
+              break;
+            } catch (e: any) {
+              const msg = String(e?.message || "");
+              const m = msg.match(/Unknown argument `([^`]+)`/);
+              const unknownField = m?.[1] || "";
+              if (!unknownField) throw e;
+
+              const next = ors.filter((cond) => {
+                const key = Object.keys(cond || {})[0];
+                return key && key !== unknownField;
+              });
+
+              if (next.length === ors.length || next.length === 0) throw e;
+              ors = next;
+            }
+          }
+        } catch (e) {
+          console.warn("Referrals fallback user.findMany failed", e);
+          referredUsers = [];
+        }
 
         for (const ref of referredUsers) {
           let status = 'active' as 'active' | 'completed';
@@ -3398,7 +3580,7 @@ router.get("/:id(\\d+)/reminders", async (req, res) => {
           action: r.action || null,
           actionLink: r.actionLink || null,
           expiresAt: r.expiresAt || null,
-          isRead: Boolean(r.isRead),
+          isRead: Boolean((r as any).read ?? (r as any).isRead),
           createdAt: r.createdAt || new Date().toISOString(),
         }));
 
@@ -4193,25 +4375,90 @@ router.get("/:id(\\d+)/stats", async (req, res) => {
     let rating = 0;
 
     try {
-      const where: any = { driverId };
-      if (date) {
-        const start = new Date(date + "T00:00:00.000Z");
-        const end = new Date(date + "T23:59:59.999Z");
-        where.scheduledAt = { gte: start, lte: end };
-      } else {
-        where.scheduledAt = { gte: today, lt: tomorrow };
+      const start = date ? new Date(date + "T00:00:00.000Z") : today;
+      const end = date ? new Date(date + "T23:59:59.999Z") : tomorrow;
+      const range: any = date ? { gte: start, lte: end } : { gte: start, lt: end };
+
+      // Prefer transport bookings if available
+      let usedTransport = false;
+      if ((prisma as any).transportBooking) {
+        try {
+          todaysRides = await (prisma as any).transportBooking.count({
+            where: {
+              driverId,
+              scheduledDate: range,
+            },
+          });
+
+          const completedTrips = await (prisma as any).transportBooking.findMany({
+            where: {
+              driverId,
+              scheduledDate: range,
+              status: { in: ["COMPLETED", "FINISHED", "PAID"] },
+            },
+            select: { amount: true } as any,
+          });
+
+          earnings = (completedTrips || []).reduce((s: number, b: any) => s + (Number(b.amount) || 0), 0);
+          usedTransport = true;
+        } catch (e: any) {
+          // ignore and fall back to booking model
+          console.warn("Failed to fetch stats from TransportBooking", e);
+        }
       }
 
-      if ((prisma as any).booking) {
-        todaysRides = await (prisma as any).booking.count({ where });
-        const completed = await (prisma as any).booking.findMany({
-          where: { ...where, status: { in: ["COMPLETED", "FINISHED", "PAID"] } },
-          select: { price: true, total: true, fare: true },
-        });
-        earnings = (completed || []).reduce((s: number, b: any) => s + (Number(b.price || b.total || b.fare) || 0), 0);
+      if (!usedTransport && (prisma as any).booking) {
+        const booking = (prisma as any).booking;
+
+        // Some schemas store transport rides inside Booking under transportScheduledDate
+        const tryCountWith = async (where: any) => booking.count({ where });
+        const tryFindCompletedWith = async (where: any) => {
+          // Prefer totalAmount if present
+          try {
+            return await booking.findMany({
+              where: { ...where, status: { in: ["COMPLETED", "FINISHED", "PAID"] } },
+              select: { totalAmount: true, price: true, total: true, fare: true } as any,
+            });
+          } catch {
+            return await booking.findMany({
+              where: { ...where, status: { in: ["COMPLETED", "FINISHED", "PAID"] } },
+              select: { totalAmount: true } as any,
+            });
+          }
+        };
+
+        const baseWhere: any = { driverId };
+
+        // Try transportScheduledDate, then checkIn, then createdAt.
+        const attempts: Array<{ label: string; where: any }> = [
+          { label: "transportScheduledDate", where: { ...baseWhere, transportScheduledDate: range } },
+          { label: "checkIn", where: { ...baseWhere, checkIn: range } },
+          { label: "createdAt", where: { ...baseWhere, createdAt: range } },
+        ];
+
+        let lastErr: any = null;
+        for (const a of attempts) {
+          try {
+            todaysRides = await tryCountWith(a.where);
+            const completed = await tryFindCompletedWith(a.where);
+            earnings = (completed || []).reduce(
+              (s: number, b: any) => s + (Number(b.totalAmount ?? b.price ?? b.total ?? b.fare) || 0),
+              0
+            );
+            lastErr = null;
+            break;
+          } catch (err: any) {
+            lastErr = err;
+          }
+        }
+
+        if (lastErr) {
+          console.warn("Failed to fetch stats from Booking model", lastErr);
+        }
       }
     } catch (e) {
-      console.warn('Failed to fetch stats', e);
+      // Errors in stats aggregation should not break the page
+      console.warn("Failed to fetch stats", e);
     }
 
     try {
@@ -4343,7 +4590,7 @@ router.get("/:id(\\d+)/activities", async (req, res) => {
           try {
             if ((prisma as any).driverReminder) {
               unreadReminders = await (prisma as any).driverReminder.count({
-                where: { driverId, isRead: false },
+                where: { driverId, read: false },
               });
             }
           } catch (e: any) {

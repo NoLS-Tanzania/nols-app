@@ -693,23 +693,52 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
     
     if (data.roomCode && property.roomsSpec) {
       // Parse roomsSpec to find the selected room's price
-      let roomTypes: Array<{ code?: string; pricePerNight?: number; price?: number }> = [];
+      let roomTypes: Array<any> = [];
       if (typeof property.roomsSpec === "object") {
         const spec = property.roomsSpec as any;
         if (Array.isArray(spec)) {
           roomTypes = spec;
         } else if (spec.rooms && Array.isArray(spec.rooms)) {
           roomTypes = spec.rooms;
+        } else if (spec && typeof spec === "object") {
+          // Some properties store rooms under different keys; flatten any arrays found.
+          roomTypes = Object.values(spec)
+            .filter((v: any) => Array.isArray(v))
+            .flat();
         }
       }
       
-      // Find the selected room type
-      const selectedRoom = roomTypes.find((rt) => rt.code === data.roomCode);
-      if (selectedRoom) {
-        const roomPrice = selectedRoom.pricePerNight ?? selectedRoom.price ?? null;
-        if (roomPrice && Number.isFinite(Number(roomPrice)) && Number(roomPrice) > 0) {
-          pricePerNight = Number(roomPrice);
+      const parseRoomPrice = (value: unknown): number | null => {
+        if (value == null) return null;
+        if (typeof value === "number") return Number.isFinite(value) && value > 0 ? value : null;
+        const s = String(value).trim();
+        if (!s) return null;
+        // Accept values like "88,000".
+        const n = Number(s.replace(/,/g, ""));
+        return Number.isFinite(n) && n > 0 ? n : null;
+      };
+
+      // Find the selected room type (support index selection + flexible room keys)
+      const roomCodeRaw = String(data.roomCode).trim();
+      const asIndex = /^\d+$/.test(roomCodeRaw) ? Number(roomCodeRaw) : NaN;
+      const selectedRoom = (() => {
+        if (Number.isFinite(asIndex) && asIndex >= 0 && asIndex < roomTypes.length) {
+          return roomTypes[asIndex];
         }
+
+        const typeFromCode = roomCodeToTypeKey(roomCodeRaw);
+        return (
+          roomTypes.find((rt) => roomTypeKeyFromSpec(rt) === typeFromCode) ||
+          roomTypes.find((rt) => {
+            const c = String(rt?.code ?? rt?.roomCode ?? rt?.roomType ?? rt?.type ?? rt?.name ?? rt?.label ?? "").trim();
+            return c && (roomCodeRaw === c || roomCodeRaw.startsWith(c + "-"));
+          }) ||
+          null
+        );
+      })();
+      if (selectedRoom) {
+        const roomPrice = parseRoomPrice(selectedRoom.pricePerNight ?? selectedRoom.price ?? null);
+        if (roomPrice != null) pricePerNight = roomPrice;
       }
     }
     

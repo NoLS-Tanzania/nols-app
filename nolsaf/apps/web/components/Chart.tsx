@@ -16,45 +16,76 @@ export type ChartProps<T extends ChartType = ChartType> = {
   plugins?: any[];
 };
 
-export default function Chart<T extends ChartType = ChartType>({ type, data, options, onCanvas, plugins }: ChartProps<T>) {
+export default function Chart<T extends ChartType = ChartType>({ type, data, options, height, onCanvas, plugins }: ChartProps<T>) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const chartRef = useRef<unknown | null>(null);
-  type Destroyable = { destroy: () => void };
+  const chartRef = useRef<any | null>(null);
+  const onCanvasRef = useRef<typeof onCanvas>(onCanvas);
 
   useEffect(() => {
+    onCanvasRef.current = onCanvas;
+  }, [onCanvas]);
+
+  type Destroyable = { destroy: () => void };
+
+  // Initialize (or re-initialize) chart instance only when `type` changes.
+  useEffect(() => {
     let cancelled = false;
+
     (async () => {
       if (!ChartCtor) {
-        // dynamic import of chart.js auto-registered bundle
         const mod = await import("chart.js/auto");
         ChartCtor = (mod as { default: ChartCtorType }).default;
       }
       if (cancelled) return;
 
       if (chartRef.current && (chartRef.current as Destroyable).destroy) {
-        (chartRef.current as Destroyable).destroy();
+        try {
+          (chartRef.current as Destroyable).destroy();
+        } catch {}
       }
+      chartRef.current = null;
+
       if (canvasRef.current && ChartCtor) {
         const cfg: ChartConfiguration<T> = { type, data, options } as ChartConfiguration<T>;
         if (plugins && plugins.length) cfg.plugins = plugins as any;
         chartRef.current = new ChartCtor(canvasRef.current, cfg) as unknown;
       }
-  // expose canvas to parent if requested
-  try { onCanvas && onCanvas(canvasRef.current); } catch {}
+
+      try {
+        onCanvasRef.current && onCanvasRef.current(canvasRef.current);
+      } catch {}
     })();
 
     return () => {
       cancelled = true;
       if (chartRef.current && (chartRef.current as Destroyable).destroy) {
-        try { (chartRef.current as Destroyable).destroy(); } catch {}
+        try {
+          (chartRef.current as Destroyable).destroy();
+        } catch {}
       }
       chartRef.current = null;
-  try { onCanvas && onCanvas(null); } catch {}
+      try {
+        onCanvasRef.current && onCanvasRef.current(null);
+      } catch {}
     };
-  }, [type, data, options, onCanvas]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [type]);
+
+  // Update data/options without recreating the chart (prevents blinking).
+  useEffect(() => {
+    if (!chartRef.current) return;
+    try {
+      chartRef.current.data = data as any;
+      chartRef.current.options = (options ?? {}) as any;
+      if (plugins) {
+        chartRef.current.config.plugins = plugins as any;
+      }
+      chartRef.current.update("none");
+    } catch {}
+  }, [data, options, plugins]);
 
   return (
-    <div className={styles.container}>
+    <div className={styles.container} style={height ? { minHeight: `${height}px` } : undefined}>
       <canvas ref={canvasRef} className={styles.canvas} />
     </div>
   );

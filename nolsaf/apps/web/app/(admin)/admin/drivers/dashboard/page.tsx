@@ -125,7 +125,7 @@ export default function DriversDashboardPage() {
       {/* Navigation Links */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Link
-          href="/admin/drivers"
+          href="/admin/drivers/all"
           className="group relative overflow-hidden bg-white rounded-lg border border-gray-200 p-4 shadow-sm hover:shadow-md transition-all duration-300 hover:border-blue-300 hover:-translate-y-0.5 no-underline"
         >
           <div className="absolute left-0 top-0 h-full w-1 bg-blue-600 rounded-l-lg group-hover:w-1.5 transition-all duration-300" aria-hidden />

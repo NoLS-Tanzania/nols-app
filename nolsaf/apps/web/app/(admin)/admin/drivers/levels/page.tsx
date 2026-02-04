@@ -3,6 +3,7 @@ import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { Trophy, Truck, Search, Star, TrendingUp, Users, Target, Award, CheckCircle, Eye, X, BarChart3, PieChart as PieChartIcon, Car, Bike, CarTaxiFront, MessageSquare, Send, Clock, Bell } from "lucide-react";
 import axios from "axios";
 import { io, Socket } from "socket.io-client";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   PieChart,
   Pie,
@@ -18,7 +19,25 @@ import {
 } from "recharts";
 
 const api = axios.create({ baseURL: "", withCredentials: true });
-function authify() {}
+function authify() {
+  if (typeof window === "undefined") return;
+
+  const lsToken =
+    window.localStorage.getItem("token") ||
+    window.localStorage.getItem("nolsaf_token") ||
+    window.localStorage.getItem("__Host-nolsaf_token");
+
+  if (lsToken) {
+    api.defaults.headers.common["Authorization"] = `Bearer ${lsToken}`;
+    return;
+  }
+
+  const m = String(document.cookie || "").match(/(?:^|;\s*)(?:nolsaf_token|__Host-nolsaf_token)=([^;]+)/);
+  const cookieToken = m?.[1] ? decodeURIComponent(m[1]) : "";
+  if (cookieToken) {
+    api.defaults.headers.common["Authorization"] = `Bearer ${cookieToken}`;
+  }
+}
 
 type DriverWithLevel = {
   id: number;
@@ -73,6 +92,9 @@ type DriverLevelMessage = {
 };
 
 export default function AdminDriversLevelsPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const [drivers, setDrivers] = useState<DriverWithLevel[]>([]);
   const [summary, setSummary] = useState<Summary>({ total: 0, silver: 0, gold: 0, diamond: 0 });
   const [loading, setLoading] = useState(true);
@@ -134,7 +156,7 @@ export default function AdminDriversLevelsPage() {
       if (search) params.search = search;
       if (levelFilter) params.level = levelFilter;
       
-      const r = await api.get<{ drivers: DriverWithLevel[]; summary: Summary }>("/admin/drivers/levels", { params });
+      const r = await api.get<{ drivers: DriverWithLevel[]; summary: Summary }>("/api/admin/drivers/levels", { params });
       const apiDrivers = r.data?.drivers ?? [];
       const apiSummary = r.data?.summary ?? { total: 0, silver: 0, gold: 0, diamond: 0 };
       
@@ -207,6 +229,40 @@ export default function AdminDriversLevelsPage() {
       }
     };
   }, [activeTab, loadDrivers, loadMessages]);
+
+  useEffect(() => {
+    const raw = searchParams?.get("driverId") || "";
+    const id = Number(raw);
+    if (!Number.isFinite(id) || id <= 0) return;
+    if (!drivers.length) return;
+    const found = drivers.find((d) => d.id === id) || null;
+    if (!found) return;
+    if (selectedDriver?.id === id && showDetailsModal) return;
+    setSelectedDriver(found);
+    setShowDetailsModal(true);
+  }, [searchParams, drivers, selectedDriver, showDetailsModal]);
+
+  const closeDetailsModal = useCallback(() => {
+    setShowDetailsModal(false);
+    setSelectedDriver(null);
+
+    // If the modal was opened via deep-link (?driverId=...), remove it so it doesn't instantly reopen.
+    const params = new URLSearchParams(searchParams?.toString() || "");
+    if (params.has("driverId")) {
+      params.delete("driverId");
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    }
+  }, [pathname, router, searchParams]);
+
+  useEffect(() => {
+    if (!showDetailsModal) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeDetailsModal();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [closeDetailsModal, showDetailsModal]);
 
   async function sendResponse(messageId: number) {
     if (!responseText.trim() || !selectedMessage) return;
@@ -752,7 +808,12 @@ export default function AdminDriversLevelsPage() {
 
       {/* Driver Details Modal */}
       {showDetailsModal && selectedDriver && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) closeDetailsModal();
+          }}
+        >
           <div className="bg-white rounded-xl p-4 md:p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto border-2 border-slate-200">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
@@ -763,7 +824,7 @@ export default function AdminDriversLevelsPage() {
                 </div>
               </div>
               <button
-                onClick={() => setShowDetailsModal(false)}
+                onClick={closeDetailsModal}
                 className="text-gray-400 hover:text-gray-600"
               >
                 <X className="h-6 w-6" />

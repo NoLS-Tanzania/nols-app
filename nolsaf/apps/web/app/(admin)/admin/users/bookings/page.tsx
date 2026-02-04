@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { Calendar, ChevronDown, ChevronUp, User, Building2, CreditCard, Clock, ExternalLink, Search } from "lucide-react";
-import { StatusBadge } from "@/components/ui/StatusBadge";
 import DatePicker from "@/components/ui/DatePicker";
 import axios from "axios";
 import type { Socket } from "socket.io-client";
@@ -9,7 +8,25 @@ import { io } from "socket.io-client";
 
 // Use same-origin for HTTP calls so Next.js rewrites proxy to the API
 const api = axios.create({ baseURL: "", withCredentials: true });
-function authify() {}
+function authify() {
+  if (typeof window === "undefined") return;
+
+  const lsToken =
+    window.localStorage.getItem("token") ||
+    window.localStorage.getItem("nolsaf_token") ||
+    window.localStorage.getItem("__Host-nolsaf_token");
+
+  if (lsToken) {
+    api.defaults.headers.common["Authorization"] = `Bearer ${lsToken}`;
+    return;
+  }
+
+  const m = String(document.cookie || "").match(/(?:^|;\s*)(?:nolsaf_token|__Host-nolsaf_token)=([^;]+)/);
+  const cookieToken = m?.[1] ? decodeURIComponent(m[1]) : "";
+  if (cookieToken) {
+    api.defaults.headers.common["Authorization"] = `Bearer ${cookieToken}`;
+  }
+}
 
 type Row = {
   id: number;
@@ -35,6 +52,42 @@ function badgeClasses(v: string) {
     default:
       return "bg-gray-100 text-gray-700";
   }
+}
+
+function CompletedStatusBadge({ status }: { status: string }) {
+  const s = String(status || "").toUpperCase();
+  const label =
+    s === "CONFIRMED" ? "Paid" : s === "PENDING_CHECKIN" ? "Waiting" : s === "CHECKED_IN" ? "Checked In" : s || "Unknown";
+  const cls = badgeClasses(s);
+  return (
+    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${cls}`} title={label} aria-label={`Status: ${label}`}>
+      {label}
+    </span>
+  );
+}
+
+function CompletedStatusIcon({ status }: { status: string }) {
+  const s = String(status || "").toUpperCase();
+  const config =
+    s === "CONFIRMED"
+      ? { Icon: CreditCard, label: "Paid", cls: "text-blue-600" }
+      : s === "PENDING_CHECKIN"
+        ? { Icon: Clock, label: "Waiting check-in", cls: "text-amber-600" }
+        : s === "CHECKED_IN"
+          ? { Icon: Calendar, label: "Checked in", cls: "text-emerald-600" }
+          : { Icon: Calendar, label: s || "Unknown", cls: "text-gray-500" };
+
+  const Icon = config.Icon;
+  return (
+    <span
+      className="inline-flex items-center justify-center"
+      title={config.label}
+      aria-label={`Status: ${config.label}`}
+    >
+      <Icon className={`h-4 w-4 ${config.cls}`} />
+      <span className="sr-only">{config.label}</span>
+    </span>
+  );
 }
 
 // Skeleton components
@@ -311,47 +364,42 @@ export default function UserBookingsPage() {
     try {
       setLoading(true);
       authify();
-      
-      // Build query params - only show CONFIRMED, CHECKED_IN, and PENDING_CHECKIN
-      const params: any = { page: "1", pageSize: "100" };
-      
-      // Filter by status - if status is set, use it; otherwise show all three statuses
-      if (status) {
-        params.status = status;
-      } else {
-        // When showing all, we need to fetch all three statuses
-        // We'll fetch all and filter client-side, or make multiple requests
-        // For simplicity, we'll fetch all and filter
-      }
-      
+
+      const baseParams: any = { page: "1", pageSize: "100" };
       if (date) {
         if (Array.isArray(date) && date.length === 2) {
-          params.date = date[0];
+          baseParams.date = date[0];
         } else if (typeof date === "string") {
-          params.date = date;
+          baseParams.date = date;
         }
       }
-      
-      if (q) {
-        params.q = q;
+      if (q) baseParams.q = q;
+
+      const fetchStatus = async (st: string) => {
+        const r = await api.get("/api/admin/bookings", { params: { ...baseParams, status: st } });
+        const items = Array.isArray(r.data?.items) ? (r.data.items as Row[]) : [];
+        // Backend treats status=CHECKED_IN as (CHECKED_IN + PENDING_CHECKIN). For this page,
+        // keep the UX strict.
+        if (st === "CHECKED_IN") return items.filter((b) => b.status === "CHECKED_IN");
+        return items.filter((b) => b.status === st);
+      };
+
+      let next: Row[] = [];
+
+      if (status) {
+        next = await fetchStatus(status);
+      } else {
+        const [paid, waiting, checkedIn] = await Promise.all([
+          fetchStatus("CONFIRMED"),
+          fetchStatus("PENDING_CHECKIN"),
+          fetchStatus("CHECKED_IN"),
+        ]);
+        next = [...paid, ...waiting, ...checkedIn];
       }
 
-      const response = await api.get("/admin/bookings", { params });
-      const allBookings = response.data.items || [];
-      
-      // Filter to only show CONFIRMED, CHECKED_IN, and PENDING_CHECKIN
-      let filtered = allBookings.filter((b: Row) => 
-        b.status === "CONFIRMED" || 
-        b.status === "CHECKED_IN" || 
-        b.status === "PENDING_CHECKIN"
-      );
-      
-      // Apply status filter if set
-      if (status) {
-        filtered = filtered.filter((b: Row) => b.status === status);
-      }
-      
-      setList(filtered);
+      // Sort newest-first (stable-ish)
+      next.sort((a, b) => Number(b.id) - Number(a.id));
+      setList(next);
     } catch (err: any) {
       console.error("Failed to load bookings", err);
       setList([]);
@@ -363,31 +411,18 @@ export default function UserBookingsPage() {
   async function fetchCounts() {
     try {
       authify();
-      const response = await api.get("/admin/bookings", { params: { page: "1", pageSize: "1" } });
-      // We'll count from the full list - for simplicity, we can make separate requests
-      // or count from a full fetch. For now, we'll use a simplified approach.
-      const allResponse = await api.get("/admin/bookings", { params: { page: "1", pageSize: "1000" } });
-      const allBookings = allResponse.data.items || [];
-      
-      const filtered = allBookings.filter((b: Row) => 
-        b.status === "CONFIRMED" || 
-        b.status === "CHECKED_IN" || 
-        b.status === "PENDING_CHECKIN"
-      );
-      
-      const counts: Record<string, number> = {
-        CONFIRMED: 0,
-        CHECKED_IN: 0,
-        PENDING_CHECKIN: 0,
-      };
-      
-      filtered.forEach((b: Row) => {
-        if (b.status === "CONFIRMED" || b.status === "CHECKED_IN" || b.status === "PENDING_CHECKIN") {
-          counts[b.status] = (counts[b.status] || 0) + 1;
-        }
+
+      const r = await api.get("/api/admin/bookings/counts");
+      const data = r.data as Record<string, number>;
+      const confirmed = Number(data?.CONFIRMED || 0);
+      const pending = Number(data?.PENDING_CHECKIN || 0);
+      const checkedIn = Number(data?.CHECKED_IN || 0);
+      setCounts({
+        "": confirmed + pending + checkedIn,
+        CONFIRMED: confirmed,
+        PENDING_CHECKIN: pending,
+        CHECKED_IN: checkedIn,
       });
-      
-      setCounts(counts);
     } catch (err) {
       // ignore failures
     }
@@ -691,7 +726,7 @@ export default function UserBookingsPage() {
                               'text-gray-500'
                             }`}
                           />
-                          <StatusBadge s={b.status} />
+                          <span className="sr-only">{statusConfig.label}</span>
                         </div>
                         <ToggleButton
                           isOpen={isOpen}
@@ -815,7 +850,7 @@ export default function UserBookingsPage() {
                         </div>
                       </td>
                       <td className="px-4 py-3 align-top">
-                        <StatusBadge s={b.status} />
+                        <CompletedStatusIcon status={b.status} />
                       </td>
                       <td className="px-4 py-3 align-top">
                         <div className="text-gray-700">

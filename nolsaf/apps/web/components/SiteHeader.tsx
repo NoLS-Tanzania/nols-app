@@ -268,17 +268,43 @@ export default function SiteHeader({
 
   return (
     <header
-      className={`fixed top-0 left-0 right-0 z-50 text-white ${(isAdmin || isOwner || driverMode) ? "bg-[#02665e]" : "bg-brand-primary"} shadow-md backdrop-blur-sm transition-all duration-300`}
-      style={{
-        background: driverMode 
-          ? 'linear-gradient(135deg, #02665e 0%, #014d47 100%)' 
-          : (isAdmin || isOwner) 
-          ? 'linear-gradient(135deg, #02665e 0%, #014d47 100%)' 
-          : undefined,
-        textShadow: '0 2px 4px rgba(0, 0, 0, 0.2), 0 0 8px rgba(0, 0, 0, 0.15)',
-        filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.15))',
-      }}
+      className={`fixed top-0 left-0 right-0 z-50 text-white transition-all duration-300 ${
+        isAdmin
+          ? 'bg-transparent'
+          : (isOwner || driverMode)
+          ? 'bg-[#02665e]'
+          : 'bg-brand-primary'
+      }`}
+      style={
+        driverMode
+          ? {
+              background: 'linear-gradient(135deg, #02665e 0%, #014d47 100%)',
+              textShadow: '0 2px 4px rgba(0, 0, 0, 0.2), 0 0 8px rgba(0, 0, 0, 0.15)',
+              filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.15))',
+            }
+          : isOwner
+          ? {
+              background: 'linear-gradient(135deg, #02665e 0%, #014d47 100%)',
+              textShadow: '0 2px 4px rgba(0, 0, 0, 0.2), 0 0 8px rgba(0, 0, 0, 0.15)',
+              filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.15))',
+            }
+          : undefined
+      }
     >
+      {isAdmin && (
+        <>
+          <div
+            className="pointer-events-none absolute inset-0"
+            aria-hidden
+            style={{
+              background:
+                'radial-gradient(900px circle at 20% 0%, rgba(2,102,94,0.16), transparent 52%), radial-gradient(900px circle at 80% 0%, rgba(56,189,248,0.10), transparent 55%), linear-gradient(to bottom, rgba(2,6,23,0.80), rgba(2,6,23,0.15) 70%, rgba(2,6,23,0.00))',
+            }}
+          />
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-white/10" aria-hidden />
+        </>
+      )}
+
       {/* Admin: Fixed menu icon on the left side, doesn't move with sidebar */}
       {isAdmin && (
         <button
@@ -290,14 +316,23 @@ export default function SiteHeader({
             }
           }}
           aria-label="Toggle sidebar"
-          className="fixed left-4 top-1/2 -translate-y-1/2 z-50 hidden md:inline-flex items-center justify-center h-10 w-10 rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 hover:scale-105 active:scale-95 transition-all duration-300 ease-out hover:shadow-md"
+          className="group fixed left-4 top-3 z-50 inline-flex items-center justify-center h-10 w-10 rounded-2xl bg-[#02665e]/25 backdrop-blur-md border border-[#02665e]/35 hover:bg-[#02665e]/35 hover:border-[#02665e]/45 hover:scale-105 active:scale-95 transition-all duration-300 ease-out"
         >
-          <svg className="w-5 h-5 text-white transition-transform duration-300" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+          <svg className="w-5 h-5 text-white opacity-90 group-hover:opacity-100 transition-all duration-300" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
             <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
       )}
-      <div className={`mx-auto max-w-6xl px-4 h-16 flex items-center justify-between ${isAdmin ? 'md:pl-14' : ''} relative`}>
+      <div className={`mx-auto max-w-6xl px-4 h-16 flex items-center ${isAdmin ? 'pl-14' : ''} relative`}>
+        <div
+          className={`w-full h-14 rounded-3xl border border-white/10 backdrop-blur-xl shadow-[0_18px_70px_rgba(0,0,0,0.40),0_0_50px_rgba(2,102,94,0.14)] flex items-center justify-between px-5 md:px-6 relative ${
+            isAdmin
+              ? 'bg-gradient-to-b from-[#0b1220]/90 via-[#0a1624]/75 to-[#070f1a]/85'
+              : (isOwner || driverMode)
+              ? 'bg-white/5'
+              : 'bg-white/0'
+          }`}
+        >
         {/* Owner: small toggle to hide/show sidebar. Uses a global event so Layout can listen */}
         {isOwner && !driverMode ? (
           <button
@@ -326,7 +361,7 @@ export default function SiteHeader({
               }
             }}
             aria-label="Toggle sidebar"
-            className="hidden md:inline-flex items-center justify-center h-10 w-10 rounded-xl bg-transparent border-0 hover:bg-white/10 hover:backdrop-blur-sm hover:border hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-out hover:shadow-md mr-3"
+            className="hidden md:inline-flex items-center justify-center h-10 w-10 rounded-xl bg-transparent border-0 hover:bg-white/10 hover:backdrop-blur-sm hover:border hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-out mr-3"
           >
             <svg className="w-5 h-5 text-white transition-transform duration-300" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
               <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -348,57 +383,57 @@ export default function SiteHeader({
         {/* driverMode: no textual controls here; icons live in the right-side group below */}
 
         {/* Desktop nav */}
-        <nav className="hidden md:flex items-center gap-2 md:absolute md:right-4 md:top-1/2 md:-translate-y-1/2">
+        <nav className="hidden md:flex items-center gap-2 md:absolute md:right-3 md:top-1/2 md:-translate-y-1/2">
           {isAdmin ? (
             <div className="flex items-center gap-1">
               <button
                 onClick={handleRefresh}
-                className="group relative inline-flex items-center justify-center h-10 w-10 rounded-lg bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/15 hover:border-white/25 hover:scale-105 active:scale-95 transition-all duration-300 ease-out hover:shadow-md"
+                className="group relative inline-flex items-center justify-center h-10 w-10 rounded-lg bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/15 hover:border-white/25 hover:scale-105 active:scale-95 transition-all duration-300 ease-out"
                 aria-label="Refresh"
                 title="Refresh"
                 disabled={isRefreshing}
               >
-                <RefreshCw className={`h-5 w-5 text-white/90 group-hover:text-white transition-transform duration-300 ${isRefreshing ? 'animate-spin' : 'group-hover:rotate-180'}`} />
+                <RefreshCw className={`h-5 w-5 text-white opacity-90 group-hover:opacity-100 transition-all duration-300 ${isRefreshing ? 'animate-spin' : 'group-hover:rotate-180'}`} />
               </button>
 
               <button
                 onClick={handleExportInvoices}
-                className="group relative inline-flex items-center justify-center h-10 w-10 rounded-lg bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/15 hover:border-white/25 hover:scale-105 active:scale-95 transition-all duration-300 ease-out hover:shadow-md"
+                className="group relative inline-flex items-center justify-center h-10 w-10 rounded-lg bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/15 hover:border-white/25 hover:scale-105 active:scale-95 transition-all duration-300 ease-out"
                 aria-label="Export Invoices CSV"
                 title="Export Invoices CSV"
               >
-                <Download className="h-5 w-5 text-white/90 group-hover:text-white transition-transform duration-300 group-hover:translate-y-0.5" />
+                <Download className="h-5 w-5 text-white opacity-90 group-hover:opacity-100 transition-all duration-300 group-hover:translate-y-0.5" />
               </button>
 
               <button
                 onClick={handleWidgetPreferences}
-                className="group relative inline-flex items-center justify-center h-10 w-10 rounded-lg bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/15 hover:border-white/25 hover:scale-105 active:scale-95 transition-all duration-300 ease-out hover:shadow-md"
+                className="group relative inline-flex items-center justify-center h-10 w-10 rounded-lg bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/15 hover:border-white/25 hover:scale-105 active:scale-95 transition-all duration-300 ease-out"
                 aria-label="Widget Preferences"
                 title="Widget Preferences"
               >
-                <Sliders className="h-5 w-5 text-white/90 group-hover:text-white transition-transform duration-300 group-hover:rotate-90" />
+                <Sliders className="h-5 w-5 text-white opacity-90 group-hover:opacity-100 transition-all duration-300 group-hover:rotate-90" />
               </button>
 
               <button
                 onClick={toggleTheme}
-                className="group relative inline-flex items-center justify-center h-10 w-10 rounded-lg bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/15 hover:border-white/25 hover:scale-105 active:scale-95 transition-all duration-300 ease-out hover:shadow-md"
+                className="group relative inline-flex items-center justify-center h-10 w-10 rounded-lg bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/15 hover:border-white/25 hover:scale-105 active:scale-95 transition-all duration-300 ease-out"
                 aria-label="Toggle theme"
                 title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
               >
                 {theme === 'dark' ? (
-                  <Sun className="h-5 w-5 text-white/90 group-hover:text-white transition-transform duration-300 group-hover:rotate-180" />
+                  <Sun className="h-5 w-5 text-white opacity-90 group-hover:opacity-100 transition-all duration-300 group-hover:rotate-180" />
                 ) : (
-                  <Moon className="h-5 w-5 text-white/90 group-hover:text-white transition-transform duration-300 group-hover:-rotate-12" />
+                  <Moon className="h-5 w-5 text-white opacity-90 group-hover:opacity-100 transition-all duration-300 group-hover:-rotate-12" />
                 )}
               </button>
 
               <Link
                 href="/admin/messages"
-                className="group relative inline-flex items-center justify-center rounded-md p-1.5 hover:bg-white/10 transition-all duration-200 ease-out"
+                className="group relative inline-flex items-center justify-center h-10 w-10 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/10 hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-out"
                 aria-label="Notifications"
                 title="Notifications"
               >
-                <Bell className="h-5 w-5 text-white/90 group-hover:text-white transition-transform duration-300 group-hover:scale-110" />
+                <Bell className="h-5 w-5 text-white opacity-90 group-hover:opacity-100 transition-all duration-300 group-hover:scale-110" />
                 {(unreadCount ?? unreadMessages) > 0 && (
                 <span
                     className="absolute -top-0.5 -right-0.5 h-3.5 min-w-3.5 px-1 rounded-full bg-rose-500 text-[9px] leading-3.5 text-white font-semibold ring-1 ring-white/50 text-center flex items-center justify-center"
@@ -411,28 +446,28 @@ export default function SiteHeader({
 
               <Link 
                 href="/admin/support" 
-                className="group relative inline-flex items-center justify-center rounded-md p-1.5 hover:bg-white/10 transition-all duration-200 ease-out" 
+                className="group relative inline-flex items-center justify-center h-10 w-10 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/10 hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-out" 
                 aria-label="Support" 
                 title="Support"
               >
-                <LifeBuoy className="h-5 w-5 text-white/90 group-hover:text-white transition-transform duration-300 group-hover:rotate-12" />
+                <LifeBuoy className="h-5 w-5 text-white opacity-90 group-hover:opacity-100 transition-all duration-300 group-hover:rotate-12" />
               </Link>
 
               <Link 
                 href="/admin/settings" 
-                className="group relative inline-flex items-center justify-center rounded-md p-1.5 hover:bg-white/10 transition-all duration-200 ease-out" 
+                className="group relative inline-flex items-center justify-center h-10 w-10 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/10 hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-out" 
                 aria-label="Settings" 
                 title="Settings"
               >
-                <SettingsIcon className="h-5 w-5 text-white/90 group-hover:text-white transition-transform duration-300 group-hover:rotate-90" />
+                <SettingsIcon className="h-5 w-5 text-white opacity-90 group-hover:opacity-100 transition-all duration-300 group-hover:rotate-90" />
               </Link>
 
-              <div className="mx-1 h-6 w-px bg-white/30" />
+              <div className="mx-1 h-6 w-px bg-white/15" />
 
               <div ref={profileDropdownRef} className="relative">
                 <button
                   onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-                  className="group inline-flex items-center justify-center gap-2 h-10 px-2 rounded-xl bg-transparent border-0 hover:bg-white/10 hover:backdrop-blur-sm hover:border hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-out hover:shadow-md"
+                  className="group inline-flex items-center justify-center gap-2 h-10 px-2 rounded-xl bg-transparent border-0 hover:bg-white/10 hover:backdrop-blur-sm hover:border hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-out"
                   aria-label="Profile menu"
                   aria-expanded={profileDropdownOpen}
                 >
@@ -442,10 +477,10 @@ export default function SiteHeader({
                     </div>
                   ) : (
                     <div className="h-9 w-9 rounded-full flex items-center justify-center transition-all duration-300 ease-out group-hover:ring-2 group-hover:ring-white/10 bg-white/10 border border-white/20">
-                      <User className="h-5 w-5 text-white/90" />
+                      <User className="h-5 w-5 text-white opacity-90 group-hover:opacity-100 transition-opacity duration-300" />
                     </div>
                   )}
-                  <ChevronDown className={`h-4 w-4 text-white/90 transition-all duration-300 ease-out ${profileDropdownOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`h-4 w-4 text-white opacity-90 transition-all duration-300 ease-out ${profileDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
 
                 {profileDropdownOpen && (
@@ -454,11 +489,11 @@ export default function SiteHeader({
                     <div className="px-4 py-4 border-b border-gray-100/50 bg-gradient-to-br from-[#02665e]/10 via-[#02665e]/5 to-slate-50/30">
                       <div className="flex items-center gap-3 mb-3">
                         {avatarUrl ? (
-                          <div className="h-12 w-12 rounded-full border-2 border-[#02665e]/30 overflow-hidden flex-shrink-0 transition-transform duration-300 hover:scale-110 ring-2 ring-[#02665e]/10 shadow-sm">
+                          <div className="h-12 w-12 rounded-full border-2 border-[#02665e]/30 overflow-hidden flex-shrink-0 transition-transform duration-300 hover:scale-110 ring-2 ring-[#02665e]/10">
                             <Image src={avatarUrl} alt="Profile" width={48} height={48} className="object-cover w-full h-full" />
                           </div>
                         ) : (
-                          <div className="h-12 w-12 rounded-full border-2 border-[#02665e]/30 bg-gradient-to-br from-[#02665e]/10 to-[#02665e]/5 flex items-center justify-center flex-shrink-0 transition-transform duration-300 hover:scale-110 ring-2 ring-[#02665e]/10 shadow-sm">
+                          <div className="h-12 w-12 rounded-full border-2 border-[#02665e]/30 bg-gradient-to-br from-[#02665e]/10 to-[#02665e]/5 flex items-center justify-center flex-shrink-0 transition-transform duration-300 hover:scale-110 ring-2 ring-[#02665e]/10">
                             <Shield className="h-6 w-6 text-[#02665e]" />
                           </div>
                         )}
@@ -526,19 +561,19 @@ export default function SiteHeader({
                 )}
               </div>
 
-              <div className="mx-1 h-6 w-px bg-white/30" />
+              <div className="mx-1 h-6 w-px bg-white/15" />
 
               {/* No4P Security Dropdown */}
               <div ref={no4pSecurityDropdownRef} className="relative">
                 <button
                   onClick={() => setNo4pSecurityDropdownOpen(!no4pSecurityDropdownOpen)}
-                  className="group inline-flex items-center justify-center gap-2 h-10 px-3 rounded-xl bg-transparent border-0 hover:bg-white/10 hover:backdrop-blur-sm hover:border hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-out hover:shadow-md"
+                  className="group inline-flex items-center justify-center gap-2 h-10 px-3 rounded-xl bg-transparent border-0 hover:bg-white/10 hover:backdrop-blur-sm hover:border hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-out"
                   aria-label="No4P Security"
                   aria-expanded={no4pSecurityDropdownOpen}
                 >
-                  <Shield className="h-5 w-5 text-white/90 group-hover:text-white transition-all duration-300 ease-out" />
-                  <span className="text-sm font-medium text-white/90 group-hover:text-white">No4P</span>
-                  <ChevronDown className={`h-4 w-4 text-white/90 transition-all duration-300 ease-out ${no4pSecurityDropdownOpen ? 'rotate-180' : ''}`} />
+                  <Shield className="h-5 w-5 text-white opacity-90 group-hover:opacity-100 transition-opacity duration-300 ease-out" />
+                  <span className="text-sm font-medium text-white opacity-90 group-hover:opacity-100 transition-opacity duration-300 ease-out">No4P</span>
+                  <ChevronDown className={`h-4 w-4 text-white opacity-90 transition-all duration-300 ease-out ${no4pSecurityDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
 
                 {no4pSecurityDropdownOpen && (
@@ -546,7 +581,7 @@ export default function SiteHeader({
                     {/* Header Section */}
                     <div className="px-4 py-4 border-b border-gray-100/50 bg-gradient-to-br from-[#02665e]/10 via-[#02665e]/5 to-slate-50/30">
                       <div className="flex items-center gap-3">
-                        <div className="h-12 w-12 rounded-xl bg-[#02665e] flex items-center justify-center flex-shrink-0 shadow-lg">
+                        <div className="h-12 w-12 rounded-xl bg-[#02665e] flex items-center justify-center flex-shrink-0">
                           <Shield className="h-6 w-6 text-white" />
                         </div>
                         <div className="flex-1 min-w-0">
@@ -601,24 +636,24 @@ export default function SiteHeader({
           <div className="hidden md:inline-flex items-center gap-2">
             <button
               onClick={handleRefresh}
-              className="group relative inline-flex items-center justify-center h-10 w-10 rounded-xl text-white/90 hover:bg-white/10 hover:backdrop-blur-sm hover:border hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-out hover:shadow-md"
+              className="group relative inline-flex items-center justify-center h-10 w-10 rounded-xl text-white hover:bg-white/10 hover:backdrop-blur-sm hover:border hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-out"
               aria-label="Refresh"
               title="Refresh"
               onTouchStart={() => handleTouch('refresh')}
               onTouchEnd={() => setTouchedIcon(null)}
             >
-              <RefreshCw className={`h-5 w-5 transition-all duration-300 ease-out ${isRefreshing ? 'animate-spin' : 'group-hover:rotate-180'}`} />
+              <RefreshCw className={`h-5 w-5 opacity-90 group-hover:opacity-100 transition-all duration-300 ease-out ${isRefreshing ? 'animate-spin' : 'group-hover:rotate-180'}`} />
             </button>
 
             <Link 
               href="/driver/notifications" 
-              className="group relative inline-flex items-center justify-center h-10 w-10 rounded-xl text-white/90 hover:bg-white/10 hover:backdrop-blur-sm hover:border hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-out hover:shadow-md"
+              className="group relative inline-flex items-center justify-center h-10 w-10 rounded-xl text-white hover:bg-white/10 hover:backdrop-blur-sm hover:border hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-out"
               aria-label="Notifications" 
               title="Notifications"
               onTouchStart={() => handleTouch('notifications')}
               onTouchEnd={() => setTouchedIcon(null)}
             >
-              <Bell className="h-5 w-5 transition-all duration-300 ease-out group-hover:animate-pulse" />
+              <Bell className="h-5 w-5 opacity-90 group-hover:opacity-100 transition-all duration-300 ease-out group-hover:animate-pulse" />
               <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 rounded-full bg-rose-500 text-[10px] leading-4 text-white font-semibold ring-2 ring-[#02665e] text-center animate-scale-in">
                 0
               </span>
@@ -626,13 +661,13 @@ export default function SiteHeader({
 
             <Link 
               href="/driver/support" 
-              className="group relative inline-flex items-center justify-center h-10 w-10 rounded-xl text-white/90 hover:bg-white/10 hover:backdrop-blur-sm hover:border hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-out hover:shadow-md"
+              className="group relative inline-flex items-center justify-center h-10 w-10 rounded-xl text-white hover:bg-white/10 hover:backdrop-blur-sm hover:border hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-out"
               aria-label="Request assistance" 
               title="Request assistance"
               onTouchStart={() => handleTouch('support')}
               onTouchEnd={() => setTouchedIcon(null)}
             >
-              <LifeBuoy className="h-5 w-5 transition-all duration-300 ease-out group-hover:rotate-12" />
+              <LifeBuoy className="h-5 w-5 opacity-90 group-hover:opacity-100 transition-all duration-300 ease-out group-hover:rotate-12" />
             </Link>
 
             <div className="relative" data-settings-dropdown>
@@ -641,13 +676,13 @@ export default function SiteHeader({
                   e.stopPropagation();
                   setSettingsOpen(!settingsOpen);
                 }}
-                className="group relative inline-flex items-center justify-center h-10 w-10 rounded-xl bg-transparent border-0 text-white/90 hover:bg-white/10 hover:backdrop-blur-sm hover:border hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-out hover:shadow-md"
+                className="group relative inline-flex items-center justify-center h-10 w-10 rounded-xl bg-transparent border-0 text-white hover:bg-white/10 hover:backdrop-blur-sm hover:border hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-out"
                 aria-label="Settings"
                 title="Settings"
                 onTouchStart={() => handleTouch('settings')}
                 onTouchEnd={() => setTouchedIcon(null)}
               >
-                <SettingsIcon className={`h-5 w-5 transition-all duration-300 ease-out ${settingsOpen ? 'rotate-90' : 'group-hover:rotate-45'}`} />
+                <SettingsIcon className={`h-5 w-5 opacity-90 group-hover:opacity-100 transition-all duration-300 ease-out ${settingsOpen ? 'rotate-90' : 'group-hover:rotate-45'}`} />
               </button>
 
               {settingsOpen && (
@@ -714,7 +749,7 @@ export default function SiteHeader({
             <div ref={profileDropdownRef} className="relative">
               <button
                 onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-                className="group inline-flex items-center justify-center gap-2 h-10 px-2 rounded-xl bg-transparent border-0 hover:bg-white/10 hover:backdrop-blur-sm hover:border hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-out hover:shadow-md"
+                className="group inline-flex items-center justify-center gap-2 h-10 px-2 rounded-xl bg-transparent border-0 hover:bg-white/10 hover:backdrop-blur-sm hover:border hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-out"
                 aria-label="Profile menu"
                 aria-expanded={profileDropdownOpen}
                 onTouchStart={() => handleTouch('profile')}
@@ -886,7 +921,7 @@ export default function SiteHeader({
             <div ref={profileDropdownRef} className="relative">
               <button
                 onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-                className="group inline-flex items-center justify-center gap-2 h-10 px-2 rounded-xl bg-transparent border-0 hover:bg-white/10 hover:backdrop-blur-sm hover:border hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-out hover:shadow-md"
+                className="group inline-flex items-center justify-center gap-2 h-10 px-2 rounded-xl bg-transparent border-0 hover:bg-white/10 hover:backdrop-blur-sm hover:border hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-out"
                 aria-label="Profile menu"
                 aria-expanded={profileDropdownOpen}
                 onTouchStart={() => handleTouch('profile')}
@@ -898,10 +933,10 @@ export default function SiteHeader({
                 </div>
               ) : (
                   <div className="h-9 w-9 rounded-full flex items-center justify-center transition-all duration-300 ease-out group-hover:ring-2 group-hover:ring-white/10">
-                    <User className="h-5 w-5 text-white/90" />
+                    <User className="h-5 w-5 text-white opacity-90 group-hover:opacity-100 transition-opacity duration-300" />
                 </div>
               )}
-                <ChevronDown className={`h-4 w-4 text-white/90 transition-all duration-300 ease-out ${profileDropdownOpen ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`h-4 w-4 text-white opacity-90 transition-all duration-300 ease-out ${profileDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
 
               {profileDropdownOpen && (
@@ -910,11 +945,11 @@ export default function SiteHeader({
                   <div className="px-4 py-4 border-b border-gray-100/50 bg-gradient-to-br from-emerald-50 via-emerald-50/50 to-slate-50/30">
                     <div className="flex items-center gap-3 mb-3">
                       {avatarUrl ? (
-                        <div className="h-12 w-12 rounded-full border-2 border-emerald-300 overflow-hidden flex-shrink-0 transition-transform duration-300 hover:scale-110 ring-2 ring-emerald-100 shadow-sm">
+                        <div className="h-12 w-12 rounded-full border-2 border-emerald-300 overflow-hidden flex-shrink-0 transition-transform duration-300 hover:scale-110 ring-2 ring-emerald-100">
                           <Image src={avatarUrl} alt="Profile" width={48} height={48} className="object-cover w-full h-full" />
                         </div>
                       ) : (
-                        <div className="h-12 w-12 rounded-full border-2 border-emerald-300 bg-gradient-to-br from-emerald-100 to-emerald-50 flex items-center justify-center flex-shrink-0 transition-transform duration-300 hover:scale-110 ring-2 ring-emerald-100 shadow-sm">
+                        <div className="h-12 w-12 rounded-full border-2 border-emerald-300 bg-gradient-to-br from-emerald-100 to-emerald-50 flex items-center justify-center flex-shrink-0 transition-transform duration-300 hover:scale-110 ring-2 ring-emerald-100">
                           <User className="h-6 w-6 text-emerald-600" />
                         </div>
                       )}
@@ -1013,7 +1048,7 @@ export default function SiteHeader({
 
         {/* Mobile burger */}
         <button
-          className={`md:hidden inline-flex items-center justify-center h-10 w-10 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/15 hover:border-white/20 active:scale-95 transition-all duration-300 ease-out shadow-sm ${open ? 'bg-white/15 border-white/25' : ''}`}
+          className={`md:hidden inline-flex items-center justify-center h-10 w-10 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/15 hover:border-white/20 active:scale-95 transition-all duration-300 ease-out ${open ? 'bg-white/15 border-white/25' : ''}`}
           onClick={() => setOpen((v) => !v)}
           aria-label="Toggle menu"
           aria-expanded={open}
@@ -1032,6 +1067,7 @@ export default function SiteHeader({
             )}
           </svg>
         </button>
+        </div>
       </div>
 
       {/* Mobile drawer */}
@@ -1060,7 +1096,7 @@ export default function SiteHeader({
                       }}
                       aria-label="Refresh"
                       title="Refresh"
-                      className="mobile-menu-item inline-flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out shadow-sm hover:shadow-md"
+                      className="mobile-menu-item inline-flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out"
                       style={{ '--delay': 0 } as React.CSSProperties}
                       disabled={isRefreshing}
                     >
@@ -1069,7 +1105,7 @@ export default function SiteHeader({
                     <Link
                       href="/driver/notifications"
                       onClick={() => setOpen(false)}
-                      className="mobile-menu-item relative inline-flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out shadow-sm hover:shadow-md animate-fade-in-stagger"
+                      className="mobile-menu-item relative inline-flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out animate-fade-in-stagger"
                       style={{ '--delay': 1 } as React.CSSProperties}
                       aria-label="Notifications"
                     >
@@ -1078,7 +1114,7 @@ export default function SiteHeader({
                     <Link
                       href="/driver/support"
                       onClick={() => setOpen(false)}
-                      className="mobile-menu-item inline-flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out shadow-sm hover:shadow-md animate-fade-in-stagger"
+                      className="mobile-menu-item inline-flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out animate-fade-in-stagger"
                       style={{ '--delay': 2 } as React.CSSProperties}
                       aria-label="Support"
                     >
@@ -1087,7 +1123,7 @@ export default function SiteHeader({
                     <Link
                       href="/driver/profile"
                       onClick={() => setOpen(false)}
-                      className="mobile-menu-item inline-flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out shadow-sm hover:shadow-md animate-fade-in-stagger"
+                      className="mobile-menu-item inline-flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out animate-fade-in-stagger"
                       style={{ '--delay': 3 } as React.CSSProperties}
                       aria-label="Profile"
                     >
@@ -1148,7 +1184,7 @@ export default function SiteHeader({
                     onClick={handleRefresh}
                     aria-label="Refresh"
                     title="Refresh"
-                    className="mobile-menu-item group inline-flex h-11 w-11 items-center justify-center rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out shadow-sm hover:shadow-md"
+                    className="mobile-menu-item group inline-flex h-11 w-11 items-center justify-center rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out"
                     style={{ '--delay': 0 } as React.CSSProperties}
                     disabled={isRefreshing}
                   >
@@ -1158,7 +1194,7 @@ export default function SiteHeader({
                     onClick={handleExportInvoices}
                     aria-label="Export Invoices CSV"
                     title="Export Invoices CSV"
-                    className="mobile-menu-item group inline-flex h-11 w-11 items-center justify-center rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out shadow-sm hover:shadow-md"
+                    className="mobile-menu-item group inline-flex h-11 w-11 items-center justify-center rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out"
                     style={{ '--delay': 1 } as React.CSSProperties}
                   >
                     <Download className="h-5 w-5 text-white/90 group-hover:text-white transition-transform duration-300 group-hover:translate-y-0.5" />
@@ -1167,7 +1203,7 @@ export default function SiteHeader({
                     onClick={toggleTheme}
                     aria-label="Toggle theme"
                     title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-                    className="mobile-menu-item group inline-flex h-11 w-11 items-center justify-center rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out shadow-sm hover:shadow-md"
+                    className="mobile-menu-item group inline-flex h-11 w-11 items-center justify-center rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out"
                     style={{ '--delay': 3 } as React.CSSProperties}
                   >
                     {theme === 'dark' ? (
@@ -1180,7 +1216,7 @@ export default function SiteHeader({
                     href="/admin/messages"
                     aria-label="Notifications"
                     title="Notifications"
-                    className="mobile-menu-item group relative inline-flex h-11 w-11 items-center justify-center rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out shadow-sm hover:shadow-md"
+                    className="mobile-menu-item group relative inline-flex h-11 w-11 items-center justify-center rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out"
                     style={{ '--delay': 4 } as React.CSSProperties}
                     onClick={() => setOpen(false)}
                   >
@@ -1198,7 +1234,7 @@ export default function SiteHeader({
                     href="/admin/support"
                     aria-label="Support"
                     title="Support"
-                    className="mobile-menu-item group inline-flex h-11 w-11 items-center justify-center rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out shadow-sm hover:shadow-md"
+                    className="mobile-menu-item group inline-flex h-11 w-11 items-center justify-center rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out"
                     style={{ '--delay': 5 } as React.CSSProperties}
                     onClick={() => setOpen(false)}
                   >
@@ -1208,7 +1244,7 @@ export default function SiteHeader({
                     href="/admin/settings"
                     aria-label="Settings"
                     title="Settings"
-                    className="mobile-menu-item group inline-flex h-11 w-11 items-center justify-center rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out shadow-sm hover:shadow-md"
+                    className="mobile-menu-item group inline-flex h-11 w-11 items-center justify-center rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out"
                     style={{ '--delay': 6 } as React.CSSProperties}
                     onClick={() => setOpen(false)}
                   >
@@ -1218,7 +1254,7 @@ export default function SiteHeader({
                     href="/admin/profile"
                     aria-label="Profile"
                     title="Profile"
-                    className="mobile-menu-item group inline-flex h-11 w-11 items-center justify-center rounded-full border-2 border-white/30 bg-white/10 hover:bg-white/20 hover:border-white/50 active:scale-95 transition-all duration-300 ease-out shadow-sm hover:shadow-lg"
+                    className="mobile-menu-item group inline-flex h-11 w-11 items-center justify-center rounded-full border-2 border-white/30 bg-white/10 hover:bg-white/20 hover:border-white/50 active:scale-95 transition-all duration-300 ease-out"
                     style={{ '--delay': 7 } as React.CSSProperties}
                     onClick={() => setOpen(false)}
                   >

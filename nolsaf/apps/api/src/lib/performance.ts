@@ -510,6 +510,13 @@ export const cacheKeys = {
     return `invoice:${id}`;
   },
   adminSummary: () => `admin:summary`,
+  adminPerformanceHighlights: (days: number) => {
+    const d = Number(days);
+    if (!Number.isFinite(d) || d <= 0 || d > 3650) {
+      throw new Error(`Invalid days: ${days}`);
+    }
+    return `admin:performance:highlights:${Math.round(d)}`;
+  },
   propertyCount: (status: string) => {
     if (!status || typeof status !== 'string') {
       throw new Error(`Invalid status: ${status}`);
@@ -535,5 +542,6 @@ export const cacheTags = {
   user: (id: number) => `user:${id}`,
   booking: (id: number) => `booking:${id}`,
   adminSummary: 'admin:summary',
+  adminPerformanceHighlights: 'admin:performance:highlights',
 };
 

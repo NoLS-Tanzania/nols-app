@@ -1,4 +1,6 @@
 "use client";
+
+// NOTE: Manual agent creation is disabled. This page is kept as a redirect target.
 import React, { useEffect, useState, useCallback } from "react";
 import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";

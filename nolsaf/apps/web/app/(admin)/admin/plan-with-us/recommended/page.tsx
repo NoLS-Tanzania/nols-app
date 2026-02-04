@@ -155,6 +155,7 @@ export default function AdminPlanWithUsRecommendedPage() {
                 <option value="School / Teacher">School / Teacher</option>
                 <option value="University">University</option>
                 <option value="Community group">Community Group</option>
+                <option value="Tourist">Tourist</option>
                 <option value="Other">Other</option>
               </select>
             </div>

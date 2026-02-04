@@ -41,7 +41,14 @@ function getTokenFromRequest(req: Request): string | null {
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith("Bearer ")) return authHeader.substring(7);
   const cookies = parseCookies(req.headers.cookie);
-  return cookies["nolsaf_token"] || cookies["__Host-nolsaf_token"] || null;
+  // Support both cookie names for compatibility (web middleware uses `token`)
+  return (
+    cookies["nolsaf_token"] ||
+    cookies["__Host-nolsaf_token"] ||
+    cookies["token"] ||
+    cookies["__Host-token"] ||
+    null
+  );
 }
 
 // Verify JWT token and extract user info

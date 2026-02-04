@@ -1,1 +1,23 @@
-/* Intentionally left blank (previous styles were removed). */
+/* Page-scoped overrides (primarily for Firefox form control sizing). */
+
+/* Firefox can render <select> with extra internal padding/height.
+	 Keep this scoped to the bonuses page only. */
+@supports (-moz-appearance: none) {
+	.bonuses-page input[type="text"],
+	.bonuses-page select {
+		box-sizing: border-box;
+	}
+
+	.bonuses-page input[type="text"] {
+		height: 40px;
+	}
+
+	.bonuses-page select {
+		height: 40px;
+		line-height: 40px;
+		padding-top: 0;
+		padding-bottom: 0;
+		-moz-appearance: none;
+		appearance: none;
+	}
+}

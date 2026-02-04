@@ -1,11 +1,17 @@
 "use client";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
-import { Search, X, User, CheckCircle, XCircle, Clock, Eye, Plus, Filter, GraduationCap, MapPin, Award, Languages, Briefcase, UsersRound, ChevronDown, ChevronUp, Calendar, DollarSign, Star, CheckCircle2, Mail, Phone, TrendingUp, Target, Trophy, Loader2, AlertCircle, RefreshCw } from "lucide-react";
+import { Search, X, User, CheckCircle, XCircle, Clock, Eye, Filter, GraduationCap, MapPin, Award, Languages, Briefcase, UsersRound, ChevronDown, ChevronUp, Calendar, DollarSign, Star, CheckCircle2, Mail, Phone, TrendingUp, Target, Trophy, Loader2, AlertCircle, RefreshCw, ExternalLink } from "lucide-react";
 import axios from "axios";
 import Link from "next/link";
 
 const api = axios.create({ baseURL: "", withCredentials: true });
+
+function unwrapApiData<T = any>(axiosData: any): T {
+  // admin.agents endpoints respond as { ok: true, data: ... }
+  // but some other endpoints in the app respond as plain objects.
+  return (axiosData && typeof axiosData === "object" && "data" in axiosData) ? (axiosData.data as T) : (axiosData as T);
+}
 
 function authify() {
   if (typeof window === "undefined") return;
@@ -38,6 +44,16 @@ function sanitizeInput(input: string): string {
 // Validate agent ID
 function isValidAgentId(id: number | null | undefined): boolean {
   return id !== null && id !== undefined && Number.isInteger(id) && id > 0;
+}
+
+function initials(name: string | null | undefined) {
+  const parts = String(name || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  const first = parts[0]?.[0] || "?";
+  const second = parts.length > 1 ? parts[parts.length - 1]?.[0] : "";
+  return (first + second).toUpperCase();
 }
 
 // Toast notification helper
@@ -175,8 +191,9 @@ export default function AdminAgentsPage() {
       if (debouncedQ && debouncedQ.trim()) params.q = sanitizeInput(debouncedQ.trim());
 
       const response = await api.get<{ items: Agent[]; total: number; page: number; pageSize: number }>("/api/admin/agents", { params });
-      setAgents(response.data.items || []);
-      setTotal(response.data.total || 0);
+      const payload = unwrapApiData<{ items: Agent[]; total: number; page: number; pageSize: number }>(response.data);
+      setAgents(payload?.items || []);
+      setTotal(payload?.total || 0);
     } catch (err: any) {
       console.error("Failed to load agents", err);
       const errorMessage = err?.response?.data?.error || err?.message || "Failed to load agents";
@@ -220,6 +237,26 @@ export default function AdminAgentsPage() {
 
   const pages = Math.max(1, Math.ceil(total / pageSize));
 
+  const closeAgentDetails = useCallback(() => {
+    setViewingAgent(null);
+    setAgentDetailsError(null);
+    setLoadingAgentDetails(false);
+  }, []);
+
+  useEffect(() => {
+    if (!viewingAgent) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeAgentDetails();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [closeAgentDetails, viewingAgent]);
+
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
@@ -232,15 +269,16 @@ export default function AdminAgentsPage() {
             </div>
             <div className="flex flex-col items-center gap-1">
               <h1 className="text-2xl font-bold text-gray-900">Agents Management</h1>
-              <p className="text-sm text-gray-500 text-center">Manage travel agents and their assignments</p>
+              <p className="text-sm text-gray-500 text-center">Manage hired agents and their assignments</p>
             </div>
           </div>
           <Link
-            href="/admin/agents/new"
+            href="/admin/management/careers?tab=applications"
             className="inline-flex items-center gap-2 px-4 py-2 bg-[#02665e] text-white rounded-xl text-sm font-semibold hover:bg-[#014d47] transition-all duration-200 shadow-sm hover:shadow-md hover:scale-105 active:scale-95 no-underline"
+            title="Hire agents via job applications"
           >
-            <Plus className="h-4 w-4" />
-            Add New Agent
+            <ExternalLink className="h-4 w-4" />
+            Hire via Applications
           </Link>
         </div>
       </div>
@@ -579,7 +617,8 @@ export default function AdminAgentsPage() {
                           try {
                             authify();
                             const response = await api.get<Agent>(`/api/admin/agents/${agent.id}`);
-                            setViewingAgent(response.data);
+                            const payload = unwrapApiData<Agent>(response.data);
+                            setViewingAgent(payload);
                           } catch (err: any) {
                             console.error("Failed to load agent details", err);
                             const errorMessage = err?.response?.data?.error || err?.message || "Failed to load agent details";
@@ -591,10 +630,10 @@ export default function AdminAgentsPage() {
                         }}
                         aria-label={`View details for agent ${agent.user.name || "Unknown"}`}
                         title="View agent details"
-                        className="text-[#02665e] hover:text-[#014d47] flex items-center gap-1"
+                        className="inline-flex items-center justify-center h-9 w-9 rounded-lg text-[#02665e] hover:text-[#014d47] hover:bg-[#02665e]/10 transition-colors"
                       >
                         <Eye className="h-4 w-4" />
-                        View
+                        <span className="sr-only">View</span>
                       </button>
                     </td>
                   </tr>
@@ -634,18 +673,29 @@ export default function AdminAgentsPage() {
 
       {/* Agent Detail Modal */}
       {viewingAgent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden shadow-2xl flex flex-col">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) closeAgentDetails();
+          }}
+        >
+          <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-[2px]" aria-hidden />
+          <div className="relative bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden shadow-2xl ring-1 ring-black/5 flex flex-col">
             {/* Header */}
             <div className="bg-gradient-to-r from-[#02665e] to-[#024d47] px-6 py-4 flex items-center justify-between flex-shrink-0">
-              <h2 className="text-xl font-bold text-white">Agent Details</h2>
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="h-10 w-10 rounded-xl bg-white/15 text-white flex items-center justify-center font-bold tracking-wide flex-shrink-0">
+                  {initials(viewingAgent.user.name)}
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-xl font-bold text-white truncate">{viewingAgent.user.name || "Agent Details"}</h2>
+                  <div className="text-sm text-white/80 truncate">{viewingAgent.user.email || "—"}</div>
+                </div>
+              </div>
               <button
-                onClick={() => {
-                  setViewingAgent(null);
-                  setAgentDetailsError(null);
-                }}
+                onClick={closeAgentDetails}
                 aria-label="Close agent details"
-                className="p-2 bg-white/10 hover:bg-white/20 border border-white/20 hover:border-white/30 rounded-lg transition-all duration-200 text-white group backdrop-blur-sm"
+                className="group p-2 rounded-xl text-white/90 hover:text-white hover:bg-white/10 transition-colors"
                 title="Close"
               >
                 <X size={18} className="transition-transform duration-200 group-hover:rotate-90" />
@@ -672,7 +722,8 @@ export default function AdminAgentsPage() {
                         try {
                           authify();
                           const response = await api.get<Agent>(`/api/admin/agents/${viewingAgent.id}`);
-                          setViewingAgent(response.data);
+                          const payload = unwrapApiData<Agent>(response.data);
+                          setViewingAgent(payload);
                         } catch (err: any) {
                           console.error("Failed to load agent details", err);
                           const errorMessage = err?.response?.data?.error || err?.message || "Failed to load agent details";

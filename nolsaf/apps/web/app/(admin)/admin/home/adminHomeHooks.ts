@@ -47,6 +47,43 @@ export type AdminAuditEntry = {
   createdAt?: string | null;
 };
 
+export type AdminPerformanceHighlights = {
+  windowDays: number;
+  from: string;
+  to: string;
+  bestPropertyType: null | {
+    type: string;
+    bookings: number;
+    interactions: number;
+    interactionsBreakdown?: { reviews: number; saves: number };
+  };
+  bestDriver: null | {
+    driverId: number;
+    name: string;
+    bookings: number;
+    nolsRevenue: number;
+  };
+  bestOwner: null | {
+    ownerId: number;
+    name: string;
+    bookings: number;
+    nolsRevenue: number;
+  };
+  mostBookedRegion: null | {
+    regionName: string;
+    bookings: number;
+  };
+  topProperty: null | {
+    propertyId: number;
+    title: string;
+    type: string;
+    regionName: string;
+    bookings: number;
+    interactions: number;
+    interactionsBreakdown?: { reviews: number; saves: number };
+  };
+};
+
 function toNumber(value: unknown, fallback = 0) {
   const n = typeof value === "number" ? value : Number(value);
   return Number.isFinite(n) ? n : fallback;
@@ -239,4 +276,31 @@ export function useAdminRecentActivities() {
   }, []);
 
   return { recentActivities };
+}
+
+export function useAdminPerformanceHighlights(days = 30) {
+  const [highlights, setHighlights] = useState<AdminPerformanceHighlights | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    const controller = new AbortController();
+
+    async function load() {
+      const d = Number.isFinite(Number(days)) ? Math.round(Number(days)) : 30;
+      const url = `/api/admin/performance/highlights?days=${encodeURIComponent(String(d))}`;
+      const data = await fetchJsonSafe<AdminPerformanceHighlights>(url, controller.signal);
+      if (!mounted) return;
+      setHighlights(data ?? null);
+    }
+
+    load();
+    const t = setInterval(load, 60_000);
+    return () => {
+      mounted = false;
+      controller.abort();
+      clearInterval(t);
+    };
+  }, [days]);
+
+  return { highlights };
 }

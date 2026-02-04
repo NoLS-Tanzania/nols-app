@@ -3,11 +3,34 @@ import { Router, Request, Response } from "express";
 import { prisma } from "@nolsaf/prisma";
 import { z } from "zod";
 import rateLimit from "express-rate-limit";
-// Commission calculation helpers (duplicated from web app to avoid dependency)
-function getPropertyCommission(propertyType: string, systemCommission: number = 0): number {
-  // For now, use a simple commission structure
-  // In production, this should be configurable per property
-  return systemCommission; // Default 0% commission, can be configured
+
+async function getEffectiveCommissionPercent(params: {
+  propertyServices: unknown;
+}): Promise<number> {
+  // Per-property override (admin sets this via /admin/properties/:id -> services.commissionPercent)
+  const fromProperty = (() => {
+    const services = params.propertyServices as any;
+    const v = services?.commissionPercent;
+    const n = Number(v);
+    if (!Number.isFinite(n)) return null;
+    if (n < 0) return 0;
+    if (n > 100) return 100;
+    return n;
+  })();
+
+  if (fromProperty != null) return fromProperty;
+
+  // Global default (SystemSetting singleton)
+  try {
+    const s =
+      (await prisma.systemSetting.findUnique({ where: { id: 1 }, select: { commissionPercent: true } as any })) ??
+      (await prisma.systemSetting.create({ data: { id: 1 } } as any));
+    const n = Number((s as any)?.commissionPercent ?? 0);
+    if (!Number.isFinite(n)) return 0;
+    return Math.max(0, Math.min(100, n));
+  } catch {
+    return 0;
+  }
 }
 
 function calculatePriceWithCommission(
@@ -301,32 +324,9 @@ router.post("/from-booking", publicInvoiceLimiter, async (req: Request, res: Res
     }
 
     // Check if invoice already exists
-    const existingInvoice = await prisma.invoice.findFirst({
+    let existingInvoice = await prisma.invoice.findFirst({
       where: { bookingId: booking.id },
     });
-
-    if (existingInvoice) {
-      try {
-        // Only activate/publish transport once payment is actually confirmed.
-        if (isPaidLikeInvoice(existingInvoice)) {
-          await publishScheduledTripsForBooking({
-            req,
-            bookingId: booking.id,
-            invoicePaymentRef: existingInvoice.paymentRef,
-            paymentMethod: (existingInvoice as any).paymentMethod,
-          });
-        }
-      } catch {}
-
-      return res.status(200).json({
-        ok: true,
-        invoiceId: existingInvoice.id,
-        invoiceNumber: existingInvoice.invoiceNumber,
-        paymentRef: existingInvoice.paymentRef,
-        status: existingInvoice.status,
-        message: "Invoice already exists",
-      });
-    }
 
     // Calculate amounts (server-side only)
     const nights = Math.max(
@@ -365,15 +365,70 @@ router.post("/from-booking", publicInvoiceLimiter, async (req: Request, res: Res
           return basePrice * nights;
         })();
 
-    // Calculate commission (default 0% for now, can be configured)
-    const commissionPercent = getPropertyCommission(booking.property.type, 0);
+    // Calculate commission (NoLSAF revenue). Owner should receive ONLY the base accommodation fare.
+    const commissionPercent = await getEffectiveCommissionPercent({ propertyServices: (booking.property as any).services });
     const { total: accommodationTotal, commission } = calculatePriceWithCommission(
       accommodationSubtotal,
       commissionPercent
     );
 
-    // If booking.totalAmount is missing, fall back to computed accommodation + transport.
-    const effectiveTotalAmount = booking.totalAmount ? totalAmount : accommodationTotal + transportFare;
+    // Customer pays: accommodation (base) + commission + transport.
+    // NOTE: booking.totalAmount is base accommodation + transport (no commission).
+    const effectiveTotalAmount = Math.round((Number(accommodationTotal) + Number(transportFare || 0)) * 100) / 100;
+
+    if (existingInvoice) {
+      const existingTotal = Number((existingInvoice as any).total ?? 0);
+      const existingCommissionAmount = existingInvoice.commissionAmount != null ? Number(existingInvoice.commissionAmount) : 0;
+      const existingCommissionPercent = existingInvoice.commissionPercent != null ? Number(existingInvoice.commissionPercent) : NaN;
+      const existingNetPayable = existingInvoice.netPayable != null ? Number(existingInvoice.netPayable) : NaN;
+
+      const missingOrStaleTotals = (() => {
+        if (isPaidLikeInvoice(existingInvoice)) return false;
+        if (!Number.isFinite(existingTotal) || existingTotal <= 0) return true;
+        // If the invoice total is still equal to booking.totalAmount, it likely predates commission-in-total.
+        if (Math.abs(existingTotal - totalAmount) < 0.01 && commission > 0) return true;
+        // If commission fields are missing but commission should apply, refresh.
+        if ((!Number.isFinite(existingCommissionPercent) || existingInvoice.commissionPercent == null) && commissionPercent > 0) return true;
+        if ((!Number.isFinite(existingCommissionAmount) || existingInvoice.commissionAmount == null) && commission > 0) return true;
+        // Ensure netPayable reflects accommodation base (excluding transport).
+        if (!Number.isFinite(existingNetPayable) || existingInvoice.netPayable == null) return true;
+        return false;
+      })();
+
+      if (missingOrStaleTotals) {
+        existingInvoice = await prisma.invoice.update({
+          where: { id: existingInvoice.id },
+          data: {
+            // Store customer-paid total in `total` and owner receivable in `netPayable`.
+            total: effectiveTotalAmount as any,
+            netPayable: Math.max(0, Number(accommodationSubtotal || 0)) as any,
+            commissionPercent: commissionPercent > 0 ? (commissionPercent as any) : null,
+            commissionAmount: commission > 0 ? (commission as any) : null,
+          } as any,
+        });
+      }
+
+      try {
+        // Only activate/publish transport once payment is actually confirmed.
+        if (isPaidLikeInvoice(existingInvoice)) {
+          await publishScheduledTripsForBooking({
+            req,
+            bookingId: booking.id,
+            invoicePaymentRef: existingInvoice.paymentRef,
+            paymentMethod: (existingInvoice as any).paymentMethod,
+          });
+        }
+      } catch {}
+
+      return res.status(200).json({
+        ok: true,
+        invoiceId: existingInvoice.id,
+        invoiceNumber: existingInvoice.invoiceNumber,
+        paymentRef: existingInvoice.paymentRef,
+        status: existingInvoice.status,
+        message: "Invoice already exists",
+      });
+    }
 
     // Generate booking code if it doesn't exist
     let codeId: number;
@@ -453,9 +508,12 @@ router.post("/from-booking", publicInvoiceLimiter, async (req: Request, res: Res
           ownerId: booking.property.ownerId,
           bookingId: booking.id,
           total: effectiveTotalAmount,
-          netPayable: effectiveTotalAmount, // Amount to be paid (includes transport if applicable)
-          commissionPercent: commissionPercent > 0 ? commissionPercent : null,
-          commissionAmount: commission > 0 ? commission : null,
+          // IMPORTANT: when a booking includes transport, the customer may pay a total that includes transport,
+          // but the property owner should only receive the accommodation portion.
+          // We store the customer-paid total in `total` and the owner receivable in `netPayable`.
+          netPayable: Math.max(0, Number(accommodationSubtotal || 0)) as any,
+          commissionPercent: commissionPercent > 0 ? (commissionPercent as any) : null,
+          commissionAmount: commission > 0 ? (commission as any) : null,
           taxPercent: 0,
           // Payment lifecycle (production-safe):
           // - Create invoice as REQUESTED (default)
@@ -605,7 +663,8 @@ router.get("/:id", publicInvoiceReadLimiter, async (req: Request, res: Response)
     const basePrice = invoice.booking.property.basePrice ? Number(invoice.booking.property.basePrice) : 0;
     const totalAmount = Number(invoice.total || 0);
     const taxPercent = invoice.taxPercent ? Number(invoice.taxPercent) : 0;
-    const commission = invoice.commissionAmount ? Number(invoice.commissionAmount) : 0;
+    // Commission is an internal (admin-only) concept; do not expose it on public invoice breakdown.
+    const commission = 0;
 
     const rawTransportFare = (() => {
       const fromTransportBooking = transportBooking?.amount != null ? Number(transportBooking.amount) : NaN;

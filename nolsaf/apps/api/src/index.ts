@@ -62,6 +62,7 @@ import adminTrustPartnersRouter from "./routes/admin.trustPartners";
 import adminPropertiesRouter from "./routes/admin.properties.js";
 import adminAuditsRouter from "./routes/admin.audits";
 import adminSummaryRouter from './routes/admin.summary';
+import adminPerformanceHighlightsRouter from "./routes/admin.performance.highlights";
 import adminNotificationsRouter from "./routes/admin.notifications";
 import adminIntegrationsRouter from "./routes/admin.integrations";
 import adminUpdatesRouter from "./routes/admin.updates";
@@ -553,11 +554,13 @@ app.use('/api/admin/settings', adminSettingsRouter as express.RequestHandler);
 app.use('/admin/drivers/summary', adminDriversSummaryRouter);
 // also expose API-prefixed route so frontend using `/api/admin/drivers/summary` works
 app.use('/api/admin/drivers/summary', adminDriversSummaryRouter as express.RequestHandler);
+// expose levels routes under /api/admin as well (frontend uses /api/admin/drivers/levels)
+app.use('/admin/drivers/levels', adminDriversLevelsRouter);
+app.use('/api/admin/drivers/levels', adminDriversLevelsRouter as express.RequestHandler);
 // also expose API-prefixed drivers router (includes trips, invoices, etc.)
 // NOTE: keep this AFTER /api/admin/drivers/summary to avoid ":id" catching "summary"
 app.use('/api/admin/drivers', adminDriversRouter as express.RequestHandler);
 app.use("/admin/drivers", adminDriversRouter);
-app.use('/admin/drivers/levels', adminDriversLevelsRouter);
 app.use('/api/admin/drivers/level-messages', requireRole('ADMIN') as express.RequestHandler, adminDriversLevelMessagesRouter);
 app.use('/admin/group-stays/summary', adminGroupStaysSummaryRouter);
 app.use('/api/admin/group-stays/summary', adminGroupStaysSummaryRouter);
@@ -587,11 +590,15 @@ app.use('/admin/trust-partners', adminTrustPartnersRouter);
 // also expose API-prefixed route so frontend using `/api/admin/trust-partners` works
 app.use('/api/admin/trust-partners', adminTrustPartnersRouter as express.RequestHandler);
 app.use("/admin/stats", adminStatsRouter);
+// IMPORTANT: mount specific /admin/users/* endpoints BEFORE the generic /admin/users router.
+// Otherwise `/admin/users/:id` will catch paths like `/admin/users/summary` and `/admin/users/transport-bookings`.
+app.use("/admin/users/summary", adminUsersSummaryRouter);
+app.use('/api/admin/users/summary', adminUsersSummaryRouter as express.RequestHandler);
+app.use("/admin/users/transport-bookings", adminUsersTransportBookingsRouter);
+app.use('/api/admin/users/transport-bookings', adminUsersTransportBookingsRouter as express.RequestHandler);
 app.use("/admin/users", adminUsersRouter);
 // also expose API-prefixed route so frontend using `/api/admin/users` works
 app.use('/api/admin/users', adminUsersRouter as express.RequestHandler);
-app.use("/admin/users/summary", adminUsersSummaryRouter);
-app.use("/admin/users/transport-bookings", adminUsersTransportBookingsRouter);
 app.use("/admin/help-owners", adminHelpOwnersRouter);
 app.use("/admin/bonuses", adminBonusesRouter);
 app.use("/admin/referral-earnings", adminReferralEarningsRouter);
@@ -608,6 +615,8 @@ app.use('/api/admin/properties', adminPropertiesRouter as express.RequestHandler
 // also expose non-api-prefixed route so Next rewrites `/admin/*` works
 app.use('/admin/summary', requireRole('ADMIN') as express.RequestHandler, adminSummaryRouter as express.RequestHandler);
 app.use('/api/admin/summary', requireRole('ADMIN') as express.RequestHandler, adminSummaryRouter as express.RequestHandler);
+app.use('/admin/performance', requireRole('ADMIN') as express.RequestHandler, adminPerformanceHighlightsRouter as express.RequestHandler);
+app.use('/api/admin/performance', requireRole('ADMIN') as express.RequestHandler, adminPerformanceHighlightsRouter as express.RequestHandler);
 app.use('/api/admin/integrations', adminIntegrationsRouter as express.RequestHandler);
 app.use('/api/admin/audits', requireRole('ADMIN') as express.RequestHandler, adminAuditsRouter as express.RequestHandler);
 app.use('/api/admin/notifications', requireRole('ADMIN') as express.RequestHandler, adminNotificationsRouter as express.RequestHandler);

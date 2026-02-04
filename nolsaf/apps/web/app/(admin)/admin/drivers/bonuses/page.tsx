@@ -1,11 +1,30 @@
 "use client";
 import "./page.css";
 import { useEffect, useState, useCallback } from "react";
-import { Award, Truck, Search, DollarSign, Eye, X, Calendar, FileText, CheckCircle2, Clock, Plus, Loader2, Trophy, BarChart3, Gem, Edit, ChevronDown } from "lucide-react";
+import { Award, Truck, DollarSign, Eye, X, Calendar, FileText, CheckCircle2, Clock, Plus, Loader2, Trophy, BarChart3, Gem, Edit, ChevronDown } from "lucide-react";
 import axios from "axios";
+import { useSearchParams } from "next/navigation";
 
 const api = axios.create({ baseURL: "", withCredentials: true });
-function authify() {}
+function authify() {
+  if (typeof window === "undefined") return;
+
+  const lsToken =
+    window.localStorage.getItem("token") ||
+    window.localStorage.getItem("nolsaf_token") ||
+    window.localStorage.getItem("__Host-nolsaf_token");
+
+  if (lsToken) {
+    api.defaults.headers.common["Authorization"] = `Bearer ${lsToken}`;
+    return;
+  }
+
+  const m = String(document.cookie || "").match(/(?:^|;\s*)(?:nolsaf_token|__Host-nolsaf_token)=([^;]+)/);
+  const cookieToken = m?.[1] ? decodeURIComponent(m[1]) : "";
+  if (cookieToken) {
+    api.defaults.headers.common["Authorization"] = `Bearer ${cookieToken}`;
+  }
+}
 
 // Helper function to get icon component based on icon name
 function getBonusIcon(iconName: string, className: string = "h-4 w-4") {
@@ -43,13 +62,12 @@ type BonusData = {
 };
 
 export default function AdminDriversBonusesPage() {
+  const searchParams = useSearchParams();
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [selectedDriver, setSelectedDriver] = useState<number | null>(null);
   const [bonusData, setBonusData] = useState<BonusData | null>(null);
   // Removed unused loading state
-  const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"" | "paid" | "pending">("");
-  const [driverFilter, setDriverFilter] = useState<"all" | "a-m" | "n-z">("all");
   // Removed unused driverSort state
   const [selectedBonus, setSelectedBonus] = useState<BonusData["items"][0] | null>(null);
   const [showBonusModal, setShowBonusModal] = useState(false);
@@ -84,7 +102,7 @@ export default function AdminDriversBonusesPage() {
 
   const loadDrivers = useCallback(async () => {
     try {
-      const r = await api.get<{ items: Driver[]; total: number }>("/admin/drivers", { params: { page: 1, pageSize: 100 } });
+      const r = await api.get<{ items: Driver[]; total: number }>("/api/admin/drivers/bonuses/drivers", { params: { take: 500 } });
       const items = r.data?.items ?? [];
       setDrivers(items);
     } catch (err) {
@@ -98,6 +116,17 @@ export default function AdminDriversBonusesPage() {
     loadDrivers();
     loadBonusReasonTypes();
   }, [loadDrivers, loadBonusReasonTypes]);
+
+  useEffect(() => {
+    const raw = searchParams?.get("driverId") || "";
+    const id = Number(raw);
+    if (!Number.isFinite(id) || id <= 0) return;
+    if (!drivers.length) return;
+    if (selectedDriver === id) return;
+    const exists = drivers.some((d) => d.id === id);
+    if (!exists) return;
+    void loadDriverBonuses(id);
+  }, [searchParams, drivers, selectedDriver]);
 
   // Auto-fill amount when reason types are loaded or reason type changes
   useEffect(() => {
@@ -191,20 +220,7 @@ export default function AdminDriversBonusesPage() {
     }
   }
 
-  const filteredDrivers = drivers.filter((d) => {
-    const matchesSearch =
-      d.name.toLowerCase().includes(search.toLowerCase()) || d.email.toLowerCase().includes(search.toLowerCase());
-    const initial = (d.name || "").trim().charAt(0).toLowerCase();
-    const inFilter =
-      driverFilter === "all"
-        ? true
-        : driverFilter === "a-m"
-        ? initial >= "a" && initial <= "m"
-        : initial >= "n" && initial <= "z";
-    return matchesSearch && inFilter;
-  });
-
-  const sortedDrivers = [...filteredDrivers].sort((a, b) => a.name.localeCompare(b.name));
+  const sortedDrivers = [...drivers].sort((a, b) => a.name.localeCompare(b.name));
 
   const filteredBonuses = bonusData
     ? bonusData.items.filter((b) => {
@@ -221,65 +237,51 @@ export default function AdminDriversBonusesPage() {
     .reduce((sum, b) => sum + (b.amount || 0), 0);
 
   return (
-    <div className="space-y-4 sm:space-y-6 w-full min-w-0 max-w-full overflow-x-hidden">
-      <div className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6 shadow-sm w-full min-w-0">
-        <div className="flex flex-col items-center justify-center text-center">
-          <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-gradient-to-br from-amber-50 to-amber-100 flex items-center justify-center mb-2 sm:mb-3">
-            <Award className="h-5 w-5 sm:h-6 sm:w-6 text-amber-600" />
+    <div className="bonuses-page space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+        <div className="flex flex-col items-center text-center">
+          <div className="h-16 w-16 rounded-full bg-gradient-to-br from-amber-50 to-amber-100 flex items-center justify-center mb-4">
+            <Award className="h-8 w-8 text-amber-600" />
           </div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Driver Bonuses</h1>
-          <p className="text-xs sm:text-sm text-gray-500 mt-1">View and manage driver bonus history</p>
+          <h1 className="text-2xl font-bold text-gray-900">Driver Bonuses</h1>
+          <p className="text-sm text-gray-500 mt-1">View and manage driver bonus history</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 w-full min-w-0">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 w-full">
         <div className="lg:col-span-1 w-full min-w-0">
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden w-full min-w-0">
-            <div className="p-3 sm:p-4 border-b border-gray-200 w-full min-w-0">
-              <div className="relative w-full min-w-0">
-                <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none z-10" />
-                <input
-                  type="text"
-                  placeholder="Search drivers..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="w-full box-border pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
-                />
-              </div>
-              <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-2">
-                <label className="text-xs text-gray-600 whitespace-nowrap sm:flex-shrink-0">Filter:</label>
-                <select
-                  title="Filter drivers by name range"
-                  value={driverFilter}
-                  onChange={(e) => setDriverFilter(e.target.value as "all" | "a-m" | "n-z")}
-                  className="w-full sm:w-auto sm:flex-1 text-xs sm:text-sm border border-gray-300 rounded-lg px-2.5 sm:px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none appearance-none select-no-inline"
-                >
-                  <option value="all">All</option>
-                  <option value="a-m">Names A-M</option>
-                  <option value="n-z">Names N-Z</option>
-                </select>
+          <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden flex flex-col h-full max-h-[calc(100vh-200px)] w-full min-w-0">
+            <div className="border-b border-gray-200 flex-shrink-0 w-full bg-gradient-to-br from-gray-50 to-white p-3 min-w-0">
+              <div className="mt-2 flex items-center justify-between px-2 py-1 bg-white/60 backdrop-blur-sm rounded-md border border-gray-200/50">
+                <span className="text-xs font-medium text-gray-600">
+                  <span className="text-emerald-600 font-bold">{sortedDrivers.length}</span> driver{sortedDrivers.length !== 1 ? "s" : ""}
+                </span>
               </div>
             </div>
-            <div className="divide-y divide-gray-200 max-h-[600px] overflow-y-auto">
-              {sortedDrivers.map((driver) => (
-                <div
-                  key={driver.id}
-                  onClick={() => loadDriverBonuses(driver.id)}
-                  className={`p-3 sm:p-4 hover:bg-gray-50 cursor-pointer transition-colors ${
-                    selectedDriver === driver.id ? "bg-emerald-50 border-l-4 border-emerald-600" : ""
-                  }`}
-                >
-                  <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                    <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
-                      <Truck className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium text-sm sm:text-base text-gray-900 truncate">{driver.name}</p>
-                      <p className="text-xs text-gray-500 truncate">{driver.email}</p>
+            <div className="divide-y divide-gray-200 flex-1 overflow-y-auto">
+              {sortedDrivers.length === 0 ? (
+                <div className="p-6 text-center text-sm text-gray-500">No drivers found.</div>
+              ) : (
+                sortedDrivers.map((driver) => (
+                  <div
+                    key={driver.id}
+                    onClick={() => loadDriverBonuses(driver.id)}
+                    className={`p-3 sm:p-4 hover:bg-gray-50 cursor-pointer transition-colors ${
+                      selectedDriver === driver.id ? "bg-emerald-50 border-l-4 border-emerald-600" : ""
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                      <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                        <Truck className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-sm sm:text-base text-gray-900 truncate">{driver.name}</p>
+                        <p className="text-xs text-gray-500 truncate">{driver.email}</p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         </div>

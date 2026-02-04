@@ -40,9 +40,7 @@ export default function Receipt() {
         </div>
 
         <div className="divide-y">
-          <Row cols={["Gross", `TZS ${inv.total}`]} />
-          <Row cols={[`Commission (${inv.commissionPercent}%)`, `TZS ${inv.commissionAmount}`]} />
-          <Row cols={["Net Paid", `TZS ${inv.netPayable}`]} />
+          <Row cols={["Owner payout", `TZS ${inv.total}`]} />
           <Row cols={["Payment Ref", inv.paymentRef ?? "-"]} />
           <Row cols={["Paid On", new Date(inv.paidAt).toLocaleString()]} />
           <Row cols={["NoLSAF Code", codeVisible]} />
