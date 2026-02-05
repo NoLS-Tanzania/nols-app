@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState, useCallback, useMemo } from "react";
+import Link from "next/link";
 import axios from "axios";
 import { HandHeart, Loader2, Users, MapPin, Calendar, DollarSign, Percent, Gift, FileText, Plus, XCircle, Filter, Building2, Tag, Zap, Eye, CheckCircle2, ArrowRight } from "lucide-react";
 import { CountdownClock } from "@/components/ui/CountdownClock";
@@ -669,7 +670,7 @@ export default function OwnerClaimBookingPage() {
             </span>
           </div>
 
-          <a
+          <Link
             href="/owner/group-stays/claims/my-claims"
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border-2 transition-all duration-300 font-semibold text-sm bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-300 hover:shadow-md hover:scale-105"
             aria-label="Go to My Claims"
@@ -678,7 +679,7 @@ export default function OwnerClaimBookingPage() {
             <FileText className="h-4 w-4 text-slate-500" />
             <span>My Claims</span>
             <ArrowRight className="h-4 w-4 text-slate-500" />
-          </a>
+          </Link>
           {/* Filter Button - Executive Professional Style */}
           <button
             onClick={() => setFiltersOpen(!filtersOpen)}
@@ -1058,14 +1059,14 @@ export default function OwnerClaimBookingPage() {
                             Status: <span className="font-semibold capitalize">{ownerClaim.status}</span>
                           </p>
                         </div>
-                        <a
+                        <Link
                           href="/owner/group-stays/claims/my-claims"
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white text-brand-700 border border-brand-300 hover:bg-brand-50 transition-colors duration-200"
                         >
                           <Eye className="h-3.5 w-3.5" />
                           View All
                           <ArrowRight className="h-3 w-3" />
-                        </a>
+                        </Link>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div className="p-3 bg-white/80 rounded-xl border border-brand-200/60">
@@ -1145,7 +1146,7 @@ export default function OwnerClaimBookingPage() {
                   {/* Submit Button or View Claim Button */}
                   {hasOwnerClaim ? (
                     <div className="flex justify-center w-full">
-                      <a
+                      <Link
                         href="/owner/group-stays/claims/my-claims"
                         className="inline-flex items-center justify-center gap-2 sm:gap-3 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl transition-all duration-500 font-semibold sm:font-bold text-sm sm:text-base shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] bg-gradient-to-r from-brand-600 via-brand-600 to-brand-700 text-white hover:from-brand-700 hover:via-brand-700 hover:to-brand-800 shadow-brand-500/40 hover:shadow-brand-500/50 border-2 border-brand-500/20 no-underline hover:no-underline"
                       >
@@ -1154,7 +1155,7 @@ export default function OwnerClaimBookingPage() {
                         </div>
                         <span className="tracking-wide no-underline">View you claim</span>
                         <ArrowRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                      </a>
+                      </Link>
                     </div>
                   ) : (
                     <button

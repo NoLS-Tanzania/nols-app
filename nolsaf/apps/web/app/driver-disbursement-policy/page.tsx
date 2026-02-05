@@ -5,6 +5,8 @@ import { DRIVER_DISBURSEMENT_POLICY_LAST_UPDATED, DRIVER_DISBURSEMENT_POLICY_SEC
 import PublicHeader from "@/components/PublicHeader";
 import PublicFooter from "@/components/PublicFooter";
 import SiteHeader from "@/components/SiteHeader";
+import OwnerSiteHeader from "@/components/OwnerSiteHeader";
+import DriverSiteHeader from "@/components/DriverSiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import DriverFooter from "@/components/DriverFooter";
 import LayoutFrame from "@/components/LayoutFrame";
@@ -119,10 +121,13 @@ export default function DriverDisbursementPolicyPage() {
       {shouldUsePublicLayout ? (
         <PublicHeader />
       ) : isAuthenticated ? (
-        <SiteHeader 
-          role={isDriver ? "DRIVER" : isOwner ? "OWNER" : "ADMIN"} 
-          driverMode={isDriver}
-        />
+        isDriver ? (
+          <DriverSiteHeader />
+        ) : isOwner ? (
+          <OwnerSiteHeader />
+        ) : (
+          <SiteHeader role="ADMIN" />
+        )
       ) : (
         <PublicHeader />
       )}

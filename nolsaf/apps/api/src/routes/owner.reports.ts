@@ -3,7 +3,7 @@ import { Router } from "express";
 import { prisma } from "@nolsaf/prisma";
 import { Prisma } from "@prisma/client";
 import { AuthedRequest, requireAuth, requireRole } from "../middleware/auth.js";
-import { eachDay, fmtKey, GroupBy, startOfDayTZ } from "../lib/reporting";
+import { addDays, eachDay, fmtKey, GroupBy, startOfDayTZ } from "../lib/reporting";
 import { withCache, makeKey } from "../lib/cache";
 
 // If you have generated Prisma types, replace these any aliases.
@@ -42,6 +42,20 @@ function parseQuery(q: any) {
     // Fallback to default dates on parse error
     from = new Date(now.getFullYear(), now.getMonth(), 1);
     to = now;
+  }
+
+  // Enforce max report range (<= 12 months) for performance and consistency.
+  // We treat input dates as day-granularity and allow up to 366 days inclusive.
+  try {
+    const MAX_DAYS_INCLUSIVE = 366;
+    const from0 = startOfDayTZ(from);
+    const to0 = startOfDayTZ(to);
+    const dayDiff = Math.floor((to0.getTime() - from0.getTime()) / 864e5);
+    if (dayDiff > MAX_DAYS_INCLUSIVE - 1) {
+      to = addDays(from0, MAX_DAYS_INCLUSIVE - 1);
+    }
+  } catch {
+    // ignore, keep parsed dates
   }
   
   const groupBy = (q.groupBy as GroupBy) || "day";
@@ -386,6 +400,393 @@ const bookingsHandler: RequestHandler = async (req, res, next) => {
   }
 };
 router.get("/bookings", bookingsHandler);
+
+/** -------------------------
+ *  /owner/reports/stays
+ *
+ *  Operational export for owners:
+ *  - NoLSAF bookings (Booking)
+ *  - External reservations (PropertyAvailabilityBlock)
+ *
+ *  Uses overlap logic so items spanning the window are included.
+ *  ------------------------- */
+const staysHandler: RequestHandler = async (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+
+  const r = req as AuthedRequest;
+  const ownerId = r.user?.id;
+  if (!ownerId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { from, to, groupBy, propertyId } = parseQuery(req.query);
+  const rangeStart = startOfDayTZ(from);
+  const rangeEndExclusive = addDays(startOfDayTZ(to), 1);
+  const rangeEndInclusive = addDays(rangeEndExclusive, -1);
+
+  const key = makeKey(ownerId, "stays", {
+    from: rangeStart.toISOString(),
+    to: rangeEndInclusive.toISOString(),
+    groupBy,
+    propertyId,
+  });
+
+  try {
+    const generatedAt = new Date().toISOString();
+
+    const data = await withCache(key, async () => {
+      const owner = await prisma.user.findUnique({
+        where: { id: ownerId },
+        select: { id: true, fullName: true, name: true, email: true, phone: true, address: true },
+      });
+
+      if (!owner) {
+        return {
+          header: { owner: null, property: null },
+          stats: {
+            nolsafBookings: 0,
+            externalReservations: 0,
+            groupStaysReceived: 0,
+            auctionClaimsSubmitted: 0,
+            auctionClaimsAccepted: 0,
+            revenueTzs: 0,
+            nightsBooked: 0,
+            nightsBlocked: 0,
+            groupStayNights: 0,
+          },
+          series: [],
+          bookings: [],
+          external: [],
+          groupStays: [],
+          auctionClaims: [],
+        };
+      }
+
+      const property = propertyId
+        ? await prisma.property.findFirst({
+            where: { id: propertyId, ownerId },
+            select: {
+              id: true,
+              title: true,
+              regionName: true,
+              district: true,
+              ward: true,
+              street: true,
+              apartment: true,
+              city: true,
+              zip: true,
+              country: true,
+              latitude: true,
+              longitude: true,
+            },
+          })
+        : null;
+
+      if (propertyId && !property) {
+        // Property not found or not owned by requester.
+        return {
+          header: { owner, property: null },
+          stats: {
+            nolsafBookings: 0,
+            externalReservations: 0,
+            groupStaysReceived: 0,
+            auctionClaimsSubmitted: 0,
+            auctionClaimsAccepted: 0,
+            revenueTzs: 0,
+            nightsBooked: 0,
+            nightsBlocked: 0,
+            groupStayNights: 0,
+          },
+          series: [],
+          bookings: [],
+          external: [],
+          groupStays: [],
+          auctionClaims: [],
+          notFound: true,
+        };
+      }
+
+      const bookings = await prisma.booking.findMany({
+        where: {
+          property: { ownerId, ...(propertyId ? { id: propertyId } : {}) },
+          checkIn: { lt: rangeEndExclusive },
+          checkOut: { gt: rangeStart },
+        },
+        select: {
+          id: true,
+          propertyId: true,
+          checkIn: true,
+          checkOut: true,
+          status: true,
+          totalAmount: true,
+          roomsQty: true,
+          roomCode: true,
+          guestName: true,
+          guestPhone: true,
+          nationality: true,
+          sex: true,
+          createdAt: true,
+          property: {
+            select: {
+              id: true,
+              title: true,
+              regionName: true,
+              district: true,
+              ward: true,
+              street: true,
+              apartment: true,
+              city: true,
+              zip: true,
+              country: true,
+            },
+          },
+        },
+        orderBy: [{ checkIn: 'asc' }, { id: 'asc' }],
+      });
+
+      const external = await prisma.propertyAvailabilityBlock.findMany({
+        where: {
+          property: { ownerId, ...(propertyId ? { id: propertyId } : {}) },
+          startDate: { lt: rangeEndExclusive },
+          endDate: { gt: rangeStart },
+        },
+        select: {
+          id: true,
+          propertyId: true,
+          startDate: true,
+          endDate: true,
+          roomCode: true,
+          source: true,
+          bedsBlocked: true,
+          createdAt: true,
+          property: {
+            select: {
+              id: true,
+              title: true,
+              regionName: true,
+              district: true,
+              ward: true,
+              street: true,
+              apartment: true,
+              city: true,
+              zip: true,
+              country: true,
+            },
+          },
+        },
+        orderBy: [{ startDate: 'asc' }, { id: 'asc' }],
+      });
+
+      // Group stays received (assigned to this owner)
+      const groupStays = await (prisma as any).groupBooking.findMany({
+        where: {
+          assignedOwnerId: ownerId,
+          ...(propertyId ? { confirmedPropertyId: propertyId } : {}),
+          OR: [
+            {
+              checkIn: { lt: rangeEndExclusive },
+              checkOut: { gt: rangeStart },
+            },
+            {
+              // Flexible/no-dates group stays: fall back to createdAt window
+              checkIn: null,
+              createdAt: { gte: rangeStart, lt: rangeEndExclusive },
+            },
+            {
+              checkOut: null,
+              createdAt: { gte: rangeStart, lt: rangeEndExclusive },
+            },
+          ],
+        },
+        select: {
+          id: true,
+          groupType: true,
+          accommodationType: true,
+          headcount: true,
+          roomsNeeded: true,
+          toRegion: true,
+          toDistrict: true,
+          toWard: true,
+          toLocation: true,
+          checkIn: true,
+          checkOut: true,
+          useDates: true,
+          status: true,
+          totalAmount: true,
+          currency: true,
+          isOpenForClaims: true,
+          openedForClaimsAt: true,
+          confirmedPropertyId: true,
+          createdAt: true,
+          confirmedProperty: {
+            select: {
+              id: true,
+              title: true,
+              regionName: true,
+              district: true,
+              ward: true,
+              street: true,
+              apartment: true,
+              city: true,
+              zip: true,
+              country: true,
+            },
+          },
+        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: 500,
+      });
+
+      // Group-stay auction participation (claims)
+      const auctionClaims = await (prisma as any).groupBookingClaim.findMany({
+        where: {
+          ownerId,
+          ...(propertyId ? { propertyId } : {}),
+          createdAt: { gte: rangeStart, lt: rangeEndExclusive },
+          status: { not: 'WITHDRAWN' },
+        },
+        select: {
+          id: true,
+          groupBookingId: true,
+          ownerId: true,
+          propertyId: true,
+          offeredPricePerNight: true,
+          discountPercent: true,
+          totalAmount: true,
+          currency: true,
+          status: true,
+          reviewedAt: true,
+          createdAt: true,
+          updatedAt: true,
+          property: {
+            select: {
+              id: true,
+              title: true,
+              regionName: true,
+              district: true,
+              ward: true,
+              street: true,
+              apartment: true,
+              city: true,
+              zip: true,
+              country: true,
+            },
+          },
+          groupBooking: {
+            select: {
+              id: true,
+              groupType: true,
+              accommodationType: true,
+              headcount: true,
+              roomsNeeded: true,
+              toRegion: true,
+              toDistrict: true,
+              toLocation: true,
+              checkIn: true,
+              checkOut: true,
+              useDates: true,
+              status: true,
+              totalAmount: true,
+              currency: true,
+              isOpenForClaims: true,
+              openedForClaimsAt: true,
+              createdAt: true,
+            },
+          },
+        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: 500,
+      });
+
+      function nightsOverlap(aStart: Date, aEndExclusive: Date) {
+        const start = Math.max(+aStart, +rangeStart);
+        const end = Math.min(+aEndExclusive, +rangeEndExclusive);
+        const diff = Math.max(0, end - start);
+        return Math.max(0, Math.ceil(diff / 864e5));
+      }
+
+      const revenueTzs = bookings.reduce((sum: number, b: any) => {
+        if (String(b.status || '').toUpperCase() === 'CANCELED') return sum;
+        return sum + Number(b.totalAmount ?? 0);
+      }, 0);
+      const nightsBooked = bookings.reduce((sum: number, b: any) => sum + nightsOverlap(b.checkIn, b.checkOut), 0);
+      const nightsBlocked = external.reduce((sum: number, blk: any) => sum + nightsOverlap(blk.startDate, blk.endDate), 0);
+      const groupStayNights = (groupStays || []).reduce((sum: number, gb: any) => {
+        if (!gb?.checkIn || !gb?.checkOut) return sum;
+        return sum + nightsOverlap(gb.checkIn, gb.checkOut);
+      }, 0);
+
+      const auctionClaimsAccepted = (auctionClaims || []).reduce((sum: number, c: any) => {
+        return sum + (String(c?.status || '').toUpperCase() === 'ACCEPTED' ? 1 : 0);
+      }, 0);
+
+      // Simple series: bucket by checkIn/startDate
+      const buckets: Record<string, { nolsaf: number; external: number; groupStays: number; revenueTzs: number }> = {};
+      for (const d of eachDay(rangeStart, rangeEndInclusive)) {
+        const k = fmtKey(d, groupBy);
+        buckets[k] = buckets[k] ?? { nolsaf: 0, external: 0, groupStays: 0, revenueTzs: 0 };
+      }
+      for (const b of bookings) {
+        const k = fmtKey(startOfDayTZ(b.checkIn), groupBy);
+        buckets[k] = buckets[k] ?? { nolsaf: 0, external: 0, groupStays: 0, revenueTzs: 0 };
+        buckets[k].nolsaf += 1;
+        if (String(b.status || '').toUpperCase() !== 'CANCELED') buckets[k].revenueTzs += Number(b.totalAmount ?? 0);
+      }
+      for (const blk of external) {
+        const k = fmtKey(startOfDayTZ(blk.startDate), groupBy);
+        buckets[k] = buckets[k] ?? { nolsaf: 0, external: 0, groupStays: 0, revenueTzs: 0 };
+        buckets[k].external += 1;
+      }
+
+      for (const gb of groupStays || []) {
+        const anchor = gb?.checkIn ? gb.checkIn : gb?.createdAt;
+        if (!anchor) continue;
+        const k = fmtKey(startOfDayTZ(anchor), groupBy);
+        buckets[k] = buckets[k] ?? { nolsaf: 0, external: 0, groupStays: 0, revenueTzs: 0 };
+        buckets[k].groupStays += 1;
+      }
+
+      return {
+        header: {
+          from: rangeStart.toISOString(),
+          to: rangeEndInclusive.toISOString(),
+          groupBy,
+          owner,
+          property,
+        },
+        stats: {
+          nolsafBookings: bookings.length,
+          externalReservations: external.length,
+          groupStaysReceived: (groupStays || []).length,
+          auctionClaimsSubmitted: (auctionClaims || []).length,
+          auctionClaimsAccepted,
+          revenueTzs,
+          nightsBooked,
+          nightsBlocked,
+          groupStayNights,
+        },
+        series: Object.entries(buckets).map(([key, v]) => ({ key, ...v })),
+        bookings,
+        external,
+        groupStays,
+        auctionClaims,
+      };
+    });
+
+    if ((data as any)?.notFound) {
+      return res.status(404).json({ error: 'Property not found', ...data, generatedAt });
+    }
+
+    return res.json({ ...data, generatedAt });
+  } catch (err: any) {
+    console.error('owner.reports.stays error:', err);
+    return res.status(500).json({
+      error: 'Internal server error',
+      message: err?.message || 'Unknown error',
+    });
+  }
+};
+router.get("/stays", staysHandler);
 
 /** -------------------------
  *  /owner/reports/occupancy

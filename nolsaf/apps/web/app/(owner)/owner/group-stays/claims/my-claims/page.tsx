@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState, useCallback, useMemo } from "react";
+import Link from "next/link";
 import axios from "axios";
 import { FileText, Loader2, Users, MapPin, Calendar, CheckCircle, XCircle, Clock, Building2, Gift, ArrowRight, DollarSign } from "lucide-react";
 
@@ -239,13 +240,13 @@ export default function OwnerMyClaimsPage() {
               {selectedStatus ? 'Try selecting a different filter to see more claims.' : 'Start claiming group stays to see your submitted offers here.'}
             </p>
             {!selectedStatus && (
-              <a
+              <Link
                 href="/owner/group-stays/claims"
                 className="inline-flex items-center gap-2 mt-6 px-5 py-2.5 rounded-xl text-sm font-semibold bg-gradient-to-r from-brand-600 to-brand-700 text-white hover:from-brand-700 hover:to-brand-800 transition-all duration-200 shadow-md hover:shadow-lg"
               >
                 Browse Available Claims
                 <ArrowRight className="h-4 w-4" />
-              </a>
+              </Link>
             )}
           </div>
         ) : (

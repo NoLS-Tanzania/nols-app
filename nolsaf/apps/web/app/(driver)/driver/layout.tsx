@@ -3,7 +3,7 @@
 import "@/styles/globals.css";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import SiteHeader from "@/components/SiteHeader";
+import DriverSiteHeader from "@/components/DriverSiteHeader";
 import DriverFooter from "@/components/DriverFooter";
 import DriverSidebar from "@/components/DriverSidebar";
 import LayoutFrame from "@/components/LayoutFrame";
@@ -21,7 +21,7 @@ export default function DriverLayout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen flex flex-col bg-neutral-50">
       {/* Full-width header in driver mode */}
-      <SiteHeader role="OWNER" driverMode={true} />
+      <DriverSiteHeader />
 
       <div className="flex-1 w-full overflow-x-hidden">
         <div className="max-w-6xl mx-auto w-full relative px-4">

@@ -6,6 +6,9 @@ import { Suspense, type ReactNode } from "react";
 import Script from "next/script";
 import ToastContainer from "../components/ToastContainer";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 /**
  * Root shell: keep it neutral (no role header, no sidebars).
  * Child segment layouts (/admin, /owner) will render their own header/sidebar.

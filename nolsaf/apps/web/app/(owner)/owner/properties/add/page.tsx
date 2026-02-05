@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import type { ReactNode } from "react";
 import { useMemo, useRef, useState, useEffect, useCallback } from "react";
 import { twMerge } from "tailwind-merge";
@@ -90,21 +90,19 @@ const BED_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
 };
 
 /** Facilities config */
-const FACILITY_TYPES = [
-  "Hospital",
-  "Pharmacy",
-  "Polyclinic",
-  "Clinic",
-  "Police station",
-  "Airport",
-  "Bus station",
-  "Petrol station",
-  "Conference center",
-  "Stadium",
-  "Main road",
-] as const;
+type FacilityType =
+  | "Hospital"
+  | "Pharmacy"
+  | "Polyclinic"
+  | "Clinic"
+  | "Police station"
+  | "Airport"
+  | "Bus station"
+  | "Petrol station"
+  | "Conference center"
+  | "Stadium"
+  | "Main road";
 const REACH_MODES = ["Walking","Boda","Public Transport","Car/Taxi"] as const;
-type FacilityType = typeof FACILITY_TYPES[number];
 type ReachMode = typeof REACH_MODES[number];
 
 // Facility type to placeholder examples mapping
@@ -787,7 +785,7 @@ function PropertyLocationMap({
         const lat = parseFloat(position.coords.latitude.toFixed(6));
         const lng = parseFloat(position.coords.longitude.toFixed(6));
         
-        console.log('📍 Location detected:', { latitude: lat, longitude: lng, accuracy: position.coords.accuracy });
+        console.log('ðŸ“ Location detected:', { latitude: lat, longitude: lng, accuracy: position.coords.accuracy });
         
         // Update parent component if callback provided
         if (onLocationDetected) {
@@ -1177,7 +1175,7 @@ function PropertyLocationMap({
               ? `Location: ${Number(latitude).toFixed(6)}, ${Number(longitude).toFixed(6)}`
               : 'No location set. Click "Locate Me" button on map to detect your location.'}
           </span>
-        {postcode && <span className="text-[#02665e] font-medium">• Postcode: {postcode}</span>}
+        {postcode && <span className="text-[#02665e] font-medium">â€¢ Postcode: {postcode}</span>}
         </div>
         
         {locationError && (
@@ -1272,7 +1270,7 @@ export default function AddProperty() {
                       };
                       return {
                         ...prevObj,
-                      // If backend stores a single string like "14:00 – 22:00", keep it in the "from" field.
+                      // If backend stores a single string like "14:00 â€“ 22:00", keep it in the "from" field.
                         checkInFrom: String((hrObj as any).checkIn || prevObj.checkInFrom || ""),
                         checkOutFrom: String((hrObj as any).checkOut || prevObj.checkOutFrom || ""),
                       petsAllowed:
@@ -1373,7 +1371,7 @@ export default function AddProperty() {
     loadProperty();
   }, [propertyId]);
 
-  // collapses — only the active step is expanded to keep focus.
+  // collapses â€” only the active step is expanded to keep focus.
   // By default show only the first step; others are hidden until navigated.
   const [showBasics, setShowBasics] = useState(true);
   const [showRooms, setShowRooms] = useState(false);
@@ -1390,7 +1388,7 @@ export default function AddProperty() {
   // default empty so placeholder "Select rating" is shown until user selects
   const [hotelStar, setHotelStar] = useState("");
 
-  // ✅ Region/district now sourced from helper
+  // âœ… Region/district now sourced from helper
   const [regionId, setRegionId] = useState<string>("");
   const [district, setDistrict] = useState<string>("");
   const [ward, setWard] = useState<string>("");
@@ -1708,7 +1706,10 @@ export default function AddProperty() {
   // helpers
   const changeBed = (k: BedKey, d: number)=> setBeds(b=>({ ...b, [k]: Math.max(0, (b[k]??0)+d) }));
   const toggleStr = (arr: string[], setArr:(v:string[])=>void, v: string)=> {
-    const s = new Set(arr); s.has(v) ? s.delete(v) : s.add(v); setArr(Array.from(s));
+    const s = new Set(arr);
+    if (s.has(v)) s.delete(v);
+    else s.add(v);
+    setArr(Array.from(s));
   };
 
   // Inline validation state for Basics
@@ -2062,7 +2063,7 @@ export default function AddProperty() {
     const fmtWindow = (from: string, to: string) => {
       const f = String(from || "").trim();
       const t = String(to || "").trim();
-      if (f && t) return `${f} – ${t}`;
+      if (f && t) return `${f} â€“ ${t}`;
       if (f) return `From ${f}`;
       if (t) return `Until ${t}`;
       return "";
@@ -2240,8 +2241,8 @@ export default function AddProperty() {
       const missing = [
         !(title.trim().length >= 3) ? "name" : null,
         !regionId ? "location" : null,
-        !(photos.length >= 3) ? "≥3 photos" : null,
-        !(definedRooms.length >= 1) ? "≥1 room type" : null,
+        !(photos.length >= 3) ? "â‰¥3 photos" : null,
+        !(definedRooms.length >= 1) ? "â‰¥1 room type" : null,
         (isHotel && (!hotelStar || hotelStar === "")) ? "hotel star rating" : null,
       ].filter(Boolean);
       alert("Please complete: " + missing.join(", ") + ".");
@@ -2721,7 +2722,7 @@ export default function AddProperty() {
                                         : "border-slate-200 bg-white text-slate-600"
                                 }`}
                               >
-                                {isCompleted ? "✓" : s.index + 1}
+                                {isCompleted ? "âœ“" : s.index + 1}
                               </span>
                               <span className="min-w-0 flex-1">
                                 <span className="block text-sm font-semibold text-slate-900 truncate">{s.title}</span>
@@ -3509,3 +3510,4 @@ function AddFacilityInline({ onAdd, existingFacilities = [] }:{ onAdd:(f:NearbyF
     </div>
   );
 }
+

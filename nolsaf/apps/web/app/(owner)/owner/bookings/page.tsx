@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import axios from "axios";
-import { Calendar, Loader2, Building2, User, DollarSign, Eye, Clock, CheckCircle, LogOut, XCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { Calendar, Loader2, Building2, DollarSign, Clock, CheckCircle, LogOut, XCircle, ChevronDown, ChevronUp } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 

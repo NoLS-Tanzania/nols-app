@@ -273,7 +273,7 @@ export default function DriverDashboard({ className }: { className?: string }) {
             [...rr.data, ...computed].forEach((r: any) => {
               if (r && r.id) mergedMap[String(r.id)] = r;
             });
-            let merged = Object.values(mergedMap);
+            const merged = Object.values(mergedMap);
             setReminders(merged as any);
           } else {
             // fallback to dashboard reminders

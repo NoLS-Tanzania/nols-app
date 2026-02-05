@@ -114,11 +114,15 @@ export default function SiteHeader({
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const isAdmin = role === "ADMIN";
   const isOwner = role === "OWNER";
+  const isDriver = driverMode || role === "DRIVER";
+  const sidebarToggleEvent: "toggle-admin-sidebar" | "toggle-owner-sidebar" | "toggle-driver-sidebar" | null =
+    isAdmin ? "toggle-admin-sidebar" : isDriver ? "toggle-driver-sidebar" : isOwner ? "toggle-owner-sidebar" : null;
+  const showSidebarToggle = sidebarToggleEvent !== null;
   const logoutRedirect = isAdmin
     ? "/admin/login"
     : isOwner
       ? "/owner/login"
-      : driverMode || role === "DRIVER"
+      : isDriver
         ? "/driver/login"
         : "/account/login";
   const [unreadCount, setUnreadCount] = useState<number | null>(null);
@@ -305,25 +309,36 @@ export default function SiteHeader({
         </>
       )}
 
-      {/* Admin: Fixed menu icon on the left side, doesn't move with sidebar */}
-      {isAdmin && (
-        <button
-          onClick={() => {
-            try {
-              window.dispatchEvent(new CustomEvent('toggle-admin-sidebar', { detail: { source: 'header' } }));
-            } catch (e) {
-              // ignore
-            }
-          }}
-          aria-label="Toggle sidebar"
-          className="group fixed left-4 top-3 z-50 inline-flex items-center justify-center h-10 w-10 rounded-2xl bg-[#02665e]/25 backdrop-blur-md border border-[#02665e]/35 hover:bg-[#02665e]/35 hover:border-[#02665e]/45 hover:scale-105 active:scale-95 transition-all duration-300 ease-out"
+      {/* Fixed menu icon on the left side (always mounted to avoid blink/disappear). */}
+      <button
+        onClick={() => {
+          if (!sidebarToggleEvent) return;
+          try {
+            const evt = new CustomEvent(sidebarToggleEvent, { detail: { source: "header" } });
+            window.dispatchEvent(evt);
+          } catch {
+            // ignore
+          }
+        }}
+        aria-label="Toggle sidebar"
+        className={`group fixed left-4 top-3 z-[80] inline-flex items-center justify-center h-10 w-10 rounded-2xl transition-all duration-300 ease-out ${
+          isAdmin
+            ? "bg-[#02665e]/25 backdrop-blur-md border border-[#02665e]/35 hover:bg-[#02665e]/35 hover:border-[#02665e]/45"
+            : "bg-white/10 backdrop-blur-md border border-white/15 hover:bg-white/15 hover:border-white/25"
+        } hover:scale-105 active:scale-95 ${showSidebarToggle ? "" : "opacity-0 pointer-events-none"}`}
+      >
+        <svg
+          className="w-5 h-5 text-white opacity-90 group-hover:opacity-100 transition-all duration-300"
+          viewBox="0 0 24 24"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          aria-hidden
         >
-          <svg className="w-5 h-5 text-white opacity-90 group-hover:opacity-100 transition-all duration-300" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
-            <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
-      )}
-      <div className={`mx-auto max-w-6xl px-4 h-16 flex items-center ${isAdmin ? 'pl-14' : ''} relative`}>
+          <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+
+      <div className={`mx-auto max-w-6xl px-4 h-16 flex items-center ${showSidebarToggle ? 'pl-14' : ''} relative`}>
         <div
           className={`w-full h-14 rounded-3xl border border-white/10 backdrop-blur-xl shadow-[0_18px_70px_rgba(0,0,0,0.40),0_0_50px_rgba(2,102,94,0.14)] flex items-center justify-between px-5 md:px-6 relative ${
             isAdmin
@@ -333,41 +348,6 @@ export default function SiteHeader({
               : 'bg-white/0'
           }`}
         >
-        {/* Owner: small toggle to hide/show sidebar. Uses a global event so Layout can listen */}
-        {isOwner && !driverMode ? (
-          <button
-            onClick={() => {
-              try {
-                window.dispatchEvent(new CustomEvent('toggle-owner-sidebar', { detail: { source: 'header' } }));
-              } catch (e) {
-                // ignore
-              }
-            }}
-            aria-label="Toggle sidebar"
-            className="hidden md:inline-flex items-center justify-center h-9 w-9 rounded-md bg-white/10 hover:bg-white/20 mr-3"
-          >
-            <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
-              <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
-        ) : null}
-        {driverMode ? (
-          <button
-            onClick={() => {
-              try {
-                window.dispatchEvent(new CustomEvent('toggle-driver-sidebar', { detail: { source: 'header' } }));
-              } catch (e) {
-                // ignore
-              }
-            }}
-            aria-label="Toggle sidebar"
-            className="hidden md:inline-flex items-center justify-center h-10 w-10 rounded-xl bg-transparent border-0 hover:bg-white/10 hover:backdrop-blur-sm hover:border hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-out mr-3"
-          >
-            <svg className="w-5 h-5 text-white transition-transform duration-300" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
-              <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
-        ) : null}
         {isAdmin ? null : isOwner ? null : driverMode ? (
           <Link href="/driver" className="inline-flex items-center transition-opacity duration-300 hover:opacity-80" aria-label="NoLSAF Home">
             <Image

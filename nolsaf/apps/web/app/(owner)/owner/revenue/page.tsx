@@ -218,10 +218,6 @@ export default function OwnerRevenuePage() {
     return arr;
   })();
 
-  const hasActiveFilters = Boolean(
-    statusFilter || dateFrom || dateTo || search || sortKey !== "issuedAt_desc"
-  );
-
   const activePanelFiltersCount =
     (statusFilter ? 1 : 0) +
     (dateFrom ? 1 : 0) +

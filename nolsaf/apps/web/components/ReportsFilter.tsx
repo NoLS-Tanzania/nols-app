@@ -1,8 +1,10 @@
 "use client";
-import { useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import axios from "axios";
-import { Building2, Download, ChevronDown } from "lucide-react";
+import { Building2, Download, ChevronDown, Sliders } from "lucide-react";
 import DatePickerField from "./DatePickerField";
+import { Popover, Transition } from "@headlessui/react";
 
 // Use same-origin calls + secure httpOnly cookie session.
 const api = axios.create({ baseURL: "", withCredentials: true });
@@ -17,7 +19,100 @@ export type ReportsFilters = {
 function formatDate(d: Date) { return d.toISOString().slice(0,10); }
 function firstOfMonth(d = new Date()) { return new Date(d.getFullYear(), d.getMonth(), 1); }
 
-export default function ReportsFilter({ onChange }: { onChange: (f: ReportsFilters)=>void }) {
+const MAX_REPORT_DAYS_INCLUSIVE = 366; // max 12 months (incl. leap-year day)
+
+function parseIsoDateOnly(iso: string): Date {
+  // Treat YYYY-MM-DD as UTC midnight to avoid timezone drift.
+  const m = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.exec(String(iso || ""));
+  if (!m) return new Date(NaN);
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) return new Date(NaN);
+  return new Date(Date.UTC(y, mo - 1, d));
+}
+
+function addDaysUtc(dateUtc: Date, days: number): Date {
+  return new Date(dateUtc.getTime() + days * 864e5);
+}
+
+function clampRangeToMax(fromIso: string, toIso: string) {
+  const fromD = parseIsoDateOnly(fromIso);
+  const toD = parseIsoDateOnly(toIso);
+  if (Number.isNaN(fromD.getTime()) || Number.isNaN(toD.getTime())) {
+    return { from: fromIso, to: toIso, clamped: false, maxTo: null as string | null };
+  }
+
+  let from = fromD;
+  let to = toD;
+  if (to.getTime() < from.getTime()) {
+    const tmp = from;
+    from = to;
+    to = tmp;
+  }
+
+  const maxToDate = addDaysUtc(from, MAX_REPORT_DAYS_INCLUSIVE - 1);
+  const clamped = to.getTime() > maxToDate.getTime();
+  if (clamped) to = maxToDate;
+
+  return {
+    from: formatDate(from),
+    to: formatDate(to),
+    clamped,
+    maxTo: formatDate(maxToDate),
+  };
+}
+
+function startOfTodayUtc() {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+}
+
+function addMonthsUtc(dateUtc: Date, months: number) {
+  const y = dateUtc.getUTCFullYear();
+  const m = dateUtc.getUTCMonth();
+  const d = dateUtc.getUTCDate();
+  const target = new Date(Date.UTC(y, m + months, 1));
+  const daysInTargetMonth = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+  target.setUTCDate(Math.min(d, daysInTargetMonth));
+  return target;
+}
+
+function firstOfYearUtc(dateUtc = startOfTodayUtc()) {
+  return new Date(Date.UTC(dateUtc.getUTCFullYear(), 0, 1));
+}
+
+type MoreRangeKey = "3m" | "6m" | "ytd" | "12m";
+type QuickRangeKey = "today" | "7d" | "30d" | MoreRangeKey;
+
+function PopoverPositioner({ open, computePos }: { open: boolean; computePos: () => void }) {
+  useEffect(() => {
+    if (!open) return;
+    if (typeof window === "undefined") return;
+
+    computePos();
+    window.addEventListener("resize", computePos);
+    window.addEventListener("scroll", computePos, true);
+    return () => {
+      window.removeEventListener("resize", computePos);
+      window.removeEventListener("scroll", computePos, true);
+    };
+  }, [open, computePos]);
+
+  return null;
+}
+
+export default function ReportsFilter({
+  onChangeAction,
+  exportHref,
+}: {
+  onChangeAction: (f: ReportsFilters) => void;
+  /**
+   * Override the default export link. Set to `null` to hide the export button.
+   * Default (undefined) keeps exporting invoices CSV.
+   */
+  exportHref?: string | null;
+}) {
   const today = new Date();
   const [props, setProps] = useState<any[]>([]);
   const [filters, setFilters] = useState<ReportsFilters>({
@@ -27,38 +122,108 @@ export default function ReportsFilter({ onChange }: { onChange: (f: ReportsFilte
     groupBy: "day",
   });
 
+  const clampInfo = clampRangeToMax(filters.from, filters.to);
+
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   useEffect(() => {
     api.get<{ items: any[] }>("/owner/properties/mine", { params: { status: "APPROVED", pageSize: 100 } })
       .then(r => setProps(Array.isArray((r.data as any)?.items) ? (r.data as any).items : []))
       .catch(() => setProps([]));
   }, []);
 
-  useEffect(() => { onChange(filters); }, [filters, onChange]);
+  useEffect(() => {
+    onChangeAction(filters);
+  }, [filters, onChangeAction]);
+
+  const defaultExportHref = `/api/owner/revenue/invoices.csv?date_from=${filters.from}&date_to=${filters.to}${
+    filters.propertyId ? `&propertyId=${filters.propertyId}` : ""
+  }`;
+  const effectiveExportHref = exportHref === undefined ? defaultExportHref : exportHref;
+
+  function applyRange(nextFrom: string, nextTo: string) {
+    const clamped = clampRangeToMax(nextFrom, nextTo);
+    setFilters((f) => ({ ...f, from: clamped.from, to: clamped.to }));
+  }
+
+  function getQuickRange(key: QuickRangeKey) {
+    const end = startOfTodayUtc();
+    let start = end;
+
+    if (key === "today") start = end;
+    if (key === "7d") start = addDaysUtc(end, -6);
+    if (key === "30d") start = addDaysUtc(end, -29);
+    if (key === "3m") start = addMonthsUtc(end, -3);
+    if (key === "6m") start = addMonthsUtc(end, -6);
+    if (key === "12m") start = addMonthsUtc(end, -12);
+    if (key === "ytd") start = firstOfYearUtc(end);
+
+    const clamped = clampRangeToMax(formatDate(start), formatDate(end));
+    return { from: clamped.from, to: clamped.to };
+  }
+
+  function setQuickRange(key: QuickRangeKey) {
+    const r = getQuickRange(key);
+    applyRange(r.from, r.to);
+  }
+
+  const rangePresets = useMemo(
+    () =>
+      [
+        { key: "today" as const, label: "Today", hint: "Today", accent: "bg-emerald-500" },
+        { key: "7d" as const, label: "7D", hint: "Last 7 days", accent: "bg-sky-500" },
+        { key: "30d" as const, label: "30D", hint: "Last 30 days", accent: "bg-violet-500" },
+        { key: "3m" as const, label: "3M", hint: "Last 3 months", accent: "bg-indigo-500" },
+        { key: "6m" as const, label: "6M", hint: "Last 6 months", accent: "bg-amber-500" },
+        { key: "ytd" as const, label: "YTD", hint: "Year to date", accent: "bg-teal-500" },
+        { key: "12m" as const, label: "12M", hint: "Last 12 months (max)", accent: "bg-slate-600" },
+      ] as const,
+    []
+  );
+  const primaryRanges = rangePresets.slice(0, 3);
+  const moreRanges = rangePresets.slice(3) as unknown as Array<(typeof rangePresets)[number] & { key: MoreRangeKey }>;
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-      <div className="w-full overflow-x-auto overscroll-x-contain">
-        <div className="min-w-[880px] flex items-center justify-between gap-3">
-          <div className="flex items-stretch gap-3">
+    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4">
+      <div className="flex flex-col gap-3">
+
+        <div className="flex items-end gap-3 overflow-x-auto flex-nowrap pb-1 -mb-1">
+          <div className="shrink-0 w-[190px]">
+            <div className="text-[11px] font-semibold text-gray-500 mb-1">From</div>
             <DatePickerField
               label="From date"
               value={filters.from}
               max={filters.to}
-              onChange={(nextIso) => setFilters((f) => ({ ...f, from: nextIso }))}
+              onChangeAction={(nextIso: string) => {
+                applyRange(nextIso, filters.to);
+              }}
+              widthClassName="w-full"
             />
+          </div>
+
+          <div className="shrink-0 w-[190px]">
+            <div className="text-[11px] font-semibold text-gray-500 mb-1">To</div>
             <DatePickerField
               label="To date"
               value={filters.to}
               min={filters.from}
-              onChange={(nextIso) => setFilters((f) => ({ ...f, to: nextIso }))}
+              max={clampInfo.maxTo ?? undefined}
+              onChangeAction={(nextIso: string) => {
+                applyRange(filters.from, nextIso);
+              }}
+              widthClassName="w-full"
             />
+          </div>
 
-            <label className="relative">
+          <div className="min-w-[240px] flex-1">
+            <div className="text-[11px] font-semibold text-gray-500 mb-1">Property</div>
+            <label className="relative block">
               <span className="sr-only">Property</span>
               <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" aria-hidden />
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" aria-hidden />
               <select
-                className="h-12 w-[260px] pl-10 pr-9 rounded-xl border border-gray-200 bg-white text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-brand/25 focus:border-brand appearance-none"
+                className="h-12 w-full pl-10 pr-9 rounded-xl border border-gray-200 bg-white text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-brand/25 focus:border-brand appearance-none"
                 title="Property"
                 aria-label="Property"
                 value={filters.propertyId ?? ""}
@@ -74,50 +239,242 @@ export default function ReportsFilter({ onChange }: { onChange: (f: ReportsFilte
             </label>
           </div>
 
-          <div className="flex items-stretch gap-3">
-            <div
-              className="inline-flex h-12 rounded-xl border border-brand/25 bg-white overflow-hidden shadow-sm"
-              role="group"
-              aria-label="Group by"
-            >
-              {([
-                { key: "day", label: "Day" },
-                { key: "week", label: "Week" },
-                { key: "month", label: "Month" },
-              ] as const).map((g, idx, arr) => {
-                const active = filters.groupBy === g.key;
-                const isLast = idx === arr.length - 1;
+          <div className="shrink-0">
+            <div className="text-[11px] font-semibold text-gray-500 mb-1">Range</div>
+            <div className="flex items-center gap-2 flex-nowrap">
+              {primaryRanges.map((p) => {
+                const pr = getQuickRange(p.key);
+                const active = filters.from === pr.from && filters.to === pr.to;
                 return (
-                  <button
-                    key={g.key}
-                    type="button"
-                    onClick={() => setFilters((f) => ({ ...f, groupBy: g.key }))}
-                    className={
-                      "h-full px-5 text-sm font-semibold whitespace-nowrap transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 " +
-                      (active ? "bg-brand text-white" : "bg-white text-slate-700 hover:bg-brand/5") +
-                      (isLast ? "" : " border-r border-brand/25")
-                    }
-                    aria-pressed={active}
-                  >
-                    {g.label}
-                  </button>
+                  <RangePill
+                    key={p.key}
+                    label={p.label}
+                    hint={p.hint}
+                    accentClassName={p.accent}
+                    active={active}
+                    onClick={() => setQuickRange(p.key)}
+                  />
                 );
               })}
-            </div>
 
-            <a
-              className="no-underline inline-flex items-center justify-center h-12 w-12 rounded-xl border border-brand/25 bg-brand text-white shadow-sm hover:brightness-95 active:scale-[0.99] transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
-              href={`/api/owner/revenue/invoices.csv?date_from=${filters.from}&date_to=${filters.to}${filters.propertyId ? `&propertyId=${filters.propertyId}` : ""}`}
-              target="_blank"
-              rel="noreferrer"
-              aria-label="Export CSV"
-              title="Export CSV"
-            >
-              <Download className="h-5 w-5" aria-hidden />
-            </a>
+              <MoreOptionsPopover
+                mounted={mounted}
+                moreRanges={moreRanges}
+                onSelectRange={setQuickRange}
+                groupBy={filters.groupBy}
+                onSelectGroupBy={(g) => setFilters((f) => ({ ...f, groupBy: g }))}
+                clampInfo={clampInfo}
+              />
+            </div>
           </div>
+
+          {effectiveExportHref ? (
+            <div className="shrink-0">
+              <div className="text-[11px] font-semibold text-gray-500 mb-1">Export</div>
+              <a
+                className="no-underline inline-flex items-center justify-center h-12 px-4 rounded-xl border border-brand/25 bg-brand text-white shadow-sm hover:brightness-95 active:scale-[0.99] transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
+                href={effectiveExportHref}
+                target="_blank"
+                rel="noreferrer"
+                aria-label="Export CSV"
+                title="Export CSV"
+              >
+                <Download className="h-4 w-4 mr-2" aria-hidden />
+                CSV
+              </a>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>
+  );
+}
+
+function MoreOptionsPopover({
+  mounted,
+  moreRanges,
+  onSelectRange,
+  groupBy,
+  onSelectGroupBy,
+  clampInfo,
+}: {
+  mounted: boolean;
+  moreRanges: Array<{ key: QuickRangeKey; label: string; hint: string; accent: string }>;
+  onSelectRange: (k: QuickRangeKey) => void;
+  groupBy: "day" | "week" | "month";
+  onSelectGroupBy: (g: "day" | "week" | "month") => void;
+  clampInfo: { maxTo: string | null };
+}) {
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
+
+  const computePos = useCallback(() => {
+    const el = buttonRef.current;
+    if (!el) return;
+    if (typeof window === "undefined") return;
+    const rect = el.getBoundingClientRect();
+    const width = 256;
+    const rawLeft = rect.right - width;
+    const left = Math.max(12, Math.min(rawLeft, window.innerWidth - 12 - width));
+    const top = rect.bottom + 8;
+    setPos({ top, left, width });
+  }, []);
+
+  return (
+    <Popover className="relative shrink-0">
+      {({ open, close }) => (
+        <>
+          <PopoverPositioner open={open} computePos={computePos} />
+
+          <Popover.Button
+            ref={buttonRef}
+            type="button"
+            className={
+              "h-12 w-12 inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white text-slate-700 shadow-sm transition hover:bg-brand/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 " +
+              (open ? "ring-1 ring-gray-200" : "")
+            }
+            title="More options"
+            aria-label="More options"
+            onClick={() => {
+              if (typeof window !== "undefined") {
+                setTimeout(() => {
+                  try {
+                    computePos();
+                  } catch {
+                    // ignore
+                  }
+                }, 0);
+              }
+            }}
+          >
+            <Sliders className="h-4 w-4" aria-hidden />
+          </Popover.Button>
+
+          {mounted
+            ? createPortal(
+                <Transition
+                  as={Fragment}
+                  show={open}
+                  enter="transition ease-out duration-150"
+                  enterFrom="opacity-0 translate-y-1"
+                  enterTo="opacity-100 translate-y-0"
+                  leave="transition ease-in duration-120"
+                  leaveFrom="opacity-100 translate-y-0"
+                  leaveTo="opacity-0 translate-y-1"
+                >
+                  <Popover.Panel
+                    static
+                    className="fixed z-[10000] w-64 rounded-xl border border-gray-200 bg-white shadow-xl overflow-hidden"
+                    style={pos ? { top: pos.top, left: pos.left, width: pos.width } : undefined}
+                  >
+                    <div className="p-1">
+                      <div className="px-3 py-2 text-[11px] font-semibold text-gray-500">Ranges</div>
+                      {moreRanges.map((p) => (
+                        <button
+                          key={p.key}
+                          type="button"
+                          onClick={() => {
+                            onSelectRange(p.key);
+                            close();
+                          }}
+                          className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
+                          title={p.hint}
+                        >
+                          <span className={"h-2.5 w-2.5 rounded-sm " + p.accent} aria-hidden />
+                          <div className="min-w-0 text-left">
+                            <div className="font-semibold leading-5">{p.label}</div>
+                            <div className="text-[11px] text-gray-500 leading-4 truncate">{p.hint}</div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="border-t border-gray-100 px-3 py-2">
+                      <div className="text-[11px] font-semibold text-gray-500 mb-2">Group by</div>
+                      <div className="grid grid-cols-3 gap-2">
+                        {([
+                          { key: "day", label: "Day" },
+                          { key: "week", label: "Week" },
+                          { key: "month", label: "Month" },
+                        ] as const).map((g) => {
+                          const active = groupBy === g.key;
+                          return (
+                            <button
+                              key={g.key}
+                              type="button"
+                              onClick={() => {
+                                onSelectGroupBy(g.key);
+                                close();
+                              }}
+                              className={
+                                "h-10 rounded-lg text-xs font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 " +
+                                (active
+                                  ? "bg-brand text-white shadow-sm"
+                                  : "bg-gray-50 text-slate-700 hover:bg-gray-100")
+                              }
+                              aria-pressed={active}
+                            >
+                              {g.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="px-3 py-2 border-t border-gray-100 text-[11px] text-gray-500">
+                      Max range: <span className="font-semibold">12 months</span>
+                      {clampInfo.maxTo ? (
+                        <span className="block">
+                          To max: <span className="font-semibold">{clampInfo.maxTo}</span>
+                        </span>
+                      ) : null}
+                    </div>
+                  </Popover.Panel>
+                </Transition>,
+                document.body
+              )
+            : null}
+        </>
+      )}
+    </Popover>
+  );
+}
+
+function RangePill({
+  label,
+  hint,
+  accentClassName,
+  active,
+  onClick,
+}: {
+  label: string;
+  hint: string;
+  accentClassName: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={hint}
+      aria-label={hint}
+      className={
+        "group relative h-12 px-4 rounded-xl border bg-white text-sm font-semibold shadow-sm transition hover:bg-brand/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 " +
+        (active ? "border-brand/30 text-brand ring-1 ring-brand/15 bg-brand/5" : "border-gray-200 text-slate-700")
+      }
+    >
+      <span className="inline-flex items-center gap-2">
+        <span className={"h-2 w-2 rounded-sm " + accentClassName} aria-hidden />
+        <span>{label}</span>
+      </span>
+
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute -top-2 left-1/2 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-lg border border-gray-200 bg-white px-2 py-1 text-[11px] font-semibold text-gray-700 shadow-lg opacity-0 scale-95 transition-all duration-150 ease-out group-hover:opacity-100 group-hover:scale-100 group-focus-visible:opacity-100 group-focus-visible:scale-100"
+      >
+        {hint}
+      </span>
+    </button>
   );
 }

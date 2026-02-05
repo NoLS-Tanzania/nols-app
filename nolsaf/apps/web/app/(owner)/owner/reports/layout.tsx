@@ -7,11 +7,48 @@ import { FileText, ArrowUpRight } from "lucide-react";
 export default function ReportsLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const tabs = [
-    { href: "/owner/reports/overview", label: "Overview" },
-    { href: "/owner/reports/revenue", label: "Revenue" },
-    { href: "/owner/reports/bookings", label: "Bookings" },
-    { href: "/owner/reports/occupancy", label: "Occupancy" },
-    { href: "/owner/reports/customers", label: "Customers" },
+    {
+      href: "/owner/reports/overview",
+      label: "Overview",
+      dot: "bg-indigo-500",
+      active: "bg-indigo-600 border-indigo-600 text-white",
+      focus: "focus-visible:ring-indigo-200",
+    },
+    {
+      href: "/owner/reports/revenue",
+      label: "Revenue",
+      dot: "bg-emerald-500",
+      active: "bg-emerald-600 border-emerald-600 text-white",
+      focus: "focus-visible:ring-emerald-200",
+    },
+    {
+      href: "/owner/reports/bookings",
+      label: "Bookings",
+      dot: "bg-violet-500",
+      active: "bg-violet-600 border-violet-600 text-white",
+      focus: "focus-visible:ring-violet-200",
+    },
+    {
+      href: "/owner/reports/stays",
+      label: "Stays",
+      dot: "bg-amber-500",
+      active: "bg-amber-600 border-amber-600 text-white",
+      focus: "focus-visible:ring-amber-200",
+    },
+    {
+      href: "/owner/reports/occupancy",
+      label: "Occupancy",
+      dot: "bg-sky-500",
+      active: "bg-sky-600 border-sky-600 text-white",
+      focus: "focus-visible:ring-sky-200",
+    },
+    {
+      href: "/owner/reports/customers",
+      label: "Customers",
+      dot: "bg-rose-500",
+      active: "bg-rose-600 border-rose-600 text-white",
+      focus: "focus-visible:ring-rose-200",
+    },
   ];
 
   return (
@@ -43,24 +80,30 @@ export default function ReportsLayout({ children }: { children: React.ReactNode 
             </div>
           </div>
 
-          <div className="mt-5 flex flex-wrap gap-2 justify-center">
+          <div className="mt-6 flex justify-center">
+            <div className="inline-flex flex-wrap items-center justify-center gap-2 rounded-2xl border border-gray-200 bg-gray-50/80 p-2">
             {tabs.map((t) => {
               const active = pathname === t.href || pathname?.startsWith(`${t.href}/`);
               return (
                 <Link
                   key={t.href}
                   href={t.href}
+                  aria-current={active ? "page" : undefined}
                   className={
-                    "no-underline inline-flex items-center h-9 px-3 rounded-md text-sm font-semibold border shadow-sm transition active:scale-[0.99] " +
+                    "no-underline inline-flex items-center gap-2 h-10 px-4 rounded-xl text-sm font-semibold border shadow-sm transition hover:shadow-md active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-0 " +
+                    t.focus +
+                    " " +
                     (active
-                      ? "bg-slate-900 border-slate-900 text-white"
-                      : "bg-white border-gray-200 text-gray-800 hover:bg-gray-50")
+                      ? t.active
+                      : "bg-white border-gray-200 text-slate-800 hover:bg-white")
                   }
                 >
+                  <span className={"h-2 w-2 rounded-sm " + t.dot} aria-hidden />
                   {t.label}
                 </Link>
               );
             })}
+            </div>
           </div>
         </div>
       </div>

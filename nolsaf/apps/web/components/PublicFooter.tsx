@@ -4,7 +4,78 @@ import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Linkedin, Instagram, Youtube, X, Facebook } from "lucide-react";
-import SectionSeparator from "./SectionSeparator";
+
+type FooterPillVariant = "brand" | "neutral";
+
+const APP_VERSION = "v0.1.0";
+
+function FooterPolicyItem({
+  children,
+  href,
+}: {
+  children: React.ReactNode;
+  href: string;
+}) {
+  const className =
+    "group relative inline-flex appearance-none items-center rounded-md border border-transparent bg-transparent px-2.5 py-1.5 text-sm font-semibold cursor-pointer " +
+    "text-slate-700 no-underline transition-all duration-300 ease-out " +
+    "hover:text-[#02665e] hover:bg-slate-100/70 " +
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/25 focus-visible:ring-offset-2 focus-visible:ring-offset-white " +
+    "motion-reduce:transition-none";
+
+  return (
+    <Link href={href} className={className}>
+      <span className="relative">
+        {children}
+        <span className="pointer-events-none absolute -bottom-1 left-0 h-px w-0 bg-gradient-to-r from-[#02665e] to-sky-500 transition-all duration-300 group-hover:w-full" />
+      </span>
+    </Link>
+  );
+}
+
+function FooterPill({
+  children,
+  href,
+  variant = "brand",
+}: {
+  children: React.ReactNode;
+  href: string;
+  variant?: FooterPillVariant;
+}) {
+  const base =
+    "group relative inline-flex items-center rounded-full border bg-white px-3 py-1.5 text-xs font-semibold no-underline overflow-hidden " +
+    "transition-[transform,background-color,border-color,color] duration-300 ease-out " +
+    "hover:-translate-y-[1px] active:translate-y-0 active:scale-[0.99] " +
+    "motion-reduce:transition-none motion-reduce:hover:transform-none motion-reduce:active:transform-none";
+
+  const brand =
+    "border-gray-200/70 text-[#02665e] hover:bg-[#02665e]/10 hover:border-[#02665e]/30 focus-visible:ring-2 focus-visible:ring-[#02665e]/25";
+  const neutral =
+    "border-gray-200/70 text-slate-700 hover:bg-slate-50 hover:border-slate-300 focus-visible:ring-2 focus-visible:ring-slate-200";
+
+  const overlayTint =
+    variant === "brand"
+      ? "bg-gradient-to-b from-[#02665e]/10 to-[#02665e]/6"
+      : "bg-gradient-to-b from-slate-50 to-white";
+
+  const overlayShine = variant === "brand" ? "via-white/70" : "via-slate-200/80";
+
+  const className = `${base} ${variant === "brand" ? brand : neutral}`;
+
+  return (
+    <Link href={href} className={className}>
+      <span
+        aria-hidden
+        className={`pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 ease-out group-hover:opacity-100 ${overlayTint}`}
+      />
+      <span
+        aria-hidden
+        className={`pointer-events-none absolute -inset-y-2 -left-1/3 w-1/3 rotate-12 bg-gradient-to-r from-transparent ${overlayShine} to-transparent opacity-0 blur-[1px] transition-all duration-500 ease-out group-hover:left-full group-hover:opacity-60 motion-reduce:hidden`}
+      />
+      <span className="relative z-10">{children}</span>
+    </Link>
+  );
+}
 
 function IconLinkButton({
   href,
@@ -28,7 +99,6 @@ function IconLinkButton({
   delay?: number;
 }) {
   const [touched, setTouched] = useState(false);
-  const [isHovered, setIsHovered] = useState(false);
   const timeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -84,12 +154,13 @@ function IconLinkButton({
       onTouchEnd={onTouchEnd}
       onPointerDown={onPointerDown}
       onPointerUp={onPointerUp}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
       style={{ animationDelay: `${delay}ms` }}
-      className={`inline-flex items-center justify-center p-3 rounded-full no-underline focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#02665e] transition-all duration-300 transform hover:scale-110 hover:rotate-3 hover:shadow-lg ${touched ? 'scale-110 rotate-3' : ''} ${containerClassName} relative`}
+      className={`group relative inline-flex items-center justify-center rounded-full no-underline focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#02665e]/25 transition-all duration-300 ease-out transform hover:-translate-y-[1px] hover:shadow-md active:translate-y-0 active:shadow-sm ${touched ? "-translate-y-[1px]" : ""} ${containerClassName}`}
     >
-      <span className="absolute inset-0 rounded-full bg-gradient-to-br from-white/20 to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300" />
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-0 rounded-full bg-gradient-to-br from-white/50 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+      />
       {clonedIcon}
       <span className="sr-only">{label}</span>
     </a>
@@ -126,16 +197,13 @@ export default function PublicFooter({ withRail = true }: { withRail?: boolean }
         try { const j = await res.json(); if (j?.message) text = String(j.message); } catch {}
         setNewsletterStatus({ ok: false, message: text });
       }
-    } catch (e) {
+    } catch {
       // fallback: instruct user to email
       setNewsletterStatus({ ok: false, message: 'Could not reach server. Please email info@nolsaf.com to subscribe.' });
     } finally {
       setNewsletterLoading(false);
     }
   };
-  const [isVisible, setIsVisible] = useState(false);
-  const footerRef = useRef<HTMLElement>(null);
-
   // Set navigation context for policy pages
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -143,281 +211,252 @@ export default function PublicFooter({ withRail = true }: { withRail?: boolean }
     }
   }, []);
 
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setIsVisible(true);
-        }
-      },
-      { threshold: 0.1 }
-    );
-
-    if (footerRef.current) {
-      observer.observe(footerRef.current);
-    }
-
-    return () => {
-      if (footerRef.current) {
-        observer.unobserve(footerRef.current);
-      }
-    };
-  }, []);
-
   return (
-    <footer 
-      ref={footerRef}
-      className={`w-full mt-12 page-bottom-buffer bg-gradient-to-b from-slate-50 via-white to-slate-50 relative overflow-hidden`}
+    <footer
+      aria-label="Footer"
+      className="relative w-full mt-12 page-bottom-buffer overflow-hidden border-t border-gray-200/70 bg-gradient-to-b from-white via-slate-50 to-white"
     >
-      {/* Animated background gradient */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[#02665e]/5 via-transparent to-blue-500/5 pointer-events-none" />
-      <div className="absolute inset-0 opacity-30">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-[#02665e]/10 rounded-full blur-3xl animate-pulse" style={{ animationDuration: '4s' }} />
-        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDuration: '6s', animationDelay: '1s' }} />
-      </div>
-
-      {/* separator */}
-      <div className={`relative transition-all duration-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-      <SectionSeparator />
-      </div>
       <h2 className="sr-only">Footer</h2>
 
-      <div className="public-container py-8 md:py-12 relative z-10">
-        {/* Reorganized footer: 3 balanced columns */}
-        <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-10 lg:gap-12 items-start transition-all duration-1000 delay-100 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-          {/* Column 1: Brand + short intro + Newsletter */}
-          <div className="space-y-6 md:space-y-7">
-            <div className="flex items-start gap-3 transform transition-all duration-500 hover:scale-105">
-              <Image 
-                src="/assets/NoLS2025-04.png" 
-                alt="NoLSAF" 
-                width={120} 
-                height={32} 
-                className="object-contain transition-all duration-300 hover:brightness-110" 
-                style={{ width: "auto", height: "auto" }}
-              />
-            </div>
-            <p className="text-sm text-gray-600 leading-relaxed max-w-sm transition-colors duration-300">
-              NoLSAF connects travellers, owners and drivers with safe, local stays and services across East Africa.
-            </p>
+      {withRail ? (
+        <div aria-hidden className="absolute inset-x-0 top-0 h-1 flex">
+          <span className="footer-rail-seg footer-rail-green w-[34%]" />
+          <span className="footer-rail-seg footer-rail-yellow w-[8%]" />
+          <span className="footer-rail-seg footer-rail-black w-[8%]" />
+          <span className="footer-rail-seg footer-rail-blue w-[50%]" />
+        </div>
+      ) : null}
 
-            <div className="space-y-3 max-w-sm">
-              <label htmlFor="newsletter-email-2" className="text-sm font-semibold text-gray-900 block transition-colors duration-300">
-                Newsletter
-              </label>
-              <div className="flex gap-2">
-                <input
-                  id="newsletter-email-2"
-                  type="email"
-                  value={newsletterEmail}
-                  onChange={(e) => setNewsletterEmail(e.target.value)}
-                  placeholder="Your email"
-                  className="flex-1 border border-gray-200 rounded-lg px-4 py-2.5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] transition-all duration-300 bg-white hover:border-gray-300 hover:shadow-sm"
-                  aria-label="Newsletter email"
-                />
-                <button
-                  className={`px-5 py-2.5 rounded-lg border border-transparent bg-[#02665e] text-white text-sm font-semibold shadow-sm transition-all duration-300 transform hover:bg-[#024d47] hover:shadow-md hover:scale-[1.02] active:scale-95 ${newsletterLoading ? 'opacity-70 cursor-wait' : ''}`}
-                  onClick={subscribeNewsletter}
-                  disabled={newsletterLoading}
-                >
-                  {newsletterLoading ? (
-                    <span className="flex items-center gap-2">
-                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      <span className="hidden sm:inline">Subscribing…</span>
-                    </span>
-                  ) : 'Subscribe'}
-                </button>
-              </div>
-              {newsletterStatus && (
-                <div className={`text-sm transition-all duration-500 animate-fade-in px-3 py-2 rounded-lg ${newsletterStatus.ok ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
-                  {newsletterStatus.message}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -top-24 left-1/2 h-72 w-[900px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(2,102,94,0.14),transparent_70%)] blur-2xl"
+      />
+
+      <div className="max-w-6xl mx-auto px-4 pt-10 pb-10 relative z-10">
+        <div className="rounded-3xl border border-gray-200/70 bg-white/75 backdrop-blur-xl shadow-[0_18px_70px_rgba(2,6,23,0.10)]">
+          <div className="px-5 py-8 sm:px-8">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+              <div className="lg:col-span-5 space-y-4">
+                <div className="flex items-start gap-3">
+                  <Image
+                    src="/assets/NoLS2025-04.png"
+                    alt="NoLSAF"
+                    width={120}
+                    height={32}
+                    className="object-contain"
+                    style={{ width: "auto", height: "auto" }}
+                  />
+                  <span className="inline-flex items-center rounded-full border border-slate-200/70 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                    {APP_VERSION}
+                  </span>
                 </div>
-              )}
-            </div>
-          </div>
+                <p className="text-sm text-slate-600 leading-relaxed max-w-sm">
+                  NoLSAF connects travellers, owners and drivers with safe, local stays and services across East Africa.
+                </p>
 
-          {/* Column 2: About */}
-          <div className="space-y-4 md:space-y-5">
-            <h3 className="text-lg font-semibold text-gray-900 mb-3 transition-colors duration-300">
-              About NoLSAF
-            </h3>
-            <ul className="space-y-2.5 text-sm list-none pl-0">
-              {[
-                { href: "/about/who", label: "Who are we" },
-                { href: "/about/what", label: "What we do" },
-                { href: "/about/why", label: "Why us" },
-                { href: "/about/story", label: "Our Best Story" },
-              ].map((item, index) => (
-                <li 
-                  key={item.href} 
-                  style={{ animationDelay: `${200 + index * 50}ms` }} 
-                  className={isVisible ? "opacity-0 animate-fade-in-up" : "opacity-0"}
-                >
-                  <Link 
-                    href={item.href} 
-                    className="text-gray-600 hover:text-[#02665e] no-underline transition-all duration-300 inline-flex items-center gap-2 group py-1.5 px-2 -mx-2 rounded-md hover:bg-[#02665e]/5"
-                  >
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#02665e] opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                    <span className="group-hover:font-medium transition-all duration-300">{item.label}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
+                <div className="flex items-center gap-3 pt-2 flex-wrap">
+                  <IconLinkButton
+                    href="https://www.linkedin.com/company/nolsaf"
+                    label="NoLSAF on LinkedIn"
+                    iconComponent={Linkedin}
+                    iconSize={20}
+                    iconClassName="text-[#0A66C2] relative z-10"
+                    iconActiveClass="text-[#084A9A]"
+                    containerClassName="h-11 w-11 bg-white/90 backdrop-blur-sm border border-slate-200/70 hover:bg-[#0A66C2]/10 hover:border-[#0A66C2]/30"
+                    delay={0}
+                  />
+                  <IconLinkButton
+                    href="https://www.instagram.com/nolsaf"
+                    label="NoLSAF on Instagram"
+                    iconComponent={Instagram}
+                    iconSize={20}
+                    iconClassName="text-[#E4405F] relative z-10"
+                    iconActiveClass="text-[#C32B4E]"
+                    containerClassName="h-11 w-11 bg-white/90 backdrop-blur-sm border border-slate-200/70 hover:bg-[#E4405F]/10 hover:border-[#E4405F]/30"
+                    delay={100}
+                  />
+                  <IconLinkButton
+                    href="https://www.youtube.com/@nolsaf"
+                    label="NoLSAF on YouTube"
+                    iconComponent={Youtube}
+                    iconSize={20}
+                    iconClassName="text-[#FF0000] relative z-10"
+                    iconActiveClass="text-[#CC0000]"
+                    containerClassName="h-11 w-11 bg-white/90 backdrop-blur-sm border border-slate-200/70 hover:bg-[#FF0000]/10 hover:border-[#FF0000]/30"
+                    delay={200}
+                  />
+                  <IconLinkButton
+                    href="https://x.com/nolsaf"
+                    label="NoLSAF on X"
+                    iconComponent={X}
+                    iconSize={20}
+                    iconClassName="text-black relative z-10"
+                    iconActiveClass="text-[#111111]"
+                    containerClassName="h-11 w-11 bg-white/90 backdrop-blur-sm border border-slate-200/70 hover:bg-black/10 hover:border-black/30"
+                    delay={300}
+                  />
+                  <IconLinkButton
+                    href="https://www.facebook.com/nolsaf"
+                    label="NoLSAF on Facebook"
+                    iconComponent={Facebook}
+                    iconSize={20}
+                    iconClassName="text-[#1877F2] relative z-10"
+                    iconActiveClass="text-[#165db8]"
+                    containerClassName="h-11 w-11 bg-white/90 backdrop-blur-sm border border-slate-200/70 hover:bg-[#1877F2]/10 hover:border-[#1877F2]/30"
+                    delay={400}
+                  />
+                </div>
+              </div>
 
-          {/* Column 3: Resources */}
-          <div className="space-y-4 md:space-y-5">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-3 transition-colors duration-300">
-                Resources
-              </h3>
-              <ul className="space-y-2.5 text-sm list-none pl-0">
-                {[
-                  { href: "/version", label: "v0.1.0" },
-                  { href: "/careers", label: "Careers" },
-                  { href: "/help", label: "Help Center" },
-                ].map((item, index) => (
-                  <li 
-                    key={item.href} 
-                    style={{ animationDelay: `${300 + index * 50}ms` }} 
-                    className={isVisible ? "opacity-0 animate-fade-in-up" : "opacity-0"}
-                  >
-                    <Link 
-                      href={item.href} 
-                      className="text-gray-600 hover:text-[#02665e] no-underline transition-all duration-300 inline-flex items-center gap-2 group py-1.5 px-2 -mx-2 rounded-md hover:bg-[#02665e]/5"
+              <div className="lg:col-span-7">
+                <div className="rounded-2xl border border-gray-200/70 bg-white/80 backdrop-blur-sm p-5 shadow-sm">
+                  <div className="flex flex-col gap-1">
+                    <div className="inline-flex items-center gap-2 rounded-full border border-gray-200/70 bg-white px-3 py-1 text-xs font-semibold tracking-wide text-slate-700 w-fit">
+                      <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#02665e]" />
+                      Newsletter
+                    </div>
+                    <div className="text-sm text-slate-600">
+                      Monthly updates on new stays, destinations, and platform improvements.
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex flex-col sm:flex-row gap-2">
+                    <form
+                      className="flex flex-1 flex-col sm:flex-row gap-2"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (!newsletterLoading) void subscribeNewsletter();
+                      }}
                     >
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#02665e] opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                      <span className="group-hover:font-medium transition-all duration-300">{item.label}</span>
-                    </Link>
+                      <label htmlFor="newsletter-email-2" className="sr-only">
+                        Newsletter email
+                      </label>
+                      <input
+                        id="newsletter-email-2"
+                        type="email"
+                        value={newsletterEmail}
+                        onChange={(e) => setNewsletterEmail(e.target.value)}
+                        placeholder="Your email"
+                        autoComplete="email"
+                        className="flex-1 border border-gray-200/70 rounded-xl px-4 py-2.5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] transition-all duration-300 bg-white hover:border-gray-300"
+                        aria-label="Newsletter email"
+                      />
+                      <button
+                        type="submit"
+                        className={`px-5 py-2.5 rounded-xl border border-transparent bg-[#02665e] text-white text-sm font-semibold shadow-sm transition-all duration-300 hover:bg-[#024d47] active:scale-[0.99] ${newsletterLoading ? "opacity-70 cursor-wait" : ""}`}
+                        disabled={newsletterLoading}
+                      >
+                        {newsletterLoading ? (
+                          <span className="flex items-center gap-2">
+                            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            <span className="hidden sm:inline">Subscribing…</span>
+                          </span>
+                        ) : (
+                          "Subscribe"
+                        )}
+                      </button>
+                    </form>
+                  </div>
+
+                  {newsletterStatus ? (
+                    <div
+                      className={`mt-3 text-sm px-3 py-2 rounded-xl ${newsletterStatus.ok ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-red-50 text-red-700 border border-red-200"}`}
+                      role="status"
+                      aria-live="polite"
+                    >
+                      {newsletterStatus.message}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              <div className="space-y-3">
+                <h3 className="text-base font-semibold text-slate-900">About NoLSAF</h3>
+                <ul className="m-0 list-none p-0 space-y-1">
+                  {[
+                    { href: "/about/who", label: "Who are we" },
+                    { href: "/about/what", label: "What we do" },
+                    { href: "/about/why", label: "Why us" },
+                    { href: "/about/story", label: "Our Best Story" },
+                  ].map((item) => (
+                    <li key={item.href}>
+                      <FooterPolicyItem href={item.href}>{item.label}</FooterPolicyItem>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="space-y-3">
+                <h3 className="text-base font-semibold text-slate-900">Resources</h3>
+                <ul className="m-0 list-none p-0 space-y-1">
+                  {[
+                    { href: "/help", label: "Help Center" },
+                    { href: "/careers", label: "Careers" },
+                  ].map((item) => (
+                    <li key={item.href}>
+                      <FooterPolicyItem href={item.href}>{item.label}</FooterPolicyItem>
+                    </li>
+                  ))}
+                  <li>
+                    <span className="inline-flex items-center px-2.5 py-1.5 text-sm font-semibold text-slate-700">
+                      Version: <span className="ml-1 text-slate-600">{APP_VERSION}</span>
+                    </span>
                   </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </div>
+                </ul>
+              </div>
 
-        {/* Full-width legal bar */}
-        <div className={`w-full mt-10 pt-6 border-t border-slate-200/60 transition-all duration-1000 delay-300 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-          <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-slate-700 font-semibold">
-            {[
-              { href: "/terms", label: "Terms of Service" },
-              { href: "/privacy", label: "Privacy Policy" },
-              { href: "/cookies-policy", label: "Cookies Policy" },
-              { href: "/verification-policy", label: "Verification Policy" },
-              { href: "/cancellation-policy", label: "Cancellation Policy" },
-            ].map((item, index) => (
-              <Link 
-                key={item.href}
-                href={item.href} 
-                className="text-slate-700 hover:text-[#02665e] hover:underline no-underline transition-all duration-300 relative group px-2 py-1 rounded-md hover:bg-slate-100/50"
-                style={{ animationDelay: `${400 + index * 100}ms` }}
-              >
-                {item.label}
-                <span className="absolute inset-0 rounded-md bg-[#02665e]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-            </Link>
-            ))}
-          </div>
-        </div>
+              <div className="space-y-3">
+                <h3 className="text-base font-semibold text-slate-900">Portals</h3>
+                <ul className="m-0 list-none p-0 space-y-1">
+                  {[
+                    { href: "/owner/login", label: "Owner Portal" },
+                    { href: "/driver/login", label: "Driver Portal" },
+                  ].map((item) => (
+                    <li key={item.href}>
+                      <FooterPolicyItem href={item.href}>{item.label}</FooterPolicyItem>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
 
-        {/* separator above the centered logo */}
-        <div className={`transition-all duration-1000 delay-400 ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
-          <SectionSeparator className="my-8" />
-        </div>
+            <div className="mt-8">
+              <div className="h-px w-full bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
+              <nav aria-label="Footer legal navigation" className="mt-4">
+                <ul className="m-0 flex list-none flex-wrap items-center justify-center gap-2.5 p-0">
+                  {[
+                    { href: "/terms", label: "Terms" },
+                    { href: "/privacy", label: "Privacy" },
+                    { href: "/cookies-policy", label: "Cookies" },
+                    { href: "/verification-policy", label: "Verification" },
+                    { href: "/cancellation-policy", label: "Cancellation" },
+                  ].map((item, index) => (
+                    <li
+                      key={item.href}
+                      className={
+                        index === 0
+                          ? ""
+                          : "lg:relative lg:pl-4 lg:before:content-[''] lg:before:absolute lg:before:left-1 lg:before:top-1/2 lg:before:-translate-y-1/2 lg:before:h-4 lg:before:w-px lg:before:bg-slate-200/80"
+                      }
+                    >
+                      <FooterPolicyItem href={item.href}>{item.label}</FooterPolicyItem>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+            </div>
 
-        {/* Centered logo and copyright */}
-        <div className={`w-full flex flex-col items-center gap-3 mt-4 transition-all duration-1000 delay-500 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-          <div className="transform transition-all duration-500 hover:scale-110">
-            <Image 
-              src="/assets/NoLS2025-04.png" 
-              alt="NoLSAF" 
-              width={120} 
-              height={30} 
-              className="object-contain transition-all duration-300 hover:brightness-110 drop-shadow-sm" 
-              style={{ width: "auto", height: "auto" }}
-            />
-          </div>
-          <div className="text-sm text-[#02665e] font-semibold transition-colors duration-300">
-            © {year} NoLSAF — All rights reserved
-          </div>
-        </div>
-
-        {/* Social icons below the centered logo */}
-        <div className={`w-full flex justify-center mt-6 transition-all duration-1000 delay-600 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-          <div className="flex items-center gap-4 flex-wrap justify-center">
-            <div
-              style={{ animationDelay: '600ms' }}
-              className={isVisible ? "opacity-0 animate-fade-in-up" : "opacity-0"}
-            >
-              <IconLinkButton 
-                href="https://www.linkedin.com/company/nolsaf" 
-                label="NoLSAF on LinkedIn" 
-                iconComponent={Linkedin} 
-                iconSize={20} 
-                iconClassName="text-[#0A66C2] relative z-10" 
-                iconActiveClass="text-[#084A9A]" 
-                containerClassName="bg-white/80 backdrop-blur-sm border border-slate-200/50 hover:bg-[#0A66C2]/10 hover:border-[#0A66C2]/30"
-                delay={0}
-              />
-            </div>
-            <div
-              style={{ animationDelay: '700ms' }}
-              className={isVisible ? "opacity-0 animate-fade-in-up" : "opacity-0"}
-            >
-              <IconLinkButton 
-                href="https://www.instagram.com/nolsaf" 
-                label="NoLSAF on Instagram" 
-                iconComponent={Instagram} 
-                iconSize={20} 
-                iconClassName="text-[#E4405F] relative z-10" 
-                iconActiveClass="text-[#C32B4E]" 
-                containerClassName="bg-white/80 backdrop-blur-sm border border-slate-200/50 hover:bg-[#E4405F]/10 hover:border-[#E4405F]/30"
-                delay={100}
-              />
-            </div>
-            <div
-              style={{ animationDelay: '800ms' }}
-              className={isVisible ? "opacity-0 animate-fade-in-up" : "opacity-0"}
-            >
-              <IconLinkButton 
-                href="https://www.youtube.com/@nolsaf" 
-                label="NoLSAF on YouTube" 
-                iconComponent={Youtube} 
-                iconSize={20} 
-                iconClassName="text-[#FF0000] relative z-10" 
-                iconActiveClass="text-[#CC0000]" 
-                containerClassName="bg-white/80 backdrop-blur-sm border border-slate-200/50 hover:bg-[#FF0000]/10 hover:border-[#FF0000]/30"
-                delay={200}
-              />
-            </div>
-            <div
-              style={{ animationDelay: '900ms' }}
-              className={isVisible ? "opacity-0 animate-fade-in-up" : "opacity-0"}
-            >
-              <IconLinkButton 
-                href="https://x.com/nolsaf" 
-                label="NoLSAF on X" 
-                iconComponent={X} 
-                iconSize={20} 
-                iconClassName="text-[#000000] relative z-10" 
-                iconActiveClass="text-[#111111]" 
-                containerClassName="bg-white/80 backdrop-blur-sm border border-slate-200/50 hover:bg-black/10 hover:border-black/30"
-                delay={300}
-              />
-            </div>
-            <div
-              style={{ animationDelay: '1000ms' }}
-              className={isVisible ? "opacity-0 animate-fade-in-up" : "opacity-0"}
-            >
-              <IconLinkButton 
-                href="https://www.facebook.com/nolsaf" 
-                label="NoLSAF on Facebook" 
-                iconComponent={Facebook} 
-                iconSize={20} 
-                iconClassName="text-[#1877F2] relative z-10" 
-                iconActiveClass="text-[#165db8]" 
-                containerClassName="bg-white/80 backdrop-blur-sm border border-slate-200/50 hover:bg-[#1877F2]/10 hover:border-[#1877F2]/30"
-                delay={400}
-              />
+            <div className="mt-8">
+              <div className="h-px w-full bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
+              <div className="mt-5 flex flex-col items-center gap-2">
+                <div className="text-xs sm:text-sm text-slate-600 text-center">
+                  <span className="font-semibold text-slate-800">© {year} </span>
+                  <span className="font-extrabold text-[#02665e] tracking-wide">NoLSAF</span>
+                  <span className="text-slate-500"> — All rights reserved</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>

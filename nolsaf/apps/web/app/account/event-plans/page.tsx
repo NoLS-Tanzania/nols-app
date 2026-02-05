@@ -166,6 +166,33 @@ export default function MyEventPlansPage() {
     return "bg-slate-100 text-slate-700";
   };
 
+  const getTimeline = (request: PlanRequest) => {
+    const hasAdminResponse = Boolean(
+      request.respondedAt ||
+        request.adminResponse ||
+        request.suggestedItineraries ||
+        request.requiredPermits ||
+        request.estimatedTimeline ||
+        request.assignedAgent
+    );
+
+    const createdDone = true;
+    const inProgressDone =
+      request.status === "IN_PROGRESS" ||
+      request.status === "COMPLETED" ||
+      (request.isValid && request.status !== "NEW" && request.status !== "PENDING") ||
+      hasAdminResponse;
+    const respondedDone = hasAdminResponse;
+
+    return {
+      steps: [
+        { key: "created" as const, label: "Created", done: createdDone },
+        { key: "in_progress" as const, label: "In progress", done: inProgressDone },
+        { key: "responded" as const, label: "Responded", done: respondedDone },
+      ],
+    };
+  };
+
   if (loading) {
     return (
       <div className="mx-auto w-full max-w-5xl space-y-6">
@@ -310,11 +337,13 @@ export default function MyEventPlansPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {filteredRequests.map((request) => (
-            <div
-              key={request.id}
-              className="relative overflow-hidden rounded-3xl border border-slate-200/70 bg-white p-5 sm:p-6 shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-[2px]"
-            >
+          {filteredRequests.map((request) => {
+            const timeline = getTimeline(request);
+            return (
+              <div
+                key={request.id}
+                className="relative overflow-hidden rounded-3xl border border-slate-200/70 bg-white p-5 sm:p-6 shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-[2px]"
+              >
               <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500" />
               <div className="pointer-events-none absolute -right-24 -top-24 h-56 w-56 rounded-full bg-gradient-to-br from-emerald-100/70 to-cyan-100/40 blur-2xl" />
               <div className="pointer-events-none absolute -left-24 -bottom-24 h-56 w-56 rounded-full bg-gradient-to-br from-slate-100/70 to-emerald-100/40 blur-2xl" />
@@ -340,6 +369,32 @@ export default function MyEventPlansPage() {
                         )}
                         <div className="mt-1.5 text-xs text-slate-500">
                           Updated {formatDate(request.updatedAt)}
+                        </div>
+
+                        {/* Compact timeline */}
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                          <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200/70 bg-white/70 px-3 py-1.5 shadow-sm">
+                            {timeline.steps.map((step, idx) => (
+                              <div key={step.key} className="inline-flex items-center gap-2">
+                                <div
+                                  className={[
+                                    "h-2 w-2 rounded-full",
+                                    step.done ? "bg-gradient-to-r from-emerald-600 to-teal-600 shadow-[0_0_0_3px_rgba(16,185,129,0.12)]" : "bg-slate-300",
+                                  ].join(" ")}
+                                  aria-hidden
+                                />
+                                <div className={step.done ? "text-xs font-semibold text-slate-700" : "text-xs font-medium text-slate-500"}>{step.label}</div>
+                                {idx !== timeline.steps.length - 1 && (
+                                  <div className="h-px w-6 bg-slate-200" aria-hidden />
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                          {request.createdAt && (
+                            <div className="text-[11px] text-slate-500">
+                              Submitted {formatDate(request.createdAt)}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -531,8 +586,9 @@ export default function MyEventPlansPage() {
                   <FollowUpMessageSection requestId={request.id} notes={request.notes} adminResponse={request.adminResponse} respondedAt={request.respondedAt} onMessageSent={loadPlanRequests} />
                 </div>
               </div>
-            </div>
-          ))}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -682,10 +738,12 @@ function FollowUpMessageSection({ requestId, notes, adminResponse, respondedAt, 
             // Auto-fill with default message template when opening
             setMessage(getMessageTemplate(messageType));
           }}
-          className="w-full flex items-center justify-center gap-2 rounded-xl border border-[#02665e] bg-white text-[#02665e] font-semibold px-4 py-3 text-sm hover:bg-[#02665e]/5 transition-all duration-200 active:scale-[0.98]"
+          className="group w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-3 text-sm font-semibold text-white shadow-[0_12px_30px_-18px_rgba(2,102,94,0.55)] ring-1 ring-inset ring-white/20 hover:from-emerald-600 hover:to-cyan-600 hover:shadow-[0_16px_40px_-18px_rgba(2,102,94,0.6)] active:scale-[0.99] transition-all duration-200"
         >
-          <MessageSquare className="h-4 w-4" />
-          Send Follow-up Message
+          <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-white/12 ring-1 ring-inset ring-white/20">
+            <MessageSquare className="h-4 w-4" />
+          </span>
+          <span className="tracking-tight">Send Follow-up Message</span>
         </button>
       </div>
     );
@@ -759,10 +817,12 @@ function FollowUpMessageSection({ requestId, notes, adminResponse, respondedAt, 
               setIsOpen(true);
               setMessage(getMessageTemplate(messageType));
             }}
-            className="mt-4 w-full flex items-center justify-center gap-2 rounded-xl border border-[#02665e] bg-white text-[#02665e] font-semibold px-4 py-3 text-sm hover:bg-[#02665e]/5 transition-all duration-200 active:scale-[0.98]"
+            className="group mt-4 w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-3 text-sm font-semibold text-white shadow-[0_12px_30px_-18px_rgba(2,102,94,0.55)] ring-1 ring-inset ring-white/20 hover:from-emerald-600 hover:to-cyan-600 hover:shadow-[0_16px_40px_-18px_rgba(2,102,94,0.6)] active:scale-[0.99] transition-all duration-200"
           >
-            <MessageSquare className="h-4 w-4" />
-            Send Follow-up Message
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-white/12 ring-1 ring-inset ring-white/20">
+              <MessageSquare className="h-4 w-4" />
+            </span>
+            <span className="tracking-tight">Send Follow-up Message</span>
           </button>
         </div>
       </div>

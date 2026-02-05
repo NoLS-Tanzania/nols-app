@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 type ReportsFilters = { [key: string]: any };
-function ReportsFilter({ onChange }: { onChange: (f: ReportsFilters | null) => void }) {
+function ReportsFilter({ onChangeAction }: { onChangeAction: (f: ReportsFilters | null) => void }) {
   // Minimal stub: invoke onChange once on mount; replace with real UI when available.
   useEffect(() => {
     const now = new Date();
@@ -10,11 +10,11 @@ function ReportsFilter({ onChange }: { onChange: (f: ReportsFilters | null) => v
     from.setFullYear(from.getFullYear() - 2);
     const to = new Date(now);
     to.setFullYear(to.getFullYear() + 2);
-    onChange({
+    onChangeAction({
       from: from.toISOString().split("T")[0],
       to: to.toISOString().split("T")[0],
     });
-  }, [onChange]);
+  }, [onChangeAction]);
   return null;
 }
 import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, CartesianGrid, ResponsiveContainer, BarChart, Bar } from "recharts";
@@ -32,7 +32,7 @@ export default function Bookings() {
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">Reports — Bookings</h1>
-      <ReportsFilter onChange={setFilters} />
+      <ReportsFilter onChangeAction={setFilters} />
 
       {data && (
         <>

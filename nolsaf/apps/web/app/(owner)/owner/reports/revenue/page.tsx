@@ -10,12 +10,12 @@ type ReportsFilters = {
   propertyId?: string;
 };
 
-const ReportsFilter = ({ onChange }: { onChange: (f: ReportsFilters | null) => void }) => {
+const ReportsFilter = ({ onChangeAction }: { onChangeAction: (f: ReportsFilters | null) => void }) => {
   // Minimal placeholder filter component — replace with your actual component
   return (
     <div className="mb-4">
       <button
-        onClick={() => onChange(null)}
+        onClick={() => onChangeAction(null)}
         className="px-3 py-1 bg-gray-100 rounded"
       >
         Clear filters
@@ -34,7 +34,7 @@ export default function Revenue() {
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">Reports — Revenue</h1>
-      <ReportsFilter onChange={setFilters} />
+      <ReportsFilter onChangeAction={setFilters} />
 
       {data && (
         <>

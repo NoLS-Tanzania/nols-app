@@ -13,9 +13,25 @@ router.get("/:id/layout", async (req, res) => {
   const id = Number((req as any).params.id);
   const prop = await prisma.property.findFirst({
     where: { id, ownerId },
-    select: { id: true, layout: true }
+    select: { id: true, layout: true, totalFloors: true }
   });
   if (!prop) return res.status(404).json({ error: "Not found" });
+
+  // If this is a multi-storey property but a legacy 1-floor layout was saved,
+  // auto-upgrade it so owners can switch floors immediately.
+  const desiredFloors = typeof prop.totalFloors === "number" && prop.totalFloors >= 2 ? prop.totalFloors : 1;
+  if (desiredFloors > 1 && prop.layout) {
+    try {
+      const parsed = Layout.parse(prop.layout as any);
+      if ((parsed.floors?.length ?? 0) < desiredFloors) {
+        const layout = await regenerateAndSaveLayout(id);
+        return res.json(layout);
+      }
+    } catch {
+      // If parsing fails, leave as-is; owner can still force regenerate via POST.
+    }
+  }
+
   res.json(prop.layout ?? null);
 });
 

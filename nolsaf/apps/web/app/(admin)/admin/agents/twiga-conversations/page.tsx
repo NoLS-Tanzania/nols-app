@@ -1,15 +1,9 @@
-"use client";
+import { redirect } from "next/navigation";
 
-// This page has been replaced by /admin/agents/twiga
-// Redirecting to the new modern dashboard
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
-export default function TwigaConversationsPage() {
-  const router = useRouter();
-  useEffect(() => {
-    router.replace("/admin/agents/twiga");
-  }, [router]);
-  return null;
+export default function Page() {
+  redirect("/admin/agents/twiga");
 }
 

@@ -73,6 +73,32 @@ export default function PaymentMethodModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  async function loadSavedPhones() {
+    try {
+      const response = await api.get("/api/account/payment-methods");
+
+      // Extract unique phone numbers from payment history
+      const phones = new Set<string>();
+      if (response.data?.methods) {
+        response.data.methods.forEach((method: any) => {
+          if (method.ref && /^\+?255\d{9}$/.test(method.ref.replace(/\D/g, ""))) {
+            phones.add(method.ref);
+          }
+        });
+      }
+
+      // Also check user's profile phone
+      if (response.data?.payout?.mobileMoneyNumber) {
+        phones.add(response.data.payout.mobileMoneyNumber);
+      }
+
+      setSavedPhones(Array.from(phones));
+    } catch (err) {
+      // Silently fail - saved phones are optional
+      console.debug("Could not load saved phone numbers", err);
+    }
+  }
+
   useEffect(() => {
     if (isOpen && defaultPhone) {
       setPhoneNumber(defaultPhone);
@@ -85,32 +111,6 @@ export default function PaymentMethodModal({
       loadSavedPhones();
     }
   }, [isOpen]);
-
-  const loadSavedPhones = async () => {
-    try {
-      const response = await api.get("/api/account/payment-methods");
-      
-      // Extract unique phone numbers from payment history
-      const phones = new Set<string>();
-      if (response.data?.methods) {
-        response.data.methods.forEach((method: any) => {
-          if (method.ref && /^\+?255\d{9}$/.test(method.ref.replace(/\D/g, ""))) {
-            phones.add(method.ref);
-          }
-        });
-      }
-      
-      // Also check user's profile phone
-      if (response.data?.payout?.mobileMoneyNumber) {
-        phones.add(response.data.payout.mobileMoneyNumber);
-      }
-
-      setSavedPhones(Array.from(phones));
-    } catch (err) {
-      // Silently fail - saved phones are optional
-      console.debug("Could not load saved phone numbers", err);
-    }
-  };
 
   const normalizePhone = (phone: string): string => {
     // Remove all non-digit characters except +

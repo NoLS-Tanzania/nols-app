@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import Link from "next/link";
 import Image from "next/image";
 import { 
   Search, 
@@ -29,6 +28,8 @@ import {
 import PublicHeader from "@/components/PublicHeader";
 import PublicFooter from "@/components/PublicFooter";
 import SiteHeader from "@/components/SiteHeader";
+import OwnerSiteHeader from "@/components/OwnerSiteHeader";
+import DriverSiteHeader from "@/components/DriverSiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import LayoutFrame from "@/components/LayoutFrame";
 import { usePathname } from "next/navigation";
@@ -659,7 +660,7 @@ function ApplicationForm({ job, onClose, onSuccess }: { job: Job; onClose: () =>
                 
                 {/* Areas of Operation */}
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
+                  <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
                     <MapPin className="h-4 w-4 text-[#02665e]" />
                     Areas of Operation
                   </label>
@@ -708,7 +709,7 @@ function ApplicationForm({ job, onClose, onSuccess }: { job: Job; onClose: () =>
 
                 {/* Languages */}
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
+                  <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
                     <Languages className="h-4 w-4 text-[#02665e]" />
                     Languages
                   </label>
@@ -757,7 +758,7 @@ function ApplicationForm({ job, onClose, onSuccess }: { job: Job; onClose: () =>
 
                 {/* Specializations */}
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
+                  <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
                     <Briefcase className="h-4 w-4 text-[#02665e]" />
                     Specializations
                   </label>
@@ -1266,14 +1267,17 @@ export default function CareersPage() {
       { threshold: 0.1 }
     );
 
-    if (heroRef.current) {
-      observer.observe(heroRef.current);
+    const heroEl = heroRef.current;
+
+    if (heroEl) {
+      observer.observe(heroEl);
     }
 
     return () => {
-      if (heroRef.current) {
-        observer.unobserve(heroRef.current);
+      if (heroEl) {
+        observer.unobserve(heroEl);
       }
+      observer.disconnect();
     };
   }, []);
 
@@ -1281,7 +1285,6 @@ export default function CareersPage() {
   const isAuthenticated = !shouldUsePublicLayout && userRole !== null;
   const isDriver = userRole === "DRIVER";
   const isOwner = userRole === "OWNER";
-  const isAdmin = userRole === "ADMIN";
 
   const categories: Array<{ value: JobCategory | "ALL"; label: string }> = [
     { value: "ALL", label: "All Categories" },
@@ -1330,10 +1333,13 @@ export default function CareersPage() {
       {shouldUsePublicLayout ? (
         <PublicHeader />
       ) : isAuthenticated ? (
-        <SiteHeader 
-          role={isDriver ? "DRIVER" : isOwner ? "OWNER" : "ADMIN"} 
-          driverMode={isDriver}
-        />
+        isDriver ? (
+          <DriverSiteHeader />
+        ) : isOwner ? (
+          <OwnerSiteHeader />
+        ) : (
+          <SiteHeader role="ADMIN" />
+        )
       ) : (
         <PublicHeader />
       )}
@@ -1342,7 +1348,7 @@ export default function CareersPage() {
         <LayoutFrame heightVariant="sm" topVariant="sm" colorVariant="muted" variant="solid" />
         
         {/* Careers Hero Image */}
-        <section className="relative w-full overflow-hidden mb-0 pb-0">
+        <section ref={heroRef} className="relative w-full overflow-hidden mb-0 pb-0">
           <div className="public-container">
             <div className="relative w-full h-64 md:h-80 lg:h-96 rounded-lg overflow-hidden">
               <Image
@@ -1354,7 +1360,11 @@ export default function CareersPage() {
               />
               <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-transparent rounded-lg" />
               <div className="absolute inset-0 flex items-center justify-center">
-                <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white text-center px-4 drop-shadow-lg">
+                <h2
+                  className={`text-3xl md:text-4xl lg:text-5xl font-bold text-white text-center px-4 drop-shadow-lg transition-all duration-700 ${
+                    isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+                  }`}
+                >
                   Why Work at NoLSAF?
                 </h2>
               </div>

@@ -4,7 +4,7 @@
 import "@/styles/globals.css";
 import { useState, useEffect } from "react";
 import type { ReactNode } from "react";
-import SiteHeader from "@/components/SiteHeader";
+import OwnerSiteHeader from "@/components/OwnerSiteHeader";
 import OwnerFooter from "@/components/OwnerFooter";
 import OwnerSidebar from "@/components/OwnerSidebar";
 import LayoutFrame from "@/components/LayoutFrame";
@@ -23,7 +23,7 @@ export default function OwnerLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen flex flex-col bg-neutral-50">
-      <SiteHeader role="OWNER" />
+      <OwnerSiteHeader />
 
       {/* Centered container so the LayoutFrame can span both sidebar and content */}
       <div className="flex-1 w-full">

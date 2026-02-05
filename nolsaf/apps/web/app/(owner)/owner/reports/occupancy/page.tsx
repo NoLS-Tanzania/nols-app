@@ -60,7 +60,7 @@ export default function Occupancy() {
 
   return (
     <div className="space-y-6">
-      <ReportsFilter onChange={setFilters} />
+      <ReportsFilter onChangeAction={setFilters} />
 
       {error ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 flex items-start gap-2">

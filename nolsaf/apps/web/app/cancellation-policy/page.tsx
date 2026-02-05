@@ -5,6 +5,8 @@ import { CANCELLATION_POLICY_LAST_UPDATED, CANCELLATION_POLICY_SECTIONS } from "
 import PublicHeader from "@/components/PublicHeader";
 import PublicFooter from "@/components/PublicFooter";
 import SiteHeader from "@/components/SiteHeader";
+import OwnerSiteHeader from "@/components/OwnerSiteHeader";
+import DriverSiteHeader from "@/components/DriverSiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import LayoutFrame from "@/components/LayoutFrame";
 import { XCircle } from "lucide-react";
@@ -127,10 +129,13 @@ export default function CancellationPolicyPage() {
       {shouldUsePublicLayout ? (
         <PublicHeader />
       ) : isAuthenticated ? (
-        <SiteHeader 
-          role={isDriver ? "DRIVER" : isOwner ? "OWNER" : "ADMIN"} 
-          driverMode={isDriver}
-        />
+        isDriver ? (
+          <DriverSiteHeader />
+        ) : isOwner ? (
+          <OwnerSiteHeader />
+        ) : (
+          <SiteHeader role="ADMIN" />
+        )
       ) : (
         <PublicHeader />
       )}

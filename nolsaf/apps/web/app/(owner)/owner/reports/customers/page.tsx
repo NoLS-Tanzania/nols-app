@@ -14,7 +14,7 @@ export default function Customers() {
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">Reports — Customers</h1>
-      <ReportsFilter onChange={setFilters} />
+      <ReportsFilter onChangeAction={setFilters} />
 
       {data && (
         <>

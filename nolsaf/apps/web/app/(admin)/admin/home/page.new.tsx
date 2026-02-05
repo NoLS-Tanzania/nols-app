@@ -12,13 +12,10 @@ import {
   CheckCircle2,
   ChevronRight,
   CreditCard,
-  LifeBuoy,
   LayoutDashboard,
   LineChart,
   MapPin,
   MessagesSquare,
-  Settings as SettingsIcon,
-  Shield,
   Sparkles,
   Truck,
   Users,
@@ -246,7 +243,7 @@ export default function AdminHomePage() {
 
   const { monitoring } = useAdminMonitoring();
   const { recentActivities } = useAdminRecentActivities();
-  const { driversPending, usersNew, revenueDelta, paymentsWaiting } = useAdminHomeKpis();
+  const { driversPending, usersNew, paymentsWaiting } = useAdminHomeKpis();
   const { highlights } = useAdminPerformanceHighlights(30);
 
   const [nowIso] = useState<string>(() => new Date().toISOString());

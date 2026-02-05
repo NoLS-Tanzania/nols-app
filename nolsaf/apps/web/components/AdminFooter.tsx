@@ -117,12 +117,24 @@ function FooterPill({
     </button>
   );
 }
-
-export default function AdminFooter() {
+export default function AdminFooter({
+  policyBasePath = "",
+  showDriverDisbursementPolicy = true,
+  showPropertyOwnerDisbursementPolicy = true,
+}: {
+  policyBasePath?: "" | "/owner" | "/driver" | "/admin";
+  showDriverDisbursementPolicy?: boolean;
+  showPropertyOwnerDisbursementPolicy?: boolean;
+}) {
   const year = new Date().getFullYear();
   
   const handleLegalClick = (type: 'terms' | 'privacy' | 'cookies') => {
     window.dispatchEvent(new CustomEvent('open-legal', { detail: { type } }));
+  };
+
+  const policyHref = (path: string) => {
+    if (!policyBasePath) return path;
+    return `${policyBasePath}${path}`;
   };
 
   return (
@@ -164,26 +176,38 @@ export default function AdminFooter() {
             <nav aria-label="Footer navigation" className="mt-6">
               <ul className="m-0 flex list-none flex-wrap items-center justify-center gap-2.5 p-0">
                 <li>
-                  <FooterPolicyItem onClick={() => handleLegalClick('terms')}>Terms of Service</FooterPolicyItem>
+                  {policyBasePath ? (
+                    <FooterPolicyItem href={policyHref('/terms')}>Terms of Service</FooterPolicyItem>
+                  ) : (
+                    <FooterPolicyItem onClick={() => handleLegalClick('terms')}>Terms of Service</FooterPolicyItem>
+                  )}
                 </li>
                 <li className="lg:relative lg:pl-4 lg:before:content-[''] lg:before:absolute lg:before:left-1 lg:before:top-1/2 lg:before:-translate-y-1/2 lg:before:h-4 lg:before:w-px lg:before:bg-slate-200/80">
-                  <FooterPolicyItem onClick={() => handleLegalClick('privacy')}>Privacy Policy</FooterPolicyItem>
+                  {policyBasePath ? (
+                    <FooterPolicyItem href={policyHref('/privacy')}>Privacy Policy</FooterPolicyItem>
+                  ) : (
+                    <FooterPolicyItem onClick={() => handleLegalClick('privacy')}>Privacy Policy</FooterPolicyItem>
+                  )}
                 </li>
                 <li className="lg:relative lg:pl-4 lg:before:content-[''] lg:before:absolute lg:before:left-1 lg:before:top-1/2 lg:before:-translate-y-1/2 lg:before:h-4 lg:before:w-px lg:before:bg-slate-200/80">
-                  <FooterPolicyItem href="/cookies-policy">Cookies Policy</FooterPolicyItem>
+                  <FooterPolicyItem href={policyHref('/cookies-policy')}>Cookies Policy</FooterPolicyItem>
                 </li>
                 <li className="lg:relative lg:pl-4 lg:before:content-[''] lg:before:absolute lg:before:left-1 lg:before:top-1/2 lg:before:-translate-y-1/2 lg:before:h-4 lg:before:w-px lg:before:bg-slate-200/80">
-                  <FooterPolicyItem href="/verification-policy">Verification Policy</FooterPolicyItem>
+                  <FooterPolicyItem href={policyHref('/verification-policy')}>Verification Policy</FooterPolicyItem>
                 </li>
                 <li className="lg:relative lg:pl-4 lg:before:content-[''] lg:before:absolute lg:before:left-1 lg:before:top-1/2 lg:before:-translate-y-1/2 lg:before:h-4 lg:before:w-px lg:before:bg-slate-200/80">
-                  <FooterPolicyItem href="/cancellation-policy">Cancellation Policy</FooterPolicyItem>
+                  <FooterPolicyItem href={policyHref('/cancellation-policy')}>Cancellation Policy</FooterPolicyItem>
                 </li>
-                <li className="lg:relative lg:pl-4 lg:before:content-[''] lg:before:absolute lg:before:left-1 lg:before:top-1/2 lg:before:-translate-y-1/2 lg:before:h-4 lg:before:w-px lg:before:bg-slate-200/80">
-                  <FooterPolicyItem href="/driver-disbursement-policy">Driver Disbursement Policy</FooterPolicyItem>
-                </li>
-                <li className="lg:relative lg:pl-4 lg:before:content-[''] lg:before:absolute lg:before:left-1 lg:before:top-1/2 lg:before:-translate-y-1/2 lg:before:h-4 lg:before:w-px lg:before:bg-slate-200/80">
-                  <FooterPolicyItem href="/property-owner-disbursement-policy">Property Owner Disbursement Policy</FooterPolicyItem>
-                </li>
+                {showDriverDisbursementPolicy ? (
+                  <li className="lg:relative lg:pl-4 lg:before:content-[''] lg:before:absolute lg:before:left-1 lg:before:top-1/2 lg:before:-translate-y-1/2 lg:before:h-4 lg:before:w-px lg:before:bg-slate-200/80">
+                    <FooterPolicyItem href={policyHref('/driver-disbursement-policy')}>Driver Disbursement Policy</FooterPolicyItem>
+                  </li>
+                ) : null}
+                {showPropertyOwnerDisbursementPolicy ? (
+                  <li className="lg:relative lg:pl-4 lg:before:content-[''] lg:before:absolute lg:before:left-1 lg:before:top-1/2 lg:before:-translate-y-1/2 lg:before:h-4 lg:before:w-px lg:before:bg-slate-200/80">
+                    <FooterPolicyItem href={policyHref('/property-owner-disbursement-policy')}>Property Owner Disbursement Policy</FooterPolicyItem>
+                  </li>
+                ) : null}
               </ul>
             </nav>
 
@@ -191,7 +215,7 @@ export default function AdminFooter() {
             <div className="mt-7 flex flex-col items-center justify-center gap-3">
               <div className="h-px w-full bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
               <div className="flex flex-wrap items-center justify-center gap-2">
-                <FooterPill href="/docs" variant="neutral">
+                <FooterPill href={policyBasePath ? policyHref('/docs') : '/docs'} variant="neutral">
                   <span className="inline-flex items-center gap-2">
                     <span className="inline-block h-1.5 w-1.5 rounded-full bg-slate-300" />
                     Docs

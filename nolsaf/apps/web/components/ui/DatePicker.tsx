@@ -52,6 +52,7 @@ export default function DatePicker({
   allowRange = true,
   allowPast = false,
   minDate,
+  maxDate,
   twoMonths = false,
   initialViewDate,
   resetRangeAnchor = false,
@@ -62,6 +63,7 @@ export default function DatePicker({
   allowRange?: boolean;
   allowPast?: boolean; // if true, allow selecting dates before today (unless limited by minDate)
   minDate?: string; // ISO date string (YYYY-MM-DD)
+  maxDate?: string; // ISO date string (YYYY-MM-DD)
   twoMonths?: boolean; // show current month and next month side by side
   initialViewDate?: string; // ISO date string (YYYY-MM-DD) to set the initial month/year when nothing selected
   resetRangeAnchor?: boolean; // if true, first click is always treated as a new range start
@@ -208,6 +210,7 @@ export default function DatePicker({
     const isToday = cellDateY === todayY && cellDateM === todayM && cellDateD === todayD;
     let isPast = false;
     let isBeforeMin = false;
+    let isAfterMax = false;
     if (minDate) {
       const minDateObj = new Date(minDate + "T00:00:00");
       const minY = minDateObj.getFullYear();
@@ -221,7 +224,18 @@ export default function DatePicker({
       else if (cellDateY === todayY && cellDateM < todayM) isPast = true;
       else if (cellDateY === todayY && cellDateM === todayM && cellDateD < todayD) isPast = true;
     }
-    const isDisabled = isPast || isBeforeMin;
+
+    if (maxDate) {
+      const maxDateObj = new Date(maxDate + "T00:00:00");
+      const maxY = maxDateObj.getFullYear();
+      const maxM = maxDateObj.getMonth();
+      const maxD = maxDateObj.getDate();
+      if (cellDateY > maxY) isAfterMax = true;
+      else if (cellDateY === maxY && cellDateM > maxM) isAfterMax = true;
+      else if (cellDateY === maxY && cellDateM === maxM && cellDateD > maxD) isAfterMax = true;
+    }
+
+    const isDisabled = isPast || isBeforeMin || isAfterMax;
     const hasCount = perDayCounts[isoKey] && perDayCounts[isoKey].total > 0;
     return (
       <button

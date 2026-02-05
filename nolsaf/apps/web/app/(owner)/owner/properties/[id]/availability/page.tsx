@@ -170,6 +170,13 @@ export default function PropertyAvailabilityPage() {
   const [pendingSubmit, setPendingSubmit] = useState<(() => Promise<void>) | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [tosAccepted, setTosAccepted] = useState(false);
+  const [showDayDetails, setShowDayDetails] = useState(false);
+  const [dayDetails, setDayDetails] = useState<{ date: Date; bookings: Booking[]; blocks: AvailabilityBlock[] } | null>(null);
+  const [dayDetailsBookingStatusFilter, setDayDetailsBookingStatusFilter] = useState<string | null>(null);
+  const [dayDetailsBlockSourceFilter, setDayDetailsBlockSourceFilter] = useState<string | null>(null);
+  const [calendarQuickFilter, setCalendarQuickFilter] = useState<"all" | "bookings" | "blocks">("all");
+  const [showRangeInsights, setShowRangeInsights] = useState(false);
+  const [rangeInsightsTab, setRangeInsightsTab] = useState<"bookings" | "blocks">("bookings");
   const [capacityError, setCapacityError] = useState<{
     error: string;
     message: string;
@@ -194,7 +201,10 @@ export default function PropertyAvailabilityPage() {
     return d.toISOString().slice(0, 10);
   });
   const [loadingSummary, setLoadingSummary] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
   const [filterRangePickerOpen, setFilterRangePickerOpen] = useState(false);
+  const [filterPicking, setFilterPicking] = useState<"start" | "end">("start");
+  const [filterAwaitingEnd, setFilterAwaitingEnd] = useState(false);
   
   // Date picker states (block form)
   const [blockRangePickerOpen, setBlockRangePickerOpen] = useState(false);
@@ -264,8 +274,15 @@ export default function PropertyAvailabilityPage() {
   // Load availability summary
   const loadAvailabilitySummary = useCallback(async () => {
     if (isNaN(propertyId) || !filterStartDate || !filterEndDate) return;
+
+    const start = new Date(`${filterStartDate}T00:00:00`);
+    const end = new Date(`${filterEndDate}T00:00:00`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+      return;
+    }
     
     setLoadingSummary(true);
+    setSummaryError(null);
     try {
       const res = await api.get("/api/owner/availability/calculate", {
         params: {
@@ -277,6 +294,7 @@ export default function PropertyAvailabilityPage() {
       setAvailabilitySummary(res.data);
     } catch (err: any) {
       console.error("Failed to load availability summary:", err);
+      setSummaryError(err?.response?.data?.error || err?.message || "Failed to load availability summary");
     } finally {
       setLoadingSummary(false);
     }
@@ -703,6 +721,13 @@ export default function PropertyAvailabilityPage() {
     setShowBlockForm(true);
   };
 
+  const openDayDetailsFor = (day: { date: Date; bookings: Booking[]; blocks: AvailabilityBlock[] }) => {
+    setDayDetails({ date: new Date(day.date), bookings: Array.isArray(day.bookings) ? day.bookings : [], blocks: Array.isArray(day.blocks) ? day.blocks : [] });
+    setDayDetailsBookingStatusFilter(null);
+    setDayDetailsBlockSourceFilter(null);
+    setShowDayDetails(true);
+  };
+
   const openBlockFormFromSelectedDate = () => {
     setEditingBlock(null);
     setStartDateOnly("");
@@ -719,8 +744,8 @@ export default function PropertyAvailabilityPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950">
-      <div className="pointer-events-none fixed inset-0">
+    <div className="relative min-h-screen bg-slate-950 rounded-3xl overflow-hidden border border-white/5">
+      <div className="pointer-events-none absolute inset-0">
         <div className="absolute -top-40 left-1/2 h-[560px] w-[860px] -translate-x-1/2 rounded-full bg-emerald-500/15 blur-3xl" />
         <div className="absolute bottom-0 left-0 h-[420px] w-[520px] rounded-full bg-sky-500/10 blur-3xl" />
       </div>
@@ -812,8 +837,8 @@ export default function PropertyAvailabilityPage() {
         {/* Availability Dashboard - Simple Cards */}
         <div className="mb-8 space-y-6">
           {/* Date Range Filter - Premium */}
-          <div className="relative overflow-hidden rounded-2xl border border-white/15 bg-gradient-to-br from-white/[0.08] via-white/5 to-white/[0.03] p-5 shadow-xl shadow-black/20 ring-1 ring-white/5">
-            <div className="absolute inset-0 pointer-events-none rounded-2xl bg-gradient-to-b from-white/[0.04] to-transparent" />
+          <div className="relative overflow-hidden rounded-3xl border border-white/15 bg-gradient-to-br from-white/[0.08] via-white/5 to-white/[0.03] p-5 shadow-xl shadow-black/20 ring-1 ring-white/5">
+            <div className="absolute inset-0 pointer-events-none rounded-3xl bg-gradient-to-b from-white/[0.04] to-transparent" />
             <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center ring-1 ring-emerald-400/20">
@@ -833,13 +858,29 @@ export default function PropertyAvailabilityPage() {
                 Update
               </button>
             </div>
+
+            {summaryError && (
+              <div className="relative mb-4 rounded-2xl border border-rose-400/25 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 text-rose-200 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold">Failed to load availability summary</p>
+                    <p className="mt-0.5 text-xs text-rose-100/80 break-words">{summaryError}</p>
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="relative grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* From - opens range picker (check-in); picker stays open until end date selected */}
               <div className="space-y-2">
                 <label className="block text-xs font-semibold text-white/60 uppercase tracking-wider">From</label>
                 <button
                   type="button"
-                  onClick={() => setFilterRangePickerOpen(true)}
+                  onClick={() => {
+                    setFilterPicking("start");
+                    setFilterAwaitingEnd(true);
+                    setFilterRangePickerOpen(true);
+                  }}
                   className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-white/15 bg-white/5 text-left text-white/90 hover:bg-white/10 hover:border-white/20 focus:outline-none focus:ring-2 focus:ring-emerald-400/60 focus:border-emerald-400/40 transition-all"
                   aria-label="Select start date"
                 >
@@ -857,7 +898,11 @@ export default function PropertyAvailabilityPage() {
                 <label className="block text-xs font-semibold text-white/60 uppercase tracking-wider">To</label>
                 <button
                   type="button"
-                  onClick={() => setFilterRangePickerOpen(true)}
+                  onClick={() => {
+                    setFilterPicking("end");
+                    setFilterAwaitingEnd(false);
+                    setFilterRangePickerOpen(true);
+                  }}
                   className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-white/15 bg-white/5 text-left text-white/90 hover:bg-white/10 hover:border-white/20 focus:outline-none focus:ring-2 focus:ring-emerald-400/60 focus:border-emerald-400/40 transition-all"
                   aria-label="Select end date"
                 >
@@ -881,15 +926,47 @@ export default function PropertyAvailabilityPage() {
                       selected={filterStartDate && filterEndDate ? [filterStartDate, filterEndDate] : filterStartDate ? [filterStartDate] : undefined}
                       onSelectAction={(s) => {
                         if (Array.isArray(s) && s.length === 2) {
-                          setFilterStartDate(s[0]);
-                          setFilterEndDate(s[1]);
+                          const start = s[0];
+                          const end = s[1];
+                          if (start && end) {
+                            setFilterStartDate(start);
+                            setFilterEndDate(end);
+                          }
                           setFilterRangePickerOpen(false);
+                          setFilterAwaitingEnd(false);
                         } else {
                           const d = Array.isArray(s) ? s[0] : s;
                           if (d) {
-                            setFilterStartDate(d);
+                            const clicked = new Date(`${d}T00:00:00`);
+                            if (Number.isNaN(clicked.getTime())) return;
+
+                            const start = filterStartDate ? new Date(`${filterStartDate}T00:00:00`) : null;
+                            const end = filterEndDate ? new Date(`${filterEndDate}T00:00:00`) : null;
+                            const nextDay = formatLocalYMD(addDays(clicked, 1));
+
+                            if (filterPicking === "start") {
+                              setFilterStartDate(d);
+                              // keep a safe end date so API never gets a 0-night range
+                              if (!end || Number.isNaN(end.getTime()) || end <= clicked) {
+                                setFilterEndDate(nextDay);
+                              }
+                              // keep open so owner can pick end date (range selection)
+                              setFilterAwaitingEnd(true);
+                              return;
+                            }
+
+                            // picking end
+                            if (!start || Number.isNaN(start.getTime()) || clicked <= start) {
+                              // if owner clicked earlier/equal, treat that as a new start and wait for end
+                              setFilterStartDate(d);
+                              setFilterEndDate(nextDay);
+                              setFilterAwaitingEnd(true);
+                              return;
+                            }
+
                             setFilterEndDate(d);
-                            // do NOT close — picker stays open until owner selects end/checkout date
+                            setFilterRangePickerOpen(false);
+                            setFilterAwaitingEnd(false);
                           }
                         }
                       }}
@@ -1034,7 +1111,7 @@ export default function PropertyAvailabilityPage() {
                 <div>
                   <p className="text-xs font-semibold text-white/60">Property</p>
                   <p className="mt-1 text-lg font-semibold text-white">{property.title}</p>
-                  <p className="mt-1 text-sm text-white/60">Tap a day in the calendar to quickly add a block.</p>
+                  <p className="mt-1 text-sm text-white/60">Tap a day to view details, or use filters below.</p>
                 </div>
                 <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
                   <p className="text-xs text-white/60">Live</p>
@@ -1045,14 +1122,52 @@ export default function PropertyAvailabilityPage() {
               </div>
 
               <div className="mt-4 grid grid-cols-2 gap-3">
-                <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                  <p className="text-xs text-white/60">Bookings</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCalendarQuickFilter((prev) => (prev === "bookings" ? "all" : "bookings"));
+                    setRangeInsightsTab("bookings");
+                    setShowRangeInsights(true);
+                  }}
+                  className={`rounded-xl border bg-white/5 p-3 text-left transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-emerald-400/60 ${
+                    calendarQuickFilter === "bookings" ? "border-emerald-400/30 ring-1 ring-emerald-400/20" : "border-white/10"
+                  }`}
+                  title="Filter calendar to bookings + view insights"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs text-white/60">Bookings</p>
+                    {calendarQuickFilter === "bookings" && (
+                      <span className="text-[10px] font-bold rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-emerald-100">
+                        Filtering
+                      </span>
+                    )}
+                  </div>
                   <p className="mt-1 text-xl font-semibold text-white">{totalBookings}</p>
-                </div>
-                <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                  <p className="text-xs text-white/60">Blocks</p>
+                  <p className="mt-1 text-[11px] text-white/45">Click to filter + visualize</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCalendarQuickFilter((prev) => (prev === "blocks" ? "all" : "blocks"));
+                    setRangeInsightsTab("blocks");
+                    setShowRangeInsights(true);
+                  }}
+                  className={`rounded-xl border bg-white/5 p-3 text-left transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-emerald-400/60 ${
+                    calendarQuickFilter === "blocks" ? "border-emerald-400/30 ring-1 ring-emerald-400/20" : "border-white/10"
+                  }`}
+                  title="Filter calendar to blocks + view insights"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs text-white/60">Blocks</p>
+                    {calendarQuickFilter === "blocks" && (
+                      <span className="text-[10px] font-bold rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-emerald-100">
+                        Filtering
+                      </span>
+                    )}
+                  </div>
                   <p className="mt-1 text-xl font-semibold text-white">{totalBlocks}</p>
-                </div>
+                  <p className="mt-1 text-[11px] text-white/45">Click to filter + visualize</p>
+                </button>
               </div>
             </div>
 
@@ -1178,8 +1293,21 @@ export default function PropertyAvailabilityPage() {
                 <div>
                   <h2 className="text-sm font-semibold text-white">Calendar</h2>
                   <p className="mt-1 text-xs text-white/60">
-                    Showing {selectedRoomCode ? `room code ${selectedRoomCode}` : "all rooms"} • Click a date to add a block
+                    Showing {selectedRoomCode ? `room code ${selectedRoomCode}` : "all rooms"} • Click a date to view details
                   </p>
+                  {calendarQuickFilter !== "all" && (
+                    <div className="mt-2">
+                      <button
+                        type="button"
+                        onClick={() => setCalendarQuickFilter("all")}
+                        className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold text-white/70 hover:bg-white/10"
+                        title="Clear calendar filter"
+                      >
+                        <Layers className="h-3.5 w-3.5" />
+                        Filter: {calendarQuickFilter === "bookings" ? "Bookings" : "Blocks"} • Clear
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-3 text-xs text-white/60">
                   <span className="inline-flex items-center gap-2">
@@ -1204,20 +1332,22 @@ export default function PropertyAvailabilityPage() {
                   {calendarDays.map((day, idx) => {
                     const isToday = day.date.toDateString() === new Date().toDateString();
                     const isPast = day.date < new Date() && !isToday;
-                    const hasBookings = day.bookings.length > 0;
-                    const hasBlocks = day.blocks.length > 0;
+                    const visibleBookings = calendarQuickFilter === "blocks" ? [] : day.bookings;
+                    const visibleBlocks = calendarQuickFilter === "bookings" ? [] : day.blocks;
+                    const hasBookings = visibleBookings.length > 0;
+                    const hasBlocks = visibleBlocks.length > 0;
 
                     return (
                       <button
                         type="button"
                         key={idx}
-                        onClick={() => openQuickBlock(day.date)}
+                        onClick={() => openDayDetailsFor(day)}
                         className={`min-h-[110px] text-left rounded-2xl border p-3 transition focus:outline-none focus:ring-2 focus:ring-emerald-400/60 ${
                           isToday
                             ? "border-emerald-400/30 bg-emerald-400/10"
                             : "border-white/10 bg-white/5 hover:bg-white/10"
                         } ${isPast ? "opacity-60" : ""}`}
-                        title="Click to add a block"
+                        title="View bookings & blocks"
                       >
                         <div className="flex items-center justify-between mb-2">
                           <span className={`text-sm font-semibold ${isToday ? "text-emerald-200" : "text-white"}`}>
@@ -1235,7 +1365,7 @@ export default function PropertyAvailabilityPage() {
                           )}
                         </div>
                         <div className="space-y-1">
-                          {day.bookings.slice(0, 2).map((booking) => (
+                          {visibleBookings.slice(0, 2).map((booking) => (
                             <div
                               key={booking.id}
                               className="text-[11px] px-2 py-1 rounded-lg bg-blue-500/15 text-blue-100 border border-blue-400/20 truncate"
@@ -1244,7 +1374,7 @@ export default function PropertyAvailabilityPage() {
                               {booking.guestName}
                             </div>
                           ))}
-                          {day.blocks.slice(0, 2).map((block) => (
+                          {visibleBlocks.slice(0, 2).map((block) => (
                             <div
                               key={block.id}
                               className="text-[11px] px-2 py-1 rounded-lg bg-orange-500/15 text-orange-100 border border-orange-400/20 truncate"
@@ -1253,11 +1383,12 @@ export default function PropertyAvailabilityPage() {
                               {block.source || "Blocked"}
                             </div>
                           ))}
-                          {(day.bookings.length > 2 || day.blocks.length > 2) && (
-                            <div className="text-[11px] text-white/60">
-                              +{day.bookings.length + day.blocks.length - 2} more
-                            </div>
-                          )}
+                          {(() => {
+                            const shown = Math.min(2, visibleBookings.length) + Math.min(2, visibleBlocks.length);
+                            const remaining = visibleBookings.length + visibleBlocks.length - shown;
+                            if (remaining <= 0) return null;
+                            return <div className="text-[11px] text-white/60">+{remaining} more</div>;
+                          })()}
                         </div>
                       </button>
                     );
@@ -1340,6 +1471,629 @@ export default function PropertyAvailabilityPage() {
           </main>
         </div>
       </div>
+
+      {/* Day Details Modal (opens when clicking a date) */}
+      {showDayDetails && dayDetails && (
+        <div className="fixed inset-0 z-[55] flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl max-w-3xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="px-4 sm:px-6 md:px-8 py-4 sm:py-5 border-b border-slate-200/60 bg-gradient-to-br from-white via-slate-50/40 to-white">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 shadow-sm">
+                      <Calendar className="h-5 w-5 text-white" />
+                    </div>
+                    <div className="min-w-0">
+                      <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight">
+                        {dayDetails.date.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short", year: "numeric" })}
+                      </h2>
+                      <p className="mt-0.5 text-xs sm:text-sm text-slate-500">
+                        {selectedRoomCode ? `Filtered to ${selectedRoomCode}` : "All rooms"} • Review bookings before adding a block
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowDayDetails(false);
+                    setDayDetails(null);
+                    setDayDetailsBookingStatusFilter(null);
+                    setDayDetailsBlockSourceFilter(null);
+                  }}
+                  className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-slate-100 active:bg-slate-200 text-slate-500 hover:text-slate-700 transition-all flex-shrink-0"
+                  title="Close"
+                  aria-label="Close day details"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 space-y-5">
+              {(() => {
+                const bookingsCount = dayDetails.bookings.length;
+                const blocksCount = dayDetails.blocks.length;
+                const total = bookingsCount + blocksCount;
+
+                const pct = (n: number) => (total > 0 ? Math.round((n / total) * 100) : 0);
+                const bookingsPct = pct(bookingsCount);
+                const blocksPct = pct(blocksCount);
+
+                const byKey = <T,>(items: T[], keyFn: (item: T) => string) => {
+                  return items.reduce<Record<string, number>>((acc, item) => {
+                    const k = keyFn(item);
+                    acc[k] = (acc[k] || 0) + 1;
+                    return acc;
+                  }, {});
+                };
+
+                const bookingByStatus = byKey(dayDetails.bookings, (b) => String((b as any).status || "UNKNOWN"));
+                const blockBySource = byKey(dayDetails.blocks, (b) => String((b as any).source || "EXTERNAL"));
+
+                const statusEntries = Object.entries(bookingByStatus).sort((a, b) => b[1] - a[1]);
+                const sourceEntries = Object.entries(blockBySource).sort((a, b) => b[1] - a[1]);
+
+                const filteredBookings = dayDetailsBookingStatusFilter
+                  ? dayDetails.bookings.filter((b) => String((b as any).status || "UNKNOWN") === dayDetailsBookingStatusFilter)
+                  : dayDetails.bookings;
+                const filteredBlocks = dayDetailsBlockSourceFilter
+                  ? dayDetails.blocks.filter((b) => String((b as any).source || "EXTERNAL") === dayDetailsBlockSourceFilter)
+                  : dayDetails.blocks;
+
+                const GRADIENTS = [
+                  "bg-gradient-to-r from-blue-600 to-sky-500",
+                  "bg-gradient-to-r from-emerald-600 to-teal-500",
+                  "bg-gradient-to-r from-fuchsia-600 to-pink-500",
+                  "bg-gradient-to-r from-amber-500 to-orange-500",
+                  "bg-gradient-to-r from-indigo-600 to-violet-500",
+                  "bg-gradient-to-r from-rose-600 to-red-500",
+                  "bg-gradient-to-r from-cyan-600 to-teal-400",
+                  "bg-gradient-to-r from-slate-700 to-slate-500",
+                ] as const;
+
+                const hashKey = (key: string) => {
+                  let h = 0;
+                  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) | 0;
+                  return Math.abs(h);
+                };
+
+                const pickGradient = (key: string) => GRADIENTS[hashKey(key) % GRADIENTS.length];
+
+                const renderStackedBar = (
+                  entries: [string, number][],
+                  totalCount: number,
+                  label: string,
+                  activeKey: string | null,
+                  onToggle: (key: string) => void
+                ) => {
+                  if (totalCount <= 0) {
+                    return (
+                      <div className="h-3 w-full overflow-hidden rounded-full bg-slate-100 ring-1 ring-slate-200">
+                        <div className="h-full w-full" />
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div
+                      className="h-3 w-full overflow-hidden rounded-full bg-slate-100 ring-1 ring-slate-200"
+                      role="img"
+                      aria-label={`${label} stacked graph`}
+                    >
+                      <div className="flex h-full w-full">
+                        {entries.map(([k, v]) => (
+                          <button
+                            key={k}
+                            type="button"
+                            onClick={() => onToggle(k)}
+                            className={`h-full ${pickGradient(`${label}:${k}`)} ${
+                              activeKey && k !== activeKey ? "opacity-35" : "opacity-100"
+                            } cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20`}
+                            style={{ width: `${(v / totalCount) * 100}%` }}
+                            title={`${k.replaceAll("_", " ")}: ${v}`}
+                            aria-label={`${label}: ${k.replaceAll("_", " ")} (${v})`}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                };
+
+                return (
+                  <>
+                    {/* Summary tiles */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">NoLSAF bookings</div>
+                        <div className="mt-1 flex items-baseline gap-2">
+                          <div className="text-2xl font-extrabold text-slate-900">{bookingsCount}</div>
+                          <div className="text-xs font-semibold text-slate-500">({bookingsPct}%)</div>
+                        </div>
+                      </div>
+                      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">External blocks</div>
+                        <div className="mt-1 flex items-baseline gap-2">
+                          <div className="text-2xl font-extrabold text-slate-900">{blocksCount}</div>
+                          <div className="text-xs font-semibold text-slate-500">({blocksPct}%)</div>
+                        </div>
+                      </div>
+                      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm">
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Total items</div>
+                        <div className="mt-1 text-2xl font-extrabold text-slate-900">{total}</div>
+                      </div>
+                    </div>
+
+                    {/* Visual graph (stacked by status/source) */}
+                    <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-sm font-extrabold text-slate-900">Day graph</div>
+                        <div className="flex items-center gap-2">
+                          {(dayDetailsBookingStatusFilter || dayDetailsBlockSourceFilter) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDayDetailsBookingStatusFilter(null);
+                                setDayDetailsBlockSourceFilter(null);
+                              }}
+                              className="text-xs font-bold rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-700 hover:bg-slate-50"
+                              title="Clear filters"
+                            >
+                              Clear filters
+                            </button>
+                          )}
+                          <div className="text-xs text-slate-500">Stacked breakdown</div>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 space-y-4">
+                        <div>
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="text-xs font-extrabold uppercase tracking-wider text-slate-700">Bookings</div>
+                            <div className="text-xs font-semibold text-slate-500">
+                              {dayDetailsBookingStatusFilter ? (
+                                <span>
+                                  {filteredBookings.length}/{bookingsCount}
+                                </span>
+                              ) : (
+                                <span>{bookingsCount}</span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="mt-2">
+                            {renderStackedBar(statusEntries, bookingsCount, "Bookings", dayDetailsBookingStatusFilter, (k) => {
+                              setDayDetailsBookingStatusFilter((prev) => (prev === k ? null : k));
+                            })}
+                          </div>
+                          <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
+                            {(statusEntries.length ? statusEntries : ([['NO_BOOKINGS', 0]] as [string, number][])).slice(0, 6).map(([k, v]) => (
+                              <span
+                                key={k}
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => setDayDetailsBookingStatusFilter((prev) => (prev === k ? null : k))}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" || e.key === " ") {
+                                    e.preventDefault();
+                                    setDayDetailsBookingStatusFilter((prev) => (prev === k ? null : k));
+                                  }
+                                }}
+                                className={`inline-flex items-center gap-2 rounded-full border bg-white px-2.5 py-1 font-semibold text-slate-700 cursor-pointer select-none transition ${
+                                  dayDetailsBookingStatusFilter === k ? "border-slate-900/20 ring-2 ring-slate-900/10" : "border-slate-200 hover:bg-slate-50"
+                                }`}
+                                title={`${String(k).replaceAll("_", " ")}: ${v}`}
+                              >
+                                <span className={`h-2 w-2 rounded-full ${pickGradient(`Bookings:${k}`)}`} />
+                                {String(k).replaceAll("_", " ")} {v ? `(${v})` : ""}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="text-xs font-extrabold uppercase tracking-wider text-slate-700">External blocks</div>
+                            <div className="text-xs font-semibold text-slate-500">
+                              {dayDetailsBlockSourceFilter ? (
+                                <span>
+                                  {filteredBlocks.length}/{blocksCount}
+                                </span>
+                              ) : (
+                                <span>{blocksCount}</span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="mt-2">
+                            {renderStackedBar(sourceEntries, blocksCount, "Blocks", dayDetailsBlockSourceFilter, (k) => {
+                              setDayDetailsBlockSourceFilter((prev) => (prev === k ? null : k));
+                            })}
+                          </div>
+                          <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
+                            {(sourceEntries.length ? sourceEntries : ([['NO_BLOCKS', 0]] as [string, number][])).slice(0, 6).map(([k, v]) => (
+                              <span
+                                key={k}
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => setDayDetailsBlockSourceFilter((prev) => (prev === k ? null : k))}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" || e.key === " ") {
+                                    e.preventDefault();
+                                    setDayDetailsBlockSourceFilter((prev) => (prev === k ? null : k));
+                                  }
+                                }}
+                                className={`inline-flex items-center gap-2 rounded-full border bg-white px-2.5 py-1 font-semibold text-slate-700 cursor-pointer select-none transition ${
+                                  dayDetailsBlockSourceFilter === k ? "border-slate-900/20 ring-2 ring-slate-900/10" : "border-slate-200 hover:bg-slate-50"
+                                }`}
+                                title={`${String(k).replaceAll("_", " ")}: ${v}`}
+                              >
+                                <span className={`h-2 w-2 rounded-full ${pickGradient(`Blocks:${k}`)}`} />
+                                {String(k).replaceAll("_", " ")} {v ? `(${v})` : ""}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Breakdown */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                        <div className="text-xs font-extrabold uppercase tracking-wider text-slate-700">Bookings by status</div>
+                        <div className="mt-3 space-y-2">
+                          {statusEntries.length === 0 ? (
+                            <div className="text-sm text-slate-500">No bookings for this date.</div>
+                          ) : (
+                            statusEntries.map(([k, v]) => (
+                              <div key={k} className="flex items-center justify-between gap-3">
+                                <div className="text-sm font-semibold text-slate-800 truncate">{k.replaceAll("_", " ")}</div>
+                                <span className="text-xs font-bold text-slate-600 rounded-full border border-slate-200 px-2 py-0.5">{v}</span>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                        <div className="text-xs font-extrabold uppercase tracking-wider text-slate-700">External blocks by source</div>
+                        <div className="mt-3 space-y-2">
+                          {sourceEntries.length === 0 ? (
+                            <div className="text-sm text-slate-500">No external blocks for this date.</div>
+                          ) : (
+                            sourceEntries.map(([k, v]) => (
+                              <div key={k} className="flex items-center justify-between gap-3">
+                                <div className="text-sm font-semibold text-slate-800 truncate">{k.replaceAll("_", " ")}</div>
+                                <span className="text-xs font-bold text-slate-600 rounded-full border border-slate-200 px-2 py-0.5">{v}</span>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Detailed items */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                        <div className="flex items-center justify-between gap-3 border-b border-slate-200/70 px-4 py-3">
+                          <div className="text-xs font-extrabold uppercase tracking-wider text-slate-800">NoLSAF bookings</div>
+                          <span className="text-[11px] font-bold text-slate-600 rounded-full border border-slate-200 px-2 py-0.5">
+                            {dayDetailsBookingStatusFilter ? `${filteredBookings.length}/${bookingsCount}` : bookingsCount}
+                          </span>
+                        </div>
+                        <div className="p-4">
+                          {filteredBookings.length === 0 ? (
+                            <div className="text-sm text-slate-500">No bookings on this date.</div>
+                          ) : (
+                            <div className="space-y-3">
+                              {filteredBookings.map((b) => (
+                                <div key={b.id} className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div className="min-w-0">
+                                      <div className="text-sm font-semibold text-slate-900 truncate">{b.guestName || "Guest"}</div>
+                                      <div className="mt-0.5 text-xs text-slate-600">
+                                        {new Date(b.checkIn).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })} – {new Date(b.checkOut).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                                      </div>
+                                    </div>
+                                    <span className="text-[11px] font-bold rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-blue-700">
+                                      {String(b.status || "").replaceAll("_", " ")}
+                                    </span>
+                                  </div>
+                                  <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-600">
+                                    {b.roomCode ? <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5">Room: {b.roomCode}</span> : null}
+                                    <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5">Guests: {b.guests?.adults ?? 0}A {b.guests?.children ?? 0}C</span>
+                                    {b.guestPhone ? <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5">{b.guestPhone}</span> : null}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                        <div className="flex items-center justify-between gap-3 border-b border-slate-200/70 px-4 py-3">
+                          <div className="text-xs font-extrabold uppercase tracking-wider text-slate-800">External blocks</div>
+                          <span className="text-[11px] font-bold text-slate-600 rounded-full border border-slate-200 px-2 py-0.5">
+                            {dayDetailsBlockSourceFilter ? `${filteredBlocks.length}/${blocksCount}` : blocksCount}
+                          </span>
+                        </div>
+                        <div className="p-4">
+                          {filteredBlocks.length === 0 ? (
+                            <div className="text-sm text-slate-500">No external blocks on this date.</div>
+                          ) : (
+                            <div className="space-y-3">
+                              {filteredBlocks.map((blk) => (
+                                <div key={blk.id} className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                      <div className="text-sm font-semibold text-slate-900 truncate">{(blk.source || "External").replaceAll("_", " ")}</div>
+                                      <div className="mt-0.5 text-xs text-slate-600">
+                                        {new Date(blk.startDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })} – {new Date(blk.endDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                                      </div>
+                                      <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-600">
+                                        {blk.roomCode ? <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5">Room: {blk.roomCode}</span> : null}
+                                        <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5">Beds: {blk.bedsBlocked || 1}</span>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setShowDayDetails(false);
+                                          setDayDetails(null);
+                                          handleEdit(blk);
+                                        }}
+                                        className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-slate-700 hover:bg-slate-50 transition"
+                                        title="Edit block"
+                                        aria-label="Edit block"
+                                      >
+                                        <Edit className="h-4 w-4" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDelete(blk.id)}
+                                        className="inline-flex items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-2 text-rose-700 hover:bg-rose-100 transition"
+                                        title="Delete block"
+                                        aria-label="Delete block"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+
+            {/* Footer */}
+            <div className="px-4 sm:px-6 md:px-8 py-4 border-t border-slate-200/60 bg-gradient-to-b from-slate-50/50 to-white">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const d = dayDetails.date;
+                    setShowDayDetails(false);
+                    setDayDetails(null);
+                    openQuickBlock(d);
+                  }}
+                  className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-3 text-sm font-extrabold text-white shadow-[0_16px_40px_-24px_rgba(2,102,94,0.6)] ring-1 ring-inset ring-white/15 hover:to-cyan-600 active:scale-[0.99] transition"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add external block
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowDayDetails(false);
+                    setDayDetails(null);
+                  }}
+                  className="px-4 py-3 rounded-xl border border-slate-300 bg-white text-slate-700 font-semibold text-sm hover:bg-slate-50 transition"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Range Insights Modal (opens from Bookings/Blocks tiles) */}
+      {showRangeInsights && calendarData && (
+        <div className="fixed inset-0 z-[56] flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl max-w-4xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+            <div className="px-4 sm:px-6 md:px-8 py-4 sm:py-5 border-b border-slate-200/60 bg-gradient-to-br from-white via-slate-50/40 to-white">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 shadow-sm">
+                      <Layers className="h-5 w-5 text-white" />
+                    </div>
+                    <div className="min-w-0">
+                      <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight">Insights</h2>
+                      <p className="mt-0.5 text-xs sm:text-sm text-slate-500">
+                        {selectedRoomCode ? `Filtered to ${selectedRoomCode}` : "All rooms"} • {formatConfirmDate(calendarData.dateRange.start)} – {formatConfirmDate(calendarData.dateRange.end)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowRangeInsights(false)}
+                  className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-slate-100 active:bg-slate-200 text-slate-500 hover:text-slate-700 transition-all flex-shrink-0"
+                  title="Close"
+                  aria-label="Close insights"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setRangeInsightsTab("bookings")}
+                  className={`rounded-full px-4 py-2 text-sm font-bold border transition ${
+                    rangeInsightsTab === "bookings"
+                      ? "border-blue-200 bg-blue-50 text-blue-800"
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  Bookings ({calendarData.bookings.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRangeInsightsTab("blocks")}
+                  className={`rounded-full px-4 py-2 text-sm font-bold border transition ${
+                    rangeInsightsTab === "blocks"
+                      ? "border-orange-200 bg-orange-50 text-orange-800"
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  Blocks ({calendarData.blocks.length})
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 space-y-5">
+              {(() => {
+                const byKey = <T,>(items: T[], keyFn: (item: T) => string) => {
+                  return items.reduce<Record<string, number>>((acc, item) => {
+                    const k = keyFn(item);
+                    acc[k] = (acc[k] || 0) + 1;
+                    return acc;
+                  }, {});
+                };
+
+                const palette = [
+                  "#2563eb",
+                  "#0ea5e9",
+                  "#10b981",
+                  "#f59e0b",
+                  "#f97316",
+                  "#ec4899",
+                  "#8b5cf6",
+                  "#06b6d4",
+                  "#64748b",
+                ] as const;
+
+                const hashKey = (key: string) => {
+                  let h = 0;
+                  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) | 0;
+                  return Math.abs(h);
+                };
+
+                const pickColor = (key: string) => palette[hashKey(key) % palette.length];
+
+                const donutGradient = (entries: [string, number][]) => {
+                  const total = entries.reduce((s, [, v]) => s + v, 0);
+                  if (total <= 0) return "conic-gradient(#e2e8f0 0 100%)";
+                  let acc = 0;
+                  const stops = entries.map(([k, v]) => {
+                    const start = (acc / total) * 100;
+                    acc += v;
+                    const end = (acc / total) * 100;
+                    const color = pickColor(k);
+                    return `${color} ${start}% ${end}%`;
+                  });
+                  return `conic-gradient(${stops.join(", ")})`;
+                };
+
+                const renderStack = (entries: [string, number][]) => {
+                  const total = entries.reduce((s, [, v]) => s + v, 0);
+                  return (
+                    <div className="h-3 w-full overflow-hidden rounded-full bg-slate-100 ring-1 ring-slate-200">
+                      <div className="flex h-full w-full">
+                        {entries.map(([k, v]) => (
+                          <div
+                            key={k}
+                            style={{ width: `${total > 0 ? (v / total) * 100 : 0}%`, backgroundColor: pickColor(k) }}
+                            className="h-full"
+                            title={`${k.replaceAll("_", " ")}: ${v}`}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                };
+
+                const entries =
+                  rangeInsightsTab === "bookings"
+                    ? Object.entries(byKey(calendarData.bookings, (b) => String((b as any).status || "UNKNOWN"))).sort((a, b) => b[1] - a[1])
+                    : Object.entries(byKey(calendarData.blocks, (b) => String((b as any).source || "EXTERNAL"))).sort((a, b) => b[1] - a[1]);
+
+                const total = entries.reduce((s, [, v]) => s + v, 0);
+
+                return (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:col-span-1">
+                        <div className="text-xs font-extrabold uppercase tracking-wider text-slate-700">
+                          {rangeInsightsTab === "bookings" ? "Bookings" : "External blocks"} distribution
+                        </div>
+                        <div className="mt-4 flex items-center justify-center">
+                          <div
+                            className="relative h-44 w-44 rounded-full"
+                            style={{ backgroundImage: donutGradient(entries as [string, number][]) }}
+                            aria-label="Donut chart"
+                            role="img"
+                          >
+                            <div className="absolute inset-6 rounded-full bg-white ring-1 ring-slate-200 shadow-sm" />
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <div className="text-center">
+                                <div className="text-2xl font-extrabold text-slate-900">{total}</div>
+                                <div className="text-xs font-semibold text-slate-500">total</div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="mt-4 text-xs text-slate-500">
+                          Tip: click the sidebar tiles to filter the calendar.
+                        </div>
+                      </div>
+
+                      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:col-span-2">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="text-sm font-extrabold text-slate-900">Breakdown</div>
+                          <div className="text-xs text-slate-500">Stacked view</div>
+                        </div>
+                        <div className="mt-4">{renderStack(entries as [string, number][])}</div>
+                        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {(entries as [string, number][]).slice(0, 10).map(([k, v]) => (
+                            <div key={k} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2">
+                              <div className="min-w-0 flex items-center gap-2">
+                                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: pickColor(k) }} />
+                                <span className="text-sm font-semibold text-slate-800 truncate">{k.replaceAll("_", " ")}</span>
+                              </div>
+                              <span className="text-xs font-extrabold text-slate-700">{v}</span>
+                            </div>
+                          ))}
+                          {entries.length === 0 && <div className="text-sm text-slate-500">No data for this range.</div>}
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+
+            <div className="px-4 sm:px-6 md:px-8 py-4 border-t border-slate-200/60 bg-gradient-to-b from-slate-50/50 to-white">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowRangeInsights(false)}
+                  className="px-4 py-3 rounded-xl border border-slate-300 bg-white text-slate-700 font-semibold text-sm hover:bg-slate-50 transition"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Block Form Modal */}
       {showBlockForm && (

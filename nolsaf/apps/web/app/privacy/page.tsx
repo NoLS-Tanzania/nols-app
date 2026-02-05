@@ -5,6 +5,8 @@ import { PRIVACY_LAST_UPDATED, PRIVACY_SECTIONS } from "@/components/privacyCont
 import PublicHeader from "@/components/PublicHeader";
 import PublicFooter from "@/components/PublicFooter";
 import SiteHeader from "@/components/SiteHeader";
+import OwnerSiteHeader from "@/components/OwnerSiteHeader";
+import DriverSiteHeader from "@/components/DriverSiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import LayoutFrame from "@/components/LayoutFrame";
 import { Shield } from "lucide-react";
@@ -127,10 +129,13 @@ export default function PrivacyPage() {
       {shouldUsePublicLayout ? (
         <PublicHeader />
       ) : isAuthenticated ? (
-        <SiteHeader 
-          role={isDriver ? "DRIVER" : isOwner ? "OWNER" : "ADMIN"} 
-          driverMode={isDriver}
-        />
+        isDriver ? (
+          <DriverSiteHeader />
+        ) : isOwner ? (
+          <OwnerSiteHeader />
+        ) : (
+          <SiteHeader role="ADMIN" />
+        )
       ) : (
         <PublicHeader />
       )}
