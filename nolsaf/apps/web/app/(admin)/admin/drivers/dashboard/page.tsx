@@ -147,7 +147,7 @@ export default function DriversDashboardPage() {
         </Link>
 
         <Link
-          href="/admin/reports"
+          href="/admin/management/reports"
           className="group relative overflow-hidden bg-white rounded-lg border border-gray-200 p-4 shadow-sm hover:shadow-md transition-all duration-300 hover:border-amber-300 hover:-translate-y-0.5 no-underline"
         >
           <div className="absolute left-0 top-0 h-full w-1 bg-amber-500 rounded-l-lg group-hover:w-1.5 transition-all duration-300" aria-hidden />

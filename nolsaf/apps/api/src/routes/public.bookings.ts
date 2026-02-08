@@ -10,7 +10,19 @@ import { checkPropertyAvailability, checkGuestCapacity } from "../lib/bookingAva
 import { sanitizeText } from "../lib/sanitize.js";
 import { notifyAdmins, notifyOwner } from "../lib/notifications.js";
 import { maybeAuth } from "../middleware/auth.js";
-import { MIN_TRANSPORT_LEAD_MS } from "../lib/transportPolicy.js";
+import { AUTO_DISPATCH_LOOKAHEAD_MS, MIN_TRANSPORT_LEAD_MS } from "../lib/transportPolicy.js";
+import { generateTransportTripCode } from "../lib/tripCode.js";
+
+type CreatedTransportBooking = {
+  id: number;
+  tripCode: string | null;
+  vehicleType: string | null;
+  scheduledDate: Date;
+  fromAddress: string | null;
+  toAddress: string | null;
+  amount: number | null;
+  currency: string | null;
+};
 
 // Helper function to calculate distance (Haversine formula)
 function calculateDistance(origin: { latitude: number; longitude: number }, destination: { latitude: number; longitude: number }): number {
@@ -202,6 +214,7 @@ const createBookingSchema = z.object({
   transportOriginAddress: z.string().max(255).optional().nullable(),
   transportFare: z.number().min(0).optional().nullable(), // Optional client hint; server computes authoritative fare
   transportVehicleType: z.enum(["BODA", "BAJAJI", "CAR", "XL", "PREMIUM"]).optional().nullable(),
+  transportPickupMode: z.enum(["current", "arrival", "manual"]).optional().nullable(),
   // Flexible arrival fields
   arrivalType: z.enum(["FLIGHT", "BUS", "TRAIN", "FERRY", "OTHER"]).optional().nullable(),
   arrivalNumber: z.string().max(50).optional().nullable(),
@@ -244,14 +257,17 @@ const createBookingSchema = z.object({
     });
   }
 
-  // If the customer is outside Tanzania (e.g., traveling internationally), require explicit arrival date/time.
-  // Also require it whenever the user provides arrival/travel metadata (arrivalType/company/number/pickupLocation).
-  const isInternational = !isLikelyDomesticTanzania(data.nationality);
   const hasArrivalMetadata =
     !!data.arrivalType ||
     !!String(data.arrivalNumber ?? "").trim() ||
     !!String(data.transportCompany ?? "").trim() ||
     !!String(data.pickupLocation ?? "").trim();
+
+  // Arrival date/time is only required when:
+  // - the user is scheduling an ARRIVAL pickup (airport/bus terminal/etc), OR
+  // - they provided arrival metadata (type/company/number/pickupLocation)
+  const pickupMode = String(data.transportPickupMode ?? "").trim().toLowerCase();
+  const requiresArrivalTime = pickupMode === "arrival" || hasArrivalMetadata;
 
   if (String(data.pickupLocation ?? "").trim() && !data.arrivalType) {
     ctx.addIssue({
@@ -261,7 +277,7 @@ const createBookingSchema = z.object({
     });
   }
 
-  if ((isInternational || hasArrivalMetadata) && !data.arrivalTime) {
+  if (requiresArrivalTime && !data.arrivalTime) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["arrivalTime"],
@@ -300,12 +316,13 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
     if (!validationResult.success) {
       return res.status(400).json({
         error: "Invalid request data",
-        details: validationResult.error.errors,
+        details: validationResult.error.issues ?? (validationResult.error as any).errors,
         requestId,
       });
     }
 
     const data = validationResult.data;
+  const transportPickupMode = String(data.transportPickupMode ?? "").trim().toLowerCase();
 
     // Validate dates
     const checkIn = new Date(data.checkIn);
@@ -821,6 +838,9 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
 
     // Create booking and booking code in a transaction with row-level locking
     const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      // Keep transport booking details so we can emit realtime offers AFTER the transaction commits.
+      let transportBookingForOffer: CreatedTransportBooking | null = null;
+
       // Double-check availability with lock (prevent race conditions)
       await tx.$executeRaw`
         SELECT id FROM Property WHERE id = ${data.propertyId} FOR UPDATE
@@ -1064,7 +1084,12 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
       const transportSummary = (() => {
         if (!data.includeTransport) return null;
 
-        const scheduledRaw = parseOptionalDate(data.arrivalTime) || checkIn;
+        // Instant pickup (current/manual) should be scheduled immediately.
+        // Arrival pickup schedules against arrivalTime (fallback: check-in).
+        const scheduledRaw =
+          transportPickupMode === "current" || transportPickupMode === "manual"
+            ? new Date()
+            : parseOptionalDate(data.arrivalTime) || checkIn;
         const minLeadMs = MIN_TRANSPORT_LEAD_MS;
         const effectiveScheduled =
           scheduledRaw.getTime() >= Date.now() + minLeadMs
@@ -1120,8 +1145,13 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
         const toLat = toDecimal6((property as any).latitude);
         const toLng = toDecimal6((property as any).longitude);
 
-        await tx.transportBooking.create({
-          data: {
+        let created = false;
+        for (let attempt = 0; attempt < 5; attempt++) {
+          const { tripCode, tripCodeHash } = generateTransportTripCode();
+
+          try {
+            const tb = await tx.transportBooking.create({
+              data: {
             userId,
             propertyId: data.propertyId,
             // Cashless platform: if the property booking is successfully created, it is paid.
@@ -1148,8 +1178,33 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
             ),
             paymentStatus: "PAID",
             paymentRef: `BOOKING:${booking.id}`,
+            tripCode,
+            tripCodeHash,
           } as any,
-        });
+            });
+
+            transportBookingForOffer = {
+              id: Number((tb as any).id),
+              tripCode: ((tb as any).tripCode ?? null) as any,
+              vehicleType: ((tb as any).vehicleType ?? null) as any,
+              scheduledDate: new Date((tb as any).scheduledDate),
+              fromAddress: ((tb as any).fromAddress ?? null) as any,
+              toAddress: ((tb as any).toAddress ?? null) as any,
+              amount: (tb as any).amount != null ? Number((tb as any).amount) : null,
+              currency: ((tb as any).currency ?? null) as any,
+            };
+            created = true;
+            break;
+          } catch (e: any) {
+            const isUnique = e?.code === "P2002" || String(e?.message ?? "").includes("Unique constraint");
+            if (isUnique && attempt < 4) continue;
+            throw e;
+          }
+        }
+
+        if (!created) {
+          throw new Error("Failed to create transport booking (trip code generation)");
+        }
       }
 
       // Generate booking code within transaction
@@ -1210,8 +1265,12 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
         nights: nights,
         checkIn: booking.checkIn,
         checkOut: booking.checkOut,
+        transportBookingForOffer,
       };
     });
+
+    // NOTE: do not broadcast transport offers here.
+    // The transport auto-dispatch worker issues targeted offers (top drivers) based on live locations.
 
     // Notify owner + admin ASAP (booking created)
     try {
@@ -1331,7 +1390,7 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
     if (error?.name === "ZodError") {
       return res.status(400).json({
         error: "Invalid request data",
-        details: error.errors,
+        details: error.issues ?? error.errors,
         requestId,
       });
     }

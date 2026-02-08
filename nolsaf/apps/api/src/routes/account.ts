@@ -5,6 +5,7 @@ import { prisma } from "@nolsaf/prisma";
 import { AuthedRequest, requireAuth } from "../middleware/auth.js";
 import { audit } from "../lib/audit.js";
 import { hashPassword, verifyPassword, encrypt, decrypt, hashCode, verifyCode } from "../lib/crypto.js";
+import { hashCode as hashOtpCode } from "../lib/otp.js";
 import { validatePasswordStrength, isPasswordReused, addPasswordToHistory } from "../lib/security.js";
 import { validatePasswordWithSettings } from "../lib/securitySettings.js";
 import { authenticator } from "otplib";
@@ -14,6 +15,16 @@ import { sendSms } from "../lib/sms.js";
 
 export const router = Router();
 router.use(requireAuth as unknown as RequestHandler);
+
+function maskOtp(code: string): string {
+  const s = String(code || "");
+  if (s.length <= 2) return "••••••";
+  return `••••${s.slice(-2)}`;
+}
+
+function otpEntityKey(destinationType: "PHONE" | "EMAIL", destination: string, codeHash: string): string {
+  return `OTP:${destinationType}:${destination}:${codeHash}`;
+}
 
 // Constants
 const BACKUP_CODES_COUNT = 10;
@@ -1080,6 +1091,7 @@ const sendSms2FA: RequestHandler = async (req, res) => {
     // Generate 6-digit OTP code
     const code = String(Math.floor(100000 + Math.random() * 900000));
     const codeHash = await hashCode(code);
+    const auditHash = hashOtpCode(code);
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
     // Store OTP in phoneOtp table
@@ -1093,7 +1105,25 @@ const sendSms2FA: RequestHandler = async (req, res) => {
     });
 
     // Send SMS
-    await sendSms(user.phone, `NoLSAF 2FA verification code: ${code}`);
+    const smsResult = await sendSms(user.phone, `NoLSAF 2FA verification code: ${code}`);
+
+    try {
+      const entity = otpEntityKey("PHONE", user.phone, auditHash);
+      await audit(req as AuthedRequest, "NO4P_OTP_SENT", entity, null, {
+        destinationType: "PHONE",
+        destination: user.phone,
+        codeHash: auditHash,
+        codeMasked: maskOtp(code),
+        expiresAt: expiresAt.toISOString(),
+        usedFor: "USER_2FA_ENABLE",
+        provider: (smsResult as any)?.provider ?? null,
+        userRole: (user as any)?.role ?? null,
+        userName: (user as any)?.name ?? null,
+        policyCompliant: true,
+      });
+    } catch {
+      // swallow
+    }
 
     await audit(req as AuthedRequest, "USER_2FA_SMS_SENT", `user:${user.id}`);
     sendSuccess(res, { phoneMasked: maskPhone(user.phone) }, "SMS code sent successfully");
@@ -1149,6 +1179,21 @@ const verifySms2FA: RequestHandler = async (req, res) => {
     // Verify code
     const isValid = await verifyCode(otp.codeHash, code);
     if (!isValid) {
+      try {
+        const auditHash = hashOtpCode(code);
+        const entity = otpEntityKey("PHONE", user.phone, auditHash);
+        await audit(req as AuthedRequest, "NO4P_OTP_VERIFY_FAILED", entity, null, {
+          destinationType: "PHONE",
+          destination: user.phone,
+          codeHash: auditHash,
+          usedFor: "USER_2FA_ENABLE",
+          reason: "invalid",
+          userRole: (user as any)?.role ?? null,
+          userName: (user as any)?.name ?? null,
+        });
+      } catch {
+        // swallow
+      }
       return sendError(res, 400, "Invalid code");
     }
 
@@ -1167,6 +1212,23 @@ const verifySms2FA: RequestHandler = async (req, res) => {
         },
       });
     });
+
+    try {
+      const auditHash = hashOtpCode(code);
+      const entity = otpEntityKey("PHONE", user.phone, auditHash);
+      await audit(req as AuthedRequest, "NO4P_OTP_USED", entity, null, {
+        destinationType: "PHONE",
+        destination: user.phone,
+        codeHash: auditHash,
+        usedAt: new Date().toISOString(),
+        usedFor: "USER_2FA_ENABLE",
+        policyCompliant: true,
+        userRole: (user as any)?.role ?? null,
+        userName: (user as any)?.name ?? null,
+      });
+    } catch {
+      // swallow
+    }
 
     await audit(req as AuthedRequest, "USER_2FA_ENABLED", `user:${user.id}`, null, { method: "SMS" });
     sendSuccess(res, null, "SMS 2FA enabled successfully");
@@ -1217,6 +1279,7 @@ const disableSms2FA: RequestHandler = async (req, res) => {
       // If no active OTP, send a new one
       const newCode = String(Math.floor(100000 + Math.random() * 900000));
       const codeHash = await hashCode(newCode);
+      const auditHash = hashOtpCode(newCode);
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
       await prisma.phoneOtp.create({
@@ -1228,13 +1291,47 @@ const disableSms2FA: RequestHandler = async (req, res) => {
         },
       });
 
-      await sendSms(user.phone, `NoLSAF 2FA disable verification code: ${newCode}`);
+      const smsResult = await sendSms(user.phone, `NoLSAF 2FA disable verification code: ${newCode}`);
+
+      try {
+        const entity = otpEntityKey("PHONE", user.phone, auditHash);
+        await audit(req as AuthedRequest, "NO4P_OTP_SENT", entity, null, {
+          destinationType: "PHONE",
+          destination: user.phone,
+          codeHash: auditHash,
+          codeMasked: maskOtp(newCode),
+          expiresAt: expiresAt.toISOString(),
+          usedFor: "USER_2FA_DISABLE",
+          provider: (smsResult as any)?.provider ?? null,
+          userRole: (user as any)?.role ?? null,
+          userName: (user as any)?.name ?? null,
+          policyCompliant: true,
+        });
+      } catch {
+        // swallow
+      }
+
       return sendError(res, 400, "A new verification code has been sent to your phone. Please use it to disable 2FA.");
     }
 
     // Verify code
     const isValid = await verifyCode(otp.codeHash, code);
     if (!isValid) {
+      try {
+        const auditHash = hashOtpCode(code);
+        const entity = otpEntityKey("PHONE", user.phone, auditHash);
+        await audit(req as AuthedRequest, "NO4P_OTP_VERIFY_FAILED", entity, null, {
+          destinationType: "PHONE",
+          destination: user.phone,
+          codeHash: auditHash,
+          usedFor: "USER_2FA_DISABLE",
+          reason: "invalid",
+          userRole: (user as any)?.role ?? null,
+          userName: (user as any)?.name ?? null,
+        });
+      } catch {
+        // swallow
+      }
       return sendError(res, 400, "Invalid code");
     }
 
@@ -1253,6 +1350,23 @@ const disableSms2FA: RequestHandler = async (req, res) => {
         },
       });
     });
+
+    try {
+      const auditHash = hashOtpCode(code);
+      const entity = otpEntityKey("PHONE", user.phone, auditHash);
+      await audit(req as AuthedRequest, "NO4P_OTP_USED", entity, null, {
+        destinationType: "PHONE",
+        destination: user.phone,
+        codeHash: auditHash,
+        usedAt: new Date().toISOString(),
+        usedFor: "USER_2FA_DISABLE",
+        policyCompliant: true,
+        userRole: (user as any)?.role ?? null,
+        userName: (user as any)?.name ?? null,
+      });
+    } catch {
+      // swallow
+    }
 
     await audit(req as AuthedRequest, "USER_2FA_DISABLED", `user:${user.id}`, null, { method: "SMS" });
     sendSuccess(res, null, "SMS 2FA disabled successfully");

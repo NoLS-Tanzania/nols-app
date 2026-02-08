@@ -107,8 +107,6 @@ export default function InvoicesManagementPage(){
 
   function formatCurrency(amount: number) {
     return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
       minimumFractionDigits: 0,
       maximumFractionDigits: 2
     }).format(amount);
@@ -200,45 +198,45 @@ export default function InvoicesManagementPage(){
               <button
                 type="button"
                 onClick={() => applyQuickFilter('ALL')}
-                className="group text-left rounded-2xl border border-slate-200 bg-white/70 p-4 backdrop-blur transition-all hover:-translate-y-0.5 hover:shadow-md hover:border-[#02665e]/25 focus:outline-none focus:ring-2 focus:ring-[#02665e]/30"
+                className="group relative overflow-hidden text-left rounded-2xl border border-slate-200/80 bg-white/70 p-4 backdrop-blur transition-[transform,box-shadow,border-color] duration-300 ease-out hover:-translate-y-0.5 hover:shadow-lg hover:border-[#02665e]/25 focus:outline-none focus:ring-2 focus:ring-[#02665e]/30 before:pointer-events-none before:absolute before:inset-0 before:bg-gradient-to-br before:from-[#02665e]/10 before:via-white/0 before:to-sky-50 before:opacity-0 before:transition-opacity before:duration-300 group-hover:before:opacity-100"
                 aria-label="Show all invoices"
               >
-                <div className="text-xs font-medium text-slate-600">Total invoices</div>
-                <div className="mt-1 text-2xl font-semibold tracking-tight text-slate-900 tabular-nums">{total.toLocaleString()}</div>
-                <div className="mt-2 text-xs text-slate-500 group-hover:text-slate-600">Clear filters</div>
+                <div className="relative z-10 text-xs font-medium text-slate-600">Total invoices</div>
+                <div className="relative z-10 mt-1 text-2xl font-semibold tracking-tight text-slate-900 tabular-nums">{total.toLocaleString()}</div>
+                <div className="relative z-10 mt-3 inline-flex w-fit items-center rounded-full border border-slate-200/80 bg-white/60 px-2.5 py-1 text-[11px] font-medium text-slate-600 transition-colors duration-300 group-hover:bg-white/80 group-hover:text-slate-700">Clear filters</div>
               </button>
 
               <button
                 type="button"
                 onClick={() => applyQuickFilter('PAID')}
-                className="group text-left rounded-2xl border border-slate-200 bg-white/70 p-4 backdrop-blur transition-all hover:-translate-y-0.5 hover:shadow-md hover:border-emerald-300/60 focus:outline-none focus:ring-2 focus:ring-emerald-300/40"
+                className="group relative overflow-hidden text-left rounded-2xl border border-slate-200/80 bg-white/70 p-4 backdrop-blur transition-[transform,box-shadow,border-color] duration-300 ease-out hover:-translate-y-0.5 hover:shadow-lg hover:border-emerald-300/70 focus:outline-none focus:ring-2 focus:ring-emerald-300/40 before:pointer-events-none before:absolute before:inset-0 before:bg-gradient-to-br before:from-emerald-400/10 before:via-white/0 before:to-emerald-50 before:opacity-0 before:transition-opacity before:duration-300 group-hover:before:opacity-100"
                 aria-label="Filter paid invoices"
               >
-                <div className="text-xs font-medium text-slate-600">Paid (this page)</div>
-                <div className="mt-1 text-2xl font-semibold tracking-tight text-slate-900 tabular-nums">{paidOnPage.toLocaleString()}</div>
-                <div className="mt-2 text-xs text-slate-500 group-hover:text-slate-600">Filter list</div>
+                <div className="relative z-10 text-xs font-medium text-slate-600">Paid (this page)</div>
+                <div className="relative z-10 mt-1 text-2xl font-semibold tracking-tight text-slate-900 tabular-nums">{paidOnPage.toLocaleString()}</div>
+                <div className="relative z-10 mt-3 inline-flex w-fit items-center rounded-full border border-slate-200/80 bg-white/60 px-2.5 py-1 text-[11px] font-medium text-slate-600 transition-colors duration-300 group-hover:bg-white/80 group-hover:text-slate-700">Filter list</div>
               </button>
 
               <button
                 type="button"
                 onClick={() => applyQuickFilter('APPROVED')}
-                className="group text-left rounded-2xl border border-slate-200 bg-white/70 p-4 backdrop-blur transition-all hover:-translate-y-0.5 hover:shadow-md hover:border-sky-300/70 focus:outline-none focus:ring-2 focus:ring-sky-300/40"
+                className="group relative overflow-hidden text-left rounded-2xl border border-slate-200/80 bg-white/70 p-4 backdrop-blur transition-[transform,box-shadow,border-color] duration-300 ease-out hover:-translate-y-0.5 hover:shadow-lg hover:border-sky-300/70 focus:outline-none focus:ring-2 focus:ring-sky-300/40 before:pointer-events-none before:absolute before:inset-0 before:bg-gradient-to-br before:from-sky-400/10 before:via-white/0 before:to-sky-50 before:opacity-0 before:transition-opacity before:duration-300 group-hover:before:opacity-100"
                 aria-label="Filter approved invoices"
               >
-                <div className="text-xs font-medium text-slate-600">Approved (this page)</div>
-                <div className="mt-1 text-2xl font-semibold tracking-tight text-slate-900 tabular-nums">{approvedOnPage.toLocaleString()}</div>
-                <div className="mt-2 text-xs text-slate-500 group-hover:text-slate-600">Filter list</div>
+                <div className="relative z-10 text-xs font-medium text-slate-600">Approved (this page)</div>
+                <div className="relative z-10 mt-1 text-2xl font-semibold tracking-tight text-slate-900 tabular-nums">{approvedOnPage.toLocaleString()}</div>
+                <div className="relative z-10 mt-3 inline-flex w-fit items-center rounded-full border border-slate-200/80 bg-white/60 px-2.5 py-1 text-[11px] font-medium text-slate-600 transition-colors duration-300 group-hover:bg-white/80 group-hover:text-slate-700">Filter list</div>
               </button>
 
               <button
                 type="button"
                 onClick={() => applyQuickFilter('PENDING')}
-                className="group text-left rounded-2xl border border-slate-200 bg-white/70 p-4 backdrop-blur transition-all hover:-translate-y-0.5 hover:shadow-md hover:border-amber-300/70 focus:outline-none focus:ring-2 focus:ring-amber-300/40"
+                className="group relative overflow-hidden text-left rounded-2xl border border-slate-200/80 bg-white/70 p-4 backdrop-blur transition-[transform,box-shadow,border-color] duration-300 ease-out hover:-translate-y-0.5 hover:shadow-lg hover:border-amber-300/70 focus:outline-none focus:ring-2 focus:ring-amber-300/40 before:pointer-events-none before:absolute before:inset-0 before:bg-gradient-to-br before:from-amber-400/10 before:via-white/0 before:to-amber-50 before:opacity-0 before:transition-opacity before:duration-300 group-hover:before:opacity-100"
                 aria-label="Filter pending or unpaid invoices"
               >
-                <div className="text-xs font-medium text-slate-600">Pending/Unpaid (this page)</div>
-                <div className="mt-1 text-2xl font-semibold tracking-tight text-slate-900 tabular-nums">{pendingOnPage.toLocaleString()}</div>
-                <div className="mt-2 text-xs text-slate-500 group-hover:text-slate-600">Filter list</div>
+                <div className="relative z-10 text-xs font-medium text-slate-600">Pending/Unpaid (this page)</div>
+                <div className="relative z-10 mt-1 text-2xl font-semibold tracking-tight text-slate-900 tabular-nums">{pendingOnPage.toLocaleString()}</div>
+                <div className="relative z-10 mt-3 inline-flex w-fit items-center rounded-full border border-slate-200/80 bg-white/60 px-2.5 py-1 text-[11px] font-medium text-slate-600 transition-colors duration-300 group-hover:bg-white/80 group-hover:text-slate-700">Filter list</div>
               </button>
             </div>
 

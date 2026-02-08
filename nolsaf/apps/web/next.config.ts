@@ -76,6 +76,20 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  async redirects() {
+    return [
+      {
+        source: '/admin/reports',
+        destination: '/admin/management/reports/revenue',
+        permanent: false,
+      },
+      {
+        source: '/admin/reports/:path*',
+        destination: '/admin/management/reports/revenue',
+        permanent: false,
+      },
+    ];
+  },
   async rewrites() {
     return [
       { source: '/api/:path*', destination: `${apiOrigin}/api/:path*` },

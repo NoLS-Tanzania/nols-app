@@ -259,20 +259,8 @@ async function markInvoicePaid(invId: number, method: string, paymentRef: string
           },
         });
 
-        const io = (global as any).io;
-        if (io && typeof io.to === "function") {
-          // Emit one event per trip for existing driver UI subscriptions.
-          for (const trip of pending) {
-            io.to("drivers:available").emit("transport:booking:created", {
-              bookingId: trip.id,
-              vehicleType: trip.vehicleType,
-              scheduledDate: trip.scheduledDate,
-              fromAddress: trip.fromAddress,
-              toAddress: trip.toAddress,
-              amount: trip.amount,
-            });
-          }
-        }
+        // NOTE: do not broadcast transport offers here.
+        // The transport auto-dispatch worker issues targeted offers (top drivers) based on live locations.
 
         if (activated.count) {
           // no-op; activation succeeded

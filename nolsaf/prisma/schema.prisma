@@ -142,6 +142,14 @@ model User {
   // Transport bookings as driver
   transportBookingsAsDriver TransportBooking[] @relation("DriverTransportBookings")
 
+  // Targeted offers for instant auto-dispatch (driver receives offers)
+  transportBookingOffers TransportBookingOffer[] @relation("DriverTransportBookingOffers")
+
+  // Transport payout records (driver earnings for transport trips)
+  transportPayouts        TransportPayout[] @relation("TransportPayoutDriver")
+  approvedTransportPayouts TransportPayout[] @relation("TransportPayoutApprover")
+  paidTransportPayouts     TransportPayout[] @relation("TransportPayoutPayer")
+
   // Property reviews written by this user
   propertyReviews PropertyReview[]
 
@@ -1082,6 +1090,11 @@ model TransportBooking {
   /// Payment reference
   paymentRef    String? @db.VarChar(80)
 
+  /// Public, non-sequential trip code for transport rides (used for reconciliation/payout workflows)
+  tripCode     String? @unique @db.VarChar(64)
+  /// Hash of tripCode (SHA-256 or HMAC-SHA256 hex), used for safe indexing/verification
+  tripCodeHash String? @unique @db.VarChar(64)
+
   /// Record creation timestamp
   createdAt DateTime @default(now())
   /// Record last update timestamp
@@ -1101,6 +1114,12 @@ model TransportBooking {
   /// Competitive claims from drivers (max 5 per booking enforced in API)
   claims TransportBookingClaim[]
 
+  /// Targeted offers for instant auto-dispatch (top-N drivers invited to accept)
+  offers TransportBookingOffer[] @relation("TransportBookingOffers")
+
+  /// Payout record for this transport booking (admin reconciliation)
+  payout TransportPayout?
+
   @@index([userId])
   @@index([driverId])
   @@index([propertyId])
@@ -1108,7 +1127,63 @@ model TransportBooking {
   @@index([scheduledDate])
   @@index([paymentStatus])
   @@index([vehicleType])
+  @@index([tripCode])
+  @@index([tripCodeHash])
   @@map("TransportBooking")
+}
+
+// =========================================================
+//  TRANSPORT PAYOUT MODEL - Driver payouts + NoLSAF commission
+// =========================================================
+model TransportPayout {
+  id Int @id @default(autoincrement())
+
+  /// Associated transport booking (one payout per booking)
+  transportBookingId Int @unique
+
+  /// Driver being paid
+  driverId Int
+
+  /// Currency (default: TZS)
+  currency String @default("TZS") @db.VarChar(3)
+
+  /// Fare amount (gross) for the trip
+  grossAmount Decimal @db.Decimal(12, 2)
+
+  /// Commission percent deducted as NoLSAF revenue
+  commissionPercent Decimal @db.Decimal(5, 2)
+  /// Commission amount deducted as NoLSAF revenue
+  commissionAmount  Decimal @db.Decimal(12, 2)
+
+  /// Net paid to driver (gross - commission)
+  netPaid Decimal @db.Decimal(12, 2)
+
+  /// Status: PENDING, APPROVED, PAID
+  status String @default("PENDING") @db.VarChar(20)
+
+  /// Approval and payout audit
+  approvedAt DateTime?
+  approvedBy Int?
+  paidAt DateTime?
+  paidBy Int?
+
+  /// Payment details
+  paymentMethod String? @db.VarChar(40)
+  paymentRef    String? @db.VarChar(80)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  booking  TransportBooking @relation(fields: [transportBookingId], references: [id], onDelete: Cascade)
+  driver   User            @relation("TransportPayoutDriver", fields: [driverId], references: [id], onDelete: Cascade)
+  approver User?           @relation("TransportPayoutApprover", fields: [approvedBy], references: [id], onDelete: SetNull)
+  payer    User?           @relation("TransportPayoutPayer", fields: [paidBy], references: [id], onDelete: SetNull)
+
+  @@index([driverId])
+  @@index([status])
+  @@index([approvedAt])
+  @@index([paidAt])
+  @@map("transport_payouts")
 }
 
 // =========================================================
@@ -1143,6 +1218,38 @@ model TransportBookingClaim {
   @@index([status])
   @@index([createdAt])
   @@map("transport_booking_claims")
+}
+
+// =========================================================
+//  TRANSPORT BOOKING OFFER MODEL - Targeted offers for instant auto-dispatch
+// =========================================================
+model TransportBookingOffer {
+  id Int @id @default(autoincrement())
+
+  bookingId Int
+  driverId  Int
+
+  /// OFFERED, ACCEPTED, DECLINED, EXPIRED, CANCELLED
+  status String @default("OFFERED") @db.VarChar(20)
+
+  /// Diagnostic metadata used for ranking/debugging
+  radiusKm   Decimal? @db.Decimal(5, 2)
+  distanceKm Decimal? @db.Decimal(6, 3)
+  score      Decimal? @db.Decimal(8, 2)
+
+  offeredAt   DateTime @default(now())
+  expiresAt   DateTime
+  respondedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  booking TransportBooking @relation("TransportBookingOffers", fields: [bookingId], references: [id], onDelete: Cascade)
+  driver  User            @relation("DriverTransportBookingOffers", fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId, status, expiresAt])
+  @@index([driverId, status, expiresAt])
+  @@map("transport_booking_offers")
 }
 
 // =========================================================

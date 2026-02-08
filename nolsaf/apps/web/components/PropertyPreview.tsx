@@ -498,7 +498,11 @@ export default function PropertyPreview({
 
   async function handleSuspend() {
     if (!suspendReason.trim()) {
-      alert("Please provide a reason for suspending this property");
+      setAdminNotice({
+        kind: "error",
+        title: "Suspension needs a reason",
+        body: "Please provide a reason for suspending this property.",
+      });
       return;
     }
     try {
@@ -513,9 +517,18 @@ export default function PropertyPreview({
       setSuspendReason("");
       setNotifyOwnerOnSuspend(true);
       onUpdated?.();
-      alert("Property suspended successfully! The property has been removed from public view.");
+      setAdminNotice({
+        kind: "success",
+        title: "Property suspended successfully",
+        body: "The property has been removed from public view.",
+      });
     } catch (err: any) {
-      alert(err?.response?.data?.error || "Failed to suspend property");
+      const msg = err?.response?.data?.error || err?.message || "Failed to suspend property";
+      setAdminNotice({
+        kind: "error",
+        title: "Failed to suspend property",
+        body: typeof msg === "string" ? msg : undefined,
+      });
     } finally {
       setSaving(false);
     }
@@ -523,7 +536,11 @@ export default function PropertyPreview({
 
   async function handleUnsuspend() {
     if (!unsuspendReason.trim()) {
-      alert("Please provide a reason for unsuspending this property");
+      setAdminNotice({
+        kind: "error",
+        title: "Unsuspension needs a reason",
+        body: "Please provide a reason for unsuspending this property.",
+      });
       return;
     }
     try {
@@ -536,9 +553,18 @@ export default function PropertyPreview({
       setShowUnsuspendDialog(false);
       setUnsuspendReason("");
       onUpdated?.();
-      alert("Property unsuspended successfully! The property is now visible to the public again.");
+      setAdminNotice({
+        kind: "success",
+        title: "Property unsuspended successfully",
+        body: "The property is now visible to the public again.",
+      });
     } catch (err: any) {
-      alert(err?.response?.data?.error || "Failed to unsuspend property");
+      const msg = err?.response?.data?.error || err?.message || "Failed to unsuspend property";
+      setAdminNotice({
+        kind: "error",
+        title: "Failed to unsuspend property",
+        body: typeof msg === "string" ? msg : undefined,
+      });
     } finally {
       setSaving(false);
     }

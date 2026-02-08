@@ -670,7 +670,11 @@ router.post("/:bookingId/start-review", asyncHandler(async (req: any, res: any) 
  * Body: { claimIds: [1, 2, 3] } - Array of 1-3 claim IDs to recommend
  */
 const recommendClaimsSchema = z.object({
-  claimIds: z.array(z.number().int().positive()).min(1).max(3),
+  claimIds: z
+    .array(z.number().int().positive())
+    .min(1)
+    .max(3)
+    .transform((ids) => Array.from(new Set(ids))),
   notes: z.string().optional(),
 });
 
@@ -727,7 +731,12 @@ router.post("/:bookingId/recommendations", asyncHandler(async (req: any, res: an
       });
 
       if (claims.length !== claimIds.length) {
-        throw new Error("One or more claims not found or don't belong to this booking");
+        const foundIds = new Set(claims.map((c: any) => Number(c.id)).filter((v: any) => Number.isFinite(v)));
+        const missingIds = claimIds.filter((id: number) => !foundIds.has(Number(id)));
+        const e: any = new Error("One or more claims not found or don't belong to this booking");
+        e.code = "CLAIMS_MISMATCH";
+        e.details = { bookingId, claimIds, missingIds };
+        throw e;
       }
 
       // Verify all claims are eligible for recommendation (PENDING or REVIEWING)
@@ -791,8 +800,15 @@ router.post("/:bookingId/recommendations", asyncHandler(async (req: any, res: an
     return res.json(result);
   } catch (err: any) {
     console.error("Error recommending claims:", err);
-    const statusCode = err.message?.includes("not found") ? 404 
-                      : err.message?.includes("not PENDING") ? 400 
+    if (err?.code === "CLAIMS_MISMATCH") {
+      return res.status(400).json({
+        error: err.message || "One or more claims not found or don't belong to this booking",
+        details: err.details || null,
+      });
+    }
+
+    const statusCode = err.message?.includes("Group booking not found") ? 404
+                      : err.message?.includes("not PENDING") ? 400
                       : 500;
     return res.status(statusCode).json({
       error: err.message || "Failed to recommend claims",

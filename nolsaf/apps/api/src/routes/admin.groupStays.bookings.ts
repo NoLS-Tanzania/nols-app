@@ -67,11 +67,29 @@ router.get("/", async (req, res) => {
     const skip = (Number(page) - 1) * Number(pageSize);
     const take = Math.min(Number(pageSize), 100);
 
-    // Build query - use include for user (same as summary endpoint)
+    // Build query - include user + confirmed property + a lead passenger snapshot
     const queryOptions: any = {
       include: {
         user: {
           select: { id: true, name: true, email: true, phone: true },
+        },
+        confirmedProperty: {
+          select: { id: true, title: true },
+        },
+        passengers: {
+          select: { firstName: true, lastName: true, phone: true, gender: true, nationality: true, sequenceNumber: true },
+          orderBy: [{ sequenceNumber: 'asc' }, { id: 'asc' }],
+          take: 1,
+        },
+        claims: {
+          where: { status: 'ACCEPTED' },
+          select: {
+            totalAmount: true,
+            reviewedAt: true,
+            property: { select: { id: true, title: true } },
+          },
+          orderBy: [{ reviewedAt: 'desc' }, { id: 'desc' }],
+          take: 1,
         },
       },
       orderBy: { createdAt: "desc" },
@@ -91,7 +109,11 @@ router.get("/", async (req, res) => {
       (prisma as any).groupBooking.count(countOptions),
     ]);
 
-    const mapped = items.map((b: any) => ({
+    const mapped = items.map((b: any) => {
+      const leadPassenger = Array.isArray(b.passengers) && b.passengers.length > 0 ? b.passengers[0] : null;
+      const acceptedClaim = Array.isArray(b.claims) && b.claims.length > 0 ? b.claims[0] : null;
+
+      return {
       id: b.id,
       groupType: b.groupType || "other",
       accommodationType: b.accommodationType || "other",
@@ -106,12 +128,29 @@ router.get("/", async (req, res) => {
       checkIn: b.checkIn || null,
       checkOut: b.checkOut || null,
       status: b.status || "PENDING",
+      // Amounts: expose both accepted claim amount and confirmed booking amount where available.
+      acceptedTotalAmount: acceptedClaim?.totalAmount ?? null,
+      confirmedTotalAmount: b.totalAmount ?? null,
+      totalAmount: b.totalAmount ?? acceptedClaim?.totalAmount ?? null,
+      currency: b.currency || "TZS",
       user: b.user ? {
         id: b.user.id,
         name: b.user.name || "Unknown User",
         email: b.user.email,
         phone: b.user.phone,
       } : null,
+      leadPassenger: leadPassenger
+        ? {
+            name: `${leadPassenger.firstName ?? ''} ${leadPassenger.lastName ?? ''}`.trim() || null,
+            phone: leadPassenger.phone ?? null,
+            gender: leadPassenger.gender ?? null,
+            nationality: leadPassenger.nationality ?? null,
+          }
+        : null,
+      confirmedProperty: b.confirmedProperty ? { id: b.confirmedProperty.id, title: b.confirmedProperty.title } : null,
+      acceptedProperty: acceptedClaim?.property ? { id: acceptedClaim.property.id, title: acceptedClaim.property.title } : null,
+      acceptedAt: acceptedClaim?.reviewedAt ?? null,
+      confirmedAt: b.confirmedAt ?? null,
       createdAt: b.createdAt,
       // Arrangements
       arrPickup: b.arrPickup || false,
@@ -119,7 +158,8 @@ router.get("/", async (req, res) => {
       arrMeals: b.arrMeals || false,
       arrGuide: b.arrGuide || false,
       arrEquipment: b.arrEquipment || false,
-    }));
+    };
+    });
 
     return res.json({ total, page: Number(page), pageSize: take, items: mapped });
   } catch (err: any) {

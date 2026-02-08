@@ -108,7 +108,7 @@ router.get("/", (async (req: AuthedRequest, res) => {
     }
 
     const skip = (Number(page) - 1) * Number(pageSize);
-    const take = Math.min(Number(pageSize), 200);
+    const take = Math.min(Number(pageSize), 5000);
 
     let items: any[] = [];
     let total = 0;
@@ -463,6 +463,71 @@ router.get("/", (async (req: AuthedRequest, res) => {
         items: [] 
       });
     }
+  }
+}) as RequestHandler);
+
+/**
+ * GET /admin/properties/booked
+ * Query: status=&q=&page=&pageSize=
+ * Returns properties that have at least one Booking.
+ */
+router.get("/booked", (async (req: AuthedRequest, res) => {
+  try {
+    res.setHeader('Content-Type', 'application/json');
+
+    const { status = "APPROVED", q, page = "1", pageSize = "50" } = req.query as any;
+
+    const where: any = {
+      bookings: { some: {} },
+    };
+
+    if (status && status !== "ALL") {
+      where.status = String(status);
+    }
+
+    const searchTerm = typeof q === "string" ? q.trim().slice(0, 120) : "";
+    if (searchTerm) {
+      where.OR = [
+        { title: { contains: searchTerm } },
+        { regionName: { contains: searchTerm } },
+        { district: { contains: searchTerm } },
+      ];
+    }
+
+    const skip = (Number(page) - 1) * Number(pageSize);
+    const take = Math.min(Number(pageSize), 200);
+
+    const [items, total] = await Promise.all([
+      prisma.property.findMany({
+        where,
+        orderBy: { id: "desc" },
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          regionName: true,
+          district: true,
+          updatedAt: true,
+          owner: { select: { id: true, name: true, email: true } },
+        },
+        skip,
+        take,
+      }),
+      prisma.property.count({ where }),
+    ]);
+
+    return res.json({
+      page: Number(page),
+      pageSize: take,
+      total,
+      items: items.map((p: any) => ({
+        ...p,
+        updatedAt: p.updatedAt instanceof Date ? p.updatedAt.toISOString() : p.updatedAt,
+      })),
+    });
+  } catch (err: any) {
+    console.error('[GET /admin/properties/booked] failed:', err?.message || err);
+    return res.status(500).json({ page: 1, pageSize: 50, total: 0, items: [] });
   }
 }) as RequestHandler);
 

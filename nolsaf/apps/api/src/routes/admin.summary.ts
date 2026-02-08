@@ -3,6 +3,7 @@ import type { RequestHandler } from "express";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { prisma } from "@nolsaf/prisma";
 import { withCache, cacheKeys, cacheTags, measureTime } from "../lib/performance.js";
+import { getActiveSnapshot } from "../lib/activePresence.js";
 
 export const router = Router();
 router.use(requireAuth as unknown as RequestHandler, requireRole("ADMIN") as unknown as RequestHandler);
@@ -28,9 +29,19 @@ router.get("/", async (_req, res) => {
           const sinceActive = new Date(now.getTime() - activeWindowMinutes * 60 * 1000);
           const since24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
+          // Primary definition of "online": active HTTP or Socket.IO usage seen within the window.
+          const presence = getActiveSnapshot(activeWindowMinutes * 60 * 1000);
+
           // Execute all counts in parallel for better performance
-          const [activeSessions, pendingApprovals, invoicesReceived, bookingsCount] = await Promise.all([
-            prisma.session.count({ where: { revokedAt: null, lastSeenAt: { gte: sinceActive } } }),
+          const [activeSessionsDb, pendingApprovals, invoicesReceived, bookingsCount] = await Promise.all([
+            // DB-backed sessions (if used) — keep as a fallback for older deployments.
+            (async () => {
+              try {
+                return await prisma.session.count({ where: { revokedAt: null, lastSeenAt: { gte: sinceActive } } });
+              } catch {
+                return 0;
+              }
+            })(),
             prisma.property.count({ where: { status: 'PENDING' } }),
             prisma.invoice.count({ where: { createdAt: { gte: since24h } } }),
             (async () => {
@@ -48,10 +59,20 @@ router.get("/", async (_req, res) => {
             })(),
           ]);
 
-          return { activeSessions, pendingApprovals, invoicesReceived, bookings: bookingsCount };
+          const activeSessions = presence.total || activeSessionsDb || 0;
+
+          return {
+            activeSessions,
+            activeSessionsByRole: presence.byRole,
+            activeSessionsWindowMinutes: activeWindowMinutes,
+            pendingApprovals,
+            invoicesReceived,
+            bookings: bookingsCount,
+          };
         },
         {
-          ttl: 60, // Cache for 60 seconds (dashboard refreshes frequently)
+          // Presence is time-sensitive; keep this short.
+          ttl: 5,
           tags: [cacheTags.adminSummary],
         }
       );

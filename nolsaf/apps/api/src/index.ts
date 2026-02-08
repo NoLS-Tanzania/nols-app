@@ -67,6 +67,7 @@ import adminNotificationsRouter from "./routes/admin.notifications";
 import adminIntegrationsRouter from "./routes/admin.integrations";
 import adminUpdatesRouter from "./routes/admin.updates";
 import adminCancellationsRouter from "./routes/admin.cancellations";
+import adminNo4pOtpRouter from "./routes/admin.no4pOtp";
 import { router as adminCareersRouter } from "./routes/admin.careers";
 import adminCareersApplicationsRouter from "./routes/admin.careers.applications";
 import adminCareersStatsRouter from "./routes/admin.careers.stats";
@@ -621,6 +622,7 @@ app.use('/api/admin/integrations', adminIntegrationsRouter as express.RequestHan
 app.use('/api/admin/audits', requireRole('ADMIN') as express.RequestHandler, adminAuditsRouter as express.RequestHandler);
 app.use('/api/admin/notifications', requireRole('ADMIN') as express.RequestHandler, adminNotificationsRouter as express.RequestHandler);
 app.use('/api/admin/cancellations', requireRole('ADMIN') as express.RequestHandler, adminCancellationsRouter as express.RequestHandler);
+app.use('/api/admin/no4p-otp', requireRole('ADMIN') as express.RequestHandler, adminNo4pOtpRouter as express.RequestHandler);
 app.use('/api/admin/updates', adminUpdatesRouter as express.RequestHandler);
 // Register applications routes BEFORE careers routes to avoid route conflicts
 // More specific routes must come before parameterized routes

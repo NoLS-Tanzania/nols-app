@@ -588,11 +588,23 @@ export default function CareersManagement() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+      <div className="group bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
         <div className="flex flex-col items-center text-center mb-4">
           <Briefcase className="h-8 w-8 text-gray-400 mb-3" />
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900">
-            Careers Management
+          <h1 className="relative text-2xl sm:text-3xl font-semibold tracking-tight">
+            <span className="text-gray-900 transition-colors duration-300 group-focus-within:text-transparent">
+              Careers Management
+            </span>
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[#02665e] via-gray-900 to-[#02665e] bg-clip-text text-transparent opacity-0 transition-opacity duration-500 group-focus-within:opacity-100"
+            >
+              Careers Management
+            </span>
+            <span
+              aria-hidden
+              className="pointer-events-none absolute left-1/2 top-full mt-2 h-[2px] w-0 -translate-x-1/2 bg-gradient-to-r from-transparent via-[#02665e]/60 to-transparent transition-[width] duration-500 group-focus-within:w-24"
+            />
           </h1>
           <p className="mt-1 text-sm text-gray-600">
             Create, update, and manage job postings

@@ -1,5 +1,6 @@
 import { Router, RequestHandler } from 'express';
 import { prisma } from '@nolsaf/prisma';
+import { Prisma } from '@prisma/client';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 
@@ -98,25 +99,25 @@ router.get('/', async (req, res) => {
     const p = Math.max(1, Number(page) || 1);
     const pp = Math.max(1, Math.min(200, Number(perPage) || 25));
 
-    const where: any = {};
-    if (role) where.role = String(role);
+    // Base where (used for role counts too). Role filter is applied separately.
+    const baseWhere: any = {};
     if (status === 'ACTIVE') {
-      where.AND = [
-        ...(where.AND ?? []),
+      baseWhere.AND = [
+        ...(baseWhere.AND ?? []),
         { suspendedAt: null },
         { OR: [{ isDisabled: null }, { isDisabled: false }] },
       ];
     }
     if (status === 'SUSPENDED') {
-      where.AND = [
-        ...(where.AND ?? []),
+      baseWhere.AND = [
+        ...(baseWhere.AND ?? []),
         { OR: [{ suspendedAt: { not: null } }, { isDisabled: true }] },
       ];
     }
     if (q) {
       const search = String(q).trim().slice(0, 120);
       if (search) {
-        where.OR = [
+        baseWhere.OR = [
           { name: { contains: search } },
           { email: { contains: search } },
           { phone: { contains: search } },
@@ -124,19 +125,22 @@ router.get('/', async (req, res) => {
       }
     }
 
-    const [total, users] = await Promise.all([
+    const where: any = { ...baseWhere };
+    if (role) where.role = String(role);
+
+    const [total, users, roleCountsRaw] = await Promise.all([
       prisma.user.count({ where }),
-      prisma.user.findMany({ 
-        where, 
-        skip: (p - 1) * pp, 
-        take: pp, 
-        orderBy: { createdAt: 'desc' }, 
-        select: { 
-          id: true, 
-          name: true, 
-          email: true, 
-          phone: true, 
-          role: true, 
+      prisma.user.findMany({
+        where,
+        skip: (p - 1) * pp,
+        take: pp,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          role: true,
           createdAt: true,
           emailVerifiedAt: true,
           phoneVerifiedAt: true,
@@ -146,11 +150,23 @@ router.get('/', async (req, res) => {
           _count: {
             select: {
               bookings: true,
-            }
-          }
-        } 
+            },
+          },
+        },
+      }),
+      prisma.user.groupBy({
+        by: ['role'],
+        where: baseWhere,
+        _count: { _all: true },
       }),
     ]);
+
+    const countsByRole: Record<string, number> = {};
+    for (const row of roleCountsRaw as Array<{ role: any; _count: { _all: number } }>) {
+      const r = row?.role;
+      if (!r) continue;
+      countsByRole[String(r)] = Number(row._count?._all || 0);
+    }
 
     // For customers, get booking stats
     const usersWithStats = await Promise.all(users.map(async (user: typeof users[0]) => {
@@ -188,7 +204,7 @@ router.get('/', async (req, res) => {
       };
     }));
 
-    return res.json({ meta: { page: p, perPage: pp, total }, data: usersWithStats });
+    return res.json({ meta: { page: p, perPage: pp, total, countsByRole }, data: usersWithStats });
   } catch (err: any) {
     console.error('Error in GET /admin/users:', err);
     res.setHeader('Content-Type', 'application/json');
@@ -220,7 +236,7 @@ router.get('/summary', async (req, res) => {
       where: { role: "CUSTOMER", twoFactorEnabled: true },
     });
 
-    // Recent customers (last 10)
+    // Recent customers (last 5)
     const recentCustomers = await prisma.user.findMany({
       where: { role: "CUSTOMER" },
       select: {
@@ -234,7 +250,7 @@ router.get('/summary', async (req, res) => {
         twoFactorEnabled: true,
       },
       orderBy: { createdAt: "desc" },
-      take: 10,
+      take: 5,
     });
 
     // Customers created in the last 7 days
@@ -659,38 +675,113 @@ router.post('/:id/unsuspend', async (req, res) => {
  * Body: { role?: 'ADMIN'|'OWNER'|'CUSTOMER', reset2FA?: boolean, disable?: boolean }
  * Note: 'disable' requires an isDisabled column; if absent, return 400 with migration instructions.
  */
+/**
+ * GET /admin/users/:id/audit
+ * Returns recent AdminAudit entries for this user.
+ */
+router.get('/:id/audit', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ error: 'invalid id' });
+
+    const limitRaw = Number(req.query?.limit ?? 25);
+    const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(100, limitRaw)) : 25;
+
+    const rows = await prisma.adminAudit.findMany({
+      where: {
+        targetUserId: id,
+        action: { in: ['DISABLE_USER', 'ENABLE_USER', 'RESET_2FA'] },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      select: {
+        id: true,
+        action: true,
+        details: true,
+        createdAt: true,
+        admin: { select: { id: true, name: true, email: true } },
+      },
+    });
+
+    return res.json({ data: rows });
+  } catch (err) {
+    console.error('GET /admin/users/:id/audit error:', err);
+    return res.status(500).json({ error: 'failed' });
+  }
+});
+
 router.patch('/:id', async (req, res) => {
   try {
     const id = Number(req.params.id);
     if (!id) return res.status(400).json({ error: 'invalid id' });
 
     const { role, reset2FA, disable } = req.body as any;
+    const me = (req.user as any)?.id;
 
     const update: any = {};
-    if (role) {
-      // Allow DRIVER role as part of the system roles
-      if (!['ADMIN', 'OWNER', 'CUSTOMER', 'DRIVER'].includes(role)) return res.status(400).json({ error: 'invalid role' });
-      update.role = role;
+    // Role changes are not permitted via this endpoint.
+    if (typeof role !== 'undefined') {
+      return res.status(403).json({ error: 'role changes are not permitted' });
     }
 
-    if (reset2FA) {
+    if (reset2FA === true) {
       update.twoFactorEnabled = false;
       update.twoFactorSecret = null;
     }
 
     if (typeof disable !== 'undefined') {
-      // check if isDisabled exists
-      const cols: any = await prisma.$queryRaw`SHOW COLUMNS FROM \`User\` LIKE 'isDisabled'` as any;
-      if (!cols || cols.length === 0) {
-        return res.status(400).json({ error: 'disable not supported - add isDisabled column via migration' });
+      if (typeof disable !== 'boolean') {
+        return res.status(400).json({ error: 'invalid disable value' });
       }
-      update.isDisabled = disable ? 1 : 0;
+      update.isDisabled = disable;
     }
 
-    const user = await prisma.user.update({ where: { id }, data: update, select: { id: true, name: true, email: true, phone: true, role: true, twoFactorEnabled: true, isDisabled: true } as any }) as any;
+    if (Object.keys(update).length === 0) {
+      return res.status(400).json({ error: 'no changes provided' });
+    }
+
+    const auditEvents: Array<{ action: string; details?: any }> = [];
+    if (reset2FA === true) {
+      auditEvents.push({ action: 'RESET_2FA', details: { reset2FA: true } });
+    }
+    if (typeof disable === 'boolean') {
+      auditEvents.push({ action: disable ? 'DISABLE_USER' : 'ENABLE_USER', details: { disable } });
+    }
+
+    const ops: any[] = [
+      prisma.user.update({
+        where: { id },
+        data: update,
+        select: { id: true, name: true, email: true, phone: true, role: true, twoFactorEnabled: true, isDisabled: true } as any,
+      }),
+    ];
+
+    if (me && auditEvents.length) {
+      for (const ev of auditEvents) {
+        ops.push(
+          prisma.adminAudit.create({
+            data: {
+              adminId: me,
+              targetUserId: id,
+              action: ev.action,
+              details: ev.details,
+            },
+          })
+        );
+      }
+    }
+
+    const result = await prisma.$transaction(ops);
+    const user = result[0] as any;
     res.json({ data: user });
   } catch (err) {
-    console.error(err);
+    if (err instanceof Prisma.PrismaClientKnownRequestError) {
+      // P2022: Column does not exist in the current database.
+      if (err.code === 'P2022') {
+        return res.status(400).json({ error: 'disable not supported - add isDisabled column via migration' });
+      }
+    }
+    console.error('PATCH /admin/users/:id error:', err);
     res.status(500).json({ error: 'failed' });
   }
 });

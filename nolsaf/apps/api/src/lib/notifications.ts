@@ -34,6 +34,20 @@ export async function notifyAdmins(template: string, data: any) {
         title: "New Booking Created",
         body: `A new booking${data.bookingId ? ` #${data.bookingId}` : ""} has been created${data.propertyTitle ? ` for "${data.propertyTitle}"` : ""}${data.checkIn ? ` (check-in: ${data.checkIn})` : ""}.`
       },
+
+      // Transport (driver allocation) escalations
+      transport_auto_dispatch_no_drivers_2m: {
+        title: "No Driver Acceptance Yet (2 min)",
+        body: `A transport trip${data.transportBookingId ? ` #${data.transportBookingId}` : ""} has no driver acceptance after 2 minutes. The system will keep scanning/offering, but you may start preparing manual assignment.`
+      },
+      transport_auto_dispatch_warning: {
+        title: "Trip Allocation Delay (5 min)",
+        body: `A transport trip${data.transportBookingId ? ` #${data.transportBookingId}` : ""} has not been assigned after 5 minutes. Prepare for manual assignment if no driver accepts by 10 minutes.`
+      },
+      transport_auto_dispatch_takeover: {
+        title: "Manual Assignment Required (10 min)",
+        body: `A transport trip${data.transportBookingId ? ` #${data.transportBookingId}` : ""} was not assigned within 10 minutes. Admin manual assignment is now required.`
+      },
     };
 
     const templateData = notificationTemplates[template] || {
@@ -51,11 +65,13 @@ export async function notifyAdmins(template: string, data: any) {
           body: templateData.body,
           unread: true,
           meta: data,
-          type: template.startsWith("cancellation")
-            ? "cancellation"
-            : template.startsWith("booking")
-              ? "booking"
-              : "property"
+          type: template.startsWith("transport")
+            ? "ride"
+            : template.startsWith("cancellation")
+              ? "cancellation"
+              : template.startsWith("booking")
+                ? "booking"
+                : "property"
         }
       });
     } catch (err: any) {

@@ -497,6 +497,8 @@ export default function AdminGroupStaysBookingsPage() {
   // Load submitted claims for a group booking
   const loadClaims = async (bookingId: number) => {
     setClaimsLoading(true);
+    // Prevent stale selections from a previously opened booking.
+    setSelectedClaimIds([]);
     try {
       const response = await api.get(`/api/admin/group-stays/claims/${bookingId}`);
       setClaimsData(response.data);
@@ -504,7 +506,11 @@ export default function AdminGroupStaysBookingsPage() {
       const serverRecommendedIds = Array.isArray(response.data?.recommendedClaimIds)
         ? response.data.recommendedClaimIds
         : [];
-      setSelectedClaimIds(serverRecommendedIds);
+      const validIds = Array.isArray(response.data?.claims)
+        ? new Set((response.data.claims as any[]).map((c: any) => Number(c?.id)).filter((v: any) => Number.isFinite(v)))
+        : null;
+      const initial = validIds ? serverRecommendedIds.filter((id: any) => validIds.has(Number(id))) : serverRecommendedIds;
+      setSelectedClaimIds(Array.from(new Set(initial.map((v: any) => Number(v)).filter((v: any) => Number.isFinite(v)))));
 
       const shortlistIds = [
         response.data?.shortlist?.high?.id,
@@ -543,16 +549,25 @@ export default function AdminGroupStaysBookingsPage() {
     
     setRecommendingClaims(true);
     try {
-      const response = await api.post(`/api/admin/group-stays/claims/${bookingDetails.id}/recommendations`, {
-        claimIds: selectedClaimIds,
-      });
+      const validIds = claimsData?.claims ? new Set(claimsData.claims.map((c: any) => Number(c.id)).filter((v: any) => Number.isFinite(v))) : null;
+      const claimIds = validIds ? selectedClaimIds.filter((id) => validIds.has(id)) : selectedClaimIds;
+      const uniqueClaimIds = Array.from(new Set(claimIds));
+      if (uniqueClaimIds.length === 0) {
+        setSelectedClaimIds([]);
+        return;
+      }
+      if (uniqueClaimIds.length !== selectedClaimIds.length) {
+        setSelectedClaimIds(uniqueClaimIds);
+      }
+
+      const response = await api.post(`/api/admin/group-stays/claims/${bookingDetails.id}/recommendations`, { claimIds: uniqueClaimIds });
 
       if (response.data.success) {
         // Reload claims to update status
         await loadClaims(bookingDetails.id);
         // Reload booking details
         await loadBookingDetails(bookingDetails.id);
-        alert(`Successfully recommended ${selectedClaimIds.length} claim(s) to customer`);
+        alert(`Successfully recommended ${uniqueClaimIds.length} claim(s) to customer`);
       }
     } catch (err: any) {
       console.error("Failed to recommend claims:", err);
@@ -567,6 +582,7 @@ export default function AdminGroupStaysBookingsPage() {
     setStartingClaimsReview(true);
     try {
       const r = await api.post(`/api/admin/group-stays/claims/${bookingDetails.id}/start-review`);
+
       if (r.data?.success) {
         await loadClaims(bookingDetails.id);
         await loadBookingDetails(bookingDetails.id);
@@ -580,7 +596,6 @@ export default function AdminGroupStaysBookingsPage() {
     }
   };
 
-  // Update individual claim status
   const handleUpdateClaimStatus = async (claimId: number, status: string) => {
     if (!bookingDetails) return;
     

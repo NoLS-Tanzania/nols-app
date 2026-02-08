@@ -573,11 +573,11 @@ export default function AdminHomePage() {
                                 <LifeBuoy className="h-4 w-4 text-cyan-200" aria-hidden />
                                 <span className="text-sm text-slate-100">Support</span>
                               </Link>
-                              <Link href="/admin/security" className="group flex items-center gap-3 rounded-2xl px-3 py-2.5 border border-transparent hover:border-white/10 hover:bg-white/5 transition">
+                              <Link href="/admin/management/settings" className="group flex items-center gap-3 rounded-2xl px-3 py-2.5 border border-transparent hover:border-white/10 hover:bg-white/5 transition">
                                 <Shield className="h-4 w-4 text-slate-200" aria-hidden />
                                 <span className="text-sm text-slate-100">Security</span>
                               </Link>
-                              <Link href="/admin/settings" className="group flex items-center gap-3 rounded-2xl px-3 py-2.5 border border-transparent hover:border-white/10 hover:bg-white/5 transition">
+                              <Link href="/admin/management/settings" className="group flex items-center gap-3 rounded-2xl px-3 py-2.5 border border-transparent hover:border-white/10 hover:bg-white/5 transition">
                                 <SettingsIcon className="h-4 w-4 text-slate-200" aria-hidden />
                                 <span className="text-sm text-slate-100">Settings</span>
                               </Link>

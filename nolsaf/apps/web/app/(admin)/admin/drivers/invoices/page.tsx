@@ -8,7 +8,32 @@ import type { ChartData } from "chart.js";
 
 // Use same-origin for HTTP calls so Next.js rewrites proxy to the API
 const api = axios.create({ baseURL: "", withCredentials: true });
-function authify() {}
+function authify() {
+  if (typeof window === "undefined") return;
+
+  const lsToken =
+    window.localStorage.getItem("token") ||
+    window.localStorage.getItem("nolsaf_token") ||
+    window.localStorage.getItem("__Host-nolsaf_token");
+
+  if (lsToken) {
+    api.defaults.headers.common["Authorization"] = `Bearer ${lsToken}`;
+    return;
+  }
+
+  const m = String(document.cookie || "").match(/(?:^|;\s*)(?:nolsaf_token|__Host-nolsaf_token)=([^;]+)/);
+  const cookieToken = m?.[1] ? decodeURIComponent(m[1]) : "";
+  if (cookieToken) {
+    api.defaults.headers.common["Authorization"] = `Bearer ${cookieToken}`;
+  }
+}
+
+function isTripCodeLike(input: string) {
+  const s = String(input ?? "").trim().toUpperCase();
+  if (!s) return false;
+  if (s.startsWith("TRP")) return true;
+  return /^TRP[_\-: ]?[0-9A-Z]{5}[- ]?[0-9A-Z]{5}[- ]?[0-9A-Z]{5}[- ]?[0-9A-Z]{5}[- ]?[0-9A-Z]{6}$/.test(s);
+}
 
 type InvoiceRow = {
   id: number;
@@ -52,6 +77,23 @@ type InvoiceStatsResponse = {
   endDate: string;
 };
 
+type TripLookupBooking = {
+  id: number;
+  tripCode: string | null;
+  scheduledAt: string;
+  vehicleType: string | null;
+  amount: number;
+  currency: string;
+  status: string | null;
+  paymentStatus: string | null;
+  paymentRef: string | null;
+  pickup: string | null;
+  dropoff: string | null;
+  driver: { id: number; name: string; email: string; phone: string | null } | null;
+};
+
+type TripLookupResponse = { booking: TripLookupBooking };
+
 export default function AdminDriversInvoicesPage() {
   const [status, setStatus] = useState<string>("");
   const [date, setDate] = useState<string | string[]>("");
@@ -64,6 +106,11 @@ export default function AdminDriversInvoicesPage() {
   const searchRef = useRef<HTMLInputElement | null>(null);
   const [pickerAnim, setPickerAnim] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+
+  const [tripLookupLoading, setTripLookupLoading] = useState(false);
+  const [tripLookupError, setTripLookupError] = useState<string | null>(null);
+  const [tripLookupResult, setTripLookupResult] = useState<TripLookupBooking | null>(null);
+  const lastLookupTermRef = useRef<string>("");
   
   // Histogram state
   const [histogramPeriod, setHistogramPeriod] = useState<string>("30d");
@@ -99,6 +146,68 @@ export default function AdminDriversInvoicesPage() {
       setLoading(false);
     }
   }, [page, pageSize, status, date, q]);
+
+  const lookupTripCode = useCallback(
+    async (code: string) => {
+      const term = String(code ?? "").trim();
+      if (!isTripCodeLike(term)) {
+        setTripLookupError(null);
+        setTripLookupResult(null);
+        return;
+      }
+
+      const key = term.replace(/\s+/g, " ").trim().toUpperCase();
+      if (lastLookupTermRef.current === key) return;
+      lastLookupTermRef.current = key;
+
+      setTripLookupLoading(true);
+      setTripLookupError(null);
+      try {
+        const r = await api.get<TripLookupResponse>("/api/admin/drivers/trips/lookup-by-code", {
+          params: { tripCode: term },
+        });
+        setTripLookupResult(r.data?.booking ?? null);
+        if (!r.data?.booking) setTripLookupError("Not found");
+      } catch (err: any) {
+        const status = err?.response?.status;
+        if (status === 404) {
+          setTripLookupResult(null);
+          setTripLookupError("Not found");
+        } else if (status === 400) {
+          setTripLookupResult(null);
+          setTripLookupError("Invalid trip code");
+        } else if (status === 429) {
+          setTripLookupResult(null);
+          setTripLookupError("Too many lookups. Please wait and try again.");
+        } else {
+          console.error("Trip code lookup failed", err);
+          setTripLookupResult(null);
+          setTripLookupError("Lookup failed");
+        }
+      } finally {
+        setTripLookupLoading(false);
+      }
+    },
+    []
+  );
+
+  // Auto-detect: when a valid TRP code is typed/pasted, lookup automatically (debounced)
+  useEffect(() => {
+    const term = String(q ?? "").trim();
+    if (!isTripCodeLike(term)) {
+      lastLookupTermRef.current = "";
+      setTripLookupLoading(false);
+      setTripLookupError(null);
+      setTripLookupResult(null);
+      return;
+    }
+
+    const t = window.setTimeout(() => {
+      void lookupTripCode(term);
+    }, 350);
+
+    return () => window.clearTimeout(t);
+  }, [q, lookupTripCode]);
 
   const loadHistogram = useCallback(async () => {
     setHistogramLoading(true);
@@ -190,13 +299,16 @@ export default function AdminDriversInvoicesPage() {
                   ref={searchRef}
                   type="text"
                   className="w-full box-border pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
-                  placeholder="Search invoices..."
+                  placeholder="Search invoices or trip code..."
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
                       setPage(1);
+                      if (isTripCodeLike(q)) {
+                        void lookupTripCode(q);
+                      }
                       load();
                     }
                   }}
@@ -282,6 +394,83 @@ export default function AdminDriversInvoicesPage() {
               </button>
             ))}
           </div>
+
+          {/* Trip Code Lookup (inline; no new page/mode) */}
+          {isTripCodeLike(q) && (
+            <div className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm transition-all duration-300 hover:shadow-md hover:border-gray-300 hover:-translate-y-0.5">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-gray-800 tracking-wide">Trip code detected</div>
+                  <div className="text-xs text-gray-500 truncate">Use lookup to verify trip authenticity for reconciliation.</div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void lookupTripCode(q)}
+                  disabled={tripLookupLoading}
+                  className="px-3 py-1.5 rounded-xl border text-sm font-medium whitespace-nowrap bg-white border-gray-300 text-gray-700 shadow-sm transition-all duration-200 hover:bg-gray-50 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {tripLookupLoading ? "Looking up..." : "Lookup"}
+                </button>
+                {(tripLookupResult || tripLookupError) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTripLookupResult(null);
+                      setTripLookupError(null);
+                    }}
+                    className="px-3 py-1.5 rounded-xl border text-sm font-medium whitespace-nowrap bg-white border-gray-300 text-gray-700 shadow-sm transition-all duration-200 hover:bg-gray-50 hover:-translate-y-0.5 active:translate-y-0"
+                  >
+                    Clear
+                  </button>
+                )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {(tripLookupResult || tripLookupError) && (
+            <div className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-4 shadow-sm transition-all duration-300 hover:shadow-md hover:border-gray-300">
+              {tripLookupResult ? (
+                <div className="flex flex-col gap-1">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-gray-900 truncate font-mono">
+                        {tripLookupResult.tripCode || q}
+                      </div>
+                      <div className="text-xs text-gray-500 truncate">
+                        Trip #{tripLookupResult.id} • {new Date(tripLookupResult.scheduledAt).toLocaleString()} • {Number(tripLookupResult.amount ?? 0).toLocaleString()} {tripLookupResult.currency || "TZS"}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className={`px-2.5 py-1 text-xs font-medium rounded-full transition-colors ${badgeClasses(String(tripLookupResult.paymentStatus ?? ""))}`}>
+                        {tripLookupResult.paymentStatus || "N/A"}
+                      </span>
+                      <span className={`px-2.5 py-1 text-xs font-medium rounded-full transition-colors ${badgeClasses(String(tripLookupResult.status ?? ""))}`}>
+                        {tripLookupResult.status || "N/A"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="mt-2 grid grid-cols-1 gap-1.5">
+                    <div className="text-xs text-gray-600">
+                      <span className="font-medium text-gray-700">Pickup:</span> {tripLookupResult.pickup || "N/A"}
+                    </div>
+                    <div className="text-xs text-gray-600">
+                      <span className="font-medium text-gray-700">Dropoff:</span> {tripLookupResult.dropoff || "N/A"}
+                    </div>
+                    <div className="text-xs text-gray-600">
+                      <span className="font-medium text-gray-700">Driver:</span> {tripLookupResult.driver?.name || "Unassigned"}
+                      {tripLookupResult.driver?.phone ? ` • ${tripLookupResult.driver.phone}` : ""}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-sm text-red-600">{tripLookupError}</div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

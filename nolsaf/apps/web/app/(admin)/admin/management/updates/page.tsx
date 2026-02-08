@@ -267,41 +267,50 @@ export default function UpdatesPage() {
         </div>
       )}
 
-      <div className="flex flex-col items-center text-center mb-4">
-        <Megaphone className="h-8 w-8 text-gray-400 mb-3" />
-        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900">
-          Updates Management
-        </h1>
-        <p className="mt-1 text-sm text-gray-600">
-          Share news and events with your users
-        </p>
+      <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="absolute inset-0 bg-gradient-to-br from-[#02665e]/8 via-white to-sky-50" />
+        <div className="relative p-6 sm:p-8">
+          <div className="flex flex-col items-center text-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#02665e]/10 ring-1 ring-inset ring-[#02665e]/20">
+              <Megaphone className="h-6 w-6 text-[#02665e]" />
+            </div>
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-slate-900">
+                Updates Management
+              </h1>
+              <p className="mt-1 text-sm text-slate-600 max-w-2xl mx-auto">
+                Share news and events with your users
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <h2 className="text-lg sm:text-xl font-semibold tracking-tight text-slate-900">All Updates</h2>
+            <button
+              onClick={() => {
+                resetForm();
+                setShowForm(true);
+              }}
+              className="inline-flex items-center justify-center gap-2 h-11 px-5 rounded-2xl bg-[#02665e] text-white font-semibold shadow-sm ring-1 ring-black/[0.03] transition-[transform,box-shadow,background-color] duration-300 ease-out hover:-translate-y-[1px] hover:shadow-md hover:bg-[#02665e]/90 active:translate-y-0 focus:outline-none focus:ring-2 focus:ring-[#02665e]/30"
+            >
+              <Plus className="w-4 h-4" />
+              Create Update
+            </button>
+          </div>
+        </div>
       </div>
 
       {error && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-800">
+        <div className="p-4 bg-red-50 border border-red-200 rounded-2xl text-red-800 shadow-sm">
           {error}
         </div>
       )}
 
       {success && (
-        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800">
+        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-800 shadow-sm">
           {success}
         </div>
       )}
-
-      <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold text-gray-900">All Updates</h2>
-        <button
-          onClick={() => {
-            resetForm();
-            setShowForm(true);
-          }}
-          className="flex items-center gap-2 px-4 py-2 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Create Update
-        </button>
-      </div>
 
       {showForm && (
         <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm max-w-full overflow-hidden">

@@ -10,6 +10,7 @@ import { addPasswordToHistory } from '../lib/security.js';
 import { validatePasswordWithSettings } from '../lib/securitySettings.js';
 import { signUserJwt, setAuthCookie, clearAuthCookie } from '../lib/sessionManager.js';
 import { audit } from '../lib/audit.js';
+import { hashCode } from '../lib/otp.js';
 import { maybeAuth } from '../middleware/auth.js';
 import { limitOtpSend, limitOtpVerify, limitLoginAttempts, limitRegisterAttempts } from '../middleware/rateLimit.js';
 import { isEmailLocked, recordFailedAttempt, clearFailedAttempts, getRemainingAttempts, getLockoutStatus } from '../lib/loginAttemptTracker.js';
@@ -29,6 +30,17 @@ const resetTokenStore: Record<string, { userId: string; expiresAt: number }> = {
 
 function generateOtp() {
   return Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit
+}
+
+function maskOtp(code: string): string {
+  const s = String(code || "");
+  if (s.length <= 2) return "••••••";
+  return `••••${s.slice(-2)}`;
+}
+
+function otpEntityKey(destinationType: "PHONE" | "EMAIL", destination: string, codeHash: string): string {
+  // Encode enough to support string filtering in admin dashboards without JSON queries.
+  return `OTP:${destinationType}:${destination}:${codeHash}`;
 }
 
 function normalizePhoneForAuth(input: string): string {
@@ -76,9 +88,32 @@ router.post('/send-otp', limitOtpSend, async (req, res) => {
 
   const normalizedRole = normalizeSignupRole(role);
 
+  // If no role is provided, treat this as a LOGIN OTP request.
+  // In this flow, the phone number must already belong to an existing account.
+  if (!normalizedRole) {
+    try {
+      const existing = await prisma.user.findFirst({
+        where: { phone: normalizedPhone },
+        select: { id: true },
+      });
+      if (!existing) {
+        return res.status(404).json({
+          error: 'account_not_found',
+          message: 'No account found for this phone number. Please register first.',
+          action: 'register',
+        });
+      }
+    } catch {
+      return res.status(503).json({
+        error: 'database_unavailable',
+        message: 'Unable to send OTP right now. Please try again.',
+      });
+    }
+  }
+
   // Policy: once a phone is verified during registration, do not allow a new registration.
   // Allow OTP for RESET flow (forgot password).
-  if (normalizedRole !== 'RESET') {
+  if (normalizedRole && normalizedRole !== 'RESET') {
     try {
       const existing = await prisma.user.findFirst({
         where: { phone: normalizedPhone },
@@ -98,6 +133,10 @@ router.post('/send-otp', limitOtpSend, async (req, res) => {
 
   const otp = generateOtp();
   otpStore[normalizedPhone] = { otp, expiresAt: Date.now() + OTP_TTL_MS, role: normalizedRole || undefined };
+  const expiresAt = new Date(Date.now() + OTP_TTL_MS);
+  const codeHash = hashCode(String(otp));
+  const entity = otpEntityKey("PHONE", normalizedPhone, codeHash);
+
   // Log OTP only in development mode (not in production)
   if (process.env.NODE_ENV !== 'production') {
     console.log(`[DEV] OTP for ${normalizedPhone}${normalizedRole ? ` (role=${normalizedRole})` : ''}: ${otp}`);
@@ -107,6 +146,37 @@ router.post('/send-otp', limitOtpSend, async (req, res) => {
   const smsResult = await sendSms(normalizedPhone, smsText);
   if (process.env.NODE_ENV === 'production' && !smsResult?.success) {
     return res.status(502).json({ error: 'sms_failed', message: 'Failed to send OTP. Please try again.' });
+  }
+
+  // Audit for Management/No4P OTP tracking.
+  // Never store raw OTP codes in audit logs.
+  try {
+    let userName: string | null = null;
+    let userRole: string | null = null;
+    try {
+      const existing = await prisma.user.findFirst({
+        where: { phone: normalizedPhone },
+        select: { name: true, role: true },
+      });
+      userName = existing?.name ?? null;
+      userRole = (existing?.role as any) ?? null;
+    } catch {
+      // ignore lookup failures
+    }
+    await audit(req, "NO4P_OTP_SENT", entity, null, {
+      destinationType: "PHONE",
+      destination: normalizedPhone,
+      codeHash,
+      codeMasked: maskOtp(otp),
+      expiresAt: expiresAt.toISOString(),
+      usedFor: normalizedRole === "RESET" ? "AUTH_RESET" : normalizedRole ? "AUTH_SIGNUP" : "AUTH_LOGIN",
+      provider: smsResult?.provider ?? null,
+      userRole,
+      userName,
+      policyCompliant: true,
+    });
+  } catch {
+    // swallow
   }
 
   // In development it's useful to return the OTP; remove in production
@@ -185,12 +255,55 @@ router.post('/verify-otp', limitOtpVerify, async (req, res) => {
   }
 
   const entry = otpStore[normalizedPhone];
-  if (!entry) return res.status(400).json({ message: 'no OTP found for this phone' });
+  if (!entry) {
+    try {
+      const codeHash = hashCode(String(otp));
+      const entity = otpEntityKey("PHONE", normalizedPhone, codeHash);
+      await audit(req, "NO4P_OTP_VERIFY_FAILED", entity, null, {
+        destinationType: "PHONE",
+        destination: normalizedPhone,
+        codeHash,
+        usedFor: requestedRole === "RESET" ? "AUTH_RESET" : requestedRole ? "AUTH_SIGNUP" : "AUTH_LOGIN",
+        reason: "no_otp",
+      });
+    } catch {
+      // swallow
+    }
+    return res.status(400).json({ message: 'no OTP found for this phone' });
+  }
   if (Date.now() > entry.expiresAt) {
+    try {
+      const codeHash = hashCode(String(otp));
+      const entity = otpEntityKey("PHONE", normalizedPhone, codeHash);
+      await audit(req, "NO4P_OTP_VERIFY_FAILED", entity, null, {
+        destinationType: "PHONE",
+        destination: normalizedPhone,
+        codeHash,
+        usedFor: requestedRole === "RESET" ? "AUTH_RESET" : requestedRole ? "AUTH_SIGNUP" : "AUTH_LOGIN",
+        reason: "expired",
+      });
+    } catch {
+      // swallow
+    }
     delete otpStore[normalizedPhone];
     return res.status(400).json({ message: 'OTP expired' });
   }
-  if (entry.otp !== String(otp)) return res.status(400).json({ message: 'invalid OTP' });
+  if (entry.otp !== String(otp)) {
+    try {
+      const codeHash = hashCode(String(otp));
+      const entity = otpEntityKey("PHONE", normalizedPhone, codeHash);
+      await audit(req, "NO4P_OTP_VERIFY_FAILED", entity, null, {
+        destinationType: "PHONE",
+        destination: normalizedPhone,
+        codeHash,
+        usedFor: requestedRole === "RESET" ? "AUTH_RESET" : requestedRole ? "AUTH_SIGNUP" : "AUTH_LOGIN",
+        reason: "invalid",
+      });
+    } catch {
+      // swallow
+    }
+    return res.status(400).json({ message: 'invalid OTP' });
+  }
 
   const storedRole = normalizeSignupRole(entry.role);
   if (requestedRole && storedRole && requestedRole !== storedRole) {
@@ -201,6 +314,60 @@ router.post('/verify-otp', limitOtpVerify, async (req, res) => {
   delete otpStore[normalizedPhone];
 
   const effectiveRole = storedRole || requestedRole;
+
+  // LOGIN OTP flow: no role was provided/stored, so this must authenticate an existing account.
+  // Do NOT create users in the login flow.
+  if (!effectiveRole) {
+    try {
+      const existing = await prisma.user.findFirst({
+        where: { phone: normalizedPhone },
+        select: { id: true, role: true, email: true, phone: true },
+      });
+      if (!existing) {
+        return res.status(404).json({
+          error: 'account_not_found',
+          message: 'No account found for this phone number. Please register first.',
+          action: 'register',
+        });
+      }
+
+      // Mark phone as verified on successful login OTP.
+      try {
+        await prisma.user.update({
+          where: { id: existing.id },
+          data: { phoneVerifiedAt: new Date() },
+        });
+      } catch {
+        // ignore update failures; login can still proceed
+      }
+
+      const token = await signUserJwt({ id: existing.id, role: existing.role as any, email: existing.email });
+      await setAuthCookie(res, token, existing.role as any);
+      return res.json({
+        ok: true,
+        message: 'verified',
+        user: { id: existing.id, phone: existing.phone, role: existing.role },
+      });
+    } catch (e) {
+      console.error('verify-otp login flow failed', e);
+      return res.status(503).json({ error: 'database_unavailable', message: 'Unable to login right now.' });
+    }
+  }
+
+  try {
+    const codeHash = hashCode(String(otp));
+    const entity = otpEntityKey("PHONE", normalizedPhone, codeHash);
+    await audit(req, "NO4P_OTP_USED", entity, null, {
+      destinationType: "PHONE",
+      destination: normalizedPhone,
+      codeHash,
+      usedAt: new Date().toISOString(),
+      usedFor: effectiveRole === "RESET" ? "AUTH_RESET" : "AUTH_SIGNUP",
+      policyCompliant: true,
+    });
+  } catch {
+    // swallow
+  }
 
   // If this OTP was requested for reset flow, issue a reset token and return it
   if (effectiveRole === 'RESET') {

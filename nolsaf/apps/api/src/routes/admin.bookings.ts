@@ -49,10 +49,11 @@ async function idempotentConfirmAndCode(tx: typeof prisma, bookingId: number) {
 
 /**
  * GET /admin/bookings
- * Query: date=YYYY-MM-DD&status=&propertyId=&ownerId=&userId=&q=&page=&pageSize=
+ * Query: date=YYYY-MM-DD OR start=YYYY-MM-DD&end=YYYY-MM-DD
+ *        &status=&propertyId=&ownerId=&userId=&q=&page=&pageSize=
  */
 router.get("/", async (req, res) => {
-  const { date, status, propertyId, ownerId, userId, q, page = "1", pageSize = "30" } = req.query as any;
+  const { date, start, end, status, propertyId, ownerId, userId, q, page = "1", pageSize = "30" } = req.query as any;
 
   const where: any = {};
   if (status) {
@@ -67,13 +68,27 @@ router.get("/", async (req, res) => {
   if (ownerId) where.property = { is: { ownerId: Number(ownerId) } };
   if (userId) where.userId = Number(userId);
 
+  // Date filtering
+  // - date=YYYY-MM-DD filters to bookings overlapping that day
+  // - start/end filters to bookings overlapping the inclusive range
   if (date) {
     const d = new Date(String(date));
-    const next = new Date(d); next.setDate(d.getDate() + 1);
-    where.AND = [
-      { checkIn: { lt: next } },
-      { checkOut: { gt: d } },
-    ];
+    if (Number.isNaN(d.getTime())) {
+      return res.status(400).json({ error: "Invalid date" });
+    }
+    const next = new Date(d);
+    next.setDate(d.getDate() + 1);
+    where.AND = [{ checkIn: { lt: next } }, { checkOut: { gt: d } }];
+  } else if (start || end) {
+    const s = start ? new Date(String(start) + "T00:00:00.000Z") : new Date(0);
+    const e = end ? new Date(String(end) + "T00:00:00.000Z") : new Date();
+    if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime())) {
+      return res.status(400).json({ error: "Invalid start/end" });
+    }
+    // inclusive end-day: checkIn < (end + 1 day)
+    const endExclusive = new Date(e);
+    endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
+    where.AND = [{ checkIn: { lt: endExclusive } }, { checkOut: { gt: s } }];
   }
 
   // MySQL doesn't support `mode: "insensitive"`; default collations are typically case-insensitive.
@@ -113,6 +128,28 @@ router.get("/", async (req, res) => {
           } 
         },
         user: { select: { id: true, name: true, email: true, phone: true } },
+        invoices: {
+          select: {
+            id: true,
+            status: true,
+            total: true,
+            paidAt: true,
+            createdAt: true,
+            updatedAt: true,
+            paymentEvents: {
+              where: { status: 'SUCCESS' },
+              select: { amount: true, currency: true, status: true, createdAt: true, updatedAt: true },
+              orderBy: { createdAt: 'desc' },
+            },
+          },
+          orderBy: { id: 'desc' },
+          take: 1,
+        },
+        reviews: {
+          select: { id: true, rating: true, createdAt: true },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
         cancellationRequests: {
           select: {
             id: true,
@@ -139,6 +176,31 @@ router.get("/", async (req, res) => {
       const latestCancellation = b.cancellationRequests && b.cancellationRequests.length > 0 
         ? b.cancellationRequests[0] 
         : null;
+      const latestInvoice = Array.isArray(b.invoices) && b.invoices.length > 0 ? b.invoices[0] : null;
+      const latestReview = Array.isArray(b.reviews) && b.reviews.length > 0 ? b.reviews[0] : null;
+
+      const paymentEvents = Array.isArray(latestInvoice?.paymentEvents) ? latestInvoice.paymentEvents : [];
+      const paidTotal = paymentEvents.reduce((sum: number, ev: any) => sum + Number(ev?.amount ?? 0), 0);
+      const paidAtFromEvent =
+        paymentEvents.length > 0
+          ? paymentEvents
+              .map((ev: any) => ev?.updatedAt ?? ev?.createdAt ?? null)
+              .filter((d: any) => d)
+              .sort((a: any, b: any) => new Date(b).getTime() - new Date(a).getTime())[0] ?? null
+          : null;
+      const invoiceStatus = String(latestInvoice?.status ?? '').toUpperCase();
+      const paymentSummary = {
+        amount:
+          Number.isFinite(paidTotal) && paidTotal > 0
+            ? paidTotal
+            : invoiceStatus === 'PAID'
+              ? (latestInvoice?.total ?? null)
+              : null,
+        paidAt:
+          paidAtFromEvent ??
+          latestInvoice?.paidAt ??
+          (invoiceStatus === 'PAID' ? (latestInvoice?.updatedAt ?? latestInvoice?.createdAt ?? null) : null),
+      };
       
       return {
       id: b.id,
@@ -146,6 +208,9 @@ router.get("/", async (req, res) => {
       checkIn: b.checkIn,
       checkOut: b.checkOut,
         guestName: b.guestName ?? null,
+        guestPhone: b.guestPhone ?? null,
+        sex: b.sex ?? null,
+        nationality: b.nationality ?? null,
         roomCode: b.roomCode ?? null,
       totalAmount: b.totalAmount,
         cancelReason: latestCancellation?.reason ?? null,
@@ -159,6 +224,16 @@ router.get("/", async (req, res) => {
           usedAt: b.code.usedAt,
           usedByOwner: b.code.usedByOwner
         } : null,
+        invoice: latestInvoice
+          ? {
+              id: latestInvoice.id,
+              status: latestInvoice.status,
+              total: latestInvoice.total,
+              paidAt: latestInvoice.paidAt,
+            }
+          : null,
+        payment: paymentSummary,
+        review: latestReview,
         user: b.user,
       };
     }),

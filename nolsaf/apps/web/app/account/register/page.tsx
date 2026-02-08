@@ -252,35 +252,37 @@ export default function RegisterPage() {
   // Register Page
   const renderRegisterPage = () => {
     return (
-      <div className="w-full h-full flex flex-col bg-white relative overflow-hidden box-border">
-        <div className="h-1 bg-[#02665e]" />
-        
-        <div className="px-6 py-5 border-b border-slate-100">
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 rounded-lg bg-[#02665e]/10 flex items-center justify-center">
-              <UserPlus className="w-5 h-5 text-[#02665e]" />
-            </div>
-            <div className="flex-1">
-              <h1 className="text-xl font-bold text-slate-900">Create Account</h1>
-              <p className="text-xs text-slate-600 mt-0.5">Sign up to get started</p>
-            </div>
-            {step !== 'phone' && (
-              <div className="px-2.5 py-1 rounded-md bg-slate-100 text-xs font-medium text-slate-700">
-                {step === 'otp' ? 'Step 2' : 'Done'}
+      <div className="w-full h-full min-h-0 flex flex-col bg-white relative box-border">
+        <div className="shrink-0 bg-white">
+          <div className="h-1 bg-[#02665e]" />
+          
+          <div className="px-6 py-4 border-b border-slate-100">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-lg bg-[#02665e]/10 flex items-center justify-center">
+                <UserPlus className="w-5 h-5 text-[#02665e]" />
               </div>
-            )}
+              <div className="flex-1">
+                <h1 className="text-xl font-bold text-slate-900">Create Account</h1>
+                <p className="text-xs text-slate-600 mt-0.5">Sign up to get started</p>
+              </div>
+              {step !== 'phone' && (
+                <div className="px-2.5 py-1 rounded-md bg-slate-100 text-xs font-medium text-slate-700">
+                  {step === 'otp' ? 'Step 2' : 'Done'}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="px-6 py-2.5 bg-slate-50/50">
+            <div className="h-1 bg-slate-200 rounded-full overflow-hidden">
+              <div 
+                className={`h-full bg-[#02665e] rounded-full transition-all duration-500 ${step === 'phone' ? 'w-1/3' : step === 'otp' ? 'w-2/3' : 'w-full'}`} 
+              />
+            </div>
           </div>
         </div>
 
-        <div className="px-6 py-3 bg-slate-50/50">
-          <div className="h-1 bg-slate-200 rounded-full overflow-hidden">
-            <div 
-              className={`h-full bg-[#02665e] rounded-full transition-all duration-500 ${step === 'phone' ? 'w-1/3' : step === 'otp' ? 'w-2/3' : 'w-full'}`} 
-            />
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-6 py-5">
+        <div className="flex-1 min-h-0 overflow-auto px-6 py-4">
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2.5 text-sm text-red-800">
               <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
@@ -295,7 +297,7 @@ export default function RegisterPage() {
             </div>
           )}
 
-          <div className={`space-y-4 transition-opacity duration-300 ${visible ? 'opacity-100' : 'opacity-0'}`}>
+          <div className={`space-y-3 transition-opacity duration-300 ${visible ? 'opacity-100' : 'opacity-0'}`}>
             {step === 'phone' && (
               <>
                 <div className="space-y-2.5 min-w-0">
@@ -381,7 +383,7 @@ export default function RegisterPage() {
                 <button
                   onClick={sendOtp}
                   disabled={loading}
-                  className="w-full mt-6 px-4 py-2.5 bg-[#02665e] text-white text-sm font-medium rounded-lg hover:bg-[#014e47] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="w-full mt-5 px-4 py-2.5 bg-[#02665e] text-white text-sm font-medium rounded-lg hover:bg-[#014e47] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {loading ? (
                     <>
@@ -394,15 +396,6 @@ export default function RegisterPage() {
                   ) : (
                     'Send OTP'
                   )}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setAuthMode('login')}
-                  className="w-full text-sm text-slate-600 hover:text-slate-900 py-2 flex items-center justify-center gap-2 transition-colors"
-                >
-                  <span>Already have an account?</span>
-                  <LogIn className="w-4 h-4" />
                 </button>
               </>
             )}
@@ -486,6 +479,20 @@ export default function RegisterPage() {
             )}
           </div>
         </div>
+
+        <div className="shrink-0 px-6 py-3 border-t border-slate-100 bg-white">
+          <div className="flex items-center justify-center gap-2 text-xs sm:text-sm text-slate-600">
+            <span className="whitespace-nowrap">Already have an account?</span>
+            <button
+              type="button"
+              onClick={() => setAuthMode('login')}
+              className="whitespace-nowrap font-semibold text-[#02665e] hover:text-[#014e47] hover:underline transition-colors inline-flex items-center gap-1"
+            >
+              <span>Sign in</span>
+              <LogIn className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
       </div>
     );
   };
@@ -493,65 +500,59 @@ export default function RegisterPage() {
   // Login Page
   const renderLoginPage = () => {
     return (
-      <div className="w-full h-full flex flex-col bg-white relative overflow-hidden box-border">
+      <div className="w-full h-full min-h-0 flex flex-col bg-white relative box-border">
         {/* subtle background decoration */}
         <div className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full bg-[#02665e]/10 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-32 -left-32 h-80 w-80 rounded-full bg-slate-900/5 blur-3xl" />
-        <div className="h-1 bg-[#02665e]" />
-        
-        <div className="px-6 py-5 border-b border-slate-100">
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 rounded-lg bg-[#02665e]/10 flex items-center justify-center">
-              <LogIn className="w-5 h-5 text-[#02665e]" />
-            </div>
-            <div className="flex-1">
-              <h1 className="text-xl font-bold text-slate-900">Sign In</h1>
-              <p className="text-xs text-slate-600 mt-0.5">Hello again — choose Phone or Email to continue.</p>
-            </div>
-            {loginSent && (
-              <div className="px-2.5 py-1 rounded-md bg-slate-100 text-xs font-medium text-slate-700">
-                Enter OTP
+        <div className="shrink-0 bg-white">
+          <div className="h-1 bg-[#02665e]" />
+          
+          <div className="px-6 py-5 border-b border-slate-100">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-lg bg-[#02665e]/10 flex items-center justify-center">
+                <LogIn className="w-5 h-5 text-[#02665e]" />
               </div>
-            )}
+              <div className="flex-1">
+                <h1 className="text-xl font-bold text-slate-900">Sign In</h1>
+              </div>
+              {loginSent && (
+                <div className="px-2.5 py-1 rounded-md bg-slate-100 text-xs font-medium text-slate-700">
+                  Enter OTP
+                </div>
+              )}
+            </div>
+
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 text-emerald-800 px-2.5 py-1 text-[11px] font-semibold border border-emerald-100">
+                <Shield className="h-3.5 w-3.5" />
+                <span>Secure sign-in</span>
+              </div>
+              {!!roleParam && (
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 text-slate-700 px-2.5 py-1 text-[11px] font-semibold border border-slate-200">
+                  {roleParam === 'driver' ? (
+                    <Truck className="h-3.5 w-3.5" />
+                  ) : roleParam === 'owner' ? (
+                    <Building2 className="h-3.5 w-3.5" />
+                  ) : (
+                    <User className="h-3.5 w-3.5" />
+                  )}
+                  <span className="capitalize">{roleParam}</span>
+                </div>
+              )}
+              <div className="text-[11px] text-slate-500">We never share your details.</div>
+            </div>
           </div>
 
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 text-emerald-800 px-2.5 py-1 text-[11px] font-semibold border border-emerald-100">
-              <Shield className="h-3.5 w-3.5" />
-              <span>Secure sign-in</span>
+          <div className="px-6 py-3 bg-slate-50/50">
+            <div className="h-1 bg-slate-200 rounded-full overflow-hidden">
+              <div 
+                className={`h-full bg-[#02665e] rounded-full transition-all duration-500 ${loginSent ? 'w-2/3' : 'w-1/3'}`} 
+              />
             </div>
-            {!!roleParam && (
-              <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 text-slate-700 px-2.5 py-1 text-[11px] font-semibold border border-slate-200">
-                {roleParam === 'driver' ? (
-                  <Truck className="h-3.5 w-3.5" />
-                ) : roleParam === 'owner' ? (
-                  <Building2 className="h-3.5 w-3.5" />
-                ) : (
-                  <User className="h-3.5 w-3.5" />
-                )}
-                <span className="capitalize">{roleParam}</span>
-              </div>
-            )}
-            <div className="text-[11px] text-slate-500">We never share your details.</div>
           </div>
         </div>
 
-        <div className="px-6 py-3 bg-slate-50/50">
-          <div className="h-1 bg-slate-200 rounded-full overflow-hidden">
-            <div 
-              className={`h-full bg-[#02665e] rounded-full transition-all duration-500 ${loginSent ? 'w-2/3' : 'w-1/3'}`} 
-            />
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-6 py-5 min-w-0">
-          <div className="mb-4 rounded-xl border border-slate-200 bg-white/70 backdrop-blur-sm p-3">
-            <div className="text-sm font-semibold text-slate-900">Welcome back</div>
-            <div className="mt-1 text-xs text-slate-600 leading-relaxed">
-              Sign in to access your dashboard, bookings, and account settings. Use Phone for a one-time code, or Email for password sign-in.
-            </div>
-          </div>
-
+        <div className="flex-1 min-h-0 overflow-auto px-6 py-5 min-w-0">
           {isLockedOut && (
             <div className="mb-4 rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 to-white p-4">
               <div className="flex items-start gap-3">
@@ -788,15 +789,6 @@ export default function RegisterPage() {
                   <Lock className="w-3.5 h-3.5 flex-shrink-0" />
                   <span>Forgot password?</span>
                 </button>
-
-                <button
-                  type="button"
-                  onClick={() => setAuthMode('register')}
-                  className="w-full text-sm text-slate-600 hover:text-slate-900 py-2 flex items-center justify-center gap-2 transition-colors"
-                >
-                  <span>Don&apos;t have an account?</span>
-                  <UserPlus className="w-4 h-4" />
-                </button>
               </>
             ) : (
               <>
@@ -847,6 +839,20 @@ export default function RegisterPage() {
                 </div>
               </>
             )}
+          </div>
+        </div>
+
+        <div className="shrink-0 px-6 py-4 border-t border-slate-100 bg-white">
+          <div className="flex items-center justify-center gap-2 text-xs sm:text-sm text-slate-600">
+            <span className="whitespace-nowrap">Don&apos;t have an account?</span>
+            <button
+              type="button"
+              onClick={() => setAuthMode('register')}
+              className="whitespace-nowrap font-semibold text-[#02665e] hover:text-[#014e47] hover:underline transition-colors inline-flex items-center gap-1"
+            >
+              <span>Register</span>
+              <UserPlus className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
       </div>
@@ -981,35 +987,37 @@ export default function RegisterPage() {
   // Forgot Password Page
   const renderForgotPasswordPage = () => {
     return (
-      <div className="w-full flex flex-col bg-white relative overflow-hidden box-border">
-        <div className="h-1 bg-[#02665e]" />
-        
-        <div className="px-6 py-4 border-b border-slate-100">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => {
-                setAuthMode('login');
-                setForgotStep('input');
-                setForgotMethod('email');
-                setForgotEmail('');
-                setForgotPhone('');
-                setForgotOtp('');
-                setForgotSent(false);
-              }}
-              className="w-10 h-10 rounded-lg border border-slate-300 flex items-center justify-center hover:bg-slate-50 transition-colors flex-shrink-0"
-            >
-              <ArrowLeft className="w-5 h-5 text-slate-600" />
-            </button>
-            <div className="flex-1 min-w-0">
-              <h1 className="text-xl font-bold text-slate-900">Reset Password</h1>
-              <p className="text-xs text-slate-600 mt-0.5">
-                {forgotMethod === 'email' ? 'Enter your email to reset' : 'Enter your phone to reset'}
-              </p>
+      <div className="w-full h-full min-h-0 flex flex-col bg-white relative box-border">
+        <div className="shrink-0 bg-white">
+          <div className="h-1 bg-[#02665e]" />
+          
+          <div className="px-6 py-4 border-b border-slate-100">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => {
+                  setAuthMode('login');
+                  setForgotStep('input');
+                  setForgotMethod('email');
+                  setForgotEmail('');
+                  setForgotPhone('');
+                  setForgotOtp('');
+                  setForgotSent(false);
+                }}
+                className="w-10 h-10 rounded-lg border border-slate-300 flex items-center justify-center hover:bg-slate-50 transition-colors flex-shrink-0"
+              >
+                <ArrowLeft className="w-5 h-5 text-slate-600" />
+              </button>
+              <div className="flex-1 min-w-0">
+                <h1 className="text-xl font-bold text-slate-900">Reset Password</h1>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  {forgotMethod === 'email' ? 'Enter your email to reset' : 'Enter your phone to reset'}
+                </p>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="px-6 py-4 min-w-0">
+        <div className="flex-1 min-h-0 overflow-auto px-6 py-4 min-w-0">
           {error && (
             <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2.5 text-sm text-red-800">
               <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />

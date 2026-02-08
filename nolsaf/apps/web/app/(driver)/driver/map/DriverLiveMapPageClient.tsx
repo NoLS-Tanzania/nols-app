@@ -36,6 +36,7 @@ export default function DriverLiveMapPage() {
   const search = useSearchParams();
   const router = useRouter();
   const liveOnly = search?.get('live') === '1';
+  const tripIdParam = search?.get('tripId');
 
   const [mapTheme, setMapTheme] = useState<"light" | "dark">("light");
   const [mapLayer, setMapLayer] = useState<"navigation" | "streets" | "outdoors" | "satellite">("navigation");
@@ -66,6 +67,7 @@ export default function DriverLiveMapPage() {
   const [hasClearLocationInfo, setHasClearLocationInfo] = useState(false);
   const [isAtDestination, setIsAtDestination] = useState(false);
   const requestAlertedRef = useRef<string | null>(null);
+  const preloadedTripIdRef = useRef<string | null>(null);
   
   // Loading and error states
   const [isAccepting, setIsAccepting] = useState(false);
@@ -100,6 +102,72 @@ export default function DriverLiveMapPage() {
   
   // Connection status
   const { status: connectionStatus, isOnline } = useConnectionStatus();
+
+  // If this page is opened from the Trips table (admin-assigned), preload the trip into the map flow.
+  useEffect(() => {
+    if (!tripIdParam) return;
+    if (liveOnly) return;
+    if (preloadedTripIdRef.current === tripIdParam) return;
+
+    preloadedTripIdRef.current = tripIdParam;
+    let cancelled = false;
+
+    ;(async () => {
+      try {
+        const resp = await axios.get(`/api/driver/trips/${encodeURIComponent(String(tripIdParam))}`, {
+          withCredentials: true,
+        });
+        const t = resp?.data ?? {};
+
+        const status = String(t?.status ?? "").toUpperCase();
+        const stage: TripStage = status.includes("COMPLETED")
+          ? "completed"
+          : status.includes("IN_PROGRESS")
+            ? "in_transit"
+            : "accepted";
+
+        const currency = String(t?.currency ?? "TZS").toUpperCase();
+        const amountNum = typeof t?.amount === "number" ? t.amount : Number(t?.amount);
+        const fare = Number.isFinite(amountNum)
+          ? `${currency} ${amountNum.toLocaleString(undefined, { maximumFractionDigits: currency === "TZS" ? 0 : 2 })}`
+          : undefined;
+
+        const nextActiveTrip = {
+          id: t?.id ?? tripIdParam,
+          status: stage,
+          passengerUserId: t?.passengerUserId ?? null,
+          passengerName: t?.passengerName ?? "Passenger",
+          passengerRating: 5.0,
+          passengerPhoto: null,
+          pickupAddress: t?.pickupAddress ?? t?.pickup ?? t?.pickupLocation ?? null,
+          dropoffAddress: t?.dropoffAddress ?? t?.dropoff ?? null,
+          fare,
+          phoneNumber: t?.phoneNumber ?? null,
+          pickupLat: t?.pickupLat ?? null,
+          pickupLng: t?.pickupLng ?? null,
+          dropoffLat: t?.dropoffLat ?? null,
+          dropoffLng: t?.dropoffLng ?? null,
+        };
+
+        if (cancelled) return;
+        setTripRequest(null);
+        setActiveTrip(nextActiveTrip);
+        setTripStage(stage);
+        setHasClearLocationInfo(false);
+        setBottomSheetCollapsed(true);
+        setOverlayVisible(true);
+        setShowLiveOverlay(false);
+      } catch (e) {
+        if (!cancelled) {
+          error("Failed to Load Trip", "Could not open this trip on the map. Please try again.");
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [tripIdParam, liveOnly, error]);
   
   // Location monitoring refs
   const pickupMonitorRef = useRef<LocationMonitor | null>(null);
@@ -300,27 +368,38 @@ export default function DriverLiveMapPage() {
 
     setIsAccepting(true);
     try {
-      // Get pickup coordinates from trip request
-      if (!tripRequest?.pickupLat || !tripRequest?.pickupLng) {
-        error("Invalid Trip", "Trip request missing location data.");
-        setIsAccepting(false);
-        return;
-      }
-      const pickupLat = tripRequest.pickupLat;
-      const pickupLng = tripRequest.pickupLng;
-      const dropoffLat = tripRequest.dropoffLat;
-      const dropoffLng = tripRequest.dropoffLng;
+      // Coordinates may be missing on the initial offer payload.
+      // The backend returns the authoritative coordinates after accept.
+      const pickupLat = tripRequest?.pickupLat;
+      const pickupLng = tripRequest?.pickupLng;
+      const dropoffLat = tripRequest?.dropoffLat;
+      const dropoffLng = tripRequest?.dropoffLng;
       
       // Call API to accept the trip
       let apiTrip: any | null = null;
       try {
         const resp = await axios.post(
           `/api/driver/trips/${encodeURIComponent(tripId)}/accept`,
-          { pickupLat, pickupLng, dropoffLat, dropoffLng },
+          // Body is optional; keep sending coords when present.
+          {
+            ...(pickupLat != null && pickupLng != null ? { pickupLat, pickupLng } : {}),
+            ...(dropoffLat != null && dropoffLng != null ? { dropoffLat, dropoffLng } : {}),
+          },
           { withCredentials: true }
         );
         apiTrip = resp?.data?.trip ?? null;
-      } catch (e) {
+      } catch (e: any) {
+        const status = e?.response?.status;
+        const code = e?.response?.data?.error;
+        if (status === 409 && code === "admin_takeover") {
+          warning("Too late", "This trip has been escalated to admin for manual assignment.");
+          setTripRequest(null);
+          setTripStage('waiting');
+          setBottomSheetCollapsed(false);
+          setIsAccepting(false);
+          return;
+        }
+
         console.error("Failed to accept trip:", e);
         error("Failed to Accept Trip", "Please try again or check your connection.");
         setIsAccepting(false);
@@ -328,6 +407,11 @@ export default function DriverLiveMapPage() {
       }
 
       // Promote request into activeTrip so the communication card shows
+      const nextPickupLat = apiTrip?.pickupLat ?? pickupLat ?? null;
+      const nextPickupLng = apiTrip?.pickupLng ?? pickupLng ?? null;
+      const nextDropoffLat = apiTrip?.dropoffLat ?? dropoffLat ?? null;
+      const nextDropoffLng = apiTrip?.dropoffLng ?? dropoffLng ?? null;
+
       setActiveTrip({
         id: apiTrip?.id ?? tripId,
         status: apiTrip?.status ?? 'accepted',
@@ -339,10 +423,10 @@ export default function DriverLiveMapPage() {
         dropoffAddress: apiTrip?.dropoffAddress ?? tripRequest.dropoffAddress,
         fare: apiTrip?.fare ?? tripRequest.fare,
         phoneNumber: apiTrip?.phoneNumber ?? tripRequest.phoneNumber,
-        pickupLat: apiTrip?.pickupLat ?? pickupLat,
-        pickupLng: apiTrip?.pickupLng ?? pickupLng,
-        dropoffLat: apiTrip?.dropoffLat ?? dropoffLat,
-        dropoffLng: apiTrip?.dropoffLng ?? dropoffLng,
+        pickupLat: nextPickupLat,
+        pickupLng: nextPickupLng,
+        dropoffLat: nextDropoffLat,
+        dropoffLng: nextDropoffLng,
       });
       setTripRequest(null);
       setTripStage('accepted');
@@ -351,7 +435,9 @@ export default function DriverLiveMapPage() {
       setOverlayVisible(true);
       
       // Start ETA calculation
-      startETAUpdates(pickupLat, pickupLng, 'pickup');
+      if (typeof nextPickupLat === "number" && typeof nextPickupLng === "number") {
+        startETAUpdates(nextPickupLat, nextPickupLng, 'pickup');
+      }
       
       success("Trip Accepted", "Navigate to pickup location");
     } catch (err: any) {

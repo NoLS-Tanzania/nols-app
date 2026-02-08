@@ -13,6 +13,9 @@ type Owner = {
   region?: string | null;
   district?: string | null;
   status?: 'active' | 'suspended' | 'pending' | 'closed' | string;
+  suspendedAt?: string | null;
+  kycStatus?: string | null;
+  _count?: { properties?: number };
 };
 
 type PayoutPreview = {
@@ -24,6 +27,55 @@ type PayoutPreview = {
 };
 
 const api = axios.create({ baseURL: "", withCredentials: true });
+
+function computeOwnerStatus(input: {
+  status?: string | null;
+  suspendedAt?: string | null;
+  kycStatus?: string | null;
+}) {
+  if (input.status && String(input.status).trim()) return String(input.status);
+  if (input.suspendedAt) return "SUSPENDED";
+  if (input.kycStatus) return String(input.kycStatus);
+  return "ACTIVE";
+}
+
+function formatStatusLabel(status: string | null | undefined) {
+  if (!status) return "—";
+  const raw = String(status);
+  if (!raw.trim()) return "—";
+  // ACTIVE, PENDING_KYC -> Pending Kyc
+  const words = raw
+    .toLowerCase()
+    .split(/[_\s]+/g)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1));
+  return words.join(" ");
+}
+
+function normalizeOwner(raw: any): Owner {
+  const propertiesCount =
+    raw?.propertiesCount ??
+    raw?._count?.properties ??
+    raw?._propertyCount ??
+    raw?._count?.properties ??
+    0;
+
+  const suspendedAt = raw?.suspendedAt ?? null;
+  const kycStatus = raw?.kycStatus ?? null;
+
+  return {
+    id: Number(raw?.id),
+    name: raw?.name ?? "—",
+    email: raw?.email ?? "—",
+    propertiesCount: Number(propertiesCount) || 0,
+    region: raw?.region ?? null,
+    district: raw?.district ?? null,
+    suspendedAt,
+    kycStatus,
+    _count: raw?._count,
+    status: computeOwnerStatus({ status: raw?.status ?? null, suspendedAt, kycStatus }),
+  };
+}
 
 export default function OwnersPage() {
   const [owners, setOwners] = useState<Owner[] | null>(null);
@@ -52,13 +104,15 @@ export default function OwnersPage() {
         const contentType = res.headers.get("content-type");
         if (contentType && contentType.includes("application/json")) {
           const json = await res.json();
-          if (mounted) setOwners(json.items ?? json);
+          const list = Array.isArray(json?.items) ? json.items : (Array.isArray(json) ? json : []);
+          if (mounted) setOwners(list.map(normalizeOwner));
         } else {
           throw new Error("Invalid response format");
         }
       } catch (err: any) {
         if (mounted) {
           console.error('Failed to load owners', err);
+          setError(err?.message ?? "Failed to load owners");
         }
       } finally {
         if (mounted) setLoading(false);
@@ -89,7 +143,13 @@ export default function OwnersPage() {
       if (res.data) {
         // Handle both direct owner object and nested owner structure
         const ownerData = res.data.owner || res.data;
-        setSelected({ ...selected, ...ownerData });
+        const normalized = normalizeOwner({ ...selected, ...ownerData });
+        // Keep region/district from the list if detail endpoint doesn't provide it
+        setSelected({
+          ...normalized,
+          region: normalized.region ?? selected.region ?? null,
+          district: normalized.district ?? selected.district ?? null,
+        });
         setSuccessMessage("Owner data refreshed successfully");
         setTimeout(() => setSuccessMessage(null), 3000);
       }
@@ -154,8 +214,14 @@ export default function OwnersPage() {
     if (statusLower.includes('active')) {
       return `${baseClasses} bg-green-50 text-green-700 border border-green-200`;
     }
+    if (statusLower.includes('approved')) {
+      return `${baseClasses} bg-emerald-50 text-emerald-700 border border-emerald-200`;
+    }
     if (statusLower.includes('pending') || statusLower.includes('new')) {
       return `${baseClasses} bg-yellow-50 text-yellow-700 border border-yellow-200`;
+    }
+    if (statusLower.includes('reject')) {
+      return `${baseClasses} bg-rose-50 text-rose-700 border border-rose-200`;
     }
     if (statusLower.includes('suspend') || statusLower.includes('close') || statusLower.includes('cancel')) {
       return `${baseClasses} bg-red-50 text-red-700 border border-red-200`;
@@ -188,10 +254,10 @@ export default function OwnersPage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50/70">
               <tr>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Name</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Email</th>
@@ -204,23 +270,20 @@ export default function OwnersPage() {
             </thead>
             <tbody className="bg-white divide-y divide-gray-100">
               {loading ? (
-                <tr>
+                <TableRow hover={false}>
                   <td colSpan={7} className="px-6 py-12 text-center text-sm text-gray-500">
                     Loading…
                   </td>
-                </tr>
+                </TableRow>
               ) : rows.length === 0 ? (
-                <tr>
+                <TableRow hover={false}>
                   <td colSpan={7} className="px-6 py-12 text-center text-sm text-gray-500">
                     No owners found
                   </td>
-                </tr>
+                </TableRow>
               ) : (
                 rows.map((o) => (
-                  <tr 
-                    key={o.id}
-                    className="hover:bg-gray-50 transition-colors duration-200"
-                  >
+                  <TableRow key={o.id} className="align-middle">
                     <td className="px-6 py-4 text-sm text-gray-900 font-medium">
                       {o.name}
                     </td>
@@ -238,21 +301,30 @@ export default function OwnersPage() {
                     </td>
                     <td className="px-6 py-4 text-sm">
                       <span className={getStatusBadgeClass(o.status ?? '')}>
-                        {o.status ?? '—'}
+                        {formatStatusLabel(o.status)}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm">
                       <div className="flex justify-center">
-                        <button
-                          onClick={() => openOwner(o)}
-                          className="inline-flex items-center justify-center p-2 text-gray-600 hover:text-[#02665e] hover:bg-gray-100 rounded-lg transition-all duration-200 ease-in-out hover:scale-110 active:scale-95"
-                          title="View Owner Details"
-                        >
-                          <Eye className="h-5 w-5" />
-                        </button>
+                        <div className="inline-flex items-center gap-2">
+                          <button
+                            onClick={() => openOwner(o)}
+                            className="inline-flex items-center justify-center p-2 text-gray-600 hover:text-[#02665e] hover:bg-gray-100 rounded-xl transition-all duration-200 ease-in-out hover:scale-110 active:scale-95"
+                            title="Quick view"
+                          >
+                            <Eye className="h-5 w-5" />
+                          </button>
+                          <Link
+                            href={`/admin/owners/${o.id}`}
+                            className="inline-flex items-center justify-center p-2 text-gray-600 hover:text-[#02665e] hover:bg-gray-100 rounded-xl transition-all duration-200 ease-in-out hover:scale-110 active:scale-95"
+                            title="Open full owner page"
+                          >
+                            <ExternalLink className="h-5 w-5" />
+                          </Link>
+                        </div>
                       </div>
                     </td>
-                  </tr>
+                  </TableRow>
                 ))
               )}
             </tbody>
@@ -316,7 +388,7 @@ export default function OwnersPage() {
                     <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">Status</label>
                     <div>
                       <span className={getStatusBadgeClass(selected.status ?? '')}>
-                        {selected.status ?? '—'}
+                        {formatStatusLabel(selected.status)}
                       </span>
                     </div>
                   </div>

@@ -7,6 +7,7 @@ import { sanitizeText } from "../lib/sanitize.js";
 import { limitTransportBooking } from "../middleware/rateLimit.js";
 import { audit } from "../lib/audit.js";
 import { calculateETA, validateCoordinates } from "../lib/mapbox.js";
+import { generateTransportTripCode } from "../lib/tripCode.js";
 
 export const router = Router();
 
@@ -120,36 +121,55 @@ router.post("/", limitTransportBooking, async (req: Request, res: Response) => {
       // Don't fail the booking if ETA calculation fails
     }
 
-    // Create transport booking
-    const booking = await prisma.transportBooking.create({
-      data: {
-        userId: userId || 0, // Temporary: will need to create guest user or handle differently
-        propertyId: data.propertyId || null,
-        status: "PENDING_ASSIGNMENT",
-        vehicleType: data.vehicleType,
-        scheduledDate: new Date(data.scheduledDate),
-        fromLatitude: data.fromLatitude,
-        fromLongitude: data.fromLongitude,
-        fromAddress: sanitizeText(data.fromAddress),
-        toLatitude: data.toLatitude,
-        toLongitude: data.toLongitude,
-        toAddress: sanitizeText(data.toAddress),
-        amount: data.amount,
-        currency: "TZS",
-        arrivalType: data.arrivalType || null,
-        arrivalNumber: data.arrivalNumber || null,
-        transportCompany: data.transportCompany || null,
-        arrivalTime: data.arrivalTime ? new Date(data.arrivalTime) : null,
-        pickupLocation: data.pickupLocation ? sanitizeText(data.pickupLocation) : null,
-        numberOfPassengers: data.numberOfPassengers || 1,
-        notes: data.notes ? sanitizeText(data.notes) : null,
-        paymentStatus: "PENDING",
-      },
-      include: {
-        user: { select: { id: true, name: true, email: true, phone: true } },
-        property: { select: { id: true, title: true } },
-      },
-    });
+    // Create transport booking (generate strong tripCode for reconciliation/invoicing)
+    let booking: any = null;
+
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const { tripCode, tripCodeHash } = generateTransportTripCode();
+
+      try {
+        booking = await prisma.transportBooking.create({
+          data: {
+            userId: userId || 0, // Temporary: will need to create guest user or handle differently
+            propertyId: data.propertyId || null,
+            status: "PENDING_ASSIGNMENT",
+            vehicleType: data.vehicleType,
+            scheduledDate: new Date(data.scheduledDate),
+            fromLatitude: data.fromLatitude,
+            fromLongitude: data.fromLongitude,
+            fromAddress: sanitizeText(data.fromAddress),
+            toLatitude: data.toLatitude,
+            toLongitude: data.toLongitude,
+            toAddress: sanitizeText(data.toAddress),
+            amount: data.amount,
+            currency: "TZS",
+            arrivalType: data.arrivalType || null,
+            arrivalNumber: data.arrivalNumber || null,
+            transportCompany: data.transportCompany || null,
+            arrivalTime: data.arrivalTime ? new Date(data.arrivalTime) : null,
+            pickupLocation: data.pickupLocation ? sanitizeText(data.pickupLocation) : null,
+            numberOfPassengers: data.numberOfPassengers || 1,
+            notes: data.notes ? sanitizeText(data.notes) : null,
+            paymentStatus: "PENDING",
+            tripCode,
+            tripCodeHash,
+          },
+          include: {
+            user: { select: { id: true, name: true, email: true, phone: true } },
+            property: { select: { id: true, title: true } },
+          },
+        });
+        break;
+      } catch (e: any) {
+        const isUnique = e?.code === "P2002" || String(e?.message ?? "").includes("Unique constraint");
+        if (isUnique && attempt < 4) continue;
+        throw e;
+      }
+    }
+
+    if (!booking) {
+      throw new Error("Failed to create transport booking (trip code generation)");
+    }
 
     // Audit log for transport booking creation
     try {
@@ -168,23 +188,8 @@ router.post("/", limitTransportBooking, async (req: Request, res: Response) => {
       // Don't fail the request if audit logging fails
     }
 
-    // Emit real-time event for available drivers
-    try {
-      const io = (req.app && (req.app as any).get && (req.app as any).get("io")) || (global as any).io;
-      if (io && typeof io.to === "function") {
-        // Notify all available drivers about new trip
-        io.to("drivers:available").emit("transport:booking:created", {
-          bookingId: booking.id,
-          vehicleType: booking.vehicleType,
-          scheduledDate: booking.scheduledDate,
-          fromAddress: booking.fromAddress,
-          toAddress: booking.toAddress,
-          amount: booking.amount,
-        });
-      }
-    } catch (socketError) {
-      console.warn("Failed to emit socket event:", socketError);
-    }
+    // NOTE: do not broadcast transport offers here.
+    // The transport auto-dispatch worker issues targeted offers (top drivers) based on live locations.
 
     res.status(201).json({
       id: booking.id,
@@ -200,7 +205,7 @@ router.post("/", limitTransportBooking, async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Invalid request", details: error.errors });
+      return res.status(400).json({ error: "Invalid request", details: error.issues });
     }
     console.error("POST /transport-bookings error:", error);
     return res.status(500).json({ error: "Failed to create transport booking" });

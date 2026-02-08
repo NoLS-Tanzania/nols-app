@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/PolicyLink";
 import { TermsSection } from "./Terms";
 
 export const VERIFICATION_LAST_UPDATED = "2025-01-15";

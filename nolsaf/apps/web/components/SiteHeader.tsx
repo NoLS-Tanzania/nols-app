@@ -132,9 +132,7 @@ export default function SiteHeader({
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
-  const [no4pSecurityDropdownOpen, setNo4pSecurityDropdownOpen] = useState(false);
   const profileDropdownRef = useRef<HTMLDivElement>(null);
-  const no4pSecurityDropdownRef = useRef<HTMLDivElement>(null);
 
   const handleTouch = (id: string) => {
     setTouchedIcon(id);
@@ -203,10 +201,7 @@ export default function SiteHeader({
       if (profileDropdownRef.current && !profileDropdownRef.current.contains(target as Node)) {
         setProfileDropdownOpen(false);
       }
-      // Close No4P Security dropdown when clicking outside
-      if (no4pSecurityDropdownRef.current && !no4pSecurityDropdownRef.current.contains(target as Node)) {
-        setNo4pSecurityDropdownOpen(false);
-      }
+      
     };
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
@@ -434,7 +429,7 @@ export default function SiteHeader({
               </Link>
 
               <Link 
-                href="/admin/settings" 
+                href="/admin/management/settings" 
                 className="group relative inline-flex items-center justify-center h-10 w-10 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/10 hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-out" 
                 aria-label="Settings" 
                 title="Settings"
@@ -514,7 +509,7 @@ export default function SiteHeader({
                       </Link>
 
                       <Link
-                        href="/admin/settings"
+                        href="/admin/management/settings"
                         onClick={() => setProfileDropdownOpen(false)}
                         className="group flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-[#02665e]/10 hover:text-[#02665e] transition-all duration-200 no-underline"
                       >
@@ -541,69 +536,6 @@ export default function SiteHeader({
                 )}
               </div>
 
-              <div className="mx-1 h-6 w-px bg-white/15" />
-
-              {/* No4P Security Dropdown */}
-              <div ref={no4pSecurityDropdownRef} className="relative">
-                <button
-                  onClick={() => setNo4pSecurityDropdownOpen(!no4pSecurityDropdownOpen)}
-                  className="group inline-flex items-center justify-center gap-2 h-10 px-3 rounded-xl bg-transparent border-0 hover:bg-white/10 hover:backdrop-blur-sm hover:border hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-out"
-                  aria-label="No4P Security"
-                  aria-expanded={no4pSecurityDropdownOpen}
-                >
-                  <Shield className="h-5 w-5 text-white opacity-90 group-hover:opacity-100 transition-opacity duration-300 ease-out" />
-                  <span className="text-sm font-medium text-white opacity-90 group-hover:opacity-100 transition-opacity duration-300 ease-out">No4P</span>
-                  <ChevronDown className={`h-4 w-4 text-white opacity-90 transition-all duration-300 ease-out ${no4pSecurityDropdownOpen ? 'rotate-180' : ''}`} />
-                </button>
-
-                {no4pSecurityDropdownOpen && (
-                  <div className="absolute right-0 top-full mt-3 w-72 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-200/50 overflow-hidden z-50 animate-fade-in-up">
-                    {/* Header Section */}
-                    <div className="px-4 py-4 border-b border-gray-100/50 bg-gradient-to-br from-[#02665e]/10 via-[#02665e]/5 to-slate-50/30">
-                      <div className="flex items-center gap-3">
-                        <div className="h-12 w-12 rounded-xl bg-[#02665e] flex items-center justify-center flex-shrink-0">
-                          <Shield className="h-6 w-6 text-white" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-bold text-base text-gray-900">
-                            No4P Security
-                          </div>
-                          <div className="text-xs text-gray-600 mt-0.5">
-                            Platform Security & Cybersecurity
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Menu Items */}
-                    <div className="py-2">
-                      <Link
-                        href="/admin/security"
-                        onClick={() => setNo4pSecurityDropdownOpen(false)}
-                        className="group flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-[#02665e]/10 hover:text-[#02665e] transition-all duration-200 no-underline"
-                      >
-                        <Shield className="h-4 w-4 text-gray-500 group-hover:text-[#02665e] transition-all duration-200 group-hover:scale-110" />
-                        <span className="font-medium">Security Settings</span>
-                      </Link>
-
-                      <Link
-                        href="/admin/settings?tab=no4p"
-                        onClick={() => setNo4pSecurityDropdownOpen(false)}
-                        className="group flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-[#02665e]/10 hover:text-[#02665e] transition-all duration-200 no-underline"
-                      >
-                        <Lock className="h-4 w-4 text-gray-500 group-hover:text-[#02665e] transition-all duration-200 group-hover:scale-110" />
-                        <span className="font-medium">Advanced Configuration</span>
-                      </Link>
-
-                      <div className="my-2 mx-3 h-px bg-gray-200" />
-
-                      <div className="px-4 py-2 text-xs text-gray-500">
-                        Configure authentication, network security, rate limiting, and audit logging policies
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
             </div>
           ) : null}
 
@@ -1221,7 +1153,7 @@ export default function SiteHeader({
                     <LifeBuoy className="h-5 w-5 text-white/90 group-hover:text-white transition-transform duration-300 group-hover:rotate-12" />
                   </Link>
                   <Link
-                    href="/admin/settings"
+                    href="/admin/management/settings"
                     aria-label="Settings"
                     title="Settings"
                     className="mobile-menu-item group inline-flex h-11 w-11 items-center justify-center rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out"
@@ -1256,7 +1188,7 @@ export default function SiteHeader({
                   </span>
                 </Link>
                 <Link 
-                  href="/admin/settings" 
+                  href="/admin/management/settings" 
                   className="mobile-menu-item group relative px-4 py-3 rounded-xl text-sm font-medium text-white/90 no-underline hover:text-white active:scale-[0.98] transition-all duration-300 ease-out animate-fade-in-stagger overflow-hidden"
                   style={{ '--delay': 9 } as React.CSSProperties}
                   onClick={() => setOpen(false)}

@@ -230,23 +230,8 @@ async function publishScheduledTripsForBooking(params: {
     }
   }
 
-  try {
-    const io = ((req.app as any)?.get?.("io") as any) || (global as any).io;
-    if (io && typeof io.to === "function") {
-      for (const trip of pending) {
-        io.to("drivers:available").emit("transport:booking:created", {
-          bookingId: trip.id,
-          vehicleType: trip.vehicleType ?? booking?.transportVehicleType ?? null,
-          scheduledDate: trip.scheduledDate,
-          fromAddress: trip.fromAddress ?? booking?.transportOriginAddress ?? null,
-          toAddress: trip.toAddress ?? propertyLabel ?? null,
-          amount: trip.amount ?? (booking?.transportFare as any) ?? null,
-        });
-      }
-    }
-  } catch {
-    // non-fatal
-  }
+  // NOTE: do not broadcast transport offers here.
+  // The transport auto-dispatch worker issues targeted offers (top drivers) based on live locations.
 }
 
 // Helper to format an invoice number
@@ -278,7 +263,7 @@ router.post("/from-booking", publicInvoiceLimiter, async (req: Request, res: Res
     if (!validationResult.success) {
       return res.status(400).json({
         error: "Invalid request data",
-        details: validationResult.error.errors,
+        details: validationResult.error.issues,
       });
     }
 

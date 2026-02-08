@@ -371,7 +371,7 @@ export default function PublicFooter({ withRail = true }: { withRail?: boolean }
               </div>
             </div>
 
-            <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div className="mt-8 grid grid-cols-2 lg:grid-cols-3 gap-8">
               <div className="space-y-3">
                 <h3 className="text-base font-semibold text-slate-900">About NoLSAF</h3>
                 <ul className="m-0 list-none p-0 space-y-1">
@@ -407,9 +407,9 @@ export default function PublicFooter({ withRail = true }: { withRail?: boolean }
                 </ul>
               </div>
 
-              <div className="space-y-3">
+              <div className="col-span-2 lg:col-span-1 space-y-3">
                 <h3 className="text-base font-semibold text-slate-900">Portals</h3>
-                <ul className="m-0 list-none p-0 space-y-1">
+                <ul className="m-0 list-none p-0 grid grid-cols-2 gap-x-6 gap-y-1">
                   {[
                     { href: "/owner/login", label: "Owner Portal" },
                     { href: "/driver/login", label: "Driver Portal" },

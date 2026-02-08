@@ -154,6 +154,7 @@ router.get("/scheduled", limitDriverTripsList, (async (req: AuthedRequest, res: 
     // For now, we'll filter by vehicleType query param if provided
 
     const where: any = {
+      // Only claimable pool; admin takeover (manual assignment) is excluded.
       status: "PENDING_ASSIGNMENT",
       driverId: null, // Not yet assigned
       paymentStatus: "PAID", // Only show paid trips

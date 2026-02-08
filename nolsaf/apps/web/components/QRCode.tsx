@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState } from "react"
 import Image from "next/image"
-import QRCodeLib from "qrcode"
 
 export default function QRCode({ value, size = 140, className = "" }: { value: string; size?: number; className?: string }) {
   const [src, setSrc] = useState<string | null>(null)
@@ -11,7 +10,10 @@ export default function QRCode({ value, size = 140, className = "" }: { value: s
     let cancelled = false
     ;(async () => {
       try {
-        const d = await QRCodeLib.toDataURL(value, { width: size })
+        const QR: any = await import("qrcode")
+        const toDataURL: any = QR?.toDataURL ?? QR?.default?.toDataURL
+        if (typeof toDataURL !== "function") return
+        const d = await toDataURL(value, { width: size })
         if (!cancelled) setSrc(d)
       } catch (e) {
         // ignore

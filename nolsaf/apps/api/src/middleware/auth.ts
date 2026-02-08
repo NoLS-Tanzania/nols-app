@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { prisma } from '@nolsaf/prisma';
 import { getRoleSessionMaxMinutes } from '../lib/securitySettings.js';
 import { clearAuthCookie } from '../lib/sessionManager.js';
+import { touchActiveUser } from '../lib/activePresence.js';
 
 export type Role = 'ADMIN' | 'OWNER' | 'USER' | 'DRIVER';
 
@@ -115,7 +116,12 @@ export const maybeAuth: RequestHandler = async (req, _res, next) => {
   if (token) {
     try {
       const user = await verifyToken(token);
-      if (user) (req as AuthedRequest).user = user;
+      if (user) {
+        (req as AuthedRequest).user = user;
+        try {
+          touchActiveUser(user.id, user.role);
+        } catch {}
+      }
     } catch {
       // ignore in maybeAuth
     }
@@ -133,6 +139,9 @@ export const requireAuth: RequestHandler = async (req, res, next) => {
       const user = await verifyToken(token);
       if (user) {
         (req as AuthedRequest).user = user;
+        try {
+          touchActiveUser(user.id, user.role);
+        } catch {}
         return next();
       }
     } catch (err: any) {
@@ -167,6 +176,9 @@ export const requireAuth: RequestHandler = async (req, res, next) => {
   // Production is strict: no token -> 401.
   if (process.env.NODE_ENV !== "production" && process.env.NODE_ENV !== "test") {
     (req as AuthedRequest).user = { id: 1, role: "ADMIN" };
+    try {
+      touchActiveUser(1, "ADMIN");
+    } catch {}
     return next();
   }
 
@@ -184,6 +196,9 @@ export function requireRole(required?: Role) {
           const verified = await verifyToken(token);
           if (verified) {
             (req as AuthedRequest).user = verified;
+            try {
+              touchActiveUser(verified.id, verified.role);
+            } catch {}
           } else {
             // token verified but user not found/suspended etc
           }
@@ -218,6 +233,9 @@ export function requireRole(required?: Role) {
     // Dev bypass: keep local development productive.
     if (process.env.NODE_ENV !== "production" && process.env.NODE_ENV !== "test") {
       if (!(req as AuthedRequest).user) (req as AuthedRequest).user = { id: 1, role: "ADMIN" };
+      try {
+        touchActiveUser((req as AuthedRequest).user!.id, (req as AuthedRequest).user!.role);
+      } catch {}
       return next();
     }
 

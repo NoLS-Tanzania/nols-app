@@ -2,7 +2,7 @@
 // AdminPageHeader removed in favor of a centered, compact header for this page
 import { ChevronDown, RefreshCw, Settings, Shield, Lock, AlertTriangle, Network, Clock } from "lucide-react";
 import axios from "axios";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { sanitizeTrustedHtml } from "@/utils/html";
 import { AnimatePresence, motion } from "framer-motion";
 
@@ -26,6 +26,29 @@ export default function SystemSettingsPage(){
     "inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-[#02776d] to-[#015b54] px-4 py-2 text-sm font-semibold text-white shadow-sm ring-1 ring-[#02665e]/20 transition-all duration-200 hover:from-[#026e65] hover:to-[#014f49] focus:outline-none focus:ring-4 focus:ring-[#02665e]/20 disabled:cursor-not-allowed disabled:opacity-60";
   const btnSecondary =
     "inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200/80 bg-white/70 px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-all duration-200 hover:bg-white focus:outline-none focus:ring-4 focus:ring-[#02665e]/10";
+
+  const formatMoney = (value: unknown) => {
+    const currency = (s?.currency || 'TZS').toUpperCase();
+    if (value === null || value === undefined || value === '') return '—';
+    if (typeof value === 'number' && Number.isFinite(value)) return `${value.toLocaleString()} ${currency}`;
+    if (typeof value === 'string') {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) return `${parsed.toLocaleString()} ${currency}`;
+      return value;
+    }
+    return String(value);
+  };
+
+  const formatPercent = (value: unknown) => {
+    if (value === null || value === undefined || value === '') return '—';
+    if (typeof value === 'number' && Number.isFinite(value)) return `${value}%`;
+    if (typeof value === 'string') {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) return `${parsed}%`;
+      return value;
+    }
+    return String(value);
+  };
 
   interface SystemSettings {
     commissionPercent: number;
@@ -114,6 +137,11 @@ export default function SystemSettingsPage(){
   const [bonusOwnerId, setBonusOwnerId] = useState<string>('');
   const [bonusPercentInput, setBonusPercentInput] = useState<number>(0);
   const [bonusPreview, setBonusPreview] = useState<any>(null);
+  const [bonusOwnerLookup, setBonusOwnerLookup] = useState<{ id: number; name?: string | null; email?: string | null } | null>(null);
+  const [bonusOwnerLookupLoading, setBonusOwnerLookupLoading] = useState<boolean>(false);
+  const [bonusOwnerLookupError, setBonusOwnerLookupError] = useState<string | null>(null);
+  const lastAutoPreviewKeyRef = useRef<string>('');
+  const autoPreviewTimerRef = useRef<number | null>(null);
   // support contact (editable by admin)
   const [supportEmail, setSupportEmail] = useState<string>('');
   const [supportPhone, setSupportPhone] = useState<string>('');
@@ -358,12 +386,17 @@ export default function SystemSettingsPage(){
   };
 
   const previewBonus = async () => {
-    if (!bonusOwnerId) {
-      setToast('Owner ID is required');
+    const ownerId = Number(bonusOwnerId);
+    if (!Number.isFinite(ownerId) || ownerId <= 0) {
+      setToast('Valid Owner ID is required');
+      return;
+    }
+    if (!Number.isFinite(bonusPercentInput) || bonusPercentInput < 0) {
+      setToast('Valid Bonus (%) is required');
       return;
     }
     try {
-      const r = await api.post('/admin/bonuses/grant', { ownerId: Number(bonusOwnerId), bonusPercent: Number(bonusPercentInput) });
+      const r = await api.post('/admin/bonuses/grant', { ownerId, bonusPercent: Number(bonusPercentInput) });
       setBonusPreview(r.data);
     } catch (err) {
       console.error(err);
@@ -372,13 +405,18 @@ export default function SystemSettingsPage(){
   };
 
   const grantBonus = async () => {
-    if (!bonusOwnerId) {
-      setToast('Owner ID is required');
+    const ownerId = Number(bonusOwnerId);
+    if (!Number.isFinite(ownerId) || ownerId <= 0) {
+      setToast('Valid Owner ID is required');
+      return;
+    }
+    if (!Number.isFinite(bonusPercentInput) || bonusPercentInput < 0) {
+      setToast('Valid Bonus (%) is required');
       return;
     }
     if (!confirm('Grant bonus to owner? This action will be recorded in the admin audit log.')) return;
     try {
-      const r = await api.post('/admin/bonuses/grant', { ownerId: Number(bonusOwnerId), bonusPercent: Number(bonusPercentInput), reason: 'Manual grant from settings UI' });
+      const r = await api.post('/admin/bonuses/grant', { ownerId, bonusPercent: Number(bonusPercentInput), reason: 'Manual grant from settings UI' });
       setBonusPreview(r.data);
       setToast('Bonus grant recorded (audit only)');
     } catch (err) {
@@ -386,6 +424,62 @@ export default function SystemSettingsPage(){
       setToast('Failed to grant bonus');
     }
   };
+
+  // Auto-detect owner from pasted/typed Owner ID
+  useEffect(() => {
+    const ownerId = Number(bonusOwnerId);
+    setBonusOwnerLookup(null);
+    setBonusOwnerLookupError(null);
+    if (!Number.isFinite(ownerId) || ownerId <= 0) return;
+
+    let cancelled = false;
+    setBonusOwnerLookupLoading(true);
+
+    (async () => {
+      try {
+        const r = await api.get<{ owner?: { id: number; name?: string | null; email?: string | null } }>(`/api/admin/owners/${ownerId}`);
+        if (cancelled) return;
+        const owner = (r.data as any)?.owner;
+        if (!owner?.id) {
+          setBonusOwnerLookup(null);
+          setBonusOwnerLookupError('Owner not found');
+          return;
+        }
+        setBonusOwnerLookup({ id: owner.id, name: owner.name ?? null, email: owner.email ?? null });
+      } catch (err) {
+        if (cancelled) return;
+        setBonusOwnerLookup(null);
+        setBonusOwnerLookupError('Owner not found');
+      } finally {
+        if (!cancelled) setBonusOwnerLookupLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [bonusOwnerId]);
+
+  // Auto-preview bonus once we have a valid owner (debounced)
+  useEffect(() => {
+    const ownerId = Number(bonusOwnerId);
+    if (!Number.isFinite(ownerId) || ownerId <= 0) return;
+    if (!bonusOwnerLookup?.id || bonusOwnerLookup.id !== ownerId) return;
+    if (!Number.isFinite(bonusPercentInput) || bonusPercentInput < 0) return;
+
+    const key = `${ownerId}:${bonusPercentInput}`;
+    if (key === lastAutoPreviewKeyRef.current) return;
+
+    if (autoPreviewTimerRef.current) window.clearTimeout(autoPreviewTimerRef.current);
+    autoPreviewTimerRef.current = window.setTimeout(() => {
+      lastAutoPreviewKeyRef.current = key;
+      void previewBonus();
+    }, 450);
+
+    return () => {
+      if (autoPreviewTimerRef.current) window.clearTimeout(autoPreviewTimerRef.current);
+    };
+  }, [bonusOwnerId, bonusPercentInput, bonusOwnerLookup?.id]);
 
   const previewInvoice = async () => {
     try {
@@ -1248,49 +1342,134 @@ export default function SystemSettingsPage(){
               </div>
             </div>
 
-            <div className="mt-5 grid grid-cols-1 items-stretch gap-4 md:grid-cols-2">
-              <div className="flex h-full min-w-0 flex-col overflow-visible rounded-xl border border-slate-200/70 bg-white/60 p-4 shadow-sm">
-                <label htmlFor="bonusOwnerId" className={labelClass}>Owner ID</label>
-                <input
-                  id="bonusOwnerId"
-                  className={`${inputClass} mt-2`}
-                  value={bonusOwnerId}
-                  onChange={e=>setBonusOwnerId(e.target.value)}
-                  placeholder="Enter owner ID"
-                />
-              </div>
-              <div className="flex h-full min-w-0 flex-col overflow-visible rounded-xl border border-slate-200/70 bg-white/60 p-4 shadow-sm">
-                <label htmlFor="bonusPercentInput" className={labelClass}>Bonus (%)</label>
-                <div className="mt-2 flex w-full min-w-0 overflow-hidden rounded-lg border border-slate-200/70 bg-white/70 shadow-sm transition-all duration-200 focus-within:border-[#02665e] focus-within:ring-2 focus-within:ring-inset focus-within:ring-[#02665e]/18">
-                  <input
-                    id="bonusPercentInput"
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    inputMode="decimal"
-                    className="min-w-0 flex-1 border-0 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400"
-                    value={bonusPercentInput}
-                    onChange={e=>setBonusPercentInput(Number(e.target.value))}
-                    placeholder="e.g. 5"
-                  />
-                  <div className="flex shrink-0 items-center border-l border-slate-200/70 bg-white/50 px-3 text-xs font-semibold text-slate-600">%</div>
+            <div className="mt-5 rounded-2xl border border-slate-200/70 bg-white/60 p-4 shadow-sm">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-slate-900">Grant owner bonus</div>
+                  <p className="mt-1 text-xs text-slate-600">Preview uses owner paid invoices (last 30 days). Grant writes an audit entry.</p>
+                </div>
+                <div className="flex shrink-0 gap-2">
+                  <button
+                    onClick={previewBonus}
+                    className={btnSecondary}
+                    type="button"
+                    disabled={!bonusOwnerId || !Number.isFinite(Number(bonusOwnerId)) || Number(bonusOwnerId) <= 0}
+                  >
+                    Preview
+                  </button>
+                  <button
+                    onClick={grantBonus}
+                    className={btnPrimary}
+                    type="button"
+                    disabled={!bonusOwnerId || !Number.isFinite(Number(bonusOwnerId)) || Number(bonusOwnerId) <= 0}
+                  >
+                    Grant
+                  </button>
                 </div>
               </div>
-            </div>
 
-            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <p className={helpClass}>Preview uses owner paid invoices (last 30 days).</p>
-              <div className="flex gap-2">
-                <button onClick={previewBonus} className={btnSecondary} type="button">Preview</button>
-                <button onClick={grantBonus} className={btnPrimary} type="button">Grant</button>
-              </div>
-            </div>
+              <div className="mt-4 grid grid-cols-1 items-stretch gap-4 border-t border-slate-200/70 pt-4 md:grid-cols-2">
+                <div className="flex h-full min-w-0 flex-col rounded-xl border border-slate-200/70 bg-white/70 p-4 shadow-sm">
+                  <label htmlFor="bonusOwnerId" className={labelClass}>Owner ID</label>
+                  <div className="mt-2 flex w-full min-w-0 overflow-hidden rounded-lg border border-slate-200/70 bg-white/70 shadow-sm transition-all duration-200 focus-within:border-[#02665e] focus-within:ring-2 focus-within:ring-inset focus-within:ring-[#02665e]/18">
+                    <input
+                      id="bonusOwnerId"
+                      className="min-w-0 flex-1 border-0 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400"
+                      value={bonusOwnerId}
+                      onChange={e=>setBonusOwnerId(String(e.target.value || '').replace(/\D+/g, ''))}
+                      placeholder="e.g. 13"
+                      inputMode="numeric"
+                    />
+                    <div className="flex shrink-0 items-center border-l border-slate-200/70 bg-white/50 px-3 text-xs font-semibold text-slate-600">#</div>
+                  </div>
+                  {!bonusOwnerId ? (
+                    <p className={`${helpClass} min-h-4`}>Paste an Owner ID to auto-load the owner.</p>
+                  ) : !Number.isFinite(Number(bonusOwnerId)) || Number(bonusOwnerId) <= 0 ? (
+                    <p className="mt-1 min-h-4 text-xs font-medium text-rose-600">Enter a valid numeric owner ID.</p>
+                  ) : bonusOwnerLookupLoading ? (
+                    <p className={`${helpClass} min-h-4`}>Looking up owner…</p>
+                  ) : bonusOwnerLookupError ? (
+                    <p className="mt-1 min-h-4 text-xs font-medium text-rose-600">{bonusOwnerLookupError}</p>
+                  ) : bonusOwnerLookup ? (
+                    <p className={`${helpClass} min-h-4`}>Owner: <span className="font-semibold text-slate-700">{bonusOwnerLookup.name || `#${bonusOwnerLookup.id}`}</span>{bonusOwnerLookup.email ? <span className="text-slate-400"> · {bonusOwnerLookup.email}</span> : null}</p>
+                  ) : (
+                    <p className={`${helpClass} min-h-4`}>Owner receiving the bonus.</p>
+                  )}
+                </div>
 
-            {bonusPreview && (
-              <div className="mt-4 rounded-2xl border border-slate-200/70 bg-white/60 p-4">
-                <pre className="max-h-64 max-w-full overflow-x-hidden overflow-y-auto whitespace-pre-wrap break-words text-[12px] text-slate-700">{JSON.stringify(bonusPreview, null, 2)}</pre>
+                <div className="flex h-full min-w-0 flex-col rounded-xl border border-slate-200/70 bg-white/70 p-4 shadow-sm">
+                  <label htmlFor="bonusPercentInput" className={labelClass}>Bonus (%)</label>
+                  <div className="mt-2 flex w-full min-w-0 overflow-hidden rounded-lg border border-slate-200/70 bg-white/70 shadow-sm transition-all duration-200 focus-within:border-[#02665e] focus-within:ring-2 focus-within:ring-inset focus-within:ring-[#02665e]/18">
+                    <input
+                      id="bonusPercentInput"
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      inputMode="decimal"
+                      className="min-w-0 flex-1 border-0 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400"
+                      value={bonusPercentInput}
+                      onChange={e=>setBonusPercentInput(Number(e.target.value))}
+                      placeholder="e.g. 5"
+                    />
+                    <div className="flex shrink-0 items-center border-l border-slate-200/70 bg-white/50 px-3 text-xs font-semibold text-slate-600">%</div>
+                  </div>
+                  <p className={`${helpClass} min-h-4`}>Percent applied to eligible revenue for the preview window.</p>
+                </div>
               </div>
-            )}
+
+              {bonusPreview && (
+                <div className="mt-4 rounded-2xl border border-slate-200/70 bg-white/70 p-4">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-slate-900">Preview result</div>
+                      <p className="mt-1 text-xs text-slate-600">Review computed values before granting.</p>
+                    </div>
+                    <span className="inline-flex w-fit items-center rounded-full border border-slate-200/70 bg-white/70 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                      {(bonusPreview as any)?.ok === true ? 'OK' : 'Result'}
+                    </span>
+                  </div>
+
+                  {(bonusPreview as any)?.data && (
+                    <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div className="rounded-xl border border-slate-200/70 bg-white/60 p-3">
+                        <div className="text-xs font-medium text-slate-500">Owner</div>
+                        <div className="mt-1 text-sm font-semibold text-slate-900">#{String((bonusPreview as any).data.ownerId ?? bonusOwnerId)}</div>
+                      </div>
+                      <div className="rounded-xl border border-slate-200/70 bg-white/60 p-3">
+                        <div className="text-xs font-medium text-slate-500">Bonus</div>
+                        <div className="mt-1 text-sm font-semibold text-slate-900">{formatPercent((bonusPreview as any).data.bonusPercent ?? bonusPercentInput)}</div>
+                      </div>
+                      <div className="rounded-xl border border-slate-200/70 bg-white/60 p-3">
+                        <div className="text-xs font-medium text-slate-500">Eligible revenue</div>
+                        <div className="mt-1 text-sm font-semibold text-slate-900">{formatMoney((bonusPreview as any).data.totalRevenue)}</div>
+                      </div>
+                      <div className="rounded-xl border border-slate-200/70 bg-white/60 p-3">
+                        <div className="text-xs font-medium text-slate-500">Bonus amount</div>
+                        <div className="mt-1 text-sm font-semibold text-slate-900">{formatMoney((bonusPreview as any).data.bonusAmount)}</div>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-200/70 bg-white/60 p-3">
+                        <div className="text-xs font-medium text-slate-500">Commission</div>
+                        <div className="mt-1 flex items-baseline justify-between gap-3">
+                          <div className="text-sm font-semibold text-slate-900">{formatPercent((bonusPreview as any).data.commissionPercent)}</div>
+                          <div className="text-xs font-semibold text-slate-700">{formatMoney((bonusPreview as any).data.commissionAmount)}</div>
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-200/70 bg-white/60 p-3">
+                        <div className="text-xs font-medium text-slate-500">Reference</div>
+                        <div className="mt-1 truncate font-mono text-xs font-semibold text-slate-800">{String((bonusPreview as any).data.bonusPaymentRef ?? '—')}</div>
+                      </div>
+                    </div>
+                  )}
+
+                  <details className="mt-4 rounded-xl border border-slate-200/70 bg-white/60 p-3">
+                    <summary className="cursor-pointer select-none text-xs font-semibold text-slate-700">Raw response</summary>
+                    <pre className="mt-3 max-h-64 max-w-full overflow-x-hidden overflow-y-auto whitespace-pre-wrap break-words rounded-xl border border-slate-200/70 bg-white/70 p-4 text-[12px] text-slate-700">{JSON.stringify(bonusPreview, null, 2)}</pre>
+                  </details>
+                </div>
+              )}
+            </div>
           </section>
         </div>
 

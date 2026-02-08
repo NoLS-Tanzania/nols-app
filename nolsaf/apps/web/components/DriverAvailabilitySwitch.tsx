@@ -11,6 +11,7 @@ export default function DriverAvailabilitySwitch({ className = "" }: { className
   // Start with false to match server-side render (prevents hydration mismatch)
   const [available, setAvailable] = useState<boolean>(false);
   const [isClient, setIsClient] = useState(false);
+  const [initDone, setInitDone] = useState(false);
   const [meId, setMeId] = useState<string | number | undefined>(undefined);
 
   const { socket } = useSocket(meId);
@@ -34,6 +35,7 @@ export default function DriverAvailabilitySwitch({ className = "" }: { className
         try { localStorage.setItem("driver_available", w ? "1" : "0"); } catch (e) {}
       }
     } catch (e) { /* ignore */ }
+    setInitDone(true);
   }, []);
 
   // Resolve current user id for socket room scoping.
@@ -54,6 +56,46 @@ export default function DriverAvailabilitySwitch({ className = "" }: { className
       mounted = false;
     };
   }, []);
+
+  // Ensure the server-side availability (DB + Socket.IO room membership) matches the UI.
+  // Without this, a driver can see themselves as "available" (localStorage) while the
+  // backend still considers them unavailable, so they won't receive live offers.
+  const initialSyncDoneRef = React.useRef(false);
+  useEffect(() => {
+    if (!isClient || !initDone) return;
+    if (!meId) return;
+    if (initialSyncDoneRef.current) return;
+    initialSyncDoneRef.current = true;
+
+    const desired = available;
+    (async () => {
+      try {
+        // Prefer socket path when connected.
+        let socketOk = false;
+        try {
+          if (socket && socket.connected) {
+            socketOk = await new Promise<boolean>((resolve) => {
+              try {
+                socket.emit('driver:availability:set', { available: desired }, (resp: any) => {
+                  resolve(Boolean(resp && resp.status === 'ok'));
+                });
+              } catch {
+                resolve(false);
+              }
+            });
+          }
+        } catch {
+          socketOk = false;
+        }
+
+        if (!socketOk) {
+          await api.post("/api/driver/availability", { available: desired });
+        }
+      } catch {
+        // non-fatal; user can still toggle manually
+      }
+    })();
+  }, [available, initDone, isClient, meId, socket]);
   // transient status control: idle | pending | success | error
   const [status, setStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle');
   const timeoutRef = React.useRef<number | null>(null);

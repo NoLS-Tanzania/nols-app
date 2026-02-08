@@ -189,6 +189,16 @@ function getAdminId(req: AuthedRequest): number {
   return req.user!.id;
 }
 
+function maskOtp(code: string): string {
+  const s = String(code || "");
+  if (s.length <= 2) return "••••••";
+  return `••••${s.slice(-2)}`;
+}
+
+function otpEntityKey(destinationType: "PHONE" | "EMAIL" | "INTERNAL", destination: string, codeHash: string): string {
+  return `OTP:${destinationType}:${destination}:${codeHash}`;
+}
+
 // Validation middleware helper
 function validate<T extends z.ZodTypeAny>(schema: T) {
   return (req: any, res: Response, next: any) => {
@@ -266,7 +276,16 @@ router.post("/otp/send", limitOtpSend, validate(sendOtpSchema), async (req: any,
 
     // Generate and store OTP in transaction
     const code = generate6();
+    const auditHash = hashCode(code);
     const expiresAt = new Date(Date.now() + OTP_EXPIRY_MS);
+
+    const adminUser = await prisma.user.findUnique({
+      where: { id: adminId },
+      select: { email: true, phone: true, name: true, role: true },
+    });
+    const destinationType = adminUser?.email ? "EMAIL" : adminUser?.phone ? "PHONE" : "INTERNAL";
+    const destination = (adminUser?.email || adminUser?.phone || `admin:${adminId}`) as string;
+    const entity = otpEntityKey(destinationType as any, destination, auditHash);
 
     await prisma.$transaction(async (tx: typeof prisma) => {
       await tx.adminOtp.create({
@@ -285,6 +304,20 @@ router.post("/otp/send", limitOtpSend, validate(sendOtpSchema), async (req: any,
     // Audit log
     await audit(req as AuthedRequest, "ADMIN_OTP_SENT", `admin:${adminId}`, null, { purpose, expiresAt });
 
+    // Audit for Management/No4P OTP tracking.
+    await audit(req as AuthedRequest, "NO4P_OTP_SENT", entity, null, {
+      destinationType,
+      destination,
+      codeHash: auditHash,
+      codeMasked: maskOtp(code),
+      expiresAt: expiresAt.toISOString(),
+      usedFor: `ADMIN_${purpose}`,
+      provider: "internal_notification",
+      userRole: adminUser?.role ?? "ADMIN",
+      userName: adminUser?.name ?? null,
+      policyCompliant: true,
+    });
+
     sendSuccess(res, { expiresAt }, "OTP sent successfully");
   } catch (error: any) {
     console.error("[OTP_SEND] Error:", error);
@@ -299,6 +332,13 @@ router.post("/otp/verify", limitOtpVerify, validate(verifyOtpSchema), async (req
   try {
     const { code, purpose } = req.validatedBody;
     const adminId = getAdminId(req as AuthedRequest);
+
+    const adminUser = await prisma.user.findUnique({
+      where: { id: adminId },
+      select: { email: true, phone: true, name: true, role: true },
+    });
+    const destinationType = adminUser?.email ? "EMAIL" : adminUser?.phone ? "PHONE" : "INTERNAL";
+    const destination = (adminUser?.email || adminUser?.phone || `admin:${adminId}`) as string;
 
     // Check for brute-force lockout
     const lockoutStatus = isVerificationLocked(adminId, purpose);
@@ -327,6 +367,21 @@ router.post("/otp/verify", limitOtpVerify, validate(verifyOtpSchema), async (req
     if (otp.codeHash !== codeHash) {
       recordFailedVerification(adminId, purpose);
       await audit(req as AuthedRequest, "ADMIN_OTP_VERIFY_FAILED", `admin:${adminId}`, null, { purpose });
+
+      try {
+        const entity = otpEntityKey(destinationType as any, destination, codeHash);
+        await audit(req as AuthedRequest, "NO4P_OTP_VERIFY_FAILED", entity, null, {
+          destinationType,
+          destination,
+          codeHash,
+          usedFor: `ADMIN_${purpose}`,
+          reason: "invalid",
+          userRole: adminUser?.role ?? "ADMIN",
+          userName: adminUser?.name ?? null,
+        });
+      } catch {
+        // swallow
+      }
       return sendError(res, 400, "Invalid code. Please check and try again.");
     }
 
@@ -349,6 +404,22 @@ router.post("/otp/verify", limitOtpVerify, validate(verifyOtpSchema), async (req
 
     // Audit log
     await audit(req as AuthedRequest, "ADMIN_OTP_VERIFIED", `admin:${adminId}`, null, { purpose, grantedUntil: session?.financeOkUntil });
+
+    try {
+      const entity = otpEntityKey(destinationType as any, destination, codeHash);
+      await audit(req as AuthedRequest, "NO4P_OTP_USED", entity, null, {
+        destinationType,
+        destination,
+        codeHash,
+        usedAt: new Date().toISOString(),
+        usedFor: `ADMIN_${purpose}`,
+        policyCompliant: true,
+        userRole: adminUser?.role ?? "ADMIN",
+        userName: adminUser?.name ?? null,
+      });
+    } catch {
+      // swallow
+    }
 
     sendSuccess(res, {
       until: session?.financeOkUntil,

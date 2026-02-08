@@ -1095,7 +1095,44 @@ export default function DriverLiveMapCanvas({
         const { io } = await import("socket.io-client");
         const base = (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000").replace(/\/$/, "");
         socket = io(base, {
-          transports: ["websocket"],
+          // Allow polling fallback in case WS is blocked; cookies are still the primary auth mechanism.
+          transports: ["websocket", "polling"],
+          withCredentials: true,
+        });
+
+        // On-demand trip offers (broadcast to drivers:available on the server)
+        socket.on("transport:booking:created", (payload: any) => {
+          if (!mounted) return;
+          try {
+            const bookingId = payload?.bookingId;
+            const pickupAddress = payload?.fromAddress;
+            if (!bookingId || !pickupAddress) return;
+
+            const currency = String(payload?.currency ?? "TZS").toUpperCase();
+            const amountNum = typeof payload?.amount === "number" ? payload.amount : Number(payload?.amount);
+            const fare = Number.isFinite(amountNum)
+              ? `${currency} ${amountNum.toLocaleString(undefined, { maximumFractionDigits: currency === "TZS" ? 0 : 2 })}`
+              : undefined;
+
+            window.dispatchEvent(
+              new CustomEvent("nols:driver:trip:request", {
+                detail: {
+                  id: String(bookingId),
+                  pickupAddress: String(pickupAddress),
+                  dropoffAddress: payload?.toAddress ? String(payload.toAddress) : undefined,
+                  tripType: payload?.vehicleType ? String(payload.vehicleType) : undefined,
+                  fare,
+                  // Optional coords if server includes them; the accept flow can proceed without.
+                  pickupLat: payload?.fromLatitude ?? payload?.pickupLat ?? undefined,
+                  pickupLng: payload?.fromLongitude ?? payload?.pickupLng ?? undefined,
+                  dropoffLat: payload?.toLatitude ?? payload?.dropoffLat ?? undefined,
+                  dropoffLng: payload?.toLongitude ?? payload?.dropoffLng ?? undefined,
+                },
+              })
+            );
+          } catch {
+            // ignore
+          }
         });
 
         socket.on("driver:location:update", (payload: any) => {

@@ -6,6 +6,8 @@ import { prisma } from "@nolsaf/prisma";
 export const router = Router();
 router.use(requireAuth as unknown as RequestHandler, requireRole("ADMIN") as unknown as RequestHandler);
 
+const RECENT_CUSTOMERS_LIMIT = 5;
+
 /** GET /admin/users/summary - Customer-focused statistics */
 router.get("/", async (_req, res) => {
   try {
@@ -27,7 +29,7 @@ router.get("/", async (_req, res) => {
       where: { role: "CUSTOMER", twoFactorEnabled: true },
     });
 
-    // Recent customers (last 10)
+    // Recent customers (last 5)
     const recentCustomers = await prisma.user.findMany({
       where: { role: "CUSTOMER" },
       select: {
@@ -41,7 +43,7 @@ router.get("/", async (_req, res) => {
         twoFactorEnabled: true,
       },
       orderBy: { createdAt: "desc" },
-      take: 10,
+      take: RECENT_CUSTOMERS_LIMIT,
     });
 
     // Customers created in the last 7 days

@@ -286,7 +286,7 @@ export default function UsersDashboardPage() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {summary.recentCustomers.map((customer) => (
+                {(summary.recentCustomers ?? []).slice(0, 5).map((customer) => (
                   <tr key={customer.id} className="hover:bg-gray-50 transition-colors duration-150">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="font-medium text-gray-900">{customer.name || "N/A"}</div>

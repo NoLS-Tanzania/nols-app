@@ -67,7 +67,6 @@ router.get("/invoices", async (req, res) => {
         ];
       }
     }
-
     const skip = (Number(page) - 1) * Number(pageSize);
     const take = Math.min(Number(pageSize), 100);
 
@@ -144,9 +143,13 @@ router.get("/invoices", async (req, res) => {
 });
 
 /** GET /admin/invoices/:id */
-router.get("/invoices/:id", async (req, res) => {
+router.get("/invoices/:id(\\d+)", async (req, res) => {
   try {
     const id = Number(req.params.id);
+    if (!Number.isFinite(id) || id <= 0) {
+      res.setHeader('Content-Type', 'application/json');
+      return res.status(400).json({ error: "Invalid invoice ID" });
+    }
     const inv = await prisma.invoice.findUnique({
       where: { id },
       include: {
@@ -216,7 +219,7 @@ router.get("/invoices/:id", async (req, res) => {
  *
  * Returns HTML intended for printing or client-side PDF generation.
  */
-router.get("/invoices/:id/receipt.html", async (req, res) => {
+router.get("/invoices/:id(\\d+)/receipt.html", async (req, res) => {
   try {
     const invoiceId = Number(req.params.id);
     if (!invoiceId || Number.isNaN(invoiceId)) return res.status(400).json({ error: "Invalid invoice ID" });
@@ -591,7 +594,7 @@ router.post("/invoices/:id/mark-paid", async (req, res) => {
 });
 
 /** GET /admin/invoices/:id/receipt.png — serve QR PNG */
-router.get("/invoices/:id/receipt.png", async (req, res) => {
+router.get("/invoices/:id(\\d+)/receipt.png", async (req, res) => {
   try {
     const id = Number(req.params.id);
     const inv = await prisma.invoice.findUnique({ where: { id }, select: { receiptQrPng: true } });

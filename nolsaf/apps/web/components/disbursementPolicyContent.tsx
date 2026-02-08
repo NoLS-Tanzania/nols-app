@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/PolicyLink";
 import { TermsSection } from "./Terms";
 
 export const DISBURSEMENT_POLICY_LAST_UPDATED = "2025-01-20";

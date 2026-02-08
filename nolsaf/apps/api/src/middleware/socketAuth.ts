@@ -3,6 +3,7 @@ import { Socket } from "socket.io";
 import jwt from "jsonwebtoken";
 import { prisma } from "@nolsaf/prisma";
 import { getRoleSessionMaxMinutes } from "../lib/securitySettings.js";
+import { touchActiveUser } from "../lib/activePresence.js";
 
 export interface AuthenticatedSocket extends Socket {
   data: {
@@ -119,6 +120,9 @@ export function socketAuthMiddleware(socket: AuthenticatedSocket, next: (err?: E
 
       // Attach user to socket data
       socket.data.user = user;
+      try {
+        touchActiveUser(user.id, user.role);
+      } catch {}
       next();
     })
     .catch(() => {

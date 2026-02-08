@@ -30,3 +30,19 @@ for (const p of candidates) {
   seen.add(normalized);
   tryLoadEnvFile(normalized);
 }
+
+// Best-effort fallback: many dev setups store Mapbox tokens only in apps/web/.env.local.
+// Load it last so API-specific env files still win, and we never override real OS env vars.
+const webCandidates = [
+  path.resolve(cwd, "apps", "web", ".env.local"),
+  path.resolve(cwd, "apps", "web", ".env"),
+  path.resolve(cwd, "..", "web", ".env.local"),
+  path.resolve(cwd, "..", "web", ".env"),
+];
+
+for (const p of webCandidates) {
+  const normalized = path.normalize(p);
+  if (seen.has(normalized)) continue;
+  seen.add(normalized);
+  tryLoadEnvFile(normalized);
+}

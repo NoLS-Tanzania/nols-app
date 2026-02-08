@@ -137,6 +137,8 @@ export default function AdminFooter({
     return `${policyBasePath}${path}`;
   };
 
+  const docsHref = policyBasePath === "/owner" ? "/owner/docs" : "/docs";
+
   return (
     <footer
       aria-label="Footer"
@@ -215,7 +217,7 @@ export default function AdminFooter({
             <div className="mt-7 flex flex-col items-center justify-center gap-3">
               <div className="h-px w-full bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
               <div className="flex flex-wrap items-center justify-center gap-2">
-                <FooterPill href={policyBasePath ? policyHref('/docs') : '/docs'} variant="neutral">
+                <FooterPill href={docsHref} variant="neutral">
                   <span className="inline-flex items-center gap-2">
                     <span className="inline-block h-1.5 w-1.5 rounded-full bg-slate-300" />
                     Docs

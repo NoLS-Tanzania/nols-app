@@ -4,7 +4,7 @@ import {
   Gift, Search, X, Calendar, MapPin, Clock, User, 
   Loader2, Eye, 
   Sparkles, Tag, DollarSign,
-  Filter, Building2, Users as UsersIcon, ArrowRight, ArrowLeft, FileText
+  Filter, Building2, Users as UsersIcon, ArrowRight, ArrowLeft, FileText, ChevronDown, ChevronUp
 } from "lucide-react";
 import Image from "next/image";
 import axios from "axios";
@@ -133,6 +133,15 @@ type BookingClaimsResponse = {
   summary: any;
 };
 
+type AuditItem = {
+  id: number;
+  action: string;
+  description: string | null;
+  metadata: any;
+  createdAt: string;
+  admin?: { id: number; name: string | null; email: string | null };
+};
+
 export default function AdminGroupStaysClaimsPage() {
   const searchParams = useSearchParams();
   const didAutoOpenRef = useRef(false);
@@ -156,6 +165,9 @@ export default function AdminGroupStaysClaimsPage() {
   const [activeBookingId, setActiveBookingId] = useState<number | null>(null);
   const [bookingClaims, setBookingClaims] = useState<BookingClaimsResponse | null>(null);
   const [bookingClaimsLoading, setBookingClaimsLoading] = useState(false);
+  const [auditItems, setAuditItems] = useState<AuditItem[]>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditOpen, setAuditOpen] = useState(false);
   const [showShortlistOnly, setShowShortlistOnly] = useState(true);
   const [selectedClaimIds, setSelectedClaimIds] = useState<number[]>([]);
   const [startingReview, setStartingReview] = useState(false);
@@ -257,28 +269,46 @@ export default function AdminGroupStaysClaimsPage() {
     setActiveBookingId(bookingId);
     setBookingClaims(null);
     setBookingClaimsLoading(true);
+    setAuditItems([]);
+    setAuditLoading(true);
+    setAuditOpen(false);
+    // Prevent stale selections from a previous booking causing 404s.
+    setSelectedClaimIds([]);
+    setShowShortlistOnly(true);
     try {
       authify();
       const r = await api.get<BookingClaimsResponse>(`/api/admin/group-stays/claims/${bookingId}`);
       setBookingClaims(r.data);
 
+      // Load audit history for this booking so admins can verify when it was recommended.
+      try {
+        const a = await api.get<{ items: AuditItem[] }>(`/api/admin/group-stays/bookings/${bookingId}/audit`);
+        setAuditItems(Array.isArray(a.data?.items) ? a.data.items : []);
+      } catch {
+        setAuditItems([]);
+      } finally {
+        setAuditLoading(false);
+      }
+
       const recommendedIds = Array.isArray(r.data?.recommendedClaimIds) ? r.data.recommendedClaimIds : [];
       if (recommendedIds.length > 0) {
-        setSelectedClaimIds(recommendedIds.slice(0, 3));
+        setSelectedClaimIds(Array.from(new Set(recommendedIds)).slice(0, 3));
       } else {
         const shortlistIds = [
           r.data?.shortlist?.high?.id,
           r.data?.shortlist?.mid?.id,
           r.data?.shortlist?.low?.id,
         ].filter(Boolean) as number[];
-        setSelectedClaimIds(shortlistIds.slice(0, 3));
+        setSelectedClaimIds(Array.from(new Set(shortlistIds)).slice(0, 3));
         setShowShortlistOnly(shortlistIds.length > 0);
       }
     } catch (err: any) {
       console.error("Failed to load booking claims", err);
       setBookingClaims(null);
+      setAuditItems([]);
     } finally {
       setBookingClaimsLoading(false);
+      setAuditLoading(false);
     }
   }, []);
 
@@ -294,11 +324,16 @@ export default function AdminGroupStaysClaimsPage() {
     if (!focusedBookingId) {
       setBookingClaims(null);
     }
+    setAuditItems([]);
+    setAuditLoading(false);
+    setAuditOpen(false);
     setSelectedClaimIds([]);
     setShowShortlistOnly(true);
   };
 
   const toggleSelection = (claimId: number) => {
+    const recommendationsLocked = (bookingClaims?.recommendedClaimIds?.length || 0) > 0;
+    if (recommendationsLocked) return;
     setSelectedClaimIds((prev) => {
       if (prev.includes(claimId)) return prev.filter((id) => id !== claimId);
       if (prev.length >= 3) return prev;
@@ -324,13 +359,31 @@ export default function AdminGroupStaysClaimsPage() {
 
   const recommendSelected = async () => {
     if (!activeBookingId) return;
+    if (bookingClaimsLoading || !bookingClaims) return;
+    if (Number(bookingClaims.groupBooking?.id) !== Number(activeBookingId)) return;
+    // Once a booking has saved recommendations, treat them as locked.
+    if ((bookingClaims.recommendedClaimIds?.length || 0) > 0) return;
     if (selectedClaimIds.length === 0) return;
     setRecommending(true);
     try {
       authify();
-      await api.post(`/api/admin/group-stays/claims/${activeBookingId}/recommendations`, {
-        claimIds: selectedClaimIds,
-      });
+      const claimMeta = bookingClaims?.claims
+        ? new Map<number, number>(bookingClaims.claims.map((c) => [c.id, c.groupBookingId]))
+        : null;
+
+      const claimIds = claimMeta
+        ? selectedClaimIds.filter((id) => claimMeta.get(id) === activeBookingId)
+        : selectedClaimIds;
+      const uniqueClaimIds = Array.from(new Set(claimIds));
+      if (uniqueClaimIds.length === 0) {
+        setSelectedClaimIds([]);
+        return;
+      }
+      if (uniqueClaimIds.length !== selectedClaimIds.length) {
+        setSelectedClaimIds(uniqueClaimIds);
+      }
+
+      await api.post(`/api/admin/group-stays/claims/${activeBookingId}/recommendations`, { claimIds: uniqueClaimIds });
       await openBookingReview(activeBookingId);
       load();
     } catch (err: any) {
@@ -347,11 +400,11 @@ export default function AdminGroupStaysClaimsPage() {
       {activeBookingId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/40" onClick={closeBookingReview} />
-          <div className="relative w-full max-w-5xl bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
-            <div className="p-4 sm:p-5 border-b border-gray-200 flex items-start justify-between gap-4">
+          <div className="relative w-full max-w-5xl bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="sticky top-0 z-10 bg-white p-3 sm:p-4 border-b border-gray-200 flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Booking #{activeBookingId}</div>
-                <div className="text-lg sm:text-xl font-bold text-gray-900 truncate">Review & Recommend Offers</div>
+                <div className="text-base sm:text-lg font-bold text-gray-900 truncate">Review & Recommend Offers</div>
                 {bookingClaims?.groupBooking && (
                   <div className="mt-1 text-xs sm:text-sm text-gray-600">
                     {bookingClaims.groupBooking.toRegion}
@@ -369,7 +422,7 @@ export default function AdminGroupStaysClaimsPage() {
               </button>
             </div>
 
-            <div className="p-4 sm:p-5">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5">
               {bookingClaimsLoading ? (
                 <div className="flex flex-col items-center justify-center py-12">
                   <Loader2 className="h-8 w-8 animate-spin text-emerald-600 mb-3" />
@@ -379,6 +432,11 @@ export default function AdminGroupStaysClaimsPage() {
                 <div className="py-10 text-center text-sm text-gray-600">Failed to load offers.</div>
               ) : (
                 <>
+                  {bookingClaims?.recommendedClaimIds?.length > 0 && (
+                    <div className="mb-4 text-xs sm:text-sm bg-green-50 border border-green-200 text-green-900 rounded-lg p-3">
+                      Recommendations already saved for this booking. Review the audit history below to confirm.
+                    </div>
+                  )}
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                     <div className="flex items-center gap-2 flex-wrap">
                       {bookingClaims.shortlist && (
@@ -403,9 +461,14 @@ export default function AdminGroupStaysClaimsPage() {
                       </button>
                       <button
                         onClick={recommendSelected}
-                        disabled={recommending || selectedClaimIds.length === 0}
+                        disabled={
+                          bookingClaimsLoading ||
+                          recommending ||
+                          selectedClaimIds.length === 0 ||
+                          (bookingClaims?.recommendedClaimIds?.length || 0) > 0
+                        }
                         className="px-4 py-2 text-xs font-semibold bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-lg hover:from-emerald-700 hover:to-teal-700 disabled:opacity-60 disabled:cursor-not-allowed"
-                        title="Save recommendations for customer"
+                        title={(bookingClaims?.recommendedClaimIds?.length || 0) > 0 ? "Already recommended (locked)" : "Save recommendations for customer"}
                       >
                         {recommending ? "Saving..." : "Recommend Selected"}
                       </button>
@@ -422,6 +485,7 @@ export default function AdminGroupStaysClaimsPage() {
                       .map((c) => {
                         const isSelected = selectedClaimIds.includes(c.id);
                         const isRecommended = (bookingClaims.recommendedClaimIds || []).includes(c.id);
+                        const recommendationsLocked = (bookingClaims?.recommendedClaimIds?.length || 0) > 0;
                         const isHigh = bookingClaims.shortlist?.high?.id === c.id;
                         const isMid = bookingClaims.shortlist?.mid?.id === c.id;
                         const isLow = bookingClaims.shortlist?.low?.id === c.id;
@@ -436,6 +500,11 @@ export default function AdminGroupStaysClaimsPage() {
                             <div className="flex items-start justify-between gap-2">
                               <div className="min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap">
+                                  {isRecommended && (
+                                    <span className="px-2 py-1 text-[10px] font-bold rounded-md border bg-green-50 text-green-700 border-green-200">
+                                      RECOMMENDED
+                                    </span>
+                                  )}
                                   <span className={`px-2 py-1 text-[10px] font-bold rounded-md border ${badgeClasses(c.status)}`}>{c.status}</span>
                                   {(isHigh || isMid || isLow) && (
                                     <span
@@ -448,11 +517,6 @@ export default function AdminGroupStaysClaimsPage() {
                                       }`}
                                     >
                                       {isHigh ? "HIGH" : isMid ? "MID" : "LOW"}
-                                    </span>
-                                  )}
-                                  {isRecommended && (
-                                    <span className="px-2 py-1 text-[10px] font-bold rounded-md border bg-green-50 text-green-700 border-green-200">
-                                      Recommended
                                     </span>
                                   )}
                                 </div>
@@ -478,20 +542,115 @@ export default function AdminGroupStaysClaimsPage() {
                             <div className="mt-3 pt-3 border-t border-gray-200 flex items-center justify-between gap-2">
                               <button
                                 onClick={() => toggleSelection(c.id)}
-                                disabled={!isSelected && selectedClaimIds.length >= 3}
+                                disabled={
+                                  recommendationsLocked ||
+                                  isRecommended ||
+                                  (!isSelected && selectedClaimIds.length >= 3)
+                                }
                                 className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
                                   isSelected
                                     ? "bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700"
                                     : "bg-white text-gray-800 border-gray-200 hover:bg-gray-50"
                                 }`}
                               >
-                                {isSelected ? "Selected" : "Select"}
+                                {isRecommended ? "Recommended" : isSelected ? "Selected" : "Select"}
                               </button>
                               <div className="text-[11px] text-gray-500">{c.currency} {Number(c.offeredPricePerNight).toLocaleString()}/night</div>
                             </div>
                           </div>
                         );
                       })}
+                  </div>
+
+                  <div className="mt-6">
+                    <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => setAuditOpen((v) => !v)}
+                        className={`w-full flex items-center justify-between gap-3 p-3 sm:p-4 text-left transition-colors ${
+                          auditOpen ? "bg-gray-50" : "bg-white hover:bg-gray-50"
+                        }`}
+                        aria-expanded={auditOpen}
+                        aria-controls="audit-history-panel"
+                      >
+                        <div className="min-w-0 flex items-center gap-2">
+                          <FileText className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                          <div className="min-w-0 flex items-center gap-2">
+                            <div className="text-sm font-semibold text-gray-900 truncate">Audit history</div>
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-[11px] font-semibold text-gray-700">
+                              {auditItems.length}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 text-gray-600 flex-shrink-0">
+                          <span className="text-xs font-semibold">
+                            {auditOpen ? "Hide" : "View"}
+                          </span>
+                          {auditOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        </div>
+                      </button>
+
+                      {auditOpen && (
+                        <div id="audit-history-panel" className="border-t border-gray-200 bg-gray-50 p-3 sm:p-4">
+                          {auditLoading ? (
+                            <div className="text-xs text-gray-500">Loading audit history…</div>
+                          ) : auditItems.length === 0 ? (
+                            <div className="text-xs text-gray-500">No audit entries found.</div>
+                          ) : (
+                            <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+                              <div className="grid grid-cols-1 sm:grid-cols-[170px_1fr_140px] gap-2 px-4 py-2.5 bg-gray-50 border-b border-gray-200 text-[11px] font-semibold text-gray-500">
+                                <div>Time</div>
+                                <div>Action</div>
+                                <div className="sm:text-right">Admin</div>
+                              </div>
+
+                              <div className="divide-y divide-gray-200">
+                                {auditItems.slice(0, 12).map((a) => {
+                                  const meta = a?.metadata as any;
+                                  const claimIds = Array.isArray(meta?.claimIds) ? meta.claimIds : null;
+                                  const when = new Date(a.createdAt);
+                                  const adminName = a.admin?.name || a.admin?.email || "—";
+
+                                  return (
+                                    <div
+                                      key={a.id}
+                                      className="grid grid-cols-1 sm:grid-cols-[170px_1fr_140px] gap-2 px-4 py-3 hover:bg-gray-50"
+                                    >
+                                      <div className="text-xs text-gray-800 font-semibold">
+                                        {when.toLocaleDateString()} {when.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                                      </div>
+
+                                      <div className="min-w-0">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          <span className="inline-flex items-center px-2 py-0.5 rounded-md border border-gray-200 bg-gray-50 text-[11px] font-bold text-gray-800">
+                                            {a.action}
+                                          </span>
+                                          {claimIds && (
+                                            <span className="text-[11px] text-gray-500">
+                                              Claims: <span className="font-mono">{claimIds.join(", ")}</span>
+                                            </span>
+                                          )}
+                                        </div>
+                                        {a.description && (
+                                          <div className="mt-1 text-xs text-gray-600 leading-relaxed">
+                                            {a.description}
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      <div className="text-xs text-gray-700 sm:text-right truncate">
+                                        {adminName}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </>
               )}

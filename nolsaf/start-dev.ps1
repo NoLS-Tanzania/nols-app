@@ -44,7 +44,49 @@ if (Test-Path $webNextPath) {
 $env:NODE_NO_WARNINGS = "1"
 $env:NODE_OPTIONS = (($env:NODE_OPTIONS + ' ') + '--no-warnings').Trim()
 
+# Best-effort: make Mapbox token available to the API process.
+# In this repo, the token is often stored in apps/web/.env.local as NEXT_PUBLIC_MAPBOX_TOKEN.
+# The API expects MAPBOX_ACCESS_TOKEN (preferred) or NEXT_PUBLIC_MAPBOX_TOKEN.
+if (-not $env:MAPBOX_ACCESS_TOKEN) {
+    $webEnvPath = Join-Path $PSScriptRoot "apps\web\.env.local"
+    if (Test-Path $webEnvPath) {
+        try {
+            $lines = Get-Content $webEnvPath -ErrorAction Stop
+            foreach ($line in $lines) {
+                $safeLine = ""
+                if ($null -ne $line) { $safeLine = [string]$line }
+                $trimmed = $safeLine.Trim()
+                if (-not $trimmed -or $trimmed.StartsWith("#")) { continue }
+
+                # Basic dotenv parsing: KEY=VALUE
+                $m = [regex]::Match($trimmed, '^(?<k>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?<v>.*)$')
+                if (-not $m.Success) { continue }
+                $k = $m.Groups['k'].Value
+                $v = $m.Groups['v'].Value.Trim()
+                if (($v.StartsWith('"') -and $v.EndsWith('"')) -or ($v.StartsWith("'") -and $v.EndsWith("'"))) {
+                    $v = $v.Substring(1, $v.Length - 2)
+                }
+
+                if ($k -ieq "MAPBOX_ACCESS_TOKEN" -and $v) { $env:MAPBOX_ACCESS_TOKEN = $v; break }
+                if ($k -ieq "NEXT_PUBLIC_MAPBOX_TOKEN" -and $v) { $env:MAPBOX_ACCESS_TOKEN = $v; break }
+            }
+
+            if ($env:MAPBOX_ACCESS_TOKEN) {
+                Write-Host "Loaded MAPBOX_ACCESS_TOKEN for API (from apps/web/.env.local)." -ForegroundColor Cyan
+            }
+        } catch {
+            Write-Host "Mapbox token auto-load skipped: $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+    }
+}
+
 # Start the servers
-Write-Host "Starting pnpm dev..." -ForegroundColor Cyan
+# We explicitly run the web predev cleanup and then start both apps.
+# This keeps the dev flow stable on Windows and avoids stale .next artifacts.
+Write-Host "Starting API + Web dev servers..." -ForegroundColor Cyan
+
+pnpm --filter @nolsaf/web predev
+
+# Root dev runs both API and Web (and will now also run web predev).
 pnpm dev
 

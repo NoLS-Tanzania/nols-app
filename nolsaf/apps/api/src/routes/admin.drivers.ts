@@ -4,6 +4,7 @@ import { prisma } from "@nolsaf/prisma";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { Prisma } from "@prisma/client";
 import rateLimit from "express-rate-limit";
+import { hashTripCode, normalizeTripCode } from "../lib/tripCode.js";
 
 export const router = Router();
 router.use(requireAuth as unknown as RequestHandler, requireRole("ADMIN") as unknown as RequestHandler);
@@ -32,6 +33,86 @@ const limitAdminTripsWrite = rateLimit({
   legacyHeaders: false,
   keyGenerator: adminRateKey,
   message: { error: "Too many admin actions. Please wait and try again." },
+});
+
+// Trip-code lookups are sensitive and should be tighter.
+const limitAdminTripCodeLookup = rateLimit({
+  windowMs: 60_000,
+  limit: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: adminRateKey,
+  message: { error: "Too many lookups. Please wait and try again." },
+});
+
+/**
+ * GET /admin/drivers/trips/lookup-by-code?tripCode=TRP_.....
+ * Used for reconciliation: verify a code maps to a real transport booking.
+ */
+router.get("/trips/lookup-by-code", limitAdminTripCodeLookup, async (req, res) => {
+  try {
+    const raw = String((req.query as any)?.tripCode ?? "");
+    const tripCode = normalizeTripCode(raw);
+    if (!tripCode || !tripCode.startsWith("TRP_")) {
+      return res.status(400).json({ error: "invalid_trip_code" });
+    }
+
+    if (!(prisma as any).transportBooking) return res.status(404).json({ error: "not_found" });
+
+    const tripCodeHash = hashTripCode(tripCode);
+
+    const booking =
+      (await (prisma as any).transportBooking.findFirst({
+        where: {
+          OR: [{ tripCodeHash }, { tripCode }],
+        },
+        include: {
+          user: { select: { id: true, name: true, email: true, phone: true } },
+          driver: { select: { id: true, name: true, email: true, phone: true } },
+          property: { select: { id: true, title: true, regionName: true, district: true } },
+        },
+      })) ?? null;
+
+    // Best-effort audit trail
+    try {
+      const adminId = Number((req as any)?.user?.id);
+      await (prisma as any).adminAudit?.create?.({
+        data: {
+          adminId: Number.isFinite(adminId) ? adminId : null,
+          targetUserId: booking?.driverId ?? null,
+          action: "TRANSPORT_TRIP_CODE_LOOKUP",
+          details: { tripCode, found: !!booking, bookingId: booking?.id ?? null },
+        },
+      });
+    } catch {
+      // ignore
+    }
+
+    if (!booking) return res.status(404).json({ error: "not_found" });
+
+    return res.json({
+      booking: {
+        id: booking.id,
+        tripCode: booking.tripCode || null,
+        scheduledAt: (booking.scheduledDate ?? booking.createdAt)?.toISOString?.() ?? String(booking.scheduledDate ?? booking.createdAt ?? ""),
+        vehicleType: booking.vehicleType ?? null,
+        amount: booking.amount != null ? Number(booking.amount) : 0,
+        currency: booking.currency ?? "TZS",
+        status: booking.status ?? null,
+        paymentStatus: booking.paymentStatus ?? null,
+        paymentRef: booking.paymentRef ?? null,
+        pickup: booking.fromAddress ?? null,
+        dropoff: booking.toAddress ?? null,
+        passenger: booking.user ?? null,
+        driver: booking.driver ?? null,
+        property: booking.property ?? null,
+        createdAt: booking.createdAt ? new Date(booking.createdAt).toISOString() : null,
+      },
+    });
+  } catch (err) {
+    console.error("GET /admin/drivers/trips/lookup-by-code error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 const normalizeSearchTerm = (v: unknown, maxLen = 80) =>
@@ -603,10 +684,21 @@ router.get("/trips", limitAdminTripsRead, async (req, res) => {
     (where as any).claims = { none: {} };
 
     // Keep "Trips" focused on rides that need attention now / already happened.
-    // Future rides belong in /trips/scheduled.
+    // Additionally include near-term unassigned dispatch trips (for 5m warnings / 10m takeover)
+    // and admin-takeover trips regardless of scheduledDate.
+    const now = Date.now();
+    const lookahead = new Date(now + 20 * 60 * 1000);
     (where as any).OR = [
-      { scheduledDate: { lte: new Date() } },
+      { scheduledDate: { lte: new Date(now) } },
       { status: { in: ["CONFIRMED", "IN_PROGRESS"] } },
+      { status: "PENDING_ADMIN_ASSIGNMENT" },
+      {
+        AND: [
+          { driverId: null },
+          { status: { in: ["PENDING", "PENDING_ASSIGNMENT"] } },
+          { scheduledDate: { lte: lookahead } },
+        ],
+      },
     ];
     
     // Filter by driver if specified
@@ -656,6 +748,7 @@ router.get("/trips", limitAdminTripsRead, async (req, res) => {
           { fromRegion: { contains: term } },
           { toRegion: { contains: term } },
           { paymentRef: { contains: term } },
+          { tripCode: { contains: term } },
           // Optional relation filter needs `is`
           { driver: { is: { name: { contains: term } } } },
           { driver: { is: { email: { contains: term } } } },
@@ -716,7 +809,7 @@ router.get("/trips", limitAdminTripsRead, async (req, res) => {
 
     const mapped = (items as any[]).map((b: any) => ({
       id: b.id,
-      tripCode: b.paymentRef || `TRIP-${b.id}`,
+      tripCode: b.tripCode || b.paymentRef || `TRIP-${b.id}`,
       driver: b.driver
         ? {
             id: b.driver.id,
@@ -1091,9 +1184,37 @@ router.get("/trips/:id(\\d+)", async (req, res) => {
 
     if (!booking) return res.status(404).json({ error: "Not found" });
 
+    let payout: any = null;
+    try {
+      if ((prisma as any).transportPayout) {
+        payout = await (prisma as any).transportPayout.findUnique({
+          where: { transportBookingId: bookingId },
+          select: {
+            id: true,
+            status: true,
+            currency: true,
+            grossAmount: true,
+            commissionPercent: true,
+            commissionAmount: true,
+            netPaid: true,
+            approvedAt: true,
+            approvedBy: true,
+            paidAt: true,
+            paidBy: true,
+            paymentMethod: true,
+            paymentRef: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        });
+      }
+    } catch {
+      payout = null;
+    }
+
     const trip = {
       id: booking.id,
-      tripCode: booking.paymentRef || `TRIP-${booking.id}`,
+      tripCode: booking.tripCode || booking.paymentRef || `TRIP-${booking.id}`,
       status: booking.status || "PENDING",
       scheduledAt: (booking.scheduledDate ?? booking.createdAt)?.toISOString?.() ?? String(booking.scheduledDate ?? booking.createdAt ?? ""),
       pickupTime: booking.pickupTime ? new Date(booking.pickupTime).toISOString() : null,
@@ -1123,6 +1244,23 @@ router.get("/trips/:id(\\d+)", async (req, res) => {
             name: booking.driver.name ?? "",
             email: booking.driver.email ?? "",
             phone: booking.driver.phone ?? null,
+          }
+        : null,
+      payout: payout
+        ? {
+            id: payout.id,
+            status: payout.status,
+            currency: payout.currency,
+            grossAmount: payout.grossAmount != null ? Number(payout.grossAmount) : null,
+            commissionPercent: payout.commissionPercent != null ? Number(payout.commissionPercent) : null,
+            commissionAmount: payout.commissionAmount != null ? Number(payout.commissionAmount) : null,
+            netPaid: payout.netPaid != null ? Number(payout.netPaid) : null,
+            approvedAt: payout.approvedAt ? new Date(payout.approvedAt).toISOString() : null,
+            paidAt: payout.paidAt ? new Date(payout.paidAt).toISOString() : null,
+            paymentMethod: payout.paymentMethod ?? null,
+            paymentRef: payout.paymentRef ?? null,
+            createdAt: payout.createdAt ? new Date(payout.createdAt).toISOString() : null,
+            updatedAt: payout.updatedAt ? new Date(payout.updatedAt).toISOString() : null,
           }
         : null,
     };
@@ -1170,6 +1308,290 @@ router.get("/trips/:id(\\d+)", async (req, res) => {
     }
     console.error("Unhandled error in GET /admin/drivers/trips/:id:", err);
     return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+const DEFAULT_TRANSPORT_DRIVER_COMMISSION_PERCENT = 10;
+function roundMoney(amount: number) {
+  return Math.round((Number(amount) || 0) * 100) / 100;
+}
+
+/**
+ * POST /admin/drivers/trips/:id/payout/approve
+ * Body: { acknowledgeCommission?: boolean }
+ * Creates/updates a TransportPayout record and moves it to APPROVED.
+ * Requires explicit acknowledgement so payout cannot be silently bypassed.
+ */
+router.post("/trips/:id(\\d+)/payout/approve", async (req, res) => {
+  try {
+    const r = req as any;
+    const adminId = Number(r?.user?.id);
+    const bookingId = Number(req.params.id);
+    const acknowledgeCommission = Boolean((req.body as any)?.acknowledgeCommission);
+
+    if (!Number.isFinite(bookingId) || bookingId <= 0) return res.status(400).json({ error: "Invalid id" });
+    if (!(prisma as any).transportBooking) return res.status(404).json({ error: "Not found" });
+    if (!(prisma as any).transportPayout) return res.status(409).json({ error: "Transport payout model not available" });
+
+    const booking = await (prisma as any).transportBooking.findUnique({
+      where: { id: bookingId },
+      select: { id: true, status: true, driverId: true, amount: true, currency: true },
+    });
+    if (!booking) return res.status(404).json({ error: "Not found" });
+
+    const status = String(booking.status ?? "").toUpperCase();
+    if (!['COMPLETED', 'FINISHED'].includes(status)) return res.status(409).json({ error: "Trip is not completed" });
+    if (!booking.driverId) return res.status(409).json({ error: "Trip has no driver assigned" });
+
+    const grossAmount = Number(booking.amount ?? 0);
+    if (!Number.isFinite(grossAmount) || grossAmount <= 0) return res.status(409).json({ error: "Trip amount is not set" });
+    const currency = booking.currency ?? 'TZS';
+
+    const commissionPercent = DEFAULT_TRANSPORT_DRIVER_COMMISSION_PERCENT;
+    const commissionAmount = roundMoney((grossAmount * commissionPercent) / 100);
+    const netPaid = roundMoney(grossAmount - commissionAmount);
+
+    if (!acknowledgeCommission) {
+      return res.status(409).json({
+        error: "commission_ack_required",
+        message: "Commission acknowledgement required before approving payout",
+        currency,
+        grossAmount,
+        commissionPercent,
+        commissionAmount,
+        netPaid,
+      });
+    }
+
+    const payout = await prisma.$transaction(async (tx) => {
+      const existing = await (tx as any).transportPayout.findUnique({ where: { transportBookingId: bookingId } });
+      if (existing && String(existing.status ?? '').toUpperCase() === 'PAID') {
+        const err: any = new Error('Payout already paid');
+        err.code = 'ALREADY_PAID';
+        throw err;
+      }
+
+      const upserted = await (tx as any).transportPayout.upsert({
+        where: { transportBookingId: bookingId },
+        create: {
+          transportBookingId: bookingId,
+          driverId: Number(booking.driverId),
+          currency,
+          grossAmount: grossAmount as any,
+          commissionPercent: commissionPercent as any,
+          commissionAmount: commissionAmount as any,
+          netPaid: netPaid as any,
+          status: 'APPROVED',
+          approvedAt: new Date(),
+          approvedBy: Number.isFinite(adminId) ? adminId : null,
+        },
+        update: {
+          driverId: Number(booking.driverId),
+          currency,
+          grossAmount: grossAmount as any,
+          commissionPercent: commissionPercent as any,
+          commissionAmount: commissionAmount as any,
+          netPaid: netPaid as any,
+          status: 'APPROVED',
+          approvedAt: new Date(),
+          approvedBy: Number.isFinite(adminId) ? adminId : null,
+        },
+      });
+
+      try {
+        await (tx as any).auditLog?.create?.({
+          data: {
+            actorId: Number.isFinite(adminId) ? adminId : null,
+            actorRole: 'ADMIN',
+            action: 'TRANSPORT_PAYOUT_APPROVED',
+            entity: 'TRANSPORT_BOOKING',
+            entityId: bookingId,
+            beforeJson: existing ? { payoutStatus: existing.status } : null,
+            afterJson: {
+              payoutStatus: 'APPROVED',
+              currency,
+              grossAmount,
+              commissionPercent,
+              commissionAmount,
+              netPaid,
+            },
+            ip: (req.headers["x-forwarded-for"] as string) || (req.socket as any)?.remoteAddress || null,
+            ua: String(req.headers["user-agent"] || ""),
+          },
+        });
+      } catch {
+        // ignore
+      }
+
+      return upserted;
+    });
+
+    return res.json({
+      ok: true,
+      payout: {
+        id: payout.id,
+        status: payout.status,
+        currency: payout.currency,
+        grossAmount: Number(payout.grossAmount),
+        commissionPercent: Number(payout.commissionPercent),
+        commissionAmount: Number(payout.commissionAmount),
+        netPaid: Number(payout.netPaid),
+        approvedAt: payout.approvedAt ? new Date(payout.approvedAt).toISOString() : null,
+      },
+    });
+  } catch (error: any) {
+    const status =
+      error?.code === 'ALREADY_PAID' ? 409 :
+      500;
+    console.error('POST /admin/drivers/trips/:id/payout/approve error:', error);
+    return res.status(status).json({ error: error?.message || 'Failed to approve payout' });
+  }
+});
+
+/**
+ * POST /admin/drivers/trips/:id/payout/pay
+ * Body: { acknowledgeCommission?: boolean, paymentMethod?: string, paymentRef?: string }
+ * Marks payout as PAID. Requires explicit acknowledgement.
+ */
+router.post("/trips/:id(\\d+)/payout/pay", async (req, res) => {
+  try {
+    const r = req as any;
+    const adminId = Number(r?.user?.id);
+    const bookingId = Number(req.params.id);
+    const acknowledgeCommission = Boolean((req.body as any)?.acknowledgeCommission);
+    const paymentMethod = typeof (req.body as any)?.paymentMethod === 'string' ? String((req.body as any).paymentMethod).trim() : null;
+    const paymentRef = typeof (req.body as any)?.paymentRef === 'string' ? String((req.body as any).paymentRef).trim() : null;
+
+    if (!Number.isFinite(bookingId) || bookingId <= 0) return res.status(400).json({ error: "Invalid id" });
+    if (!(prisma as any).transportBooking) return res.status(404).json({ error: "Not found" });
+    if (!(prisma as any).transportPayout) return res.status(409).json({ error: "Transport payout model not available" });
+
+    const booking = await (prisma as any).transportBooking.findUnique({
+      where: { id: bookingId },
+      select: { id: true, status: true, driverId: true, amount: true, currency: true },
+    });
+    if (!booking) return res.status(404).json({ error: "Not found" });
+
+    const status = String(booking.status ?? "").toUpperCase();
+    if (!['COMPLETED', 'FINISHED'].includes(status)) return res.status(409).json({ error: "Trip is not completed" });
+    if (!booking.driverId) return res.status(409).json({ error: "Trip has no driver assigned" });
+
+    const grossAmount = Number(booking.amount ?? 0);
+    if (!Number.isFinite(grossAmount) || grossAmount <= 0) return res.status(409).json({ error: "Trip amount is not set" });
+    const currency = booking.currency ?? 'TZS';
+
+    const commissionPercent = DEFAULT_TRANSPORT_DRIVER_COMMISSION_PERCENT;
+    const commissionAmount = roundMoney((grossAmount * commissionPercent) / 100);
+    const netPaid = roundMoney(grossAmount - commissionAmount);
+
+    if (!acknowledgeCommission) {
+      return res.status(409).json({
+        error: "commission_ack_required",
+        message: "Commission acknowledgement required before paying payout",
+        currency,
+        grossAmount,
+        commissionPercent,
+        commissionAmount,
+        netPaid,
+      });
+    }
+
+    const payout = await prisma.$transaction(async (tx) => {
+      const existing = await (tx as any).transportPayout.findUnique({ where: { transportBookingId: bookingId } });
+      if (existing && String(existing.status ?? '').toUpperCase() === 'PAID') {
+        const err: any = new Error('Payout already paid');
+        err.code = 'ALREADY_PAID';
+        throw err;
+      }
+
+      const now = new Date();
+      const upserted = await (tx as any).transportPayout.upsert({
+        where: { transportBookingId: bookingId },
+        create: {
+          transportBookingId: bookingId,
+          driverId: Number(booking.driverId),
+          currency,
+          grossAmount: grossAmount as any,
+          commissionPercent: commissionPercent as any,
+          commissionAmount: commissionAmount as any,
+          netPaid: netPaid as any,
+          status: 'PAID',
+          approvedAt: now,
+          approvedBy: Number.isFinite(adminId) ? adminId : null,
+          paidAt: now,
+          paidBy: Number.isFinite(adminId) ? adminId : null,
+          paymentMethod: paymentMethod || null,
+          paymentRef: paymentRef || null,
+        },
+        update: {
+          driverId: Number(booking.driverId),
+          currency,
+          grossAmount: grossAmount as any,
+          commissionPercent: commissionPercent as any,
+          commissionAmount: commissionAmount as any,
+          netPaid: netPaid as any,
+          status: 'PAID',
+          approvedAt: existing?.approvedAt ?? now,
+          approvedBy: existing?.approvedBy ?? (Number.isFinite(adminId) ? adminId : null),
+          paidAt: now,
+          paidBy: Number.isFinite(adminId) ? adminId : null,
+          paymentMethod: paymentMethod || (existing?.paymentMethod ?? null),
+          paymentRef: paymentRef || (existing?.paymentRef ?? null),
+        },
+      });
+
+      try {
+        await (tx as any).auditLog?.create?.({
+          data: {
+            actorId: Number.isFinite(adminId) ? adminId : null,
+            actorRole: 'ADMIN',
+            action: 'TRANSPORT_PAYOUT_PAID',
+            entity: 'TRANSPORT_BOOKING',
+            entityId: bookingId,
+            beforeJson: existing ? { payoutStatus: existing.status } : null,
+            afterJson: {
+              payoutStatus: 'PAID',
+              currency,
+              grossAmount,
+              commissionPercent,
+              commissionAmount,
+              netPaid,
+              paymentMethod: paymentMethod || null,
+              paymentRef: paymentRef || null,
+            },
+            ip: (req.headers["x-forwarded-for"] as string) || (req.socket as any)?.remoteAddress || null,
+            ua: String(req.headers["user-agent"] || ""),
+          },
+        });
+      } catch {
+        // ignore
+      }
+
+      return upserted;
+    });
+
+    return res.json({
+      ok: true,
+      payout: {
+        id: payout.id,
+        status: payout.status,
+        currency: payout.currency,
+        grossAmount: Number(payout.grossAmount),
+        commissionPercent: Number(payout.commissionPercent),
+        commissionAmount: Number(payout.commissionAmount),
+        netPaid: Number(payout.netPaid),
+        approvedAt: payout.approvedAt ? new Date(payout.approvedAt).toISOString() : null,
+        paidAt: payout.paidAt ? new Date(payout.paidAt).toISOString() : null,
+        paymentMethod: payout.paymentMethod ?? null,
+        paymentRef: payout.paymentRef ?? null,
+      },
+    });
+  } catch (error: any) {
+    const status =
+      error?.code === 'ALREADY_PAID' ? 409 :
+      500;
+    console.error('POST /admin/drivers/trips/:id/payout/pay error:', error);
+    return res.status(status).json({ error: error?.message || 'Failed to pay payout' });
   }
 });
 
@@ -1275,6 +1697,7 @@ router.get("/trips/scheduled", async (req, res) => {
         { fromRegion: { contains: term } },
         { toRegion: { contains: term } },
         { paymentRef: { contains: term } },
+        { tripCode: { contains: term } },
         { user: { is: { name: { contains: term } } } },
         { user: { is: { email: { contains: term } } } },
       ];
@@ -1330,7 +1753,7 @@ router.get("/trips/scheduled", async (req, res) => {
 
       return {
         id: b.id,
-        tripCode: b.paymentRef || `TRIP-${b.id}`,
+        tripCode: b.tripCode || b.paymentRef || `TRIP-${b.id}`,
         passenger: b.user
           ? { id: b.user.id, name: b.user.name, email: b.user.email, phone: b.user.phone }
           : null,
@@ -1636,7 +2059,7 @@ router.get("/trips/scheduled/:id", async (req, res) => {
     return res.json({
       booking: {
         id: booking.id,
-        tripCode: booking.paymentRef || `TRIP-${booking.id}`,
+        tripCode: booking.tripCode || booking.paymentRef || `TRIP-${booking.id}`,
         scheduledAt: (booking.scheduledDate ?? booking.createdAt)?.toISOString?.() ?? String(booking.scheduledDate ?? booking.createdAt ?? ""),
         vehicleType: booking.vehicleType ?? null,
         amount: Number((booking as any).amount ?? 0),

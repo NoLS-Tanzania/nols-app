@@ -99,6 +99,23 @@ type TripDetailsResponse = {
     updatedAt: string | null;
     user: { id: number; name: string; email: string; phone: string | null } | null;
     driver: { id: number; name: string; email: string; phone: string | null } | null;
+    payout:
+      | {
+          id: number;
+          status: "PENDING" | "APPROVED" | "PAID" | string;
+          currency: string;
+          grossAmount: number | null;
+          commissionPercent: number | null;
+          commissionAmount: number | null;
+          netPaid: number | null;
+          approvedAt: string | null;
+          paidAt: string | null;
+          paymentMethod: string | null;
+          paymentRef: string | null;
+          createdAt: string | null;
+          updatedAt: string | null;
+        }
+      | null;
   };
   assignmentAudits: Array<{
     id: number;
@@ -109,21 +126,18 @@ type TripDetailsResponse = {
   }>;
 };
 
-function badgeClasses(v: string) {
-  switch (v) {
-    case "PENDING":
-      return "bg-gray-100 text-gray-700";
-    case "CONFIRMED":
-      return "bg-blue-100 text-blue-700";
-    case "IN_PROGRESS":
-      return "bg-emerald-100 text-emerald-700";
-    case "COMPLETED":
-      return "bg-sky-100 text-sky-700";
-    case "CANCELED":
-      return "bg-red-100 text-red-700";
-    default:
-      return "bg-gray-100 text-gray-700";
-  }
+type CommissionAckPayload = {
+  error: "commission_ack_required";
+  message?: string;
+  currency: string;
+  grossAmount: number;
+  commissionPercent: number;
+  commissionAmount: number;
+  netPaid: number;
+};
+
+function round2(n: number) {
+  return Math.round((Number(n) || 0) * 100) / 100;
 }
 
 function pillClasses(kind: "neutral" | "blue" | "green" | "amber") {
@@ -205,6 +219,10 @@ function formatRequestedDateTime(iso: string) {
     minute: "2-digit",
   });
 }
+
+const AUTO_DISPATCH_WARN_MS = 5 * 60 * 1000;
+const AUTO_DISPATCH_TAKEOVER_MS = 10 * 60 * 1000;
+const AUTO_DISPATCH_LOOKAHEAD_MS = 20 * 60 * 1000;
 
 type DriverStepState = "upcoming" | "current" | "completed";
 type DriverProgress =
@@ -327,6 +345,43 @@ export default function AdminDriversTripsPage() {
   const searchRef = useRef<HTMLInputElement | null>(null);
   const [pickerAnim, setPickerAnim] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+
+  const nowMs = Date.now();
+
+  const getEscalation = useCallback(
+    (trip: TripRow) => {
+      const status = String(trip?.status ?? "").toUpperCase().trim();
+      const isTakeover = status === "PENDING_ADMIN_ASSIGNMENT";
+      const hasDriver = Boolean(trip?.driver);
+
+      const createdMs = trip?.createdAt ? new Date(trip.createdAt).getTime() : NaN;
+      const scheduledMs = trip?.scheduledAt ? new Date(trip.scheduledAt).getTime() : NaN;
+      const ageMs = Number.isFinite(createdMs) ? Math.max(0, nowMs - createdMs) : null;
+      const withinLookahead =
+        Number.isFinite(scheduledMs) && scheduledMs <= nowMs + AUTO_DISPATCH_LOOKAHEAD_MS;
+      const paid = String(trip?.paymentStatus ?? "").toUpperCase().trim() === "PAID";
+
+      const warnWindow =
+        !isTakeover &&
+        !hasDriver &&
+        paid &&
+        withinLookahead &&
+        typeof ageMs === "number" &&
+        ageMs >= AUTO_DISPATCH_WARN_MS &&
+        ageMs < AUTO_DISPATCH_TAKEOVER_MS;
+
+      const overdue =
+        !isTakeover &&
+        !hasDriver &&
+        paid &&
+        withinLookahead &&
+        typeof ageMs === "number" &&
+        ageMs >= AUTO_DISPATCH_TAKEOVER_MS;
+
+      return { isTakeover, warnWindow, overdue };
+    },
+    [nowMs]
+  );
   
   // Histogram state
   const [histogramPeriod, setHistogramPeriod] = useState<string>("30d");
@@ -353,6 +408,17 @@ export default function AdminDriversTripsPage() {
   const [detailsTripId, setDetailsTripId] = useState<number | null>(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [detailsData, setDetailsData] = useState<TripDetailsResponse | null>(null);
+
+  // Payout acknowledgement modal
+  const [commissionMounted, setCommissionMounted] = useState(false);
+  const [commissionOpen, setCommissionOpen] = useState(false);
+  const [commissionAction, setCommissionAction] = useState<"approve" | "pay">("approve");
+  const [commissionPayload, setCommissionPayload] = useState<CommissionAckPayload | null>(null);
+  const [commissionAck, setCommissionAck] = useState(false);
+  const [commissionBusy, setCommissionBusy] = useState(false);
+  const [commissionError, setCommissionError] = useState<string | null>(null);
+  const [payoutError, setPayoutError] = useState<string | null>(null);
+  const [payoutBusy, setPayoutBusy] = useState(false);
 
   // Reason modal (unassign/cancel)
   const [reasonMounted, setReasonMounted] = useState(false);
@@ -396,7 +462,7 @@ export default function AdminDriversTripsPage() {
     window.setTimeout(() => reasonTextareaRef.current?.focus(), 0);
   };
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const params: any = {
@@ -425,7 +491,7 @@ export default function AdminDriversTripsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [assignment, date, page, pageSize, q, status]);
 
   const loadHistogram = useCallback(async () => {
     setHistogramLoading(true);
@@ -445,7 +511,7 @@ export default function AdminDriversTripsPage() {
   useEffect(() => {
     authify();
     load();
-  }, [page, status, assignment, date]);
+  }, [load]);
 
   useEffect(() => {
     authify();
@@ -573,11 +639,72 @@ export default function AdminDriversTripsPage() {
 
   const closeDetails = () => {
     setDetailsOpen(false);
+    setCommissionOpen(false);
     window.setTimeout(() => {
       setDetailsMounted(false);
       setDetailsTripId(null);
       setDetailsData(null);
+      setCommissionMounted(false);
+      setCommissionPayload(null);
+      setCommissionAck(false);
+      setCommissionError(null);
+      setPayoutError(null);
+      setPayoutBusy(false);
     }, 220);
+  };
+
+  const openCommissionModal = (action: "approve" | "pay", payload: CommissionAckPayload) => {
+    setCommissionAction(action);
+    setCommissionPayload(payload);
+    setCommissionAck(false);
+    setCommissionError(null);
+    setCommissionMounted(true);
+    requestAnimationFrame(() => setCommissionOpen(true));
+  };
+
+  const closeCommissionModal = () => {
+    setCommissionOpen(false);
+    window.setTimeout(() => {
+      setCommissionMounted(false);
+      setCommissionPayload(null);
+      setCommissionAck(false);
+      setCommissionError(null);
+    }, 200);
+  };
+
+  const submitPayoutAction = async (action: "approve" | "pay", acknowledgeCommission: boolean) => {
+    if (!detailsMounted || !detailsTripId) return;
+    setPayoutError(null);
+    setPayoutBusy(true);
+    try {
+      const endpoint = action === "approve" ? "payout/approve" : "payout/pay";
+      await api.post(`/api/admin/drivers/trips/${detailsTripId}/${endpoint}`, {
+        acknowledgeCommission,
+      });
+      await refreshDetails();
+      await load();
+      return { ok: true } as const;
+    } catch (err: any) {
+      const data = err?.response?.data;
+      if (data?.error === "commission_ack_required") {
+        const payload: CommissionAckPayload = {
+          error: "commission_ack_required",
+          message: typeof data?.message === "string" ? data.message : undefined,
+          currency: String(data?.currency || detailsData?.trip?.currency || "TZS"),
+          grossAmount: Number(data?.grossAmount ?? 0),
+          commissionPercent: Number(data?.commissionPercent ?? 10),
+          commissionAmount: Number(data?.commissionAmount ?? 0),
+          netPaid: Number(data?.netPaid ?? 0),
+        };
+        openCommissionModal(action, payload);
+        return { ok: false, needsAck: true } as const;
+      }
+      const msg = String(data?.error || data?.message || err?.message || "Failed");
+      setPayoutError(msg);
+      return { ok: false, needsAck: false } as const;
+    } finally {
+      setPayoutBusy(false);
+    }
   };
 
   const refreshDetails = useCallback(async () => {
@@ -888,6 +1015,26 @@ export default function AdminDriversTripsPage() {
                   {s.label}
                 </button>
               ))}
+
+              <button
+                type="button"
+                onClick={() => {
+                  // Quick filter: reuse existing filters (no new mode)
+                  setStatus("PENDING_ADMIN_ASSIGNMENT");
+                  setAssignment("unassigned");
+                  setPage(1);
+                  setTimeout(() => load(), 0);
+                }}
+                className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-all duration-200 whitespace-nowrap flex-shrink-0 ${
+                  status === "PENDING_ADMIN_ASSIGNMENT"
+                    ? "bg-amber-50 border-amber-300 text-amber-800"
+                    : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
+                }`}
+                title="Show only trips that require admin takeover"
+                aria-label="Filter trips needing admin takeover"
+              >
+                Needs takeover
+              </button>
             </div>
 
             <div className="w-full sm:w-60">
@@ -903,6 +1050,9 @@ export default function AdminDriversTripsPage() {
                 className="w-full box-border px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 bg-white outline-none focus:ring-2 focus:ring-brand-100 focus:border-brand-500"
               >
                 <option value="">All statuses</option>
+                <option value="PENDING">Pending</option>
+                <option value="PENDING_ASSIGNMENT">Pending Assignment</option>
+                <option value="PENDING_ADMIN_ASSIGNMENT">Pending Admin Assignment</option>
                 <option value="CONFIRMED">Confirmed</option>
                 <option value="IN_PROGRESS">In Progress</option>
                 <option value="COMPLETED">Completed</option>
@@ -1110,6 +1260,40 @@ export default function AdminDriversTripsPage() {
                           <span className="truncate">{trip.tripCode}</span>
                         </div>
                         <div className="mt-1 flex flex-wrap gap-1">
+                          {(() => {
+                            const esc = getEscalation(trip);
+                            if (esc.isTakeover) {
+                              return (
+                                <span
+                                  className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${pillClasses("amber")}`}
+                                  title="10+ minutes unassigned: admin takeover required"
+                                >
+                                  Admin takeover
+                                </span>
+                              );
+                            }
+                            if (esc.warnWindow) {
+                              return (
+                                <span
+                                  className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${pillClasses("amber")}`}
+                                  title="5+ minutes unassigned: admin prepare"
+                                >
+                                  5m warning
+                                </span>
+                              );
+                            }
+                            if (esc.overdue) {
+                              return (
+                                <span
+                                  className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${pillClasses("amber")}`}
+                                  title="10+ minutes unassigned: pending escalation"
+                                >
+                                  Overdue
+                                </span>
+                              );
+                            }
+                            return null;
+                          })()}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -1243,6 +1427,40 @@ export default function AdminDriversTripsPage() {
                         <span className="truncate">{trip.tripCode}</span>
                       </div>
                       <div className="mt-1 flex flex-wrap gap-1">
+                        {(() => {
+                          const esc = getEscalation(trip);
+                          if (esc.isTakeover) {
+                            return (
+                              <span
+                                className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${pillClasses("amber")}`}
+                                title="10+ minutes unassigned: admin takeover required"
+                              >
+                                Admin takeover
+                              </span>
+                            );
+                          }
+                          if (esc.warnWindow) {
+                            return (
+                              <span
+                                className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${pillClasses("amber")}`}
+                                title="5+ minutes unassigned: admin prepare"
+                              >
+                                5m warning
+                              </span>
+                            );
+                          }
+                          if (esc.overdue) {
+                            return (
+                              <span
+                                className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${pillClasses("amber")}`}
+                                title="10+ minutes unassigned: pending escalation"
+                              >
+                                Overdue
+                              </span>
+                            );
+                          }
+                          return null;
+                        })()}
                       </div>
                       <div className="mt-2 flex items-center gap-2 text-sm text-gray-900">
                         <Truck className="h-4 w-4 text-gray-400" />
@@ -1703,6 +1921,99 @@ export default function AdminDriversTripsPage() {
                     </div>
                   </div>
 
+                  <div className="rounded-2xl bg-white/80 backdrop-blur border border-gray-200/60 shadow-sm hover:shadow-md transition p-4">
+                    {(() => {
+                      const trip = detailsData.trip;
+                      const tripStatus = String(trip.status ?? "").toUpperCase();
+                      const eligible = tripStatus === "COMPLETED" || tripStatus === "FINISHED";
+
+                      const rawPayoutStatus = trip.payout?.status ? String(trip.payout.status).toUpperCase() : "";
+                      const payoutStatus = rawPayoutStatus || (eligible ? "PENDING" : "—");
+
+                      const gross = Number(trip.amount ?? 0);
+                      const commissionPercent = Number(trip.payout?.commissionPercent ?? 10);
+                      const commissionAmount =
+                        trip.payout?.commissionAmount != null
+                          ? Number(trip.payout.commissionAmount)
+                          : round2((gross * commissionPercent) / 100);
+                      const netPaid =
+                        trip.payout?.netPaid != null ? Number(trip.payout.netPaid) : round2(gross - commissionAmount);
+
+                      const pillKind =
+                        payoutStatus === "PAID"
+                          ? "green"
+                          : payoutStatus === "APPROVED"
+                            ? "blue"
+                            : payoutStatus === "PENDING"
+                              ? "neutral"
+                              : "amber";
+
+                      const hasDriver = Boolean(trip.driver);
+                      const canApprove = eligible && hasDriver && payoutStatus !== "PAID" && payoutStatus !== "APPROVED";
+                      const canPay = eligible && hasDriver && payoutStatus !== "PAID";
+                      const busy = payoutBusy || commissionBusy || actionBusy;
+
+                      return (
+                        <>
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="text-xs font-semibold text-gray-600">Driver Payout</div>
+                            <span className={`px-2 py-1 text-[11px] font-semibold rounded-full border ${pillClasses(pillKind)}`}>
+                              {payoutStatus}
+                            </span>
+                          </div>
+
+                          <div className="mt-3 grid grid-cols-2 gap-3">
+                            <div>
+                              <div className="text-[11px] font-medium tracking-wide uppercase text-gray-500">Gross</div>
+                              <div className="text-sm font-semibold text-gray-900">
+                                {trip.currency} {Number.isFinite(gross) ? gross.toLocaleString() : "0"}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-[11px] font-medium tracking-wide uppercase text-gray-500">Commission</div>
+                              <div className="text-sm font-semibold text-gray-900">
+                                {commissionPercent}% ({trip.currency} {Number.isFinite(commissionAmount) ? commissionAmount.toLocaleString() : "0"})
+                              </div>
+                            </div>
+                            <div className="col-span-2">
+                              <div className="text-[11px] font-medium tracking-wide uppercase text-gray-500">Net To Driver</div>
+                              <div className="text-sm font-semibold text-gray-900">
+                                {trip.currency} {Number.isFinite(netPaid) ? netPaid.toLocaleString() : "0"}
+                              </div>
+                            </div>
+                          </div>
+
+                          {payoutError ? <div className="mt-3 text-xs text-red-600">{payoutError}</div> : null}
+
+                          {eligible ? (
+                            <div className="mt-3 flex flex-col sm:flex-row gap-2">
+                              <button
+                                type="button"
+                                disabled={!canApprove || busy}
+                                onClick={() => void submitPayoutAction("approve", false)}
+                                className="inline-flex items-center justify-center px-4 py-2 rounded-xl border border-brand-200 bg-brand-50 text-brand-700 hover:bg-brand-100 hover:border-brand-300 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                Approve payout (ack commission)
+                              </button>
+                              <button
+                                type="button"
+                                disabled={!canPay || busy}
+                                onClick={() => void submitPayoutAction("pay", false)}
+                                className="inline-flex items-center justify-center px-4 py-2 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 hover:border-emerald-300 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                Mark paid (ack commission)
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="mt-3 text-xs text-gray-500">
+                              Payout actions are available once the trip is completed.
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
+
                   <div className="rounded-2xl bg-white/80 backdrop-blur border border-gray-200/60 shadow-sm overflow-hidden">
                     <div className="px-4 py-3 bg-white/60 border-b border-gray-200/60 text-xs font-semibold text-gray-600">
                       Assignment History
@@ -1972,6 +2283,152 @@ export default function AdminDriversTripsPage() {
                 </button>
                   );
                 })()}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Commission Acknowledgement Modal */}
+      {commissionMounted && commissionPayload && (
+        <div className={`fixed inset-0 z-[60] ${commissionOpen ? "" : "pointer-events-none"}`}>
+          <div
+            className={`absolute inset-0 bg-black/50 transition-opacity duration-200 ${commissionOpen ? "opacity-100" : "opacity-0"}`}
+            onClick={() => {
+              if (commissionBusy) return;
+              closeCommissionModal();
+            }}
+          />
+          <div className="relative h-full w-full flex items-center justify-center p-3 sm:p-6">
+            <div
+              className={`relative w-full max-w-lg overflow-hidden rounded-2xl sm:rounded-3xl border border-white/30 shadow-2xl bg-gradient-to-b from-surface via-white to-brand-50 transition-all duration-200 ease-out ${
+                commissionOpen ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-[0.98] translate-y-2"
+              }`}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Commission acknowledgement"
+            >
+              <div className="relative overflow-hidden border-b border-white/40">
+                <div className="absolute inset-0 bg-gradient-to-r from-brand-700 via-brand-600 to-brand-500" />
+                <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_20%_20%,white,transparent_40%),radial-gradient(circle_at_80%_10%,white,transparent_35%),radial-gradient(circle_at_40%_90%,white,transparent_35%)]" />
+                <div className="relative px-4 py-4 sm:px-6 sm:pt-6 sm:pb-5 flex items-start justify-between gap-3 text-white">
+                  <div className="min-w-0 pr-2">
+                    <div className="text-sm sm:text-lg font-semibold leading-snug break-words">Commission acknowledgement required</div>
+                    <div className="mt-1 text-xs text-white/85 break-words">
+                      {commissionPayload.message ||
+                        "Before approving or paying this driver payout, you must acknowledge the NoLSAF commission deduction."}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (commissionBusy) return;
+                      closeCommissionModal();
+                    }}
+                    className="h-9 w-9 sm:h-10 sm:w-10 shrink-0 rounded-xl bg-white/15 border border-white/25 text-white hover:bg-white/20 transition disabled:opacity-60"
+                    aria-label="Close"
+                    title={commissionBusy ? "Processing..." : "Close"}
+                    disabled={commissionBusy}
+                  >
+                    <X className="h-4 w-4 mx-auto" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-4 sm:p-6 space-y-4">
+                <div className="rounded-2xl border border-gray-200/60 bg-white/80 p-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <div className="text-[11px] font-medium tracking-wide uppercase text-gray-500">Gross</div>
+                      <div className="text-sm font-semibold text-gray-900">
+                        {commissionPayload.currency} {Number(commissionPayload.grossAmount || 0).toLocaleString()}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-medium tracking-wide uppercase text-gray-500">Commission</div>
+                      <div className="text-sm font-semibold text-gray-900">
+                        {Number(commissionPayload.commissionPercent || 0)}% ({commissionPayload.currency}{" "}
+                        {Number(commissionPayload.commissionAmount || 0).toLocaleString()})
+                      </div>
+                    </div>
+                    <div className="col-span-2">
+                      <div className="text-[11px] font-medium tracking-wide uppercase text-gray-500">Net To Driver</div>
+                      <div className="text-sm font-semibold text-gray-900">
+                        {commissionPayload.currency} {Number(commissionPayload.netPaid || 0).toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <label className="flex items-start gap-3 rounded-2xl border border-gray-200/60 bg-white/70 px-4 py-3">
+                  <input
+                    type="checkbox"
+                    checked={commissionAck}
+                    onChange={(e) => {
+                      setCommissionAck(e.target.checked);
+                      if (commissionError) setCommissionError(null);
+                    }}
+                    className="mt-0.5 h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                    disabled={commissionBusy}
+                  />
+                  <div className="text-sm text-gray-800">
+                    I acknowledge the NoLSAF commission deduction ({Number(commissionPayload.commissionPercent || 0)}%) before
+                    {" "}
+                    {commissionAction === "approve" ? "approving" : "marking as paid"}.
+                  </div>
+                </label>
+
+                {commissionError ? <div className="text-xs text-red-600">{commissionError}</div> : null}
+              </div>
+
+              <div className="px-4 py-4 sm:px-6 sm:py-5 border-t border-gray-200/60 bg-white/60 backdrop-blur flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (commissionBusy) return;
+                    closeCommissionModal();
+                  }}
+                  className="inline-flex items-center justify-center px-4 py-2 rounded-xl border border-gray-300/80 text-gray-700 bg-white/80 hover:bg-white transition disabled:opacity-50"
+                  disabled={commissionBusy}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!commissionAck) {
+                      setCommissionError("Please acknowledge the commission deduction to continue.");
+                      return;
+                    }
+                    setCommissionBusy(true);
+                    setCommissionError(null);
+                    try {
+                      const r = await submitPayoutAction(commissionAction, true);
+                      if (r && (r as any).ok) {
+                        closeCommissionModal();
+                      } else if (r && (r as any).needsAck) {
+                        // still requires ack (unexpected), keep modal open
+                      } else {
+                        setCommissionError("Failed to update payout.");
+                      }
+                    } finally {
+                      setCommissionBusy(false);
+                    }
+                  }}
+                  disabled={commissionBusy || !commissionAck}
+                  className="inline-flex items-center justify-center px-4 py-2 rounded-xl border border-brand-600 text-white bg-brand-600 hover:bg-brand-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {commissionBusy ? (
+                    <span className="inline-flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Processing...
+                    </span>
+                  ) : commissionAction === "approve" ? (
+                    "Approve payout"
+                  ) : (
+                    "Mark as paid"
+                  )}
+                </button>
               </div>
             </div>
           </div>

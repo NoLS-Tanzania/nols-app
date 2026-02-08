@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -123,6 +123,9 @@ export default function BookingConfirmPage() {
   const [transportVehicleType, setTransportVehicleType] = useState<TransportVehicleType>("CAR");
   const [pickupMode, setPickupMode] = useState<"current" | "arrival" | "manual">("current");
   const [pickupPresetId, setPickupPresetId] = useState<string>("");
+  const pickupAddressRef = useRef<HTMLInputElement | null>(null);
+  const [currentPickupNeedsConfirm, setCurrentPickupNeedsConfirm] = useState(false);
+  const [currentPickupConfirmed, setCurrentPickupConfirmed] = useState(false);
   const [transportOriginAddress, setTransportOriginAddress] = useState("");
   const [transportOriginLat, setTransportOriginLat] = useState<number | null>(null);
   const [transportOriginLng, setTransportOriginLng] = useState<number | null>(null);
@@ -195,7 +198,7 @@ export default function BookingConfirmPage() {
   const phoneInlineError = phoneTouched && !normalizedPhoneForApi ? "Enter a valid phone (e.g., +2557XXXXXXXX, 07XXXXXXXX, or 7XXXXXXXX)." : null;
   const emailInlineError = emailTouched && normalizedEmailForApi && !isValidEmail(normalizedEmailForApi) ? "Enter a valid email address." : null;
 
-  function getRoomCodeForAvailabilityCheck(): string | null {
+  const getRoomCodeForAvailabilityCheck = useCallback((): string | null => {
     if (selectedRoomCode) return selectedRoomCode;
     if (selectedRoomIndex === null) return null;
 
@@ -209,7 +212,9 @@ export default function BookingConfirmPage() {
     const rt = roomTypes?.[selectedRoomIndex];
     const rawKey = String(rt?.code ?? rt?.roomCode ?? rt?.roomType ?? rt?.type ?? rt?.name ?? rt?.label ?? "").trim();
     return rawKey || null;
-  }
+  }, [property, selectedRoomCode, selectedRoomIndex]);
+
+  const roomsSpecForDeps = (property as any)?.roomsSpec;
 
   useEffect(() => {
     // Get booking data from URL params
@@ -346,7 +351,8 @@ export default function BookingConfirmPage() {
     bookingData?.checkOut,
     selectedRoomCode,
     selectedRoomIndex,
-    (property as any)?.roomsSpec,
+    roomsSpecForDeps,
+    getRoomCodeForAvailabilityCheck,
   ]);
 
   async function fetchProperty(propertyId: number) {
@@ -531,6 +537,13 @@ export default function BookingConfirmPage() {
         setSubmitting(false);
         return;
       }
+
+      if (pickupMode === "current" && currentPickupNeedsConfirm && !currentPickupConfirmed) {
+        setError("Please confirm your detected pickup area before continuing.");
+        setSubmitting(false);
+        return;
+      }
+
       if (transportOriginLat === null || transportOriginLng === null) {
         setError("Please select a pickup location for transportation (Current / Arrival / Type).");
         setSubmitting(false);
@@ -599,26 +612,28 @@ export default function BookingConfirmPage() {
         roomCode: selectedRoomCode || getRoomCodeForAvailabilityCheck(), // Keep consistent with live availability checks
         specialRequests: specialRequests.trim() || null,
         includeTransport: includeTransport || false,
+        transportPickupMode: includeTransport ? pickupMode : null,
         transportOriginLat: includeTransport && transportOriginLat !== null ? transportOriginLat : null,
         transportOriginLng: includeTransport && transportOriginLng !== null ? transportOriginLng : null,
         transportOriginAddress: includeTransport && transportOriginAddress.trim() ? transportOriginAddress.trim() : null,
         transportFare: includeTransport && transportFare ? transportFare : null,
         transportVehicleType: includeTransport ? transportVehicleType : null,
         // Flexible arrival fields
-        arrivalType: includeTransport && arrivalType ? arrivalType : null,
-        arrivalNumber: includeTransport && arrivalNumber.trim() ? arrivalNumber.trim() : null,
-        transportCompany: includeTransport && transportCompany.trim() ? transportCompany.trim() : null,
-        arrivalTime: includeTransport && arrivalDate && (arrivalTimeHour || arrivalTimeMinute) 
-          ? (() => {
-              const date = new Date(arrivalDate);
-              date.setHours(parseInt(arrivalTimeHour || "0") || 0);
-              date.setMinutes(parseInt(arrivalTimeMinute || "0") || 0);
-              return date.toISOString();
-            })()
-          : includeTransport && arrivalDate
-          ? new Date(arrivalDate).toISOString()
-          : null,
-        pickupLocation: includeTransport && pickupLocation.trim() ? pickupLocation.trim() : null,
+        arrivalType: requiresArrivalInfo && arrivalType ? arrivalType : null,
+        arrivalNumber: requiresArrivalInfo && arrivalNumber.trim() ? arrivalNumber.trim() : null,
+        transportCompany: requiresArrivalInfo && transportCompany.trim() ? transportCompany.trim() : null,
+        arrivalTime:
+          requiresArrivalInfo && arrivalDate && (arrivalTimeHour || arrivalTimeMinute)
+            ? (() => {
+                const date = new Date(arrivalDate);
+                date.setHours(parseInt(arrivalTimeHour || "0") || 0);
+                date.setMinutes(parseInt(arrivalTimeMinute || "0") || 0);
+                return date.toISOString();
+              })()
+            : requiresArrivalInfo && arrivalDate
+              ? new Date(arrivalDate).toISOString()
+              : null,
+        pickupLocation: requiresArrivalInfo && pickupLocation.trim() ? pickupLocation.trim() : null,
       };
       
       // Create booking
@@ -956,13 +971,15 @@ export default function BookingConfirmPage() {
     const propertyLat = property?.latitude ?? null;
     const propertyLng = property?.longitude ?? null;
     const propertyCurrency = property?.currency || "TZS";
-    if (
+    const canCalculateFare =
       includeTransport &&
       transportOriginLat !== null &&
       transportOriginLng !== null &&
       propertyLat !== null &&
-      propertyLng !== null
-    ) {
+      propertyLng !== null &&
+      (pickupMode !== "current" || currentPickupConfirmed);
+
+    if (canCalculateFare) {
       const origin: Location = {
         latitude: transportOriginLat,
         longitude: transportOriginLng,
@@ -975,7 +992,7 @@ export default function BookingConfirmPage() {
       };
 
       let fareAt: Date | undefined;
-      if (arrivalDate) {
+      if (requiresArrivalInfo && arrivalDate) {
         const d = new Date(arrivalDate);
         if (!isNaN(d.getTime())) {
           if (arrivalTimeHour) d.setHours(parseInt(arrivalTimeHour) || 0);
@@ -998,6 +1015,8 @@ export default function BookingConfirmPage() {
       setTransportVehicleType("CAR");
       setPickupMode("current");
       setPickupPresetId("");
+      setCurrentPickupNeedsConfirm(false);
+      setCurrentPickupConfirmed(false);
       setTransportPickupError(null);
     }
   }, [
@@ -1013,6 +1032,9 @@ export default function BookingConfirmPage() {
     arrivalDate,
     arrivalTimeHour,
     arrivalTimeMinute,
+    pickupMode,
+    currentPickupConfirmed,
+    requiresArrivalInfo,
   ]);
 
   // When switching pickup mode, reset coordinates so fare is recalculated from the chosen method
@@ -1023,6 +1045,22 @@ export default function BookingConfirmPage() {
     setTransportOriginLat(null);
     setTransportOriginLng(null);
     if (pickupMode !== "arrival") setPickupPresetId("");
+
+    if (pickupMode !== "current") {
+      setCurrentPickupNeedsConfirm(false);
+      setCurrentPickupConfirmed(false);
+    }
+
+    // Leaving Arrival mode: clear arrival metadata so it doesn't force scheduling/validation.
+    if (pickupMode !== "arrival") {
+      setArrivalType("");
+      setArrivalNumber("");
+      setTransportCompany("");
+      setPickupLocation("");
+      setArrivalDate("");
+      setArrivalTimeHour("");
+      setArrivalTimeMinute("");
+    }
   }, [pickupMode, includeTransport]);
   
   // Function to calculate transport fare manually (when user clicks calculate)
@@ -1037,12 +1075,53 @@ export default function BookingConfirmPage() {
 
     setCalculatingFare(true);
     setTransportPickupError(null);
+    setCurrentPickupNeedsConfirm(false);
+    setCurrentPickupConfirmed(false);
     navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setTransportOriginLat(position.coords.latitude);
-        setTransportOriginLng(position.coords.longitude);
-        setCalculatingFare(false);
-        // Auto-calculate fare will be triggered by useEffect
+      async (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        setTransportOriginLat(lat);
+        setTransportOriginLng(lng);
+
+        try {
+          const resp = await fetch("/api/geocoding/public/reverse", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ lat, lng, limit: 1, types: ["address", "poi", "place"] }),
+          });
+          const contentType = resp.headers.get("content-type") || "";
+          const payload = contentType.includes("application/json") ? await resp.json() : null;
+          const best = payload?.features?.[0];
+          const placeName = String(best?.placeName || best?.text || "").trim();
+
+          if (resp.ok && placeName) {
+            setTransportOriginAddress(placeName);
+            setCurrentPickupNeedsConfirm(true);
+            setCurrentPickupConfirmed(false);
+          } else {
+            // We still have GPS coords; if address lookup isn't available, let user type the area/street manually.
+            setTransportOriginAddress("");
+            setCurrentPickupNeedsConfirm(false);
+            setCurrentPickupConfirmed(true);
+            const fallbackMsg =
+              payload?.error ||
+              payload?.message ||
+              (resp.status === 503
+                ? "Pickup area lookup is temporarily unavailable. Please type your pickup area/street to continue."
+                : "We couldn't detect your area name. Please type your pickup area/street to continue.");
+            setTransportPickupError(fallbackMsg);
+            window.setTimeout(() => pickupAddressRef.current?.focus(), 0);
+          }
+        } catch {
+          setTransportOriginAddress("");
+          setCurrentPickupNeedsConfirm(false);
+          setCurrentPickupConfirmed(true);
+          setTransportPickupError("We couldn't detect your area name. Please type your pickup area/street to continue.");
+          window.setTimeout(() => pickupAddressRef.current?.focus(), 0);
+        } finally {
+          setCalculatingFare(false);
+        }
       },
       () => {
         setTransportPickupError("Unable to get your current location. You can select an arrival point (airport) or type a pickup address.");
@@ -1867,11 +1946,13 @@ export default function BookingConfirmPage() {
                             <div className="flex gap-2">
                               <input
                                 type="text"
+                                ref={pickupAddressRef}
                                 value={transportOriginAddress}
                                 onChange={(e) => setTransportOriginAddress(e.target.value)}
                                 placeholder={pickupMode === "manual" ? "Type pickup address/place (Tanzania)" : "Optional: add a pickup note"}
                                 className="flex-1 px-4 py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm"
                                 required={includeTransport}
+                                readOnly={pickupMode === "current" && currentPickupNeedsConfirm}
                               />
                               {pickupMode === "current" ? (
                                 <button
@@ -1907,6 +1988,46 @@ export default function BookingConfirmPage() {
                                 We’ll calculate transport from the place you search (within Tanzania) to the property.
                               </p>
                             )}
+
+                            {pickupMode === "current" && currentPickupNeedsConfirm && transportOriginAddress.trim() ? (
+                              <div className="bg-white/80 border border-emerald-200 rounded-xl p-3 flex items-start justify-between gap-3">
+                                <div className="text-xs text-slate-700">
+                                  <div className="font-semibold text-emerald-700">We detected your pickup area:</div>
+                                  <div className="mt-0.5 break-words">{transportOriginAddress}</div>
+                                  <div className="mt-1 text-[11px] text-slate-500">Confirm to calculate price and continue.</div>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setCurrentPickupConfirmed(true);
+                                      setCurrentPickupNeedsConfirm(false);
+                                    }}
+                                    className="px-3 py-2 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 transition"
+                                    title="Yes, this is correct"
+                                  >
+                                    Yes
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setCurrentPickupConfirmed(false);
+                                      setCurrentPickupNeedsConfirm(false);
+                                      setTransportOriginAddress("");
+                                      setTransportOriginLat(null);
+                                      setTransportOriginLng(null);
+                                      setTransportFare(null);
+                                      setPickupMode("manual");
+                                      window.setTimeout(() => pickupAddressRef.current?.focus(), 0);
+                                    }}
+                                    className="px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-700 text-xs font-semibold hover:bg-slate-50 transition"
+                                    title="No, I'll type it"
+                                  >
+                                    No
+                                  </button>
+                                </div>
+                              </div>
+                            ) : null}
                           </div>
                         )}
 
@@ -1926,6 +2047,21 @@ export default function BookingConfirmPage() {
                       </div>
 
                       {/* Arrival Information Section */}
+                      {pickupMode === "current" ? (
+                        <div className="pt-4 mt-4 border-t border-slate-200/60">
+                          <h3 className="text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
+                            <Plane className="w-4 h-4 text-[#02665e] flex-shrink-0" />
+                            <span>Arrival Information</span>
+                            <span className="text-slate-400 text-xs font-normal">(Not required)</span>
+                          </h3>
+                          <div className="rounded-xl border border-slate-200 bg-white/70 px-4 py-3 text-xs text-slate-600 flex items-start gap-2">
+                            <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                            <p>
+                              For <span className="font-semibold">instant pickup</span>, arrival details are not needed. If you're traveling and want to schedule an airport/bus-terminal pickup, switch Pickup Location to <span className="font-semibold">Arrival</span>.
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
                       <div className="pt-4 mt-4 border-t border-slate-200/60">
                         <h3 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
                           <Plane className="w-4 h-4 text-[#02665e] flex-shrink-0" />
@@ -2139,6 +2275,7 @@ export default function BookingConfirmPage() {
                           )}
                         </div>
                       </div>
+                      )}
 
                       {transportFare && (
                         <div className="p-4 bg-white rounded-xl border-2 border-[#02665e]/30 shadow-md animate-in fade-in slide-in-from-bottom-2 duration-300">

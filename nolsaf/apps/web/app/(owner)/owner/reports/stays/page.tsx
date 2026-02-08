@@ -5,7 +5,6 @@ import axios from "axios";
 import ReportsFilter, { ReportsFilters } from "@/components/ReportsFilter";
 import { Download, Printer, ShieldCheck, AlertTriangle } from "lucide-react";
 import { escapeHtml } from "@/utils/html";
-import QRCode from "qrcode";
 
 // Use same-origin requests to leverage Next.js rewrites and avoid CORS
 const api = axios.create({ baseURL: "", withCredentials: true });
@@ -414,6 +413,10 @@ export default function StaysReportPage() {
 
     let qrDataUrl: string | null = null;
     try {
+      const QR: any = await import("qrcode");
+      const toDataURL: any = QR?.toDataURL ?? QR?.default?.toDataURL;
+      if (typeof toDataURL !== "function") throw new Error("qrcode.toDataURL not available");
+
       const verifyUrl = new URL("/owner/reports/stays", window.location.origin);
       verifyUrl.searchParams.set("from", data.header.from);
       verifyUrl.searchParams.set("to", data.header.to);
@@ -421,7 +424,7 @@ export default function StaysReportPage() {
       verifyUrl.searchParams.set("reportId", data.generatedAt);
       if (property?.id) verifyUrl.searchParams.set("propertyId", String(property.id));
 
-      qrDataUrl = await QRCode.toDataURL(verifyUrl.toString(), {
+      qrDataUrl = await toDataURL(verifyUrl.toString(), {
         margin: 1,
         width: 160,
         errorCorrectionLevel: "M",

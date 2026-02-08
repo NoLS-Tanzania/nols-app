@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React from "react";
-import { Home, LayoutDashboard, Users, Truck, LineChart, Building2, Calendar, FileText, Wallet, Settings, ChevronDown, ChevronRight, ShieldCheck, Link2, Receipt, ListFilter, CheckCircle, Award, Megaphone, UserPlus, Trophy, Bell, BarChart3, Activity, Eye, Briefcase, MessageSquare, Ban, Bot, Gift } from "lucide-react";
+import { Home, LayoutDashboard, Users, Truck, LineChart, Building2, Calendar, FileText, Wallet, Settings, ChevronDown, ChevronRight, ShieldCheck, Link2, Receipt, ListFilter, CheckCircle, Award, Megaphone, UserPlus, Trophy, Bell, BarChart3, Activity, Eye, Briefcase, MessageSquare, Ban, Bot, Gift, KeyRound } from "lucide-react";
 import { useEffect, useState } from "react";
 
 type Item = {
@@ -164,7 +164,9 @@ const userDetails: Item[] = [
 
 const managementDetails: Item[] = [
   { href: "/admin/management", label: "Dashboard", Icon: LayoutDashboard },
+  { href: "/admin/management/reports", label: "Reports", Icon: FileText },
   { href: "/admin/management/audit-log", label: "Audit Log", Icon: ShieldCheck },
+  { href: "/admin/management/no4p-otp", label: "No4P OTP", Icon: KeyRound },
   { href: "/admin/management/bookings", label: "Bookings", Icon: Calendar },
   { href: "/admin/management/careers", label: "Careers", Icon: Briefcase },
   { href: "/admin/management/integrations", label: "Integrations", Icon: Link2 },
@@ -199,7 +201,7 @@ export default function AdminNav({ variant = "light", collapsed = false }: { var
     if (path.startsWith("/admin/users")) return "Users";
     if (path.startsWith("/admin/group-stays")) return "Group Stay";
     if (path.startsWith("/admin/plan-with-us")) return "Plan with US";
-    if (path.startsWith("/admin/agents")) return "IoT & AI Agents";
+    if (path.startsWith("/admin/agents")) return "No4P Agents";
     if (path.startsWith("/admin/cancellations")) return "Cancellations";
     if (path.startsWith("/admin/management")) return "Management";
     if (
@@ -509,20 +511,20 @@ export default function AdminNav({ variant = "light", collapsed = false }: { var
 
         {/* Agents */}
         {collapsed ? (
-          <Item href="/admin/agents" label="IoT & AI Agents" Icon={Bot} collapsed={collapsed} path={path} variant={variant} />
+          <Item href="/admin/agents" label="No4P Agents" Icon={Bot} collapsed={collapsed} path={path} variant={variant} />
         ) : (
           <div>
             <CollapsibleButton 
-              label="IoT & AI Agents" 
+              label="No4P Agents" 
               Icon={Bot} 
               isOpen={agentsOpen} 
               onClick={() => setAgentsOpen(v => !v)}
               collapsed={collapsed}
-              active={activeSection === "IoT & AI Agents"}
+              active={activeSection === "No4P Agents"}
             />
             {agentsOpen && (
               <div className="mt-2">
-                <SectionHeader title="IoT & AI Agents" active={activeSection === "IoT & AI Agents"} />
+                <SectionHeader title="No4P Agents" active={activeSection === "No4P Agents"} />
                 <div className="mt-2 space-y-2">
                   {agentsDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => (
                     <Item key={dHref} href={dHref} label={dLabel} Icon={DIcon} isSubItem collapsed={collapsed} path={path} variant={variant} />

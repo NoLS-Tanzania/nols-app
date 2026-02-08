@@ -59,6 +59,16 @@ const publicForwardGeocodingSchema = z.object({
   limit: z.number().int().min(1).max(5).optional().default(3),
 });
 
+const publicReverseGeocodingSchema = z.object({
+  lng: z.number().min(-180).max(180),
+  lat: z.number().min(-90).max(90),
+  types: z
+    .array(z.enum(["address", "poi", "place", "locality", "neighborhood"] as const))
+    .optional()
+    .default(["address", "poi", "place"]),
+  limit: z.number().int().min(1).max(3).optional().default(1),
+});
+
 const reverseGeocodingSchema = z.object({
   lng: z.number().min(-180).max(180),
   lat: z.number().min(-90).max(90),
@@ -142,7 +152,7 @@ router.post("/forward", requireAuth as RequestHandler, limitGeocoding, (async (r
     });
   } catch (error: any) {
     if (error instanceof z.ZodError) {
-      res.status(400).json({ error: "Invalid request", details: error.errors });
+      res.status(400).json({ error: "Invalid request", details: error.issues });
       return;
     }
     console.error("POST /geocoding/forward error:", error);
@@ -213,11 +223,78 @@ router.post("/public/forward", limitPublicGeocoding, (async (req: Request, res: 
     });
   } catch (error: any) {
     if (error instanceof z.ZodError) {
-      res.status(400).json({ error: "Invalid request", details: error.errors });
+      res.status(400).json({ error: "Invalid request", details: error.issues });
       return;
     }
     console.error("POST /geocoding/public/forward error:", error);
     res.status(500).json({ error: "Failed to geocode address" });
+  }
+}) as RequestHandler);
+
+/**
+ * POST /api/geocoding/public/reverse
+ * Public reverse geocoding for pickup location during booking.
+ * Body: { lng: number, lat: number, types?: string[], limit?: number }
+ *
+ * Security:
+ * - Strict rate limiting (per IP)
+ * - Input validation
+ */
+router.post("/public/reverse", limitPublicGeocoding, (async (req: Request, res: Response) => {
+  try {
+    if (!MAPBOX_TOKEN) {
+      res.status(503).json({ error: "Geocoding service not configured" });
+      return;
+    }
+
+    const body = publicReverseGeocodingSchema.parse(req.body);
+
+    const params = new URLSearchParams();
+    params.append("access_token", MAPBOX_TOKEN);
+    params.append("limit", String(body.limit));
+    if (body.types && body.types.length > 0) params.append("types", body.types.join(","));
+
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${body.lng},${body.lat}.json?${params.toString()}`;
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "User-Agent": "NoLS-API/1.0",
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => "Unknown error");
+      console.error("Mapbox reverse geocoding error (public):", response.status, errorText);
+      res.status(response.status === 401 ? 503 : 502).json({
+        error: "Geocoding service error",
+        message: response.status === 401 ? "Invalid API key" : "Service temporarily unavailable",
+      });
+      return;
+    }
+
+    const data = await response.json();
+    const features = (data.features || []).map((feature: any) => ({
+      id: feature.id || null,
+      type: feature.geometry?.type || null,
+      coordinates: feature.geometry?.coordinates || null,
+      placeName: sanitizeText(feature.place_name || ""),
+      text: sanitizeText(feature.text || ""),
+      relevance: feature.relevance || 0,
+    }));
+
+    res.json({
+      coordinates: { lng: body.lng, lat: body.lat },
+      features,
+      attribution: "© Mapbox © OpenStreetMap",
+    });
+  } catch (error: any) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({ error: "Invalid request", details: error.issues });
+      return;
+    }
+    console.error("POST /geocoding/public/reverse error:", error);
+    res.status(500).json({ error: "Failed to reverse geocode coordinates" });
   }
 }) as RequestHandler);
 
@@ -287,7 +364,7 @@ router.post("/reverse", requireAuth as RequestHandler, limitGeocoding, (async (r
     });
   } catch (error: any) {
     if (error instanceof z.ZodError) {
-      res.status(400).json({ error: "Invalid request", details: error.errors });
+      res.status(400).json({ error: "Invalid request", details: error.issues });
       return;
     }
     console.error("POST /geocoding/reverse error:", error);
@@ -395,7 +472,7 @@ router.post("/directions", requireAuth as RequestHandler, limitGeocoding, (async
     });
   } catch (error: any) {
     if (error instanceof z.ZodError) {
-      res.status(400).json({ error: "Invalid request", details: error.errors });
+      res.status(400).json({ error: "Invalid request", details: error.issues });
       return;
     }
     console.error("POST /geocoding/directions error:", error);
