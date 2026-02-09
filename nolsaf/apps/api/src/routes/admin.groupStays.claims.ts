@@ -694,7 +694,7 @@ router.post("/:bookingId/recommendations", asyncHandler(async (req: any, res: an
   if (!validation.success) {
     return res.status(400).json({
       error: "Invalid request",
-      details: validation.error.errors,
+      details: validation.error.issues,
     });
   }
 
@@ -842,7 +842,7 @@ router.patch("/:claimId/status", asyncHandler(async (req: any, res: any) => {
   if (!validation.success) {
     return res.status(400).json({
       error: "Invalid request",
-      details: validation.error.errors,
+      details: validation.error.issues,
     });
   }
 

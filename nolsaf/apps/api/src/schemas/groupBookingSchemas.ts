@@ -88,9 +88,7 @@ export const ArrangementSchema = z.object({
  */
 export const CreateGroupBookingInput = z.object({
   // ==================== Group Details ====================
-  groupType: z.enum(GROUP_TYPES, {
-    errorMap: () => ({ message: "Invalid group type" })
-  }),
+  groupType: z.enum(GROUP_TYPES, { message: "Invalid group type" }),
   
   // ==================== Origin (Optional) ====================
   fromCountry: z.string().max(100).optional().nullable(),

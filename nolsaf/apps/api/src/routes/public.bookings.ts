@@ -1390,7 +1390,7 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
     if (error?.name === "ZodError") {
       return res.status(400).json({
         error: "Invalid request data",
-        details: error.issues ?? error.errors,
+        details: error.issues,
         requestId,
       });
     }

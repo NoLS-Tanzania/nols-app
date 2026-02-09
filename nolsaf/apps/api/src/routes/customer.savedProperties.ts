@@ -19,13 +19,13 @@ const queryParamsSchema = z.object({
     .regex(/^\d+$/, "Page must be a positive integer")
     .transform(Number)
     .pipe(z.number().int().positive())
-    .default("1"),
+    .default(1),
   pageSize: z
     .string()
     .regex(/^\d+$/, "Page size must be a positive integer")
     .transform(Number)
     .pipe(z.number().int().positive().max(100, "Page size cannot exceed 100"))
-    .default("20"),
+    .default(20),
 });
 
 const propertyIdParamSchema = z.object({
@@ -235,7 +235,7 @@ router.get(
         return res.status(400).json({
           ok: false,
           error: "Invalid query parameters",
-          details: error.errors,
+          details: error.issues,
         });
       }
 
@@ -337,7 +337,7 @@ router.post(
         return res.status(400).json({
           ok: false,
           error: "Invalid request data",
-          details: error.errors,
+          details: error.issues,
         });
       }
 
@@ -424,7 +424,7 @@ router.delete(
         return res.status(400).json({
           ok: false,
           error: "Invalid property ID",
-          details: error.errors,
+          details: error.issues,
         });
       }
 
@@ -495,7 +495,7 @@ router.get(
         return res.status(400).json({
           ok: false,
           error: "Invalid query parameters",
-          details: error.errors,
+          details: error.issues,
         });
       }
 
@@ -568,7 +568,7 @@ router.post(
         return res.status(400).json({
           ok: false,
           error: "Invalid property ID",
-          details: error.errors,
+          details: error.issues,
         });
       }
 

@@ -131,8 +131,8 @@ const listAgentsQuerySchema = z.object({
   areasOfOperation: z.string().optional(),
   specializations: z.string().optional(),
   languages: z.string().optional(),
-  page: z.string().regex(/^\d+$/).optional().transform((val) => Number(val) || 1).default("1"),
-  pageSize: z.string().regex(/^\d+$/).optional().transform((val) => Number(val) || DEFAULT_PAGE_SIZE).default(String(DEFAULT_PAGE_SIZE)),
+  page: z.string().regex(/^\d+$/).optional().default("1").transform((val) => Number(val) || 1),
+  pageSize: z.string().regex(/^\d+$/).optional().default(String(DEFAULT_PAGE_SIZE)).transform((val) => Number(val) || DEFAULT_PAGE_SIZE),
   q: z.string().min(1).max(200).optional(),
 }).strict();
 
@@ -404,7 +404,7 @@ function validate<T extends z.ZodTypeAny>(schema: T, source: "body" | "query" | 
     const data = source === "body" ? req.body : source === "query" ? req.query : req.params;
     const result = schema.safeParse(data);
     if (!result.success) {
-      return sendError(res, 400, "Invalid request", { errors: result.error.errors });
+      return sendError(res, 400, "Invalid request", { errors: result.error.issues });
     }
     if (source === "params") {
       req.validatedParams = result.data;

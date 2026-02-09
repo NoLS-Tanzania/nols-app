@@ -204,7 +204,7 @@ function validate<T extends z.ZodTypeAny>(schema: T) {
   return (req: any, res: Response, next: any) => {
     const result = schema.safeParse(req.body);
     if (!result.success) {
-      return sendError(res, 400, "Invalid request", { errors: result.error.errors });
+      return sendError(res, 400, "Invalid request", { errors: result.error.issues });
     }
     req.validatedBody = result.data;
     next();

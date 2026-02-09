@@ -243,7 +243,7 @@ router.post('/grant', limitBonusOperations, (async (req, res) => {
     const validationResult = grantBonusSchema.safeParse(req.body);
     if (!validationResult.success) {
       return sendError(res, 400, "Invalid request", {
-        errors: validationResult.error.errors,
+        errors: validationResult.error.issues,
       });
     }
 
@@ -359,7 +359,7 @@ router.post('/grant-driver', limitBonusOperations, (async (req, res) => {
     const validationResult = grantDriverBonusSchema.safeParse(req.body);
     if (!validationResult.success) {
       return sendError(res, 400, "Invalid request", {
-        errors: validationResult.error.errors,
+        errors: validationResult.error.issues,
       });
     }
 

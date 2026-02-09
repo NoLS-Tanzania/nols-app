@@ -57,7 +57,7 @@ router.post("/check", availabilityLimiter, (async (req: Request, res: Response) 
     if (!validationResult.success) {
       res.status(400).json({
         error: "Invalid request data",
-        details: validationResult.error.errors,
+        details: validationResult.error.issues,
       });
       return;
     }

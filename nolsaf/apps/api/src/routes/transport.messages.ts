@@ -161,7 +161,7 @@ router.post("/:id/messages", (async (req: AuthedRequest, res: Response) => {
     });
   } catch (error: any) {
     if (error instanceof z.ZodError) {
-      res.status(400).json({ error: "Invalid request", details: error.errors });
+      res.status(400).json({ error: "Invalid request", details: error.issues });
       return;
     }
     console.error("POST /transport-bookings/:id/messages error:", error);

@@ -484,7 +484,7 @@ const updateProfile: RequestHandler = async (req, res) => {
     // Validate input
     const validationResult = updateProfileSchema.safeParse(req.body);
     if (!validationResult.success) {
-      return sendError(res, 400, "Invalid input", validationResult.error.errors);
+      return sendError(res, 400, "Invalid input", validationResult.error.issues);
     }
 
     const data = validationResult.data;
@@ -601,7 +601,7 @@ const updatePayouts: RequestHandler = async (req, res) => {
     // Validate input
     const validationResult = updatePayoutsSchema.safeParse(req.body);
     if (!validationResult.success) {
-      return sendError(res, 400, "Invalid input", validationResult.error.errors);
+      return sendError(res, 400, "Invalid input", validationResult.error.issues);
     }
 
     const data = validationResult.data;
@@ -772,7 +772,7 @@ const changePassword: RequestHandler = async (req, res) => {
     // Validate input
     const validationResult = changePasswordSchema.safeParse(req.body);
     if (!validationResult.success) {
-      return sendError(res, 400, "Invalid input", validationResult.error.errors);
+      return sendError(res, 400, "Invalid input", validationResult.error.issues);
     }
 
     const { currentPassword, newPassword } = validationResult.data;
@@ -936,7 +936,7 @@ const verifyTotp: RequestHandler = async (req, res) => {
     // Validate input
     const validationResult = totpVerifySchema.safeParse(req.body);
     if (!validationResult.success) {
-      return sendError(res, 400, "Invalid input", validationResult.error.errors);
+      return sendError(res, 400, "Invalid input", validationResult.error.issues);
     }
 
     const { code } = validationResult.data;
@@ -985,7 +985,7 @@ const disable2FA: RequestHandler = async (req, res) => {
     // Validate input
     const validationResult = totpDisableSchema.safeParse(req.body);
     if (!validationResult.success) {
-      return sendError(res, 400, "Invalid input", validationResult.error.errors);
+      return sendError(res, 400, "Invalid input", validationResult.error.issues);
     }
 
     const { code } = validationResult.data;
@@ -1074,7 +1074,7 @@ const sendSms2FA: RequestHandler = async (req, res) => {
   try {
     const validationResult = smsSendSchema.safeParse(req.body);
     if (!validationResult.success) {
-      return sendError(res, 400, "Invalid input", validationResult.error.errors);
+      return sendError(res, 400, "Invalid input", validationResult.error.issues);
     }
 
     const userId = getUserId(req as AuthedRequest);
@@ -1146,7 +1146,7 @@ const verifySms2FA: RequestHandler = async (req, res) => {
   try {
     const validationResult = smsVerifySchema.safeParse(req.body);
     if (!validationResult.success) {
-      return sendError(res, 400, "Invalid input", validationResult.error.errors);
+      return sendError(res, 400, "Invalid input", validationResult.error.issues);
     }
 
     const { code } = validationResult.data;
@@ -1245,7 +1245,7 @@ const disableSms2FA: RequestHandler = async (req, res) => {
   try {
     const validationResult = smsVerifySchema.safeParse(req.body);
     if (!validationResult.success) {
-      return sendError(res, 400, "Invalid input", validationResult.error.errors);
+      return sendError(res, 400, "Invalid input", validationResult.error.issues);
     }
 
     const { code } = validationResult.data;
@@ -1472,7 +1472,7 @@ const revokeSession: RequestHandler = async (req, res) => {
     // Validate input
     const validationResult = revokeSessionSchema.safeParse(req.body);
     if (!validationResult.success) {
-      return sendError(res, 400, "Invalid input", validationResult.error.errors);
+      return sendError(res, 400, "Invalid input", validationResult.error.issues);
     }
 
     const { sessionId } = validationResult.data;

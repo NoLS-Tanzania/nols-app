@@ -237,11 +237,11 @@ const createGroupBooking: RequestHandler = async (req, res) => {
   } catch (error) {
     // Handle Zod validation errors
     if (error instanceof z.ZodError) {
-      console.error("[GroupBooking] Validation error:", error.errors);
+      console.error("[GroupBooking] Validation error:", error.issues);
       return (res as Response).status(400).json({
         success: false,
         error: "Validation failed",
-        details: error.errors.map((err) => ({
+        details: error.issues.map((err) => ({
           field: err.path.join("."),
           message: err.message,
         })),
@@ -376,7 +376,7 @@ const getGroupBookings: RequestHandler = async (req, res) => {
       return (res as Response).status(400).json({
         success: false,
         error: "Invalid query parameters",
-        details: error.errors,
+        details: error.issues,
       });
     }
     
@@ -536,7 +536,7 @@ const updateGroupBookingStatus: RequestHandler = async (req, res) => {
       return (res as Response).status(400).json({
         success: false,
         error: "Validation failed",
-        details: error.errors,
+        details: error.issues,
       });
     }
     

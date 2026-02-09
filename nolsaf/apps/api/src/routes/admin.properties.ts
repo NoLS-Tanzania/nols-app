@@ -1141,7 +1141,7 @@ router.post("/:id/reject", (async (req: AuthedRequest, res) => {
   
   const parse = RejectPropertyInput.safeParse(req.body);
   if (!parse.success) {
-    const errors = parse.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
+    const errors = parse.error.issues.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
     return res.status(400).json({ error: `Validation failed: ${errors}` });
   }
 
@@ -1212,7 +1212,7 @@ router.post("/:id/suspend", (async (req: AuthedRequest, res) => {
   
   const parse = SuspendPropertyInput.safeParse(req.body);
   if (!parse.success) {
-    const errors = parse.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
+    const errors = parse.error.issues.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
     return res.status(400).json({ error: `Validation failed: ${errors}` });
   }
 
@@ -1301,7 +1301,7 @@ router.post("/:id/unsuspend", (async (req: AuthedRequest, res) => {
   
   const parse = UnsuspendPropertyInput.safeParse(req.body);
   if (!parse.success) {
-    const errors = parse.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
+    const errors = parse.error.issues.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
     return res.status(400).json({ error: `Validation failed: ${errors}` });
   }
 

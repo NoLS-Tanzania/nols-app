@@ -236,7 +236,7 @@ router.post("/change/send", limitEmailSend, (async (req, res) => {
     const validationResult = changeEmailSchema.safeParse(req.body);
     if (!validationResult.success) {
       return sendError(res, 400, "Invalid request", {
-        errors: validationResult.error.errors,
+        errors: validationResult.error.issues,
       });
     }
 
@@ -325,7 +325,7 @@ router.get("/verify", limitEmailVerify, (async (req, res) => {
     const validationResult = verifyTokenSchema.safeParse(req.query);
     if (!validationResult.success) {
       return sendError(res, 400, "Invalid request", {
-        errors: validationResult.error.errors,
+        errors: validationResult.error.issues,
       });
     }
 

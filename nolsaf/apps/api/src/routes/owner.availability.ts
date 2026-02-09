@@ -161,13 +161,13 @@ router.post("/blocks", (async (req: AuthedRequest, res: Response) => {
     const validationResult = createBlockSchema.safeParse(req.body);
 
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.availability.ts:132',message:'POST /blocks - Validation result',data:{success:validationResult.success,errors:validationResult.success?null:validationResult.error.errors},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.availability.ts:132',message:'POST /blocks - Validation result',data:{success:validationResult.success,errors:validationResult.success?null:validationResult.error.issues},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
     // #endregion
 
     if (!validationResult.success) {
       res.status(400).json({
         error: "Invalid request data",
-        details: validationResult.error.errors,
+        details: validationResult.error.issues,
       });
       return;
     }
@@ -305,7 +305,7 @@ router.put("/blocks/:id", (async (req: AuthedRequest, res: Response) => {
     if (!validationResult.success) {
       res.status(400).json({
         error: "Invalid request data",
-        details: validationResult.error.errors,
+        details: validationResult.error.issues,
       });
       return;
     }
@@ -664,7 +664,7 @@ router.post("/blocks/bulk", (async (req: AuthedRequest, res: Response) => {
     if (!validationResult.success) {
       res.status(400).json({
         error: "Invalid request data",
-        details: validationResult.error.errors,
+        details: validationResult.error.issues,
       });
       return;
     }

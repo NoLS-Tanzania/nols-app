@@ -225,7 +225,7 @@ router.post("/:id/message", limitOwnerGroupStayMessages, asyncHandler(async (req
   // Validate request body with Zod
   const validationResult = sendMessageSchema.safeParse(req.body);
   if (!validationResult.success) {
-    const errors = validationResult.error.errors.map(err => `${err.path.join('.')}: ${err.message}`).join(', ');
+    const errors = validationResult.error.issues.map(err => `${err.path.join('.')}: ${err.message}`).join(', ');
     return res.status(400).json({ error: "Validation failed", details: errors });
   }
 

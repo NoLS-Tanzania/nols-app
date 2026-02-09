@@ -106,7 +106,7 @@ const analyticsEventSchema = z.object({
       },
       { message: "Event type not allowed. Use a whitelisted event or a custom.* event." }
     ),
-  payload: z.record(z.any()).optional().default({}),
+  payload: z.record(z.string(), z.any()).optional().default({}),
 }).strict();
 
 // ============================================================
@@ -231,7 +231,7 @@ function validate<T extends z.ZodTypeAny>(schema: T) {
   return (req: any, res: Response, next: any) => {
     const result = schema.safeParse(req.body);
     if (!result.success) {
-      return sendError(res, 400, "Invalid request", { errors: result.error.errors });
+      return sendError(res, 400, "Invalid request", { errors: result.error.issues });
     }
     req.validatedData = result.data;
     next();

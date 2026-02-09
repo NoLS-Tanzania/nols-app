@@ -79,7 +79,7 @@ router.post("/initiate", paymentLimiter, async (req, res) => {
     if (!validationResult.success) {
       return res.status(400).json({
         error: "Invalid request data",
-        details: validationResult.error.errors,
+        details: validationResult.error.issues,
       });
     }
 

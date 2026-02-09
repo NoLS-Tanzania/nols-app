@@ -187,7 +187,7 @@ router.post("/", requireAuth, async (req, res) => {
     res.status(201).json(review);
   } catch (err: any) {
     if (err instanceof z.ZodError) {
-      return res.status(400).json({ error: "Invalid request data", details: err.errors });
+      return res.status(400).json({ error: "Invalid request data", details: err.issues });
     }
     console.error("Create review error:", err);
     res.status(500).json({ error: "Failed to create review" });
@@ -241,7 +241,7 @@ router.post("/:reviewId/owner-response", requireAuth, async (req, res) => {
     res.json(updated);
   } catch (err: any) {
     if (err instanceof z.ZodError) {
-      return res.status(400).json({ error: "Invalid request data", details: err.errors });
+      return res.status(400).json({ error: "Invalid request data", details: err.issues });
     }
     console.error("Owner response error:", err);
     res.status(500).json({ error: "Failed to add owner response" });

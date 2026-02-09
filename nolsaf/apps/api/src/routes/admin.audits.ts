@@ -64,8 +64,8 @@ const listAuditsQuerySchema = z.object({
   from: z.string().datetime().optional().or(z.string().regex(/^\d{4}-\d{2}-\d{2}/).optional()),
   to: z.string().datetime().optional().or(z.string().regex(/^\d{4}-\d{2}-\d{2}/).optional()),
   format: z.enum(["csv", "json"]).optional().default("json"),
-  page: z.string().regex(/^\d+$/).optional().transform((val) => Number(val) || 1).default("1"),
-  pageSize: z.string().regex(/^\d+$/).optional().transform((val) => Number(val) || DEFAULT_PAGE_SIZE).default(String(DEFAULT_PAGE_SIZE)),
+  page: z.string().regex(/^\d+$/).optional().default("1").transform((val) => Number(val) || 1),
+  pageSize: z.string().regex(/^\d+$/).optional().default(String(DEFAULT_PAGE_SIZE)).transform((val) => Number(val) || DEFAULT_PAGE_SIZE),
   sortBy: z.enum(["id", "createdAt", "action", "adminId"]).optional().default("createdAt"),
   sortDir: z.enum(["asc", "desc"]).optional().default("desc"),
 }).strict();
@@ -130,7 +130,7 @@ function validate<T extends z.ZodTypeAny>(schema: T) {
     try {
       const result = schema.safeParse(req.query);
       if (!result.success) {
-        return sendError(res, 400, "Invalid request parameters", { errors: result.error.errors });
+        return sendError(res, 400, "Invalid request parameters", { errors: result.error.issues });
       }
       req.validatedQuery = result.data;
       next();

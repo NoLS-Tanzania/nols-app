@@ -137,12 +137,12 @@ export default function AdminManagementPageClient() {
         backgroundColor: ["#02665e", "#0ea5a0"],
         borderColor: ["rgba(255,255,255,0.85)", "rgba(255,255,255,0.85)"],
         borderWidth: 2,
-        offset:
-          bookingsCount === propertiesCount
-            ? [0, 0]
-            : bookingsCount > propertiesCount
-              ? [10, 0]
-              : [0, 10],
+        offset: (ctx: any) => {
+          if (bookingsCount === propertiesCount) return 0;
+          const isBookings = Number(ctx?.dataIndex) === 0;
+          if (bookingsCount > propertiesCount) return isBookings ? 10 : 0;
+          return isBookings ? 0 : 10;
+        },
         hoverOffset: 2,
       },
     ],

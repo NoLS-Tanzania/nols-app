@@ -50,7 +50,7 @@ function validateUpdateRequest(req: any, res: any, next: any) {
   if (!result.success) {
     return res.status(400).json({ 
       error: "Invalid request data", 
-      details: result.error.errors.map(e => ({ path: e.path.join('.'), message: e.message }))
+      details: result.error.issues.map(e => ({ path: e.path.join('.'), message: e.message }))
     });
   }
   req.validatedBody = result.data;

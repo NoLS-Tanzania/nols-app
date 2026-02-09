@@ -117,7 +117,7 @@ router.post("/message", limitChatbotMessages, async (req: Request, res: Response
     if (!validationResult.success) {
       return res.status(400).json({
         error: "Validation failed",
-        details: validationResult.error.errors.map((e) => ({
+        details: validationResult.error.issues.map((e) => ({
           field: e.path.join("."),
           message: e.message,
         })),
@@ -312,7 +312,7 @@ router.post("/set-language", limitChatbotLanguageChange, async (req: Request, re
     if (!validationResult.success) {
       return res.status(400).json({
         error: "Validation failed",
-        details: validationResult.error.errors.map((e) => ({
+        details: validationResult.error.issues.map((e) => ({
           field: e.path.join("."),
           message: e.message,
         })),
