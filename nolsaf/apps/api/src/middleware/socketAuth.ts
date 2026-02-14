@@ -84,6 +84,12 @@ async function verifyToken(token: string): Promise<{ id: number; role: string; e
 }
 
 function getTokenFromSocket(socket: Socket): string | null {
+  // Try Socket.IO auth payload (best for browsers)
+  const authToken = (socket.handshake as any)?.auth?.token;
+  if (typeof authToken === "string" && authToken.trim()) {
+    return authToken.trim();
+  }
+
   // Try Authorization header first (if sent via handshake)
   const authHeader = socket.handshake.headers.authorization;
   if (authHeader && authHeader.startsWith("Bearer ")) {

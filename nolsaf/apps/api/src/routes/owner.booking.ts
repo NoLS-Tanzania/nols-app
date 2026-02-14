@@ -48,7 +48,11 @@ const validateBooking: RequestHandler = async (req, res) => {
       } else {
         booking = await prisma.booking.findFirst({
           where: { id: bookingId, property: { ownerId } },
-          include: { property: true, code: true, user: true },
+          include: {
+            property: { select: { id: true, title: true, type: true, basePrice: true, currency: true } },
+            code: true,
+            user: true,
+          },
         });
         if (!booking) validationError = "Booking not found for this owner";
       }
@@ -117,7 +121,10 @@ const confirmCheckin: RequestHandler = async (req, res) => {
   // ensure this booking belongs to one of the owner's properties
   const booking = await prisma.booking.findFirst({
     where: { id: bookingId, property: { ownerId: r.user!.id } },
-    include: { property: true, code: true }
+    include: {
+      property: { select: { id: true, title: true, type: true, basePrice: true, currency: true } },
+      code: true,
+    },
   });
   if (!booking) return (res as Response).status(404).json({ error: "Booking not found" });
 
@@ -413,7 +420,10 @@ const getBooking: RequestHandler = async (req, res) => {
   if (!Number.isFinite(id)) return (res as Response).status(400).json({ error: "booking id required" });
   const b = await prisma.booking.findFirst({
     where: { id, property: { ownerId: r.user!.id } },
-    include: { property: true, code: true }
+    include: {
+      property: { select: { id: true, title: true, type: true, basePrice: true, currency: true } },
+      code: true,
+    },
   });
   if (!b) return (res as Response).status(404).json({ error: "Not found" });
   (res as Response).json(b);
@@ -565,7 +575,10 @@ const confirmCheckout: RequestHandler = async (req, res) => {
   const rating = Number(ratingRaw);
   const feedback = typeof feedbackRaw === "string" ? feedbackRaw.trim().slice(0, 500) : null;
 
-  const booking = await prisma.booking.findFirst({ where: { id, property: { ownerId: r.user!.id } }, include: { property: true } });
+  const booking = await prisma.booking.findFirst({
+    where: { id, property: { ownerId: r.user!.id } },
+    include: { property: { select: { id: true, title: true, type: true, basePrice: true, currency: true } } },
+  });
   if (!booking) return (res as Response).status(404).json({ error: "Booking not found" });
 
   if (booking.status === "CHECKED_OUT") {
@@ -621,7 +634,13 @@ const sendInvoiceFromBooking: RequestHandler = async (req, res) => {
   const id = Number(req.params.id);
   if (!id) return (res as Response).status(400).json({ error: "booking id required" });
 
-  const booking = await prisma.booking.findFirst({ where: { id, property: { ownerId: r.user!.id } }, include: { property: true, code: true } });
+  const booking = await prisma.booking.findFirst({
+    where: { id, property: { ownerId: r.user!.id } },
+    include: {
+      property: { select: { id: true, title: true, type: true, basePrice: true, currency: true } },
+      code: true,
+    },
+  });
   if (!booking) return (res as Response).status(404).json({ error: "Booking not found" });
   if (booking.status !== "CHECKED_IN") return (res as Response).status(400).json({ error: "Booking must be CHECKED_IN" });
   if (!booking.code || booking.code.status !== "USED") return (res as Response).status(400).json({ error: "Check-in code must be USED" });
@@ -631,7 +650,7 @@ const sendInvoiceFromBooking: RequestHandler = async (req, res) => {
 
   // compute amount
   const nights = Math.max(1, Math.ceil((+booking.checkOut - +booking.checkIn) / (1000*60*60*24)));
-  const pricePerNight = (booking as any).pricePerNight ?? booking.property?.pricePerNight ?? null;
+  const pricePerNight = (booking as any).pricePerNight ?? booking.property?.basePrice ?? null;
   const transportFare = (booking as any).includeTransport ? Number((booking as any).transportFare || 0) : 0;
   const amount = booking.totalAmount
     ? Math.max(0, Number(booking.totalAmount) - transportFare)
@@ -643,7 +662,7 @@ const sendInvoiceFromBooking: RequestHandler = async (req, res) => {
   const makeOwnerInvoiceNumber = (bookingId: number, codeId: number) => {
     const now = new Date();
     const ym = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
-    return `OINV-${ym}-${bookingId}-${codeId}`;
+    return `OINV-${ym}-${String(bookingId).padStart(6, "0")}-${String(codeId).padStart(4, "0")}`;
   };
 
   const invoiceNumber = makeOwnerInvoiceNumber(booking.id, booking.code!.id);

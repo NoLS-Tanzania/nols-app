@@ -62,8 +62,8 @@ function Item({
           focus:outline-none focus-visible:ring-2 ${dark ? "focus-visible:ring-white/20" : "focus-visible:ring-[#02665e]/25"}`}
       >
         {Icon ? (
-          <span className={`grid place-items-center rounded-xl h-11 w-11 border ${iconWrapClass}`}>
-            <Icon className={`h-[22px] w-[22px] ${iconClass}`} aria-hidden />
+          <span className={`grid place-items-center rounded-xl h-12 w-12 border ${iconWrapClass}`}>
+            <Icon className={`h-6 w-6 ${iconClass}`} aria-hidden />
           </span>
         ) : null}
         {/* Tooltip for collapsed state */}
@@ -77,6 +77,7 @@ function Item({
   return (
     <Link
       href={href}
+      title={label}
       className={`group no-underline flex items-center justify-between gap-3 rounded-2xl px-4 py-3 text-sm font-medium
         transition-colors duration-200 border
         ${dark ? "bg-white/5 border-white/10" : "bg-white/90 shadow-sm border-[#02665e]/10"}
@@ -90,13 +91,13 @@ function Item({
         focus:outline-none focus-visible:ring-2 ${dark ? "focus-visible:ring-white/20" : "focus-visible:ring-[#02665e]/25"}
         ${isSubItem ? "ml-3 pl-3" : ""}`}
     >
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 min-w-0">
         {Icon ? (
           <span className={`grid place-items-center rounded-xl h-9 w-9 border ${iconWrapClass}`}>
             <Icon className={`h-4 w-4 ${iconClass}`} aria-hidden />
           </span>
         ) : null}
-        <span className={isSubItem ? "text-[13px]" : ""}>{label}</span>
+        <span className={`${isSubItem ? "text-[13px]" : ""} truncate whitespace-nowrap`}>{label}</span>
       </div>
       <ChevronRight
         className={`h-4 w-4 opacity-60 flex-shrink-0 transition-opacity ${dark ? "text-slate-200" : "text-[#02665e]"} ${active ? "opacity-85" : "group-hover:opacity-85"}`}
@@ -322,9 +323,9 @@ export default function AdminNav({ variant = "light", collapsed = false }: { var
             ${dark ? "focus-visible:ring-white/20" : "focus-visible:ring-[#02665e]/25"}`}
         >
           <span
-            className={`grid place-items-center rounded-xl h-11 w-11 border ${dark ? (active ? "bg-white/10 border-white/15" : "bg-white/5 border-white/10") : (active ? "bg-[#02665e]/10 border-[#02665e]/20" : "bg-[#02665e]/5 border-[#02665e]/10")}`}
+            className={`grid place-items-center rounded-xl h-12 w-12 border ${dark ? (active ? "bg-white/10 border-white/15" : "bg-white/5 border-white/10") : (active ? "bg-[#02665e]/10 border-[#02665e]/20" : "bg-[#02665e]/5 border-[#02665e]/10")}`}
           >
-            <Icon className={`h-[22px] w-[22px] ${dark ? "text-teal-200" : "text-[#02665e]"}`} aria-hidden />
+            <Icon className={`h-6 w-6 ${dark ? "text-teal-200" : "text-[#02665e]"}`} aria-hidden />
           </span>
           {/* Tooltip for collapsed state */}
           <span className={`absolute left-full ml-2 px-2 py-1 text-xs font-medium rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 transition-opacity duration-200 ${dark ? "text-white bg-black/70 border border-white/10" : "text-white bg-gray-900"}`}>
@@ -337,6 +338,7 @@ export default function AdminNav({ variant = "light", collapsed = false }: { var
     return (
       <button
         onClick={onClick}
+        title={label}
         className={`group w-full flex items-center justify-between gap-3 rounded-2xl px-4 py-3 text-sm font-semibold border transition-colors duration-200 focus:outline-none focus-visible:ring-2
           ${dark ? "text-slate-200 bg-white/5 border-white/10" : "text-[#02665e] bg-white/90 border-[#02665e]/10 shadow-sm"}
           ${dark
@@ -348,11 +350,11 @@ export default function AdminNav({ variant = "light", collapsed = false }: { var
               : "hover:bg-[#02665e]/5 hover:border-[#02665e]/20"}
           ${dark ? "focus-visible:ring-white/20" : "focus-visible:ring-[#02665e]/25"}`}
       >
-        <span className="flex items-center gap-3">
+        <span className="flex items-center gap-3 min-w-0">
           <span className={`grid place-items-center rounded-xl h-9 w-9 border ${dark ? (active ? "bg-white/10 border-white/15" : "bg-white/5 border-white/10") : (active ? "bg-[#02665e]/10 border-[#02665e]/20" : "bg-[#02665e]/5 border-[#02665e]/10")}`}>
             <Icon className={`h-4 w-4 ${dark ? "text-teal-200" : "text-[#02665e]"}`} aria-hidden />
           </span>
-          <span className={dark ? "text-slate-100" : ""}>{label}</span>
+          <span className={`${dark ? "text-slate-100" : ""} truncate whitespace-nowrap`}>{label}</span>
         </span>
         {isOpen ? (
           <ChevronDown className={`h-4 w-4 ${dark ? "text-slate-200" : "text-[#02665e]"} ${active ? "opacity-90" : "opacity-70"}`} aria-hidden />

@@ -14,11 +14,11 @@ import {
   Phone,
   Navigation,
   MessageCircle,
-  Loader2,
   AlertCircle,
 } from "lucide-react";
 import Link from "next/link";
 import TransportChat from "@/components/TransportChat";
+import LogoSpinner from "@/components/LogoSpinner";
 
 const api = axios.create({ baseURL: "", withCredentials: true });
 
@@ -144,7 +144,7 @@ export default function RideDetailPage() {
       <div className="mx-auto w-full max-w-4xl p-6">
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="text-center">
-            <Loader2 className="w-8 h-8 animate-spin text-[#02665e] mx-auto mb-4" />
+            <LogoSpinner size="md" className="mx-auto mb-4" ariaLabel="Loading ride details" />
             <p className="text-slate-600">Loading ride details...</p>
           </div>
         </div>

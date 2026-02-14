@@ -42,6 +42,10 @@ const postSendMessage: RequestHandler = async (req: Request, res: Response) => {
 
   // Persist as an in-app Notification (acts as an inbox item)
   const fromUserId = (req as any)?.user?.id;
+  const fromRole = String((req as any)?.user?.role ?? "").toUpperCase();
+  if (typeof fromUserId !== "number" || !Number.isFinite(fromUserId) || fromUserId <= 0 || fromRole !== "DRIVER") {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
   const toNumeric = Number(toUserId);
   const canDeliver = Number.isFinite(toNumeric) && toNumeric > 0;
 
@@ -56,7 +60,7 @@ const postSendMessage: RequestHandler = async (req: Request, res: Response) => {
           unread: true,
           type: "message",
           meta: {
-            fromUserId: typeof fromUserId === "number" ? fromUserId : null,
+            fromUserId,
             fromRole: "DRIVER",
             templateKey: typeof templateKey === "string" ? templateKey : null,
           },
@@ -73,9 +77,7 @@ const postSendMessage: RequestHandler = async (req: Request, res: Response) => {
     const io = (req.app && (req.app as any).get && (req.app as any).get("io")) || (global as any).io;
     if (io && typeof io.to === "function" && canDeliver) {
       io.to(`user:${toNumeric}`).emit("message:new", { id: savedId, toUserId: toNumeric, fromUserId, message: text });
-      if (typeof fromUserId === "number") {
-        io.to(`driver:${fromUserId}`).emit("message:sent", { toUserId: toNumeric, message: text });
-      }
+      io.to(`driver:${fromUserId}`).emit("message:sent", { toUserId: toNumeric, message: text });
     }
   } catch {
     // ignore

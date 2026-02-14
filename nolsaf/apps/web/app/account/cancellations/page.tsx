@@ -4,8 +4,9 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { AlertTriangle, ArrowLeft, CheckCircle, Loader2, Search, XCircle, Calendar, DollarSign, MapPin, Mail, Phone, ChevronRight } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle, Search, XCircle, Calendar, DollarSign, MapPin, Mail, Phone, ChevronRight } from "lucide-react";
 import LayoutFrame from "@/components/LayoutFrame";
+import LogoSpinner from "@/components/LogoSpinner";
 
 const api = axios.create({ baseURL: "", withCredentials: true });
 
@@ -247,7 +248,7 @@ export default function CancellationRequestPage() {
           />
           {loadingLookup && (
             <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
-              <Loader2 className="h-4 w-4 animate-spin text-[#02665e]" />
+              <LogoSpinner size="xs" className="h-4 w-4" ariaLabel="Validating booking code" />
             </div>
           )}
           {!loadingLookup && code && (
@@ -739,7 +740,7 @@ export default function CancellationRequestPage() {
               >
                 {submitting ? (
                   <>
-                    <Loader2 className="h-5 w-5 animate-spin" />
+                    <LogoSpinner size="xs" ariaLabel="Submitting" />
                     <span>Submitting...</span>
                   </>
                 ) : (
@@ -764,7 +765,7 @@ export default function CancellationRequestPage() {
 
         {loadingRequests ? (
           <div className="flex items-center justify-center gap-2 py-8 text-sm text-gray-500">
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <LogoSpinner size="xs" className="h-4 w-4" ariaLabel="Loading cancellation claims" />
             <span>Loading…</span>
           </div>
         ) : (

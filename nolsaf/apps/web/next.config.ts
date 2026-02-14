@@ -3,7 +3,7 @@ import type { NextConfig } from 'next';
 // IMPORTANT: rewrites run on the Next.js server. Do not depend on NEXT_PUBLIC_API_URL here
 // (it is often set to the web origin and would cause /api/* to stop proxying and 404).
 // Use API_ORIGIN for server-to-server proxying, with a safe dev default.
-const apiOrigin = (process.env.API_ORIGIN || 'http://127.0.0.1:4000').replace(/\/$/, '');
+const apiOrigin = (process.env.API_ORIGIN || 'http://localhost:4000').replace(/\/$/, '');
 const socketOrigin = (process.env.NEXT_PUBLIC_SOCKET_URL || '').replace(/\/$/, '');
 
 const nextConfig: NextConfig = {
@@ -92,6 +92,10 @@ const nextConfig: NextConfig = {
   },
   async rewrites() {
     return [
+      // Map health probes (API exposes these at the root, not under /api)
+      { source: '/api/health', destination: `${apiOrigin}/health` },
+      { source: '/api/ready', destination: `${apiOrigin}/ready` },
+      { source: '/api/live', destination: `${apiOrigin}/live` },
       { source: '/api/:path*', destination: `${apiOrigin}/api/:path*` },
       // Exclude Next page routes under /admin/management/*, user detail pages, and profile page from being proxied to the API.
       { source: '/admin/:path((?!management/.*|drivers/audit/.*|users/\\d+$|profile$|profile/).*)', destination: `${apiOrigin}/admin/:path*` },

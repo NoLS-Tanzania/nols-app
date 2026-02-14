@@ -12,6 +12,30 @@ import { generateBookingPDF } from "../lib/pdfGenerator.js";
 export const router = Router();
 router.use(requireAuth as express.RequestHandler, requireRole("ADMIN") as express.RequestHandler);
 
+// Drift-safe selects: avoid selecting columns that may not exist in older DBs
+// (e.g. Property.tourismSiteId).
+const adminInvoiceOwnerSelect = {
+  id: true,
+  name: true,
+  email: true,
+  phone: true,
+} as const;
+
+const adminInvoicePropertySelect = {
+  id: true,
+  title: true,
+  type: true,
+  regionName: true,
+  district: true,
+  city: true,
+  country: true,
+} as const;
+
+const adminInvoicePropertyWithOwnerSelect = {
+  ...adminInvoicePropertySelect,
+  owner: { select: adminInvoiceOwnerSelect },
+} as const;
+
 /** Utility: compute commission/tax/net */
 function compute(invoice: any, cfg?: { commissionPercent?: number; taxPercent?: number }) {
   const commissionPercent = Number(cfg?.commissionPercent ?? invoice.commissionPercent ?? 0);
@@ -30,6 +54,13 @@ function nextInvoiceNumber(prefix = "INV", seq: number) {
 function nextReceiptNumber(prefix = "RCPT", seq: number) {
   const y = new Date().getFullYear();
   return `${prefix}/${y}/${String(seq).padStart(5, "0")}`;
+}
+
+function formatPremiumDocNumber(prefix: "INV" | "RCPT", issuedAt: Date, uniqueId: number) {
+  const d = issuedAt && Number.isFinite(+issuedAt) ? issuedAt : new Date();
+  const ym = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}`;
+  // 7 digits reads well and scales; does not truncate larger ids.
+  return `${prefix}-${ym}-${String(uniqueId).padStart(7, "0")}`;
 }
 
 /** GET /admin/invoices */
@@ -153,7 +184,13 @@ router.get("/invoices/:id(\\d+)", async (req, res) => {
     const inv = await prisma.invoice.findUnique({
       where: { id },
       include: {
-        booking: { include: { property: { include: { owner: true } } } },
+        booking: {
+          include: {
+            property: {
+              select: adminInvoicePropertyWithOwnerSelect,
+            },
+          },
+        },
         verifiedByUser: { select: { id: true, name: true } },
         approvedByUser: { select: { id: true, name: true } },
         paidByUser: { select: { id: true, name: true } },
@@ -228,7 +265,9 @@ router.get("/invoices/:id(\\d+)/receipt.html", async (req, res) => {
       include: {
         booking: {
           include: {
-            property: true,
+            property: {
+              select: adminInvoicePropertySelect,
+            },
             code: true,
             user: true,
           } as any,
@@ -364,9 +403,9 @@ router.post("/invoices/:id/approve", async (req, res) => {
 
     const calc = compute(inv, { commissionPercent, taxPercent });
 
-    // simple invoice numbering from sequence
-    const seq = await prisma.invoice.count({});
-    const invoiceNumber = inv.invoiceNumber ?? nextInvoiceNumber("INV", seq + 1);
+    // Premium numbering (collision-safe): derive from immutable unique invoice id.
+    // Keep existing invoiceNumber if already assigned by public/owner flows.
+    const invoiceNumber = inv.invoiceNumber ?? formatPremiumDocNumber("INV", inv.issuedAt ?? new Date(), inv.id);
 
     // ensure stable paymentRef for gateway + webhook reconciliation
     const paymentRef = inv.paymentRef ?? `INVREF-${inv.id}-${Date.now()}`;
@@ -459,13 +498,20 @@ router.post("/invoices/:id/mark-paid", async (req, res) => {
 
     const inv = await prisma.invoice.findUnique({
       where: { id },
-      include: { booking: { include: { property: true } } },
+      include: {
+        booking: {
+          include: {
+            property: {
+              select: adminInvoicePropertySelect,
+            },
+          },
+        },
+      },
     });
     if (!inv) return res.status(404).json({ error: "Invoice not found" });
     if (inv.status === "PAID") return res.status(400).json({ error: "Already PAID" });
 
-    const seq = await prisma.invoice.count({ where: { status: "PAID" } });
-    const receiptNumber = inv.receiptNumber ?? nextReceiptNumber("RCPT", seq + 1);
+    const receiptNumber = inv.receiptNumber ?? formatPremiumDocNumber("RCPT", new Date(), inv.id);
 
     const payload = JSON.stringify({
       receipt: receiptNumber,
@@ -641,7 +687,7 @@ router.get("/invoices/export.csv", async (req, res) => {
       rows = await prisma.invoice.findMany({
         where,
         include: {
-          booking: { include: { property: true } },
+          booking: { include: { property: { select: adminInvoicePropertySelect } } },
           owner: { select: { id: true, name: true, email: true, phone: true } },
         },
         orderBy: { id: "desc" },

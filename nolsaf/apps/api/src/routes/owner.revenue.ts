@@ -183,7 +183,14 @@ router.get("/invoices.csv", (async (req: AuthedRequest, res) => {
 
   const items = await prisma.invoice.findMany({
     where,
-    include: { booking: { include: { property: true, code: true } } } as any,
+    include: {
+      booking: {
+        include: {
+          property: { select: { id: true, title: true } },
+          code: true,
+        },
+      },
+    } as any,
     orderBy: { id: "desc" },
     take: 1000,
   });
@@ -220,7 +227,15 @@ router.get("/invoices/:id", (async (req: AuthedRequest, res) => {
   const id = Number(req.params.id);
   const inv = await prisma.invoice.findFirst({
     where: { id, ownerId: req.user!.id },
-    include: { booking: { include: { property: true, user: true, code: true } } } as any,
+    include: {
+      booking: {
+        include: {
+          property: { select: { id: true, title: true } },
+          user: true,
+          code: true,
+        },
+      },
+    } as any,
   });
   if (!inv) return res.status(404).json({ error: "Not found" });
   const payout = Number((inv as any).netPayable ?? (inv as any).total ?? 0);
@@ -239,7 +254,14 @@ router.get("/invoices/:id/receipt", (async (req: AuthedRequest, res) => {
   const id = Number(req.params.id);
   const inv = await prisma.invoice.findFirst({
     where: { id, ownerId: req.user!.id, status: "PAID" },
-    include: { booking: { include: { property: true, code: true } } } as any,
+    include: {
+      booking: {
+        include: {
+          property: { select: { id: true, title: true } },
+          code: true,
+        },
+      },
+    } as any,
   });
   if (!inv) return res.status(404).json({ error: "Receipt not available" });
 

@@ -319,7 +319,7 @@ export default function HelpCenterPage() {
       <PublicHeader />
       <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
         <LayoutFrame heightVariant="sm" topVariant="sm" colorVariant="muted" variant="solid" />
-        <div className="public-container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+        <div className="public-container py-8 sm:py-12">
           {/* Header Section */}
           <div className="max-w-3xl mx-auto text-center mb-12 animate-[fadeIn_0.5s_ease-out]">
             <div className="inline-flex items-center justify-center rounded-full bg-gradient-to-br from-[#02665e] to-[#024d47] p-4 shadow-lg transform transition-all duration-300 hover:scale-110 hover:shadow-xl">

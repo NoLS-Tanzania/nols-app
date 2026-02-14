@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { MessageCircle, X, Send, Bot, User, Loader2, Globe, Minimize2, ThumbsUp, ThumbsDown } from "lucide-react";
+import { MessageCircle, X, Send, Bot, User, Globe, Minimize2, ThumbsUp, ThumbsDown } from "lucide-react";
+import LogoSpinner from "@/components/LogoSpinner";
 
 interface Message {
   id: string | number;
@@ -790,7 +791,7 @@ export default function FloatingChatWidget({ hiddenRoutes = [], position = "bott
               >
                 {isLoadingHistory ? (
                   <div className="flex items-center justify-center h-full">
-                    <Loader2 className="w-6 h-6 text-[#02665e] animate-spin" />
+                    <LogoSpinner size="sm" ariaLabel="Loading" />
                   </div>
                 ) : (
                   <>
@@ -913,7 +914,7 @@ export default function FloatingChatWidget({ hiddenRoutes = [], position = "bott
                           <Bot className="w-4 h-4 text-white" />
                         </div>
                         <div className="bg-white rounded-lg px-3 py-2 border border-gray-200">
-                          <Loader2 className="w-4 h-4 text-[#02665e] animate-spin" />
+                          <LogoSpinner size="xs" ariaLabel="Loading" />
                         </div>
                       </div>
                     )}
@@ -960,7 +961,7 @@ export default function FloatingChatWidget({ hiddenRoutes = [], position = "bott
                     className="px-4 py-2 bg-[#02665e] text-white rounded-lg hover:bg-[#024a44] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
                   >
                     {isLoading ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <LogoSpinner size="xs" ariaLabel="Sending" className="text-white/90" />
                     ) : (
                       <Send className="w-4 h-4" />
                     )}

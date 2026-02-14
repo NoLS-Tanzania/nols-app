@@ -161,7 +161,7 @@ export default function OwnerPage() {
         {/* Soft premium quick-stats row */}
         <div
           className={[
-            "grid grid-cols-1 sm:grid-cols-2 gap-4",
+            "grid grid-cols-2 sm:grid-cols-2 gap-4",
             "transition-all duration-700 ease-out delay-75",
             mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2",
           ].join(" ")}
@@ -196,7 +196,7 @@ export default function OwnerPage() {
         {/* Premium quick actions */}
         <div
           className={[
-            "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4",
+            "grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-4",
             "transition-all duration-700 ease-out delay-100",
             mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2",
           ].join(" ")}

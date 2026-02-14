@@ -6,7 +6,6 @@ import Image from "next/image";
 import Link from "next/link";
 import {
   ChevronLeft,
-  Loader2,
   CheckCircle2,
   AlertCircle,
   ShieldCheck,
@@ -15,6 +14,7 @@ import {
   X,
   Info,
 } from "lucide-react";
+import LogoSpinner from "@/components/LogoSpinner";
 
 type PaymentMethod = {
   id: "Airtel" | "Tigo" | "M-Pesa" | "Halopesa";
@@ -256,8 +256,9 @@ export default function PaymentPage() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50">
         <div className="text-center animate-in fade-in duration-300">
           <div className="relative">
-            <Loader2 className="w-12 h-12 animate-spin text-[#02665e] mx-auto mb-4" />
-            <div className="absolute inset-0 w-12 h-12 mx-auto border-4 border-[#02665e]/20 rounded-full"></div>
+            <div className="mx-auto mb-4 inline-flex">
+              <LogoSpinner size="lg" ariaLabel="Loading" />
+            </div>
           </div>
           <p className="text-slate-700 font-medium text-lg">Loading payment details...</p>
           <p className="text-slate-500 text-sm mt-2">Please wait</p>
@@ -290,7 +291,7 @@ export default function PaymentPage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50">
       {/* Header */}
       <div className="bg-white/80 backdrop-blur-sm border-b border-slate-200/60 shadow-sm sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div className="public-container py-4">
           <button
             onClick={() => router.back()}
             className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-slate-100 hover:bg-[#02665e] text-slate-600 hover:text-white transition-all duration-200 group shadow-sm hover:shadow-md"
@@ -301,7 +302,7 @@ export default function PaymentPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-12">
+      <div className="public-container py-8 lg:py-12">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
           {/* Main Content - Payment Methods */}
           <div className="lg:col-span-2 space-y-6">
@@ -323,7 +324,7 @@ export default function PaymentPage() {
             {paymentStatus === "pending" && processing && (
               <div className="bg-gradient-to-br from-blue-50 to-cyan-50/50 border-2 border-blue-200 rounded-2xl p-8 text-center shadow-lg animate-in fade-in slide-in-from-top-4">
                 <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
+                  <LogoSpinner size="md" ariaLabel="Processing" />
                 </div>
                 <h2 className="text-2xl lg:text-3xl font-bold text-blue-900 mb-3">
                   Processing Payment...
@@ -429,7 +430,7 @@ export default function PaymentPage() {
                       >
                         {submitting ? (
                           <>
-                            <Loader2 className="w-5 h-5 animate-spin" />
+                            <LogoSpinner size="sm" ariaLabel="Loading" className="text-white/90" />
                             <span>Initiating payment...</span>
                           </>
                         ) : (

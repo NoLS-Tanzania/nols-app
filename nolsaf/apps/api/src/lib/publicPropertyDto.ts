@@ -11,6 +11,7 @@ export type PublicPropertyCard = {
   ward: string | null;
   city: string | null;
   country: string | null;
+  parkPlacement: "INSIDE" | "NEARBY" | null;
   primaryImage: string | null;
   services: string[];
   basePrice: number | null;
@@ -152,6 +153,7 @@ export function toPublicCard(p: any): PublicPropertyCard {
     ward: p.ward ?? null,
     city: p.city ?? null,
     country: p.country ?? null,
+    parkPlacement: p.parkPlacement === "INSIDE" || p.parkPlacement === "NEARBY" ? p.parkPlacement : null,
     primaryImage,
     services: p.services ?? null, // Preserve full services object (may contain commissionPercent, discountRules)
     basePrice: p.basePrice !== null && typeof p.basePrice !== "undefined" ? Number(p.basePrice) : null,

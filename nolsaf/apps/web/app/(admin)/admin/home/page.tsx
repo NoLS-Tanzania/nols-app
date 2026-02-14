@@ -590,7 +590,7 @@ export default function AdminHomePage() {
                         <div className="flex items-start justify-between gap-4 flex-wrap mb-6">
                           <div>
                             <div className="text-xs text-slate-300">Welcome back • <ClientTime iso={nowIso} /></div>
-                            <h1 className="mt-1 text-2xl sm:text-3xl font-extrabold tracking-tight text-white">Dashboard</h1>
+                            <h1 className="mt-1 text-2xl sm:text-3xl font-extrabold tracking-tight text-white">NoLSAF Admin Dashboard</h1>
                             <div className="mt-1 text-sm text-slate-300">A modern overview of approvals, payments, bookings, and revenue.</div>
                           </div>
                           <div className="flex items-center gap-2">

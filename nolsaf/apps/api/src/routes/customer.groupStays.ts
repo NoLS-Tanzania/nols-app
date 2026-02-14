@@ -360,8 +360,13 @@ router.post("/:id/message", limitPlanRequestMessages, (async (req: AuthedRequest
   try {
     // Explicitly set Content-Type to JSON
     res.setHeader('Content-Type', 'application/json');
-    
-    const userId = req.user!.id;
+
+    const authed = req.user;
+    if (!authed || typeof authed.id !== "number" || !Number.isFinite(authed.id) || authed.id <= 0) {
+      res.setHeader('Content-Type', 'application/json');
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    const userId = authed.id;
     const bookingId = parseInt(String(req.params.id), 10);
     const { messageType, message } = req.body || {};
 

@@ -2,8 +2,9 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ExternalLink, Megaphone, Calendar, Image as ImageIcon, Video, Loader2, Play } from 'lucide-react';
+import { ExternalLink, Megaphone, Calendar, Image as ImageIcon, Video, Play } from 'lucide-react';
 import axios from 'axios';
+import LogoSpinner from "@/components/LogoSpinner";
 
 interface Update {
   id: string;
@@ -39,10 +40,38 @@ function isYouTubeEmbedUrl(url: string): boolean {
   );
 }
 
-function getYouTubeIdFromEmbedUrl(url: string): string | null {
+function getYouTubeId(url: string): string | null {
   const trimmed = url.trim();
-  const m = trimmed.match(/^https:\/\/(?:www\.)?youtube(?:-nocookie)?\.com\/embed\/([^?/#]+)\b/);
-  return m?.[1] ? m[1] : null;
+  if (!trimmed) return null;
+  try {
+    const parsed = new URL(trimmed);
+    const host = parsed.hostname.replace(/^www\./, '');
+
+    // https://youtu.be/<id>
+    if (host === 'youtu.be') {
+      const id = parsed.pathname.split('/').filter(Boolean)[0];
+      return id || null;
+    }
+
+    // https://youtube.com/embed/<id> or /shorts/<id>
+    if (host === 'youtube.com' || host === 'm.youtube.com' || host === 'youtube-nocookie.com') {
+      const parts = parsed.pathname.split('/').filter(Boolean);
+      const head = parts[0];
+      const maybeId = parts[1];
+
+      if (head === 'embed' && maybeId) return maybeId;
+      if (head === 'shorts' && maybeId) return maybeId;
+
+      // https://youtube.com/watch?v=<id>
+      const v = parsed.searchParams.get('v');
+      if (v) return v;
+    }
+
+    return null;
+  } catch {
+    // Some updates might store a non-URL string; ignore.
+    return null;
+  }
 }
 
 function getYouTubeThumbnailUrl(videoId: string): string {
@@ -81,7 +110,7 @@ export default function LatestUpdate({ hideTitle = false }: { hideTitle?: boolea
       <aside className="mt-6">
         <div className="public-container">
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-6 h-6 animate-spin text-emerald-700" />
+            <LogoSpinner size="sm" ariaLabel="Loading updates" />
           </div>
         </div>
       </aside>
@@ -121,91 +150,121 @@ export default function LatestUpdate({ hideTitle = false }: { hideTitle?: boolea
             <h2 className="text-xl font-bold text-slate-900">Latest Updates</h2>
           </div>
         )}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {latestUpdates.map((update) => {
-            const firstVideo = update.videos?.[0];
-            const youTubeId = firstVideo && isYouTubeEmbedUrl(firstVideo) ? getYouTubeIdFromEmbedUrl(firstVideo) : null;
+            const safeImages = (update.images || []).filter((img) => typeof img === 'string' && isSafeMediaUrl(img));
+            const youTubeUrl = (update.videos || []).find((v) => typeof v === 'string' && getYouTubeId(v) !== null);
+            const youTubeId = youTubeUrl ? getYouTubeId(youTubeUrl) : null;
             const youTubeThumb = youTubeId ? getYouTubeThumbnailUrl(youTubeId) : null;
+            const hasAnyVideo = (update.videos || []).length > 0;
+
+            const mediaType: 'youtube' | 'image' | 'video' | 'none' =
+              youTubeThumb ? 'youtube' : safeImages.length ? 'image' : hasAnyVideo ? 'video' : 'none';
+
+            const mediaSrc = mediaType === 'youtube' ? youTubeThumb : mediaType === 'image' ? safeImages[0] : null;
+            const overlayLogoSrc = mediaType === 'youtube' && safeImages.length ? safeImages[0] : null;
+            const extraMediaCount =
+              mediaType === 'youtube'
+                ? Math.max(0, (update.videos?.length || 0) - 1)
+                : mediaType === 'image'
+                  ? Math.max(0, safeImages.length - 1)
+                  : 0;
 
             return (
             <Link
               key={update.id}
               href="/updates"
-              className="group relative block overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 pb-6 shadow-sm will-change-transform motion-safe:transition-all motion-safe:duration-300 hover:-translate-y-1 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-emerald-200 no-underline"
+              className="group block no-underline focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-emerald-200"
             >
-              <div className="mb-3 flex items-center gap-2 text-xs text-slate-500">
-                <Calendar className="w-3 h-3" />
-                <span>{formatDate(update.createdAt)}</span>
-              </div>
-              
-              <h4 className="text-base font-bold text-slate-900 mb-2">{update.title}</h4>
-              
-              <p className="text-sm text-slate-600 mb-3 line-clamp-3">{update.content}</p>
+              <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-200/70 via-white/60 to-emerald-200/40 p-[1px] shadow-sm will-change-transform motion-safe:transition-all motion-safe:duration-300 group-hover:-translate-y-0.5 group-hover:shadow-md">
+                <div className="rounded-3xl border border-white/50 bg-white/70 p-3 backdrop-blur-xl">
+                  <div className="flex gap-3">
+                    {mediaType !== 'none' ? (
+                      <div className="relative shrink-0">
+                        <div className="relative h-20 w-32 overflow-hidden rounded-2xl border border-white/50 bg-slate-50">
+                          {mediaSrc ? (
+                            // Using <img> intentionally because update media can be data URLs
+                            // and may include remote URLs without prior Next image config.
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={mediaSrc}
+                              alt={
+                                mediaType === 'youtube'
+                                  ? `${update.title} video thumbnail`
+                                  : `${update.title} image`
+                              }
+                              className={
+                                mediaType === 'youtube'
+                                  ? 'h-full w-full object-cover'
+                                  : 'h-full w-full object-contain bg-white'
+                              }
+                              loading="lazy"
+                              decoding="async"
+                              referrerPolicy={mediaType === 'youtube' ? 'no-referrer' : undefined}
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-slate-500">
+                              <Video className="h-5 w-5" />
+                            </div>
+                          )}
 
-              {update.images && update.images.length > 0 && (
-                <div className="mb-3">
-                  <div className="grid grid-cols-2 gap-1">
-                    {update.images
-                      .filter((img) => typeof img === 'string' && isSafeMediaUrl(img))
-                      .slice(0, 2)
-                      .map((img, idx) => (
-                        // Using <img> intentionally because update images are currently data URLs
-                        // and may include remote URLs without prior Next image config.
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          key={idx}
-                          src={img}
-                          alt={`${update.title} - Image ${idx + 1}`}
-                          className="w-full h-20 object-cover rounded-lg border border-slate-200"
-                          loading="lazy"
-                          decoding="async"
-                        />
-                      ))}
-                  </div>
-                  {update.images.length > 2 && (
-                    <div className="mt-1 text-xs text-slate-500 flex items-center gap-1">
-                      <ImageIcon className="w-3 h-3" />
-                      <span>+{update.images.length - 2} more images</span>
-                    </div>
-                  )}
-                </div>
-              )}
+                          {overlayLogoSrc ? (
+                            <div className="absolute left-2 top-2">
+                              <span className="inline-flex items-center rounded-xl border border-white/70 bg-white/80 p-1 shadow-sm">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={overlayLogoSrc}
+                                  alt={`${update.title} logo`}
+                                  className="h-6 w-6 object-contain"
+                                  loading="lazy"
+                                  decoding="async"
+                                />
+                              </span>
+                            </div>
+                          ) : null}
 
-              {!update.images?.length && update.videos && update.videos.length > 0 && (
-                <div className="mb-3">
-                  {youTubeThumb ? (
-                    <div className="relative w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={youTubeThumb}
-                        alt={`${update.title} video thumbnail`}
-                        className="w-full h-32 object-cover"
-                        loading="lazy"
-                        decoding="async"
-                        referrerPolicy="no-referrer"
-                      />
-                      <div className="absolute inset-0 grid place-items-center">
-                        <span className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-white/90 border border-slate-200 shadow-sm">
-                          <Play className="w-5 h-5 text-emerald-700" />
-                        </span>
+                          {hasAnyVideo ? (
+                            <div className="absolute inset-0 grid place-items-center">
+                              <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white/90 shadow-sm">
+                                <Play className="h-4 w-4 text-emerald-700" />
+                              </span>
+                            </div>
+                          ) : null}
+
+                          {extraMediaCount > 0 ? (
+                            <div className="absolute right-2 top-2">
+                              <span className="inline-flex items-center rounded-full border border-white/60 bg-white/80 px-2 py-0.5 text-[11px] font-semibold text-slate-700 shadow-sm">
+                                +{extraMediaCount}
+                              </span>
+                            </div>
+                          ) : null}
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="w-full h-32 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center text-slate-500">
-                      <Video className="w-5 h-5" />
-                    </div>
-                  )}
-                  {update.videos.length > 1 && (
-                    <div className="mt-1 text-xs text-slate-500 flex items-center gap-1">
-                      <Video className="w-3 h-3" />
-                      <span>+{update.videos.length - 1} more videos</span>
-                    </div>
-                  )}
-                </div>
-              )}
+                    ) : null}
 
-              {/* bottom accent bar */}
-              <div className="absolute left-0 right-0 bottom-0 h-1 bg-emerald-600" aria-hidden />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 text-[11px] font-medium text-slate-500">
+                        <Calendar className="h-3 w-3" />
+                        <span>{formatDate(update.createdAt)}</span>
+                        {hasAnyVideo ? (
+                          <span className="ml-auto inline-flex items-center gap-1 rounded-full border border-white/60 bg-white/70 px-2 py-0.5 text-[11px] font-semibold text-slate-700">
+                            <Video className="h-3 w-3" />
+                            <span>Video</span>
+                          </span>
+                        ) : null}
+                      </div>
+
+                      <h4 className="mt-2 text-[15px] font-bold leading-snug text-slate-900 line-clamp-2">
+                        {update.title}
+                      </h4>
+
+                      <p className="mt-1 text-sm leading-relaxed text-slate-600 line-clamp-2">
+                        {update.content}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </Link>
           );
           })}

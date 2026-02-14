@@ -19,6 +19,7 @@ import publicBookingRouter from './routes/public.booking';
 import publicBookingsRouter from './routes/public.bookings';
 import publicInvoicesRouter from './routes/public.invoices';
 import publicPropertiesRouter from './routes/public.properties';
+import publicTourismSitesRouter from './routes/public.tourismSites';
 import publicPlanRequestRouter from './routes/public.planRequest';
 import { router as ownerPhone } from "./routes/owner.phone.verify";
 import { router as ownerEmail } from "./routes/owner.email.verify";
@@ -109,6 +110,8 @@ import customerCancellationsRouter from "./routes/customer.cancellations";
 import customerPlanRequestsRouter from "./routes/customer.planRequests";
 import chatbotRouter from "./routes/chatbot";
 import adminChatbotRouter from "./routes/admin.chatbot";
+import agentAssignmentsRouter from "./routes/agent.assignments";
+import agentNotificationsRouter from "./routes/agent.notifications";
 import { healthRouter } from "./routes/health";
 import { socketAuthMiddleware, AuthenticatedSocket } from './middleware/socketAuth.js';
 import { errorHandler } from './middleware/errorHandler.js';
@@ -177,7 +180,9 @@ app.set('io', io);
 
 // Background worker: tries to auto-assign near-term paid transport bookings.
 // If no driver is assigned within the grace window, the trip will later become claimable.
-startTransportAutoDispatch({ io });
+if (process.env.NODE_ENV !== "test") {
+  startTransportAutoDispatch({ io });
+}
 
 // Socket.IO authentication middleware
 io.use(socketAuthMiddleware);
@@ -692,6 +697,8 @@ app.use('/api/public/bookings', publicBookingsRouter);
 app.use('/api/public/invoices', publicInvoicesRouter);
 // Public properties (approved listings for public search/browse)
 app.use('/api/public/properties', publicPropertiesRouter);
+// Public tourism sites (parks/attractions) list
+app.use('/api/public/tourism-sites', publicTourismSitesRouter);
 // Public plan request submission
 app.use('/api/plan-request', publicPlanRequestRouter);
 // Customer account endpoints (for travellers/customers)
@@ -701,6 +708,10 @@ app.use('/api/customer/rides', customerRidesRouter as express.RequestHandler);
 app.use('/api/customer/group-stays', customerGroupStaysRouter as express.RequestHandler);
 app.use('/api/customer/saved-properties', customerSavedPropertiesRouter as express.RequestHandler);
 app.use('/api/customer/plan-requests', customerPlanRequestsRouter as express.RequestHandler);
+
+// Agent portal endpoints (requires AGENT role)
+app.use('/api/agent/notifications', requireRole('AGENT') as express.RequestHandler, agentNotificationsRouter as express.RequestHandler);
+app.use('/api/agent', agentAssignmentsRouter as express.RequestHandler);
 // Transport booking messages (driver, passenger, admin communication)
 app.use('/api/transport-bookings', transportMessagesRouter as express.RequestHandler);
 // Transport bookings (create, get details)

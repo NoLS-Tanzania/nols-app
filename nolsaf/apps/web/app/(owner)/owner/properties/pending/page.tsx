@@ -81,8 +81,8 @@ export default function PendingProps() {
           <span className="dot dot-yellow" />
           <span className="dot dot-green" />
         </span>
-        <h1 className="text-2xl font-semibold">Pending</h1>
-        <div className="text-sm opacity-60 mt-2">Checking for pending properties…</div>
+        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-slate-900">Pending</h1>
+        <div className="text-sm text-slate-600 mt-2">Checking for pending properties…</div>
       </div>
     );
   }
@@ -110,10 +110,12 @@ export default function PendingProps() {
   if (list.length === 0) {
     return (
       <div className="min-h-[260px] flex flex-col items-center justify-center text-center">
-        <Hourglass className="h-12 w-12 text-blue-500 mb-2" />
-        <h1 className="text-2xl font-semibold">Pending</h1>
-        <div className="text-sm opacity-90 mt-2">Includes awaiting approval, suspended properties & requested fixes.</div>
-        <div className="text-sm opacity-90 mt-2">Nothing pending.</div>
+        <div className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-white/70 shadow-sm ring-1 ring-black/5">
+          <Hourglass className="h-6 w-6 text-emerald-600" />
+        </div>
+        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-slate-900">Pending</h1>
+        <div className="text-sm text-slate-600 mt-2">Includes awaiting approval, suspended properties & requested fixes.</div>
+        <div className="text-sm text-slate-600 mt-2">Nothing pending.</div>
       </div>
     );
   }
@@ -159,11 +161,13 @@ export default function PendingProps() {
   return (
     <div className="space-y-4">
       <div className="flex flex-col items-center justify-center text-center">
-        <div className="flex items-center justify-center gap-2 mb-2">
-          <Hourglass className="h-6 w-6 text-blue-500" />
-          <h1 className="text-2xl font-semibold">Pending</h1>
+        <div className="mb-2 inline-flex items-center justify-center gap-3">
+          <div className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white/70 shadow-sm ring-1 ring-black/5">
+            <Hourglass className="h-5 w-5 text-emerald-600" />
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-slate-900">Pending</h1>
         </div>
-        <p className="text-sm opacity-70">Includes awaiting approval, suspended properties & requested fixes.</p>
+        <p className="text-sm text-slate-600">Includes awaiting approval, suspended properties & requested fixes.</p>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
         {list.map(p => {
@@ -247,6 +251,20 @@ export default function PendingProps() {
                     <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
                     <span className="truncate">{location}</span>
                   </div>
+
+                  {/* Park / Tourism Site */}
+                  {p.tourismSite?.name ? (
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-xs text-slate-600 truncate">
+                        <span className="font-medium text-slate-700">Park:</span> {p.tourismSite.name}
+                      </div>
+                      {p.parkPlacement ? (
+                        <span className="shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border border-slate-200 bg-slate-50 text-slate-700">
+                          {p.parkPlacement === "INSIDE" ? "Inside" : "Nearby"}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : null}
 
                   {/* Type */}
                   <span className="text-xs font-medium text-slate-500 uppercase">

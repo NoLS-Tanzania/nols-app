@@ -3,6 +3,7 @@ import { Router } from "express";
 import { prisma } from "@nolsaf/prisma";
 import { Prisma } from "@prisma/client";
 import { AuthedRequest, requireAuth, requireRole } from "../middleware/auth.js";
+import { asyncHandler } from "../middleware/errorHandler.js";
 import { addDays, eachDay, fmtKey, GroupBy, startOfDayTZ } from "../lib/reporting";
 import { withCache, makeKey } from "../lib/cache";
 
@@ -66,156 +67,177 @@ function parseQuery(q: any) {
 /** -------------------------
  *  /owner/reports/overview
  *  ------------------------- */
-const overviewHandler: RequestHandler = async (req, res) => {
-  const r = req as AuthedRequest;
-  const ownerId = r.user!.id;
-  const { from, to, groupBy, propertyId } = parseQuery(req.query);
+router.get(
+  "/overview",
+  asyncHandler(async (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
 
-  const key = makeKey(ownerId, "overview", {
-    from: from.toISOString(),
-    to: to.toISOString(),
-    groupBy,
-    propertyId,
-  });
+    const r = req as AuthedRequest;
+    const ownerId = r.user!.id;
+    const { from, to, groupBy, propertyId } = parseQuery(req.query);
 
-  const data = await withCache(key, async () => {
-    const invoices: Invoice[] = await prisma.invoice.findMany({
-      where: {
-        ownerId,
-        issuedAt: { gte: from, lte: to },
-        ...(propertyId ? { booking: { propertyId } } : {}),
-      },
-      include: { booking: { include: { property: true } } },
+    const key = makeKey(ownerId, "overview", {
+      from: from.toISOString(),
+      to: to.toISOString(),
+      groupBy,
+      propertyId,
     });
 
-    const bookings: Booking[] = await prisma.booking.findMany({
-      where: {
-        property: { ownerId },
-        checkIn: { gte: from, lte: to },
-        ...(propertyId ? { propertyId } : {}),
-      },
-      include: { property: true },
+    const data = await withCache(key, async () => {
+      const invoices: Invoice[] = await prisma.invoice.findMany({
+        where: {
+          ownerId,
+          issuedAt: { gte: from, lte: to },
+          ...(propertyId ? { booking: { propertyId } } : {}),
+        },
+        include: {
+          booking: {
+            select: {
+              propertyId: true,
+              property: { select: { id: true, title: true } },
+            },
+          },
+        },
+      });
+
+      const bookings: Booking[] = await prisma.booking.findMany({
+        where: {
+          property: { ownerId },
+          checkIn: { gte: from, lte: to },
+          ...(propertyId ? { propertyId } : {}),
+        },
+      });
+
+      const gross = invoices.reduce((s: number, i: any) => s + Number(i.total), 0);
+      const net = invoices.reduce((s: number, i: any) => s + Number(i.netPayable), 0);
+      const bCnt = bookings.length;
+      const nights = bookings.reduce(
+        (s: number, b: any) => s + Math.max(1, Math.ceil((+b.checkOut - +b.checkIn) / 864e5)),
+        0
+      );
+      const adr = nights ? gross / nights : 0;
+
+      // Time series buckets
+      const series: Record<string, { gross: number; net: number; bookings: number }> = {};
+      for (const d of eachDay(from, to)) series[fmtKey(d, groupBy)] = { gross: 0, net: 0, bookings: 0 };
+      for (const inv of invoices) {
+        const k = fmtKey(startOfDayTZ(inv.issuedAt), groupBy);
+        if (!series[k]) series[k] = { gross: 0, net: 0, bookings: 0 };
+        series[k].gross += Number(inv.total);
+        series[k].net += Number(inv.netPayable);
+      }
+      for (const b of bookings) {
+        const k = fmtKey(startOfDayTZ(b.checkIn), groupBy);
+        if (!series[k]) series[k] = { gross: 0, net: 0, bookings: 0 };
+        series[k].bookings += 1;
+      }
+
+      // Booking status distribution
+      const byStatus: Record<string, number> = {};
+      for (const b of bookings) byStatus[b.status] = (byStatus[b.status] ?? 0) + 1;
+
+      // Top properties by net
+      const byProp: Record<number, { title: string; net: number }> = {};
+      for (const inv of invoices) {
+        const pid = inv.booking.propertyId;
+        const title = inv.booking.property?.title ?? `#${pid}`;
+        if (!byProp[pid]) byProp[pid] = { title, net: 0 };
+        byProp[pid].net += Number(inv.netPayable);
+      }
+
+      return {
+        kpis: { gross, net, bookings: bCnt, nights, adr },
+        series: Object.entries(series).map(([key, v]) => ({ key, ...v })),
+        status: Object.entries(byStatus).map(([status, count]) => ({ status, count })),
+        topProperties: Object.entries(byProp)
+          .map(([pid, v]) => ({ propertyId: Number(pid), title: v.title, net: v.net }))
+          .sort((a, b) => b.net - a.net)
+          .slice(0, 5),
+      };
     });
 
-    const gross = invoices.reduce((s: number, i: any) => s + Number(i.total), 0);
-    const net = invoices.reduce((s: number, i: any) => s + Number(i.netPayable), 0);
-    const bCnt = bookings.length;
-    const nights = bookings.reduce(
-      (s: number, b: any) => s + Math.max(1, Math.ceil((+b.checkOut - +b.checkIn) / 864e5)),
-      0
-    );
-    const adr = nights ? gross / nights : 0;
-
-    // Time series buckets
-    const series: Record<string, { gross: number; net: number; bookings: number }> = {};
-    for (const d of eachDay(from, to)) series[fmtKey(d, groupBy)] = { gross: 0, net: 0, bookings: 0 };
-    for (const inv of invoices) {
-      const k = fmtKey(startOfDayTZ(inv.issuedAt), groupBy);
-      if (!series[k]) series[k] = { gross: 0, net: 0, bookings: 0 };
-      series[k].gross += Number(inv.total);
-      series[k].net += Number(inv.netPayable);
-    }
-    for (const b of bookings) {
-      const k = fmtKey(startOfDayTZ(b.checkIn), groupBy);
-      if (!series[k]) series[k] = { gross: 0, net: 0, bookings: 0 };
-      series[k].bookings += 1;
-    }
-
-    // Booking status distribution
-    const byStatus: Record<string, number> = {};
-    for (const b of bookings) byStatus[b.status] = (byStatus[b.status] ?? 0) + 1;
-
-    // Top properties by net
-    const byProp: Record<number, { title: string; net: number }> = {};
-    for (const inv of invoices) {
-      const pid = inv.booking.propertyId;
-      const title = inv.booking.property?.title ?? `#${pid}`;
-      if (!byProp[pid]) byProp[pid] = { title, net: 0 };
-      byProp[pid].net += Number(inv.netPayable);
-    }
-
-    return {
-      kpis: { gross, net, bookings: bCnt, nights, adr },
-      series: Object.entries(series).map(([key, v]) => ({ key, ...v })),
-      status: Object.entries(byStatus).map(([status, count]) => ({ status, count })),
-      topProperties: Object.entries(byProp)
-        .map(([pid, v]) => ({ propertyId: Number(pid), title: v.title, net: v.net }))
-        .sort((a, b) => b.net - a.net)
-        .slice(0, 5),
-    };
-  });
-
-  res.json(data);
-};
-router.get("/overview", overviewHandler);
+    res.json(data);
+  })
+);
 
 /** -------------------------
  *  /owner/reports/revenue
  *  ------------------------- */
-const revenueHandler: RequestHandler = async (req, res) => {
-  const r = req as AuthedRequest;
-  const ownerId = r.user!.id;
-  const { from, to, groupBy, propertyId } = parseQuery(req.query);
+router.get(
+  "/revenue",
+  asyncHandler(async (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
 
-  const key = makeKey(ownerId, "revenue", {
-    from: from.toISOString(),
-    to: to.toISOString(),
-    groupBy,
-    propertyId,
-  });
+    const r = req as AuthedRequest;
+    const ownerId = r.user!.id;
+    const { from, to, groupBy, propertyId } = parseQuery(req.query);
 
-  const data = await withCache(key, async () => {
-    const items: Invoice[] = await prisma.invoice.findMany({
-      where: {
-        ownerId,
-        issuedAt: { gte: from, lte: to },
-        ...(propertyId ? { booking: { propertyId } } : {}),
-      },
-      include: { booking: { include: { property: true } } },
+    const key = makeKey(ownerId, "revenue", {
+      from: from.toISOString(),
+      to: to.toISOString(),
+      groupBy,
+      propertyId,
     });
 
-    // Series
-    const series: Record<string, { gross: number; net: number; commission: number }> = {};
-    for (const d of eachDay(from, to)) series[fmtKey(d, groupBy)] = { gross: 0, net: 0, commission: 0 };
-    for (const i of items) {
-      const k = fmtKey(startOfDayTZ(i.issuedAt), groupBy);
-      if (!series[k]) series[k] = { gross: 0, net: 0, commission: 0 };
-      series[k].gross += Number(i.total);
-      series[k].net += Number(i.netPayable);
-      series[k].commission += Number(i.commissionAmount);
-    }
+    const data = await withCache(key, async () => {
+      const items: Invoice[] = await prisma.invoice.findMany({
+        where: {
+          ownerId,
+          issuedAt: { gte: from, lte: to },
+          ...(propertyId ? { booking: { propertyId } } : {}),
+        },
+        include: {
+          booking: {
+            select: {
+              propertyId: true,
+              property: { select: { id: true, title: true } },
+            },
+          },
+        },
+      });
 
-    // By property
-    const byProp: Record<string, { gross: number; net: number; commission: number }> = {};
-    for (const i of items) {
-      const name = i.booking.property?.title ?? `#${i.booking.propertyId}`;
-      if (!byProp[name]) byProp[name] = { gross: 0, net: 0, commission: 0 };
-      byProp[name].gross += Number(i.total);
-      byProp[name].net += Number(i.netPayable);
-      byProp[name].commission += Number(i.commissionAmount);
-    }
+      // Series
+      const series: Record<string, { gross: number; net: number; commission: number }> = {};
+      for (const d of eachDay(from, to)) series[fmtKey(d, groupBy)] = { gross: 0, net: 0, commission: 0 };
+      for (const i of items) {
+        const k = fmtKey(startOfDayTZ(i.issuedAt), groupBy);
+        if (!series[k]) series[k] = { gross: 0, net: 0, commission: 0 };
+        series[k].gross += Number(i.total);
+        series[k].net += Number(i.netPayable);
+        series[k].commission += Number(i.commissionAmount);
+      }
 
-    return {
-      series: Object.entries(series).map(([key, v]) => ({ key, ...v })),
-      byProperty: Object.entries(byProp).map(([title, v]) => ({ title, ...v })),
-      table: items.map((i: any) => ({
-        id: i.id,
-        invoiceNumber: i.invoiceNumber,
-        issuedAt: i.issuedAt,
-        property: i.booking.property?.title ?? `#${i.booking.propertyId}`,
-        gross: i.total,
-        commissionPercent: i.commissionPercent,
-        commissionAmount: i.commissionAmount,
-        net: i.netPayable,
-        status: i.status,
-        receiptNumber: i.receiptNumber ?? null,
-      })),
-    };
-  });
+      // By property
+      const byProp: Record<string, { gross: number; net: number; commission: number }> = {};
+      for (const i of items) {
+        const name = i.booking.property?.title ?? `#${i.booking.propertyId}`;
+        if (!byProp[name]) byProp[name] = { gross: 0, net: 0, commission: 0 };
+        byProp[name].gross += Number(i.total);
+        byProp[name].net += Number(i.netPayable);
+        byProp[name].commission += Number(i.commissionAmount);
+      }
 
-  res.json(data);
-};
-router.get("/revenue", revenueHandler);
+      return {
+        series: Object.entries(series).map(([key, v]) => ({ key, ...v })),
+        byProperty: Object.entries(byProp).map(([title, v]) => ({ title, ...v })),
+        table: items.map((i: any) => ({
+          id: i.id,
+          invoiceNumber: i.invoiceNumber,
+          issuedAt: i.issuedAt,
+          property: i.booking.property?.title ?? `#${i.booking.propertyId}`,
+          gross: i.total,
+          commissionPercent: i.commissionPercent,
+          commissionAmount: i.commissionAmount,
+          net: i.netPayable,
+          status: i.status,
+          receiptNumber: i.receiptNumber ?? null,
+        })),
+      };
+    });
+
+    res.json(data);
+  })
+);
 
 /** -------------------------
  *  /owner/reports/bookings
@@ -244,7 +266,21 @@ const bookingsHandler: RequestHandler = async (req, res, next) => {
       const t0 = Date.now();
       
       // Try to include code relation, but handle gracefully if it fails
-      let bs: Booking[];
+      let bs: any[];
+
+      // Fail-soft: some environments may be missing newer Booking columns.
+      // Avoid implicit "select all columns" which can throw P2022 and make the UI show zero.
+      const bookingMeta = (prisma as any).booking?._meta ?? {};
+      const bookingHasField = (field: string) => Object.prototype.hasOwnProperty.call(bookingMeta, field);
+      const bookingSelect: any = {
+        id: true,
+        propertyId: true,
+        checkIn: true,
+        checkOut: true,
+        status: true,
+      };
+      if (bookingHasField('totalAmount')) bookingSelect.totalAmount = true;
+      if (bookingHasField('guestName')) bookingSelect.guestName = true;
       try {
         bs = await prisma.booking.findMany({
           where: {
@@ -252,15 +288,16 @@ const bookingsHandler: RequestHandler = async (req, res, next) => {
             checkIn: { gte: from, lte: to },
             ...(propertyId ? { propertyId } : {}),
           },
-          include: { 
-            property: true,
+          select: {
+            ...bookingSelect,
+            property: { select: { id: true, title: true } },
             code: {
               select: {
                 usedAt: true,
                 status: true,
-              }
-            }
-          },
+              },
+            },
+          } as any,
         });
       } catch (includeErr: any) {
         // If code relation fails, retry without it
@@ -271,9 +308,10 @@ const bookingsHandler: RequestHandler = async (req, res, next) => {
             checkIn: { gte: from, lte: to },
             ...(propertyId ? { propertyId } : {}),
           },
-          include: { 
-            property: true,
-          },
+          select: {
+            ...bookingSelect,
+            property: { select: { id: true, title: true } },
+          } as any,
         });
       }
 
@@ -337,16 +375,29 @@ const bookingsHandler: RequestHandler = async (req, res, next) => {
         const r = req as AuthedRequest;
         const ownerId = r.user?.id;
         const { from, to, groupBy, propertyId } = parseQuery(req.query);
-        
-        const bs: Booking[] = await prisma.booking.findMany({
+
+        const bookingMeta = (prisma as any).booking?._meta ?? {};
+        const bookingHasField = (field: string) => Object.prototype.hasOwnProperty.call(bookingMeta, field);
+        const bookingSelect: any = {
+          id: true,
+          propertyId: true,
+          checkIn: true,
+          checkOut: true,
+          status: true,
+        };
+        if (bookingHasField('totalAmount')) bookingSelect.totalAmount = true;
+        if (bookingHasField('guestName')) bookingSelect.guestName = true;
+
+        const bs: any[] = await prisma.booking.findMany({
           where: {
             property: { ownerId },
             checkIn: { gte: from, lte: to },
             ...(propertyId ? { propertyId } : {}),
           },
-          include: { 
-            property: true,
-          },
+          select: {
+            ...bookingSelect,
+            property: { select: { id: true, title: true } },
+          } as any,
         });
 
         const series: Record<string, { count: number }> = {};
@@ -681,6 +732,7 @@ const staysHandler: RequestHandler = async (req, res) => {
               roomsNeeded: true,
               toRegion: true,
               toDistrict: true,
+              toWard: true,
               toLocation: true,
               checkIn: true,
               checkOut: true,
@@ -689,8 +741,6 @@ const staysHandler: RequestHandler = async (req, res) => {
               totalAmount: true,
               currency: true,
               isOpenForClaims: true,
-              openedForClaimsAt: true,
-              createdAt: true,
             },
           },
         },
@@ -881,62 +931,66 @@ router.get("/occupancy", occupancyHandler);
 /** -------------------------
  *  /owner/reports/customers
  *  ------------------------- */
-const customersHandler: RequestHandler = async (req, res) => {
-  const r = req as AuthedRequest;
-  const ownerId = r.user!.id;
-  const { from, to, propertyId } = parseQuery(req.query);
+router.get(
+  "/customers",
+  asyncHandler(async (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
 
-  const key = makeKey(ownerId, "customers", {
-    from: from.toISOString(),
-    to: to.toISOString(),
-    propertyId,
-  });
+    const r = req as AuthedRequest;
+    const ownerId = r.user!.id;
+    const { from, to, propertyId } = parseQuery(req.query);
 
-  const data = await withCache(key, async () => {
-    const bs = await prisma.booking.findMany({
-      where: {
-        property: { ownerId },
-        checkIn: { gte: from, lte: to },
-        ...(propertyId ? { propertyId } : {}),
-      },
-      select: {
-        id: true,
-        totalAmount: true,
-        checkIn: true,
-        checkOut: true,
-        guestName: true,
-        nationality: true,
-      },
+    const key = makeKey(ownerId, "customers", {
+      from: from.toISOString(),
+      to: to.toISOString(),
+      propertyId,
     });
 
-    // By nationality
-    const byNat: Record<string, number> = {};
-    for (const b of bs) {
-      const k = (b.nationality ?? "Unknown").toString();
-      byNat[k] = (byNat[k] ?? 0) + 1;
-    }
+    const data = await withCache(key, async () => {
+      const bs = await prisma.booking.findMany({
+        where: {
+          property: { ownerId },
+          checkIn: { gte: from, lte: to },
+          ...(propertyId ? { propertyId } : {}),
+        },
+        select: {
+          id: true,
+          totalAmount: true,
+          checkIn: true,
+          checkOut: true,
+          guestName: true,
+          nationality: true,
+        },
+      });
 
-    // Top customers (by guestName proxy)
-    const byGuest: Record<string, { stays: number; spend: number }> = {};
-    for (const b of bs) {
-      const k = (b.guestName ?? "Guest").toString();
-      if (!byGuest[k]) byGuest[k] = { stays: 0, spend: 0 };
-      byGuest[k].stays += 1;
-      byGuest[k].spend += Number(b.totalAmount);
-    }
-    const topCustomers = Object.entries(byGuest)
-      .map(([name, v]) => ({ name, ...v }))
-      .sort((a, b) => b.spend - a.spend)
-      .slice(0, 20);
+      // By nationality
+      const byNat: Record<string, number> = {};
+      for (const b of bs) {
+        const k = (b.nationality ?? "Unknown").toString();
+        byNat[k] = (byNat[k] ?? 0) + 1;
+      }
 
-    return {
-      byNationality: Object.entries(byNat).map(([nationality, count]) => ({ nationality, count })),
-      topCustomers,
-    };
-  });
+      // Top customers (by guestName proxy)
+      const byGuest: Record<string, { stays: number; spend: number }> = {};
+      for (const b of bs) {
+        const k = (b.guestName ?? "Guest").toString();
+        if (!byGuest[k]) byGuest[k] = { stays: 0, spend: 0 };
+        byGuest[k].stays += 1;
+        byGuest[k].spend += Number(b.totalAmount);
+      }
+      const topCustomers = Object.entries(byGuest)
+        .map(([name, v]) => ({ name, ...v }))
+        .sort((a, b) => b.spend - a.spend)
+        .slice(0, 20);
 
-  res.json(data);
-};
-router.get("/customers", customersHandler);
+      return {
+        byNationality: Object.entries(byNat).map(([nationality, count]) => ({ nationality, count })),
+        topCustomers,
+      };
+    });
+
+    res.json(data);
+  })
+);
 
 export default router;

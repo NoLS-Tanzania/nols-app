@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import Link from "next/link";
 import Image from "next/image";
-import { Heart, Share2, MapPin, ArrowLeft, ImageIcon, Loader2, Calendar } from "lucide-react";
+import { Heart, Share2, MapPin, ArrowLeft, ImageIcon, Calendar } from "lucide-react";
 import VerifiedIcon from "../../../components/VerifiedIcon";
+import LogoSpinner from "@/components/LogoSpinner";
 
 const api = axios.create({ baseURL: "", withCredentials: true });
 
@@ -147,7 +148,7 @@ export default function SavedPropertiesPage() {
       {/* Content */}
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20">
-          <Loader2 className="w-10 h-10 text-[#02665e] animate-spin mb-4" />
+          <LogoSpinner size="lg" className="mb-4" ariaLabel="Loading your properties" />
           <p className="text-sm text-slate-600">Loading your properties...</p>
         </div>
       ) : activeTab === "saved" ? (

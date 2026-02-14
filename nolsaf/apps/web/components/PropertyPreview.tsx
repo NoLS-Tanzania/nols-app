@@ -44,7 +44,6 @@ import {
   CigaretteOff,
   FileText,
   Map,
-  Loader2,
   ImageIcon,
   Eye,
   DoorClosed,
@@ -52,6 +51,7 @@ import {
   Building2,
   Calendar,
 } from "lucide-react";
+import LogoSpinner from "@/components/LogoSpinner";
 import axios from "axios";
 import { motion } from "framer-motion";
 import NeighborhoodGuide from "./NeighborhoodGuide";
@@ -708,7 +708,7 @@ export default function PropertyPreview({
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin text-emerald-600 mx-auto mb-4" />
+          <LogoSpinner size="md" className="mx-auto mb-4" ariaLabel="Loading property" />
           <p className="text-gray-600">Loading property...</p>
         </div>
       </div>
@@ -2412,7 +2412,7 @@ export default function PropertyPreview({
                   
                   {auditLoading ? (
                     <div className="flex items-center justify-center py-8">
-                      <Loader2 className="h-6 w-6 animate-spin text-[#02665e]" />
+                      <LogoSpinner size="sm" ariaLabel="Loading audit history" />
                       <span className="ml-2 text-sm text-gray-600">Loading audit history...</span>
                     </div>
                   ) : auditHistory.length === 0 ? (

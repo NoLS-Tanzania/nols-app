@@ -241,7 +241,12 @@ router.patch("/:id", (async (req: AuthedRequest, res) => {
  */
 router.post("/:id/messages", limitCancellationMessages, (async (req: AuthedRequest, res) => {
   try {
-    const adminId = req.user!.id;
+    const adminUser = req.user;
+    const adminRole = String((adminUser as any)?.role ?? "").toUpperCase();
+    if (!adminUser || typeof adminUser.id !== "number" || !Number.isFinite(adminUser.id) || adminUser.id <= 0 || adminRole !== "ADMIN") {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    const adminId = adminUser.id;
     const id = Number(req.params.id);
     const body = String(req.body?.body || "").trim();
     if (!body) return res.status(400).json({ error: "Message body is required" });

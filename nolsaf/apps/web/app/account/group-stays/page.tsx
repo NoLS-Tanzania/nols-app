@@ -1,9 +1,10 @@
 "use client";
 import { Fragment, useCallback, useEffect, useState } from "react";
 import axios from "axios";
-import { Users, Calendar, CheckCircle, XCircle, User, Phone, Globe, ArrowRight, Building2, Clock, ChevronDown, MessageSquare, DollarSign, Tag, FileText, Sparkles, Gift, Send, Loader2 } from "lucide-react";
+import { Users, Calendar, CheckCircle, XCircle, User, Phone, Globe, ArrowRight, Building2, Clock, ChevronDown, MessageSquare, DollarSign, Tag, FileText, Sparkles, Gift, Send } from "lucide-react";
 import Link from "next/link";
 import { io } from "socket.io-client";
+import LogoSpinner from "@/components/LogoSpinner";
 
 const api = axios.create({ baseURL: "", withCredentials: true });
 
@@ -821,7 +822,7 @@ export default function MyGroupStaysPage() {
                           <div className="space-y-3">
                             {auctionLoading.has(stay.id) && (
                               <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 flex items-center gap-3 text-sm text-slate-700">
-                                <Loader2 className="h-4 w-4 animate-spin text-[#02665e]" />
+                                <LogoSpinner size="xs" ariaLabel="Loading offers" />
                                 Loading offers...
                               </div>
                             )}
@@ -905,7 +906,7 @@ export default function MyGroupStaysPage() {
                                     >
                                       {auctionConfirming.has(stay.id) ? (
                                         <>
-                                          <Loader2 className="h-4 w-4 animate-spin" />
+                                          <LogoSpinner size="xs" ariaLabel="Confirming offer" />
                                           Confirming...
                                         </>
                                       ) : (
@@ -1198,7 +1199,7 @@ function GroupStayMessaging({ bookingId }: { bookingId: number }) {
   if (messagesLoading && conversationMessages.length === 0) {
     return (
       <div className="mt-4 flex items-center justify-center p-4">
-        <Loader2 className="h-5 w-5 animate-spin text-[#02665e]" />
+        <LogoSpinner size="sm" ariaLabel="Loading messages" />
       </div>
     );
   }

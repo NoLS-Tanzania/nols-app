@@ -6,11 +6,11 @@ import Image from "next/image";
 import Link from "next/link";
 import {
   ChevronLeft,
-  Loader2,
   CheckCircle2,
   Download,
   MapPin,
 } from "lucide-react";
+import LogoSpinner from "@/components/LogoSpinner";
 
 type ReceiptData = {
   invoiceId: number;
@@ -153,7 +153,7 @@ export default function ReceiptPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin text-[#02665e] mx-auto mb-4" />
+          <LogoSpinner size="md" className="mx-auto mb-4" ariaLabel="Loading receipt" />
           <p className="text-slate-600">Loading receipt...</p>
         </div>
       </div>

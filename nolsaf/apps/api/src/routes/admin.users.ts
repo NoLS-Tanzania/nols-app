@@ -3,6 +3,7 @@ import { prisma } from '@nolsaf/prisma';
 import { Prisma } from '@prisma/client';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
+import { audit } from '../lib/audit.js';
 
 export const router = Router();
 router.use(requireAuth as RequestHandler, requireRole('ADMIN') as RequestHandler);
@@ -709,6 +710,61 @@ router.get('/:id/audit', async (req, res) => {
     return res.status(500).json({ error: 'failed' });
   }
 });
+
+/**
+ * POST /admin/users/:id/promote-admin
+ * Body: { confirm: true }
+ * Promotes an existing user to ADMIN. No public admin signup is allowed.
+ */
+router.post(
+  '/:id/promote-admin',
+  asyncHandler(async (req: any, res: any) => {
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ error: 'invalid id' });
+
+    const confirm = Boolean(req.body?.confirm);
+    if (!confirm) {
+      return res.status(400).json({
+        error: 'confirm_required',
+        message: 'Set { confirm: true } to promote this user to ADMIN.',
+      });
+    }
+
+    const target = await prisma.user.findUnique({
+      where: { id },
+      select: { id: true, role: true, email: true, phone: true, name: true, suspendedAt: true, isDisabled: true },
+    });
+    if (!target) return res.status(404).json({ error: 'user_not_found' });
+
+    const before = { role: target.role };
+    const currentRole = String(target.role ?? '').toUpperCase();
+    if (currentRole === 'ADMIN') {
+      return res.json({
+        ok: true,
+        data: { ...target, role: target.role },
+        message: 'User is already an ADMIN.',
+      });
+    }
+
+    const updated = await prisma.user.update({
+      where: { id },
+      data: { role: 'ADMIN' as any },
+      select: { id: true, role: true, email: true, phone: true, name: true, suspendedAt: true, isDisabled: true },
+    });
+
+    try {
+      await audit(req, 'ADMIN_USER_PROMOTED_TO_ADMIN', `user:${id}`, before, { role: updated.role });
+    } catch {
+      // ignore audit failures
+    }
+
+    return res.json({
+      ok: true,
+      data: updated,
+      message: 'User promoted to ADMIN. Ensure they enable 2FA and verify email/phone.',
+    });
+  })
+);
 
 router.patch('/:id', async (req, res) => {
   try {

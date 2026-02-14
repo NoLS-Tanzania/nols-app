@@ -70,11 +70,11 @@ import {
   Facebook,
   Twitter,
   Home,
-  Loader2,
   Calendar,
   Plus,
   Minus,
 } from "lucide-react";
+import LogoSpinner from "@/components/LogoSpinner";
 import VerifiedIcon from "../../../../components/VerifiedIcon";
 import DatePicker from "../../../../components/ui/DatePicker";
 import { PropertyVisualizationPreview } from "@/app/(owner)/owner/properties/add/_components/PropertyVisualizationPreview";
@@ -905,7 +905,7 @@ function PropertyAvailabilityChecker({
 
         {loading ? (
           <div className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 font-semibold flex items-center justify-center gap-2">
-            <Loader2 className="w-4 h-4 animate-spin" />
+            <LogoSpinner size="xs" ariaLabel="Updating availability" />
             <span>Updating availability…</span>
           </div>
         ) : null}
@@ -1813,7 +1813,7 @@ export default function PublicPropertyDetailPage() {
                 title={isFavorite ? "Remove from favorites" : "Save property"}
               >
                 {favoriteLoading ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <LogoSpinner size="sm" ariaLabel="Saving" />
                 ) : (
                   <Heart className={`w-5 h-5 transition-all duration-300 ${isFavorite ? "fill-current scale-110" : "scale-100"}`} />
                 )}
@@ -1841,7 +1841,11 @@ export default function PublicPropertyDetailPage() {
                       className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm transition-opacity duration-200"
                       onClick={() => setShowShareMenu(false)}
                     />
-                    <div className="absolute right-0 top-full mt-2 w-48 rounded-xl border border-slate-200 bg-white shadow-lg z-50 overflow-hidden transform transition-all duration-200 origin-top-right">
+                    <div
+                      className="absolute right-0 top-full mt-2 w-56 max-w-none rounded-2xl border border-slate-200/60 bg-white/95 backdrop-blur-xl shadow-2xl ring-1 ring-black/5 z-50 overflow-hidden transform transition-all duration-200 origin-top-right"
+                      style={{ maxWidth: "none" }}
+                    >
+                      <div className="p-3 grid gap-2">
                       <button
                         type="button"
                         onClick={async () => {
@@ -1863,10 +1867,14 @@ export default function PublicPropertyDetailPage() {
                             }
                           }
                         }}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 transition-all duration-200 hover:translate-x-1 active:scale-95"
+                        className="group w-full flex items-center gap-3 rounded-xl border border-slate-200/70 bg-slate-50/80 px-3 py-2.5 text-sm font-medium text-slate-800 transition-colors duration-200 hover:bg-slate-100/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30"
                       >
-                        <Copy className={`w-4 h-4 transition-transform duration-200 ${copyLinkSuccess ? "scale-110 text-[#02665e]" : ""}`} />
-                        <span className={copyLinkSuccess ? "font-semibold text-[#02665e]" : ""}>{copyLinkSuccess ? "Link copied!" : "Copy link"}</span>
+                        <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-black/5">
+                          <Copy className={`w-4 h-4 flex-shrink-0 transition-colors duration-200 ${copyLinkSuccess ? "text-[#02665e]" : "text-slate-600"}`} />
+                        </span>
+                        <span className={copyLinkSuccess ? "font-semibold text-[#02665e]" : ""}>
+                          {copyLinkSuccess ? "Link copied!" : "Copy link"}
+                        </span>
                       </button>
                       <a
                         href={`mailto:?subject=${encodeURIComponent(property.title)}&body=${encodeURIComponent(window.location.href)}`}
@@ -1884,9 +1892,11 @@ export default function PublicPropertyDetailPage() {
                             }
                           }
                         }}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 transition-all duration-200 hover:translate-x-1 active:scale-95"
+                        className="group w-full flex items-center gap-3 rounded-xl border border-amber-200/60 bg-amber-50/70 px-3 py-2.5 text-sm font-medium text-amber-900 transition-colors duration-200 hover:bg-amber-100/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30 no-underline"
                       >
-                        <Mail className="w-4 h-4 transition-transform duration-200 group-hover:scale-110" />
+                        <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-amber-900/10">
+                          <Mail className="w-4 h-4 flex-shrink-0 text-amber-700 transition-colors duration-200" />
+                        </span>
                         <span>Email</span>
                       </a>
                       <a
@@ -1907,10 +1917,37 @@ export default function PublicPropertyDetailPage() {
                             }
                           }
                         }}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 transition-all duration-200 hover:translate-x-1 active:scale-95"
+                        className="group w-full flex items-center gap-3 rounded-xl border border-blue-200/60 bg-blue-50/70 px-3 py-2.5 text-sm font-medium text-blue-900 transition-colors duration-200 hover:bg-blue-100/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30 no-underline"
                       >
-                        <Facebook className="w-4 h-4 transition-transform duration-200 group-hover:scale-110" />
+                        <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-blue-900/10">
+                          <Facebook className="w-4 h-4 flex-shrink-0 text-blue-700 transition-colors duration-200" />
+                        </span>
                         <span>Facebook</span>
+                      </a>
+                      <a
+                        href={`https://wa.me/?text=${encodeURIComponent(`${property.title} - ${window.location.href}`)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={async () => {
+                          setShowShareMenu(false);
+                          // Mark as shared if property is saved
+                          if (property?.id && isFavorite) {
+                            try {
+                              await fetch(`/api/customer/saved-properties/${property.id}/share`, {
+                                method: "POST",
+                                credentials: "include",
+                              });
+                            } catch (e) {
+                              // Silently fail
+                            }
+                          }
+                        }}
+                        className="group w-full flex items-center gap-3 rounded-xl border border-emerald-200/60 bg-emerald-50/70 px-3 py-2.5 text-sm font-medium text-emerald-900 transition-colors duration-200 hover:bg-emerald-100/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30 no-underline"
+                      >
+                        <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-emerald-900/10">
+                          <MessageSquare className="w-4 h-4 flex-shrink-0 text-emerald-700 transition-colors duration-200" />
+                        </span>
+                        <span>WhatsApp</span>
                       </a>
                       <a
                         href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(window.location.href)}&text=${encodeURIComponent(property.title)}`}
@@ -1930,11 +1967,14 @@ export default function PublicPropertyDetailPage() {
                             }
                           }
                         }}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 transition-all duration-200 hover:translate-x-1 active:scale-95 border-t border-slate-100"
+                        className="group w-full flex items-center gap-3 rounded-xl border border-sky-200/60 bg-sky-50/70 px-3 py-2.5 text-sm font-medium text-sky-900 transition-colors duration-200 hover:bg-sky-100/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30 no-underline"
                       >
-                        <Twitter className="w-4 h-4 transition-transform duration-200 group-hover:scale-110" />
+                        <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-sky-900/10">
+                          <Twitter className="w-4 h-4 flex-shrink-0 text-sky-700 transition-colors duration-200" />
+                        </span>
                         <span>Twitter</span>
                       </a>
+                      </div>
                     </div>
                   </>
                 )}
@@ -2815,7 +2855,7 @@ export default function PublicPropertyDetailPage() {
                                   >
                                     {modalAvailLoading ? (
                                       <span className="inline-flex items-center gap-2">
-                                        <Loader2 className="w-4 h-4 animate-spin" aria-hidden />
+                                        <LogoSpinner size="xs" ariaLabel="Checking availability" />
                                         Checking...
                                       </span>
                                     ) : (
@@ -3135,7 +3175,7 @@ export default function PublicPropertyDetailPage() {
                             >
                               {modalAvailLoading ? (
                                 <span className="inline-flex items-center gap-2">
-                                  <Loader2 className="w-4 h-4 animate-spin" aria-hidden />
+                                  <LogoSpinner size="xs" ariaLabel="Checking availability" />
                                   Checking...
                                 </span>
                               ) : (

@@ -32,14 +32,14 @@ const listQuerySchema = z.object({
     .string()
     .regex(/^\d+$/)
     .optional()
-    .transform((v) => Number(v) || 1)
-    .default(1),
+    .default("1")
+    .transform((v) => Number(v) || 1),
   pageSize: z
     .string()
     .regex(/^\d+$/)
     .optional()
-    .transform((v) => Math.min(Number(v) || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE))
-    .default(DEFAULT_PAGE_SIZE),
+    .default(String(DEFAULT_PAGE_SIZE))
+    .transform((v) => Math.min(Number(v) || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE)),
   status: z.enum(["valid", "expired", "used", "all"]).optional().default("all"),
 }).strict();
 

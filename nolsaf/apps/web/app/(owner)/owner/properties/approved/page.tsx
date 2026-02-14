@@ -38,6 +38,14 @@ type Property = {
   hotelStar?: string | null;
   services?: any;
   slug?: string;
+  tourismSiteId?: number | null;
+  parkPlacement?: "INSIDE" | "NEARBY" | null;
+  tourismSite?: {
+    id: number;
+    slug: string;
+    name: string;
+    country: string;
+  } | null;
 };
 
 type ReviewsData = {
@@ -321,6 +329,20 @@ export default function ApprovedProps() {
                     <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
                     <span className="truncate">{location}</span>
           </div>
+
+                  {/* Park / Tourism Site */}
+                  {property.tourismSite?.name ? (
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-xs text-slate-600 truncate">
+                        <span className="font-medium text-slate-700">Park:</span> {property.tourismSite.name}
+                      </div>
+                      {property.parkPlacement ? (
+                        <span className="shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border border-slate-200 bg-slate-50 text-slate-700">
+                          {property.parkPlacement === "INSIDE" ? "Inside" : "Nearby"}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : null}
 
                   {/* Type and Star Rating */}
                   <div className="flex items-center justify-between gap-2">

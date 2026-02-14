@@ -230,7 +230,11 @@ router.post("/:id/claim", (async (req: AuthedRequest, res) => {
  */
 router.post("/:id/follow-up", limitPlanRequestMessages, (async (req: AuthedRequest, res) => {
   try {
-    const userId = req.user!.id;
+    const authed = req.user;
+    if (!authed || typeof authed.id !== "number" || !Number.isFinite(authed.id) || authed.id <= 0) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    const userId = authed.id;
     const requestId = parseInt(String(req.params.id), 10);
     const { messageType, message } = req.body || {};
 

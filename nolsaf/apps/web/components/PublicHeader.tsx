@@ -35,7 +35,6 @@ export default function PublicHeader({
     let alive = true;
     (async () => {
       try {
-        // Prefer httpOnly cookie session (more secure) — no localStorage needed.
         const r = await fetch("/api/account/me", { credentials: "include" });
         if (!alive) return;
         setAuthed(r.ok);
@@ -63,13 +62,66 @@ export default function PublicHeader({
     let ticking = false;
     let lastScrollTop = 0;
     let scrollTimeout: NodeJS.Timeout | null = null;
+    let scrollStopTimeout: NodeJS.Timeout | null = null;
+    let publicHideTimeout: NodeJS.Timeout | null = null;
+    let lastPublicY = 0;
+    let publicHidden = false;
     
     const handleScroll = () => {
+      const isPublic = pathname?.startsWith("/public") ?? false;
+
+      // Public pages: hide while scrolling, show again once scrolling stops.
+      // This runs outside the rAF/ticking gate so it can't be skipped.
+      if (isPublic) {
+        const yNow = window.scrollY;
+        const delta = Math.abs(yNow - lastPublicY);
+        lastPublicY = yNow;
+
+        // Cancel any delayed hide logic (only used on non-public routes).
+        if (scrollTimeout) {
+          clearTimeout(scrollTimeout);
+          scrollTimeout = null;
+        }
+
+        if (publicHideTimeout) {
+          clearTimeout(publicHideTimeout);
+          publicHideTimeout = null;
+        }
+
+        // Near the top, always keep header visible.
+        if (yNow <= 80) {
+          publicHidden = false;
+          setHeaderVisible(true);
+          if (scrollStopTimeout) {
+            clearTimeout(scrollStopTimeout);
+            scrollStopTimeout = null;
+          }
+        } else {
+          // Past the top: hide while actively scrolling, then show after a stop debounce.
+          // Only trigger state changes on transitions to avoid flicker.
+          if (delta > 0.5 && !publicHidden) {
+            publicHidden = true;
+            setHeaderVisible(false);
+          }
+
+          if (scrollStopTimeout) clearTimeout(scrollStopTimeout);
+          const scheduledY = yNow;
+          scrollStopTimeout = setTimeout(() => {
+            // Show only if scroll position has stabilized.
+            if (Math.abs(window.scrollY - scheduledY) < 2) {
+              publicHidden = false;
+              setHeaderVisible(true);
+            }
+          }, 260);
+        }
+      }
+
       if (!ticking) {
         window.requestAnimationFrame(() => {
           const currentScrollY = window.scrollY;
           const scrollDifference = currentScrollY - lastScrollTop;
           const scrollSpeed = Math.abs(scrollDifference);
+          const isPublic = pathname?.startsWith("/public") ?? false;
           
           // Calculate scroll progress (0-1) for smooth transitions
           const maxScroll = Math.max(document.documentElement.scrollHeight - window.innerHeight, 1);
@@ -102,7 +154,7 @@ export default function PublicHeader({
             setScrolled(false);
           } else {
             // Determine scroll direction with better threshold
-            if (scrollSpeed > 3) { // Lower threshold for more responsive feel
+            if (!isPublic && scrollSpeed > 3) { // Lower threshold for more responsive feel
               if (scrollDifference > 0) {
                 // Scrolling down
                 // Hide header when scrolling down (with delay for smooth feel)
@@ -144,6 +196,8 @@ export default function PublicHeader({
     return () => {
       window.removeEventListener('scroll', handleScroll);
       if (scrollTimeout) clearTimeout(scrollTimeout);
+      if (scrollStopTimeout) clearTimeout(scrollStopTimeout);
+      if (publicHideTimeout) clearTimeout(publicHideTimeout);
     };
   }, [pathname]);
 
@@ -171,6 +225,10 @@ export default function PublicHeader({
   const navHoverBgClass = headerVariant === "light" ? "hover:bg-[#02665e]/10" : "hover:bg-white/15";
   const navActiveBgClass = headerVariant === "light" ? "bg-[#02665e]/10" : "bg-white/20";
   const navDotBgClass = headerVariant === "light" ? "bg-[#02665e]" : "bg-white";
+
+  const chromePillClass = headerVariant === "light"
+    ? "bg-white/70 ring-1 ring-slate-200/70 shadow-sm"
+    : "bg-white/10 ring-1 ring-white/15 shadow";
 
   // Logo handling:
   // - Always use the icon-only logo (no names), same as the footer.
@@ -204,8 +262,8 @@ export default function PublicHeader({
   const NavLink = ({ href, children, onClick }: { href: string; children: React.ReactNode; onClick?: () => void }) => {
     const isActive = pathname === href;
     return (
-      <Link 
-        href={href} 
+      <Link
+        href={href}
         onClick={onClick}
         className={`relative ${navTextClass} font-semibold no-underline rounded-full transition-all duration-300 ease-out ${navHoverBgClass} hover:scale-105 active:scale-95 group ${
           isActive ? navActiveBgClass : ''
@@ -249,91 +307,102 @@ export default function PublicHeader({
           headerVisible 
             ? 'translate-y-0 opacity-100' 
             : '-translate-y-full opacity-0 pointer-events-none'
-        } ${compact ? 'h-14' : scrolled ? 'h-16' : 'h-20'}`}
+        } w-full`}
         style={{
-          // Shape morphing: from full-width to contained with rounded corners
-          top: scrolled ? '12px' : '0',
-          left: scrolled ? '16px' : '0',
-          right: scrolled ? '16px' : '0',
-          width: scrolled ? 'calc(100% - 32px)' : '100%',
-          maxWidth: scrolled ? '1200px' : '100%',
-          margin: scrolled ? '0 auto' : '0',
-          borderRadius: scrolled ? '24px' : '0',
-          // Naspers-style coupling: transparent over hero, then smoothly fills into our brand glass header.
-          // Non-public pages get full opacity for maximum visibility
-          background: overHero && !isNonPublicPage
-            ? `linear-gradient(180deg, rgba(255,255,255,${heroTopAlpha}) 0%, rgba(255,255,255,${heroBottomAlpha}) 100%)`
-            : scrolled
-            ? `rgba(2, 102, 94, ${0.92 + scrollProgress * 0.06})`
-            : isNonPublicPage
-            ? `rgba(2, 102, 94, 0.98)`
-            : `rgba(2, 102, 94, ${pathname === "/public" ? (0.20 + heroBlend * 0.55) : 0.98})`,
-          backdropFilter: (overHero && !isNonPublicPage)
-            ? `blur(${14 + heroBlend * 10}px) saturate(170%)`
-            : isNonPublicPage
-            ? `blur(16px) saturate(180%)`
-            : scrolled
-            ? `blur(${16 + scrollProgress * 6}px) saturate(${160 + scrollProgress * 20}%)`
-            : `blur(${6 + heroBlend * 10}px) saturate(${120 + heroBlend * 40}%)`,
-          WebkitBackdropFilter: (overHero && !isNonPublicPage)
-            ? `blur(${14 + heroBlend * 10}px) saturate(170%)`
-            : isNonPublicPage
-            ? `blur(16px) saturate(180%)`
-            : scrolled
-            ? `blur(${16 + scrollProgress * 6}px) saturate(${160 + scrollProgress * 20}%)`
-            : `blur(${6 + heroBlend * 10}px) saturate(${120 + heroBlend * 40}%)`,
-          boxShadow: (overHero && !isNonPublicPage)
-            ? "0 10px 28px rgba(15,23,42,0.12), 0 1px 0 rgba(255,255,255,0.22), inset 0 -1px 0 rgba(2,102,94,0.10)"
-            : scrolled
-            ? `0 10px 28px rgba(0,0,0,0.18), 0 0 0 1px rgba(255,255,255,0.10), inset 0 1px 0 rgba(255,255,255,0.10)`
-            : isNonPublicPage
-            ? `0 4px 16px rgba(0,0,0,0.12), 0 0 0 1px rgba(255,255,255,0.15), inset 0 1px 0 rgba(255,255,255,0.15)`
-            : pathname === "/public" && heroBlend > 0.2
-            ? `0 10px 30px rgba(0,0,0,0.18), 0 0 0 1px rgba(255,255,255,0.08)`
-            : 'none',
-          border: (overHero && !isNonPublicPage)
-            ? "1px solid rgba(255,255,255,0.35)"
-            : scrolled
-            ? '1px solid rgba(255, 255, 255, 0.12)'
-            : isNonPublicPage
-            ? '1px solid rgba(255,255,255,0.15)'
-            : pathname === "/public" && heroBlend > 0.25
-            ? '1px solid rgba(255,255,255,0.08)'
-            : 'none',
+          top: 0,
+          left: 0,
+          right: 0,
           transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1), transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.4s ease-out',
-          willChange: 'transform, opacity, width, border-radius, top, left, right, background, backdrop-filter, box-shadow',
+          willChange: 'transform, opacity',
         }}
       >
-        {/* Scroll Progress Indicator - More subtle */}
-        {scrolled && scrollProgress > 0 && (
-          <div 
-            className="absolute bottom-0 left-0 h-[2px] transition-all duration-300 rounded-full"
+        <div className="public-container">
+          <div
+            className={`relative ${compact ? 'h-14' : scrolled ? 'h-16' : 'h-20'}`}
             style={{
-              width: `${scrollProgress * 100}%`,
-              background: `linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.5) 20%, rgba(255,255,255,0.7) 50%, rgba(255,255,255,0.5) 80%, transparent 100%)`,
-              borderRadius: '0 0 24px 24px',
+              // On /public, the header overlays the hero. Keep a small inset from the top
+              // so the header + hero read as a single, intentional composition.
+              marginTop: isPublicHome ? 'clamp(12px, 2vw, 16px)' : (scrolled ? '12px' : '0'),
+              borderRadius: compact ? '20px' : (isPublicHome && !scrolled ? '32px' : '24px'),
+              width: '100%',
+              // Keep the header full-width by default; only constrain when scrolled (compact state).
+              maxWidth: scrolled ? '1200px' : '100%',
+              marginLeft: scrolled ? 'auto' : undefined,
+              marginRight: scrolled ? 'auto' : undefined,
+              // Naspers-style coupling: transparent over hero, then smoothly fills into our brand glass header.
+              // Non-public pages get full opacity for maximum visibility
+              background: overHero && !isNonPublicPage
+                // Make the header sufficiently opaque so hero content scrolls *behind* it (not visible through it).
+                ? `linear-gradient(180deg, rgba(255,255,255,${Math.min(heroTopAlpha + 0.22, 0.985)}) 0%, rgba(255,255,255,${Math.min(heroBottomAlpha + 0.70, 0.97)}) 75%, rgba(2,102,94,0.08) 100%)`
+                : scrolled
+                ? `rgba(2, 102, 94, ${0.92 + scrollProgress * 0.06})`
+                : isNonPublicPage
+                ? `rgba(2, 102, 94, 0.98)`
+                : `rgba(2, 102, 94, ${pathname === "/public" ? (0.20 + heroBlend * 0.55) : 0.98})`,
+              backdropFilter: (overHero && !isNonPublicPage)
+                ? `blur(${14 + heroBlend * 10}px) saturate(170%)`
+                : isNonPublicPage
+                ? `blur(16px) saturate(180%)`
+                : scrolled
+                ? `blur(${16 + scrollProgress * 6}px) saturate(${160 + scrollProgress * 20}%)`
+                : `blur(${6 + heroBlend * 10}px) saturate(${120 + heroBlend * 40}%)`,
+              WebkitBackdropFilter: (overHero && !isNonPublicPage)
+                ? `blur(${14 + heroBlend * 10}px) saturate(170%)`
+                : isNonPublicPage
+                ? `blur(16px) saturate(180%)`
+                : scrolled
+                ? `blur(${16 + scrollProgress * 6}px) saturate(${160 + scrollProgress * 20}%)`
+                : `blur(${6 + heroBlend * 10}px) saturate(${120 + heroBlend * 40}%)`,
+              boxShadow: (overHero && !isNonPublicPage)
+                ? "0 16px 44px rgba(15,23,42,0.16), 0 1px 0 rgba(255,255,255,0.28), inset 0 -1px 0 rgba(2,102,94,0.14)"
+                : scrolled
+                ? `0 10px 28px rgba(0,0,0,0.18), 0 0 0 1px rgba(255,255,255,0.10), inset 0 1px 0 rgba(255,255,255,0.10)`
+                : isNonPublicPage
+                ? `0 4px 16px rgba(0,0,0,0.12), 0 0 0 1px rgba(255,255,255,0.15), inset 0 1px 0 rgba(255,255,255,0.15)`
+                : pathname === "/public" && heroBlend > 0.2
+                ? `0 10px 30px rgba(0,0,0,0.18), 0 0 0 1px rgba(255,255,255,0.08)`
+                : 'none',
+              border: (overHero && !isNonPublicPage)
+                ? "1px solid rgba(255,255,255,0.55)"
+                : scrolled
+                ? '1px solid rgba(255, 255, 255, 0.12)'
+                : isNonPublicPage
+                ? '1px solid rgba(255,255,255,0.15)'
+                : pathname === "/public" && heroBlend > 0.25
+                ? '1px solid rgba(255,255,255,0.08)'
+                : 'none',
+              transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+              willChange: 'border-radius, background, backdrop-filter, box-shadow',
             }}
-          />
-        )}
-        <div 
-          className={`mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex items-center justify-between ${
-            compact ? 'h-14' : scrolled ? 'h-16' : 'h-20'
-          }`}
-          style={{
-            textShadow: (headerVariant === "light" || isNonPublicPage)
-              ? 'none'
-              : scrolled 
-              ? `0 2px 4px rgba(0, 0, 0, ${0.4 + scrollProgress * 0.2}), 0 0 12px rgba(0, 0, 0, ${0.25 + scrollProgress * 0.15})` 
-              : '0 1px 2px rgba(0, 0, 0, 0.2)',
-            // On non-public pages with white background, no drop shadow needed for green text
-            filter: (headerVariant === "light" || isNonPublicPage)
-              ? "none"
-              : "none",
-            transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-            paddingLeft: scrolled ? '20px' : '16px',
-            paddingRight: scrolled ? '20px' : '16px',
-          }}
-        >
+          >
+            {/* Scroll Progress Indicator - More subtle */}
+            {scrolled && scrollProgress > 0 && (
+              <div 
+                className="absolute bottom-0 left-0 h-[2px] transition-all duration-300 rounded-full"
+                style={{
+                  width: `${scrollProgress * 100}%`,
+                  background: `linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.5) 20%, rgba(255,255,255,0.7) 50%, rgba(255,255,255,0.5) 80%, transparent 100%)`,
+                  borderRadius: '0 0 24px 24px',
+                }}
+              />
+            )}
+
+            <div 
+              className={`flex items-center justify-between px-3 sm:px-4 ${
+                compact ? 'h-14' : scrolled ? 'h-16' : 'h-20'
+              }`}
+              style={{
+                textShadow: (headerVariant === "light" || isNonPublicPage)
+                  ? 'none'
+                  : scrolled 
+                  ? `0 2px 4px rgba(0, 0, 0, ${0.4 + scrollProgress * 0.2}), 0 0 12px rgba(0, 0, 0, ${0.25 + scrollProgress * 0.15})` 
+                  : '0 1px 2px rgba(0, 0, 0, 0.2)',
+                filter: (headerVariant === "light" || isNonPublicPage)
+                  ? "none"
+                  : "none",
+                transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+              }}
+            >
           {/* Left: Logo */}
           <div 
             className="flex items-center z-30 flex-shrink-0"
@@ -365,6 +434,11 @@ export default function PublicHeader({
                     (headerVariant === "light" || isNonPublicPage)
                       ? 'none'
                       : 'brightness(0) invert(1) drop-shadow(0 2px 10px rgba(0,0,0,0.28))',
+                  // Give the mark a touch of depth on the hero overlay so it reads crisply.
+                  boxShadow:
+                    (isPublicHome && overHero)
+                      ? '0 6px 18px rgba(15,23,42,0.16)'
+                      : undefined,
                   transition: 'all 0.35s cubic-bezier(0.4, 0, 0.2, 1)',
                 }}
                 priority
@@ -373,7 +447,7 @@ export default function PublicHeader({
 
             {/* Desktop Navigation */}
             <nav 
-              className="hidden xl:flex items-center"
+              className={`hidden xl:flex items-center rounded-full px-1.5 py-1 backdrop-blur-md ${chromePillClass}`}
               style={{
                 gap: scrolled ? '4px' : '8px',
                 opacity: scrolled ? 1 : 1,
@@ -435,27 +509,29 @@ export default function PublicHeader({
                   </>
                 )}
 
-                <GlobalPicker variant={headerVariant} />
-                <ThemeToggle variant={headerVariant} />
+                <div className={`flex items-center rounded-full px-1.5 py-1 backdrop-blur-md ${chromePillClass}`} style={{ gap: scrolled ? '4px' : '6px' }}>
+                  <GlobalPicker variant={headerVariant} />
+                  <ThemeToggle variant={headerVariant} />
 
-                {authed && <UserMenu variant={headerVariant} />}
+                  {authed && <UserMenu variant={headerVariant} />}
 
-                {/* Mobile Menu Button */}
-                <button
-                  type="button"
-                  onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                  className={`xl:hidden p-2 rounded-full bg-transparent transition-all duration-300 hover:scale-110 active:scale-95 border-0 outline-none focus:outline-none focus:ring-0 ${
-                    (headerVariant === "light" || isNonPublicPage) ? 'text-[#02665e] hover:bg-[#02665e]/10' : 'text-white hover:bg-white/10'
-                  }`}
-                  aria-label="Toggle menu"
-                  aria-expanded={mobileMenuOpen}
-                >
-                  {mobileMenuOpen ? (
-                    <X className="h-6 w-6 transition-transform duration-300" />
-                  ) : (
-                    <Menu className="h-6 w-6 transition-transform duration-300" />
-                  )}
-                </button>
+                  {/* Mobile Menu Button */}
+                  <button
+                    type="button"
+                    onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                    className={`xl:hidden p-2 rounded-full bg-transparent transition-all duration-300 hover:scale-110 active:scale-95 border-0 outline-none focus:outline-none focus:ring-0 ${
+                      (headerVariant === "light" || isNonPublicPage) ? 'text-[#02665e] hover:bg-[#02665e]/10' : 'text-white hover:bg-white/10'
+                    }`}
+                    aria-label="Toggle menu"
+                    aria-expanded={mobileMenuOpen}
+                  >
+                    {mobileMenuOpen ? (
+                      <X className="h-6 w-6 transition-transform duration-300" />
+                    ) : (
+                      <Menu className="h-6 w-6 transition-transform duration-300" />
+                    )}
+                  </button>
+                </div>
               </>
             )}
           </div>
@@ -489,7 +565,7 @@ export default function PublicHeader({
             ))}
             <div className="pt-2 pb-2 border-t border-white/5 mt-1">
               <div className="px-4">
-                <RegionsDropdown />
+                <RegionsDropdown fullWidth />
               </div>
             </div>
             {!authed && (
@@ -512,6 +588,8 @@ export default function PublicHeader({
             )}
           </nav>
         </div>
+          </div>
+        </div>
       </header>
 
       {/* Spacer to prevent content from going under fixed header */}
@@ -527,7 +605,7 @@ export default function PublicHeader({
   );
 }
 
-function RegionsDropdown({ variant = "dark" }:{ variant?: "light" | "dark" }) {
+function RegionsDropdown({ variant = "dark", fullWidth = false }:{ variant?: "light" | "dark"; fullWidth?: boolean }) {
   const [open, setOpen] = useState<boolean>(false);
   const ref = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<HTMLDivElement | null>(null);
@@ -627,11 +705,13 @@ function RegionsDropdown({ variant = "dark" }:{ variant?: "light" | "dark" }) {
         aria-haspopup="true"
         aria-expanded={open}
         className={[
-          "w-full text-left font-semibold no-underline text-sm py-2.5 px-4 rounded-full bg-transparent appearance-none border-0 transition-all duration-200 active:scale-[0.98] group relative",
+          fullWidth
+            ? "w-full text-left font-semibold no-underline text-sm py-2.5 px-4 rounded-full bg-transparent appearance-none border-0 transition-all duration-200 active:scale-[0.98] group relative"
+            : "inline-flex items-center justify-center font-semibold no-underline text-sm py-2 px-3.5 rounded-full bg-transparent appearance-none border-0 transition-all duration-200 active:scale-[0.98] group relative",
           variant === "light" ? "text-[#02665e] hover:bg-[#02665e]/10" : "text-white hover:bg-white/8",
         ].join(" ")}
       >
-        <div className="flex items-center justify-between">
+        <div className={fullWidth ? "flex items-center justify-between" : "flex items-center gap-2"}>
           <span className="relative z-10">Regions</span>
           <ChevronDown 
             className={`h-4 w-4 ml-2 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} 

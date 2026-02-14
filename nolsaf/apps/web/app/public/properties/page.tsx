@@ -1,12 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
-  MapPin,
   Search,
   ChevronLeft,
   ChevronRight,
@@ -42,16 +40,11 @@ import {
   Gamepad2,
   Dumbbell,
   Tag,
-  ImageIcon,
 } from "lucide-react";
 import SectionSeparator from "../../../components/SectionSeparator";
-import VerifiedIcon from "../../../components/VerifiedIcon";
 import { REGIONS } from "@/lib/tzRegions";
 import { REGIONS_FULL_DATA } from "@/lib/tzRegionsFull";
-import { 
-  getPropertyCommission, 
-  calculatePriceWithCommission 
-} from "../../../lib/priceUtils";
+import PublicApprovedPropertyCard from "../../../components/PublicApprovedPropertyCard";
 
 type PublicPropertyCard = {
   id: number;
@@ -187,16 +180,6 @@ const NEARBY_SERVICE_TAGS: Array<{ tag: string; label: string; Icon: LucideIcon;
   { tag: "Near petrol station", label: "Petrol station", Icon: Fuel, colorClass: "text-orange-600" },
   { tag: "Near main road", label: "Main road", Icon: Route, colorClass: "text-slate-700" },
 ] as const;
-
-function fmtMoney(amount: number | null | undefined, currency?: string | null) {
-  if (amount == null || !Number.isFinite(Number(amount))) return "—";
-  const cur = currency || "TZS";
-  try {
-    return new Intl.NumberFormat(undefined, { style: "currency", currency: cur, maximumFractionDigits: 0 }).format(Number(amount));
-  } catch {
-    return `${cur} ${Number(amount).toLocaleString()}`;
-  }
-}
 
 function buildQuery(searchParams: { toString(): string } | null | undefined) {
   const qp = new URLSearchParams(searchParams?.toString() ?? "");
@@ -568,22 +551,57 @@ export default function PropertiesPage() {
     <main className="relative min-h-screen bg-white text-slate-900 header-offset">
       <section className="py-8">
         <div className="public-container">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-            <div className="min-w-0">
+          <div className="flex flex-col gap-3">
+            <div className="w-full min-w-0">
               <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
                 {q ? `Search results for “${q}”` : "Properties"}
               </h1>
-              <p className="text-sm text-slate-600 mt-1">
-                {loading ? "Loading approved listings…" : `${total.toLocaleString()} approved listings`}
-              </p>
+
+              <div className="mt-4 rounded-2xl p-[1px] bg-gradient-to-r from-white/60 via-slate-200/60 to-white/60">
+                <div className="rounded-2xl bg-white/45 backdrop-blur-2xl border border-white/60 ring-1 ring-slate-200/50 px-4 py-3 shadow-sm">
+                  <p className="max-w-2xl mx-auto text-center text-sm sm:text-base font-medium text-slate-600 tracking-wide">
+                    Trusted listings, smooth booking, reliable support.
+                  </p>
+
+                  <div className="mt-3 w-full flex flex-nowrap items-center justify-between gap-2">
+                    <div className="inline-flex items-center gap-2 rounded-full bg-white/40 backdrop-blur-2xl border border-white/60 ring-1 ring-slate-200/60 px-4 py-1.5 text-xs sm:text-sm font-semibold text-slate-800 shadow-sm">
+                      <BadgeCheck className="w-4 h-4 text-[#02665e]" />
+                      {loading ? (
+                        "Loading verified listings…"
+                      ) : (
+                        <>
+                          <span className="tabular-nums">{total.toLocaleString()}</span> verified &amp; approved listings
+                        </>
+                      )}
+                    </div>
+
+                <Link
+                  href="/public"
+                  className={[
+                    "inline-flex items-center gap-2",
+                    "rounded-full",
+                    "bg-white/40 backdrop-blur-2xl",
+                    "border border-white/60",
+                    "ring-1 ring-slate-200/60",
+                    "px-4 py-1.5",
+                    "text-xs sm:text-sm",
+                    "font-semibold",
+                    "text-[#02665e]",
+                    "whitespace-nowrap",
+                    "shadow-sm",
+                    "transition-colors",
+                    "hover:bg-white",
+                    "active:bg-slate-50",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/25 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
+                  ].join(" ")}
+                >
+                  <Search className="w-4 h-4" />
+                  Refine search on home
+                </Link>
+                  </div>
+                </div>
+              </div>
             </div>
-            <Link
-              href="/public"
-              className="inline-flex items-center gap-2 text-sm font-medium text-[#02665e] no-underline hover:underline self-start sm:self-auto"
-            >
-              <Search className="w-4 h-4" />
-              Refine search on home
-            </Link>
           </div>
 
           <SectionSeparator pillLabel="Browse" className="my-5" />
@@ -591,94 +609,132 @@ export default function PropertiesPage() {
           {/* Filters row */}
           <div className="flex flex-col gap-3">
             <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
-              <div className="flex-1 flex items-center gap-2">
-                <div className="relative flex-1">
-                  <input
-                    value={getParam(qp, "q")}
-                    onChange={(e) => {
-                      const next = new URLSearchParams(qp.toString());
-                      next.set("page", "1");
-                      setOrDelete(next, "q", e.target.value);
-                      router.push(`/public/properties?${next.toString()}`);
-                    }}
-                    placeholder="Search by region, district, city, title…"
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 pl-10 text-sm focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e]"
-                  />
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                </div>
-
-                <button
-                  type="button"
-                  onClick={openFilters}
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold hover:bg-slate-50"
+              <div className="flex-1 flex justify-center">
+                <div
+                  className={[
+                    "w-full max-w-4xl",
+                    "flex flex-row items-center gap-1.5",
+                    "rounded-full p-1.5",
+                    "bg-white/85 backdrop-blur-xl",
+                    "border border-slate-200",
+                    "ring-1 ring-slate-200/70",
+                    "shadow-sm",
+                    "overflow-hidden",
+                    "transition-all",
+                    "hover:shadow-md hover:ring-slate-300/70",
+                    "focus-within:shadow-md focus-within:ring-2 focus-within:ring-[#02665e]/15 focus-within:border-[#02665e]/30",
+                  ].join(" ")}
                 >
-                  <SlidersHorizontal className="w-4 h-4" />
-                  <span>Filters</span>
-                  {appliedChips.length > 0 && (
-                    <span className="inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full bg-[#02665e]/10 text-[#02665e] text-[11px] font-bold">
-                      {appliedChips.length}
-                    </span>
-                  )}
-                </button>
-              </div>
+                  <div className="relative flex-1 min-w-0">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      value={getParam(qp, "q")}
+                      onChange={(e) => {
+                        const next = new URLSearchParams(qp.toString());
+                        next.set("page", "1");
+                        setOrDelete(next, "q", e.target.value);
+                        router.push(`/public/properties?${next.toString()}`);
+                      }}
+                      placeholder="Search by region, district, city, title…"
+                      className={[
+                        "w-full min-w-0",
+                        "rounded-full",
+                        "border border-transparent",
+                        "bg-transparent",
+                        "px-3 py-2.5 pl-10",
+                        "text-sm",
+                        "placeholder:text-slate-400",
+                        "focus:outline-none",
+                      ].join(" ")}
+                    />
+                  </div>
 
-              <div className="flex items-center gap-2">
-                {(() => {
-                  const cur = getParam(qp, "sort");
-                  const setSort = (v: "" | "price_asc" | "price_desc") => {
-                    const next = new URLSearchParams(qp.toString());
-                    next.set("page", "1");
-                    setOrDelete(next, "sort", v);
-                    router.push(`/public/properties?${next.toString()}`);
-                  };
-                  const label =
-                    cur === "price_asc"
-                      ? "Price: low → high"
-                      : cur === "price_desc"
-                        ? "Price: high → low"
-                        : "Price: none";
-                  const iconColor =
-                    cur === "price_asc"
-                      ? "text-emerald-700"
-                      : cur === "price_desc"
-                        ? "text-rose-600"
-                        : "text-slate-700";
-                  return (
+                  <div className="flex items-center gap-1 flex-none whitespace-nowrap border-l border-slate-200/80 pl-1.5">
                     <button
                       type="button"
-                      onClick={() => setSort(nextSort(cur))}
+                      onClick={openFilters}
+                      aria-label="Filters"
+                      title="Filters"
                       className={[
-                        "h-10 w-10 rounded-xl border flex items-center justify-center",
-                        "bg-white/80 backdrop-blur",
-                        cur ? "border-slate-300 shadow-sm" : "border-slate-200",
-                        "hover:bg-white hover:shadow-md transition-all",
+                        "relative flex-none",
+                        "h-10 w-10",
+                        "rounded-full",
+                        "border border-transparent",
+                        "bg-transparent",
+                        "inline-flex items-center justify-center",
+                        "hover:bg-slate-50",
+                        "active:bg-slate-100",
+                        "transition-colors",
                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
                       ].join(" ")}
-                      aria-label={`Sort (${label})`}
-                      title={label}
                     >
-                      <ChevronsUpDown className={["w-5 h-5", iconColor].join(" ")} />
+                      <SlidersHorizontal className="w-4 h-4" />
+                      {appliedChips.length > 0 && (
+                        <span className="absolute -top-1 -right-1 inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full bg-[#02665e]/10 text-[#02665e] text-[11px] font-bold">
+                          {appliedChips.length}
+                        </span>
+                      )}
                     </button>
-                  );
-                })()}
 
-                {/* More filters (3-dots) */}
-                <div className="relative">
-                  <button
-                    type="button"
-                    disabled
-                    className={[
-                      "h-10 w-10 rounded-xl border flex items-center justify-center",
-                      "bg-white/80 backdrop-blur",
-                      "border-slate-200",
-                      "opacity-40 cursor-not-allowed",
-                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
-                    ].join(" ")}
-                    aria-label="More filters (disabled)"
-                    title="More filters (disabled)"
-                  >
-                    <MoreVertical className="w-5 h-5 text-slate-700" />
-                  </button>
+                    {(() => {
+                      const cur = getParam(qp, "sort");
+                      const setSort = (v: "" | "price_asc" | "price_desc") => {
+                        const next = new URLSearchParams(qp.toString());
+                        next.set("page", "1");
+                        setOrDelete(next, "sort", v);
+                        router.push(`/public/properties?${next.toString()}`);
+                      };
+                      const label =
+                        cur === "price_asc"
+                          ? "Price: low → high"
+                          : cur === "price_desc"
+                            ? "Price: high → low"
+                            : "Price: none";
+                      const iconColor =
+                        cur === "price_asc"
+                          ? "text-emerald-700"
+                          : cur === "price_desc"
+                            ? "text-rose-600"
+                            : "text-slate-700";
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => setSort(nextSort(cur))}
+                          className={[
+                            "h-10 w-10 rounded-full border flex items-center justify-center",
+                            "bg-transparent",
+                            "border-transparent",
+                            "hover:bg-slate-50 active:bg-slate-100 transition-colors",
+                            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
+                          ].join(" ")}
+                          aria-label={`Sort (${label})`}
+                          title={label}
+                        >
+                          <ChevronsUpDown className={["w-5 h-5", iconColor].join(" ")} />
+                        </button>
+                      );
+                    })()}
+
+                    {/* More filters (3-dots) */}
+                    <div className="relative">
+                      <button
+                        type="button"
+                        disabled
+                        className={[
+                          "h-10 w-10 rounded-full border flex items-center justify-center",
+                          "bg-transparent",
+                          "border-transparent",
+                          "opacity-40 cursor-not-allowed",
+                          "transition-colors",
+                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
+                        ].join(" ")}
+                        aria-label="More filters (disabled)"
+                        title="More filters (disabled)"
+                      >
+                        <MoreVertical className="w-5 h-5 text-slate-700" />
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -741,22 +797,22 @@ export default function PropertiesPage() {
 
           {!loading && !error && (data?.items?.length ?? 0) > 0 && (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-5">
                 {(data?.items ?? []).map((p) => (
-                  <PropertyCard key={p.id} p={p} systemCommission={systemCommission} />
+                  <PublicApprovedPropertyCard key={p.id} p={p} systemCommission={systemCommission} />
                 ))}
               </div>
 
               {/* Pagination */}
-              <div className="mt-8 flex items-center justify-center gap-3">
+              <div className="mt-8 flex items-center justify-end gap-3 w-full">
                 <button
                   type="button"
                   onClick={() => goToPage(page - 1)}
                   disabled={page <= 1}
-                  className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50"
+                  aria-label="Previous page"
+                  className="inline-flex items-center justify-center w-10 h-10 rounded-xl border border-slate-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50"
                 >
                   <ChevronLeft className="w-4 h-4" />
-                  Prev
                 </button>
                 <div className="text-sm text-slate-700">
                   Page <span className="font-semibold">{page}</span> / {totalPages}
@@ -765,9 +821,9 @@ export default function PropertiesPage() {
                   type="button"
                   onClick={() => goToPage(page + 1)}
                   disabled={page >= totalPages}
-                  className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50"
+                  aria-label="Next page"
+                  className="inline-flex items-center justify-center w-10 h-10 rounded-xl border border-slate-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50"
                 >
-                  Next
                   <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
@@ -1393,85 +1449,3 @@ export default function PropertiesPage() {
   );
 }
 
-function PropertyCard({ p, systemCommission = 0 }: { p: PublicPropertyCard; systemCommission?: number }) {
-  const href = `/public/properties/${p.slug}`;
-  
-  // Calculate final price with commission
-  const finalPrice = p.basePrice 
-    ? calculatePriceWithCommission(p.basePrice, getPropertyCommission(p, systemCommission))
-    : null;
-  const price = fmtMoney(finalPrice, p.currency);
-
-  const PhotoPlaceholder = () => (
-    <div className="absolute inset-0">
-      {/* Soft “photo-like” background so you can preview layout before Cloudinary */}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(2,102,94,0.18),transparent_55%),radial-gradient(circle_at_75%_85%,rgba(2,132,199,0.12),transparent_55%),linear-gradient(135deg,#f8fafc,#e2e8f0)]" />
-      <div className="absolute inset-0 bg-gradient-to-t from-black/0 via-black/0 to-white/35" />
-      <div className="absolute inset-0 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.06)]" />
-      <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-700">
-        <div className="h-12 w-12 rounded-2xl bg-white/85 border border-slate-200 shadow-sm flex items-center justify-center">
-          <ImageIcon className="w-6 h-6 text-slate-500" aria-hidden />
-        </div>
-        <div className="mt-2 text-sm font-semibold">Photo preview</div>
-        <div className="text-xs text-slate-500">Approved photos will appear here</div>
-      </div>
-    </div>
-  );
-
-  return (
-    <Link
-      href={href}
-      className="group no-underline text-slate-900"
-      aria-label={`View ${p.title}`}
-    >
-      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition-shadow">
-        {/* Title (above image) */}
-        <div className="px-4 pt-4">
-          <div className="text-base font-bold text-slate-900 truncate">{p.title}</div>
-        </div>
-
-        {/* Image */}
-        <div className="px-4 mt-3">
-          <div className="relative aspect-square bg-slate-100 rounded-2xl overflow-hidden">
-            {p.primaryImage ? (
-              <Image
-                src={p.primaryImage}
-                alt=""
-                fill
-                sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
-                className="object-cover"
-              />
-            ) : (
-              <PhotoPlaceholder />
-            )}
-
-            {/* Only overlay inside the picture: verification badge (top-right) */}
-            <VerifiedIcon />
-          </div>
-        </div>
-
-        {/* Below image: location then price (stack on mobile) */}
-        <div className="p-4">
-          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-3">
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5 text-xs text-slate-600">
-                <MapPin className="w-3.5 h-3.5" />
-                <span className="truncate">{p.location || "—"}</span>
-              </div>
-            </div>
-            <div className="sm:text-right flex-shrink-0">
-              <div className="text-sm font-bold text-slate-900">{price}</div>
-              <div className="text-[11px] text-slate-500">per night</div>
-            </div>
-          </div>
-
-          <div className="mt-4">
-            <span className="inline-flex items-center justify-center w-full rounded-xl bg-[#02665e] text-white py-2.5 text-sm font-semibold transition-colors group-hover:bg-[#014e47]">
-              View details
-            </span>
-          </div>
-        </div>
-      </div>
-    </Link>
-  );
-}

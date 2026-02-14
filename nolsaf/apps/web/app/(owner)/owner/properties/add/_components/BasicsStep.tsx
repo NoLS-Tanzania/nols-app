@@ -1,8 +1,8 @@
 "use client";
 
 import type { ComponentType, Dispatch, MutableRefObject, SetStateAction } from "react";
-import { Building2, CheckCircle2, ChevronDown, HelpCircle, Home, LayoutGrid, MapPin, AlertCircle, Navigation2 } from "lucide-react";
-import { forwardRef, useCallback, useMemo, useState } from "react";
+import { Building2, CheckCircle2, ChevronDown, HelpCircle, Home, LayoutGrid, MapPin, AlertCircle, Navigation2, Pencil, X } from "lucide-react";
+import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AddPropertySection } from "./AddPropertySection";
 import { StepFooter } from "./StepFooter";
@@ -75,12 +75,25 @@ export type BasicsStepProps = {
   locationLoading: boolean;
   handleLocationToggle: (enabled: boolean) => void;
 
+  tourismSiteId?: number | "";
+  setTourismSiteId?: Dispatch<SetStateAction<number | "">>;
+  parkPlacement?: "" | "INSIDE" | "NEARBY";
+  setParkPlacement?: Dispatch<SetStateAction<"" | "INSIDE" | "NEARBY">>;
+
   PropertyLocationMap: ComponentType<{
     latitude: number;
     longitude: number;
     postcode: string | null;
     onLocationDetected: (lat: number, lng: number) => void;
   }>;
+};
+
+type TourismSiteOption = {
+  // Be tolerant in case an API/DB layer serializes ids as strings.
+  id: number | string;
+  slug: string;
+  name: string;
+  country: string;
 };
 
 export const BasicsStep = forwardRef<HTMLElement, BasicsStepProps>(function BasicsStep(
@@ -144,8 +157,231 @@ export const BasicsStep = forwardRef<HTMLElement, BasicsStepProps>(function Basi
   locationLoading,
   handleLocationToggle,
 
+  tourismSiteId,
+  setTourismSiteId,
+  parkPlacement,
+  setParkPlacement,
+
 PropertyLocationMap,
 } = props;
+
+const tourismSiteIdValue = tourismSiteId ?? "";
+const setTourismSiteIdValue = useMemo(
+  () => setTourismSiteId ?? ((() => {}) as Dispatch<SetStateAction<number | "">>),
+  [setTourismSiteId]
+);
+const parkPlacementValue = parkPlacement ?? "";
+const setParkPlacementValue = useMemo(
+  () => setParkPlacement ?? ((() => {}) as Dispatch<SetStateAction<"" | "INSIDE" | "NEARBY">>),
+  [setParkPlacement]
+);
+
+const [tourismSites, setTourismSites] = useState<TourismSiteOption[]>([]);
+const [tourismSitesLoading, setTourismSitesLoading] = useState(false);
+const [tourismSitesError, setTourismSitesError] = useState<string | null>(null);
+
+const [parkPickerOpen, setParkPickerOpen] = useState(false);
+const [parkQuery, setParkQuery] = useState("");
+const parkPickerRef = useRef<HTMLDivElement | null>(null);
+const parkInputRef = useRef<HTMLInputElement | null>(null);
+
+const [isEditingPark, setIsEditingPark] = useState(false);
+const [isEditingPlacement, setIsEditingPlacement] = useState(false);
+
+// Local fallback for display/enablement in case parent state updates are delayed.
+const [localTourismSiteId, setLocalTourismSiteId] = useState<number | "">("");
+const [localParkPlacement, setLocalParkPlacement] = useState<"" | "INSIDE" | "NEARBY">("");
+
+const effectiveTourismSiteIdValue = useMemo(() => {
+  return tourismSiteIdValue === "" ? localTourismSiteId : tourismSiteIdValue;
+}, [localTourismSiteId, tourismSiteIdValue]);
+
+const effectiveParkPlacementValue = useMemo(() => {
+  return parkPlacementValue === "" ? localParkPlacement : parkPlacementValue;
+}, [localParkPlacement, parkPlacementValue]);
+
+useEffect(() => {
+  // Sync local from parent when parent has a concrete value (e.g., editing an existing property).
+  if (tourismSiteIdValue === "") return;
+  setLocalTourismSiteId(tourismSiteIdValue);
+}, [tourismSiteIdValue]);
+
+useEffect(() => {
+  // Sync local from parent when parent has a concrete value (e.g., editing an existing property).
+  if (parkPlacementValue === "") return;
+  setLocalParkPlacement(parkPlacementValue);
+}, [parkPlacementValue]);
+
+useEffect(() => {
+  // Push local selection up if parent is still empty.
+  if (localTourismSiteId === "") return;
+  if (tourismSiteIdValue !== "") return;
+  setTourismSiteIdValue(localTourismSiteId);
+}, [localTourismSiteId, setTourismSiteIdValue, tourismSiteIdValue]);
+
+useEffect(() => {
+  // Push local selection up if parent is still empty.
+  if (localParkPlacement === "") return;
+  if (parkPlacementValue !== "") return;
+  setParkPlacementValue(localParkPlacement);
+}, [localParkPlacement, parkPlacementValue, setParkPlacementValue]);
+
+const tourismCountry = useMemo(() => {
+  // Current add-property location UX is Tanzania-based (REGIONS list).
+  // Only allow park selection after a region is chosen to prevent mismatches.
+  if (!regionId) return null;
+  return "Tanzania";
+}, [regionId]);
+
+const MAJOR_TOURISM_SLUGS = useMemo(
+  () =>
+    new Set<string>([
+      // Tanzania (seeded)
+      "serengeti-national-park",
+      "ngorongoro-crater",
+      "tarangire-national-park",
+      // Kenya (seeded)
+      "maasai-mara",
+      // Uganda (seeded)
+      "bwindi-impenetrable",
+    ]),
+  []
+);
+
+const selectedTourismSite = useMemo(() => {
+  if (effectiveTourismSiteIdValue === "") return null;
+  const id = Number(effectiveTourismSiteIdValue);
+  if (!Number.isFinite(id) || id <= 0) return null;
+  return tourismSites.find((s) => Number(s.id) === id) ?? null;
+}, [tourismSites, effectiveTourismSiteIdValue]);
+
+const parkIsLocked = !!selectedTourismSite && !isEditingPark;
+const placementIsLocked = effectiveTourismSiteIdValue !== "" && !!effectiveParkPlacementValue && !isEditingPlacement;
+
+useEffect(() => {
+  // Once a park is selected, keep placement in a valid state.
+  if (effectiveTourismSiteIdValue === "") return;
+  if (effectiveParkPlacementValue) return;
+  setLocalParkPlacement("NEARBY");
+  setParkPlacementValue("NEARBY");
+}, [effectiveTourismSiteIdValue, effectiveParkPlacementValue, setParkPlacementValue]);
+
+const orderedTourismSites = useMemo(() => {
+  const sites = Array.isArray(tourismSites) ? tourismSites : [];
+  return [...sites].sort((a, b) => {
+    const aMajor = MAJOR_TOURISM_SLUGS.has(a.slug) ? 1 : 0;
+    const bMajor = MAJOR_TOURISM_SLUGS.has(b.slug) ? 1 : 0;
+    if (aMajor !== bMajor) return bMajor - aMajor;
+    return a.name.localeCompare(b.name);
+  });
+}, [tourismSites, MAJOR_TOURISM_SLUGS]);
+
+const filteredTourismSites = useMemo(() => {
+  const q = parkQuery.trim().toLowerCase();
+  if (!q) return orderedTourismSites;
+  return orderedTourismSites.filter((s) => {
+    const name = String(s.name || "").toLowerCase();
+    const country = String(s.country || "").toLowerCase();
+    return name.includes(q) || country.includes(q);
+  });
+}, [orderedTourismSites, parkQuery]);
+
+useEffect(() => {
+  function onDocMouseDown(e: MouseEvent) {
+    if (!parkPickerOpen) return;
+    const el = parkPickerRef.current;
+    if (!el) return;
+    if (e.target instanceof Node && !el.contains(e.target)) {
+      setParkPickerOpen(false);
+      setParkQuery("");
+    }
+  }
+  document.addEventListener("mousedown", onDocMouseDown);
+  return () => document.removeEventListener("mousedown", onDocMouseDown);
+}, [parkPickerOpen]);
+
+useEffect(() => {
+  // When leaving edit mode, ensure the picker closes.
+  if (isEditingPark) return;
+  setParkPickerOpen(false);
+  setParkQuery("");
+}, [isEditingPark]);
+
+useEffect(() => {
+  let cancelled = false;
+  const controller = new AbortController();
+
+  async function loadTourismSites() {
+    if (!tourismCountry) {
+      setTourismSites([]);
+      setTourismSitesError(null);
+      setTourismSitesLoading(false);
+      return;
+    }
+
+    try {
+      setTourismSitesLoading(true);
+      setTourismSitesError(null);
+
+      const resp = await fetch(`/api/public/tourism-sites?country=${encodeURIComponent(tourismCountry)}`, {
+        method: "GET",
+        credentials: "include",
+        signal: controller.signal,
+        headers: { Accept: "application/json" },
+      });
+      if (!resp.ok) {
+        throw new Error(`Failed to load tourism sites (${resp.status})`);
+      }
+      const data = (await resp.json()) as { items?: TourismSiteOption[] };
+      const items = Array.isArray(data?.items) ? data.items : [];
+      const normalized = items
+        .map((s) => ({ ...s, id: Number((s as any)?.id) }))
+        .filter((s) => Number.isFinite(s.id) && s.id > 0);
+
+      if (!cancelled) setTourismSites(normalized);
+    } catch (e: any) {
+      if (e?.name === "AbortError") return;
+      console.error("Failed to load tourism sites", e);
+      if (!cancelled) setTourismSitesError(String(e?.message || "Failed to load tourism sites"));
+    } finally {
+      if (!cancelled) setTourismSitesLoading(false);
+    }
+  }
+
+  loadTourismSites();
+  return () => {
+    cancelled = true;
+    controller.abort();
+  };
+}, [tourismCountry]);
+
+useEffect(() => {
+  // If location is cleared OR selected park doesn't match the current country context, clear it.
+  if (effectiveTourismSiteIdValue === "") return;
+
+  if (!tourismCountry) {
+    setTourismSiteIdValue("");
+    setLocalTourismSiteId("");
+    setParkPlacementValue("");
+    setLocalParkPlacement("");
+    setParkPickerOpen(false);
+    setParkQuery("");
+    setIsEditingPark(false);
+    setIsEditingPlacement(false);
+    return;
+  }
+
+  if (selectedTourismSite && selectedTourismSite.country !== tourismCountry) {
+    setTourismSiteIdValue("");
+    setLocalTourismSiteId("");
+    setParkPlacementValue("");
+    setLocalParkPlacement("");
+    setParkPickerOpen(false);
+    setParkQuery("");
+    setIsEditingPark(false);
+    setIsEditingPlacement(false);
+  }
+}, [tourismCountry, effectiveTourismSiteIdValue, selectedTourismSite, setParkPlacementValue, setTourismSiteIdValue]);
 
 const [typePickerOpen, setTypePickerOpen] = useState(false);
 
@@ -577,23 +813,33 @@ const nameOk = title.trim().length >= 3;
               ) : null}
             </div>
 
-            {/* Property Location Section - Modern Card Design */}
-            <div className="rounded-xl border border-gray-200 bg-white p-5 sm:p-6 shadow-sm transition-all duration-300 hover:shadow-md">
+            {/* Property Location */}
+            <div className="rounded-2xl border border-slate-200 bg-white/70 p-5 sm:p-6 shadow-sm ring-1 ring-black/5 transition-all duration-300 hover:shadow-md">
               <div className="mb-6">
-                <h2 className="text-lg font-semibold text-gray-900 mb-1">
-                  Property Location <span className="text-red-500">*</span>
+                <h2 className="text-lg font-semibold text-slate-900 mb-1">
+                  Property Location <span className="text-rose-600">*</span>
                 </h2>
-                <p className="text-xs text-gray-500">Provide the location details for your property</p>
+                <p className="text-xs text-slate-600">Provide the location details for your property</p>
               </div>
 
               {/* Region, District, Ward - Uniform Grid Layout */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* Region */}
                 <div className="flex flex-col space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Region <span className="text-red-500">*</span>
+                  <label className="block text-sm font-medium text-slate-700">
+                    Region <span className="text-rose-600">*</span>
                   </label>
-                  <div className="relative">
+                  <div
+                    className={[
+                      "relative rounded-xl shadow-sm transition-colors",
+                      regionId ? "border border-transparent bg-slate-50" : "border border-slate-200 bg-white",
+                    ].join(" ")}
+                  >
+                    {regionId ? (
+                      <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-emerald-600 z-10">
+                        <CheckCircle2 className="h-4 w-4" />
+                      </div>
+                    ) : null}
                     <select
                       title="Region"
                       value={regionId}
@@ -602,7 +848,10 @@ const nameOk = title.trim().length >= 3;
                         setDistrict("");
                         setWard("");
                       }}
-                      className="appearance-none w-full h-12 pl-4 pr-10 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg shadow-sm transition-all duration-200 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 cursor-pointer"
+                      className={[
+                        "appearance-none w-full h-12 pl-10 pr-10 text-sm text-slate-900 rounded-xl bg-transparent border border-transparent shadow-none",
+                        "transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 cursor-pointer",
+                      ].join(" ")}
                       aria-required={true}
                     >
                       <option value="">Select region</option>
@@ -612,7 +861,7 @@ const nameOk = title.trim().length >= 3;
                         </option>
                       ))}
                     </select>
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400 z-10">
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 z-10">
                       <ChevronDown className="h-5 w-5" />
                     </div>
                   </div>
@@ -620,10 +869,25 @@ const nameOk = title.trim().length >= 3;
 
                 {/* District */}
                 <div className="flex flex-col space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    District <span className="text-red-500">*</span>
+                  <label className="block text-sm font-medium text-slate-700">
+                    District <span className="text-rose-600">*</span>
                   </label>
-                  <div className="relative">
+                  <div
+                    className={`relative rounded-xl shadow-sm transition-colors ${
+                      touchedBasics.district && !district
+                        ? "border-2 border-rose-400 bg-rose-50"
+                        : !regionId
+                          ? "border border-slate-200 bg-slate-50"
+                          : district
+                            ? "border border-transparent bg-slate-50"
+                            : "border border-slate-200 bg-white"
+                    }`}
+                  >
+                    {district ? (
+                      <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-emerald-600 z-10">
+                        <CheckCircle2 className="h-4 w-4" />
+                      </div>
+                    ) : null}
                     <select
                       title="District"
                       value={district}
@@ -635,12 +899,12 @@ const nameOk = title.trim().length >= 3;
                       }}
                       onBlur={() => setTouchedBasics((t) => ({ ...t, district: true }))}
                       disabled={!regionId}
-                      className={`appearance-none w-full h-12 pl-4 pr-10 text-sm rounded-lg shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 cursor-pointer ${
+                      className={`appearance-none w-full h-12 pl-10 pr-10 text-sm rounded-xl shadow-none bg-transparent border border-transparent transition-colors focus:outline-none focus:ring-2 cursor-pointer ${
                         touchedBasics.district && !district
-                          ? "border-2 border-red-400 bg-red-50 text-gray-900 focus:ring-red-200 focus:border-red-500"
+                          ? "text-slate-900 focus:ring-rose-200 focus:border-rose-500"
                           : !regionId
-                            ? "border border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed"
-                            : "border border-gray-300 bg-white text-gray-900 hover:border-gray-400 focus:ring-emerald-500/20 focus:border-emerald-500"
+                            ? "text-slate-400 cursor-not-allowed"
+                            : "text-slate-900 focus:ring-emerald-500/20 focus:border-emerald-500"
                       }`}
                       aria-required={true}
                       aria-describedby={touchedBasics.district && !district ? "districtError" : undefined}
@@ -654,14 +918,14 @@ const nameOk = title.trim().length >= 3;
                     </select>
                     <div
                       className={`absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none z-10 ${
-                        !regionId ? "text-gray-300" : "text-gray-400"
+                        !regionId ? "text-slate-300" : "text-slate-400"
                       }`}
                     >
                       <ChevronDown className="h-5 w-5" />
                     </div>
                   </div>
                   {touchedBasics.district && !district && (
-                    <p id="districtError" className="text-xs text-red-600 mt-0.5">
+                    <p id="districtError" className="text-xs text-rose-600 mt-0.5">
                       Please select a district
                     </p>
                   )}
@@ -669,10 +933,25 @@ const nameOk = title.trim().length >= 3;
 
                 {/* Ward */}
                 <div className="flex flex-col space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Ward <span className="text-red-500">*</span>
+                  <label className="block text-sm font-medium text-slate-700">
+                    Ward <span className="text-rose-600">*</span>
                   </label>
-                  <div className="relative">
+                  <div
+                    className={`relative rounded-xl shadow-sm transition-colors ${
+                      touchedBasics.ward && !ward
+                        ? "border-2 border-rose-400 bg-rose-50"
+                        : !district
+                          ? "border border-slate-200 bg-slate-50"
+                          : ward
+                            ? "border border-transparent bg-slate-50"
+                            : "border border-slate-200 bg-white"
+                    }`}
+                  >
+                    {ward ? (
+                      <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-emerald-600 z-10">
+                        <CheckCircle2 className="h-4 w-4" />
+                      </div>
+                    ) : null}
                     <select
                       title="Ward"
                       value={ward}
@@ -683,12 +962,12 @@ const nameOk = title.trim().length >= 3;
                       }}
                       onBlur={() => setTouchedBasics((t) => ({ ...t, ward: true }))}
                       disabled={!district}
-                      className={`appearance-none w-full h-12 pl-4 pr-10 text-sm rounded-lg shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 cursor-pointer ${
+                      className={`appearance-none w-full h-12 pl-10 pr-10 text-sm rounded-xl shadow-none bg-transparent border border-transparent transition-colors focus:outline-none focus:ring-2 cursor-pointer ${
                         touchedBasics.ward && !ward
-                          ? "border-2 border-red-400 bg-red-50 text-gray-900 focus:ring-red-200 focus:border-red-500"
+                          ? "text-slate-900 focus:ring-rose-200 focus:border-rose-500"
                           : !district
-                            ? "border border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed"
-                            : "border border-gray-300 bg-white text-gray-900 hover:border-gray-400 focus:ring-emerald-500/20 focus:border-emerald-500"
+                            ? "text-slate-400 cursor-not-allowed"
+                            : "text-slate-900 focus:ring-emerald-500/20 focus:border-emerald-500"
                       }`}
                       aria-required={true}
                       aria-describedby={touchedBasics.ward && !ward ? "wardError" : undefined}
@@ -702,14 +981,14 @@ const nameOk = title.trim().length >= 3;
                     </select>
                     <div
                       className={`absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none z-10 ${
-                        !district ? "text-gray-300" : "text-gray-400"
+                        !district ? "text-slate-300" : "text-slate-400"
                       }`}
                     >
                       <ChevronDown className="h-5 w-5" />
                     </div>
                   </div>
                   {touchedBasics.ward && !ward && (
-                    <p id="wardError" className="text-xs text-red-600 mt-0.5">
+                    <p id="wardError" className="text-xs text-rose-600 mt-0.5">
                       Please select a ward
                     </p>
                   )}
@@ -719,10 +998,25 @@ const nameOk = title.trim().length >= 3;
               {/* Street Address, City, Zip Code - Uniform Grid Layout */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div className="flex min-w-0 flex-col space-y-2">
-                  <label htmlFor="streetAddress" className="block text-sm font-medium text-gray-700">
-                    Street Address <span className="text-red-500">*</span>
+                  <label htmlFor="streetAddress" className="block text-sm font-medium text-slate-700">
+                    Street Address <span className="text-rose-600">*</span>
                   </label>
-                  <div className="relative">
+                  <div
+                    className={`relative rounded-xl shadow-sm transition-colors ${
+                      touchedBasics.street && !street
+                        ? "border-2 border-rose-400 bg-rose-50"
+                        : !ward
+                          ? "border border-slate-200 bg-slate-50"
+                          : street
+                            ? "border border-transparent bg-slate-50"
+                            : "border border-slate-200 bg-white"
+                    }`}
+                  >
+                    {street ? (
+                      <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-emerald-600 z-10">
+                        <CheckCircle2 className="h-4 w-4" />
+                      </div>
+                    ) : null}
                     <select
                       id="streetAddress"
                       title="Street"
@@ -730,12 +1024,12 @@ const nameOk = title.trim().length >= 3;
                       onChange={(e) => setStreet(e.target.value)}
                       onBlur={() => setTouchedBasics((t) => ({ ...t, street: true }))}
                       disabled={!ward}
-                      className={`min-w-0 appearance-none w-full h-12 pl-4 pr-10 text-sm rounded-lg shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 cursor-pointer ${
+                      className={`min-w-0 appearance-none w-full h-12 pl-10 pr-10 text-sm rounded-xl shadow-none bg-transparent border border-transparent transition-colors focus:outline-none focus:ring-2 cursor-pointer ${
                         touchedBasics.street && !street
-                          ? "border-2 border-red-400 bg-red-50 text-gray-900 focus:ring-red-200 focus:border-red-500"
+                          ? "text-slate-900 focus:ring-rose-200 focus:border-rose-500"
                           : !ward
-                            ? "border border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed"
-                            : "border border-gray-300 bg-white text-gray-900 hover:border-gray-400 focus:ring-emerald-500/20 focus:border-emerald-500"
+                            ? "text-slate-400 cursor-not-allowed"
+                            : "text-slate-900 focus:ring-emerald-500/20 focus:border-emerald-500"
                       }`}
                       aria-required={true}
                       aria-describedby={touchedBasics.street && !street ? "streetError" : undefined}
@@ -749,62 +1043,83 @@ const nameOk = title.trim().length >= 3;
                     </select>
                     <div
                       className={`absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none z-10 ${
-                        !ward ? "text-gray-300" : "text-gray-400"
+                        !ward ? "text-slate-300" : "text-slate-400"
                       }`}
                     >
                       <ChevronDown className="h-5 w-5" />
                     </div>
                   </div>
                   {touchedBasics.street && !street && (
-                    <p id="streetError" className="text-xs text-red-600 mt-0.5">
+                    <p id="streetError" className="text-xs text-rose-600 mt-0.5">
                       Please select a street
                     </p>
                   )}
                 </div>
                 <div className="flex min-w-0 flex-col space-y-2">
-                  <label htmlFor="city" className="block text-sm font-medium text-gray-700">
-                    City <span className="text-xs text-gray-400 font-normal">(optional)</span>
+                  <label htmlFor="city" className="block text-sm font-medium text-slate-700">
+                    City <span className="text-xs text-slate-400 font-normal">(optional)</span>
                   </label>
-                  <input
-                    id="city"
-                    type="text"
-                    value={city}
-                    onChange={(e) => setCity(e.target.value)}
-                    className="min-w-0 w-full h-12 px-4 text-sm text-gray-900 placeholder-gray-400 bg-white border border-gray-300 rounded-lg shadow-sm transition-all duration-200 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                    placeholder="City"
-                  />
+                  <div
+                    className={[
+                      "rounded-xl border shadow-sm transition-colors",
+                      city.trim() ? "border-transparent bg-slate-50" : "border-slate-200 bg-white",
+                    ].join(" ")}
+                  >
+                    <input
+                      id="city"
+                      type="text"
+                      value={city}
+                      onChange={(e) => setCity(e.target.value)}
+                      className="min-w-0 w-full h-12 px-4 text-sm text-slate-900 placeholder-slate-400 rounded-xl bg-transparent border border-transparent shadow-none transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      placeholder="City"
+                    />
+                  </div>
                 </div>
                 <div className="flex min-w-0 flex-col space-y-2">
-                  <label htmlFor="zip" className="block text-sm font-medium text-gray-700">
+                  <label htmlFor="zip" className="block text-sm font-medium text-slate-700">
                     Zip Code{" "}
                     {selectedWardPostcode ? (
-                      <span className="text-red-500">*</span>
+                      <span className="text-rose-600">*</span>
                     ) : (
-                      <span className="text-xs text-gray-400 font-normal">(optional)</span>
+                      <span className="text-xs text-slate-400 font-normal">(optional)</span>
                     )}
                   </label>
-                  <input
-                    id="zip"
-                    type="text"
-                    value={zip}
-                    onChange={(e) => setZip(e.target.value)}
-                    onBlur={() => setTouchedBasics((t) => ({ ...t, zip: true }))}
-                    readOnly={!!selectedWardPostcode}
-                    className={`min-w-0 w-full h-12 px-4 text-sm rounded-lg shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 ${
+                  <div
+                    className={`rounded-xl shadow-sm transition-colors ${
                       touchedBasics.zip && selectedWardPostcode && (!zip || zip.trim().length === 0)
-                        ? "border-2 border-red-400 bg-red-50 text-gray-900 focus:ring-red-200 focus:border-red-500"
+                        ? "border-2 border-rose-400 bg-rose-50"
                         : selectedWardPostcode
-                          ? "border border-gray-300 bg-gray-50 text-gray-700 cursor-not-allowed"
-                          : "border border-gray-300 bg-white text-gray-900 placeholder-gray-400 hover:border-gray-400 focus:ring-emerald-500/20 focus:border-emerald-500"
+                          ? "border border-transparent bg-slate-50"
+                          : zip.trim()
+                            ? "border border-transparent bg-slate-50"
+                            : "border border-slate-200 bg-white"
                     }`}
-                    placeholder={selectedWardPostcode ? "Auto-filled from ward" : "Zip code (enter manually if not auto-filled)"}
-                    aria-required={!!selectedWardPostcode}
-                    aria-describedby={
-                      touchedBasics.zip && selectedWardPostcode && (!zip || zip.trim().length === 0) ? "zipError" : undefined
-                    }
-                  />
+                  >
+                    <input
+                      id="zip"
+                      type="text"
+                      value={zip}
+                      onChange={(e) => setZip(e.target.value)}
+                      onBlur={() => setTouchedBasics((t) => ({ ...t, zip: true }))}
+                      readOnly={!!selectedWardPostcode}
+                      className={`min-w-0 w-full h-12 px-4 text-sm rounded-xl shadow-none bg-transparent border border-transparent transition-colors focus:outline-none focus:ring-2 ${
+                        touchedBasics.zip && selectedWardPostcode && (!zip || zip.trim().length === 0)
+                          ? "text-slate-900 focus:ring-rose-200 focus:border-rose-500"
+                          : selectedWardPostcode
+                            ? "text-slate-700 cursor-not-allowed"
+                            : "text-slate-900 placeholder-slate-400 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      }`}
+                      placeholder={
+                        selectedWardPostcode ? "Auto-filled from ward" : "Zip code (enter manually if not auto-filled)"
+                      }
+                      aria-required={!!selectedWardPostcode}
+                      aria-describedby={
+                        touchedBasics.zip && selectedWardPostcode && (!zip || zip.trim().length === 0) ? "zipError" : undefined
+                      }
+                    />
+                  </div>
                   {touchedBasics.zip && selectedWardPostcode && (!zip || zip.trim().length === 0) && (
-                    <p id="zipError" className="text-xs text-red-600 mt-0.5">
+                    <p id="zipError" className="text-xs text-rose-600 mt-0.5">
                       Zip code is required
                     </p>
                   )}
@@ -819,45 +1134,324 @@ const nameOk = title.trim().length >= 3;
                 </div>
               </div>
 
+              {/* Park / Tourism Site (Optional) */}
+              <div className="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-5 sm:p-6 shadow-sm ring-1 ring-black/5 transition-all duration-300 hover:shadow-md">
+                <div className="mb-4 flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-semibold text-slate-900 mb-1">Park / Tourism Site</h3>
+                    <p className="text-xs text-slate-600">
+                      If your property is inside or near a park, link it here so travelers can find it under that destination.
+                    </p>
+                  </div>
+                  <span className="shrink-0 inline-flex items-center rounded-full border border-slate-200 bg-white/70 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                    Optional
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-12">
+                  <div className="md:col-span-7 flex flex-col space-y-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <label className="block text-sm font-medium text-slate-700">Tourism site / Park</label>
+                    </div>
+
+                    {parkIsLocked ? (
+                      <div className="w-full h-12 px-4 text-sm rounded-xl border border-slate-300 bg-slate-50 shadow-sm inline-flex items-center justify-between gap-3">
+                        <div className="min-w-0 truncate font-semibold text-slate-900 inline-flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                          <span className="truncate">
+                            {selectedTourismSite?.name}
+                            {selectedTourismSite?.country ? (
+                              <span className="ml-2 font-medium text-slate-500">({selectedTourismSite.country})</span>
+                            ) : null}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsEditingPark(true);
+                            setIsEditingPlacement(true);
+                            window.setTimeout(() => {
+                              if (tourismSitesLoading || !tourismCountry) return;
+                              setParkPickerOpen(true);
+                              setParkQuery(selectedTourismSite?.name ?? "");
+                              parkInputRef.current?.focus();
+                            }, 0);
+                          }}
+                          className="shrink-0 inline-flex items-center justify-center h-9 w-9 rounded-lg border border-transparent bg-transparent text-emerald-600 transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                          aria-label="Edit park"
+                          title="Edit"
+                        >
+                            <Pencil className="h-4 w-4 text-emerald-600" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div ref={parkPickerRef} className="relative">
+                        <input
+                          ref={parkInputRef}
+                          value={parkPickerOpen ? parkQuery : selectedTourismSite?.name ?? ""}
+                          onFocus={() => {
+                            if (tourismSitesLoading || !tourismCountry) return;
+                            setParkPickerOpen(true);
+                            setParkQuery(selectedTourismSite?.name ?? "");
+                          }}
+                          onChange={(e) => {
+                            setParkQuery(e.target.value);
+                            if (!tourismSitesLoading && tourismCountry) setParkPickerOpen(true);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Escape") {
+                              setParkPickerOpen(false);
+                              setParkQuery("");
+                            }
+                          }}
+                          placeholder={
+                            !tourismCountry
+                              ? "Select location first (region/district/ward)"
+                              : tourismSitesLoading
+                                ? "Loading parks…"
+                                : "Not linked to a park"
+                          }
+                          className="w-full h-12 pl-4 pr-24 text-sm text-slate-900 bg-white border border-slate-300 rounded-xl shadow-sm transition-all duration-200 hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
+                          role="combobox"
+                          aria-haspopup="listbox"
+                          aria-expanded={parkPickerOpen}
+                          aria-controls="parkListbox"
+                          disabled={tourismSitesLoading || !tourismCountry}
+                          title="Tourism site"
+                        />
+
+                        {selectedTourismSite ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTourismSiteIdValue("");
+                              setLocalTourismSiteId("");
+                              setParkPlacementValue("");
+                              setLocalParkPlacement("");
+                              setParkPickerOpen(false);
+                              setParkQuery("");
+                              setIsEditingPark(false);
+                              setIsEditingPlacement(false);
+                              window.setTimeout(() => parkInputRef.current?.focus(), 0);
+                            }}
+                            className="absolute right-10 top-1/2 -translate-y-1/2 inline-flex items-center justify-center h-8 w-8 rounded-lg border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                            title="Clear park"
+                            aria-label="Clear park"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        ) : null}
+
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 z-10">
+                        <ChevronDown className={["h-5 w-5 transition-transform duration-200", parkPickerOpen ? "rotate-180" : ""].join(" ")} />
+                      </div>
+
+                        {parkPickerOpen ? (
+                          <div className="absolute z-30 mt-2 w-full rounded-xl border border-slate-200 bg-white shadow-lg ring-1 ring-black/5 overflow-hidden">
+                            <div id="parkListbox" role="listbox" className="max-h-72 overflow-auto py-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setTourismSiteIdValue("");
+                                  setLocalTourismSiteId("");
+                                  setParkPlacementValue("");
+                                  setLocalParkPlacement("");
+                                  setParkPickerOpen(false);
+                                  setParkQuery("");
+                                  setIsEditingPark(false);
+                                  setIsEditingPlacement(false);
+                                }}
+                                className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                                role="option"
+                                aria-selected={effectiveTourismSiteIdValue === ""}
+                              >
+                                Not linked to a park
+                              </button>
+
+                              {tourismSitesLoading ? (
+                                <div className="px-3 py-2 text-sm text-slate-500">Loading parks…</div>
+                              ) : null}
+
+                              {!tourismSitesLoading && filteredTourismSites.length === 0 ? (
+                                <div className="px-3 py-2 text-sm text-slate-500">No parks found.</div>
+                              ) : null}
+
+                              {!tourismSitesLoading
+                                ? filteredTourismSites.map((s) => {
+                                    const selected =
+                                      effectiveTourismSiteIdValue !== "" &&
+                                      Number(effectiveTourismSiteIdValue) === Number(s.id);
+                                    const isMajor = MAJOR_TOURISM_SLUGS.has(s.slug);
+                                    return (
+                                      <button
+                                        key={s.id}
+                                        type="button"
+                                        onClick={() => {
+                                          const nextId = Number(s.id);
+                                          setLocalTourismSiteId(nextId);
+                                          setTourismSiteIdValue(nextId);
+                                          if (!effectiveParkPlacementValue) {
+                                            setLocalParkPlacement("NEARBY");
+                                            setParkPlacementValue("NEARBY");
+                                          }
+                                          setParkPickerOpen(false);
+                                          setParkQuery("");
+                                          setIsEditingPark(false);
+                                          setIsEditingPlacement(false);
+                                        }}
+                                        className={[
+                                          "w-full text-left px-3 py-2 text-sm transition-colors hover:bg-slate-50",
+                                          selected ? "bg-emerald-50" : "",
+                                        ].join(" ")}
+                                        role="option"
+                                        aria-selected={selected}
+                                      >
+                                        <div className="flex items-center justify-between gap-2">
+                                          <div className="min-w-0">
+                                            <div className="truncate text-slate-900">
+                                              {s.name}{" "}
+                                              {isMajor ? (
+                                                <span className="ml-1 text-[11px] font-semibold text-emerald-700">Major</span>
+                                              ) : null}
+                                            </div>
+                                            <div className="truncate text-[11px] text-slate-500">{s.country}</div>
+                                          </div>
+                                          {selected ? (
+                                            <span className="text-[11px] font-semibold text-emerald-700">Selected</span>
+                                          ) : null}
+                                        </div>
+                                      </button>
+                                    );
+                                  })
+                                : null}
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    )}
+                    {tourismSitesError ? (
+                      <p className="text-xs text-rose-600">{tourismSitesError}</p>
+                    ) : !tourismCountry ? (
+                      <p className="text-xs text-slate-500">Set your location first to load parks.</p>
+                    ) : tourismSitesLoading ? (
+                      <p className="text-xs text-slate-500">Loading parks…</p>
+                    ) : null}
+                  </div>
+
+                  <div className="md:col-span-5 flex flex-col space-y-2">
+                    <div className="flex items-end justify-between gap-3">
+                      <label className="block text-sm font-medium text-slate-700">Placement</label>
+                      {effectiveTourismSiteIdValue === "" ? (
+                        <span className="text-[11px] font-medium text-slate-500">Select a park to enable</span>
+                      ) : null}
+                    </div>
+
+                    <div className="rounded-xl border border-slate-200 bg-white/70 shadow-sm p-2">
+                      {placementIsLocked ? (
+                        <div className="h-10 rounded-lg border border-slate-200 bg-white inline-flex items-center justify-between gap-2 w-full px-3 text-sm font-semibold text-slate-900">
+                          <span className="inline-flex items-center justify-center gap-2">
+                            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                            {effectiveParkPlacementValue === "INSIDE" ? "Inside" : "Nearby"}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setIsEditingPlacement(true)}
+                            className="shrink-0 inline-flex items-center justify-center h-8 w-8 rounded-lg border border-transparent bg-transparent text-emerald-600 transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                            aria-label="Edit placement"
+                            title="Edit"
+                          >
+                            <Pencil className="h-4 w-4 text-emerald-600" />
+                          </button>
+                        </div>
+                      ) : (
+                        <select
+                          value={effectiveParkPlacementValue}
+                          onChange={(e) => {
+                            const next = String(e.target.value || "") as "" | "INSIDE" | "NEARBY";
+                            setLocalParkPlacement(next);
+                            setParkPlacementValue(next);
+                            if (effectiveTourismSiteIdValue !== "" && next) setIsEditingPlacement(false);
+                          }}
+                          disabled={effectiveTourismSiteIdValue === ""}
+                          className={[
+                            "w-full h-10 px-3 text-sm font-semibold rounded-lg shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500",
+                            effectiveTourismSiteIdValue === ""
+                              ? "cursor-not-allowed bg-slate-50 text-slate-400 border border-slate-200"
+                              : "bg-white text-slate-900 border border-slate-200 hover:border-slate-300",
+                          ].join(" ")}
+                          aria-label="Park placement"
+                        >
+                          <option value="" disabled>
+                            Select placement
+                          </option>
+                          <option value="INSIDE">Inside</option>
+                          <option value="NEARBY">Nearby</option>
+                        </select>
+                      )}
+                    </div>
+
+                    <p className="text-xs text-slate-600">Choose where the property is relative to the selected park.</p>
+                  </div>
+                </div>
+              </div>
+
               {/* Latitude and Longitude */}
               <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="flex flex-col space-y-2">
-                  <label htmlFor="latitude" className="block text-sm font-medium text-gray-700">
-                    Latitude <span className="text-xs text-gray-400 font-normal">(optional)</span>
+                  <label htmlFor="latitude" className="block text-sm font-medium text-slate-700">
+                    Latitude <span className="text-xs text-slate-400 font-normal">(optional)</span>
                   </label>
-                  <input
-                    id="latitude"
-                    type="number"
-                    step="any"
-                    value={latitude as any}
-                    onChange={(e) => {
-                      const raw = e.target.value;
-                      if (raw === "") return setLatitude("");
-                      const n = e.target.valueAsNumber;
-                      setLatitude(Number.isFinite(n) ? n : "");
-                    }}
-                    className="w-full h-12 px-4 text-sm text-gray-900 placeholder-gray-400 bg-white border border-gray-300 rounded-lg shadow-sm transition-all duration-200 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                    placeholder="Auto-detected from location"
-                  />
+                  <div
+                    className={[
+                      "rounded-xl border shadow-sm transition-colors",
+                      typeof latitude === "number" && Number.isFinite(latitude)
+                        ? "border-transparent bg-slate-50"
+                        : "border-slate-200 bg-white",
+                    ].join(" ")}
+                  >
+                    <input
+                      id="latitude"
+                      type="number"
+                      step="any"
+                      value={latitude as any}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        if (raw === "") return setLatitude("");
+                        const n = e.target.valueAsNumber;
+                        setLatitude(Number.isFinite(n) ? n : "");
+                      }}
+                      className="w-full h-12 px-4 text-sm text-slate-900 placeholder-slate-400 rounded-xl bg-transparent border border-transparent shadow-none transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      placeholder="Auto-detected from location"
+                    />
+                  </div>
                 </div>
                 <div className="flex flex-col space-y-2">
-                  <label htmlFor="longitude" className="block text-sm font-medium text-gray-700">
-                    Longitude <span className="text-xs text-gray-400 font-normal">(optional)</span>
+                  <label htmlFor="longitude" className="block text-sm font-medium text-slate-700">
+                    Longitude <span className="text-xs text-slate-400 font-normal">(optional)</span>
                   </label>
-                  <input
-                    id="longitude"
-                    type="number"
-                    step="any"
-                    value={longitude as any}
-                    onChange={(e) => {
-                      const raw = e.target.value;
-                      if (raw === "") return setLongitude("");
-                      const n = e.target.valueAsNumber;
-                      setLongitude(Number.isFinite(n) ? n : "");
-                    }}
-                    className="w-full h-12 px-4 text-sm text-gray-900 placeholder-gray-400 bg-white border border-gray-300 rounded-lg shadow-sm transition-all duration-200 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                    placeholder="Auto-detected from location"
-                  />
+                  <div
+                    className={[
+                      "rounded-xl border shadow-sm transition-colors",
+                      typeof longitude === "number" && Number.isFinite(longitude)
+                        ? "border-transparent bg-slate-50"
+                        : "border-slate-200 bg-white",
+                    ].join(" ")}
+                  >
+                    <input
+                      id="longitude"
+                      type="number"
+                      step="any"
+                      value={longitude as any}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        if (raw === "") return setLongitude("");
+                        const n = e.target.valueAsNumber;
+                        setLongitude(Number.isFinite(n) ? n : "");
+                      }}
+                      className="w-full h-12 px-4 text-sm text-slate-900 placeholder-slate-400 rounded-xl bg-transparent border border-transparent shadow-none transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      placeholder="Auto-detected from location"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -936,8 +1530,7 @@ const nameOk = title.trim().length >= 3;
               </div>
 
               {/* Map Display - Modern Icon-Based Card Design */}
-              {latitude && longitude && (
-                <div className="mt-6 rounded-xl border border-gray-200 bg-white p-5 sm:p-6 shadow-sm transition-all duration-300 hover:shadow-md">
+              <div className="mt-6 rounded-xl border border-gray-200 bg-white p-5 sm:p-6 shadow-sm transition-all duration-300 hover:shadow-md">
                   <div className="flex items-start gap-4 mb-4">
                     <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center">
                       <Navigation2 className="w-6 h-6 text-emerald-600" />
@@ -945,7 +1538,12 @@ const nameOk = title.trim().length >= 3;
                     <div className="flex-1 min-w-0">
                       <h3 className="text-sm font-semibold text-gray-900 mb-1">Property Location Map</h3>
                       <p className="text-xs text-gray-500">
-                        Exact coordinates: <span className="font-mono text-gray-700">{Number(latitude).toFixed(6)}, {Number(longitude).toFixed(6)}</span>
+                        Exact coordinates:{" "}
+                        {latitude && longitude ? (
+                          <span className="font-mono text-gray-700">{Number(latitude).toFixed(6)}, {Number(longitude).toFixed(6)}</span>
+                        ) : (
+                          <span className="font-medium text-gray-500">Not set yet</span>
+                        )}
                       </p>
                       {zip || selectedWardPostcode ? (
                         <p className="text-xs text-gray-500 mt-1">
@@ -956,8 +1554,8 @@ const nameOk = title.trim().length >= 3;
                   </div>
                   <div className="rounded-lg overflow-hidden border border-gray-200">
                     <PropertyLocationMap
-                      latitude={Number(latitude) || 0}
-                      longitude={Number(longitude) || 0}
+                      latitude={typeof latitude === "number" ? latitude : 0}
+                      longitude={typeof longitude === "number" ? longitude : 0}
                       postcode={zip || selectedWardPostcode || null}
                       onLocationDetected={(lat, lng) => {
                         setLatitude(lat);
@@ -966,7 +1564,6 @@ const nameOk = title.trim().length >= 3;
                     />
                   </div>
                 </div>
-              )}
             </div>
           </div>
 

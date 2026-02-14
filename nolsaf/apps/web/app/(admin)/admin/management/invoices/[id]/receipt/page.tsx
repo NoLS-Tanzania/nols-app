@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Download, Loader2 } from "lucide-react";
+import { ArrowLeft, Download } from "lucide-react";
 import { sanitizeTrustedHtml } from "@/utils/html";
+import LogoSpinner from "@/components/LogoSpinner";
 
 export default function AdminReceiptPdfPage() {
   const routeParams = useParams<{ id?: string | string[] }>();
@@ -166,7 +167,7 @@ export default function AdminReceiptPdfPage() {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin text-[#02665e] mx-auto mb-3" />
+          <LogoSpinner size="md" className="mx-auto mb-3" ariaLabel="Loading receipt" />
           <div className="text-sm text-gray-600">Loading receipt…</div>
         </div>
       </div>
@@ -216,7 +217,7 @@ export default function AdminReceiptPdfPage() {
 
       {pdfGenerating && (
         <div className="text-sm text-gray-600 flex items-center gap-2">
-          <Loader2 className="w-4 h-4 animate-spin text-[#02665e]" />
+          <LogoSpinner size="xs" className="h-4 w-4" ariaLabel="Generating PDF" />
           Generating PDF…
         </div>
       )}

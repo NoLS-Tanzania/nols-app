@@ -14,7 +14,10 @@ export type NotificationDto = {
  * Supports both ownerId (legacy) and userId (for drivers and other users).
  */
 export async function fetchNotifications(opts: { tab?: 'unread' | 'viewed', page?: number, pageSize?: number, ownerId?: number, userId?: number }) {
-  const { tab = 'unread', page = 1, pageSize = 20, ownerId, userId } = opts;
+  const { tab = 'unread', page = 1, pageSize = 20, ownerId, userId } = opts as any;
+  const types: string[] | undefined = Array.isArray((opts as any)?.types)
+    ? (opts as any).types.filter((t: any) => typeof t === 'string' && t.trim())
+    : undefined;
 
   try {
     // Read from prisma.notification
@@ -30,6 +33,10 @@ export async function fetchNotifications(opts: { tab?: 'unread' | 'viewed', page
       where.ownerId = Number(ownerId);
     }
 
+    if (types && types.length > 0) {
+      where.type = { in: types };
+    }
+
     const items = await prisma.notification.findMany({ 
       where, 
       orderBy: { createdAt: 'desc' }, 
@@ -38,7 +45,10 @@ export async function fetchNotifications(opts: { tab?: 'unread' | 'viewed', page
     });
     const total = await prisma.notification.count({ where });
     
-    const unreadWhere = { unread: true, ...(userId ? { userId: Number(userId) } : ownerId ? { ownerId: Number(ownerId) } : {}) };
+    const unreadWhere: any = { unread: true, ...(userId ? { userId: Number(userId) } : ownerId ? { ownerId: Number(ownerId) } : {}) };
+    if (types && types.length > 0) {
+      unreadWhere.type = { in: types };
+    }
     const totalUnread = await prisma.notification.count({ where: unreadWhere });
 
     const dto: NotificationDto[] = items.map((i) => ({ 
@@ -57,7 +67,7 @@ export async function fetchNotifications(opts: { tab?: 'unread' | 'viewed', page
   }
 }
 
-export async function markNotificationRead(id: number | string, ownerId?: number, userId?: number) {
+export async function markNotificationRead(id: number | string, ownerId?: number, userId?: number, opts?: { types?: string[] }) {
   try {
     // Support both ownerId (legacy) and userId (for drivers)
     const where: any = { id: Number(id) };
@@ -65,6 +75,11 @@ export async function markNotificationRead(id: number | string, ownerId?: number
       where.userId = Number(userId);
     } else if (ownerId) {
       where.ownerId = Number(ownerId);
+    }
+
+    const types = Array.isArray(opts?.types) ? opts?.types.filter((t) => typeof t === 'string' && t.trim()) : undefined;
+    if (types && types.length > 0) {
+      where.type = { in: types };
     }
 
     const r = await prisma.notification.updateMany({ 

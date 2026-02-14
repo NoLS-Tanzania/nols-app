@@ -3,6 +3,7 @@ import { Router } from "express";
 import { prisma } from "@nolsaf/prisma";
 import multer from "multer";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { notifyAdmins } from "../lib/notifications.js";
 // Generate unique filename
 function generateUniqueId() {
   return Date.now().toString(36) + Math.random().toString(36).substring(2);
@@ -167,8 +168,22 @@ router.post("/", upload.single('resume'), async (req, res) => {
       }
     });
 
-    // TODO: Send email notification to admin/careers team
-    // You can integrate with your email service here
+    // Admin inbox notification (best-effort)
+    try {
+      await notifyAdmins("careers_application_submitted", {
+        applicationId: application.id,
+        jobId: application.job?.id,
+        jobTitle: application.job?.title,
+        department: application.job?.department,
+        fullName,
+        email,
+        phone,
+        type: "careers",
+        link: "/admin/careers/applications",
+      });
+    } catch (notifyErr: any) {
+      console.warn("Failed to notify admins for new career application:", notifyErr?.message || notifyErr);
+    }
 
     return res.status(201).json({
       success: true,

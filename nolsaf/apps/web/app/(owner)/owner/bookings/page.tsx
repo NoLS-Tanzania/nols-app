@@ -2,9 +2,10 @@
 
 import { useEffect, useState, useMemo } from "react";
 import axios from "axios";
-import { Calendar, Loader2, Building2, DollarSign, Clock, CheckCircle, LogOut, XCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { Calendar, Building2, DollarSign, Clock, CheckCircle, LogOut, XCircle, ChevronDown, ChevronUp } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import LogoSpinner from "@/components/LogoSpinner";
 
 // Use same-origin calls + secure httpOnly cookie session.
 const api = axios.create({ baseURL: "", withCredentials: true });
@@ -47,16 +48,17 @@ export default function OwnerBookingsPage() {
     
     const loadBookings = async () => {
       try {
-        // Use a wide date range to get all bookings (last 2 years to future)
-        const twoYearsAgo = new Date();
-        twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
-        const twoYearsLater = new Date();
-        twoYearsLater.setFullYear(twoYearsLater.getFullYear() + 2);
+        // The reports API enforces a max window (~12 months). Keep the request within that
+        // so we don't accidentally exclude current bookings due to server-side clamping.
+        const fromDate = new Date();
+        fromDate.setDate(fromDate.getDate() - 180);
+        const toDate = new Date();
+        toDate.setDate(toDate.getDate() + 180);
         
         const response = await api.get('/api/owner/reports/bookings', {
           params: {
-            from: twoYearsAgo.toISOString().split('T')[0],
-            to: twoYearsLater.toISOString().split('T')[0],
+            from: fromDate.toISOString().split('T')[0],
+            to: toDate.toISOString().split('T')[0],
           }
         });
         
@@ -261,7 +263,7 @@ export default function OwnerBookingsPage() {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center text-center">
         <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-brand-100 mb-4">
-          <Loader2 className="h-8 w-8 animate-spin text-brand" />
+          <LogoSpinner size="md" ariaLabel="Loading bookings" />
         </div>
         <h1 className="text-3xl font-bold text-slate-900">My Bookings</h1>
         <p className="text-sm text-slate-600 mt-2 max-w-2xl">Loading your bookings…</p>
@@ -348,7 +350,7 @@ export default function OwnerBookingsPage() {
             return (
               <div
                 key={group.key}
-                className="group relative rounded-2xl overflow-hidden border border-white/15 bg-white/10 backdrop-blur-md shadow-lg shadow-black/30 hover:bg-white/12 transition-colors"
+                className="group relative rounded-[28px] overflow-hidden border border-white/15 bg-white/10 backdrop-blur-md shadow-lg shadow-black/30 hover:bg-white/12 transition-colors"
               >
                 {/* Left accent bar */}
                 <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-brand via-brand-500 to-brand-600" aria-hidden="true"></div>

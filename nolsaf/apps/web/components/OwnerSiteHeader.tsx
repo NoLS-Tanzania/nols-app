@@ -83,10 +83,11 @@ export default function OwnerSiteHeader({ unreadMessages = 0 }: { unreadMessages
         const url = "/api/account/me";
         const r = await fetch(url, { credentials: "include" });
         if (!r.ok) return;
-        const data = await r.json();
-        if (data.avatarUrl) setAvatarUrl(data.avatarUrl);
-        if (data.fullName) setUserName(data.fullName);
-        if (data.email) setUserEmail(data.email);
+        const json = await r.json();
+        const me = json?.data ?? json;
+        if (me?.avatarUrl) setAvatarUrl(me.avatarUrl);
+        if (me?.fullName) setUserName(me.fullName);
+        if (me?.email) setUserEmail(me.email);
       } catch {
         // ignore
       }
@@ -179,7 +180,7 @@ export default function OwnerSiteHeader({ unreadMessages = 0 }: { unreadMessages
       />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-white/10" aria-hidden />
 
-      <div className="mx-auto max-w-6xl px-4 h-16 flex items-center relative">
+      <div className="public-container h-16 flex items-center relative">
         <div className="w-full h-14 rounded-3xl border border-white/10 backdrop-blur-xl shadow-[0_18px_70px_rgba(0,0,0,0.28),0_0_50px_rgba(2,102,94,0.18)] flex items-center justify-between px-5 md:px-6 relative bg-[#02665e]">
           {/* Left: sidebar toggle + brand mark (kept inside the header bar; no floating layer) */}
           <div className="inline-flex items-center gap-3">
@@ -407,7 +408,7 @@ export default function OwnerSiteHeader({ unreadMessages = 0 }: { unreadMessages
         <>
           <div className="md:hidden fixed inset-0 bg-black/20 backdrop-blur-sm z-40 transition-opacity duration-300" onClick={() => setOpen(false)} aria-hidden="true" />
           <div className="md:hidden relative z-50 border-t border-white/10 backdrop-blur-xl animate-slide-down overflow-hidden bg-[#02665e] text-white" style={{ willChange: "transform, opacity" }}>
-            <nav className="mx-auto max-w-6xl px-4 py-4 flex flex-col gap-2.5">
+            <nav className="mx-auto w-full px-2 sm:px-3 md:px-4 xl:px-6 2xl:px-8 max-w-6xl xl:max-w-7xl 2xl:max-w-[108rem] py-4 flex flex-col gap-2.5">
               <div className="flex items-center gap-2.5 flex-wrap">
                 <button
                   onClick={() => {

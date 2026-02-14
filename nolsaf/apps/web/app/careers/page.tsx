@@ -1151,7 +1151,7 @@ export default function CareersPage() {
   const [selectedLocation, setSelectedLocation] = useState<JobLocation | "ALL">("ALL");
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [showApplicationForm, setShowApplicationForm] = useState(false);
-  const [isVisible, setIsVisible] = useState(false);
+  
   const heroRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -1254,32 +1254,7 @@ export default function CareersPage() {
     setFilteredJobs(filtered);
   }, [jobsLoading, searchQuery, selectedCategory, selectedType, selectedLocation, activeJobs]);
 
-  useEffect(() => {
-    // Intersection Observer for animations
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            setIsVisible(true);
-          }
-        });
-      },
-      { threshold: 0.1 }
-    );
-
-    const heroEl = heroRef.current;
-
-    if (heroEl) {
-      observer.observe(heroEl);
-    }
-
-    return () => {
-      if (heroEl) {
-        observer.unobserve(heroEl);
-      }
-      observer.disconnect();
-    };
-  }, []);
+  
 
   const shouldUsePublicLayout = isPublicContext === true || (isPublicContext === null && userRole === null);
   const isAuthenticated = !shouldUsePublicLayout && userRole !== null;
@@ -1358,13 +1333,9 @@ export default function CareersPage() {
                 className="object-cover"
                 priority
               />
-              <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-transparent rounded-lg" />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <h2
-                  className={`text-3xl md:text-4xl lg:text-5xl font-bold text-white text-center px-4 drop-shadow-lg transition-all duration-700 ${
-                    isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
-                  }`}
-                >
+              <div className="absolute inset-0 bg-gradient-to-b from-black/45 via-black/25 to-transparent rounded-lg" />
+              <div className="absolute inset-0 flex items-center justify-center px-4">
+                <h2 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-white text-center tracking-tight drop-shadow-[0_10px_30px_rgba(0,0,0,0.55)]">
                   Why Work at NoLSAF?
                 </h2>
               </div>
@@ -1373,7 +1344,7 @@ export default function CareersPage() {
         </section>
         
         {/* Company Culture Section - positioned directly after photo */}
-        <section className="pt-0 pb-0 bg-gray-50 -mt-[16rem] md:-mt-[20rem] lg:-mt-[24rem]">
+        <section className="pt-10 md:pt-12 lg:pt-14 pb-0 bg-gray-50 -mt-24 md:-mt-32 lg:-mt-40">
           <div className="public-container">
             <div className="max-w-6xl mx-auto">
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
@@ -1382,7 +1353,7 @@ export default function CareersPage() {
                     icon: <Heart size={32} />,
                     iconColor: "text-red-500",
                     title: "Mission-Driven",
-                    description: "We're building something meaningful that connects travelers with quality stays and safe transport across East Africa."
+                    description: "We're building something meaningful that connects travelers with quality stays and safe transport across Africa."
                   },
                   {
                     icon: <Users size={32} />,
@@ -1400,7 +1371,7 @@ export default function CareersPage() {
                     icon: <Globe size={32} />,
                     iconColor: "text-purple-500",
                     title: "Flexible Work",
-                    description: "Work from anywhere in East Africa. We offer remote, hybrid, and on-site options to fit your lifestyle."
+                    description: "Work from anywhere in Africa. We offer remote, hybrid, and on-site options to fit your lifestyle."
                   },
                   {
                     icon: <DollarSign size={32} />,
@@ -1412,7 +1383,7 @@ export default function CareersPage() {
                     icon: <Building2 size={32} />,
                     iconColor: "text-[#02665e]",
                     title: "Innovation",
-                    description: "Work with cutting-edge technology and help shape the future of travel in East Africa."
+                    description: "Work with cutting-edge technology and help shape the future of travel in Africa."
                   }
                 ].map((benefit, idx) => (
                   <div

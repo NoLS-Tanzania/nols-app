@@ -17,15 +17,15 @@ const queryParamsSchema = z.object({
   page: z
     .string()
     .regex(/^\d+$/, "Page must be a positive integer")
+    .default("1")
     .transform(Number)
-    .pipe(z.number().int().positive())
-    .default(1),
+    .pipe(z.number().int().positive()),
   pageSize: z
     .string()
     .regex(/^\d+$/, "Page size must be a positive integer")
+    .default("20")
     .transform(Number)
-    .pipe(z.number().int().positive().max(100, "Page size cannot exceed 100"))
-    .default(20),
+    .pipe(z.number().int().positive().max(100, "Page size cannot exceed 100")),
 });
 
 const propertyIdParamSchema = z.object({

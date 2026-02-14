@@ -3,6 +3,7 @@ import { Router, RequestHandler } from "express";
 import { prisma } from "@nolsaf/prisma";
 import { AuthedRequest, requireAuth, requireRole } from "../middleware/auth.js";
 import { cleanHtml } from "../lib/sanitize";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 
 // ✅ ADD THIS IMPORT NEAR THE TOP
@@ -63,6 +64,10 @@ const baseBodySchema = z.object({
   // pricing
   basePrice: z.number().nonnegative().optional().nullable(),
   currency: z.string().min(1).max(8).default("TZS"),
+
+  // tourism / park placement
+  tourismSiteId: z.number().int().positive().optional().nullable(),
+  parkPlacement: z.enum(["INSIDE", "NEARBY"]).optional().nullable(),
   
 });
 
@@ -149,6 +154,76 @@ router.use(
   requireRole("OWNER") as unknown as import("express").RequestHandler
 );
 
+function isSchemaMismatchError(err: any) {
+  return err instanceof Prisma.PrismaClientKnownRequestError && (err.code === "P2021" || err.code === "P2022");
+}
+
+async function findOwnerPropertyById(ownerId: number, id: number) {
+  const baseSelect: any = {
+    id: true,
+    ownerId: true,
+    status: true,
+    title: true,
+    type: true,
+    description: true,
+    buildingType: true,
+    totalFloors: true,
+    regionId: true,
+    regionName: true,
+    district: true,
+    ward: true,
+    street: true,
+    apartment: true,
+    city: true,
+    zip: true,
+    country: true,
+    latitude: true,
+    longitude: true,
+    totalBedrooms: true,
+    totalBathrooms: true,
+    maxGuests: true,
+    photos: true,
+    hotelStar: true,
+    roomsSpec: true,
+    services: true,
+    basePrice: true,
+    currency: true,
+    rejectionReasons: true,
+    lastSubmittedAt: true,
+    createdAt: true,
+    updatedAt: true,
+    owner: {
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+      },
+    },
+  };
+
+  // First try: include tourism fields (works once DB migration is applied)
+  try {
+    return await prisma.property.findFirst({
+      where: { id, ownerId },
+      select: {
+        ...baseSelect,
+        tourismSiteId: true,
+        parkPlacement: true,
+      },
+    });
+  } catch (err: any) {
+    // Fallback for older DBs without the new columns
+    if (isSchemaMismatchError(err)) {
+      return await prisma.property.findFirst({
+        where: { id, ownerId },
+        select: baseSelect,
+      });
+    }
+    throw err;
+  }
+}
+
 /* … your Zod schemas and helpers stay the same … */
 
 // ---------- LIST MINE ----------
@@ -164,21 +239,6 @@ router.get("/mine", (async (req: AuthedRequest, res) => {
     const where: any = { ownerId };
     if (status) {
       where.status = status;
-      console.log(`GET /mine: Filtering by status=${status} for ownerId=${ownerId}`);
-    } else {
-      console.log(`GET /mine: No status filter, fetching all properties for ownerId=${ownerId}`);
-    }
-    
-    // Debug: Check total properties for this owner (any status)
-    try {
-      const totalForOwner = await prisma.property.count({ where: { ownerId } });
-      console.log(`GET /mine: Total properties for owner ${ownerId}: ${totalForOwner}`);
-      if (status) {
-        const totalWithStatus = await prisma.property.count({ where: { ownerId, status } });
-        console.log(`GET /mine: Properties with status ${status} for owner ${ownerId}: ${totalWithStatus}`);
-      }
-    } catch (debugError) {
-      console.error("Debug query failed:", debugError);
     }
 
     const skip = Math.max(0, (Number(page) - 1) * Number(pageSize));
@@ -186,6 +246,51 @@ router.get("/mine", (async (req: AuthedRequest, res) => {
 
     let items: any[] = [];
     let total = 0;
+
+    const listSelectBase: any = {
+      id: true,
+      ownerId: true,
+      status: true,
+      title: true,
+      type: true,
+      photos: true,
+      regionName: true,
+      district: true,
+      ward: true,
+      city: true,
+      basePrice: true,
+      currency: true,
+      services: true,
+      rejectionReasons: true,
+      lastSubmittedAt: true,
+      createdAt: true,
+      updatedAt: true,
+    };
+
+    // Availability UI needs these fields to render real counts (otherwise it shows 0 rooms/floors).
+    // Keep drift-safe: if the DB is behind on these columns, fall back to the minimal select.
+    const listSelectWithStructure: any = {
+      ...listSelectBase,
+      roomsSpec: true,
+      buildingType: true,
+      totalFloors: true,
+    };
+
+    // Tourism UI needs these fields to show the selected park in owner tables/cards.
+    // Keep drift-safe: if the DB is behind on these columns/tables, fall back.
+    const listSelectWithStructureAndTourism: any = {
+      ...listSelectWithStructure,
+      tourismSiteId: true,
+      parkPlacement: true,
+      tourismSite: {
+        select: {
+          id: true,
+          slug: true,
+          name: true,
+          country: true,
+        },
+      },
+    };
 
     try {
       [items, total] = await Promise.all([
@@ -195,31 +300,60 @@ router.get("/mine", (async (req: AuthedRequest, res) => {
           orderBy: { id: "desc" },
           skip,
           take,
-          // Keep payload small and predictable for list pages
-          select: {
-            id: true,
-            ownerId: true,
-            status: true,
-            title: true,
-            type: true,
-            photos: true,
-            regionName: true,
-            district: true,
-            ward: true,
-            city: true,
-            basePrice: true,
-            currency: true,
-            services: true,
-            rejectionReasons: true,
-            lastSubmittedAt: true,
-            createdAt: true,
-            updatedAt: true,
-          },
+          select: listSelectWithStructureAndTourism,
         }),
         prisma.property.count({ where }),
       ]);
       console.log(`GET /mine: Found ${items.length} items (total: ${total}) with status=${status || 'all'} for ownerId=${ownerId}`);
     } catch (dbError: any) {
+      // If the DB is behind and doesn't have some columns, retry with minimal fields.
+      if (isSchemaMismatchError(dbError)) {
+        try {
+          [items, total] = await Promise.all([
+            prisma.property.findMany({
+              where,
+              orderBy: { id: "desc" },
+              skip,
+              take,
+              select: listSelectWithStructure,
+            }),
+            prisma.property.count({ where }),
+          ]);
+          console.log(`GET /mine: Drift fallback used. Found ${items.length} items (total: ${total}) with status=${status || 'all'} for ownerId=${ownerId}`);
+        } catch (retryError: any) {
+          if (isSchemaMismatchError(retryError)) {
+            try {
+              [items, total] = await Promise.all([
+                prisma.property.findMany({
+                  where,
+                  orderBy: { id: "desc" },
+                  skip,
+                  take,
+                  select: listSelectBase,
+                }),
+                prisma.property.count({ where }),
+              ]);
+              console.log(`GET /mine: Drift fallback (minimal) used. Found ${items.length} items (total: ${total}) with status=${status || 'all'} for ownerId=${ownerId}`);
+            } catch (finalRetryError: any) {
+              console.error("Database error in GET /mine (final retry):", finalRetryError);
+              return res.json({
+                page: Number(page),
+                pageSize: take,
+                total: 0,
+                items: [],
+              });
+            }
+          } else {
+            console.error("Database error in GET /mine (retry):", retryError);
+            return res.json({
+              page: Number(page),
+              pageSize: take,
+              total: 0,
+              items: [],
+            });
+          }
+        }
+      } else {
       console.error("Database error in GET /mine:", dbError);
       console.error("Error details:", {
         code: dbError?.code,
@@ -233,6 +367,7 @@ router.get("/mine", (async (req: AuthedRequest, res) => {
         total: 0,
         items: [],
       });
+      }
     }
 
     // Safety check - ensure items is an array
@@ -433,25 +568,13 @@ router.get("/mine", (async (req: AuthedRequest, res) => {
 
 // ---------- GET BY ID ----------
 router.get("/:id", (async (req: AuthedRequest, res) => {
-  const ownerId = req.user!.id;
-  const id = Number(req.params.id);
-  if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid id" });
+  try {
+    const ownerId = req.user!.id;
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid id" });
 
-  const property = await prisma.property.findFirst({
-    where: { id, ownerId },
-    include: {
-      owner: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          phone: true,
-        },
-      },
-    },
-  });
-
-  if (!property) return res.status(404).json({ error: "Property not found" });
+    const property = await findOwnerPropertyById(ownerId, id);
+    if (!property) return res.status(404).json({ error: "Property not found" });
 
   // Safely serialize the property object
   const serializePrismaObject = (obj: any): any => {
@@ -493,13 +616,17 @@ router.get("/:id", (async (req: AuthedRequest, res) => {
     return result;
   };
 
-  try {
-    const serialized = serializePrismaObject(property);
-    JSON.stringify(serialized); // Test serialization
-    res.json(serialized);
+    try {
+      const serialized = serializePrismaObject(property);
+      JSON.stringify(serialized); // Test serialization
+      return res.json(serialized);
+    } catch (err: any) {
+      console.error(`Error serializing property ${id}:`, err);
+      return res.status(500).json({ error: "Failed to serialize property data" });
+    }
   } catch (err: any) {
-    console.error(`Error serializing property ${id}:`, err);
-    res.status(500).json({ error: "Failed to serialize property data" });
+    console.error("Error in GET /api/owner/properties/:id:", err);
+    return res.status(500).json({ error: "Internal Server Error", message: err?.message || "Failed to fetch property" });
   }
 }) as RequestHandler);
 
@@ -508,6 +635,16 @@ router.post("/", (async (req: AuthedRequest, res) => {
   try {
     const ownerId = req.user!.id;
     const parsed = baseBodySchema.parse(req.body);
+
+    // Normalize tourism / park placement fields
+    const normalizedTourismSiteId = parsed.tourismSiteId ?? null;
+    const normalizedParkPlacementRaw = typeof parsed.parkPlacement === "undefined" ? null : parsed.parkPlacement;
+    if (!normalizedTourismSiteId && (normalizedParkPlacementRaw === "INSIDE" || normalizedParkPlacementRaw === "NEARBY")) {
+      return res.status(400).json({ error: "tourismSiteId_required_when_parkPlacement_set" });
+    }
+    const normalizedParkPlacement = normalizedTourismSiteId
+      ? (normalizedParkPlacementRaw === "INSIDE" || normalizedParkPlacementRaw === "NEARBY" ? normalizedParkPlacementRaw : "NEARBY")
+      : null;
 
     // Merge house rules into services so they are available in admin/owner previews
     let servicesForSave: any = cleanServices(parsed.services);
@@ -520,8 +657,7 @@ router.post("/", (async (req: AuthedRequest, res) => {
       }
     }
 
-    const created = await prisma.property.create({
-      data: {
+    const createData: any = {
         ownerId,
         title: parsed.title,
         type: parsed.type,
@@ -556,8 +692,25 @@ router.post("/", (async (req: AuthedRequest, res) => {
         // pricing …
         basePrice: parsed.basePrice ?? null,
         currency: parsed.currency,
-      },
-    });
+
+        // tourism / park placement …
+        tourismSiteId: normalizedTourismSiteId,
+        parkPlacement: normalizedParkPlacement,
+      };
+
+    let created: any;
+    try {
+      created = await prisma.property.create({ data: createData });
+    } catch (err: any) {
+      // If DB isn't migrated yet, retry without the new tourism columns.
+      if (isSchemaMismatchError(err)) {
+        delete createData.tourismSiteId;
+        delete createData.parkPlacement;
+        created = await prisma.property.create({ data: createData });
+      } else {
+        throw err;
+      }
+    }
 
     // Persist PropertyImage records for any photos provided
     try {
@@ -610,10 +763,33 @@ router.put("/:id", (async (req: AuthedRequest, res) => {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid id" });
 
-    const exists = await prisma.property.findFirst({ where: { id, ownerId }, select: { id: true } });
+    const exists = await prisma.property.findFirst({
+      where: { id, ownerId },
+      select: { id: true, tourismSiteId: true, parkPlacement: true },
+    });
     if (!exists) return res.status(404).json({ error: "Property not found" });
 
     const parsed = baseBodySchema.parse(req.body);
+
+    // Normalize tourism / park placement fields
+    const incomingTourismSiteId = typeof parsed.tourismSiteId === "undefined" ? undefined : (parsed.tourismSiteId ?? null);
+    const incomingParkPlacementRaw = typeof parsed.parkPlacement === "undefined" ? undefined : (parsed.parkPlacement ?? null);
+
+    const nextTourismSiteId = incomingTourismSiteId !== undefined ? incomingTourismSiteId : (exists as any).tourismSiteId ?? null;
+
+    // If parkPlacement is being set, ensure we have a tourism site.
+    if ((incomingParkPlacementRaw === "INSIDE" || incomingParkPlacementRaw === "NEARBY") && !nextTourismSiteId) {
+      return res.status(400).json({ error: "tourismSiteId_required_when_parkPlacement_set" });
+    }
+
+    // If tourism site is set (or remains set), ensure parkPlacement is valid.
+    const nextParkPlacement = nextTourismSiteId
+      ? (incomingParkPlacementRaw === "INSIDE" || incomingParkPlacementRaw === "NEARBY"
+          ? incomingParkPlacementRaw
+          : ((exists as any).parkPlacement === "INSIDE" || (exists as any).parkPlacement === "NEARBY")
+            ? (exists as any).parkPlacement
+            : "NEARBY")
+      : null;
 
     // Merge house rules into services so they are available in admin/owner previews
     let servicesForSave: any = cleanServices(parsed.services);
@@ -626,9 +802,7 @@ router.put("/:id", (async (req: AuthedRequest, res) => {
       }
     }
 
-    const updated = await prisma.property.update({
-      where: { id },
-      data: {
+    const updateData: any = {
         title: parsed.title,
         type: parsed.type,
   description: cleanHtml(parsed.description ?? null),
@@ -661,8 +835,29 @@ router.put("/:id", (async (req: AuthedRequest, res) => {
         // pricing …
         basePrice: parsed.basePrice ?? null,
         currency: parsed.currency,
-      },
-    });
+
+        // tourism / park placement …
+        tourismSiteId: incomingTourismSiteId === undefined ? undefined : nextTourismSiteId,
+        // If tourism site is being changed/cleared, reflect placement accordingly.
+        // If tourism site exists (even unchanged), keep placement valid (default NEARBY).
+        parkPlacement:
+          incomingTourismSiteId !== undefined || incomingParkPlacementRaw !== undefined || nextTourismSiteId
+            ? nextParkPlacement
+            : undefined,
+      };
+
+    let updated: any;
+    try {
+      updated = await prisma.property.update({ where: { id }, data: updateData });
+    } catch (err: any) {
+      if (isSchemaMismatchError(err)) {
+        delete updateData.tourismSiteId;
+        delete updateData.parkPlacement;
+        updated = await prisma.property.update({ where: { id }, data: updateData });
+      } else {
+        throw err;
+      }
+    }
 
     // Persist PropertyImage records for any photos provided
     try {
@@ -716,7 +911,18 @@ router.post("/:id/submit", (async (req: AuthedRequest, res) => {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid id" });
 
-    const p = await prisma.property.findFirst({ where: { id, ownerId } });
+    const p = await prisma.property.findFirst({
+      where: { id, ownerId },
+      select: {
+        id: true,
+        ownerId: true,
+        title: true,
+        regionId: true,
+        district: true,
+        photos: true,
+        roomsSpec: true,
+      },
+    });
     if (!p) {
       console.error(`Property ${id} not found for owner ${ownerId}`);
       return res.status(404).json({ error: "Property not found" });

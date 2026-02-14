@@ -238,32 +238,43 @@ export default function BookingFlowCard() {
         <div className="public-container">
           <article
             ref={containerRef}
-            className="rounded-xl border bg-gradient-to-b from-white via-slate-50 to-white p-4 sm:p-6 shadow-lg"
+            className="relative overflow-hidden rounded-3xl p-[1px] ring-1 ring-slate-200/70 shadow-[0_22px_70px_rgba(2,6,23,0.10)] bg-gradient-to-br from-white/85 via-slate-200/45 to-emerald-200/35"
           >
-            {/* Stepper */}
-            <nav aria-label="Booking steps" className="mt-5">
+            <div className="relative overflow-hidden rounded-[22px] border border-white/70 bg-white/70 backdrop-blur-xl">
               <div
-                className="relative flex items-center gap-2 sm:gap-3 text-xs rounded-full px-3 py-2 shadow-sm transition-all overflow-x-auto scrollbar-hide border border-slate-200 bg-gradient-to-r from-amber-50 via-emerald-50 to-blue-50"
-              >
-                <span
-                  ref={highlightRef}
-                  aria-hidden
-                  className="absolute inset-y-1 rounded-full bg-white/80 shadow-sm"
-                  style={{
-                    width: `${stepHighlightWidth}%`,
-                    transform: `translateX(${highlightOffset}%)`,
-                  }}
-                />
-                <ol
-                  role="list"
-                  className="flex items-center gap-2 sm:gap-3 w-full"
-                >
+                className="pointer-events-none absolute inset-0 opacity-55 bg-[radial-gradient(circle_at_18%_14%,rgba(2,180,245,0.14),transparent_52%),radial-gradient(circle_at_90%_86%,rgba(2,102,94,0.12),transparent_56%)]"
+                aria-hidden
+              />
+              <div
+                className="pointer-events-none absolute inset-x-0 top-0 h-24 opacity-55 bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.78)_48%,rgba(255,255,255,0.30)_52%,transparent_100%)]"
+                aria-hidden
+              />
+
+              <div className="relative p-4 sm:p-6">
+                {/* Stepper */}
+                <nav aria-label="Booking steps" className="mt-0">
+                  <div
+                    className="relative flex items-center gap-2 sm:gap-3 text-xs rounded-full px-3 py-2 overflow-x-auto scrollbar-hide ring-1 ring-slate-200/70 border border-white/70 bg-gradient-to-r from-amber-50/70 via-emerald-50/60 to-sky-50/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]"
+                  >
+                    <span
+                      ref={highlightRef}
+                      aria-hidden
+                      className="absolute inset-y-1 rounded-full bg-white/85 ring-1 ring-white/70 shadow-[0_10px_28px_rgba(2,6,23,0.10)]"
+                      style={{
+                        width: `${stepHighlightWidth}%`,
+                        transform: `translateX(${highlightOffset}%)`,
+                      }}
+                    />
+                    <ol
+                      role="list"
+                      className="flex items-center gap-2 sm:gap-3 w-full list-none m-0 p-0"
+                    >
                   {steps.map((s, i) => {
                     const stepNum = i + 1;
                     const iconClass = s.color;
 
                     return (
-                      <li key={s.label} className="relative z-10 flex-1 min-w-[8.5rem] sm:min-w-0">
+                      <li key={s.label} className="relative z-10 flex-1 min-w-[8.5rem] sm:min-w-0 list-none">
                         <button
                           type="button"
                           onClick={() => handleStepChange(stepNum)}
@@ -272,11 +283,12 @@ export default function BookingFlowCard() {
                           disabled={isTransitioning}
                           className={[
                             "w-full flex items-center justify-center gap-2 bg-transparent border-0 rounded-full px-2 py-1.5",
-                            "focus:outline-none focus:ring-2 focus:ring-blue-200 transform transition-all duration-300 ease-out",
+                            "focus:outline-none focus-visible:ring-2 focus-visible:ring-[#02b4f5]/25 transform transition-all duration-300 ease-out",
                             activeStep === stepNum ? "scale-[1.02]" : "hover:scale-[1.02]",
                             isTransitioning ? "opacity-60 cursor-wait" : "",
                           ].join(" ")}
                         >
+                          <span className={["text-[11px] tabular-nums", activeStep === stepNum ? "text-slate-900" : "text-slate-500"].join(" ")}>{stepNum}.</span>
                           <svg className={`w-5 h-5 sm:w-6 sm:h-6 ${iconClass} transition-colors`} viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
                             {i === 0 && (
                               <>
@@ -309,7 +321,7 @@ export default function BookingFlowCard() {
                               </>
                             )}
                           </svg>
-                          <span className="text-sm text-slate-700 whitespace-nowrap">{s.label}</span>
+                          <span className={["text-sm whitespace-nowrap", activeStep === stepNum ? "text-slate-900" : "text-slate-700"].join(" ")}>{s.label}</span>
                         </button>
                       </li>
                     );
@@ -325,10 +337,10 @@ export default function BookingFlowCard() {
                 <div
                   key={`img-${activeStep}-${activeMeta.image}`}
                   className={[
-                    "relative overflow-hidden rounded-2xl border border-slate-200 bg-slate-100",
+                    "relative overflow-hidden rounded-3xl border border-white/70 bg-slate-100 ring-1 ring-slate-200/70",
                     // Slightly smaller/tighter image height across breakpoints
                     "aspect-[16/10]",
-                    "shadow-sm step-enter",
+                    "shadow-[0_18px_55px_rgba(2,6,23,0.14)] step-enter",
                   ].join(" ")}
                 >
                   {!imgError ? (
@@ -350,7 +362,7 @@ export default function BookingFlowCard() {
                   ) : null}
 
                   {/* Overlay for readability */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-black/5 to-transparent" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/10 to-transparent" />
 
                   <div className="absolute left-4 right-4 bottom-4 text-white">
                     <div className="text-sm font-semibold tracking-wide opacity-90">Step {activeStep} of {STEPS_COUNT}</div>
@@ -374,9 +386,9 @@ export default function BookingFlowCard() {
 
               {/* Text / actions */}
               <div className="md:col-span-6 order-2 md:order-1">
-                <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
-                  <div className="text-sm font-semibold text-slate-900">{activeMeta.title}</div>
-                  <div className="mt-1 text-sm text-slate-600">{activeMeta.kicker}</div>
+                <div className="rounded-3xl border border-white/70 bg-white/70 backdrop-blur-xl ring-1 ring-slate-200/70 p-4 sm:p-5 shadow-[0_18px_55px_rgba(2,6,23,0.10)]">
+                  <div className="text-base font-semibold text-slate-900 tracking-tight">{activeMeta.title}</div>
+                  <div className="mt-1 text-sm text-slate-600 leading-relaxed">{activeMeta.kicker}</div>
 
                   {activeStep === 1 ? (
                     <>
@@ -472,7 +484,7 @@ export default function BookingFlowCard() {
                   {activeStep === 3 ? (
                     <div className="mt-4 text-sm text-slate-600">
                       After payment you’ll receive a unique booking code. Share it at pickup/check‑in to confirm your reservation.
-                      <div className="mt-3 rounded-lg bg-slate-50 border border-slate-200 p-3">
+                      <div className="mt-3 rounded-2xl bg-white/65 backdrop-blur border border-slate-200/70 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
                         <div className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Example</div>
                         <div className="mt-1 font-mono text-slate-800">Thank You for Booking with NoLSAF! Your booking code is: BK-7Q2KX9 Please present this code at check-in. Thank you!</div>
                       </div>
@@ -536,11 +548,12 @@ export default function BookingFlowCard() {
                       href="/public/properties"
                       aria-disabled={busy ? "true" : "false"}
                       className={[
-                        "group inline-flex items-center justify-center w-full gap-2",
-                        "px-5 py-3 rounded-xl no-underline font-semibold",
+                        "group inline-flex items-center justify-center gap-2",
+                        "w-full max-w-[360px] mx-auto min-[420px]:w-auto min-[420px]:max-w-none",
+                        "px-5 py-2.5 rounded-2xl no-underline font-semibold",
                         "text-white shadow-sm",
                         "bg-gradient-to-r from-[#02665e] via-[#02665e] to-emerald-600",
-                        "hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99]",
+                        "hover:shadow-[0_16px_40px_rgba(2,102,94,0.22)] hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99]",
                         "transition-all duration-200",
                         "focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:ring-offset-2 focus:ring-offset-white",
                         busy ? "opacity-70 pointer-events-none" : "",
@@ -554,6 +567,8 @@ export default function BookingFlowCard() {
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
               </div>
             </div>
           </article>

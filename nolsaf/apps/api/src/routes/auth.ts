@@ -8,10 +8,11 @@ import { sendMail } from '../lib/mailer.js';
 import { sendSms } from '../lib/sms.js';
 import { addPasswordToHistory } from '../lib/security.js';
 import { validatePasswordWithSettings } from '../lib/securitySettings.js';
+import { getRoleSessionMaxMinutes } from '../lib/securitySettings.js';
 import { signUserJwt, setAuthCookie, clearAuthCookie } from '../lib/sessionManager.js';
 import { audit } from '../lib/audit.js';
 import { hashCode } from '../lib/otp.js';
-import { maybeAuth } from '../middleware/auth.js';
+import { maybeAuth, requireAuth } from '../middleware/auth.js';
 import { limitOtpSend, limitOtpVerify, limitLoginAttempts, limitRegisterAttempts } from '../middleware/rateLimit.js';
 import { isEmailLocked, recordFailedAttempt, clearFailedAttempts, getRemainingAttempts, getLockoutStatus } from '../lib/loginAttemptTracker.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
@@ -76,6 +77,62 @@ function getJwtSecret(): string {
     (process.env.NODE_ENV !== 'production' ? (process.env.DEV_JWT_SECRET || 'dev_jwt_secret') : '')
   );
 }
+
+function getTokenFromReq(req: any): string | null {
+  const authHeader = req?.headers?.authorization;
+  if (authHeader && typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) return authHeader.slice(7);
+  const cookieHeader = req?.headers?.cookie;
+  if (!cookieHeader || typeof cookieHeader !== 'string') return null;
+  const parts = cookieHeader.split(';');
+  for (const part of parts) {
+    const idx = part.indexOf('=');
+    if (idx === -1) continue;
+    const key = part.slice(0, idx).trim();
+    if (!key) continue;
+    const value = part.slice(idx + 1).trim();
+    if (key === 'nolsaf_token' || key === '__Host-nolsaf_token' || key === 'token' || key === '__Host-token') {
+      try {
+        return decodeURIComponent(value);
+      } catch {
+        return value;
+      }
+    }
+  }
+  return null;
+}
+
+// GET /api/auth/session
+// Returns countdown metadata for the current session.
+router.get(
+  '/session',
+  requireAuth,
+  asyncHandler(async (req: any, res) => {
+    const token = getTokenFromReq(req);
+    if (!token) return res.status(401).json({ error: 'Unauthorized' });
+
+    const decoded = jwt.decode(token) as any;
+    const issuedAtSec = typeof decoded?.iat === 'number' ? decoded.iat : Number(decoded?.iat);
+    const expSec = typeof decoded?.exp === 'number' ? decoded.exp : Number(decoded?.exp);
+    if (!Number.isFinite(issuedAtSec) || issuedAtSec <= 0) {
+      return res.status(200).json({ ok: true, nowSec: Math.floor(Date.now() / 1000), expiresAt: null, remainingSec: null });
+    }
+
+    const role = String(req?.user?.role || '').toUpperCase();
+    const roleMaxMinutes = await getRoleSessionMaxMinutes(role || null);
+    const dynamicExpSec = issuedAtSec + roleMaxMinutes * 60;
+    const effectiveExpSec = Number.isFinite(expSec) && expSec > 0 ? Math.min(expSec, dynamicExpSec) : dynamicExpSec;
+
+    const nowSec = Math.floor(Date.now() / 1000);
+    const remainingSec = Math.max(0, Math.floor(effectiveExpSec - nowSec));
+    return res.json({
+      ok: true,
+      nowSec,
+      expiresAt: new Date(effectiveExpSec * 1000).toISOString(),
+      remainingSec,
+      roleMaxMinutes,
+    });
+  })
+);
 
 // POST /api/auth/send-otp
 // Rate limited: 3 requests per phone number per 15 minutes

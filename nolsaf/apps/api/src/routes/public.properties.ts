@@ -7,6 +7,12 @@ import { withCache, cacheKeys, cacheTags, measureTime } from "../lib/performance
 
 const router = Router();
 
+function isMysqlSortMemoryError(err: any) {
+  const code = err?.cause?.originalCode ?? err?.cause?.code ?? err?.code;
+  const msg = err?.cause?.originalMessage ?? err?.message;
+  return String(code) === "1038" || /Out of sort memory/i.test(String(msg || ""));
+}
+
 function parseIntOrUndefined(v: any) {
   const n = Number(v);
   return Number.isFinite(n) ? n : undefined;
@@ -74,6 +80,10 @@ const listPublicProperties: RequestHandler = async (req, res) => {
   const freeCancellation = String((req.query as any)?.freeCancellation ?? "").trim();
   const groupStay = String((req.query as any)?.groupStay ?? "").trim();
 
+  const tourismSiteSlug = String((req.query as any)?.tourismSiteSlug ?? (req.query as any)?.tourismSite ?? "").trim();
+  const parkPlacementRaw = String((req.query as any)?.parkPlacement ?? "").trim();
+  const parkPlacement = parkPlacementRaw === "INSIDE" || parkPlacementRaw === "NEARBY" ? parkPlacementRaw : "";
+
   const minPrice = parseIntOrUndefined((req.query as any)?.minPrice);
   const maxPrice = parseIntOrUndefined((req.query as any)?.maxPrice);
   const guests = parseIntOrUndefined((req.query as any)?.guests);
@@ -88,6 +98,36 @@ const listPublicProperties: RequestHandler = async (req, res) => {
   const sort = String((req.query as any)?.sort ?? "newest");
 
   const where: any = { status: "APPROVED" };
+
+  // IMPORTANT: Do not filter via relation `tourismSite.slug` here.
+  // Prisma will generate a JOIN which can trigger MariaDB/MySQL "Out of sort memory" errors
+  // for otherwise simple list queries. Resolve the slug to an id first, then filter on the
+  // indexed Property.tourismSiteId column.
+  if (tourismSiteSlug) {
+    try {
+      const site = await prisma.tourismSite.findUnique({
+        where: { slug: tourismSiteSlug },
+        select: { id: true },
+      });
+      if (!site) return res.json({ items: [], total: 0, page, pageSize });
+      where.tourismSiteId = site.id;
+    } catch (e: any) {
+      // If DB migrations haven't been applied yet (missing TourismSite table), fail soft.
+      if (e instanceof Prisma.PrismaClientKnownRequestError && (e.code === "P2021" || e.code === "P2022")) {
+        return res.json({ items: [], total: 0, page, pageSize, warning: "db_not_migrated" });
+      }
+      throw e;
+    }
+
+    // When browsing a specific tourism site, only show properties that the owner explicitly
+    // linked to that site AND marked as INSIDE/NEARBY.
+    // If a specific parkPlacement is requested, honor it.
+    where.parkPlacement = parkPlacement ? parkPlacement : { in: ["INSIDE", "NEARBY"] };
+  }
+  // Allow explicit placement filtering for general browse (no tourismSiteSlug)
+  if (!tourismSiteSlug && parkPlacement) {
+    where.parkPlacement = parkPlacement;
+  }
 
   if (q) {
     where.OR = [
@@ -186,6 +226,7 @@ const listPublicProperties: RequestHandler = async (req, res) => {
       q, region, district, ward, city, street,
       types, amenities, nearbyServices, paymentModes,
       freeCancellation, groupStay,
+      tourismSiteSlug, parkPlacement,
       minPrice, maxPrice, guests,
       nearLat, nearLng, radiusKm,
       page, pageSize, sort,
@@ -199,13 +240,15 @@ const listPublicProperties: RequestHandler = async (req, res) => {
           let total = 0;
 
           try {
-            const isSimpleBrowse =
+            const isParkBrowse =
+              !!tourismSiteSlug &&
               !q &&
               !region &&
               !district &&
               !ward &&
               !street &&
               !city &&
+              !parkPlacement &&
               serviceTags.length === 0 &&
               minPrice === undefined &&
               maxPrice === undefined &&
@@ -214,7 +257,94 @@ const listPublicProperties: RequestHandler = async (req, res) => {
               sort !== "price_asc" &&
               sort !== "price_desc";
 
-            if (isSimpleBrowse) {
+            const isSimpleBrowse =
+              !q &&
+              !region &&
+              !district &&
+              !ward &&
+              !street &&
+              !city &&
+              !tourismSiteSlug &&
+              !parkPlacement &&
+              serviceTags.length === 0 &&
+              minPrice === undefined &&
+              maxPrice === undefined &&
+              guests === undefined &&
+              !(typeof nearLat === "number" && typeof nearLng === "number") &&
+              sort !== "price_asc" &&
+              sort !== "price_desc";
+
+            if (isParkBrowse) {
+              // Park/tourism-site browsing can still trigger MariaDB "Out of sort memory" even
+              // with ORDER BY id when the optimizer chooses a non-PK index and then filesorts.
+              // Use a PK-desc scan for ids and then hydrate rows.
+              const tourismSiteId = Number(where.tourismSiteId);
+              if (!Number.isFinite(tourismSiteId)) return { items: [], total: 0, page, pageSize };
+
+              const typeClause = types.length
+                ? Prisma.sql` AND type IN (${Prisma.join(types.map((t) => Prisma.sql`${t}`))})`
+                : Prisma.empty;
+
+              const placementClause = parkPlacement
+                ? Prisma.sql` AND parkPlacement = ${parkPlacement}`
+                : Prisma.sql` AND parkPlacement IN ('INSIDE','NEARBY')`;
+
+              const idsRows = (await prisma.$queryRaw(
+                Prisma.sql`
+                  SELECT id
+                  FROM \`Property\`
+                  FORCE INDEX (PRIMARY)
+                  WHERE status = 'APPROVED'
+                    AND tourismSiteId = ${tourismSiteId}
+                    ${placementClause}
+                    ${typeClause}
+                  ORDER BY id DESC
+                  LIMIT ${pageSize} OFFSET ${skip}
+                `
+              )) as Array<{ id: number }>;
+              const ids = (idsRows || []).map((r) => Number(r.id)).filter((n) => Number.isFinite(n));
+
+              const [rows, cnt] = await Promise.all([
+                ids.length
+                  ? prisma.property.findMany({
+                      where: { id: { in: ids } },
+                      select: {
+                        id: true,
+                        title: true,
+                        type: true,
+                        parkPlacement: true,
+                        regionName: true,
+                        district: true,
+                        ward: true,
+                        street: true,
+                        city: true,
+                        country: true,
+                        services: true,
+                        basePrice: true,
+                        currency: true,
+                        maxGuests: true,
+                        totalBedrooms: true,
+                        totalBathrooms: true,
+                        photos: true,
+                        images: {
+                          where: {
+                            status: { in: ["READY", "PROCESSING"] },
+                            url: { not: null },
+                          },
+                          select: { url: true, thumbnailUrl: true, status: true },
+                          orderBy: { id: "asc" },
+                          take: 1,
+                        },
+                      },
+                    })
+                  : Promise.resolve([] as any[]),
+                prisma.property.count({ where }),
+              ]);
+
+              const byId = new Map<number, any>((rows as any[]).map((r) => [Number(r.id), r]));
+              items = ids.map((id) => byId.get(id)).filter(Boolean);
+              total = cnt as number;
+            } else if (isSimpleBrowse) {
               // MariaDB can throw "Out of sort memory" when it picks a non-PK index for filters
               // and then needs a filesort for ORDER BY. Force a PK scan (descending) and apply
               // filters as it scans until it collects enough ids.
@@ -243,6 +373,7 @@ const listPublicProperties: RequestHandler = async (req, res) => {
                         id: true,
                         title: true,
                         type: true,
+                        parkPlacement: true,
                         regionName: true,
                         district: true,
                         ward: true,
@@ -285,6 +416,7 @@ const listPublicProperties: RequestHandler = async (req, res) => {
                     id: true,
                     title: true,
                     type: true,
+                    parkPlacement: true,
                     regionName: true,
                     district: true,
                     ward: true,
@@ -317,6 +449,58 @@ const listPublicProperties: RequestHandler = async (req, res) => {
               total = res[1] as number;
             }
           } catch (e) {
+            if ((sort === "price_asc" || sort === "price_desc") && isMysqlSortMemoryError(e)) {
+              console.warn("public.properties.list price sort exceeded DB sort memory; falling back to newest", e);
+              const fallbackOrderBy = [{ id: "desc" }];
+              const res = await Promise.all([
+                prisma.property.findMany({
+                  where,
+                  skip,
+                  take: pageSize,
+                  orderBy: fallbackOrderBy,
+                  select: {
+                    id: true,
+                    title: true,
+                    type: true,
+                    parkPlacement: true,
+                    regionName: true,
+                    district: true,
+                    ward: true,
+                    street: true,
+                    city: true,
+                    country: true,
+                    services: true,
+                    basePrice: true,
+                    currency: true,
+                    maxGuests: true,
+                    totalBedrooms: true,
+                    totalBathrooms: true,
+                    photos: true,
+                    images: {
+                      where: {
+                        status: { in: ["READY", "PROCESSING"] },
+                        url: { not: null },
+                      },
+                      select: { url: true, thumbnailUrl: true, status: true },
+                      orderBy: { id: "asc" },
+                      take: 1,
+                    },
+                  },
+                }),
+                prisma.property.count({ where }),
+              ]);
+              items = res[0] as any[];
+              total = res[1] as number;
+              const dto = (items || []).map(toPublicCard);
+              return {
+                items: dto,
+                total,
+                page,
+                pageSize,
+                warning: "price_sort_fallback_newest",
+              };
+            }
+
             // Fail-soft for environments where DB migrations aren't fully applied yet
             // (missing columns like ward/street or missing relations like images).
             console.warn("public.properties.list falling back to minimal select", e);
@@ -331,6 +515,7 @@ const listPublicProperties: RequestHandler = async (req, res) => {
                   id: true,
                   title: true,
                   type: true,
+                  parkPlacement: true,
                   regionName: true,
                   district: true,
                   city: true,
@@ -362,11 +547,16 @@ const listPublicProperties: RequestHandler = async (req, res) => {
 
     // Add performance headers
     res.set('X-Response-Time', `${duration.toFixed(2)}ms`);
-    res.set('Cache-Control', 'public, max-age=300'); // HTTP cache for 5 minutes
+    // Avoid HTTP-level caching so newly approved/linked properties appear immediately.
+    // Redis caching (withCache) still provides performance benefits.
+    res.set('Cache-Control', 'no-store');
     
     return res.json(result);
   } catch (err: any) {
     console.error("public.properties.list failed", err);
+    if (err instanceof Prisma.PrismaClientKnownRequestError && (err.code === "P2021" || err.code === "P2022")) {
+      return res.json({ items: [], total: 0, page, pageSize, warning: "db_not_migrated" });
+    }
     return res.status(500).json({ error: "failed", message: err?.message || String(err) });
   }
 };
@@ -442,7 +632,9 @@ const getPublicProperty: RequestHandler = async (req, res) => {
 
     // Add performance headers
     res.set('X-Response-Time', `${duration.toFixed(2)}ms`);
-    res.set('Cache-Control', 'public, max-age=600'); // HTTP cache for 10 minutes
+    // Avoid HTTP-level caching so updated property details appear immediately.
+    // Redis caching (withCache) still provides performance benefits.
+    res.set('Cache-Control', 'no-store');
     
     return res.json(result);
   } catch (err: any) {

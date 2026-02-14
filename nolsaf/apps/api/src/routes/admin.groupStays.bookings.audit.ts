@@ -118,7 +118,12 @@ router.post("/:id/message", async (req: any, res) => {
   try {
     const bookingId = Number(req.params.id);
     const { message } = req.body;
-    const adminId = req.user!.id;
+    const adminUser = req.user;
+    const adminRole = String((adminUser as any)?.role ?? "").toUpperCase();
+    if (!adminUser || typeof adminUser.id !== "number" || !Number.isFinite(adminUser.id) || adminUser.id <= 0 || adminRole !== "ADMIN") {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    const adminId = adminUser.id;
 
     if (!bookingId || isNaN(bookingId)) {
       return res.status(400).json({ error: "Invalid booking ID" });

@@ -340,7 +340,7 @@ export default function AdminHome() {
     <div className="space-y-6">
       <ConfirmModal open={confirmOpen} title={confirmPayload?.action === 'validate' ? 'Confirm validation' : 'Confirm verification'} onConfirm={handleConfirm} onCancel={() => { setConfirmOpen(false); setConfirmPayload(null); }} />
       <AdminPageHeader
-        title="Admin Dashboard"
+        title="Owners Control Dashboard"
         icon={<LayoutDashboard className="h-8 w-8" />}
         actions={<div className="flex items-center gap-2"><div className="text-sm text-gray-600"> </div></div>} />
 

@@ -2,8 +2,9 @@
 
 import React, { useEffect, useState, useRef } from "react";
 import { io, Socket } from "socket.io-client";
-import { Send, Phone, MessageCircle, Loader2 } from "lucide-react";
+import { Send, Phone, MessageCircle } from "lucide-react";
 import axios from "axios";
+import LogoSpinner from "@/components/LogoSpinner";
 
 interface Message {
   id: number;
@@ -165,7 +166,7 @@ export default function TransportChat({
   if (loading) {
     return (
       <div className={`flex items-center justify-center p-8 ${className}`}>
-        <Loader2 className="w-6 h-6 animate-spin text-[#02665e]" />
+        <LogoSpinner size="sm" ariaLabel="Loading messages" />
       </div>
     );
   }
@@ -260,7 +261,7 @@ export default function TransportChat({
             className="p-2.5 rounded-xl bg-[#02665e] text-white hover:bg-[#014e47] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {sending ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
+              <LogoSpinner size="sm" ariaLabel="Sending message" />
             ) : (
               <Send className="w-5 h-5" />
             )}

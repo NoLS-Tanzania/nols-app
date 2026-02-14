@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Camera, FileCheck2, X } from "lucide-react";
+import { Camera, FileCheck2, Loader2, Wifi, WifiOff, X } from "lucide-react";
 import Support from "@/components/Support";
 import axios from "axios";
 import { useRouter } from "next/navigation";
@@ -23,6 +23,7 @@ export default function CheckinValidation() {
   const [resultMsg, setResultMsg] = useState<string | null>(null);
   const [preview, setPreview] = useState<Preview>(null);
   const [loading, setLoading] = useState(false);
+  const [isConnected, setIsConnected] = useState<boolean | null>(null);
   const [searching, setSearching] = useState(false);
   const [contactSuggest, setContactSuggest] = useState(false);
   const searchingRef = useRef<number | null>(null);
@@ -307,248 +308,369 @@ export default function CheckinValidation() {
     return () => { mounted = false; };
   }, []);
 
+  // Connectivity indicator (for premium clients): reflects whether the API is reachable.
+  useEffect(() => {
+    let mounted = true;
+    let timer: number | null = null;
+
+    const ping = async () => {
+      try {
+        const r = await fetch('/api/health', { method: 'GET', credentials: 'include' });
+        if (!mounted) return;
+        setIsConnected(r.ok);
+      } catch {
+        if (!mounted) return;
+        setIsConnected(false);
+      }
+    };
+
+    ping();
+    timer = window.setInterval(ping, 15000);
+
+    return () => {
+      mounted = false;
+      if (timer) window.clearInterval(timer);
+    };
+  }, []);
+
+  const formatDateTime = (dateStr: string) => {
+    try {
+      return new Date(dateStr).toLocaleString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const formatTZS = (value: string | number) => {
+    const n = typeof value === 'number' ? value : Number(String(value).replace(/,/g, ''));
+    if (!Number.isFinite(n)) return `TZS ${value}`;
+    return new Intl.NumberFormat('en-TZ', {
+      style: 'currency',
+      currency: 'TZS',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(n);
+  };
+
   return (
     <div className="w-full overflow-x-hidden">
-      <div className="relative w-full rounded-[28px] border border-slate-200/70 bg-gradient-to-br from-white via-emerald-50/30 to-slate-50 p-3 sm:p-6 lg:p-8 shadow-sm ring-1 ring-black/5 nols-entrance">
-      <div className="w-full max-w-5xl mx-auto space-y-5 sm:space-y-6">
-        {/* Header */}
-        <div className="text-center space-y-2 nols-entrance nols-delay-1">
-          <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight text-slate-900">
-            Check-in Validation
-          </h1>
-          <p className="text-slate-600 text-sm sm:text-base">
-            Scan the receipt QR or enter the booking code to validate a guest check-in.
-          </p>
-        </div>
-
-        {/* Validation card */}
-        <div className="bg-white/90 backdrop-blur border border-slate-200 rounded-3xl shadow-sm p-5 sm:p-6 w-full space-y-4 transition-all duration-300 hover:shadow-md nols-entrance nols-delay-2">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <div className="text-sm font-semibold text-slate-900">Validate guest</div>
-                <div className="text-xs text-slate-500 mt-0.5">Paste code, type it, or scan QR</div>
+      <div className="relative w-full rounded-[28px] border border-slate-200/70 bg-gradient-to-br from-white via-emerald-50/25 to-slate-50 p-3 sm:p-6 lg:p-8 shadow-sm ring-1 ring-black/5 nols-entrance">
+        <div className="w-full max-w-7xl mx-auto space-y-6 sm:space-y-7">
+          {/* Header */}
+          <div className="nols-entrance nols-delay-1">
+            <div className="flex flex-col items-center text-center gap-2">
+              <div className="h-12 w-12 rounded-3xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center shadow-sm ring-1 ring-black/10">
+                <FileCheck2 className="h-6 w-6 text-white" aria-hidden />
               </div>
-              <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-700">
-                Secure
-              </span>
-            </div>
-
-          {/* Code input */}
-          <div className="w-full space-y-2 max-w-xl mx-auto">
-            <label className="block text-sm font-semibold text-slate-800">
-              Check-in Code
-            </label>
-            <div className="w-full flex items-stretch gap-2">
-              <input
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                onPaste={(e) => {
-                  const pasted = e.clipboardData?.getData("text") ?? "";
-                  if (pasted) {
-                    const normalized = normalizeScanValue(pasted);
-                    setCode(normalized);
-                    validate(normalized);
-                  }
-                }}
-                className="flex-1 px-4 py-3 text-base font-mono tracking-wider border border-slate-300 rounded-2xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all duration-200 placeholder:text-slate-400 bg-white text-center shadow-sm"
-                placeholder="Enter check-in code"
-                autoFocus
-              />
-              <button
-                type="button"
-                onClick={() => { setScanOpen(true); setScanError(null); }}
-                className="shrink-0 inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-3 hover:bg-slate-50 transition-colors shadow-sm"
-                aria-label="Scan QR code"
-                title="Scan QR code"
-              >
-                <Camera className="h-5 w-5 text-slate-700" aria-hidden />
-              </button>
-            </div>
-            <div className="text-[12px] text-slate-500 text-center">
-              Tip: QR scanning may require a supported browser (Chrome/Edge mobile).
-            </div>
-          </div>
-
-          {/* Loading and status indicators */}
-          <div className="flex items-center justify-center min-h-[2rem]">
-            {loading && (
-              <div className="flex items-center gap-2 text-sm text-slate-600">
-                <div className="flex gap-1.5">
-                  <div className="h-2 w-2 rounded-full bg-blue-500 animate-bounce [animation-delay:-0.3s]" />
-                  <div className="h-2 w-2 rounded-full bg-blue-500 animate-bounce [animation-delay:-0.15s]" />
-                  <div className="h-2 w-2 rounded-full bg-blue-500 animate-bounce" />
-                </div>
-                <span>
-                  {searching ? "Still searching…" : attempting ? "Checking…" : "Validating…"}
+              <div className="min-w-0">
+                <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight text-slate-900">
+                  Check-in Validation
+                </h1>
+                <p className="mt-1 text-slate-600 text-sm sm:text-base">
+                  Scan the receipt QR or enter the booking code to validate a guest check-in.
+                </p>
+              </div>
+              <div className="mt-2 flex items-center justify-center gap-2">
+                <span className="inline-flex items-center rounded-full border border-slate-200/80 bg-white/70 px-3 py-1 text-[11px] font-semibold text-slate-700 shadow-sm ring-1 ring-black/5">
+                  Owner tool
+                </span>
+                <span className="inline-flex items-center rounded-full border border-emerald-200/80 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700 ring-1 ring-black/5">
+                  Secure
                 </span>
               </div>
-            )}
-
-            {contactSuggest && !loading && (
-              <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                This is taking unusually long. If it still does not return a result, please contact support below.
-              </div>
-            )}
+            </div>
           </div>
 
-          {/* Error message */}
-          {resultMsg && !preview && (
-            <div className="w-full" role="alert" aria-live="polite">
-              <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-                <div className="flex items-start gap-2">
-                  <span className="inline-flex h-2 w-2 rounded-full bg-red-500 mt-1.5 flex-shrink-0" />
-                  <p className="text-sm text-red-700">
-                    {resultMsg.includes("Network error")
-                      ? "Check your internet connection or contact the NoLSAF team for assistance."
-                      : resultMsg}
-                  </p>
+          {/* Main layout: Validate (left) + Result (right) */}
+          <div className="grid grid-cols-1 xl:grid-cols-[420px_minmax(0,1fr)] gap-4 sm:gap-6 nols-entrance nols-delay-2">
+            {/* Validation */}
+            <div>
+              <div className="bg-white/90 backdrop-blur border border-slate-200/80 rounded-3xl shadow-sm ring-1 ring-black/5 p-5 sm:p-6 w-full space-y-4 transition-all duration-300 hover:shadow-md">
+                <div className="flex flex-col items-center text-center gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-900">Validate guest</div>
+                    <div className="text-xs text-slate-500 mt-0.5">Paste code, type it, or scan QR</div>
+                  </div>
+                  <div
+                    className={
+                      isConnected
+                        ? "inline-flex items-center gap-2 rounded-2xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50 to-white px-3 py-2 text-emerald-800 ring-1 ring-emerald-500/10"
+                        : isConnected === false
+                          ? "inline-flex items-center gap-2 rounded-2xl border border-slate-200/80 bg-gradient-to-br from-slate-50 to-white px-3 py-2 text-slate-700 ring-1 ring-black/5"
+                          : "inline-flex items-center gap-2 rounded-2xl border border-slate-200/80 bg-gradient-to-br from-slate-50 to-white px-3 py-2 text-slate-700 ring-1 ring-black/5"
+                    }
+                    aria-live="polite"
+                    title={isConnected ? "API reachable" : isConnected === false ? "API not reachable" : "Checking API"}
+                  >
+                    <span
+                      className={
+                        isConnected
+                          ? "inline-flex h-7 w-7 items-center justify-center rounded-xl bg-white ring-1 ring-emerald-500/10"
+                          : "inline-flex h-7 w-7 items-center justify-center rounded-xl bg-white ring-1 ring-black/5"
+                      }
+                      aria-hidden
+                    >
+                      {isConnected ? (
+                        <Wifi className="h-4 w-4 text-emerald-700" />
+                      ) : isConnected === false ? (
+                        <WifiOff className="h-4 w-4 text-slate-600" />
+                      ) : (
+                        <Loader2 className="h-4 w-4 text-slate-600 animate-spin" />
+                      )}
+                    </span>
+                    <div className="leading-tight text-left">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={
+                            isConnected
+                              ? "h-1.5 w-1.5 rounded-full bg-emerald-500"
+                              : isConnected === false
+                                ? "h-1.5 w-1.5 rounded-full bg-slate-400"
+                                : "h-1.5 w-1.5 rounded-full bg-slate-300"
+                          }
+                        />
+                        <span className="text-[11px] font-semibold">
+                          {isConnected ? "Online" : isConnected === false ? "Offline" : "Checking"}
+                        </span>
+                      </div>
+                      <div className={isConnected ? "text-[10px] text-emerald-700/80" : "text-[10px] text-slate-500"}>
+                        {isConnected ? "Live connection" : isConnected === false ? "No server link" : "Verifying"}
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
-                {resultMsg.includes("Network error") && (
-                  <div className="mt-3 pt-3 border-t border-red-200">
-                    <p className="text-xs font-medium text-red-600 mb-2">Get Help:</p>
-                    <div className="flex flex-col gap-2">
-                      <a
-                        href={`mailto:${supportEmail}`}
-                        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-red-200 bg-white text-sm text-red-700 hover:bg-red-50 transition-colors"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                        </svg>
-                        {supportEmail}
-                      </a>
-                      <a
-                        href={`tel:${supportPhone.replace(/\s+/g, '')}`}
-                        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-red-200 bg-white text-sm text-red-700 hover:bg-red-50 transition-colors"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                        </svg>
-                        {supportPhone}
-                      </a>
+                {/* Code input */}
+                <div className="w-full space-y-2">
+                  <label className="block text-sm font-semibold text-slate-800">
+                    Check-in Code
+                  </label>
+                  <div className="w-full flex items-stretch gap-2">
+                    <input
+                      value={code}
+                      onChange={(e) => setCode(e.target.value)}
+                      onPaste={(e) => {
+                        const pasted = e.clipboardData?.getData("text") ?? "";
+                        if (pasted) {
+                          const normalized = normalizeScanValue(pasted);
+                          setCode(normalized);
+                          validate(normalized);
+                        }
+                      }}
+                      className="flex-1 px-4 py-3 text-base font-mono tracking-[0.2em] uppercase border border-slate-300 rounded-2xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all duration-200 placeholder:text-slate-400 bg-white text-center shadow-sm"
+                      placeholder="Enter check-in code"
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setScanOpen(true);
+                        setScanError(null);
+                      }}
+                      className="shrink-0 inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-3 hover:bg-slate-50 transition-colors shadow-sm ring-1 ring-black/5"
+                      aria-label="Scan QR code"
+                      title="Scan QR code"
+                    >
+                      <Camera className="h-5 w-5 text-slate-700" aria-hidden />
+                    </button>
+                  </div>
+                  <div className="text-[12px] text-slate-500">
+                    Tip: QR scanning may require a supported browser (Chrome/Edge mobile).
+                  </div>
+                </div>
+
+                {/* Loading and status indicators */}
+                <div className="flex items-center justify-center min-h-[2rem]">
+                  {loading && (
+                    <div className="flex items-center gap-2 text-sm text-slate-600">
+                      <div className="flex gap-1.5">
+                        <div className="h-2 w-2 rounded-full bg-emerald-500 animate-bounce [animation-delay:-0.3s]" />
+                        <div className="h-2 w-2 rounded-full bg-emerald-500 animate-bounce [animation-delay:-0.15s]" />
+                        <div className="h-2 w-2 rounded-full bg-emerald-500 animate-bounce" />
+                      </div>
+                      <span>{searching ? "Still searching…" : attempting ? "Checking…" : "Validating…"}</span>
                     </div>
+                  )}
+
+                  {contactSuggest && !loading && (
+                    <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+                      This is taking unusually long. If it still does not return a result, please contact support below.
+                    </div>
+                  )}
+                </div>
+
+                {/* Error message */}
+                {resultMsg && !preview && (
+                  <div className="w-full" role="alert" aria-live="polite">
+                    <div className="rounded-2xl border border-red-200 bg-red-50 p-4 ring-1 ring-black/5">
+                      <div className="flex items-start gap-2">
+                        <span className="inline-flex h-2 w-2 rounded-full bg-red-500 mt-1.5 flex-shrink-0" />
+                        <p className="text-sm text-red-700">
+                          {resultMsg.includes("Network error")
+                            ? "Check your internet connection or contact the NoLSAF team for assistance."
+                            : resultMsg}
+                        </p>
+                      </div>
+
+                      {resultMsg.includes("Network error") && (
+                        <div className="mt-3 pt-3 border-t border-red-200">
+                          <p className="text-xs font-medium text-red-600 mb-2">Get Help:</p>
+                          <div className="flex flex-col gap-2">
+                            <a
+                              href={`mailto:${supportEmail}`}
+                              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-red-200 bg-white text-sm text-red-700 hover:bg-red-50 transition-colors"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                                />
+                              </svg>
+                              {supportEmail}
+                            </a>
+                            <a
+                              href={`tel:${supportPhone.replace(/\s+/g, "")}`}
+                              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-red-200 bg-white text-sm text-red-700 hover:bg-red-50 transition-colors"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
+                                />
+                              </svg>
+                              {supportPhone}
+                            </a>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {contactSuggest && (
+                  <div className="space-y-3">
+                    <Support compact />
+                    <button
+                      onClick={() => validate(code)}
+                      className="w-full px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold transition-colors ring-1 ring-black/5"
+                    >
+                      Retry Validation
+                    </button>
                   </div>
                 )}
               </div>
             </div>
-          )}
 
-          {contactSuggest && (
-            <div className="space-y-3">
-              <Support compact />
-              <button
-                onClick={() => validate(code)}
-                className="w-full px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium transition-colors"
-              >
-                Retry Validation
-              </button>
-            </div>
-          )}
-        </div>
+            {/* Result / Preview (shown only after a successful validation) */}
+            {preview ? (
+              <div>
+                <div className="xl:sticky xl:top-6">
+                  <div className="bg-white/90 backdrop-blur border border-slate-200/80 rounded-3xl shadow-sm ring-1 ring-black/5 p-5 sm:p-6 w-full transition-all duration-300 hover:shadow-md">
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                      <div className="flex items-start gap-3 min-w-0">
+                        <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center shadow-sm">
+                          <FileCheck2 className="h-5 w-5 text-white" aria-hidden />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-xs text-slate-500">Validated result</div>
+                          <div className="text-2xl font-bold text-slate-900 truncate">{preview.personal.fullName}</div>
+                          <div className="text-sm text-slate-600 truncate">
+                            {preview.property.title} • {preview.property.type}
+                          </div>
+                        </div>
+                      </div>
+                      <span className="inline-flex w-fit items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                        {preview.booking.status}
+                      </span>
+                    </div>
 
-        {/* Preview (below validation card) */}
-        {preview ? (
-          <div className="bg-white/90 backdrop-blur border border-slate-200 rounded-3xl shadow-sm p-5 sm:p-6 w-full transition-all duration-300 hover:shadow-md nols-entrance nols-delay-3">
-            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-              <div className="flex items-start gap-3 min-w-0">
-                <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center shadow-sm">
-                  <FileCheck2 className="h-5 w-5 text-white" aria-hidden />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-xs text-slate-500">Booking preview</div>
-                  <div className="text-2xl font-bold text-slate-900 truncate">{preview.personal.fullName}</div>
-                  <div className="text-sm text-slate-600 truncate">{preview.property.title} • {preview.property.type}</div>
-                </div>
-              </div>
-              <span className="inline-flex w-fit items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                {preview.booking.status}
-              </span>
-            </div>
+                    <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <InfoTile label="Booking ID" value={String(preview.bookingId)} />
+                      <InfoTile label="Property ID" value={String(preview.property.id)} />
+                    </div>
 
-            <div className="mt-5 grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-sm transition-all duration-300 hover:shadow-md hover:-translate-y-0.5">
-                <div className="px-4 py-3 bg-gradient-to-r from-slate-50 to-white border-b border-slate-200">
-                  <div className="text-xs font-bold tracking-wide text-slate-700 uppercase">Personal details</div>
-                </div>
-                <div className="p-3 sm:p-4">
-                  {/* Mobile: 2-column tiles (Name + Phone first row). Desktop: 2-column as well. */}
-                  <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2 sm:gap-3">
-                    <InfoTile label="Full name" value={preview.personal.fullName} />
-                    <InfoTile label="Phone" value={preview.personal.phone} />
+                    <div className="mt-5 grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      <div className="rounded-2xl border border-slate-200/80 overflow-hidden bg-white shadow-sm ring-1 ring-black/5 transition-all duration-300 hover:shadow-md">
+                        <div className="px-4 py-3 bg-gradient-to-r from-slate-50 to-white border-b border-slate-200">
+                          <div className="text-xs font-bold tracking-wide text-slate-700 uppercase">Personal details</div>
+                        </div>
+                        <div className="p-3 sm:p-4">
+                          <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2 sm:gap-3">
+                            <InfoTile label="Full name" value={preview.personal.fullName} />
+                            <InfoTile label="Phone" value={preview.personal.phone} />
+                            <InfoTile label="Nationality" value={preview.personal.nationality} />
+                            <InfoTile label="Sex" value={preview.personal.sex} />
+                            <div className="min-[420px]:col-span-2">
+                              <InfoTile label="Age group" value={preview.personal.ageGroup} />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
 
-                    {/* Keep these as 2-col on small screens for a premium compact look */}
-                    <InfoTile label="Nationality" value={preview.personal.nationality} />
-                    <InfoTile label="Sex" value={preview.personal.sex} />
+                      <div className="rounded-2xl border border-slate-200/80 overflow-hidden bg-white shadow-sm ring-1 ring-black/5 transition-all duration-300 hover:shadow-md">
+                        <div className="px-4 py-3 bg-gradient-to-r from-slate-50 to-white border-b border-slate-200">
+                          <div className="text-xs font-bold tracking-wide text-slate-700 uppercase">Booking details</div>
+                        </div>
+                        <div className="p-3 sm:p-4">
+                          <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2 sm:gap-3">
+                            <InfoTile label="Room type" value={preview.booking.roomType} />
+                            <InfoTile label="Rooms" value={String(preview.booking.rooms)} />
+                            <InfoTile label="Nights" value={String(preview.booking.nights)} />
+                            <InfoTile label="Amount paid" value={formatTZS(preview.booking.totalAmount)} />
+                            <div className="min-[420px]:col-span-2">
+                              <InfoTile variant="checkin" label="Check-in" value={formatDateTime(preview.booking.checkIn)} />
+                            </div>
+                            <div className="min-[420px]:col-span-2">
+                              <InfoTile variant="checkout" label="Check-out" value={formatDateTime(preview.booking.checkOut)} />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
 
-                    {/* Last item spans full width to avoid awkward gaps */}
-                    <div className="min-[420px]:col-span-2">
-                      <InfoTile label="Age group" value={preview.personal.ageGroup} />
+                    <div className="mt-6 rounded-2xl border border-slate-200/80 bg-gradient-to-r from-white to-emerald-50/40 p-3 sm:p-4 shadow-sm ring-1 ring-black/5">
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <button
+                          onClick={() => {
+                            setConfirmOpen(true);
+                            setAgreeTerms(false);
+                            setAgreeDisbursement(false);
+                          }}
+                          disabled={loading}
+                          className="flex-1 px-4 py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-green-600 text-white text-sm font-semibold shadow-lg shadow-emerald-500/20 hover:shadow-xl hover:shadow-emerald-500/25 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 active:scale-[0.98]"
+                        >
+                          Confirm Check-in
+                        </button>
+                        <button
+                          onClick={() => {
+                            setPreview(null);
+                            setCode("");
+                            setResultMsg(null);
+                          }}
+                          className="px-4 py-3 rounded-2xl border border-slate-300 bg-white text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-all duration-200 active:scale-[0.98]"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                      <div className="mt-3 text-[12px] text-slate-600 text-center">
+                        Confirming will mark the booking code as <strong>USED</strong> and move this guest to <strong>Checked‑In</strong>.
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-
-              <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-sm transition-all duration-300 hover:shadow-md hover:-translate-y-0.5">
-                <div className="px-4 py-3 bg-gradient-to-r from-slate-50 to-white border-b border-slate-200">
-                  <div className="text-xs font-bold tracking-wide text-slate-700 uppercase">Booking details</div>
-                </div>
-                <div className="p-3 sm:p-4">
-                  <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2 sm:gap-3">
-                    <InfoTile label="Room type" value={preview.booking.roomType} />
-                    <InfoTile label="Rooms" value={String(preview.booking.rooms)} />
-                    <InfoTile label="Nights" value={String(preview.booking.nights)} />
-                    <InfoTile label="Amount paid" value={`TZS ${preview.booking.totalAmount}`} />
-
-                    {/* Dates are long: span full width on small screens */}
-                    <div className="min-[420px]:col-span-2">
-                      <InfoTile label="Check-in" value={new Date(preview.booking.checkIn).toLocaleString()} />
-                    </div>
-                    <div className="min-[420px]:col-span-2">
-                      <InfoTile label="Check-out" value={new Date(preview.booking.checkOut).toLocaleString()} />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-6 rounded-2xl border border-slate-200 bg-gradient-to-r from-white to-emerald-50/40 p-3 sm:p-4 shadow-sm">
-              <div className="flex flex-col sm:flex-row gap-3">
-                <button
-                  onClick={() => { setConfirmOpen(true); setAgreeTerms(false); setAgreeDisbursement(false); }}
-                  disabled={loading}
-                  className="flex-1 px-4 py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-green-600 text-white text-sm font-semibold shadow-lg shadow-emerald-500/20 hover:shadow-xl hover:shadow-emerald-500/25 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 hover:scale-[1.01] active:scale-[0.98]"
-                >
-                  Confirm Check-in
-                </button>
-                <button
-                  onClick={() => {
-                    setPreview(null);
-                    setCode("");
-                    setResultMsg(null);
-                  }}
-                  className="px-4 py-3 rounded-2xl border border-slate-300 bg-white text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-all duration-200 active:scale-[0.98]"
-                >
-                  Clear
-                </button>
-              </div>
-              <div className="mt-3 text-[12px] text-slate-600 text-center">
-                Confirming will mark the booking code as <strong>USED</strong> and move this guest to <strong>Checked‑In</strong>.
-              </div>
-            </div>
+            ) : null}
           </div>
-        ) : (
-          <div className="bg-white/70 backdrop-blur border border-slate-200 rounded-3xl shadow-sm p-5 sm:p-6 w-full transition-all duration-300 hover:shadow-md nols-entrance nols-delay-3">
-            <div className="text-center py-8 sm:py-10">
-              <div className="mx-auto h-12 w-12 rounded-2xl bg-slate-100 flex items-center justify-center">
-                <FileCheck2 className="h-6 w-6 text-slate-600" aria-hidden />
-              </div>
-              <div className="mt-4 text-lg font-semibold text-slate-900">Preview will appear here</div>
-              <div className="mt-1 text-sm text-slate-600 max-w-2xl mx-auto">
-                After a valid code/QR scan, you’ll see the guest details below, then you can confirm to move them to <strong>Checked-In</strong>.
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* QR Scan Modal */}
         {scanOpen && (
@@ -706,9 +828,24 @@ export default function CheckinValidation() {
   );
 }
 
-function InfoTile({ label, value }: { label: string; value: string }) {
+function InfoTile({
+  label,
+  value,
+  variant = 'default',
+}: {
+  label: string;
+  value: string;
+  variant?: 'default' | 'checkin' | 'checkout';
+}) {
+  const variantClass =
+    variant === 'checkin'
+      ? 'border-emerald-200/70 bg-gradient-to-br from-emerald-50/70 via-white to-white ring-emerald-500/10'
+      : variant === 'checkout'
+        ? 'border-sky-200/70 bg-gradient-to-br from-sky-50/70 via-white to-white ring-sky-500/10'
+        : 'border-slate-200/80 bg-white ring-black/5';
+
   return (
-    <div className="min-w-0 rounded-2xl border border-slate-200 bg-white px-3.5 py-3 shadow-sm transition-all duration-200 hover:shadow-md hover:border-slate-300">
+    <div className={`min-w-0 rounded-2xl border px-3.5 py-3 shadow-sm ring-1 transition-all duration-200 hover:shadow-md ${variantClass} hover:border-slate-300`}>
       <div className="text-[11px] font-bold tracking-wide text-slate-500 uppercase">{label}</div>
       <div className="mt-1 text-[13px] sm:text-[14px] font-semibold text-slate-900 leading-snug break-words">{value || "—"}</div>
     </div>

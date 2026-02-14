@@ -18,7 +18,11 @@ router.use(requireAuth as RequestHandler);
  */
 router.post("/:id/messages", (async (req: AuthedRequest, res: Response) => {
   try {
-    const user = req.user!;
+    const user = req.user;
+    if (!user || typeof user.id !== "number" || !Number.isFinite(user.id) || user.id <= 0) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
     const bookingId = Number(req.params.id);
     
     if (!Number.isFinite(bookingId)) {
@@ -176,7 +180,11 @@ router.post("/:id/messages", (async (req: AuthedRequest, res: Response) => {
  */
 router.get("/:id/messages", (async (req: AuthedRequest, res: Response) => {
   try {
-    const user = req.user!;
+    const user = req.user;
+    if (!user || typeof user.id !== "number" || !Number.isFinite(user.id) || user.id <= 0) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
     const bookingId = Number(req.params.id);
     const { page = "1", pageSize = "50", unreadOnly = "false" } = req.query as any;
 

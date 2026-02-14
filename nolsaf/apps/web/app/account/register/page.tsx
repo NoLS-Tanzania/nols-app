@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import axios from 'axios';
 import { AlertCircle, Check, UserPlus, Lock, LogIn, User, Truck, Building2, Mail, ArrowLeft, Phone, Eye, EyeOff, Shield } from 'lucide-react';
 import { useRouter, useSearchParams } from "next/navigation";
-import AuthPageFlip from "@/components/AuthPageFlip";
+import LogoSpinner from "@/components/LogoSpinner";
 
 export default function RegisterPage() {
   const searchParams = useSearchParams();
@@ -237,44 +237,32 @@ export default function RegisterPage() {
     return () => clearTimeout(t);
   }, [step]);
 
-  const handlePageChange = (page: number) => {
-    if (page === 0) setAuthMode('register');
-    else if (page === 1) setAuthMode('login');
-    else setAuthMode('forgot');
-  };
-
-  const getCurrentPage = () => {
-    if (authMode === 'register') return 0;
-    if (authMode === 'login') return 1;
-    return 2;
-  };
-
   // Register Page
   const renderRegisterPage = () => {
     return (
-      <div className="w-full h-full min-h-0 flex flex-col bg-white relative box-border">
-        <div className="shrink-0 bg-white">
+      <div className="w-full flex flex-col bg-slate-950 relative box-border">
+        <div className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur border-b border-slate-800">
           <div className="h-1 bg-[#02665e]" />
           
-          <div className="px-6 py-4 border-b border-slate-100">
+          <div className="px-6 py-4 border-b border-slate-800">
             <div className="flex items-center gap-4">
               <div className="w-10 h-10 rounded-lg bg-[#02665e]/10 flex items-center justify-center">
                 <UserPlus className="w-5 h-5 text-[#02665e]" />
               </div>
               <div className="flex-1">
-                <h1 className="text-xl font-bold text-slate-900">Create Account</h1>
-                <p className="text-xs text-slate-600 mt-0.5">Sign up to get started</p>
+                <h1 className="text-xl font-bold text-slate-50">Create Account</h1>
+                <p className="text-xs text-slate-400 mt-0.5">Sign up to get started</p>
               </div>
               {step !== 'phone' && (
-                <div className="px-2.5 py-1 rounded-md bg-slate-100 text-xs font-medium text-slate-700">
+                <div className="px-2.5 py-1 rounded-md bg-slate-900 text-xs font-medium text-slate-200 border border-slate-800">
                   {step === 'otp' ? 'Step 2' : 'Done'}
                 </div>
               )}
             </div>
           </div>
 
-          <div className="px-6 py-2.5 bg-slate-50/50">
-            <div className="h-1 bg-slate-200 rounded-full overflow-hidden">
+          <div className="px-6 py-2.5 bg-slate-950">
+            <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
               <div 
                 className={`h-full bg-[#02665e] rounded-full transition-all duration-500 ${step === 'phone' ? 'w-1/3' : step === 'otp' ? 'w-2/3' : 'w-full'}`} 
               />
@@ -282,7 +270,7 @@ export default function RegisterPage() {
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-auto px-6 py-4">
+        <div className="px-6 py-4">
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2.5 text-sm text-red-800">
               <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
@@ -301,13 +289,13 @@ export default function RegisterPage() {
             {step === 'phone' && (
               <>
                 <div className="space-y-2.5 min-w-0">
-                  <label className="block text-sm font-semibold text-slate-900">Phone Number</label>
-                  <div className="relative flex items-center border-2 border-slate-200 rounded-xl overflow-hidden focus-within:border-[#02665e] focus-within:ring-2 focus-within:ring-[#02665e]/20 transition-all duration-200 shadow-sm hover:shadow-md w-full max-w-full box-border">
-                    <div className="flex items-center px-3 py-2.5 bg-gradient-to-b from-slate-50 to-slate-100 border-r-2 border-slate-200 relative flex-shrink-0">
+                  <label className="block text-sm font-semibold text-slate-200">Phone Number</label>
+                  <div className="relative flex items-center border-2 border-slate-800 rounded-xl overflow-hidden focus-within:border-[#02665e] focus-within:ring-2 focus-within:ring-[#02665e]/20 transition-all duration-200 shadow-sm hover:shadow-md w-full max-w-full box-border bg-slate-950">
+                    <div className="flex items-center px-3 py-2.5 bg-slate-900/50 border-r-2 border-slate-800 relative flex-shrink-0">
                       <select
                         value={countryCode}
                         onChange={(e) => setCountryCode(e.target.value)}
-                        className="country-code-select text-sm font-medium bg-transparent border-none focus:outline-none focus:ring-0 cursor-pointer text-slate-700 pr-0"
+                        className="country-code-select text-sm font-medium bg-transparent border-none focus:outline-none focus:ring-0 cursor-pointer text-slate-200 pr-0"
                       >
                         <option value="+255">+255</option>
                         <option value="+1">+1</option>
@@ -320,61 +308,63 @@ export default function RegisterPage() {
                       value={phone}
                       onChange={(e) => setPhone(e.target.value.replace(/[^0-9]/g, ''))}
                       placeholder="712345678"
-                      className="flex-1 min-w-0 px-4 py-2.5 text-sm font-medium focus:outline-none placeholder:text-slate-400 bg-white box-border"
+                      className="flex-1 min-w-0 px-4 py-2.5 text-sm font-medium focus:outline-none placeholder:text-slate-500 bg-transparent text-slate-100 box-border"
                     />
                   </div>
-                  <p className="text-xs text-slate-500 flex items-center gap-1.5">
+                  <p className="text-xs text-slate-400 flex items-center gap-1.5">
                     <span className="w-1 h-1 bg-slate-400 rounded-full flex-shrink-0" />
                     <span>We&apos;ll send you a verification code</span>
                   </p>
                 </div>
 
                 <div className="space-y-2.5">
-                  <label className="block text-sm font-medium text-slate-900">I am a</label>
+                  <label className="block text-sm font-medium text-slate-200">I am a</label>
                   <div className="grid grid-cols-3 gap-2.5">
                     <button
                       type="button"
                       onClick={() => setRole('traveller')}
-                      className={`p-3 rounded-lg border-2 transition-all flex flex-col items-center ${
+                      className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/20 ${
                         role === 'traveller'
-                          ? 'bg-blue-50 border-blue-300 text-blue-900'
-                          : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
+                          ? 'bg-blue-500/10 border-blue-500/30 text-blue-100'
+                          : 'bg-slate-950 border-slate-800 text-slate-200 hover:border-slate-700'
                       }`}
                     >
-                      <User className={`w-5 h-5 mb-1.5 ${role === 'traveller' ? 'text-blue-600' : 'text-slate-500'}`} />
-                      <div className="text-xs font-medium">Traveller</div>
+                      <User className={`w-5 h-5 mb-1.5 ${role === 'traveller' ? 'text-blue-300' : 'text-slate-400'}`} />
+                      <div className="text-xs font-semibold">Traveller</div>
                       {role === 'traveller' && (
-                        <Check className="w-3.5 h-3.5 mt-1.5 text-blue-600" />
+                        <Check className="w-3.5 h-3.5 mt-1.5 text-blue-300" />
                       )}
                     </button>
+
                     <button
                       type="button"
                       onClick={() => setRole('driver')}
-                      className={`p-3 rounded-lg border-2 transition-all flex flex-col items-center ${
+                      className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/20 ${
                         role === 'driver'
-                          ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
-                          : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
+                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-100'
+                          : 'bg-slate-950 border-slate-800 text-slate-200 hover:border-slate-700'
                       }`}
                     >
-                      <Truck className={`w-5 h-5 mb-1.5 ${role === 'driver' ? 'text-emerald-600' : 'text-slate-500'}`} />
-                      <div className="text-xs font-medium">Driver</div>
+                      <Truck className={`w-5 h-5 mb-1.5 ${role === 'driver' ? 'text-emerald-300' : 'text-slate-400'}`} />
+                      <div className="text-xs font-semibold">Driver</div>
                       {role === 'driver' && (
-                        <Check className="w-3.5 h-3.5 mt-1.5 text-emerald-600" />
+                        <Check className="w-3.5 h-3.5 mt-1.5 text-emerald-300" />
                       )}
                     </button>
+
                     <button
                       type="button"
                       onClick={() => setRole('owner')}
-                      className={`p-3 rounded-lg border-2 transition-all flex flex-col items-center ${
+                      className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/20 ${
                         role === 'owner'
-                          ? 'bg-amber-50 border-amber-300 text-amber-900'
-                          : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
+                          ? 'bg-amber-500/10 border-amber-500/30 text-amber-100'
+                          : 'bg-slate-950 border-slate-800 text-slate-200 hover:border-slate-700'
                       }`}
                     >
-                      <Building2 className={`w-5 h-5 mb-1.5 ${role === 'owner' ? 'text-amber-600' : 'text-slate-500'}`} />
-                      <div className="text-xs font-medium">Owner</div>
+                      <Building2 className={`w-5 h-5 mb-1.5 ${role === 'owner' ? 'text-amber-300' : 'text-slate-400'}`} />
+                      <div className="text-xs font-semibold">Owner</div>
                       {role === 'owner' && (
-                        <Check className="w-3.5 h-3.5 mt-1.5 text-amber-600" />
+                        <Check className="w-3.5 h-3.5 mt-1.5 text-amber-300" />
                       )}
                     </button>
                   </div>
@@ -387,10 +377,7 @@ export default function RegisterPage() {
                 >
                   {loading ? (
                     <>
-                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                      </svg>
+                      <LogoSpinner size="xs" ariaLabel="Sending" className="text-white/90" />
                       <span>Sending...</span>
                     </>
                   ) : (
@@ -403,7 +390,7 @@ export default function RegisterPage() {
             {step === 'otp' && (
               <>
                 <div className="space-y-2 min-w-0">
-                  <label className="block text-sm font-semibold text-slate-900">Enter OTP</label>
+                  <label className="block text-sm font-semibold text-slate-200">Enter OTP</label>
                   <input
                     type="text"
                     inputMode="numeric"
@@ -412,11 +399,11 @@ export default function RegisterPage() {
                     ref={otpRef}
                     placeholder="123456"
                     maxLength={6}
-                    className="w-full max-w-full px-4 py-3 text-xl tracking-widest text-center font-mono border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] box-border"
+                    className="w-full max-w-full px-4 py-3 text-xl tracking-widest text-center font-mono bg-slate-950 text-slate-100 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] box-border"
                   />
                 </div>
 
-                <div className="p-3 bg-white rounded-lg border-2 border-slate-200 hover:border-slate-300 transition-colors min-w-0">
+                <div className="p-3 bg-slate-950 rounded-xl border-2 border-slate-800 hover:border-slate-700 transition-colors min-w-0">
                   <label className="flex items-center gap-3 cursor-pointer min-w-0 group">
                     <div className="relative flex-shrink-0">
                       <input
@@ -428,20 +415,20 @@ export default function RegisterPage() {
                       <div className={`w-5 h-5 rounded border-2 transition-all duration-200 flex items-center justify-center ${
                         agreed 
                           ? 'bg-[#02665e] border-[#02665e] shadow-sm' 
-                          : 'bg-white border-slate-500 group-hover:border-[#02665e] shadow-sm ring-1 ring-slate-200'
+                          : 'bg-slate-950 border-slate-600 group-hover:border-[#02665e] shadow-sm ring-1 ring-slate-800'
                       }`}>
                         {agreed && (
                           <Check className="w-3.5 h-3.5 text-white" />
                         )}
                       </div>
                     </div>
-                    <span className="text-xs text-slate-700 leading-relaxed min-w-0 break-words flex-1">
+                    <span className="text-xs text-slate-300 leading-relaxed min-w-0 break-words flex-1">
                       I agree to the{' '}
                       <a 
                         href="/terms" 
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-[#02665e] hover:text-[#014e47] hover:underline font-semibold transition-colors"
+                        className="text-[#02665e] hover:underline font-semibold transition-colors"
                         onClick={(e) => e.stopPropagation()}
                       >
                         Terms and Conditions
@@ -480,19 +467,6 @@ export default function RegisterPage() {
           </div>
         </div>
 
-        <div className="shrink-0 px-6 py-3 border-t border-slate-100 bg-white">
-          <div className="flex items-center justify-center gap-2 text-xs sm:text-sm text-slate-600">
-            <span className="whitespace-nowrap">Already have an account?</span>
-            <button
-              type="button"
-              onClick={() => setAuthMode('login')}
-              className="whitespace-nowrap font-semibold text-[#02665e] hover:text-[#014e47] hover:underline transition-colors inline-flex items-center gap-1"
-            >
-              <span>Sign in</span>
-              <LogIn className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
       </div>
     );
   };
@@ -500,35 +474,35 @@ export default function RegisterPage() {
   // Login Page
   const renderLoginPage = () => {
     return (
-      <div className="w-full h-full min-h-0 flex flex-col bg-white relative box-border">
+      <div className="w-full flex flex-col bg-slate-950 relative box-border">
         {/* subtle background decoration */}
         <div className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full bg-[#02665e]/10 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-32 -left-32 h-80 w-80 rounded-full bg-slate-900/5 blur-3xl" />
-        <div className="shrink-0 bg-white">
+        <div className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur border-b border-slate-800">
           <div className="h-1 bg-[#02665e]" />
           
-          <div className="px-6 py-5 border-b border-slate-100">
+          <div className="px-6 py-5 border-b border-slate-800">
             <div className="flex items-center gap-4">
               <div className="w-10 h-10 rounded-lg bg-[#02665e]/10 flex items-center justify-center">
                 <LogIn className="w-5 h-5 text-[#02665e]" />
               </div>
               <div className="flex-1">
-                <h1 className="text-xl font-bold text-slate-900">Sign In</h1>
+                <h1 className="text-xl font-bold text-slate-50">Sign In</h1>
               </div>
               {loginSent && (
-                <div className="px-2.5 py-1 rounded-md bg-slate-100 text-xs font-medium text-slate-700">
+                <div className="px-2.5 py-1 rounded-md bg-slate-900 text-xs font-medium text-slate-200 border border-slate-800">
                   Enter OTP
                 </div>
               )}
             </div>
 
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 text-emerald-800 px-2.5 py-1 text-[11px] font-semibold border border-emerald-100">
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 text-emerald-200 px-2.5 py-1 text-[11px] font-semibold border border-emerald-500/20">
                 <Shield className="h-3.5 w-3.5" />
                 <span>Secure sign-in</span>
               </div>
               {!!roleParam && (
-                <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 text-slate-700 px-2.5 py-1 text-[11px] font-semibold border border-slate-200">
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-900/60 text-slate-200 px-2.5 py-1 text-[11px] font-semibold border border-slate-800">
                   {roleParam === 'driver' ? (
                     <Truck className="h-3.5 w-3.5" />
                   ) : roleParam === 'owner' ? (
@@ -539,12 +513,12 @@ export default function RegisterPage() {
                   <span className="capitalize">{roleParam}</span>
                 </div>
               )}
-              <div className="text-[11px] text-slate-500">We never share your details.</div>
+              <div className="text-[11px] text-slate-400">We never share your details.</div>
             </div>
           </div>
 
-          <div className="px-6 py-3 bg-slate-50/50">
-            <div className="h-1 bg-slate-200 rounded-full overflow-hidden">
+          <div className="px-6 py-3 bg-slate-950">
+            <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
               <div 
                 className={`h-full bg-[#02665e] rounded-full transition-all duration-500 ${loginSent ? 'w-2/3' : 'w-1/3'}`} 
               />
@@ -552,7 +526,7 @@ export default function RegisterPage() {
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-auto px-6 py-5 min-w-0">
+        <div className="px-6 py-5 min-w-0">
           {isLockedOut && (
             <div className="mb-4 rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 to-white p-4">
               <div className="flex items-start gap-3">
@@ -560,7 +534,7 @@ export default function RegisterPage() {
                   <Lock className="w-5 h-5 text-amber-700" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-slate-900">Account temporarily locked</div>
+                  <div className="text-sm font-semibold text-slate-50">Account temporarily locked</div>
                   <div className="mt-1 text-xs text-slate-700 leading-relaxed">
                     {lockoutMessage ?? 'Too many failed login attempts. Please wait before trying again.'}
                   </div>
@@ -602,7 +576,7 @@ export default function RegisterPage() {
           <div className={`space-y-4 transition-opacity duration-300 min-w-0 ${visible ? 'opacity-100' : 'opacity-0'}`}>
             {!loginSent ? (
               <>
-                <div className="flex gap-2 p-1 bg-slate-100 rounded-lg">
+                <div className="flex gap-1.5 p-1.5 bg-slate-900/60 ring-1 ring-slate-800 rounded-xl">
                   <button
                     type="button"
                     onClick={() => {
@@ -611,10 +585,10 @@ export default function RegisterPage() {
                       setLoginMethod('phone');
                     }}
                     disabled={isLockedOut}
-                    className={`flex-1 px-3 py-2 text-xs font-medium rounded-md transition-colors ${
+                    className={`flex-1 px-3 py-2 text-xs font-semibold rounded-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/20 ${
                       loginMethod === 'phone'
-                        ? 'bg-[#02665e] text-white'
-                        : 'text-slate-600 hover:text-slate-900'
+                        ? 'bg-[#02665e] text-white shadow-sm'
+                        : 'bg-slate-950 text-slate-200 hover:text-slate-50 border border-slate-800'
                     }`}
                   >
                     Phone
@@ -627,10 +601,10 @@ export default function RegisterPage() {
                       setLoginMethod('credentials');
                     }}
                     disabled={isLockedOut}
-                    className={`flex-1 px-3 py-2 text-xs font-medium rounded-md transition-colors ${
+                    className={`flex-1 px-3 py-2 text-xs font-semibold rounded-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/20 ${
                       loginMethod === 'credentials'
-                        ? 'bg-[#02665e] text-white'
-                        : 'text-slate-600 hover:text-slate-900'
+                        ? 'bg-[#02665e] text-white shadow-sm'
+                        : 'bg-slate-950 text-slate-200 hover:text-slate-50 border border-slate-800'
                     }`}
                   >
                     Email
@@ -640,17 +614,17 @@ export default function RegisterPage() {
                 {loginMethod === 'phone' ? (
                   <>
                     <div className="space-y-2.5 min-w-0">
-                      <label className="block text-sm font-semibold text-slate-900">Phone Number</label>
+                      <label className="block text-sm font-semibold text-slate-200">Phone Number</label>
                       <div className="relative w-full">
                         <input
                           type="tel"
                           value={loginPhone}
                           onChange={(e) => setLoginPhone(e.target.value.replace(/[^0-9]/g, ''))}
                           placeholder="712345678"
-                          className="w-full max-w-full px-4 py-2.5 text-sm font-medium border-2 border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] transition-all duration-200 shadow-sm hover:shadow-md placeholder:text-slate-400 box-border"
+                          className="w-full max-w-full px-4 py-2.5 text-sm font-medium bg-slate-950 text-slate-100 border-2 border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] transition-all duration-200 shadow-sm hover:shadow-md placeholder:text-slate-500 box-border"
                         />
                       </div>
-                      <p className="text-xs text-slate-500 flex items-center gap-1.5">
+                      <p className="text-xs text-slate-400 flex items-center gap-1.5">
                         <span className="w-1 h-1 bg-slate-400 rounded-full flex-shrink-0" />
                         <span>We&apos;ll send you a verification code</span>
                       </p>
@@ -683,18 +657,18 @@ export default function RegisterPage() {
                   <>
                     <div className="space-y-3 min-w-0">
                       <div className="space-y-2 min-w-0">
-                        <label className="block text-sm font-semibold text-slate-900">Email</label>
+                        <label className="block text-sm font-semibold text-slate-200">Email</label>
                         <input
                           type="email"
                           value={loginIdentifier}
                           onChange={(e) => setLoginIdentifier(e.target.value)}
                           placeholder="you@example.com"
                           disabled={isLockedOut}
-                          className="w-full max-w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] box-border"
+                          className="w-full max-w-full px-4 py-2.5 text-sm font-medium bg-slate-950 text-slate-100 border-2 border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] transition-all duration-200 shadow-sm hover:shadow-md placeholder:text-slate-500 box-border"
                         />
                       </div>
                       <div className="space-y-2 min-w-0">
-                        <label className="block text-sm font-semibold text-slate-900">Password</label>
+                        <label className="block text-sm font-semibold text-slate-200">Password</label>
                         <div className="relative">
                           <input
                             type={showPassword ? 'text' : 'password'}
@@ -702,13 +676,13 @@ export default function RegisterPage() {
                             onChange={(e) => setLoginPassword(e.target.value)}
                             placeholder="••••••••"
                             disabled={isLockedOut}
-                            className="w-full max-w-full px-3 pr-10 py-2.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] box-border"
+                            className="w-full max-w-full px-4 pr-11 py-2.5 text-sm font-medium bg-slate-950 text-slate-100 border-2 border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] transition-all duration-200 shadow-sm hover:shadow-md placeholder:text-slate-500 box-border"
                           />
                           <button
                             type="button"
                             onClick={() => setShowPassword(!showPassword)}
                             disabled={isLockedOut}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors focus:outline-none border-none bg-transparent p-0"
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/20 rounded-md border-none bg-transparent p-1"
                             aria-label={showPassword ? 'Hide password' : 'Show password'}
                           >
                             {showPassword ? (
@@ -781,10 +755,10 @@ export default function RegisterPage() {
                   </>
                 )}
 
-                <button
+                  <button
                   type="button"
                   onClick={() => setAuthMode('forgot')}
-                  className="w-full text-xs text-[#02665e] hover:underline flex items-center justify-center gap-1.5"
+                    className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-slate-800 bg-slate-900/40 py-2.5 text-xs font-semibold text-slate-200 hover:bg-slate-900/60 transition-colors"
                 >
                   <Lock className="w-3.5 h-3.5 flex-shrink-0" />
                   <span>Forgot password?</span>
@@ -793,7 +767,7 @@ export default function RegisterPage() {
             ) : (
               <>
                 <div className="space-y-2 min-w-0">
-                  <label className="block text-sm font-semibold text-slate-900">Enter OTP</label>
+                  <label className="block text-sm font-semibold text-slate-200">Enter OTP</label>
                   <input
                     type="text"
                     inputMode="numeric"
@@ -801,13 +775,13 @@ export default function RegisterPage() {
                     onChange={(e) => setLoginOtp(e.target.value.replace(/[^0-9]/g, ''))}
                     placeholder="123456"
                     maxLength={6}
-                    className="w-full max-w-full px-4 py-3 text-lg tracking-widest text-center font-mono border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] box-border"
+                    className="w-full max-w-full px-4 py-3 text-lg tracking-widest text-center font-mono bg-slate-950 text-slate-100 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] box-border"
                   />
                 </div>
                 <div className="flex items-center gap-3 min-w-0">
                   <button
                     onClick={() => setLoginSent(false)}
-                    className="flex-1 min-w-0 px-3 py-2 text-sm text-slate-600 hover:text-slate-900 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors box-border"
+                    className="flex-1 min-w-0 px-3 py-2 text-sm font-semibold text-slate-200 border border-slate-800 rounded-xl hover:bg-slate-900/40 transition-colors box-border"
                   >
                     Edit phone
                   </button>
@@ -842,21 +816,48 @@ export default function RegisterPage() {
           </div>
         </div>
 
-        <div className="shrink-0 px-6 py-4 border-t border-slate-100 bg-white">
-          <div className="flex items-center justify-center gap-2 text-xs sm:text-sm text-slate-600">
+      </div>
+    );
+  };
+
+  const renderModeToggleFooter = () => {
+    if (authMode === 'register') {
+      return (
+        <div className="shrink-0 px-6 py-3 border-t border-slate-800 bg-slate-950/90 backdrop-blur">
+          <div className="flex items-center justify-center gap-2 text-xs sm:text-sm text-slate-300">
+            <span className="whitespace-nowrap">Already have an account?</span>
+            <button
+              type="button"
+              onClick={() => setAuthMode('login')}
+              className="whitespace-nowrap font-semibold text-[#02665e] hover:underline transition-colors inline-flex items-center gap-1"
+            >
+              <span>Sign in</span>
+              <LogIn className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    if (authMode === 'login') {
+      return (
+        <div className="shrink-0 px-6 py-3 border-t border-slate-800 bg-slate-950/90 backdrop-blur">
+          <div className="flex items-center justify-center gap-2 text-xs sm:text-sm text-slate-300">
             <span className="whitespace-nowrap">Don&apos;t have an account?</span>
             <button
               type="button"
               onClick={() => setAuthMode('register')}
-              className="whitespace-nowrap font-semibold text-[#02665e] hover:text-[#014e47] hover:underline transition-colors inline-flex items-center gap-1"
+              className="whitespace-nowrap font-semibold text-[#02665e] hover:underline transition-colors inline-flex items-center gap-1"
             >
               <span>Register</span>
               <UserPlus className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
-      </div>
-    );
+      );
+    }
+
+    return null;
   };
 
   // Email validation helper
@@ -987,11 +988,11 @@ export default function RegisterPage() {
   // Forgot Password Page
   const renderForgotPasswordPage = () => {
     return (
-      <div className="w-full h-full min-h-0 flex flex-col bg-white relative box-border">
-        <div className="shrink-0 bg-white">
+      <div className="w-full flex flex-col bg-slate-950 relative box-border">
+        <div className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur border-b border-slate-800">
           <div className="h-1 bg-[#02665e]" />
           
-          <div className="px-6 py-4 border-b border-slate-100">
+          <div className="px-6 py-4 border-b border-slate-800">
             <div className="flex items-center gap-4">
               <button
                 onClick={() => {
@@ -1003,13 +1004,13 @@ export default function RegisterPage() {
                   setForgotOtp('');
                   setForgotSent(false);
                 }}
-                className="w-10 h-10 rounded-lg border border-slate-300 flex items-center justify-center hover:bg-slate-50 transition-colors flex-shrink-0"
+                className="w-10 h-10 rounded-xl border border-slate-800 bg-slate-900/30 flex items-center justify-center hover:bg-slate-900/50 transition-colors flex-shrink-0"
               >
-                <ArrowLeft className="w-5 h-5 text-slate-600" />
+                <ArrowLeft className="w-5 h-5 text-slate-200" />
               </button>
               <div className="flex-1 min-w-0">
-                <h1 className="text-xl font-bold text-slate-900">Reset Password</h1>
-                <p className="text-xs text-slate-600 mt-0.5">
+                <h1 className="text-xl font-bold text-slate-50">Reset Password</h1>
+                <p className="text-xs text-slate-400 mt-0.5">
                   {forgotMethod === 'email' ? 'Enter your email to reset' : 'Enter your phone to reset'}
                 </p>
               </div>
@@ -1017,16 +1018,16 @@ export default function RegisterPage() {
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-auto px-6 py-4 min-w-0">
+        <div className="px-6 py-4 min-w-0">
           {error && (
-            <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2.5 text-sm text-red-800">
+            <div className="mb-3 p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-2.5 text-sm text-red-200">
               <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
               <span className="flex-1 min-w-0 break-words">{error}</span>
             </div>
           )}
 
           {success && !error && (
-            <div className="mb-3 p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-start gap-2.5 text-sm text-emerald-800">
+            <div className="mb-3 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-start gap-2.5 text-sm text-emerald-200">
               <Check className="w-4 h-4 mt-0.5 flex-shrink-0" />
               <span className="flex-1 min-w-0 break-words">{success}</span>
             </div>
@@ -1034,14 +1035,14 @@ export default function RegisterPage() {
 
           {/* Method Selection */}
           {forgotStep === 'input' && !forgotSent && (
-            <div className="mb-4 flex gap-2 p-1 bg-slate-100 rounded-lg">
+            <div className="mb-4 flex gap-1.5 p-1.5 bg-slate-900/60 ring-1 ring-slate-800 rounded-xl">
               <button
                 type="button"
                 onClick={() => setForgotMethod('email')}
-                className={`flex-1 px-3 py-2 text-xs font-medium rounded-md transition-all ${
+                className={`flex-1 px-3 py-2 text-xs font-semibold rounded-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/20 ${
                   forgotMethod === 'email'
-                    ? 'bg-white text-[#02665e] shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-[#02665e] text-white shadow-sm'
+                    : 'bg-slate-950 text-slate-200 hover:text-slate-50 border border-slate-800'
                 }`}
               >
                 <Mail className="w-3.5 h-3.5 inline-block mr-1.5" />
@@ -1050,10 +1051,10 @@ export default function RegisterPage() {
               <button
                 type="button"
                 onClick={() => setForgotMethod('otp')}
-                className={`flex-1 px-3 py-2 text-xs font-medium rounded-md transition-all ${
+                className={`flex-1 px-3 py-2 text-xs font-semibold rounded-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/20 ${
                   forgotMethod === 'otp'
-                    ? 'bg-white text-[#02665e] shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-[#02665e] text-white shadow-sm'
+                    : 'bg-slate-950 text-slate-200 hover:text-slate-50 border border-slate-800'
                 }`}
               >
                 <Phone className="w-3.5 h-3.5 inline-block mr-1.5" />
@@ -1064,10 +1065,10 @@ export default function RegisterPage() {
 
           {forgotStep === 'sent' && forgotMethod === 'email' ? (
             <div className="space-y-3 min-w-0">
-              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg text-center min-w-0">
-                <Mail className="w-8 h-8 text-emerald-600 mx-auto mb-2" />
-                <h3 className="text-sm font-semibold text-emerald-900 mb-1">Check your email</h3>
-                <p className="text-xs text-emerald-700 break-words">
+              <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-center min-w-0">
+                <Mail className="w-8 h-8 text-emerald-200 mx-auto mb-2" />
+                <h3 className="text-sm font-semibold text-emerald-100 mb-1">Check your email</h3>
+                <p className="text-xs text-emerald-200/90 break-words">
                   We&apos;ve sent a password reset link to {forgotEmail}
                 </p>
               </div>
@@ -1085,7 +1086,7 @@ export default function RegisterPage() {
           ) : forgotStep === 'otp' ? (
             <div className="space-y-3 min-w-0">
               <div className="space-y-2 min-w-0">
-                <label className="block text-sm font-semibold text-slate-900">Enter OTP</label>
+                <label className="block text-sm font-semibold text-slate-200">Enter OTP</label>
                 <input
                   ref={forgotOtpRef}
                   type="text"
@@ -1094,9 +1095,9 @@ export default function RegisterPage() {
                   onChange={(e) => setForgotOtp(e.target.value.replace(/[^0-9]/g, ''))}
                   placeholder="123456"
                   maxLength={6}
-                  className="w-full max-w-full px-4 py-3 text-lg tracking-widest text-center font-mono border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] box-border"
+                  className="w-full max-w-full px-4 py-3 text-lg tracking-widest text-center font-mono bg-slate-950 text-slate-100 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] box-border"
                 />
-                <p className="text-xs text-slate-500 text-center">
+                <p className="text-xs text-slate-400 text-center">
                   OTP sent to {forgotCountryCode}{forgotPhone}
                 </p>
               </div>
@@ -1106,7 +1107,7 @@ export default function RegisterPage() {
                     setForgotStep('input');
                     setForgotOtp('');
                   }}
-                  className="flex-1 min-w-0 px-3 py-2 text-sm text-slate-600 hover:text-slate-900 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors box-border"
+                  className="flex-1 min-w-0 px-3 py-2 text-sm font-semibold text-slate-200 border border-slate-800 rounded-xl hover:bg-slate-900/40 transition-colors box-border"
                 >
                   Edit phone
                 </button>
@@ -1131,7 +1132,7 @@ export default function RegisterPage() {
                 <button
                   type="button"
                   onClick={sendForgotOtp}
-                  className="w-full text-xs text-[#02665e] hover:underline py-1"
+                  className="w-full text-xs font-semibold text-[#02665e] hover:underline py-1"
                 >
                   Resend OTP
                 </button>
@@ -1142,7 +1143,7 @@ export default function RegisterPage() {
               {forgotMethod === 'email' ? (
                 <>
                   <div className="space-y-2 min-w-0">
-                    <label className="block text-sm font-semibold text-slate-900">Email Address</label>
+                    <label className="block text-sm font-semibold text-slate-200">Email Address</label>
                     <input
                       type="email"
                       value={forgotEmail}
@@ -1151,10 +1152,10 @@ export default function RegisterPage() {
                         setError(null); // Clear error on input change
                       }}
                       placeholder="your@email.com"
-                      className={`w-full max-w-full px-3 py-2.5 text-sm border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 box-border transition-all ${
+                        className={`w-full max-w-full px-4 py-2.5 text-sm font-medium bg-slate-950 text-slate-100 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 box-border transition-all shadow-sm hover:shadow-md placeholder:text-slate-500 ${
                         forgotEmail && !isValidEmail(forgotEmail)
-                          ? 'border-red-300 focus:border-red-500'
-                          : 'border-slate-300 focus:border-[#02665e]'
+                            ? 'border-red-500/40 focus:border-red-500'
+                            : 'border-slate-800 focus:border-[#02665e]'
                       }`}
                     />
                     {forgotEmail && !isValidEmail(forgotEmail) && (
@@ -1169,7 +1170,7 @@ export default function RegisterPage() {
                     disabled={forgotLoading || !isValidEmail(forgotEmail)}
                     className={`w-full max-w-full px-4 py-2.5 text-white text-sm font-medium rounded-lg transition-colors box-border ${
                       forgotLoading || !isValidEmail(forgotEmail)
-                        ? 'bg-slate-300 cursor-not-allowed opacity-50'
+                        ? 'bg-slate-800 cursor-not-allowed opacity-60'
                         : 'bg-[#02665e] hover:bg-[#014e47]'
                     }`}
                   >
@@ -1179,12 +1180,12 @@ export default function RegisterPage() {
               ) : (
                 <>
                   <div className="space-y-2 min-w-0">
-                    <label className="block text-sm font-semibold text-slate-900">Phone Number</label>
+                    <label className="block text-sm font-semibold text-slate-200">Phone Number</label>
                     <div className="flex gap-2 min-w-0">
                       <select
                         value={forgotCountryCode}
                         onChange={(e) => setForgotCountryCode(e.target.value)}
-                        className="px-3 py-2.5 text-sm border border-slate-300 rounded-lg bg-gradient-to-b from-slate-50 to-slate-100 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] country-code-select flex-shrink-0"
+                        className="px-3 py-2.5 text-sm font-medium border-2 border-slate-800 rounded-xl bg-slate-900/50 text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] country-code-select flex-shrink-0"
                       >
                         <option value="+255">+255</option>
                         <option value="+256">+256</option>
@@ -1197,7 +1198,7 @@ export default function RegisterPage() {
                         value={forgotPhone}
                         onChange={(e) => setForgotPhone(e.target.value.replace(/[^0-9]/g, ''))}
                         placeholder="7XX XXX XXX"
-                        className="flex-1 min-w-0 px-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] box-border"
+                        className="flex-1 min-w-0 px-4 py-2.5 text-sm font-medium bg-slate-950 text-slate-100 border-2 border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] shadow-sm hover:shadow-md placeholder:text-slate-500 box-border"
                       />
                     </div>
                   </div>
@@ -1221,7 +1222,7 @@ export default function RegisterPage() {
                   setForgotOtp('');
                   setForgotSent(false);
                 }}
-                className="w-full max-w-full text-sm text-slate-600 hover:text-slate-900 py-2 flex items-center justify-center gap-2 transition-colors box-border"
+                className="w-full max-w-full text-sm font-semibold text-slate-300 hover:text-slate-50 py-2.5 flex items-center justify-center gap-2 transition-colors box-border"
               >
                 <ArrowLeft className="w-4 h-4 flex-shrink-0" />
                 <span>Back to Sign In</span>
@@ -1233,19 +1234,26 @@ export default function RegisterPage() {
     );
   };
 
-  return (
-    <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 py-8 px-4">
+    return (
+    <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-950 to-slate-900 py-8 px-4 text-slate-100">
       <div className="w-full flex items-center justify-center">
-        <AuthPageFlip
-          currentPage={getCurrentPage()}
-          onPageChange={handlePageChange}
-          width={440}
-          height={640}
-        >
-          {renderRegisterPage()}
-          {renderLoginPage()}
-          {renderForgotPasswordPage()}
-        </AuthPageFlip>
+          <div className="w-full max-w-[460px]">
+            <div className="rounded-3xl bg-gradient-to-b from-white/14 via-white/8 to-transparent p-px shadow-2xl">
+              <div
+                style={{ colorScheme: 'dark' }}
+                className="max-h-[calc(100vh-4rem)] overflow-hidden flex flex-col rounded-3xl bg-slate-950 ring-1 ring-white/10"
+              >
+                <div className="flex-1 min-h-0 overflow-auto scrollbar-hide">
+                  {authMode === 'register'
+                    ? renderRegisterPage()
+                    : authMode === 'login'
+                      ? renderLoginPage()
+                      : renderForgotPasswordPage()}
+                </div>
+                {renderModeToggleFooter()}
+              </div>
+            </div>
+          </div>
       </div>
     </main>
   );

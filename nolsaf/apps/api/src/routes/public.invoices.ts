@@ -238,7 +238,9 @@ async function publishScheduledTripsForBooking(params: {
 function makeInvoiceNumber(bookingId: number, codeId: number) {
   const now = new Date();
   const ym = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
-  return `INV-${ym}-${bookingId}-${codeId}`;
+  // Premium, consistent format; deterministic for idempotency.
+  // Example: INV-202602-000123-0042
+  return `INV-${ym}-${String(bookingId).padStart(6, "0")}-${String(codeId).padStart(4, "0")}`;
 }
 
 // Validation schema

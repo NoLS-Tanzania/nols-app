@@ -6,7 +6,7 @@ import { getRoleSessionMaxMinutes } from '../lib/securitySettings.js';
 import { clearAuthCookie } from '../lib/sessionManager.js';
 import { touchActiveUser } from '../lib/activePresence.js';
 
-export type Role = 'ADMIN' | 'OWNER' | 'USER' | 'DRIVER';
+export type Role = 'ADMIN' | 'OWNER' | 'USER' | 'DRIVER' | 'AGENT';
 
 export interface AuthedUser {
   id: number;

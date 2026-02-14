@@ -1,8 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { ClipboardList, Calendar, MapPin, Users, DollarSign, CheckCircle, XCircle, Clock, ArrowRight, Truck, FileText, MessageSquare, Send, ChevronDown, Loader2 } from "lucide-react";
+import { ClipboardList, Calendar, MapPin, Users, DollarSign, CheckCircle, XCircle, Clock, ArrowRight, Truck, FileText, MessageSquare, Send, ChevronDown } from "lucide-react";
 import Link from "next/link";
+import LogoSpinner from "@/components/LogoSpinner";
 
 const api = axios.create({ baseURL: "", withCredentials: true });
 
@@ -723,7 +724,7 @@ function FollowUpMessageSection({ requestId, notes, adminResponse, respondedAt, 
   if (messagesLoading && conversationMessages.length === 0) {
     return (
       <div className="mt-4 flex items-center justify-center p-4">
-        <Loader2 className="h-5 w-5 animate-spin text-[#02665e]" />
+        <LogoSpinner size="sm" ariaLabel="Loading messages" />
       </div>
     );
   }
@@ -774,7 +775,7 @@ function FollowUpMessageSection({ requestId, notes, adminResponse, respondedAt, 
           <div className="space-y-3 max-h-[400px] overflow-y-auto">
             {messagesLoading ? (
               <div className="flex items-center justify-center p-4">
-                <Loader2 className="h-5 w-5 animate-spin text-[#02665e]" />
+                <LogoSpinner size="sm" ariaLabel="Loading messages" />
               </div>
             ) : conversationMessages.map((msg, index) => (
               <div
@@ -843,7 +844,7 @@ function FollowUpMessageSection({ requestId, notes, adminResponse, respondedAt, 
           <div className="space-y-3 max-h-[300px] overflow-y-auto">
             {messagesLoading ? (
               <div className="flex items-center justify-center p-4">
-                <Loader2 className="h-5 w-5 animate-spin text-[#02665e]" />
+                <LogoSpinner size="sm" ariaLabel="Loading messages" />
               </div>
             ) : conversationMessages.map((msg, index) => (
               <div

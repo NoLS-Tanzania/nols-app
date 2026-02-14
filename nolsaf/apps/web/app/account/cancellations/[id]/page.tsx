@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Loader2, Send, MapPin, Calendar, DollarSign, MessageSquare } from "lucide-react";
+import { ArrowLeft, Send, MapPin, Calendar, DollarSign, MessageSquare } from "lucide-react";
 import LayoutFrame from "@/components/LayoutFrame";
+import LogoSpinner from "@/components/LogoSpinner";
 
 const api = axios.create({ baseURL: "", withCredentials: true });
 
@@ -125,7 +126,7 @@ export default function CustomerCancellationDetailPage() {
       {loading ? (
         <div className="flex items-center justify-center rounded-xl border border-gray-200 bg-white p-12 shadow-sm">
           <div className="flex flex-col items-center gap-3">
-            <Loader2 className="h-8 w-8 animate-spin text-[#02665e]" />
+            <LogoSpinner size="md" ariaLabel="Loading cancellation request" />
             <div className="text-sm font-medium text-gray-600">Loading cancellation request...</div>
           </div>
         </div>
@@ -347,7 +348,7 @@ export default function CustomerCancellationDetailPage() {
                     className="absolute right-2 bottom-2 inline-flex items-center justify-center gap-2 rounded-lg bg-[#02665e] px-4 py-2 text-sm font-semibold text-white hover:bg-[#014d47] active:scale-[0.98] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
                   >
                     {sending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <LogoSpinner size="xs" className="h-4 w-4" ariaLabel="Sending message" />
                     ) : (
                       <>
                         <Send className="h-4 w-4" />

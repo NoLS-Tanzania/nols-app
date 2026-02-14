@@ -18,9 +18,9 @@ function FooterPolicyItem({
 }) {
   const className =
     "group relative inline-flex appearance-none items-center rounded-md border border-transparent bg-transparent px-2.5 py-1.5 text-sm font-semibold cursor-pointer " +
-    "text-slate-700 no-underline transition-all duration-300 ease-out " +
-    "hover:text-[#02665e] hover:bg-slate-100/70 " +
-    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/25 focus-visible:ring-offset-2 focus-visible:ring-offset-white " +
+    "text-slate-200 no-underline transition-all duration-300 ease-out " +
+    "hover:text-white hover:bg-white/10 " +
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 " +
     "motion-reduce:transition-none";
 
   return (
@@ -43,20 +43,20 @@ function FooterPill({
   variant?: FooterPillVariant;
 }) {
   const base =
-    "group relative inline-flex items-center rounded-full border bg-white px-3 py-1.5 text-xs font-semibold no-underline overflow-hidden " +
+    "group relative inline-flex items-center rounded-full border bg-white/10 px-3 py-1.5 text-xs font-semibold no-underline overflow-hidden " +
     "transition-[transform,background-color,border-color,color] duration-300 ease-out " +
     "hover:-translate-y-[1px] active:translate-y-0 active:scale-[0.99] " +
     "motion-reduce:transition-none motion-reduce:hover:transform-none motion-reduce:active:transform-none";
 
   const brand =
-    "border-gray-200/70 text-[#02665e] hover:bg-[#02665e]/10 hover:border-[#02665e]/30 focus-visible:ring-2 focus-visible:ring-[#02665e]/25";
+    "border-white/15 text-emerald-200 hover:bg-white/15 hover:border-white/25 focus-visible:ring-2 focus-visible:ring-[#02665e]/25";
   const neutral =
-    "border-gray-200/70 text-slate-700 hover:bg-slate-50 hover:border-slate-300 focus-visible:ring-2 focus-visible:ring-slate-200";
+    "border-white/15 text-slate-200 hover:bg-white/10 hover:border-white/25 focus-visible:ring-2 focus-visible:ring-white/20";
 
   const overlayTint =
     variant === "brand"
-      ? "bg-gradient-to-b from-[#02665e]/10 to-[#02665e]/6"
-      : "bg-gradient-to-b from-slate-50 to-white";
+      ? "bg-gradient-to-b from-[#02665e]/20 to-[#02665e]/10"
+      : "bg-gradient-to-b from-white/10 to-white/0";
 
   const overlayShine = variant === "brand" ? "via-white/70" : "via-slate-200/80";
 
@@ -155,7 +155,7 @@ function IconLinkButton({
       onPointerDown={onPointerDown}
       onPointerUp={onPointerUp}
       style={{ animationDelay: `${delay}ms` }}
-      className={`group relative inline-flex items-center justify-center rounded-full no-underline focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#02665e]/25 transition-all duration-300 ease-out transform hover:-translate-y-[1px] hover:shadow-md active:translate-y-0 active:shadow-sm ${touched ? "-translate-y-[1px]" : ""} ${containerClassName}`}
+      className={`group relative inline-flex items-center justify-center rounded-full no-underline focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#02665e]/30 focus:ring-offset-slate-950 transition-all duration-300 ease-out transform hover:-translate-y-[1px] hover:shadow-md active:translate-y-0 active:shadow-sm ${touched ? "-translate-y-[1px]" : ""} ${containerClassName}`}
     >
       <span
         aria-hidden
@@ -214,7 +214,7 @@ export default function PublicFooter({ withRail = true }: { withRail?: boolean }
   return (
     <footer
       aria-label="Footer"
-      className="relative w-full mt-12 page-bottom-buffer overflow-hidden border-t border-gray-200/70 bg-gradient-to-b from-white via-slate-50 to-white"
+      className="relative w-full mt-10 page-bottom-buffer overflow-hidden border-t border-gray-200/70 bg-gradient-to-b from-white via-slate-50 to-white"
     >
       <h2 className="sr-only">Footer</h2>
 
@@ -229,11 +229,11 @@ export default function PublicFooter({ withRail = true }: { withRail?: boolean }
 
       <div
         aria-hidden
-        className="pointer-events-none absolute -top-24 left-1/2 h-72 w-[900px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(2,102,94,0.14),transparent_70%)] blur-2xl"
+        className="pointer-events-none absolute -top-24 left-1/2 h-72 w-[900px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(2,102,94,0.22),transparent_70%)] blur-2xl"
       />
 
-      <div className="max-w-6xl mx-auto px-4 pt-10 pb-10 relative z-10">
-        <div className="rounded-3xl border border-gray-200/70 bg-white/75 backdrop-blur-xl shadow-[0_18px_70px_rgba(2,6,23,0.10)]">
+      <div className="public-container pt-10 pb-10 relative z-10">
+        <div className="rounded-3xl border border-white/12 bg-gradient-to-b from-slate-950/85 via-slate-900/80 to-slate-950/85 backdrop-blur-xl shadow-[0_18px_70px_rgba(0,0,0,0.45)] text-slate-200">
           <div className="px-5 py-8 sm:px-8">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
               <div className="lg:col-span-5 space-y-4">
@@ -243,14 +243,14 @@ export default function PublicFooter({ withRail = true }: { withRail?: boolean }
                     alt="NoLSAF"
                     width={120}
                     height={32}
-                    className="object-contain"
+                    className="object-contain brightness-0 invert"
                     style={{ width: "auto", height: "auto" }}
                   />
-                  <span className="inline-flex items-center rounded-full border border-slate-200/70 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                  <span className="inline-flex items-center rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-slate-200">
                     {APP_VERSION}
                   </span>
                 </div>
-                <p className="text-sm text-slate-600 leading-relaxed max-w-sm">
+                <p className="text-sm text-slate-300 leading-relaxed max-w-sm">
                   NoLSAF connects travellers, owners and drivers with safe, local stays and services across East Africa.
                 </p>
 
@@ -262,7 +262,7 @@ export default function PublicFooter({ withRail = true }: { withRail?: boolean }
                     iconSize={20}
                     iconClassName="text-[#0A66C2] relative z-10"
                     iconActiveClass="text-[#084A9A]"
-                    containerClassName="h-11 w-11 bg-white/90 backdrop-blur-sm border border-slate-200/70 hover:bg-[#0A66C2]/10 hover:border-[#0A66C2]/30"
+                    containerClassName="h-11 w-11 bg-white/10 backdrop-blur-sm border border-white/15 hover:bg-white/15 hover:border-white/25"
                     delay={0}
                   />
                   <IconLinkButton
@@ -272,7 +272,7 @@ export default function PublicFooter({ withRail = true }: { withRail?: boolean }
                     iconSize={20}
                     iconClassName="text-[#E4405F] relative z-10"
                     iconActiveClass="text-[#C32B4E]"
-                    containerClassName="h-11 w-11 bg-white/90 backdrop-blur-sm border border-slate-200/70 hover:bg-[#E4405F]/10 hover:border-[#E4405F]/30"
+                    containerClassName="h-11 w-11 bg-white/10 backdrop-blur-sm border border-white/15 hover:bg-white/15 hover:border-white/25"
                     delay={100}
                   />
                   <IconLinkButton
@@ -282,7 +282,7 @@ export default function PublicFooter({ withRail = true }: { withRail?: boolean }
                     iconSize={20}
                     iconClassName="text-[#FF0000] relative z-10"
                     iconActiveClass="text-[#CC0000]"
-                    containerClassName="h-11 w-11 bg-white/90 backdrop-blur-sm border border-slate-200/70 hover:bg-[#FF0000]/10 hover:border-[#FF0000]/30"
+                    containerClassName="h-11 w-11 bg-white/10 backdrop-blur-sm border border-white/15 hover:bg-white/15 hover:border-white/25"
                     delay={200}
                   />
                   <IconLinkButton
@@ -290,9 +290,9 @@ export default function PublicFooter({ withRail = true }: { withRail?: boolean }
                     label="NoLSAF on X"
                     iconComponent={X}
                     iconSize={20}
-                    iconClassName="text-black relative z-10"
-                    iconActiveClass="text-[#111111]"
-                    containerClassName="h-11 w-11 bg-white/90 backdrop-blur-sm border border-slate-200/70 hover:bg-black/10 hover:border-black/30"
+                    iconClassName="text-white relative z-10"
+                    iconActiveClass="text-white"
+                    containerClassName="h-11 w-11 bg-white/10 backdrop-blur-sm border border-white/15 hover:bg-white/15 hover:border-white/25"
                     delay={300}
                   />
                   <IconLinkButton
@@ -302,20 +302,20 @@ export default function PublicFooter({ withRail = true }: { withRail?: boolean }
                     iconSize={20}
                     iconClassName="text-[#1877F2] relative z-10"
                     iconActiveClass="text-[#165db8]"
-                    containerClassName="h-11 w-11 bg-white/90 backdrop-blur-sm border border-slate-200/70 hover:bg-[#1877F2]/10 hover:border-[#1877F2]/30"
+                    containerClassName="h-11 w-11 bg-white/10 backdrop-blur-sm border border-white/15 hover:bg-white/15 hover:border-white/25"
                     delay={400}
                   />
                 </div>
               </div>
 
               <div className="lg:col-span-7">
-                <div className="rounded-2xl border border-gray-200/70 bg-white/80 backdrop-blur-sm p-5 shadow-sm">
+                <div className="rounded-2xl border border-white/12 bg-white/6 backdrop-blur-sm p-5 shadow-sm shadow-black/20">
                   <div className="flex flex-col gap-1">
-                    <div className="inline-flex items-center gap-2 rounded-full border border-gray-200/70 bg-white px-3 py-1 text-xs font-semibold tracking-wide text-slate-700 w-fit">
-                      <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#02665e]" />
+                    <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold tracking-wide text-slate-100 w-fit">
+                      <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-300" />
                       Newsletter
                     </div>
-                    <div className="text-sm text-slate-600">
+                    <div className="text-sm text-slate-300">
                       Monthly updates on new stays, destinations, and platform improvements.
                     </div>
                   </div>
@@ -338,7 +338,7 @@ export default function PublicFooter({ withRail = true }: { withRail?: boolean }
                         onChange={(e) => setNewsletterEmail(e.target.value)}
                         placeholder="Your email"
                         autoComplete="email"
-                        className="flex-1 border border-gray-200/70 rounded-xl px-4 py-2.5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] transition-all duration-300 bg-white hover:border-gray-300"
+                        className="flex-1 border border-white/12 rounded-xl px-4 py-2.5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#02665e]/25 focus:border-[#02665e] transition-all duration-300 bg-white/10 text-slate-100 placeholder:text-slate-400 hover:border-white/20"
                         aria-label="Newsletter email"
                       />
                       <button
@@ -360,7 +360,7 @@ export default function PublicFooter({ withRail = true }: { withRail?: boolean }
 
                   {newsletterStatus ? (
                     <div
-                      className={`mt-3 text-sm px-3 py-2 rounded-xl ${newsletterStatus.ok ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-red-50 text-red-700 border border-red-200"}`}
+                      className={`mt-3 text-sm px-3 py-2 rounded-xl ${newsletterStatus.ok ? "bg-emerald-500/10 text-emerald-200 border border-emerald-400/20" : "bg-red-500/10 text-red-200 border border-red-400/20"}`}
                       role="status"
                       aria-live="polite"
                     >
@@ -373,7 +373,7 @@ export default function PublicFooter({ withRail = true }: { withRail?: boolean }
 
             <div className="mt-8 grid grid-cols-2 lg:grid-cols-3 gap-8">
               <div className="space-y-3">
-                <h3 className="text-base font-semibold text-slate-900">About NoLSAF</h3>
+                <h3 className="text-base font-semibold text-white">About NoLSAF</h3>
                 <ul className="m-0 list-none p-0 space-y-1">
                   {[
                     { href: "/about/who", label: "Who are we" },
@@ -389,7 +389,7 @@ export default function PublicFooter({ withRail = true }: { withRail?: boolean }
               </div>
 
               <div className="space-y-3">
-                <h3 className="text-base font-semibold text-slate-900">Resources</h3>
+                <h3 className="text-base font-semibold text-white">Resources</h3>
                 <ul className="m-0 list-none p-0 space-y-1">
                   {[
                     { href: "/help", label: "Help Center" },
@@ -400,19 +400,19 @@ export default function PublicFooter({ withRail = true }: { withRail?: boolean }
                     </li>
                   ))}
                   <li>
-                    <span className="inline-flex items-center px-2.5 py-1.5 text-sm font-semibold text-slate-700">
-                      Version: <span className="ml-1 text-slate-600">{APP_VERSION}</span>
+                    <span className="inline-flex items-center px-2.5 py-1.5 text-sm font-semibold text-slate-200">
+                      Version: <span className="ml-1 text-slate-400">{APP_VERSION}</span>
                     </span>
                   </li>
                 </ul>
               </div>
 
               <div className="col-span-2 lg:col-span-1 space-y-3">
-                <h3 className="text-base font-semibold text-slate-900">Portals</h3>
+                <h3 className="text-base font-semibold text-white">Portals</h3>
                 <ul className="m-0 list-none p-0 grid grid-cols-2 gap-x-6 gap-y-1">
                   {[
-                    { href: "/owner/login", label: "Owner Portal" },
-                    { href: "/driver/login", label: "Driver Portal" },
+                    { href: "/account/register?mode=register&role=owner&next=%2Fowner", label: "Owner Portal" },
+                    { href: "/account/register?mode=register&role=driver&next=%2Fdriver", label: "Driver Portal" },
                   ].map((item) => (
                     <li key={item.href}>
                       <FooterPolicyItem href={item.href}>{item.label}</FooterPolicyItem>
@@ -423,7 +423,7 @@ export default function PublicFooter({ withRail = true }: { withRail?: boolean }
             </div>
 
             <div className="mt-8">
-              <div className="h-px w-full bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
+              <div className="h-px w-full bg-gradient-to-r from-transparent via-white/15 to-transparent" />
               <nav aria-label="Footer legal navigation" className="mt-4">
                 <ul className="m-0 flex list-none flex-wrap items-center justify-center gap-2.5 p-0">
                   {[
@@ -438,7 +438,7 @@ export default function PublicFooter({ withRail = true }: { withRail?: boolean }
                       className={
                         index === 0
                           ? ""
-                          : "lg:relative lg:pl-4 lg:before:content-[''] lg:before:absolute lg:before:left-1 lg:before:top-1/2 lg:before:-translate-y-1/2 lg:before:h-4 lg:before:w-px lg:before:bg-slate-200/80"
+                          : "lg:relative lg:pl-4 lg:before:content-[''] lg:before:absolute lg:before:left-1 lg:before:top-1/2 lg:before:-translate-y-1/2 lg:before:h-4 lg:before:w-px lg:before:bg-white/15"
                       }
                     >
                       <FooterPolicyItem href={item.href}>{item.label}</FooterPolicyItem>
@@ -449,12 +449,12 @@ export default function PublicFooter({ withRail = true }: { withRail?: boolean }
             </div>
 
             <div className="mt-8">
-              <div className="h-px w-full bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
+              <div className="h-px w-full bg-gradient-to-r from-transparent via-white/15 to-transparent" />
               <div className="mt-5 flex flex-col items-center gap-2">
-                <div className="text-xs sm:text-sm text-slate-600 text-center">
-                  <span className="font-semibold text-slate-800">© {year} </span>
-                  <span className="font-extrabold text-[#02665e] tracking-wide">NoLSAF</span>
-                  <span className="text-slate-500"> — All rights reserved</span>
+                <div className="text-xs sm:text-sm text-slate-300 text-center">
+                  <span className="font-semibold text-slate-200">© {year} </span>
+                  <span className="font-extrabold text-emerald-200 tracking-wide">NoLSAF</span>
+                  <span className="text-slate-400"> — All rights reserved</span>
                 </div>
               </div>
             </div>

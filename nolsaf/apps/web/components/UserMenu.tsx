@@ -113,10 +113,11 @@ export default function UserMenu({ variant = "dark" }: { variant?: "light" | "da
 
       {open && (
         <div 
-          className={`absolute right-0 mt-3 w-56 ${menuBgClass} rounded-2xl shadow-2xl ring-1 overflow-hidden z-50`}
+          className={`absolute right-0 mt-3 w-56 max-w-none ${menuBgClass} rounded-2xl shadow-2xl ring-1 overflow-hidden z-50`}
           style={{
             animation: "fadeInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards",
             boxShadow: "0 20px 40px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05)",
+            maxWidth: "none",
           }}
         >
           <div className="py-2">

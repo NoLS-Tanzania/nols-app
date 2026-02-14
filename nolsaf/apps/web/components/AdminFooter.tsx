@@ -121,10 +121,12 @@ export default function AdminFooter({
   policyBasePath = "",
   showDriverDisbursementPolicy = true,
   showPropertyOwnerDisbursementPolicy = true,
+  containerClassName,
 }: {
   policyBasePath?: "" | "/owner" | "/driver" | "/admin";
   showDriverDisbursementPolicy?: boolean;
   showPropertyOwnerDisbursementPolicy?: boolean;
+  containerClassName?: string;
 }) {
   const year = new Date().getFullYear();
   
@@ -160,7 +162,7 @@ export default function AdminFooter({
         className="pointer-events-none absolute -top-24 left-1/2 h-72 w-[900px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(2,102,94,0.16),transparent_70%)] blur-2xl"
       />
 
-      <div className="max-w-6xl mx-auto px-4 pt-10 pb-9">
+      <div className={containerClassName ?? "max-w-6xl mx-auto px-4 pt-10 pb-9"}>
         <div className="rounded-3xl border border-gray-200/70 bg-white/75 backdrop-blur-xl shadow-[0_18px_70px_rgba(2,6,23,0.10)]">
           <div className="px-5 py-8 sm:px-8">
             {/* Header line */}

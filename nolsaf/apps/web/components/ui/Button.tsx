@@ -3,6 +3,7 @@
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { twMerge } from "tailwind-merge";
+import LogoSpinner from "../LogoSpinner";
 
 /**
  * NOTE: Our base visual tokens live in CSS:
@@ -96,11 +97,8 @@ export const Button = React.forwardRef<HTMLButtonElement & HTMLAnchorElement, Bu
           {...anchorRest}
         >
           {loading && (
-            <span aria-hidden className="dot-spinner dot-sm tw-mr-2 tw-inline-block tw-align-middle" aria-live="polite">
-              <span className="dot dot-blue" />
-              <span className="dot dot-black" />
-              <span className="dot dot-yellow" />
-              <span className="dot dot-green" />
+            <span aria-hidden className="mr-2 inline-flex align-middle">
+              <LogoSpinner size="xs" ariaLabel="Loading" />
             </span>
           )}
           {leftIcon && <span aria-hidden className="tw-inline-flex tw-mr-2 tw-items-center">{leftIcon}</span>}
@@ -124,11 +122,8 @@ export const Button = React.forwardRef<HTMLButtonElement & HTMLAnchorElement, Bu
         {...buttonRest}
       >
         {loading && (
-          <span aria-hidden className="dot-spinner dot-sm tw-mr-2 tw-inline-block tw-align-middle" aria-live="polite">
-            <span className="dot dot-blue" />
-            <span className="dot dot-black" />
-            <span className="dot dot-yellow" />
-            <span className="dot dot-green" />
+          <span aria-hidden className="mr-2 inline-flex align-middle">
+            <LogoSpinner size="xs" ariaLabel="Loading" />
           </span>
         )}
         {leftIcon && <span aria-hidden className="tw-inline-flex tw-mr-2 tw-items-center">{leftIcon}</span>}

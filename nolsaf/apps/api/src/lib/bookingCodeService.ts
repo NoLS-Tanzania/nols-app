@@ -1,7 +1,26 @@
 import { prisma } from "@nolsaf/prisma";
+import { Prisma } from "@prisma/client";
 import crypto from "crypto";
 import { sendSms } from "./sms.js";
 import { sendMail } from "./mailer.js";
+
+function getModelFieldSet(modelName: string): Set<string> | null {
+  try {
+    const models = (prisma as any)?._runtimeDataModel?.models;
+    const m = models?.[modelName];
+    const fields = m?.fields;
+    if (!Array.isArray(fields)) return null;
+    return new Set(fields.map((f: any) => String(f?.name)));
+  } catch {
+    return null;
+  }
+}
+
+function hasModelField(modelName: string, fieldName: string): boolean {
+  const set = getModelFieldSet(modelName);
+  if (!set) return false;
+  return set.has(fieldName);
+}
 
 /**
  * Generate a unique, human-readable booking code
@@ -374,27 +393,115 @@ export async function validateBookingCode(
     // 1. Direct code match (case-sensitive)
     // 2. Code hash match (most reliable)
     // 3. codeVisible match (backward compatibility)
-    const checkinCode = await prisma.checkinCode.findFirst({
-      where: {
-        OR: [
-          { code: normalizedCode },
-          { codeHash },
-          { codeVisible: normalizedCode },
-        ],
-      },
-      include: {
-        booking: {
-          include: {
-            property: {
-              include: {
-                owner: true,
+    const where = {
+      OR: [{ code: normalizedCode }, { codeHash }, { codeVisible: normalizedCode }],
+    } as const;
+
+    const bookingSelectBase: any = {
+      id: true,
+      propertyId: true,
+      checkIn: true,
+      checkOut: true,
+      status: true,
+    };
+    const optionalBookingFields = [
+      'totalAmount',
+      'guestName',
+      'guestPhone',
+      'nationality',
+      'sex',
+      'ageGroup',
+      'roomType',
+      'roomCode',
+      'rooms',
+      'roomsQty',
+    ];
+    for (const f of optionalBookingFields) {
+      if (hasModelField('Booking', f)) bookingSelectBase[f] = true;
+    }
+
+    const propertySelectBase: any = {
+      id: true,
+      title: true,
+    };
+    // We need ownerId to enforce owner scoping. Select it if present.
+    if (hasModelField('Property', 'ownerId')) propertySelectBase.ownerId = true;
+    if (hasModelField('Property', 'type')) propertySelectBase.type = true;
+    if (hasModelField('Property', 'basePrice')) propertySelectBase.basePrice = true;
+    if (hasModelField('Property', 'currency')) propertySelectBase.currency = true;
+
+    // IMPORTANT:
+    // Never `include: { property: true }` here — it selects all Property columns.
+    // If the database is behind the Prisma schema, Prisma may try to read columns that
+    // don't exist (e.g. Property.tourismSiteId) and throw P2022.
+    let checkinCode: any = null;
+    try {
+      checkinCode = await prisma.checkinCode.findFirst({
+        where,
+        select: {
+          id: true,
+          status: true,
+          code: true,
+          codeVisible: true,
+          codeHash: true,
+          usedAt: true,
+          booking: {
+            select: {
+              ...bookingSelectBase,
+              property: {
+                select: {
+                  ...propertySelectBase,
+                },
+              },
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  phone: true,
+                  email: true,
+                },
               },
             },
-            user: true,
           },
         },
-      },
-    });
+      });
+    } catch (err: any) {
+      // If the DB is missing *any* of the selected columns, retry with a smaller shape.
+      if (err instanceof Prisma.PrismaClientKnownRequestError && (err.code === 'P2021' || err.code === 'P2022')) {
+        checkinCode = await prisma.checkinCode.findFirst({
+          where,
+          select: {
+            id: true,
+            status: true,
+            code: true,
+            codeVisible: true,
+            codeHash: true,
+            usedAt: true,
+            booking: {
+              select: {
+                ...bookingSelectBase,
+                property: {
+                  select: {
+                    id: true,
+                    title: true,
+                    ...(hasModelField('Property', 'ownerId') ? { ownerId: true } : {}),
+                  },
+                },
+                user: {
+                  select: {
+                    id: true,
+                    name: true,
+                    phone: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+      } else {
+        throw err;
+      }
+    }
 
     if (!checkinCode) {
       console.error(`[validateBookingCode] Code not found: ${normalizedCode} (hash: ${codeHash})`);
@@ -450,10 +557,19 @@ export async function validateBookingCode(
       }
     }
 
-    return {
-      valid: true,
-      booking: checkinCode.booking,
+    const bookingWithCode = {
+      ...checkinCode.booking,
+      code: {
+        id: checkinCode.id,
+        status: checkinCode.status,
+        code: checkinCode.code,
+        codeVisible: checkinCode.codeVisible,
+        codeHash: checkinCode.codeHash,
+        usedAt: checkinCode.usedAt,
+      },
     };
+
+    return { valid: true, booking: bookingWithCode };
   } catch (error: any) {
     console.error(`[validateBookingCode] Error validating code:`, error);
     return { valid: false, error: error.message || "Validation failed" };
@@ -470,7 +586,21 @@ export async function markBookingCodeAsUsed(
   try {
     const checkinCode = await prisma.checkinCode.findUnique({
       where: { id: codeId },
-      include: { booking: { include: { property: true } } },
+      select: {
+        id: true,
+        status: true,
+        bookingId: true,
+        booking: {
+          select: {
+            id: true,
+            property: {
+              select: {
+                ownerId: true,
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!checkinCode) {

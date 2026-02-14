@@ -42,7 +42,11 @@ export function proxy(req: NextRequest) {
       path === "/account/forgot-password" ||
       path === "/account/reset-password";
 
-    if (!isAccountAuthRoute) {
+    // Allow the Agent Portal pages to render a "sign in required" preview state
+    // instead of redirecting at the proxy layer.
+    const isAgentPortalRoute = path === "/account/agent" || path.startsWith("/account/agent/");
+
+    if (!isAccountAuthRoute && !isAgentPortalRoute) {
       // Use token presence as the primary auth signal.
       // If missing, redirect to customer login to avoid confusing empty states.
       if (!token) {

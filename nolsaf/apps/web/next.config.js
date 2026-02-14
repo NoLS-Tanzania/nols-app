@@ -2,7 +2,7 @@
 // IMPORTANT: rewrites run on the Next.js server. Do not depend on NEXT_PUBLIC_API_URL here
 // (it is often set to the web origin and would cause /api/* to stop proxying and 404).
 // Use API_ORIGIN for server-to-server proxying, with a safe dev default.
-const apiOrigin = (process.env.API_ORIGIN || 'http://127.0.0.1:4000').replace(/\/$/, '');
+const apiOrigin = (process.env.API_ORIGIN || 'http://localhost:4000').replace(/\/$/, '');
 const socketOrigin = (process.env.NEXT_PUBLIC_SOCKET_URL || '').replace(/\/$/, '');
 
 const nextConfig = {
@@ -58,6 +58,10 @@ const nextConfig = {
     // IMPORTANT: Next.js checks for page routes FIRST before applying rewrites.
     // However, to be safe, we exclude known page routes from the rewrite.
     return [
+      // Map health probes (API exposes these at the root, not under /api)
+      { source: '/api/health', destination: `${apiOrigin}/health` },
+      { source: '/api/ready', destination: `${apiOrigin}/ready` },
+      { source: '/api/live', destination: `${apiOrigin}/live` },
       { source: '/api/:path*', destination: `${apiOrigin}/api/:path*` },
       // Exclude page routes from /admin rewrite - these will be served by Next.js pages
       // The pattern uses negative lookahead to exclude specific routes

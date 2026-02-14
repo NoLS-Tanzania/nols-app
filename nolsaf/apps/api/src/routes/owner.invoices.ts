@@ -39,7 +39,9 @@ function makeInvoiceNumber(bookingId: number, codeId: number) {
   const now = new Date();
   const ym = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2, "0")}`;
   // Separate owner-submitted invoices from public payment invoices (INV-...).
-  return `OINV-${ym}-${bookingId}-${codeId}`;
+  // Premium, consistent format; deterministic for idempotency.
+  // Example: OINV-202602-000123-0042
+  return `OINV-${ym}-${String(bookingId).padStart(6, "0")}-${String(codeId).padStart(4, "0")}`;
 }
 
 router.post("/from-booking", async (req, res) => {
@@ -52,7 +54,10 @@ router.post("/from-booking", async (req, res) => {
 
     const booking = await prisma.booking.findFirst({
       where: { id: bookingId, property: { ownerId } },
-      include: { property: true, code: true }
+      include: {
+        property: { select: { id: true, title: true, type: true, basePrice: true, currency: true } },
+        code: true,
+      },
     });
     if (!booking) return res.status(404).json({ error: "Booking not found" });
     if (booking.status !== "CHECKED_IN") return res.status(400).json({ error: "Booking must be CHECKED_IN" });
@@ -64,7 +69,7 @@ router.post("/from-booking", async (req, res) => {
   // Compute line item amount
   const nights = Math.max(1, Math.ceil((+booking.checkOut - +booking.checkIn) / (1000*60*60*24)));
   // Prefer totalAmount if you already computed; otherwise fallback to nights * pricePerNight
-  const pricePerNight = (booking as any).pricePerNight ?? booking.property?.pricePerNight ?? null;
+  const pricePerNight = (booking as any).pricePerNight ?? booking.property?.basePrice ?? null;
   const transportFare = (booking as any).includeTransport ? Number((booking as any).transportFare || 0) : 0;
   const amount = booking.totalAmount
     ? Math.max(0, Number(booking.totalAmount) - transportFare)
@@ -161,7 +166,15 @@ router.get("/:id", async (req: Request, res: Response) => {
   const id = Number(authReq.params.id);
   const inv = await prisma.invoice.findFirst({
     where: { id, ownerId: authReq.user!.id, invoiceNumber: { startsWith: "OINV-" } } as any,
-    include: { booking: { include: { property: true, user: true, code: true } } },
+    include: {
+      booking: {
+        include: {
+          property: { select: { id: true, title: true, type: true, basePrice: true, currency: true } },
+          user: true,
+          code: true,
+        },
+      },
+    },
   });
   if (!inv) return res.status(404).json({ error: "Not found" });
 

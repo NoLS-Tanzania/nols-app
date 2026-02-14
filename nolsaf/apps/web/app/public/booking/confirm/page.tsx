@@ -8,7 +8,6 @@ import {
   Calendar,
   Users,
   ChevronLeft,
-  Loader2,
   CheckCircle2,
   AlertCircle,
   ShieldCheck,
@@ -18,6 +17,7 @@ import {
   Edit2,
   Plane,
 } from "lucide-react";
+import LogoSpinner from "@/components/LogoSpinner";
 import DatePicker from "../../../../components/ui/DatePicker";
 import { 
   getPropertyCommission, 
@@ -1199,10 +1199,7 @@ export default function BookingConfirmPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50">
         <div className="text-center animate-in fade-in duration-300">
-          <div className="relative">
-            <Loader2 className="w-12 h-12 animate-spin text-[#02665e] mx-auto mb-4" />
-            <div className="absolute inset-0 w-12 h-12 mx-auto border-4 border-[#02665e]/20 rounded-full"></div>
-          </div>
+          <LogoSpinner size="xl" className="mx-auto mb-4" ariaLabel="Loading booking details" />
           <p className="text-slate-700 font-medium text-lg">Loading booking details...</p>
           <p className="text-slate-500 text-sm mt-2">Please wait</p>
         </div>
@@ -1234,7 +1231,7 @@ export default function BookingConfirmPage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50">
       {/* Header */}
       <div className="bg-white/80 backdrop-blur-sm border-b border-slate-200/60 shadow-sm sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div className="public-container py-4">
           <Link
             href={property ? `/public/properties/${property.id}` : "/public/properties"}
             className="inline-flex items-center text-slate-600 hover:text-[#02665e] transition-all duration-200 group"
@@ -1245,7 +1242,7 @@ export default function BookingConfirmPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-12">
+      <div className="public-container py-8 lg:py-12">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
@@ -1641,7 +1638,7 @@ export default function BookingConfirmPage() {
                           {availabilityState.status === "available" ? (
                             <CheckCircle2 className="w-5 h-5" />
                           ) : availabilityState.status === "checking" ? (
-                            <Loader2 className="w-5 h-5 animate-spin" />
+                            <LogoSpinner size="sm" ariaLabel="Checking availability" />
                           ) : availabilityState.status === "unavailable" ? (
                             <AlertCircle className="w-5 h-5" />
                           ) : (
@@ -2327,7 +2324,7 @@ export default function BookingConfirmPage() {
 
                       {calculatingFare && (
                         <div className="flex items-center gap-2 text-sm text-slate-600">
-                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <LogoSpinner size="xs" ariaLabel="Calculating fare" />
                           Calculating fare...
                         </div>
                       )}
@@ -2372,7 +2369,7 @@ export default function BookingConfirmPage() {
                 >
                   {submitting ? (
                     <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <LogoSpinner size="sm" ariaLabel="Creating booking" />
                       <span>Creating booking...</span>
                     </>
                   ) : (

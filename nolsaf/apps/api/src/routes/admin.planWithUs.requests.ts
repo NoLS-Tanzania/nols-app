@@ -344,6 +344,10 @@ router.post("/:id/message", limitPlanRequestMessages, (async (req: AuthedRequest
     if (!adminUser) {
       return res.status(401).json({ error: "Authentication required" });
     }
+    const adminRole = String((adminUser as any)?.role ?? "").toUpperCase();
+    if (typeof adminUser.id !== "number" || !Number.isFinite(adminUser.id) || adminUser.id <= 0 || adminRole !== "ADMIN") {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
 
     // Fetch admin user details to get name
     const adminUserDetails = await prisma.user.findUnique({
@@ -639,6 +643,21 @@ router.patch("/:id", limitPlanRequestUpdate, validateUpdateRequest, (async (req:
               // Don't fail the request if email fails
             }
           }
+
+          // In-app notification to the agent (best-effort)
+          if (agent.user?.id) {
+            try {
+              await notifyUser(agent.user.id, "agent_assignment_assigned", {
+                requestId: currentRequest.id,
+                tripType: currentRequest.tripType,
+                role: currentRequest.role,
+                customerName: currentRequest.fullName,
+                link: `/account/agent/assignments/${currentRequest.id}`,
+              });
+            } catch (notifyErr: any) {
+              console.warn("Failed to notify agent (in-app) about assignment:", notifyErr?.message || notifyErr);
+            }
+          }
         }
       }
     }
@@ -665,6 +684,7 @@ router.patch("/:id", limitPlanRequestUpdate, validateUpdateRequest, (async (req:
           where: { id: Number(agentIdToUpdate) },
           select: {
             id: true,
+            userId: true,
             totalCompletedTrips: true,
             totalRevenueGenerated: true,
             currentActiveRequests: true,
@@ -698,6 +718,20 @@ router.patch("/:id", limitPlanRequestUpdate, validateUpdateRequest, (async (req:
           });
 
           console.log(`[Agent Promotion] Updated agent ${agentIdToUpdate}: +1 trip, +${commissionRevenue.toFixed(2)} TZS revenue (from budget ${budget}, commission ${commissionPercent}%), -1 active request`);
+
+          // In-app notification to agent about completion/update (best-effort)
+          if ((agent as any)?.userId) {
+            try {
+              await notifyUser(Number((agent as any).userId), "agent_assignment_completed", {
+                requestId: currentRequest.id,
+                tripType: currentRequest.tripType,
+                customerName: currentRequest.fullName,
+                link: `/account/agent/assignments/${currentRequest.id}`,
+              });
+            } catch (notifyErr: any) {
+              console.warn("Failed to notify agent (in-app) about completion:", notifyErr?.message || notifyErr);
+            }
+          }
 
           // Send email notification to customer if admin responded (status = COMPLETED with response fields)
           try {

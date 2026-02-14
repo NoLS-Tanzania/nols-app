@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import Link from "next/link";
 import { 
@@ -42,6 +42,54 @@ type FloorInfo = {
   }>;
   totalRooms: number;
 };
+
+type SummaryPeriod = "today" | "week" | "month";
+
+type AvailabilitySummary = {
+  totalRooms: number;
+  totalBookedRooms: number;
+  totalBlockedRooms: number;
+  totalAvailableRooms: number;
+  overallAvailabilityPercentage: number;
+};
+
+type PeriodRange = { startDate: string; endDate: string };
+
+function toIsoDateTime(d: Date): string {
+  return d.toISOString();
+}
+
+function startOfDay(d: Date): Date {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+function startOfWeekMonday(d: Date): Date {
+  const x = startOfDay(d);
+  const day = x.getDay(); // 0=Sun
+  const diff = (day + 6) % 7; // days since Monday
+  x.setDate(x.getDate() - diff);
+  return x;
+}
+
+function startOfMonth(d: Date): Date {
+  const x = startOfDay(d);
+  x.setDate(1);
+  return x;
+}
+
+function addDays(d: Date, days: number): Date {
+  const x = new Date(d);
+  x.setDate(x.getDate() + days);
+  return x;
+}
+
+function addMonths(d: Date, months: number): Date {
+  const x = new Date(d);
+  x.setMonth(x.getMonth() + months);
+  return x;
+}
 
 // Helper to get floor label
 function getFloorLabel(floorNum: number): string {
@@ -157,11 +205,26 @@ export default function PropertyAvailabilitySelectionPage() {
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [expandedFloors, setExpandedFloors] = useState<Record<number, boolean>>({});
 
-  const toggleFloors = (propertyId: number) => {
-    setExpandedFloors((prev) => ({ ...prev, [propertyId]: !prev[propertyId] }));
-  };
+  const ranges = useMemo<Record<SummaryPeriod, PeriodRange>>(() => {
+    const now = new Date();
+    const todayStart = startOfDay(now);
+    const weekStart = startOfWeekMonday(now);
+    const monthStart = startOfMonth(now);
+
+    return {
+      today: { startDate: toIsoDateTime(todayStart), endDate: toIsoDateTime(addDays(todayStart, 1)) },
+      week: { startDate: toIsoDateTime(weekStart), endDate: toIsoDateTime(addDays(weekStart, 7)) },
+      month: { startDate: toIsoDateTime(monthStart), endDate: toIsoDateTime(addMonths(monthStart, 1)) },
+    };
+  }, []);
+
+  const [availabilityByPropertyId, setAvailabilityByPropertyId] = useState<
+    Record<number, Partial<Record<SummaryPeriod, AvailabilitySummary>>>
+  >({});
+  const [availabilityLoadingByPropertyId, setAvailabilityLoadingByPropertyId] = useState<
+    Record<number, Partial<Record<SummaryPeriod, boolean>>>
+  >({});
 
   useEffect(() => {
     let mounted = true;
@@ -185,6 +248,50 @@ export default function PropertyAvailabilitySelectionPage() {
       mounted = false;
     };
   }, []);
+
+  // Fetch lightweight availability summaries for Today / This Week / This Month.
+  useEffect(() => {
+    if (!properties.length) return;
+
+    let cancelled = false;
+
+    const periods: SummaryPeriod[] = ["today", "week", "month"];
+
+    const fetchOne = async (propertyId: number, period: SummaryPeriod) => {
+      setAvailabilityLoadingByPropertyId((prev) => ({
+        ...prev,
+        [propertyId]: { ...prev[propertyId], [period]: true },
+      }));
+      try {
+        const r = await api.get<any>("/api/owner/availability/summary", {
+          params: { propertyId, ...ranges[period] },
+        });
+        const s = r?.data?.summary;
+        if (!s || cancelled) return;
+        setAvailabilityByPropertyId((prev) => ({
+          ...prev,
+          [propertyId]: { ...prev[propertyId], [period]: s },
+        }));
+      } catch {
+        // ignore - card will show placeholder values
+      } finally {
+        if (!cancelled) {
+          setAvailabilityLoadingByPropertyId((prev) => ({
+            ...prev,
+            [propertyId]: { ...prev[propertyId], [period]: false },
+          }));
+        }
+      }
+    };
+
+    for (const p of properties) {
+      for (const period of periods) fetchOne(p.id, period);
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [properties, ranges]);
 
   if (loading) {
     return (
@@ -324,17 +431,29 @@ export default function PropertyAvailabilitySelectionPage() {
             
             const totalRooms = buildingStructure.reduce((sum, floor) => sum + floor.totalRooms, 0);
             const cover = Array.isArray(property.photos) && property.photos.length > 0 ? property.photos[0] : null;
-            const isExpanded = !!expandedFloors[property.id];
-            const floorsToRender = isExpanded ? buildingStructure : buildingStructure.slice(0, 3);
-            const hiddenFloorsCount = Math.max(0, buildingStructure.length - floorsToRender.length);
 
-            const renderTypesCompact = (floor: FloorInfo) => {
-              const items = floor.roomTypes
-                .filter((t) => t.roomsCount > 0)
-                .map((t) => `${t.roomType}(${t.roomsCount})`);
-              if (items.length <= 3) return items.join(" • ");
-              return `${items.slice(0, 3).join(" • ")} • +${items.length - 3} more`;
+            const availability = availabilityByPropertyId[property.id];
+            const loading = availabilityLoadingByPropertyId[property.id];
+
+            const fmt = (value: number | undefined, isLoading?: boolean) => {
+              if (typeof value === "number") return value;
+              if (isLoading) return "…";
+              return "—";
             };
+
+            const bookedToday = availability?.today?.totalBookedRooms;
+            const bookedWeek = availability?.week?.totalBookedRooms;
+            const bookedMonth = availability?.month?.totalBookedRooms;
+            const blockedToday = availability?.today?.totalBlockedRooms;
+            const blockedWeek = availability?.week?.totalBlockedRooms;
+            const blockedMonth = availability?.month?.totalBlockedRooms;
+
+            const Stat = ({ label, value }: { label: string; value: string }) => (
+              <div className="rounded-2xl border border-slate-200 bg-white/70 px-4 py-3 shadow-[0_1px_0_rgba(15,23,42,0.04)] ring-1 ring-black/5">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{label}</div>
+                <div className="mt-1 text-base font-semibold text-slate-900">{value}</div>
+              </div>
+            );
 
             return (
               <Link
@@ -373,94 +492,59 @@ export default function PropertyAvailabilitySelectionPage() {
                           </div>
                         </div>
                       </div>
-                      <span className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider bg-emerald-100/80 text-emerald-800 rounded-full border border-emerald-200/70 shadow-sm flex-shrink-0">
-                        {property.status}
-                      </span>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider bg-emerald-100/80 text-emerald-800 rounded-full border border-emerald-200/70 shadow-sm">
+                          {property.status}
+                        </span>
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-white/60 bg-white/80 backdrop-blur px-2.5 py-1 text-[10px] font-bold tracking-wider text-slate-800 shadow-sm">
+                          <BedDouble className="w-3.5 h-3.5 text-slate-600" aria-hidden />
+                          <span>{totalRooms}</span>
+                        </span>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Content */}
+                  {/* Content (compact premium summary) */}
                   <div className="px-6 pb-6 pt-4">
-                    <div className="flex items-center justify-between gap-3 mb-5">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center border border-emerald-100">
-                          <Layers className="w-4 h-4 text-emerald-600" />
-                        </div>
-                        <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Building structure</h4>
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center border border-emerald-100">
+                        <Layers className="w-4 h-4 text-emerald-600" />
                       </div>
-                      <div className="flex items-center gap-2 text-xs text-slate-600">
-                        <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2.5 py-1 font-semibold">
-                          {buildingStructure.length} {buildingStructure.length === 1 ? "floor" : "floors"}
-                        </span>
-                        <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2.5 py-1 font-semibold">
-                          {totalRooms} {totalRooms === 1 ? "room" : "rooms"}
-                        </span>
+                      <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wider">At a glance</h4>
+                      <span className="ml-auto text-[11px] font-semibold text-slate-500">Today · Week · Month</span>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-2 gap-3">
+                      <Stat label="Floors" value={String(buildingStructure.length)} />
+                      <Stat label="Rooms" value={String(totalRooms)} />
+                    </div>
+
+                    <div className="mt-4 rounded-2xl border border-slate-200/70 bg-white/70 overflow-hidden">
+                      <div className="grid grid-cols-4 gap-2 px-3 py-2 border-b border-slate-200/60 bg-gradient-to-r from-slate-50 to-white text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                        <span className="text-left"> </span>
+                        <span className="text-right">Today</span>
+                        <span className="text-right">Week</span>
+                        <span className="text-right">Month</span>
+                      </div>
+
+                      <div className="grid grid-cols-4 gap-2 px-3 py-2 text-sm">
+                        <span className="text-xs font-semibold text-slate-700">NoLSAF booked</span>
+                        <span className="text-right font-semibold text-emerald-700 tabular-nums">{fmt(bookedToday, loading?.today)}</span>
+                        <span className="text-right font-semibold text-emerald-700 tabular-nums">{fmt(bookedWeek, loading?.week)}</span>
+                        <span className="text-right font-semibold text-emerald-700 tabular-nums">{fmt(bookedMonth, loading?.month)}</span>
+                      </div>
+
+                      <div className="grid grid-cols-4 gap-2 px-3 py-2 border-t border-slate-200/50 text-sm">
+                        <span className="text-xs font-semibold text-slate-700">Outside blocked</span>
+                        <span className="text-right font-semibold text-slate-800 tabular-nums">{fmt(blockedToday, loading?.today)}</span>
+                        <span className="text-right font-semibold text-slate-800 tabular-nums">{fmt(blockedWeek, loading?.week)}</span>
+                        <span className="text-right font-semibold text-slate-800 tabular-nums">{fmt(blockedMonth, loading?.month)}</span>
                       </div>
                     </div>
 
-                    {/* Floors */}
-                    {buildingStructure.length > 0 ? (
-                      <div className="rounded-2xl border border-slate-200 bg-white shadow-[0_1px_0_rgba(15,23,42,0.04)] overflow-hidden">
-                        <div>
-                          {floorsToRender.map((floor, idx) => (
-                            <div
-                              key={floor.floorNumber}
-                              className={`px-4 py-3 hover:bg-emerald-50/40 transition-colors ${
-                                idx === 0 ? "" : "border-t border-slate-200"
-                              }`}
-                            >
-                              <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center shadow-sm flex-shrink-0">
-                                  <span className="font-semibold text-sm">
-                                    {floor.floorNumber === 0 ? "G" : floor.floorNumber}
-                                  </span>
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <div className="flex items-center justify-between gap-3">
-                                    <h5 className="text-sm font-semibold text-slate-900 truncate">{floor.floorLabel}</h5>
-                                    <span className="text-xs font-semibold text-slate-600 whitespace-nowrap">
-                                      {floor.totalRooms} {floor.totalRooms === 1 ? "room" : "rooms"}
-                                    </span>
-                                  </div>
-                                  <p className="mt-0.5 text-xs text-slate-500 truncate">
-                                    {floor.roomTypes.length} {floor.roomTypes.length === 1 ? "type" : "types"}
-                                    {floor.roomTypes.length > 0 ? ` • ${renderTypesCompact(floor)}` : ""}
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-
-                        {buildingStructure.length > 3 && (
-                          <div className="px-4 py-3 bg-slate-50 border-t border-slate-200">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                toggleFloors(property.id);
-                              }}
-                              className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700 hover:text-emerald-700 transition-colors"
-                            >
-                              <span>{isExpanded ? "Show fewer floors" : `Show all floors (+${hiddenFloorsCount})`}</span>
-                              <ChevronRight className={`w-4 h-4 transition-transform ${isExpanded ? "-rotate-90" : "rotate-90"}`} />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center">
-                        <Building2 className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-                        <p className="text-sm text-slate-600 font-medium">No structure defined</p>
-                        <p className="text-xs text-slate-500 mt-1">Add rooms/floors to start managing availability.</p>
-                      </div>
-                    )}
-
-                    {/* Footer */}
-                    <div className="mt-6 flex items-center justify-between">
+                    <div className="mt-5 flex items-center justify-between">
                       <div className="text-xs text-slate-500">
-                        <span className="font-semibold text-slate-700">Tip:</span> Keep calendars accurate to reduce cancellations.
+                        <span className="font-semibold text-slate-700">Tip:</span> Keep calendars accurate.
                       </div>
                       <div className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-700 group-hover:text-emerald-800 transition-colors">
                         <span>Manage</span>

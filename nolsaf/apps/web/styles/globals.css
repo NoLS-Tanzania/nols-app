@@ -529,8 +529,7 @@ html, body, #__next {
    is consistent and easily adjustable. Applies only on md+ viewports. */
 @media (min-width: 768px) {
   .owner-content-gap {
-    /* increase gap to 1rem for clearer separation */
-    padding-left: calc(var(--admin-sidebar-width) + 1rem) !important;
+    padding-left: calc(var(--admin-sidebar-width) + 0.5rem) !important;
   }
 }
 
@@ -1774,6 +1773,82 @@ select[title="Room type"] {
     opacity: 1;
   }
 
+  /* Flag zebra stripe band for the Explore CTA */
+  .btn-explore.flag-cta-tanzania::after,
+  .btn-explore.flag-cta-kenya::after,
+  .btn-explore.flag-cta-uganda::after {
+    content: '';
+    position: absolute;
+    left: -18%;
+    top: 50%;
+    width: 136%;
+    height: 14px;
+    transform: translateY(-50%) rotate(-8deg);
+    pointer-events: none;
+    opacity: 0.34;
+    z-index: 0;
+    border-radius: 9999px;
+    backface-visibility: hidden;
+    transform-origin: center;
+    filter: saturate(1.05) contrast(1.02);
+  }
+
+  .btn-explore:hover.flag-cta-tanzania::after,
+  .btn-explore:focus-visible.flag-cta-tanzania::after,
+  .btn-explore:hover.flag-cta-kenya::after,
+  .btn-explore:focus-visible.flag-cta-kenya::after,
+  .btn-explore:hover.flag-cta-uganda::after,
+  .btn-explore:focus-visible.flag-cta-uganda::after {
+    opacity: 0.46;
+  }
+
+  /* Tanzania: green / yellow / black / yellow / blue */
+  .btn-explore.flag-cta-tanzania::after {
+    background: repeating-linear-gradient(
+      90deg,
+      #006a4e 0px,
+      #006a4e 12px,
+      #ffd100 12px,
+      #ffd100 14px,
+      #000000 14px,
+      #000000 26px,
+      #ffd100 26px,
+      #ffd100 28px,
+      #00a3dd 28px,
+      #00a3dd 40px
+    );
+  }
+
+  /* Kenya: black / white / red / white / green */
+  .btn-explore.flag-cta-kenya::after {
+    background: repeating-linear-gradient(
+      90deg,
+      #000000 0px,
+      #000000 12px,
+      #ffffff 12px,
+      #ffffff 14px,
+      #d52b1e 14px,
+      #d52b1e 28px,
+      #ffffff 28px,
+      #ffffff 30px,
+      #006233 30px,
+      #006233 42px
+    );
+  }
+
+  /* Uganda: black / yellow / red */
+  .btn-explore.flag-cta-uganda::after {
+    background: repeating-linear-gradient(
+      90deg,
+      #000000 0px,
+      #000000 12px,
+      #ffd100 12px,
+      #ffd100 24px,
+      #d52b1e 24px,
+      #d52b1e 36px
+    );
+  }
+
   /* Guest popover positioning (reads coordinates from CSS variables updated in JS) */
   .nolsaf-guest-popper {
     position: fixed;
@@ -2428,7 +2503,6 @@ a[aria-label="Toggle theme"].mobile {
   padding-left: 0.5rem; 
   padding-right: 0.5rem; 
   box-sizing: border-box;
-  overflow-x: hidden;
 }
 
 @media (min-width: 640px) {
@@ -2442,6 +2516,23 @@ a[aria-label="Toggle theme"].mobile {
   .public-container {
     padding-left: 1rem;
     padding-right: 1rem;
+  }
+}
+
+/* On large screens, allow public pages to use more horizontal space. */
+@media (min-width: 1280px) {
+  .public-container {
+    max-width: 80rem; /* tailwind max-w-7xl */
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (min-width: 1536px) {
+  .public-container {
+    max-width: 108rem;
+    padding-left: 2rem;
+    padding-right: 2rem;
   }
 }
 
@@ -3004,15 +3095,13 @@ article[class*="max-w"] span {
   text-decoration: underline;
 }
 
-/* Ensure public-container content doesn't overflow on any device */
-.public-container * {
-  max-width: 100%;
-  box-sizing: border-box;
-}
-
+/* Ensure public-container media doesn't overflow on any device.
+   Avoid targeting `*` because it breaks absolutely-positioned popups/menus. */
 .public-container img,
 .public-container video,
-.public-container iframe {
+.public-container iframe,
+.public-container svg,
+.public-container canvas {
   max-width: 100%;
   height: auto;
 }

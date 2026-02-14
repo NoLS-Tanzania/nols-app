@@ -29,10 +29,54 @@ function broadcastStatus(req: any, payload: any) {
   if (io) io.emit("admin:property:status", payload);
 }
 
+const adminPropertyOwnerSelect = {
+  id: true,
+  name: true,
+  email: true,
+  phone: true,
+} as const;
+
+// Drift-safe select: avoid selecting columns that may not exist in older DBs
+// (e.g. Property.tourismSiteId).
+const adminPropertyDTOSelect = {
+  id: true,
+  status: true,
+  title: true,
+  type: true,
+  description: true,
+  hotelStar: true,
+  buildingType: true,
+  totalFloors: true,
+  owner: { select: adminPropertyOwnerSelect },
+  regionId: true,
+  regionName: true,
+  district: true,
+  street: true,
+  apartment: true,
+  city: true,
+  zip: true,
+  country: true,
+  latitude: true,
+  longitude: true,
+  ward: true,
+  photos: true,
+  roomsSpec: true,
+  services: true,
+  basePrice: true,
+  currency: true,
+  totalBedrooms: true,
+  totalBathrooms: true,
+  maxGuests: true,
+  layout: true,
+  createdAt: true,
+  updatedAt: true,
+  lastSubmittedAt: true,
+  rejectionReasons: true,
+} as const;
+
 /** GET /admin/properties?status=&q=&regionId=&regionName=&type=&ownerId=&page=&pageSize= */
 router.get("/", (async (req: AuthedRequest, res) => {
   try {
-    console.log('[GET /admin/properties] Request received');
     // Explicitly set Content-Type to JSON
     res.setHeader('Content-Type', 'application/json');
     
@@ -114,14 +158,24 @@ router.get("/", (async (req: AuthedRequest, res) => {
     let total = 0;
 
     try {
-      console.log('[GET /admin/properties] Executing Prisma query with where:', JSON.stringify(where, null, 2));
-      console.log('[GET /admin/properties] Skip:', skip, 'Take:', take);
-      
       const findManyPromise = prisma.property.findMany({
           where,
           // Avoid MySQL "Out of sort memory" on large tables by ordering on indexed PK
           orderBy: { id: "desc" },
-          include: { owner: { select: { id: true, name: true, email: true } } },
+          select: {
+            id: true,
+            title: true,
+            status: true,
+            type: true,
+            owner: { select: { id: true, name: true, email: true } },
+            regionName: true,
+            district: true,
+            photos: true,
+            basePrice: true,
+            currency: true,
+            services: true,
+            updatedAt: true,
+          },
           skip,
           take,
         });
@@ -129,8 +183,6 @@ router.get("/", (async (req: AuthedRequest, res) => {
       const countPromise = prisma.property.count({ where });
 
       [items, total] = await Promise.all([findManyPromise, countPromise]);
-      
-      console.log('[GET /admin/properties] Query succeeded - items:', items.length, 'total:', total);
       
       // Safety check - ensure items is an array
       if (!Array.isArray(items)) {
@@ -204,35 +256,6 @@ router.get("/", (async (req: AuthedRequest, res) => {
       pageSize: number;
       total: number;
       items: AdminPropertyListItem[];
-    }
-
-    // Debug logging
-    console.log('[GET /admin/properties] Query params:', { status, q, regionId, type, ownerId, page, pageSize });
-    console.log('[GET /admin/properties] Where clause:', JSON.stringify(where, null, 2));
-    console.log('[GET /admin/properties] Found items:', items.length, 'Total:', total);
-    
-    // Also check what the database actually has
-    if (status) {
-      const directCount = await prisma.property.count({ where: { status: status as any } }).catch(() => 0);
-      console.log(`[GET /admin/properties] Direct count for status="${status}":`, directCount);
-    }
-    
-    if (items.length > 0) {
-      console.log('[GET /admin/properties] First item sample:', {
-        id: items[0]?.id,
-        title: items[0]?.title,
-        status: items[0]?.status,
-        regionName: items[0]?.regionName,
-        district: items[0]?.district,
-      });
-    } else if (total === 0 && status) {
-      // If no items found but we're filtering by status, let's see what statuses actually exist
-      const allStatuses = await prisma.property.findMany({
-        select: { status: true },
-        distinct: ['status'],
-        take: 10,
-      }).catch(() => []);
-      console.log('[GET /admin/properties] Available statuses in DB:', allStatuses.map((p: any) => p.status));
     }
 
     // Helper function to safely serialize Prisma objects
@@ -408,7 +431,6 @@ router.get("/", (async (req: AuthedRequest, res) => {
     // Test JSON serialization before sending
     try {
       JSON.stringify(response);
-      console.log('[GET /admin/properties] Response items count:', response.items.length);
       res.json(response);
     } catch (jsonError: any) {
       console.error('[GET /admin/properties] JSON serialization error:', jsonError);
@@ -534,7 +556,6 @@ router.get("/booked", (async (req: AuthedRequest, res) => {
 /** GET /admin/properties/counts - return counts by status for quick badges */
 router.get("/counts", (async (req: AuthedRequest, res) => {
   try {
-    console.log('[GET /admin/properties/counts] Request received');
     const statuses = ["DRAFT","PENDING","APPROVED","NEEDS_FIXES","REJECTED","SUSPENDED"] as const;
     const results: Record<string, number> = {};
     
@@ -548,8 +569,6 @@ router.get("/counts", (async (req: AuthedRequest, res) => {
         results[s] = 0;
       }
     }));
-    
-    console.log('[GET /admin/properties/counts] Results:', results);
     
     // Test JSON serialization before sending
     try {
@@ -864,9 +883,7 @@ router.get(
     const id = Number(req.params.id);
     const p = await prisma.property.findFirst({
       where: { id },
-      include: {
-        owner: { select: { id: true, name: true, email: true, phone: true } },
-      },
+      select: adminPropertyDTOSelect,
     });
     if (!p) return res.status(404).json({ error: "Not found" });
     const dto = toAdminPropertyDTO(p);
@@ -882,7 +899,7 @@ router.patch("/:id", (async (req: AuthedRequest, res) => {
 
     const property = await prisma.property.findFirst({ 
       where: { id },
-      include: { owner: { select: { id: true, name: true, email: true, phone: true } } }
+      select: adminPropertyDTOSelect,
     });
     if (!property) return res.status(404).json({ error: "Property not found" });
 
@@ -927,7 +944,7 @@ router.patch("/:id", (async (req: AuthedRequest, res) => {
     let updated = await prisma.property.update({
       where: { id },
       data: updateData,
-      include: { owner: { select: { id: true, name: true, email: true, phone: true } } }
+      select: adminPropertyDTOSelect,
     });
 
     // Invalidate cache for this property and property lists
@@ -967,7 +984,7 @@ router.patch("/:id", (async (req: AuthedRequest, res) => {
         updated = await prisma.property.update({
           where: { id },
           data: { roomsSpec: updatedRoomsSpec },
-          include: { owner: { select: { id: true, name: true, email: true, phone: true } } }
+          select: adminPropertyDTOSelect,
         });
         
         // Invalidate cache for this property
@@ -1060,9 +1077,20 @@ router.post("/:id/approve", (async (req: AuthedRequest, res) => {
 
   const before = await prisma.property.findFirst({
     where: { id },
-    select: { status: true, ownerId: true, title: true },
+    select: { status: true, ownerId: true, title: true, tourismSiteId: true, parkPlacement: true },
   });
   if (!before) { res.status(404).json({ error: "Not found" }); return; }
+  if ((before.parkPlacement === "INSIDE" || before.parkPlacement === "NEARBY") && !before.tourismSiteId) {
+    res.status(400).json({ error: "tourismSiteId_required_when_parkPlacement_set" });
+    return;
+  }
+  if (before.tourismSiteId) {
+    const site = await prisma.tourismSite.findUnique({ where: { id: before.tourismSiteId }, select: { id: true } });
+    if (!site) {
+      res.status(400).json({ error: "invalid_tourismSiteId" });
+      return;
+    }
+  }
   // Approve can only be used for initial approval (PENDING) or re-approval after rejection (REJECTED)
   // Once approved, properties can only be suspended/unsuspended, not re-approved
   // To restore a suspended property, use unsuspend instead
@@ -1075,7 +1103,13 @@ router.post("/:id/approve", (async (req: AuthedRequest, res) => {
 
   const updated = await prisma.property.update({
     where: { id },
-    data: { status: "APPROVED" },
+    data: {
+      status: "APPROVED",
+      ...(before.tourismSiteId && !(before.parkPlacement === "INSIDE" || before.parkPlacement === "NEARBY")
+        ? { parkPlacement: "NEARBY" }
+        : {}),
+    },
+    select: { id: true, status: true },
   });
 
   // Invalidate cache for this property and property lists
@@ -1095,7 +1129,7 @@ router.post("/:id/approve", (async (req: AuthedRequest, res) => {
     }),
     prisma.property.findUnique({
       where: { id },
-      include: { owner: { select: { id: true, name: true, email: true } } },
+      select: { id: true, owner: { select: { id: true, name: true, email: true } } },
     }),
   ]);
 
@@ -1147,9 +1181,18 @@ router.post("/:id/reject", (async (req: AuthedRequest, res) => {
 
   const before = await prisma.property.findFirst({
     where: { id },
-    select: { status: true, ownerId: true, title: true },
+    select: { status: true, ownerId: true, title: true, tourismSiteId: true, parkPlacement: true },
   });
   if (!before) return res.status(404).json({ error: "Not found" });
+  if ((before.parkPlacement === "INSIDE" || before.parkPlacement === "NEARBY") && !before.tourismSiteId) {
+    return res.status(400).json({ error: "tourismSiteId_required_when_parkPlacement_set" });
+  }
+  if (before.tourismSiteId) {
+    const site = await prisma.tourismSite.findUnique({ where: { id: before.tourismSiteId }, select: { id: true } });
+    if (!site) {
+      return res.status(400).json({ error: "invalid_tourismSiteId" });
+    }
+  }
   // Reject can only be used for properties awaiting initial approval (PENDING)
   // Once approved, properties can only be suspended/unsuspended, not rejected
   if (before.status !== "PENDING") {
@@ -1161,6 +1204,7 @@ router.post("/:id/reject", (async (req: AuthedRequest, res) => {
   const updated = await prisma.property.update({
     where: { id },
     data: { status: "REJECTED" },
+    select: { id: true, status: true },
   });
 
   // Invalidate cache for this property and property lists
@@ -1240,6 +1284,7 @@ router.post("/:id/suspend", (async (req: AuthedRequest, res) => {
   const updated = await prisma.property.update({
     where: { id },
     data: { status: newStatus },
+    select: { id: true, status: true },
   });
 
   // Invalidate cache for this property and property lists
@@ -1321,7 +1366,13 @@ router.post("/:id/unsuspend", (async (req: AuthedRequest, res) => {
 
   const updated = await prisma.property.update({
     where: { id },
-    data: { status: "APPROVED" },
+    data: {
+      status: "APPROVED",
+      ...(before.tourismSiteId && !(before.parkPlacement === "INSIDE" || before.parkPlacement === "NEARBY")
+        ? { parkPlacement: "NEARBY" }
+        : {}),
+    },
+    select: { id: true, status: true },
   });
 
   // Invalidate cache for this property and property lists

@@ -348,7 +348,15 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
     // Fetch property and validate
     const property = await prisma.property.findUnique({
       where: { id: data.propertyId },
-      include: {
+      select: {
+        id: true,
+        status: true,
+        title: true,
+        basePrice: true,
+        currency: true,
+        roomsSpec: true,
+        latitude: true,
+        longitude: true,
         owner: {
           select: {
             id: true,

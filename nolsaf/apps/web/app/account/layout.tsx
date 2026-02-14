@@ -4,11 +4,15 @@ import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import PublicHeader from "@/components/PublicHeader";
 import PublicFooter from "@/components/PublicFooter";
+import AgentFooter from "@/components/AgentFooter";
 import LayoutFrame from "@/components/LayoutFrame";
 import FloatingChatWidget from "@/components/FloatingChatWidget";
+import AgentPortalHeader from "@/components/AgentPortalHeader";
 
 export default function CustomerAccountLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+
+  const isAgentPortalRoute = pathname === "/account/agent" || pathname.startsWith("/account/agent/");
 
   // Auth pages should not inherit the public marketing header/footer.
   // Keep them isolated and minimal for security/clarity.
@@ -24,7 +28,7 @@ export default function CustomerAccountLayout({ children }: { children: ReactNod
 
   return (
     <div className="min-h-screen flex flex-col bg-neutral-50">
-      <PublicHeader />
+      {isAgentPortalRoute ? <AgentPortalHeader /> : <PublicHeader />}
 
       <div className="flex-1 w-full overflow-x-hidden">
         <div className="public-container relative">
@@ -39,7 +43,7 @@ export default function CustomerAccountLayout({ children }: { children: ReactNod
           />
 
           {/* Main content */}
-          <div className="pt-16 pb-6">
+          <div className={isAgentPortalRoute ? "pt-6 pb-6" : "pt-16 pb-6"}>
             <main className="w-full max-w-full overflow-x-hidden">
               {children}
             </main>
@@ -48,7 +52,7 @@ export default function CustomerAccountLayout({ children }: { children: ReactNod
       </div>
 
       <div className="relative z-20">
-        <PublicFooter withRail />
+        {isAgentPortalRoute ? <AgentFooter withRail /> : <PublicFooter withRail />}
       </div>
       <FloatingChatWidget position="bottom-right" />
     </div>

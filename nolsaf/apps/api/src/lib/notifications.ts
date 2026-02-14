@@ -6,6 +6,10 @@ import { prisma } from "@nolsaf/prisma";
 export async function notifyAdmins(template: string, data: any) {
   try {
     const notificationTemplates: Record<string, { title: string; body: string }> = {
+      careers_application_submitted: {
+        title: "New Career Application",
+        body: `A new application was submitted${data.jobTitle ? ` for "${data.jobTitle}"` : ""}${data.fullName ? ` by ${data.fullName}` : ""}${data.email ? ` (${data.email})` : ""}.`
+      },
       property_submitted: {
         title: "Property Submitted for Review",
         body: `A new property "${data.propertyTitle || 'Property'}" has been submitted for review and is awaiting your approval.`
@@ -67,6 +71,8 @@ export async function notifyAdmins(template: string, data: any) {
           meta: data,
           type: template.startsWith("transport")
             ? "ride"
+            : template.startsWith("careers")
+              ? "careers"
             : template.startsWith("cancellation")
               ? "cancellation"
               : template.startsWith("booking")
@@ -147,8 +153,8 @@ export async function notifyOwner(ownerId: number, template: string, data: any) 
       try {
         const io = (global as any).io;
         if (io && typeof io.to === "function") {
-          io.to(`owner:${ownerId}`).emit("notification:new", { id: created.id, ownerId, title: created.title, body: created.body, createdAt: created.createdAt });
-          io.to(`user:${ownerId}`).emit("notification:new", { id: created.id, userId: ownerId, title: created.title, body: created.body, createdAt: created.createdAt });
+          io.to(`owner:${ownerId}`).emit("notification:new", { id: created.id, ownerId, type: created.type, title: created.title, body: created.body, createdAt: created.createdAt });
+          io.to(`user:${ownerId}`).emit("notification:new", { id: created.id, userId: ownerId, type: created.type, title: created.title, body: created.body, createdAt: created.createdAt });
         }
       } catch {
         // ignore
@@ -168,6 +174,18 @@ export async function notifyOwner(ownerId: number, template: string, data: any) 
 export async function notifyUser(userId: number, template: string, data: any) {
   try {
     const notificationTemplates: Record<string, { title: string; body: string }> = {
+      agent_assignment_assigned: {
+        title: "New assignment assigned",
+        body: `You have a new assignment${data.requestId ? ` #${data.requestId}` : ""}${data.tripType ? ` (${data.tripType})` : ""}. Open your dashboard to view details.`
+      },
+      agent_assignment_updated: {
+        title: "Assignment updated by admin",
+        body: `Your assignment${data.requestId ? ` #${data.requestId}` : ""} has an update from the admin team. Open the assignment to review the latest details.`
+      },
+      agent_assignment_completed: {
+        title: "Assignment marked completed",
+        body: `Assignment${data.requestId ? ` #${data.requestId}` : ""} was marked COMPLETED. Check the assignment for the final response and outputs.`
+      },
       cancellation_status_update: {
         title: "Cancellation Claim Update",
         body: `Your cancellation claim${data.requestId ? ` #${data.requestId}` : ""}${data.bookingCode ? ` (code: ${data.bookingCode})` : ""} is now "${data.status || "UPDATED"}". ${data.decisionNote ? `Note: ${data.decisionNote}` : ""}`
@@ -195,7 +213,11 @@ export async function notifyUser(userId: number, template: string, data: any) {
         body: templateData.body,
         unread: true,
         meta: data,
-        type: template.startsWith("cancellation") ? "cancellation" : "system"
+        type: template.startsWith("agent_")
+          ? "agent"
+          : template.startsWith("cancellation")
+            ? "cancellation"
+            : "system"
       }
     });
 
@@ -203,7 +225,7 @@ export async function notifyUser(userId: number, template: string, data: any) {
     try {
       const io = (global as any).io;
       if (io && typeof io.to === "function") {
-        io.to(`user:${userId}`).emit("notification:new", { id: created.id, userId, title: created.title, body: created.body, createdAt: created.createdAt });
+        io.to(`user:${userId}`).emit("notification:new", { id: created.id, userId, type: created.type, title: created.title, body: created.body, createdAt: created.createdAt });
       }
     } catch {
       // ignore

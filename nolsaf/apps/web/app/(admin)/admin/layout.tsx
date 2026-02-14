@@ -74,14 +74,14 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
       {/* Centered container so LayoutFrame spans both sidebar and content (like Owner) */}
       <div className="flex-1 w-full overflow-hidden">
-        <div className="max-w-6xl mx-auto w-full px-4 relative h-full">
+        <div className="public-container relative h-full">
           {/* Content frame/markers */}
           <LayoutFrame heightVariant="sm" topVariant="sm" colorVariant="muted" variant="solid" box />
 
           {/* Sidebar inside the frame container on md+; collapsed shows icons only */}
           <aside
             ref={sidebarRef}
-            className={`absolute left-0 top-16 text-slate-100 border border-white/10 transition-all duration-300 ease-in-out hidden md:block ${sidebarOpen ? "w-60 p-4" : "w-16 p-2"} bg-gradient-to-b from-[#0b1220] via-[#0a1624] to-[#070f1a] h-[calc(100vh-4rem)] overflow-y-auto rounded-3xl overflow-hidden shadow-[0_18px_50px_rgba(0,0,0,0.30),0_0_46px_rgba(2,102,94,0.20)]`}
+            className={`absolute left-3 top-16 text-slate-100 border border-white/10 transition-all duration-300 ease-in-out hidden md:block ${sidebarOpen ? "w-56 p-4" : "w-20 p-2"} bg-gradient-to-b from-[#0b1220] via-[#0a1624] to-[#070f1a] h-[calc(100vh-4rem)] overflow-y-auto rounded-3xl overflow-hidden shadow-[0_18px_50px_rgba(0,0,0,0.30),0_0_46px_rgba(2,102,94,0.20)]`}
           >
             <div className="sidebar-scroll">
               <AdminNav variant="dark" collapsed={!sidebarOpen} />
@@ -89,12 +89,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           </aside>
 
           {/* Main content: match Owner spacing and styling (no extra border/bg) */}
-          <div className={`pt-16 pb-6 transition-all duration-300 ease-in-out ${sidebarOpen ? 'owner-content-gap' : 'md:ml-16'}`}>
+          <div className={`pt-16 pb-6 transition-all duration-300 ease-in-out ${sidebarOpen ? 'owner-content-gap' : 'md:ml-20'}`}>
             <div className="relative h-[calc(100vh-4rem)] rounded-3xl border border-slate-200/60 bg-gradient-to-b from-white/[0.035] via-white/[0.02] to-white/[0.01] backdrop-blur-xl overflow-hidden shadow-[0_18px_55px_rgba(0,0,0,0.30),0_0_46px_rgba(2,102,94,0.14)] ring-1 ring-black/[0.04] after:pointer-events-none after:absolute after:inset-0 after:rounded-3xl after:ring-1 after:ring-slate-200/50">
               <div ref={mainRef} className="h-full overflow-y-auto">
                 <main>
                   <div className="w-full">
-                    <div className="mx-auto max-w-6xl">
+                    <div className="mx-auto w-full">
                       {children}
                     </div>
                   </div>
@@ -107,7 +107,10 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
       {/* Apply the same footer separator used on Owner pages */}
       <SectionSeparator className="mt-6" />
-      <AdminFooter policyBasePath="/admin" />
+      <AdminFooter
+        policyBasePath="/admin"
+        containerClassName="public-container pt-10 pb-9"
+      />
     </div>
   );
 }

@@ -798,7 +798,7 @@ export default function StaysReportPage() {
       ) : null}
 
       {/* KPI cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-4">
         <Kpi title="NoLSAF bookings" value={kpis ? String(kpis.nolsafBookings) : "—"} loading={loading} />
         <Kpi title="External reservations" value={kpis ? String(kpis.externalReservations) : "—"} loading={loading} />
         <Kpi title="Group stays received" value={kpis ? String(kpis.groupStaysReceived) : "—"} loading={loading} accent="text-indigo-700" />

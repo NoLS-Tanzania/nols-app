@@ -262,12 +262,35 @@ model User {
 // =========================================================
 //  PROPERTY MODEL
 // =========================================================
+model TourismSite {
+  id      Int    @id @default(autoincrement())
+  slug    String @unique @db.VarChar(160)
+  name    String @db.VarChar(200)
+  country String @default("Tanzania") @db.VarChar(120)
+
+  // Optional metadata for future enhancements
+  description String?  @db.Text
+  latitude    Decimal? @db.Decimal(10, 6)
+  longitude   Decimal? @db.Decimal(10, 6)
+
+  // Relations
+  properties Property[]
+
+  @@index([country])
+  @@index([slug])
+  @@map("TourismSite")
+}
+
 model Property {
   id      Int    @id @default(autoincrement())
   ownerId Int
   status  String @default("DRAFT") // DRAFT, PENDING, APPROVED, REJECTED, SUSPENDED
   title   String @db.VarChar(200)
   type    String // VILLA, APARTMENT, HOTEL, LODGE, CONDO, GUEST_HOUSE, BUNGALOW, CABIN, HOMESTAY, TOWNHOUSE, HOUSE, OTHER
+
+  // Tourism / park placement (optional)
+  tourismSiteId Int?
+  parkPlacement String? @db.VarChar(20) // INSIDE, NEARBY
 
   // Location
   regionId   String?  @db.VarChar(50)
@@ -308,6 +331,7 @@ model Property {
 
   // Relations
   owner              User                        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  tourismSite        TourismSite?                @relation(fields: [tourismSiteId], references: [id], onDelete: SetNull)
   bookings           Booking[]
   transportBookings  TransportBooking[]
   groupBookings      GroupBooking[]
@@ -321,6 +345,10 @@ model Property {
   // Supports: WHERE ownerId=? ORDER BY id DESC
   @@index([ownerId, id], map: "idx_Property_ownerId_id")
   @@index([status])
+  @@index([tourismSiteId])
+  @@index([status, tourismSiteId, parkPlacement, id], map: "idx_Property_status_tourismSite_placement_id")
+  // Supports: WHERE status=? ORDER BY basePrice {asc|desc}, id DESC
+  @@index([status, basePrice, id], map: "idx_Property_status_basePrice_id")
   // Supports: WHERE ownerId=? AND status=? ORDER BY id DESC
   @@index([ownerId, status, id], map: "idx_Property_ownerId_status_id")
   @@index([type])

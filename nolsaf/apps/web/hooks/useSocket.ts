@@ -13,8 +13,15 @@ const getSocketUrl = () => {
   if (process.env.NEXT_PUBLIC_API_URL) {
     return process.env.NEXT_PUBLIC_API_URL;
   }
-  // Default to 127.0.0.1:4000 for development (more reliable than localhost on some systems due to IPv6 ::1 binding)
-  return typeof window !== 'undefined' ? "http://127.0.0.1:4000" : "";
+
+  // Dev default: use the same hostname as the current page.
+  // This avoids a common auth pitfall where cookies are set on `localhost` but the socket connects to `127.0.0.1`
+  // (or vice-versa), which results in sockets showing up as unauthenticated.
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname || 'localhost';
+    return `http://${host}:4000`;
+  }
+  return "";
 };
 
 // Helper function to get authentication token
@@ -34,13 +41,23 @@ function getAuthToken(): string | null {
   return m?.[1] ? decodeURIComponent(m[1]) : null;
 }
 
-export function useSocket(userId?: string | number) {
+export type UseSocketOptions = {
+  enabled?: boolean;
+  joinDriverRoom?: boolean;
+  driverId?: string | number;
+};
+
+export function useSocket(userId?: string | number, options?: UseSocketOptions) {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [connected, setConnected] = useState(false);
   const socketRef = useRef<Socket | null>(null);
 
+  const enabled = options?.enabled ?? Boolean(userId);
+  const joinDriverRoom = options?.joinDriverRoom ?? Boolean(userId);
+  const driverId = options?.driverId ?? userId;
+
   useEffect(() => {
-    if (!userId) return;
+    if (!enabled) return;
 
     const socketUrl = getSocketUrl();
     if (!socketUrl) {
@@ -60,6 +77,7 @@ export function useSocket(userId?: string | number) {
       reconnectionAttempts: 5,
       autoConnect: true,
       withCredentials: true, // Send cookies automatically
+      ...(token ? { auth: { token } } : {}),
       ...(token ? {
         transportOptions: {
           polling: {
@@ -74,9 +92,9 @@ export function useSocket(userId?: string | number) {
     newSocket.on("connect", () => {
       console.log("Socket connected:", newSocket.id);
       setConnected(true);
-      // Join driver-specific room for real-time updates
-      if (userId) {
-        newSocket.emit("join-driver-room", { driverId: userId });
+      // Join driver-specific room for real-time updates (driver-only feature)
+      if (joinDriverRoom && driverId) {
+        newSocket.emit("join-driver-room", { driverId });
       }
     });
 
@@ -95,14 +113,16 @@ export function useSocket(userId?: string | number) {
 
     return () => {
       if (socketRef.current) {
-        socketRef.current.emit("leave-driver-room", { driverId: userId });
+        if (joinDriverRoom && driverId) {
+          socketRef.current.emit("leave-driver-room", { driverId });
+        }
         socketRef.current.disconnect();
         socketRef.current = null;
         setSocket(null);
         setConnected(false);
       }
     };
-  }, [userId]);
+  }, [enabled, joinDriverRoom, driverId]);
 
   return { socket, connected };
 }
