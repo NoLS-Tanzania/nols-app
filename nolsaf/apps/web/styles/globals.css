@@ -2530,7 +2530,7 @@ a[aria-label="Toggle theme"].mobile {
 
 @media (min-width: 1536px) {
   .public-container {
-    max-width: 108rem;
+    max-width: 96rem;
     padding-left: 2rem;
     padding-right: 2rem;
   }

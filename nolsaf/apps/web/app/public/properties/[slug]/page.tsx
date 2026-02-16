@@ -921,7 +921,7 @@ function PropertyAvailabilityChecker({
         {/* Availability Results */}
         {availability && !error && (
           <div className="mt-4 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_12px_30px_rgba(15,23,42,0.06)]">
-            <div className="px-5 py-4 border-b border-slate-200 bg-gradient-to-r from-white via-white to-emerald-50/40">
+            <div className="px-5 py-4 border-b border-slate-200 bg-white">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
                   <div className="flex items-center gap-3">
@@ -933,10 +933,10 @@ function PropertyAvailabilityChecker({
                         <h3 className="text-base font-extrabold tracking-tight text-slate-900">Availability</h3>
                         <span className="inline-flex items-center rounded-full bg-emerald-600 text-white px-2.5 py-0.5 text-[10px] font-extrabold tracking-wide shadow-sm">LIVE</span>
                       </div>
-                      <div className="mt-0.5 text-[12px] text-slate-600">
+                      <div className="mt-0.5 text-[12px] text-slate-700">
                         <span className="font-semibold text-slate-800">{formatDate(checkIn)} - {formatDate(checkOut)}</span>
-                        <span className="text-slate-300"> • </span>
-                        <span className="text-slate-500">Updated {formatTimeAgo(lastUpdatedAt)}</span>
+                        <span className="text-slate-400"> • </span>
+                        <span className="text-slate-600">Updated {formatTimeAgo(lastUpdatedAt)}</span>
                       </div>
                     </div>
                   </div>
@@ -955,19 +955,19 @@ function PropertyAvailabilityChecker({
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                   {/* Premium summary */}
                   <div className="lg:col-span-1">
-                    <div className="rounded-3xl border border-slate-200 bg-gradient-to-br from-white via-white to-emerald-50/30 p-4 shadow-[0_8px_22px_rgba(15,23,42,0.06)]">
-                      <div className="text-[11px] font-medium tracking-wide text-slate-500 uppercase">Available now</div>
+                    <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_8px_22px_rgba(15,23,42,0.06)]">
+                      <div className="text-[11px] font-medium tracking-wide text-slate-700 uppercase">Available now</div>
                       <div className="mt-3 grid grid-cols-2 gap-3">
                         <div className="rounded-2xl bg-white ring-1 ring-slate-200 p-3">
-                          <div className="text-[11px] font-medium text-slate-500">Rooms</div>
+                          <div className="text-[11px] font-medium text-slate-700">Rooms</div>
                           <div className="mt-1 text-3xl font-semibold tracking-tight text-slate-900">{availability.summary.totalAvailableRooms}</div>
                         </div>
                         <div className="rounded-2xl bg-white ring-1 ring-slate-200 p-3">
-                          <div className="text-[11px] font-medium text-slate-500">Beds</div>
+                          <div className="text-[11px] font-medium text-slate-700">Beds</div>
                           <div className="mt-1 text-3xl font-semibold tracking-tight text-slate-900">{availability.summary.totalAvailableBeds}</div>
                         </div>
                       </div>
-                      <div className="mt-3 text-[11px] text-slate-500">
+                      <div className="mt-3 text-[11px] text-slate-600">
                         Numbers reflect the selected date range.
                       </div>
                     </div>
@@ -1736,8 +1736,8 @@ export default function PublicPropertyDetailPage() {
         <div className="mt-5">
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
-              <h1 className="mt-2 text-2xl sm:text-3xl font-bold tracking-tight">{property.title}</h1>
-              <div className="mt-2 flex items-center gap-2 text-sm text-slate-600">
+              <h1 className="mt-2 text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">{property.title}</h1>
+              <div className="mt-2 flex items-center gap-2 text-sm text-slate-700">
                 <MapPin className="w-4 h-4" />
                 <span className="truncate">{location || "—"}</span>
               </div>
@@ -1983,8 +1983,8 @@ export default function PublicPropertyDetailPage() {
           </div>
 
           {/* Verified by NoLSAF statement (anti-fraud) */}
-          <div className="mt-3 rounded-xl border border-emerald-200/60 bg-gradient-to-br from-emerald-50 via-emerald-50/95 to-teal-50/80 p-3 shadow-sm">
-            <div className="flex items-start justify-between gap-3">
+          <div className="mt-3 relative overflow-hidden rounded-xl border border-emerald-200/60 bg-gradient-to-br from-emerald-50 via-emerald-50/95 to-teal-50/80 p-3 shadow-sm">
+            <div className="flex items-start gap-3 pr-12">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 mb-1.5">
                   <div className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-emerald-600 to-emerald-700 text-white shadow-sm shadow-emerald-600/30 flex-shrink-0">
@@ -1992,7 +1992,7 @@ export default function PublicPropertyDetailPage() {
                   </div>
                   <h3 className="text-sm font-bold text-emerald-900 leading-tight">Verified by NoLSAF</h3>
                 </div>
-                <div className="text-xs text-emerald-900/85 leading-relaxed pl-9">
+                <div className="text-xs text-emerald-900 leading-relaxed pl-9">
                   This property was verified through <strong className="font-semibold text-emerald-900">physical site visitation</strong>, location validation, and documentation review. We do this to ensure authenticity and protect you from fraud and misleading listings{" "}
                   (<Link href="/verification-policy" className="text-emerald-700 hover:text-emerald-900 font-medium underline underline-offset-2">
                     visit our Verification Policy
@@ -2000,8 +2000,9 @@ export default function PublicPropertyDetailPage() {
                   ).
                 </div>
               </div>
-              <VerifiedIcon href={`/public/properties/${property.slug}`} ariaLabel="Verified — view details" />
             </div>
+
+            <VerifiedIcon href={`/public/properties/${property.slug}`} ariaLabel="Verified — view details" />
           </div>
         </div>
 
@@ -3428,8 +3429,8 @@ export default function PublicPropertyDetailPage() {
 
                 {/* Desktop: modern column-aligned "card rows" (clean + transitional) */}
                 <div className="hidden md:block">
-                  <div className="rounded-2xl border border-slate-200 bg-white/80 backdrop-blur-sm overflow-hidden">
-                    <div className="grid grid-cols-12 gap-3 px-4 py-3 bg-slate-50/70 border-b border-slate-200">
+                  <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+                    <div className="grid grid-cols-12 gap-3 px-4 py-3 bg-slate-50 border-b border-slate-200">
                       <div className="col-span-2 text-[12px] font-semibold text-slate-600">Room type</div>
                       <div className="col-span-2 text-[12px] font-semibold text-slate-600">Bed Type &amp; Size</div>
                       <div className="col-span-4 text-[12px] font-semibold text-slate-600">Description &amp; Amenities</div>
@@ -3445,7 +3446,7 @@ export default function PublicPropertyDetailPage() {
                           className={[
                             "grid grid-cols-12 gap-3 px-4 py-4",
                             "bg-white",
-                            "hover:bg-emerald-50/30",
+                            "hover:bg-slate-50",
                             "motion-safe:transition-colors motion-safe:duration-200",
                           ].join(" ")}
                         >
@@ -3469,7 +3470,7 @@ export default function PublicPropertyDetailPage() {
                               <span className="break-words">{r.bedsSummary}</span>
                             </div>
                             {getBedDimensions(r.bedsSummary) && (
-                              <div className="mt-1.5 text-xs text-slate-500 leading-tight">
+                              <div className="mt-1.5 text-xs text-slate-600 leading-tight">
                                 {getBedDimensions(r.bedsSummary)}
                               </div>
                             )}
@@ -3478,13 +3479,13 @@ export default function PublicPropertyDetailPage() {
                           {/* Description & Amenities */}
                           <div className="col-span-4">
                             {r.description ? (
-                              <div className="p-3 rounded-xl border border-slate-200/70 bg-gradient-to-br from-white via-slate-50 to-emerald-50/20">
+                              <div className="p-3 rounded-xl border border-slate-200 bg-white">
                                 <p className="text-sm text-slate-800 leading-relaxed break-words">
                                   {capWords(r.description, 220)}
                                 </p>
                               </div>
                             ) : (
-                              <div className="text-sm text-slate-500">—</div>
+                              <div className="text-sm text-slate-600">—</div>
                             )}
 
                             {r.amenities.length ? (
@@ -3910,8 +3911,8 @@ export default function PublicPropertyDetailPage() {
                       <div className="text-sm font-medium text-slate-900">{houseRules.checkIn}</div>
                     </div>
                   ) : (
-                    <div className="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3 opacity-60">
-                      <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Check-in</div>
+                    <div className="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3">
+                      <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">Check-in</div>
                       <div className="text-sm text-slate-400">Not specified</div>
                     </div>
                   )}
@@ -3921,8 +3922,8 @@ export default function PublicPropertyDetailPage() {
                       <div className="text-sm font-medium text-slate-900">{houseRules.checkOut}</div>
                     </div>
                   ) : (
-                    <div className="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3 opacity-60">
-                      <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Check-out</div>
+                    <div className="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3">
+                      <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">Check-out</div>
                       <div className="text-sm text-slate-400">Not specified</div>
                     </div>
                   )}
@@ -3957,8 +3958,8 @@ export default function PublicPropertyDetailPage() {
                       )}
                     </div>
                   ) : (
-                    <div className="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3 opacity-60">
-                      <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Pets</div>
+                    <div className="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3">
+                      <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">Pets</div>
                       <div className="text-sm text-slate-400">Not specified</div>
                     </div>
                   )}
@@ -4387,21 +4388,26 @@ export default function PublicPropertyDetailPage() {
       {/* All photos (masonry/grid) */}
       {allPhotosOpen ? (
         <div
-          className="fixed inset-0 z-[500] bg-white"
+          className="fixed inset-0 z-[500] bg-black/40 p-3 sm:p-6"
           role="dialog"
           aria-modal="true"
           aria-label="All photos"
+          onClick={closeAllPhotos}
         >
           <div
             className={[
-              "absolute inset-0 flex flex-col",
+              "relative mx-auto w-full max-w-7xl",
+              "h-[calc(100vh-24px)] sm:h-[calc(100vh-48px)]",
+              "rounded-3xl bg-white border border-slate-200 shadow-2xl overflow-hidden",
+              "flex flex-col",
               "transition-all duration-200 ease-out motion-reduce:transition-none",
               allPhotosShown ? "opacity-100" : "opacity-0",
             ].join(" ")}
+            onClick={(e) => e.stopPropagation()}
           >
             {/* Sticky top bar (always visible) */}
-            <div className="sticky top-0 z-10 bg-white/95 backdrop-blur border-b border-slate-200">
-              <div className="w-full px-4 sm:px-6 lg:px-10 py-3 flex items-center justify-between gap-3">
+            <div className="sticky top-0 z-10 bg-white border-b border-slate-200">
+              <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-10 py-3 flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <div className="text-base font-semibold text-slate-900 truncate">All photos</div>
                   <div className="text-xs text-slate-600">{lightboxImages.length.toLocaleString()} photos</div>
@@ -4419,25 +4425,24 @@ export default function PublicPropertyDetailPage() {
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto">
-              <div className="w-full px-4 sm:px-6 lg:px-10 py-5">
+              <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-10 py-5">
                 <div
                   className={[
-                    "columns-2 sm:columns-3 lg:columns-4 gap-3 [column-fill:_balance]",
+                    "grid gap-3",
+                    "grid-cols-[repeat(auto-fit,minmax(220px,1fr))]",
                     "transition-transform duration-200 ease-out motion-reduce:transition-none",
                     allPhotosShown ? "translate-y-0" : "translate-y-1",
                   ].join(" ")}
                 >
                   {lightboxImages.map((src, i) => {
-                    const aspect =
-                      i % 7 === 0 ? "aspect-[4/3]" : i % 7 === 1 ? "aspect-[3/4]" : i % 7 === 2 ? "aspect-square" : "aspect-[16/10]";
                     return (
                       <button
                         key={`${src}-${i}`}
                         type="button"
                         onClick={() => openFromGrid(i)}
                         className={[
-                          "mb-3 w-full break-inside-avoid",
-                          "rounded-2xl overflow-hidden bg-slate-100",
+                          "group relative w-full",
+                          "rounded-2xl overflow-hidden bg-slate-100 border border-slate-200",
                           "shadow-sm hover:shadow-md",
                           "motion-safe:transition-transform motion-safe:duration-200 motion-safe:ease-out",
                           "motion-safe:hover:scale-[1.01] motion-safe:active:scale-[0.98]",
@@ -4445,7 +4450,7 @@ export default function PublicPropertyDetailPage() {
                         ].join(" ")}
                         aria-label={`Open photo ${i + 1}`}
                       >
-                        <div className={["relative w-full", aspect].join(" ")}>
+                        <div className="relative w-full aspect-[4/3]">
                           <Image
                             src={src}
                             alt={`${property.title} photo ${i + 1}`}
@@ -4453,7 +4458,7 @@ export default function PublicPropertyDetailPage() {
                             className="object-cover"
                             sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
                           />
-                          <div className="absolute inset-0 opacity-0 hover:opacity-100 transition-opacity bg-gradient-to-t from-black/35 via-black/0 to-black/0" />
+                          <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-t from-black/35 via-black/0 to-black/0" />
                         </div>
                       </button>
                     );
@@ -4470,12 +4475,12 @@ export default function PublicPropertyDetailPage() {
 
 function Fact({ icon, label, value }: { icon: ReactNode; label: string; value: any }) {
   return (
-    <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
-      <div className="flex items-center gap-2 text-slate-700">
-        <span className="text-slate-600">{icon}</span>
-        <span className="text-xs font-semibold">{label}</span>
+    <div className="rounded-xl bg-white border border-slate-200 p-3 shadow-sm">
+      <div className="flex items-center gap-2 text-slate-800">
+        <span className="text-slate-700">{icon}</span>
+        <span className="text-xs font-semibold text-slate-800">{label}</span>
       </div>
-      <div className="mt-2 text-sm font-bold text-slate-900">{String(value)}</div>
+      <div className="mt-2 text-sm font-bold text-slate-950">{String(value)}</div>
     </div>
   );
 }

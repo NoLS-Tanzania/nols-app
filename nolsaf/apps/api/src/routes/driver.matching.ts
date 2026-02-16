@@ -1,8 +1,10 @@
 import { Router, RequestHandler } from "express";
-import { requireAuth, AuthedRequest } from "../middleware/auth";
+import requireRole, { requireAuth, AuthedRequest } from "../middleware/auth";
 import { prisma } from "@nolsaf/prisma";
 
 const router = Router();
+
+router.use(requireAuth as any, requireRole("DRIVER") as any);
 
 /**
  * POST /api/driver/matching/find

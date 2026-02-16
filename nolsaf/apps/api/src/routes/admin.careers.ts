@@ -111,15 +111,21 @@ router.post("/", async (req, res) => {
       requirements,
       benefits,
       experienceLevel,
+      requiredEducationLevel,
       salary,
       applicationDeadline,
       featured,
-      status = "ACTIVE"
+      status = "ACTIVE",
+      isTravelAgentPosition
     } = (req as any).body;
 
     // Validation
     if (!title || !category || !type || !location || !department || !description) {
       return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    if (!String(locationDetail || "").trim()) {
+      return res.status(400).json({ error: "Area of Operation is required" });
     }
 
     if (!Array.isArray(responsibilities) || !Array.isArray(requirements) || !Array.isArray(benefits)) {
@@ -139,9 +145,11 @@ router.post("/", async (req, res) => {
         requirements: requirements || [],
         benefits: benefits || [],
         experienceLevel: experienceLevel || "ENTRY",
+        requiredEducationLevel: requiredEducationLevel || null,
         salary: salary || null,
         applicationDeadline: applicationDeadline ? new Date(applicationDeadline) : null,
         featured: featured || false,
+        isTravelAgentPosition: Boolean(isTravelAgentPosition),
         status,
         createdBy: req.user?.id,
         updatedBy: req.user?.id
@@ -191,10 +199,12 @@ router.patch("/:id", async (req, res) => {
       requirements,
       benefits,
       experienceLevel,
+      requiredEducationLevel,
       salary,
       applicationDeadline,
       featured,
-      status
+      status,
+      isTravelAgentPosition
     } = req.body;
 
     const updateData: any = {
@@ -205,16 +215,24 @@ router.patch("/:id", async (req, res) => {
     if (category !== undefined) updateData.category = category;
     if (type !== undefined) updateData.type = type;
     if (location !== undefined) updateData.location = location;
-    if (locationDetail !== undefined) updateData.locationDetail = locationDetail;
+    if (locationDetail !== undefined) {
+      const normalized = String(locationDetail || "").trim();
+      if (!normalized) {
+        return res.status(400).json({ error: "Area of Operation is required" });
+      }
+      updateData.locationDetail = normalized;
+    }
     if (department !== undefined) updateData.department = department;
     if (description !== undefined) updateData.description = description;
     if (responsibilities !== undefined) updateData.responsibilities = responsibilities;
     if (requirements !== undefined) updateData.requirements = requirements;
     if (benefits !== undefined) updateData.benefits = benefits;
     if (experienceLevel !== undefined) updateData.experienceLevel = experienceLevel;
+    if (requiredEducationLevel !== undefined) updateData.requiredEducationLevel = requiredEducationLevel || null;
     if (salary !== undefined) updateData.salary = salary;
     if (applicationDeadline !== undefined) updateData.applicationDeadline = applicationDeadline ? new Date(applicationDeadline) : null;
     if (featured !== undefined) updateData.featured = featured;
+    if (isTravelAgentPosition !== undefined) updateData.isTravelAgentPosition = Boolean(isTravelAgentPosition);
     if (status !== undefined) updateData.status = status;
 
     const job = await prisma.job.update({

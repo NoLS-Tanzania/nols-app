@@ -727,6 +727,34 @@ router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res,
 
 // POST /api/auth/logout
 // Use maybeAuth to optionally extract user for audit logging
+function safeNextPath(raw: any): string {
+  const v = typeof raw === "string" ? raw.trim() : "";
+  if (!v) return "/account/login";
+  // Only allow same-site relative paths (avoid open redirects)
+  if (!v.startsWith("/") || v.startsWith("//")) return "/account/login";
+  return v;
+}
+
+// GET /api/auth/logout?next=/account/login
+// Useful for reliable cookie clearing via top-level navigation.
+router.get("/logout", maybeAuth, async (req, res) => {
+  try {
+    const userId = (req as any).user?.id;
+    if (userId) {
+      await audit(req, "USER_LOGOUT", `user:${userId}`, null, {
+        logoutMethod: "manual",
+        via: "GET",
+      });
+    }
+  } catch (auditError) {
+    console.warn("Failed to audit logout:", auditError);
+  }
+
+  clearAuthCookie(res);
+  const next = safeNextPath((req as any)?.query?.next);
+  return res.redirect(302, next);
+});
+
 router.post("/logout", maybeAuth, async (req, res) => {
   // Audit logout if user is authenticated
   try {

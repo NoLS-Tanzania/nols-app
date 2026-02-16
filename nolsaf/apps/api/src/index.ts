@@ -664,7 +664,7 @@ app.use('/api/driver/referral/performance', requireRole('DRIVER') as express.Req
 // Driver messaging (prepared messages and send)
 app.use('/api/driver/messages', requireRole('DRIVER') as express.RequestHandler, driverMessagesRouter as express.RequestHandler);
 // Driver matching (find best driver for trip request)
-app.use('/api/driver/matching', driverMatchingRouter as express.RequestHandler);
+app.use('/api/driver/matching', requireRole('DRIVER') as express.RequestHandler, driverMatchingRouter as express.RequestHandler);
 // Driver performance metrics for bonus eligibility
 app.use('/api/driver/performance', requireRole('DRIVER') as express.RequestHandler, driverPerformanceRouter as express.RequestHandler);
 // Driver notifications
@@ -711,7 +711,7 @@ app.use('/api/customer/plan-requests', customerPlanRequestsRouter as express.Req
 
 // Agent portal endpoints (requires AGENT role)
 app.use('/api/agent/notifications', requireRole('AGENT') as express.RequestHandler, agentNotificationsRouter as express.RequestHandler);
-app.use('/api/agent', agentAssignmentsRouter as express.RequestHandler);
+app.use('/api/agent', requireRole('AGENT') as express.RequestHandler, agentAssignmentsRouter as express.RequestHandler);
 // Transport booking messages (driver, passenger, admin communication)
 app.use('/api/transport-bookings', transportMessagesRouter as express.RequestHandler);
 // Transport bookings (create, get details)

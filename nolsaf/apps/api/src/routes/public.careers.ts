@@ -50,7 +50,9 @@ router.get("/", async (req, res) => {
           postedDate: true,
           applicationDeadline: true,
           experienceLevel: true,
-          featured: true
+          requiredEducationLevel: true,
+          featured: true,
+          isTravelAgentPosition: true
           // Exclude internal fields like createdByUser, updatedByUser, etc.
         }
       }),
@@ -102,7 +104,9 @@ router.get("/:id", async (req, res) => {
         postedDate: true,
         applicationDeadline: true,
         experienceLevel: true,
-        featured: true
+        requiredEducationLevel: true,
+        featured: true,
+        isTravelAgentPosition: true
       }
     });
 

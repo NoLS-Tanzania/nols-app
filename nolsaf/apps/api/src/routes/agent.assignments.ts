@@ -4,6 +4,7 @@ import { z } from "zod";
 import { prisma } from "@nolsaf/prisma";
 import { AuthedRequest, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../middleware/errorHandler.js";
+import { limitAgentNotifyAdmin, limitAgentPortalRead } from "../middleware/rateLimit.js";
 
 const router = Router();
 
@@ -118,6 +119,7 @@ async function getActiveAgent(req: AuthedRequest): Promise<AgentGateResult> {
 router.get(
   "/me",
   requireRole("AGENT") as RequestHandler,
+  limitAgentPortalRead as any,
   asyncHandler(async (req: any, res) => {
     const gate = await getActiveAgent(req as AuthedRequest);
     if (!gate.ok) return res.status(gate.status).json({ ok: false, error: gate.error, message: gate.message });
@@ -183,6 +185,7 @@ router.get(
 router.post(
   "/notify-admin",
   requireRole("AGENT") as RequestHandler,
+  limitAgentNotifyAdmin as any,
   asyncHandler(async (req: any, res) => {
     const authed = req?.user;
     const authedId = authed?.id;
@@ -234,6 +237,7 @@ router.post(
 router.get(
   "/assignments",
   requireRole("AGENT") as RequestHandler,
+  limitAgentPortalRead as any,
   asyncHandler(async (req: any, res) => {
     const gate = await getActiveAgent(req as AuthedRequest);
     if (!gate.ok) return res.status(gate.status).json({ ok: false, error: gate.error, message: gate.message });
@@ -322,6 +326,7 @@ router.get(
 router.get(
   "/assignments/:id",
   requireRole("AGENT") as RequestHandler,
+  limitAgentPortalRead as any,
   asyncHandler(async (req: any, res) => {
     const gate = await getActiveAgent(req as AuthedRequest);
     if (!gate.ok) return res.status(gate.status).json({ ok: false, error: gate.error, message: gate.message });

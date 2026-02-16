@@ -29,6 +29,7 @@ type Job = {
   featured: boolean;
   status: string;
   isTravelAgentPosition?: boolean;
+  requiredEducationLevel?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -45,6 +46,7 @@ type JobFormData = {
   requirements: string[];
   benefits: string[];
   experienceLevel: string;
+  requiredEducationLevel: string;
   salaryMin: string;
   salaryMax: string;
   salaryCurrency: string;
@@ -110,6 +112,7 @@ export default function CareersManagement() {
     requirements: [""],
     benefits: [""],
     experienceLevel: "ENTRY",
+    requiredEducationLevel: "",
     salaryMin: "",
     salaryMax: "",
     salaryCurrency: "TZS",
@@ -238,6 +241,7 @@ export default function CareersManagement() {
       requirements: [""],
       benefits: [""],
       experienceLevel: "ENTRY",
+      requiredEducationLevel: "",
       salaryMin: "",
       salaryMax: "",
       salaryCurrency: "TZS",
@@ -265,6 +269,7 @@ export default function CareersManagement() {
       requirements: job.requirements.length > 0 ? job.requirements : [""],
       benefits: job.benefits.length > 0 ? job.benefits : [""],
       experienceLevel: job.experienceLevel,
+      requiredEducationLevel: job.requiredEducationLevel || "",
       salaryMin: job.salary?.min ? String(job.salary.min) : "",
       salaryMax: job.salary?.max ? String(job.salary.max) : "",
       salaryCurrency: job.salary?.currency || "TZS",
@@ -310,15 +315,7 @@ export default function CareersManagement() {
         period: formData.salaryPeriod as "MONTHLY" | "YEARLY"
       } : null;
 
-      // If Travel Agent position is enabled, ensure title contains "Agent" or "Travel"
-      let finalTitle = formData.title;
-      if (formData.isTravelAgentPosition) {
-        const titleLower = finalTitle.toLowerCase();
-        if (!titleLower.includes("agent") && !titleLower.includes("travel")) {
-          // Suggest adding "Travel Agent" to title if not present
-          finalTitle = finalTitle.trim() + (finalTitle.trim().endsWith(".") ? "" : " - Travel Agent");
-        }
-      }
+      const finalTitle = formData.title;
 
       const payload = {
         title: finalTitle,
@@ -332,10 +329,12 @@ export default function CareersManagement() {
         requirements: formData.requirements.filter(r => r.trim()),
         benefits: formData.benefits.filter(b => b.trim()),
         experienceLevel: formData.experienceLevel,
+        requiredEducationLevel: formData.requiredEducationLevel || null,
         salary,
         applicationDeadline: formData.applicationDeadline || null,
         featured: formData.featured,
-        status: formData.status
+        status: formData.status,
+        isTravelAgentPosition: formData.isTravelAgentPosition
       };
 
       const url = editingJob
@@ -879,10 +878,11 @@ export default function CareersManagement() {
 
                   <div className="min-w-0">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Location Detail
+                      Area of Operation <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
+                      required
                       value={formData.locationDetail}
                       onChange={(e) => setFormData({ ...formData, locationDetail: e.target.value })}
                       className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] transition-colors box-border"
@@ -1151,13 +1151,28 @@ export default function CareersManagement() {
                         <span className="text-xs text-gray-500">Enable this if this job is for a Travel Agent. Applicants will be asked to provide agent-specific information (education, areas of operation, languages, certifications, etc.). When approved, an Agent profile will be automatically created.</span>
                       </div>
                     </label>
-                    {formData.isTravelAgentPosition && (
-                      <div className="mt-3 ml-8 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                        <p className="text-xs text-blue-800">
-                          <strong>Note:</strong> Make sure the job title includes &quot;Travel Agent&quot; or &quot;Agent&quot; for proper identification. Applicants will see additional agent-specific fields in the application form.
-                        </p>
-                      </div>
-                    )}
+
+                    <div className="mt-4 max-w-xs">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Required Education Level (Optional)
+                      </label>
+                      <select
+                        value={formData.requiredEducationLevel}
+                        onChange={(e) => setFormData({ ...formData, requiredEducationLevel: e.target.value })}
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] transition-colors bg-white"
+                      >
+                        <option value="">No requirement</option>
+                        <option value="HIGH_SCHOOL">High School</option>
+                        <option value="DIPLOMA">Diploma</option>
+                        <option value="BACHELORS">Bachelors</option>
+                        <option value="MASTERS">Masters</option>
+                        <option value="PHD">PhD</option>
+                        <option value="OTHER">Other</option>
+                      </select>
+                      <p className="text-xs text-gray-500 mt-1">
+                        If set, applicants must match this education level to apply.
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1500,6 +1515,36 @@ export default function CareersManagement() {
                       <h3 className="text-base font-semibold text-gray-900">Agent Profile Information</h3>
                     </div>
                     <div className="space-y-4">
+                      {/* Location */}
+                      {(viewingApplication.agentApplicationData.nationality || viewingApplication.agentApplicationData.region || viewingApplication.agentApplicationData.district) && (
+                        <div>
+                          <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                            <MapPin size={16} className="text-[#02665e]" />
+                            Location
+                          </h4>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            {viewingApplication.agentApplicationData.nationality && (
+                              <div>
+                                <label className="block text-xs font-medium text-gray-500 mb-1">Nationality</label>
+                                <p className="text-sm text-gray-900">{viewingApplication.agentApplicationData.nationality}</p>
+                              </div>
+                            )}
+                            {viewingApplication.agentApplicationData.region && (
+                              <div>
+                                <label className="block text-xs font-medium text-gray-500 mb-1">Region</label>
+                                <p className="text-sm text-gray-900">{viewingApplication.agentApplicationData.region}</p>
+                              </div>
+                            )}
+                            {viewingApplication.agentApplicationData.district && (
+                              <div>
+                                <label className="block text-xs font-medium text-gray-500 mb-1">District</label>
+                                <p className="text-sm text-gray-900">{viewingApplication.agentApplicationData.district}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Education & Experience */}
                       {(viewingApplication.agentApplicationData.educationLevel || viewingApplication.agentApplicationData.yearsOfExperience) && (
                         <div>
@@ -1742,7 +1787,8 @@ export default function CareersManagement() {
                       {['PENDING', 'REVIEWING', 'SHORTLISTED', 'REJECTED', 'HIRED'].map((status) => {
                         const isCurrentStatus = viewingApplication.status === status;
                         const isUpdating = updatingStatus === viewingApplication.id;
-                        const isDisabled = isUpdating;
+                        const isFinalized = viewingApplication.status === 'HIRED' || viewingApplication.status === 'REJECTED';
+                        const isDisabled = isUpdating || isFinalized;
                         
                         return (
                           <button
@@ -1765,6 +1811,8 @@ export default function CareersManagement() {
                                 ? 'This is the current status'
                                 : isUpdating
                                 ? 'Updating status...'
+                                : isFinalized
+                                ? 'Finalized: status changes are disabled'
                                 : `Change status to ${status}`
                             }
                           >

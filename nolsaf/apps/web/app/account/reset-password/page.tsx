@@ -9,6 +9,15 @@ export default function ResetPasswordPage() {
   const token = search?.get("token") ?? "";
   const id = search?.get("id") ?? "";
   const method = search?.get("method") ?? "email";
+  const nextRaw = search?.get("next") ?? "";
+
+  const next = (() => {
+    const v = String(nextRaw || "").trim();
+    if (!v) return "";
+    if (!v.startsWith("/")) return "";
+    if (v.startsWith("//")) return "";
+    return v;
+  })();
 
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -71,7 +80,7 @@ export default function ResetPasswordPage() {
       const data = await res.json();
       if (res.ok && data && data.ok) {
         setSuccess(true);
-        setTimeout(() => router.push("/account/register"), 2200);
+        setTimeout(() => router.push(next || "/account/login"), 2200);
       } else {
         if (data && data.message === "weak_password" && Array.isArray(data.reasons)) {
           setReasons(data.reasons);
@@ -97,7 +106,7 @@ export default function ResetPasswordPage() {
         <div className="px-6 py-5 border-b border-slate-100">
           <div className="flex items-center gap-4">
             <button
-              onClick={() => router.push('/account/register')}
+              onClick={() => router.push(next || "/account/login")}
               className="w-10 h-10 rounded-lg border border-slate-300 flex items-center justify-center hover:bg-slate-50 transition-colors flex-shrink-0"
             >
               <ArrowLeft className="w-5 h-5 text-slate-600" />

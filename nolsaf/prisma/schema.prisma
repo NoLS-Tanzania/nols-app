@@ -2121,6 +2121,10 @@ model Job {
   /// Experience level: ENTRY, MID, SENIOR, LEAD
   experienceLevel String @db.VarChar(20)
 
+  /// Required education level for this job (when set, applications must match)
+  /// Values: HIGH_SCHOOL, DIPLOMA, BACHELORS, MASTERS, PHD, OTHER
+  requiredEducationLevel String? @db.VarChar(100)
+
   /// Salary information (stored as JSON: { min, max, currency, period })
   salary Json? // { min?: number, max?: number, currency?: string, period?: "MONTHLY" | "YEARLY" }
 
@@ -2132,6 +2136,9 @@ model Job {
 
   /// Whether this job is featured
   featured Boolean @default(false)
+
+  /// Whether this job is a Travel Agent recruitment position
+  isTravelAgentPosition Boolean @default(false)
 
   /// Job status: ACTIVE, CLOSED, DRAFT
   status String @default("ACTIVE") @db.VarChar(20)
@@ -2180,6 +2187,22 @@ model JobApplication {
   fullName String @db.VarChar(200)
   email    String @db.VarChar(255)
   phone    String @db.VarChar(40)
+
+  /// Applicant location (Tanzania: Region & District)
+  region   String? @db.VarChar(100)
+  district String? @db.VarChar(100)
+
+  /// Applicant nationality (selected from dataset in UI)
+  nationality String? @db.VarChar(100)
+
+  /// Applicant education level (if captured)
+  educationLevel String? @db.VarChar(40)
+
+  /// Applicant years of experience (if captured)
+  yearsOfExperience Int?
+
+  /// Applicant languages (array of strings)
+  languages Json?
 
   /// Application content
   coverLetter String @db.Text
@@ -2245,7 +2268,7 @@ model CancellationRequest {
   bookingCode String @db.VarChar(32)
 
   /// Workflow status: SUBMITTED, REVIEWING, NEED_INFO, PROCESSING, REFUNDED, REJECTED
-  status String  @default("SUBMITTED") @db.VarChar(40)
+  status String @default("SUBMITTED") @db.VarChar(20)
   reason String? @db.Text
 
   /// Snapshot of policy evaluation at submission time

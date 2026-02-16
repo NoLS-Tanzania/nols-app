@@ -19,6 +19,13 @@ export interface AuthedRequest extends Request {
   user?: AuthedUser;
 }
 
+function isLocalDevBypassAllowed(req: Request): boolean {
+  if (process.env.NODE_ENV === "production" || process.env.NODE_ENV === "test") return false;
+  const ip = String((req as any).ip ?? "");
+  // Express may surface IPv6 loopback or IPv4-mapped IPv6 addresses.
+  return ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1";
+}
+
 function parseCookies(cookieHeader: string | undefined): Record<string, string> {
   if (!cookieHeader) return {};
   const out: Record<string, string> = {};
@@ -174,7 +181,7 @@ export const requireAuth: RequestHandler = async (req, res, next) => {
 
   // DEV behavior: keep current dev-bypass so the app keeps working locally.
   // Production is strict: no token -> 401.
-  if (process.env.NODE_ENV !== "production" && process.env.NODE_ENV !== "test") {
+  if (isLocalDevBypassAllowed(req)) {
     (req as AuthedRequest).user = { id: 1, role: "ADMIN" };
     try {
       touchActiveUser(1, "ADMIN");
@@ -231,7 +238,7 @@ export function requireRole(required?: Role) {
     }
 
     // Dev bypass: keep local development productive.
-    if (process.env.NODE_ENV !== "production" && process.env.NODE_ENV !== "test") {
+    if (isLocalDevBypassAllowed(req)) {
       if (!(req as AuthedRequest).user) (req as AuthedRequest).user = { id: 1, role: "ADMIN" };
       try {
         touchActiveUser((req as AuthedRequest).user!.id, (req as AuthedRequest).user!.role);

@@ -2014,6 +2014,37 @@ const getLoginHistory: RequestHandler = async (req, res) => {
       } catch (e) { /* ignore and fallthrough */ }
     }
 
+    // Prefer AuditLog entries written by auth flows (USER_LOGIN). This is the closest thing
+    // to a real login history in this codebase and includes IP + user-agent.
+    if ((prisma as any).auditLog) {
+      try {
+        const audits = await (prisma as any).auditLog.findMany({
+          where: { actorId: user.id, action: 'USER_LOGIN' },
+          orderBy: { createdAt: 'desc' },
+          take: 50,
+        });
+        const mapped = (audits || []).map((it: any) => {
+          const ua = typeof it.ua === 'string' ? it.ua : '';
+          const after = it.afterJson as any;
+          const method = after && typeof after.loginMethod === 'string' ? after.loginMethod : null;
+          const detailsParts = [method ? `Method: ${method}` : null, ua ? `UA: ${ua}` : null].filter(Boolean);
+          return {
+            id: String(it.id),
+            at: it.createdAt,
+            ip: it.ip ?? null,
+            username: (user as any)?.email ?? null,
+            platform: inferPlatformFromUserAgent(ua),
+            details: detailsParts.length ? detailsParts.join('\n') : null,
+            timeUsed: null,
+            success: true,
+          };
+        });
+        return res.json({ records: mapped });
+      } catch (e) {
+        // ignore and fallthrough
+      }
+    }
+
     // Fallback/demo data with richer fields
     const demo = [
       { id: 'l1', at: new Date().toISOString(), ip: '127.0.0.1', username: 'driver1', platform: 'Windows', details: 'Browser: Chrome -- Version: 142.0.0.0', timeUsed: 3600, success: true },
@@ -2027,6 +2058,17 @@ const getLoginHistory: RequestHandler = async (req, res) => {
   }
 };
 router.get('/security/logins', getLoginHistory as unknown as RequestHandler);
+
+function inferPlatformFromUserAgent(ua: string) {
+  const s = String(ua || '').toLowerCase();
+  if (!s) return null;
+  if (s.includes('windows')) return 'Windows';
+  if (s.includes('android')) return 'Android';
+  if (s.includes('iphone') || s.includes('ipad') || s.includes('ipod')) return 'iOS';
+  if (s.includes('mac os x') || s.includes('macintosh')) return 'macOS';
+  if (s.includes('linux')) return 'Linux';
+  return 'Unknown';
+}
 
 /**
  * Passkeys endpoints using @simplewebauthn/server for registration verification.

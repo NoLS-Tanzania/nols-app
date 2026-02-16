@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
-import { Search, X, User, CheckCircle, XCircle, Clock, Eye, Filter, GraduationCap, MapPin, Award, Languages, Briefcase, UsersRound, ChevronDown, ChevronUp, Calendar, DollarSign, Star, CheckCircle2, Mail, Phone, TrendingUp, Target, Trophy, Loader2, AlertCircle, RefreshCw, ExternalLink } from "lucide-react";
+import { Search, X, User, CheckCircle, XCircle, Clock, Eye, Filter, GraduationCap, MapPin, Award, Languages, Briefcase, UsersRound, ChevronDown, Calendar, DollarSign, Star, CheckCircle2, Mail, Phone, TrendingUp, Target, Trophy, Loader2, AlertCircle, RefreshCw, ExternalLink, FileX, Check, Undo2 } from "lucide-react";
 import axios from "axios";
 import Link from "next/link";
 
@@ -56,6 +56,32 @@ function initials(name: string | null | undefined) {
   return (first + second).toUpperCase();
 }
 
+function isProbablyPdf(url: string): boolean {
+  return /\.pdf($|\?)/i.test(url);
+}
+
+function isProbablyImage(url: string): boolean {
+  return /\.(png|jpg|jpeg|webp|gif)($|\?)/i.test(url);
+}
+
+function normalizeStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .filter((v) => typeof v === "string")
+      .map((v) => v.trim())
+      .filter(Boolean);
+  }
+
+  if (typeof value === "string") {
+    return value
+      .split(",")
+      .map((v) => v.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
 // Toast notification helper
 function showToast(type: "success" | "error" | "info" | "warning", title: string, message?: string, duration?: number) {
   if (typeof window !== "undefined") {
@@ -99,8 +125,14 @@ type Agent = {
   user: {
     id: number;
     name: string | null;
+    fullName?: string | null;
     email: string | null;
     phone: string | null;
+    nationality?: string | null;
+    region?: string | null;
+    district?: string | null;
+    timezone?: string | null;
+    avatarUrl?: string | null;
   };
   assignedPlanRequests?: Array<{
     id: number;
@@ -122,6 +154,18 @@ type Agent = {
   }>;
 };
 
+type AgentDocument = {
+  id: number;
+  userId: number;
+  type: string | null;
+  status: string;
+  reason?: string | null;
+  url?: string | null;
+  metadata?: any;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export default function AdminAgentsPage() {
   const searchParams = useSearchParams();
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -134,6 +178,20 @@ export default function AdminAgentsPage() {
   const [agentDetailsError, setAgentDetailsError] = useState<string | null>(null);
   const [personalDetailsOpen, setPersonalDetailsOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [agentDocuments, setAgentDocuments] = useState<AgentDocument[]>([]);
+  const [docsLoading, setDocsLoading] = useState(false);
+  const [docsError, setDocsError] = useState<string | null>(null);
+  const [docActionLoadingId, setDocActionLoadingId] = useState<number | null>(null);
+  const docsRef = useRef<HTMLDivElement | null>(null);
+
+  const [docPreview, setDocPreview] = useState<{ open: boolean; url: string; title: string }>({
+    open: false,
+    url: "",
+    title: "",
+  });
+
+  const [taskView, setTaskView] = useState<"IN_PROGRESS" | "COMPLETED">("IN_PROGRESS");
 
   // Filter states
   const [status, setStatus] = useState<string>("");
@@ -244,6 +302,13 @@ export default function AdminAgentsPage() {
   }, []);
 
   useEffect(() => {
+    const tasks = viewingAgent?.assignedPlanRequests || [];
+    const completed = tasks.filter((t: any) => t?.status === "COMPLETED" || t?.status === "CLOSED");
+    const inProgress = tasks.filter((t: any) => !(t?.status === "COMPLETED" || t?.status === "CLOSED"));
+    setTaskView(inProgress.length > 0 ? "IN_PROGRESS" : completed.length > 0 ? "COMPLETED" : "IN_PROGRESS");
+  }, [viewingAgent?.id, viewingAgent?.assignedPlanRequests]);
+
+  useEffect(() => {
     if (!viewingAgent) return;
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") closeAgentDetails();
@@ -256,6 +321,76 @@ export default function AdminAgentsPage() {
       document.body.style.overflow = prevOverflow;
     };
   }, [closeAgentDetails, viewingAgent]);
+
+  const requiredDocTypes = useRef([
+    { type: "ACADEMIC_CERTIFICATES", label: "Academic certificates" },
+    { type: "NDA", label: "Signed NDA" },
+    { type: "NATIONAL_ID_OR_PASSPORT", label: "National ID / Travel Passport" },
+  ] as const);
+
+  const getLatestDocByType = useCallback((docs: AgentDocument[], type: string) => {
+    const upper = String(type || "").toUpperCase();
+    return docs.find((d) => String(d.type || "").toUpperCase() === upper) || null;
+  }, []);
+
+  const loadDocuments = useCallback(async (agentId: number) => {
+    if (!isValidAgentId(agentId)) return;
+    setDocsLoading(true);
+    setDocsError(null);
+    try {
+      authify();
+      const resp = await api.get(`/api/admin/agents/${agentId}/documents`);
+      const payload = unwrapApiData<{ documents: AgentDocument[] }>(resp.data);
+      const docs = Array.isArray(payload?.documents) ? payload.documents : [];
+      // Ensure newest-first ordering (API already does this)
+      setAgentDocuments(docs);
+    } catch (err: any) {
+      const msg = err?.response?.data?.error || err?.message || "Failed to load agent documents";
+      setDocsError(msg);
+      setAgentDocuments([]);
+    } finally {
+      setDocsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!viewingAgent || !isValidAgentId(viewingAgent.id)) {
+      setAgentDocuments([]);
+      setDocsError(null);
+      setDocsLoading(false);
+      return;
+    }
+    void loadDocuments(viewingAgent.id);
+  }, [loadDocuments, viewingAgent]);
+
+  const updateDocumentStatus = useCallback(
+    async (agentId: number, docId: number, status: "APPROVED" | "REJECTED", reason?: string) => {
+      if (!isValidAgentId(agentId) || !Number.isInteger(docId) || docId <= 0) return;
+      setDocActionLoadingId(docId);
+      try {
+        authify();
+        const resp = await api.patch(`/api/admin/agents/${agentId}/documents/${docId}`, {
+          status,
+          reason: status === "REJECTED" ? String(reason || "").trim() : null,
+        });
+        const payload = unwrapApiData<{ doc: AgentDocument }>(resp.data);
+        const updated = payload?.doc;
+        if (updated) {
+          setAgentDocuments((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
+        } else {
+          // Fallback: reload
+          await loadDocuments(agentId);
+        }
+        showToast("success", "Document updated", status === "APPROVED" ? "Approved" : "Rejected");
+      } catch (err: any) {
+        const msg = err?.response?.data?.error || err?.message || "Failed to update document";
+        showToast("error", "Update failed", msg);
+      } finally {
+        setDocActionLoadingId(null);
+      }
+    },
+    [loadDocuments],
+  );
 
 
   return (
@@ -748,6 +883,15 @@ export default function AdminAgentsPage() {
                   <div className="flex items-center gap-2 mb-4">
                     <User className="h-5 w-5 text-[#02665e]" />
                     <h3 className="text-base font-semibold text-gray-900">Agent Information</h3>
+                    <button
+                      type="button"
+                      onClick={() => docsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                      className="ml-auto inline-flex items-center justify-center rounded-md p-2 text-[#02665e] hover:text-[#014d47] hover:bg-[#02665e]/10"
+                      aria-label="Review documents"
+                      title="Review submitted documents"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </button>
                   </div>
                   <div className="space-y-4">
                     {/* Agent Name */}
@@ -935,6 +1079,201 @@ export default function AdminAgentsPage() {
                   </div>
                 </div>
 
+                {/* Agent Documents */}
+                <div ref={docsRef} className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">
+                  <div className="flex items-center justify-between gap-3 mb-4">
+                    <div className="flex items-center gap-2">
+                      <GraduationCap className="h-5 w-5 text-[#02665e]" />
+                      <h3 className="text-base font-semibold text-gray-900">Agent Documents</h3>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => viewingAgent?.id && loadDocuments(viewingAgent.id)}
+                      className="inline-flex items-center justify-center rounded-lg border border-gray-200 p-2 text-gray-700 hover:bg-gray-50"
+                      aria-label="Reload agent documents"
+                      title="Reload"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  {docsLoading ? (
+                    <div className="py-6 text-center text-sm text-gray-500">
+                      <Loader2 className="h-5 w-5 text-[#02665e] animate-spin mx-auto mb-2" />
+                      Loading documents...
+                    </div>
+                  ) : docsError ? (
+                    <div className="py-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-4">
+                      {docsError}
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {requiredDocTypes.current.map((reqDoc) => {
+                        const latest = getLatestDocByType(agentDocuments, reqDoc.type);
+                        const status = String(latest?.status || "NOT_UPLOADED").toUpperCase();
+                        const _isPending = status === "PENDING";
+                        const isApproved = status === "APPROVED";
+                        const isRejected = status === "REJECTED";
+                        const canPreview = Boolean(latest?.url);
+                        const isNotUploaded = !latest?.url;
+
+                        return (
+                          <div key={reqDoc.type} className="border border-gray-200 rounded-xl p-4 bg-white shadow-sm h-full flex flex-col">
+                            <div className="min-w-0">
+                              <div className="text-sm font-semibold text-gray-900">{reqDoc.label}</div>
+                              <div className="text-xs text-gray-500 mt-1">
+                                Type: <span className="font-mono">{reqDoc.type}</span>
+                              </div>
+
+                              {isRejected && latest?.reason ? (
+                                <div className="mt-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">
+                                  Rejection reason: {latest.reason}
+                                </div>
+                              ) : null}
+                            </div>
+
+                            <div className="mt-4 flex items-center justify-end gap-2">
+                              {/* NOT UPLOADED icon only */}
+                              {isNotUploaded ? (
+                                <span
+                                  className="inline-flex items-center justify-center h-9 w-9 rounded-lg border border-gray-200 bg-gray-50 text-gray-500"
+                                  title="Not uploaded"
+                                  aria-label={`${reqDoc.label} not uploaded`}
+                                >
+                                  <FileX className="h-4.5 w-4.5" />
+                                </span>
+                              ) : null}
+
+                              {/* Uploaded: Eye (preview popup) */}
+                              {canPreview ? (
+                                <button
+                                  type="button"
+                                  disabled={docActionLoadingId === latest?.id}
+                                  onClick={() => {
+                                    if (!latest?.url) return;
+                                    setDocPreview({ open: true, url: latest.url, title: reqDoc.label });
+                                  }}
+                                  className="inline-flex items-center justify-center h-9 w-9 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  aria-label={`Preview ${reqDoc.label}`}
+                                  title="Preview"
+                                >
+                                  <Eye className="h-4.5 w-4.5" />
+                                </button>
+                              ) : null}
+
+                              {/* Pending/Rejected: Approve + Reject */}
+                              {canPreview && !isApproved ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    disabled={!latest?.id || docActionLoadingId === latest.id}
+                                    onClick={() => {
+                                      if (!viewingAgent?.id || !latest?.id) return;
+                                      void updateDocumentStatus(viewingAgent.id, latest.id, "APPROVED");
+                                    }}
+                                    className="inline-flex items-center justify-center h-9 w-9 rounded-lg bg-[#02665e] text-white hover:bg-[#014d47] disabled:opacity-50 disabled:cursor-not-allowed"
+                                    aria-label={`Approve ${reqDoc.label}`}
+                                    title="Approve"
+                                  >
+                                    <Check className="h-4.5 w-4.5" />
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    disabled={!latest?.id || docActionLoadingId === latest.id}
+                                    onClick={() => {
+                                      if (!viewingAgent?.id || !latest?.id) return;
+                                      void updateDocumentStatus(viewingAgent.id, latest.id, "REJECTED", "");
+                                    }}
+                                    className="inline-flex items-center justify-center h-9 w-9 rounded-lg border border-red-200 bg-white text-red-700 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    aria-label={`Reject ${reqDoc.label}`}
+                                    title="Reject"
+                                  >
+                                    <X className="h-4.5 w-4.5" />
+                                  </button>
+                                </>
+                              ) : null}
+
+                              {/* Approved: Eye + Unapprove */}
+                              {canPreview && isApproved ? (
+                                <button
+                                  type="button"
+                                  disabled={!latest?.id || docActionLoadingId === latest.id}
+                                  onClick={() => {
+                                    if (!viewingAgent?.id || !latest?.id) return;
+                                    const ok = window.confirm("Unapprove this document? It will be marked as rejected.");
+                                    if (!ok) return;
+                                    void updateDocumentStatus(viewingAgent.id, latest.id, "REJECTED", "");
+                                  }}
+                                  className="inline-flex items-center justify-center h-9 w-9 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  aria-label={`Unapprove ${reqDoc.label}`}
+                                  title="Unapprove"
+                                >
+                                  <Undo2 className="h-4.5 w-4.5" />
+                                </button>
+                              ) : null}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <div className="mt-4 text-xs text-gray-500">
+                    Approving/rejecting is authenticated and stored server-side. When the agent re-uploads a document, it returns to <span className="font-semibold">PENDING</span> automatically.
+                  </div>
+                </div>
+
+                {/* Document Preview Popup */}
+                {docPreview.open ? (
+                  <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Document preview">
+                    <div className="w-full max-w-5xl bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
+                      <div className="flex items-center justify-between gap-3 p-4 border-b border-gray-200">
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-gray-900 truncate">{docPreview.title}</div>
+                          <div className="text-xs text-gray-500 truncate">Preview</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <a
+                            href={docPreview.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                            title="Open in new tab"
+                            aria-label="Open in new tab"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                            Open
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => setDocPreview({ open: false, url: "", title: "" })}
+                            className="inline-flex items-center justify-center h-9 w-9 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                            aria-label="Close preview"
+                            title="Close"
+                          >
+                            <X className="h-4.5 w-4.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="h-[75vh] bg-gray-50">
+                        {isProbablyImage(docPreview.url) ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={docPreview.url} alt="Document preview" className="h-full w-full object-contain" />
+                        ) : (
+                          <iframe
+                            title="Document preview"
+                            src={docPreview.url}
+                            className="h-full w-full"
+                          />
+                        )}
+                        {isProbablyPdf(docPreview.url) ? null : null}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
                 {/* Promotion Progress */}
                 {viewingAgent.promotionProgress && (
                   <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">
@@ -1049,42 +1388,88 @@ export default function AdminAgentsPage() {
                 {/* Personal Details & Education - Collapsible */}
                 <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
                   <button
+                    type="button"
                     onClick={() => setPersonalDetailsOpen(!personalDetailsOpen)}
-                    className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+                    className="group w-full flex items-center justify-between px-5 py-4 bg-gradient-to-r from-gray-50 to-white hover:from-white hover:to-gray-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30"
+                    aria-expanded={personalDetailsOpen}
+                    aria-controls="personal-details-panel"
                   >
-                    <div className="flex items-center gap-2">
-                      <User className="h-4 w-4 text-[#02665e]" />
-                      <h3 className="text-sm font-semibold text-gray-900">Personal Details & Education</h3>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="h-9 w-9 rounded-xl bg-[#02665e]/10 text-[#02665e] border border-[#02665e]/15 flex items-center justify-center shrink-0">
+                        <User className="h-4 w-4" />
+                      </div>
+                      <h3 className="text-sm font-semibold text-gray-900 truncate">Personal Details & Education</h3>
                     </div>
-                    {personalDetailsOpen ? (
-                      <ChevronUp className="h-4 w-4 text-gray-400" />
-                    ) : (
-                      <ChevronDown className="h-4 w-4 text-gray-400" />
-                    )}
+                    <ChevronDown
+                      className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${
+                        personalDetailsOpen ? "rotate-180" : "rotate-0"
+                      }`}
+                    />
                   </button>
                   {personalDetailsOpen && (
-                    <div className="px-5 pb-5 space-y-5 border-t border-gray-200">
+                    <div id="personal-details-panel" className="px-5 pb-5 space-y-5 border-t border-gray-200">
                       {/* Personal Information */}
                       <div className="pt-5">
                         <h4 className="text-sm font-semibold text-gray-700 mb-3">Personal Information</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-xs font-medium text-gray-500 mb-1.5">Full Name</label>
-                            <p className="text-sm font-medium text-gray-900">{viewingAgent.user.name || "N/A"}</p>
+
+                        <div className="rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-4">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="h-12 w-12 rounded-full border border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center shrink-0 ring-2 ring-white">
+                                {viewingAgent.user.avatarUrl ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img src={viewingAgent.user.avatarUrl} alt="Profile photo" className="h-full w-full object-cover" />
+                                ) : (
+                                  <span className="text-sm font-bold text-gray-600">{initials(viewingAgent.user.fullName || viewingAgent.user.name)}</span>
+                                )}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="text-sm font-semibold text-gray-900 truncate">{viewingAgent.user.fullName || viewingAgent.user.name || "N/A"}</div>
+                                <div className="text-xs text-gray-500 truncate">{viewingAgent.user.email || ""}</div>
+                              </div>
+                            </div>
+                            <div className="shrink-0">
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-[#02665e]/10 text-[#02665e] border border-[#02665e]/15">
+                                User #{viewingAgent.user.id}
+                              </span>
+                            </div>
                           </div>
-                          <div>
-                            <label className="block text-xs font-medium text-gray-500 mb-1.5">Email</label>
-                            <p className="text-sm text-gray-900 flex items-center gap-1.5">
-                              <Mail className="h-3 w-3 text-gray-400" />
-                              {viewingAgent.user.email || "N/A"}
-                            </p>
-                          </div>
-                          <div>
-                            <label className="block text-xs font-medium text-gray-500 mb-1.5">Phone</label>
-                            <p className="text-sm text-gray-900 flex items-center gap-1.5">
-                              <Phone className="h-3 w-3 text-gray-400" />
-                              {viewingAgent.user.phone || "N/A"}
-                            </p>
+
+                          <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div className="rounded-lg border border-gray-200 bg-white p-3">
+                              <label className="block text-[11px] font-semibold text-gray-500 tracking-wide uppercase">Full Name</label>
+                              <p className="text-sm font-semibold text-gray-900 mt-1">{viewingAgent.user.fullName || viewingAgent.user.name || "N/A"}</p>
+                            </div>
+                            <div className="rounded-lg border border-gray-200 bg-white p-3">
+                              <label className="block text-[11px] font-semibold text-gray-500 tracking-wide uppercase">Email</label>
+                              <p className="text-sm text-gray-900 mt-1 flex items-center gap-1.5">
+                                <Mail className="h-3.5 w-3.5 text-gray-400" />
+                                <span className="truncate">{viewingAgent.user.email || "N/A"}</span>
+                              </p>
+                            </div>
+                            <div className="rounded-lg border border-gray-200 bg-white p-3">
+                              <label className="block text-[11px] font-semibold text-gray-500 tracking-wide uppercase">Phone</label>
+                              <p className="text-sm text-gray-900 mt-1 flex items-center gap-1.5">
+                                <Phone className="h-3.5 w-3.5 text-gray-400" />
+                                <span className="truncate">{viewingAgent.user.phone || "N/A"}</span>
+                              </p>
+                            </div>
+                            <div className="rounded-lg border border-gray-200 bg-white p-3">
+                              <label className="block text-[11px] font-semibold text-gray-500 tracking-wide uppercase">Nationality</label>
+                              <p className="text-sm text-gray-900 mt-1">{viewingAgent.user.nationality || "N/A"}</p>
+                            </div>
+                            <div className="rounded-lg border border-gray-200 bg-white p-3">
+                              <label className="block text-[11px] font-semibold text-gray-500 tracking-wide uppercase">Region</label>
+                              <p className="text-sm text-gray-900 mt-1">{viewingAgent.user.region || "N/A"}</p>
+                            </div>
+                            <div className="rounded-lg border border-gray-200 bg-white p-3">
+                              <label className="block text-[11px] font-semibold text-gray-500 tracking-wide uppercase">District</label>
+                              <p className="text-sm text-gray-900 mt-1">{viewingAgent.user.district || "N/A"}</p>
+                            </div>
+                            <div className="rounded-lg border border-gray-200 bg-white p-3">
+                              <label className="block text-[11px] font-semibold text-gray-500 tracking-wide uppercase">Timezone</label>
+                              <p className="text-sm text-gray-900 mt-1">{viewingAgent.user.timezone || "N/A"}</p>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -1121,68 +1506,65 @@ export default function AdminAgentsPage() {
                         </div>
                       )}
 
-                      {/* Areas of Operation */}
-                      {viewingAgent.areasOfOperation && Array.isArray(viewingAgent.areasOfOperation) && viewingAgent.areasOfOperation.length > 0 && (
+                      {/* Areas of Operation / Languages / Specializations (3-column row) */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
                           <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
                             <MapPin className="h-4 w-4 text-[#02665e]" />
                             Areas of Operation
                           </h4>
                           <div className="flex flex-wrap gap-2">
-                            {viewingAgent.areasOfOperation.map((area: string, idx: number) => (
-                              <span key={idx} className="inline-flex items-center gap-1 px-3 py-1 bg-blue-50 text-blue-700 rounded-lg text-sm border border-blue-200">
-                                <MapPin className="h-3 w-3" />
-                                {area}
-                              </span>
-                            ))}
+                            {Array.isArray(viewingAgent.areasOfOperation) && viewingAgent.areasOfOperation.length > 0 ? (
+                              viewingAgent.areasOfOperation.map((area: string, idx: number) => (
+                                <span key={idx} className="inline-flex items-center gap-1 px-3 py-1 bg-blue-50 text-blue-700 rounded-lg text-sm border border-blue-200">
+                                  <MapPin className="h-3 w-3" />
+                                  {area}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-sm text-gray-500">N/A</span>
+                            )}
                           </div>
                         </div>
-                      )}
 
-                      {/* Languages */}
-                      {viewingAgent.languages && (
                         <div>
                           <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
                             <Languages className="h-4 w-4 text-[#02665e]" />
                             Languages
                           </h4>
                           <div className="flex flex-wrap gap-2">
-                            {Array.isArray(viewingAgent.languages) ? (
-                              viewingAgent.languages.map((lang: string, idx: number) => (
+                            {normalizeStringArray(viewingAgent.languages).length > 0 ? (
+                              normalizeStringArray(viewingAgent.languages).map((lang: string, idx: number) => (
                                 <span key={idx} className="inline-flex items-center gap-1 px-3 py-1 bg-purple-50 text-purple-700 rounded-lg text-sm border border-purple-200">
                                   <Languages className="h-3 w-3" />
                                   {lang}
                                 </span>
                               ))
-                            ) : typeof viewingAgent.languages === 'string' ? (
-                              viewingAgent.languages.split(',').map((lang: string, idx: number) => (
-                                <span key={idx} className="inline-flex items-center gap-1 px-3 py-1 bg-purple-50 text-purple-700 rounded-lg text-sm border border-purple-200">
-                                  <Languages className="h-3 w-3" />
-                                  {lang.trim()}
-                                </span>
-                              ))
-                            ) : null}
+                            ) : (
+                              <span className="text-sm text-gray-500">N/A</span>
+                            )}
                           </div>
                         </div>
-                      )}
 
-                      {/* Specializations */}
-                      {viewingAgent.specializations && Array.isArray(viewingAgent.specializations) && viewingAgent.specializations.length > 0 && (
                         <div>
                           <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
                             <Briefcase className="h-4 w-4 text-[#02665e]" />
                             Specializations
                           </h4>
                           <div className="flex flex-wrap gap-2">
-                            {viewingAgent.specializations.map((spec: string, idx: number) => (
-                              <span key={idx} className="inline-flex items-center gap-1 px-3 py-1 bg-green-50 text-green-700 rounded-lg text-sm border border-green-200">
-                                <Briefcase className="h-3 w-3" />
-                                {spec}
-                              </span>
-                            ))}
+                            {Array.isArray(viewingAgent.specializations) && viewingAgent.specializations.length > 0 ? (
+                              viewingAgent.specializations.map((spec: string, idx: number) => (
+                                <span key={idx} className="inline-flex items-center gap-1 px-3 py-1 bg-green-50 text-green-700 rounded-lg text-sm border border-green-200">
+                                  <Briefcase className="h-3 w-3" />
+                                  {spec}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-sm text-gray-500">N/A</span>
+                            )}
                           </div>
                         </div>
-                      )}
+                      </div>
 
                       {/* Certifications */}
                       {viewingAgent.certifications && Array.isArray(viewingAgent.certifications) && viewingAgent.certifications.length > 0 && (
@@ -1210,18 +1592,60 @@ export default function AdminAgentsPage() {
 
                 {/* Track Tasks */}
                 <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">
-                  <div className="flex items-center gap-2 mb-4">
-                    <Briefcase className="h-5 w-5 text-[#02665e]" />
-                    <h3 className="text-base font-semibold text-gray-900">Track Tasks</h3>
-                    {viewingAgent.assignedPlanRequests && viewingAgent.assignedPlanRequests.length > 0 && (
-                      <span className="px-2 py-0.5 bg-[#02665e]/10 text-[#02665e] text-xs font-semibold rounded-full">
-                        {viewingAgent.assignedPlanRequests.length} {viewingAgent.assignedPlanRequests.length === 1 ? 'task' : 'tasks'}
-                      </span>
-                    )}
-                  </div>
-                  {viewingAgent.assignedPlanRequests && viewingAgent.assignedPlanRequests.length > 0 ? (
-                    <div className="space-y-4">
-                      {viewingAgent.assignedPlanRequests.map((task: any) => {
+                  {(() => {
+                    const allTasks = viewingAgent.assignedPlanRequests || [];
+                    const completedTasks = allTasks.filter((t: any) => t?.status === "COMPLETED" || t?.status === "CLOSED");
+                    const inProgressTasks = allTasks.filter((t: any) => !(t?.status === "COMPLETED" || t?.status === "CLOSED"));
+                    const visibleTasks = taskView === "COMPLETED" ? completedTasks : inProgressTasks;
+
+                    return (
+                      <>
+                        <div className="flex items-center justify-between gap-3 mb-4">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Briefcase className="h-5 w-5 text-[#02665e]" />
+                            <h3 className="text-base font-semibold text-gray-900">Track Tasks</h3>
+                            {allTasks.length > 0 ? (
+                              <span className="px-2 py-0.5 bg-[#02665e]/10 text-[#02665e] text-xs font-semibold rounded-full">
+                                {allTasks.length} {allTasks.length === 1 ? "task" : "tasks"}
+                              </span>
+                            ) : null}
+                          </div>
+
+                          {allTasks.length > 0 ? (
+                            <div className="inline-flex items-center rounded-xl border border-gray-200 bg-gray-50 p-1">
+                              <button
+                                type="button"
+                                onClick={() => setTaskView("IN_PROGRESS")}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                                  taskView === "IN_PROGRESS" ? "bg-white text-gray-900 shadow-sm" : "text-gray-600 hover:text-gray-900"
+                                }`}
+                                aria-pressed={taskView === "IN_PROGRESS"}
+                              >
+                                In progress
+                                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700">
+                                  {inProgressTasks.length}
+                                </span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setTaskView("COMPLETED")}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                                  taskView === "COMPLETED" ? "bg-white text-gray-900 shadow-sm" : "text-gray-600 hover:text-gray-900"
+                                }`}
+                                aria-pressed={taskView === "COMPLETED"}
+                              >
+                                Completed
+                                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+                                  {completedTasks.length}
+                                </span>
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
+
+                        {visibleTasks.length > 0 ? (
+                          <div className="space-y-4">
+                            {visibleTasks.map((task: any) => {
                         const assignedDate = new Date(task.createdAt);
                         const completedDate = task.updatedAt ? new Date(task.updatedAt) : null;
                         const isCompleted = task.status === 'COMPLETED' || task.status === 'CLOSED';
@@ -1336,14 +1760,22 @@ export default function AdminAgentsPage() {
                             </div>
                           </div>
                         );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8 text-gray-500">
-                      <Briefcase className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                      <p className="text-sm">No tasks assigned yet</p>
-                    </div>
-                  )}
+                            })}
+                          </div>
+                        ) : allTasks.length > 0 ? (
+                          <div className="text-center py-8 text-gray-500">
+                            <Briefcase className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                            <p className="text-sm">{taskView === "COMPLETED" ? "No completed tasks yet" : "No in-progress tasks right now"}</p>
+                          </div>
+                        ) : (
+                          <div className="text-center py-8 text-gray-500">
+                            <Briefcase className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                            <p className="text-sm">No tasks assigned yet</p>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
               )}

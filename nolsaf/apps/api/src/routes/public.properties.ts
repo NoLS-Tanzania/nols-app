@@ -604,12 +604,13 @@ const getPublicProperty: RequestHandler = async (req, res) => {
               ownerId: true, // Include ownerId to check ownership on frontend
               images: {
                 where: {
-                  status: { in: ['READY', 'PROCESSING'] }, // Only load active images
+                  // Show all uploaded images on public details as long as they're not rejected.
+                  // Some uploads can remain PENDING/PROCESSING for a while, but should still count/display.
+                  status: { in: ["READY", "PROCESSING", "PENDING"] },
                   url: { not: null }, // Ensure URL exists
                 },
                 select: { url: true, thumbnailUrl: true, status: true },
                 orderBy: { createdAt: "asc" },
-                take: 48,
               },
             },
           });

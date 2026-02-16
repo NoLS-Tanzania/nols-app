@@ -10,6 +10,12 @@ export interface ApplicationEmailData {
   adminNotes?: string | null;
   companyName?: string;
   supportEmail?: string;
+  // Onboarding details (used for HIRED)
+  portalUrl?: string;
+  loginUrl?: string;
+  username?: string;
+  setupLink?: string;
+  setupLinkExpiresHours?: number;
 }
 
 /**
@@ -34,7 +40,20 @@ export function getApplicationEmailSubject(status: ApplicationEmailData["status"
  * Generate HTML email content based on status
  */
 export function generateApplicationStatusEmail(data: ApplicationEmailData): string {
-  const { applicantName, jobTitle, jobDepartment, status, adminNotes, companyName = "NoLSAF Inc Limited", supportEmail = "careers@nolsapp.com" } = data;
+  const {
+    applicantName,
+    jobTitle,
+    jobDepartment,
+    status,
+    adminNotes,
+    companyName = "NoLSAF Inc Limited",
+    supportEmail = "careers@nolsaf.com",
+    portalUrl,
+    loginUrl,
+    username,
+    setupLink,
+    setupLinkExpiresHours,
+  } = data;
 
   const baseStyles = `
     <style>
@@ -63,6 +82,7 @@ export function generateApplicationStatusEmail(data: ApplicationEmailData): stri
   let statusBadge = "";
   let statusMessage = "";
   let ctaButton = "";
+  let onboardingPanel = "";
 
   switch (status) {
     case "REVIEWING":
@@ -97,10 +117,50 @@ export function generateApplicationStatusEmail(data: ApplicationEmailData): stri
       statusMessage = `
         <p><strong>Congratulations!</strong> We are thrilled to offer you the position of <strong>${jobTitle}</strong> at ${companyName}.</p>
         <p>Your application stood out among many, and we believe you will be a valuable addition to our team.</p>
-        <p>Our HR team will be in touch with you shortly to discuss the next steps, including onboarding details, start date, and other important information.</p>
-        <p>We look forward to welcoming you to our team!</p>
+        <p>To help you get started immediately, your portal access details are included below. Our HR team will still follow up with the remaining onboarding coordination (start date, internal briefings, and any role-specific documents).</p>
       `;
-      ctaButton = `<a href="mailto:${supportEmail}" class="cta-button">Contact HR Team</a>`;
+      if (setupLink) {
+        ctaButton = `<a href="${setupLink}" class="cta-button">Set Your Password</a>`;
+      } else if (loginUrl) {
+        ctaButton = `<a href="${loginUrl}" class="cta-button">Sign In</a>`;
+      } else if (portalUrl) {
+        ctaButton = `<a href="${portalUrl}" class="cta-button">Open Agent Portal</a>`;
+      } else {
+        ctaButton = `<a href="mailto:${supportEmail}" class="cta-button">Contact HR Team</a>`;
+      }
+
+      onboardingPanel = `
+        <div class="job-info" style="border-left-color:#5b21b6;">
+          <div class="job-title" style="color:#5b21b6;">Agent Portal Access</div>
+          <div class="message" style="margin: 12px 0 0;">
+            <p style="margin:0 0 10px;">Follow these steps to start using the portal:</p>
+
+            <ol style="margin:0 0 12px; padding-left: 18px;">
+              <li style="margin:0 0 6px;">
+                <strong>Set your password</strong>
+                ${setupLink
+                  ? ` using this one-time link: <a href="${setupLink}" class="footer-link">Set password</a>${setupLinkExpiresHours ? ` <span style=\"color:#6b7280; font-size:12px;\">(expires in ${setupLinkExpiresHours} hours)</span>` : ""}`
+                  : ". If you already have a password, skip this step."}
+              </li>
+              <li style="margin:0 0 6px;"><strong>Sign in</strong> with your username and password.</li>
+              <li style="margin:0;"><strong>Open the Agent Portal</strong> and complete your onboarding uploads.</li>
+            </ol>
+
+            <p style="margin:0 0 6px;"><strong>Username:</strong> ${username ? String(username) : "(your application email/phone)"}</p>
+            ${loginUrl ? `<p style="margin:0 0 6px;"><strong>Login:</strong> <a href="${loginUrl}" class="footer-link">${loginUrl}</a></p>` : ""}
+            ${portalUrl ? `<p style="margin:0 0 12px;"><strong>Portal:</strong> <a href="${portalUrl}" class="footer-link">${portalUrl}</a></p>` : ""}
+
+            <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e5e7eb;">
+              <div style="font-weight: 600; color: #111827; margin-bottom: 8px;">Documents to prepare for upload</div>
+              <ul style="margin: 0; padding-left: 18px; color: #374151;">
+                <li style="margin: 0 0 6px;">Academic certificates (clear scan/photo, PDF/JPG/PNG).</li>
+                <li style="margin: 0 0 6px;">Signed NDA (Non-Disclosure Agreement) — we will share the NDA template if you haven’t received it yet.</li>
+                <li style="margin: 0;">Any additional documents requested by HR in your onboarding notes.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      `;
       break;
   }
 
@@ -142,6 +202,8 @@ export function generateApplicationStatusEmail(data: ApplicationEmailData): stri
             ${jobDepartment ? `<div class="job-department">${jobDepartment}</div>` : ""}
             ${statusBadge}
           </div>
+
+          ${onboardingPanel}
           
           ${notesSection}
           

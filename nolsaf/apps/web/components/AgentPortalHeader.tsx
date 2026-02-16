@@ -10,13 +10,14 @@ import {
   ClipboardList,
   LayoutDashboard,
   LogOut,
-  Settings,
+  Shield,
   UserRound,
 } from "lucide-react";
 
 export default function AgentPortalHeader() {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [agentUnreadCount, setAgentUnreadCount] = useState<number>(0);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
 
   const { socket } = useSocket(undefined, { enabled: true, joinDriverRoom: false });
@@ -35,10 +36,48 @@ export default function AgentPortalHeader() {
   const iconButtonClass =
     "inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white/90 shadow-card transition-all duration-300 ease-out hover:bg-white/10 hover:border-white/20 hover:text-white hover:shadow-md hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 motion-reduce:transition-none";
 
+  const avatarButtonClass =
+    "inline-flex h-10 w-10 items-center justify-center rounded-full bg-transparent p-0 shadow-card overflow-hidden transition-all duration-300 ease-out hover:shadow-md hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 motion-reduce:transition-none";
+
   const menuItemClass =
     "group flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white transition-colors no-underline";
 
-  const logoutRedirect = "/account/login";
+  const logoutRedirect = "/login";
+
+  useEffect(() => {
+    let mounted = true;
+    const controller = new AbortController();
+
+    const loadAvatar = async () => {
+      try {
+        const r = await fetch("/api/account/me", { credentials: "include", signal: controller.signal });
+        if (!r.ok) return;
+        const j = await r.json();
+        const me = (j as any)?.data ?? j;
+        const url = typeof (me as any)?.avatarUrl === "string" ? String((me as any).avatarUrl).trim() : "";
+        if (mounted) setAvatarUrl(url || null);
+      } catch {
+        // ignore
+      }
+    };
+
+    void loadAvatar();
+
+    return () => {
+      mounted = false;
+      controller.abort();
+    };
+  }, []);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail as any;
+      const url = typeof detail?.avatarUrl === "string" ? String(detail.avatarUrl).trim() : "";
+      if (url) setAvatarUrl(url);
+    };
+    window.addEventListener("account:avatarUrl", handler as EventListener);
+    return () => window.removeEventListener("account:avatarUrl", handler as EventListener);
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -140,14 +179,6 @@ export default function AgentPortalHeader() {
               ) : null}
             </Link>
 
-            <Link
-              href="/account/agent/settings"
-              aria-label="Agent settings"
-              className={`group ${iconButtonClass}`}
-            >
-              <Settings className="h-5 w-5 transition-transform duration-300 ease-out group-hover:rotate-12 group-hover:scale-110 motion-reduce:transition-none" aria-hidden />
-            </Link>
-
             <div ref={profileMenuRef} className="relative">
               <button
                 type="button"
@@ -155,10 +186,16 @@ export default function AgentPortalHeader() {
                 aria-haspopup="menu"
                 aria-expanded={profileMenuOpen}
                 onClick={() => setProfileMenuOpen((v) => !v)}
-                className={`group ${iconButtonClass} transition-all duration-300 ease-out hover:scale-105 active:scale-95 motion-reduce:transition-none`}
+                className={`group ${avatarUrl ? avatarButtonClass : iconButtonClass}`}
               >
                 <span className="sr-only">Open profile menu</span>
-                <UserRound className="h-5 w-5 transition-transform duration-300 ease-out group-hover:scale-110 motion-reduce:transition-none" aria-hidden />
+                {avatarUrl ? (
+                  <span className="relative block h-full w-full">
+                    <Image src={avatarUrl} alt="Profile photo" fill sizes="40px" className="object-cover" />
+                  </span>
+                ) : (
+                  <UserRound className="h-5 w-5 transition-transform duration-300 ease-out group-hover:scale-110 motion-reduce:transition-none" aria-hidden />
+                )}
               </button>
 
               {profileMenuOpen && (
@@ -213,12 +250,12 @@ export default function AgentPortalHeader() {
 
                     <Link
                       role="menuitem"
-                      href="/account/agent/settings"
+                      href="/account/agent/security"
                       onClick={() => setProfileMenuOpen(false)}
                       className={menuItemClass}
                     >
-                      <Settings className="h-4 w-4 text-white/60 group-hover:text-brand transition-colors" aria-hidden />
-                      <span className="flex-1">Settings</span>
+                      <Shield className="h-4 w-4 text-white/60 group-hover:text-brand transition-colors" aria-hidden />
+                      <span className="flex-1">Security</span>
                       <ChevronRight className="h-3.5 w-3.5 text-white/40 group-hover:text-brand transition-colors" aria-hidden />
                     </Link>
 
@@ -229,10 +266,8 @@ export default function AgentPortalHeader() {
                       role="menuitem"
                       onClick={async () => {
                         setProfileMenuOpen(false);
-                        try {
-                          await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-                        } catch {}
-                        window.location.href = logoutRedirect;
+                        const next = encodeURIComponent(logoutRedirect);
+                        window.location.href = `/api/auth/logout?next=${next}`;
                       }}
                       className="group w-full flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-rose-300 hover:bg-rose-500/10 transition-colors border-0 bg-transparent cursor-pointer"
                     >

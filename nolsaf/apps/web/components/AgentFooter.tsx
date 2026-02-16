@@ -33,6 +33,34 @@ function FooterPolicyItem({
   );
 }
 
+function FooterPolicyAction({
+  children,
+  onClick,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+}) {
+  const className =
+    "group relative inline-flex appearance-none items-center rounded-md border border-transparent bg-transparent px-2.5 py-1.5 text-sm font-semibold cursor-pointer " +
+    "text-slate-200 no-underline transition-all duration-300 ease-out " +
+    "hover:text-white hover:bg-white/10 " +
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 " +
+    "motion-reduce:transition-none";
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={className}
+    >
+      <span className="relative">
+        {children}
+        <span className="pointer-events-none absolute -bottom-1 left-0 h-px w-0 bg-gradient-to-r from-[#02665e] to-sky-500 transition-all duration-300 group-hover:w-full" />
+      </span>
+    </button>
+  );
+}
+
 function FooterPill({
   children,
   href,
@@ -289,7 +317,7 @@ export default function AgentFooter({ withRail = true }: { withRail?: boolean })
                   <div className="mt-4 flex flex-wrap gap-2">
                     <FooterPill href="/help" variant="brand">Help Center</FooterPill>
                     <FooterPill href="mailto:support@nolsaf.com" variant="neutral">support@nolsaf.com</FooterPill>
-                    <FooterPill href="/account/agent/settings" variant="neutral">Account Settings</FooterPill>
+                    <FooterPill href="/account/agent/security" variant="neutral">Security</FooterPill>
                   </div>
                 </div>
               </div>
@@ -352,21 +380,33 @@ export default function AgentFooter({ withRail = true }: { withRail?: boolean })
               <div className="h-px w-full bg-gradient-to-r from-transparent via-white/15 to-transparent" />
               <nav aria-label="Footer legal navigation" className="mt-4">
                 <ul className="m-0 flex list-none flex-wrap items-center justify-center gap-2.5 p-0">
-                  {[
-                    { href: "/terms", label: "Terms" },
-                    { href: "/privacy", label: "Privacy" },
-                    { href: "/cookies-policy", label: "Cookies" },
-                    { href: "/account/agent/contract", label: "My Contract" },
-                  ].map((item, index) => (
+                  {(
+                    [
+                      { kind: "modal" as const, type: "terms" as const, label: "Terms" },
+                      { kind: "modal" as const, type: "privacy" as const, label: "Privacy" },
+                      { kind: "modal" as const, type: "cookies" as const, label: "Cookies" },
+                      { kind: "modal" as const, type: "contract" as const, label: "My Contract" },
+                    ]
+                  ).map((item, index) => (
                     <li
-                      key={item.href}
+                      key={item.type}
                       className={
                         index === 0
                           ? ""
                           : "lg:relative lg:pl-4 lg:before:content-[''] lg:before:absolute lg:before:left-1 lg:before:top-1/2 lg:before:-translate-y-1/2 lg:before:h-4 lg:before:w-px lg:before:bg-white/15"
                       }
                     >
-                      <FooterPolicyItem href={item.href}>{item.label}</FooterPolicyItem>
+                      <FooterPolicyAction
+                        onClick={() =>
+                          window.dispatchEvent(
+                            new CustomEvent("open-legal", {
+                              detail: { type: item.type },
+                            })
+                          )
+                        }
+                      >
+                        {item.label}
+                      </FooterPolicyAction>
                     </li>
                   ))}
                 </ul>

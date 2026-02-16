@@ -1,6 +1,4 @@
 #!/usr/bin/env node
-/* eslint-env node */
-/* global console */
 /**
  * Generate a secure 32-byte (256-bit) encryption key for AES-256-GCM
  * 

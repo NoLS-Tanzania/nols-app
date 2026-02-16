@@ -2,12 +2,15 @@
 import "@/styles/globals.css";
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
+import dynamic from "next/dynamic";
 import PublicHeader from "@/components/PublicHeader";
 import PublicFooter from "@/components/PublicFooter";
 import AgentFooter from "@/components/AgentFooter";
 import LayoutFrame from "@/components/LayoutFrame";
 import FloatingChatWidget from "@/components/FloatingChatWidget";
 import AgentPortalHeader from "@/components/AgentPortalHeader";
+
+const LegalModal = dynamic(() => import("@/components/LegalModal"), { ssr: false });
 
 export default function CustomerAccountLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -54,6 +57,8 @@ export default function CustomerAccountLayout({ children }: { children: ReactNod
       <div className="relative z-20">
         {isAgentPortalRoute ? <AgentFooter withRail /> : <PublicFooter withRail />}
       </div>
+
+      {isAgentPortalRoute ? <LegalModal /> : null}
       <FloatingChatWidget position="bottom-right" />
     </div>
   );

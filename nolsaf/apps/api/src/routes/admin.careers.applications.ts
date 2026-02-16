@@ -4,6 +4,7 @@ import { prisma } from "@nolsaf/prisma";
 import { AuthedRequest, requireAuth } from "../middleware/auth.js";
 import { requireAdmin } from "../middleware/admin.js";
 import { audit } from "../lib/audit.js";
+import crypto from "crypto";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { sendMail } from "../lib/mailer.js";
@@ -319,39 +320,65 @@ router.patch("/:id", async (req, res) => {
       if (!validStatuses.includes(status)) {
         return res.status(400).json({ error: "Invalid status" });
       }
+
+      const isFinalized = existingApplication.status === "HIRED" || existingApplication.status === "REJECTED";
+      if (isFinalized && existingApplication.status !== status) {
+        return res.status(409).json({ error: "Application is finalized and cannot be changed" });
+      }
       
       // Check if status is actually changing
       statusChanged = existingApplication.status !== status;
       newStatus = status;
-      
-      updateData.status = status;
-      
-      // Track used statuses to prevent duplicate status changes
-      const usedStatuses: string[] = Array.isArray(existingApplication.usedStatuses) 
-        ? [...(existingApplication.usedStatuses as string[])] 
-        : [];
-      
-      // Add current status to used statuses if not already there
-      if (existingApplication.status && !usedStatuses.includes(existingApplication.status)) {
-        usedStatuses.push(existingApplication.status);
-      }
-      
-      // Add new status to used statuses if not already there
-      if (status && !usedStatuses.includes(status)) {
-        usedStatuses.push(status);
-      }
-      
-      updateData.usedStatuses = usedStatuses;
-      
-      // If status is being changed from PENDING, mark as reviewed
-      if (status !== "PENDING" && !existingApplication.reviewedAt) {
-        updateData.reviewedAt = new Date();
-        updateData.reviewedBy = (req as any).user?.id;
+
+      if (statusChanged) {
+        updateData.status = status;
+
+        // Track used statuses to prevent duplicate status changes
+        const usedStatuses: string[] = Array.isArray(existingApplication.usedStatuses)
+          ? [...(existingApplication.usedStatuses as string[])]
+          : [];
+
+        // Add current status to used statuses if not already there
+        if (existingApplication.status && !usedStatuses.includes(existingApplication.status)) {
+          usedStatuses.push(existingApplication.status);
+        }
+
+        // Add new status to used statuses if not already there
+        if (status && !usedStatuses.includes(status)) {
+          usedStatuses.push(status);
+        }
+
+        updateData.usedStatuses = usedStatuses;
+
+        // If status is being changed from PENDING, mark as reviewed
+        if (status !== "PENDING" && !existingApplication.reviewedAt) {
+          updateData.reviewedAt = new Date();
+          updateData.reviewedBy = (req as any).user?.id;
+        }
       }
     }
     
     if (adminNotes !== undefined) {
       updateData.adminNotes = adminNotes;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      const currentApplication = await prisma.jobApplication.findUnique({
+        where: { id: parsedId },
+        include: {
+          job: {
+            select: {
+              id: true,
+              title: true,
+              department: true
+            }
+          },
+          reviewedByUser: {
+            select: { id: true, name: true, email: true }
+          }
+        }
+      });
+      return res.json(currentApplication);
     }
 
     const updatedApplication = await prisma.jobApplication.update({
@@ -362,7 +389,8 @@ router.patch("/:id", async (req, res) => {
           select: {
             id: true,
             title: true,
-            department: true
+            department: true,
+            isTravelAgentPosition: true
           }
         },
         reviewedByUser: {
@@ -379,14 +407,16 @@ router.patch("/:id", async (req, res) => {
           // Already linked to an agent profile.
         } else {
           const agentData = (existingApplication.agentApplicationData ?? {}) as any;
+          const appRegion = typeof (existingApplication as any).region === "string" ? String((existingApplication as any).region).trim() : "";
+          const appDistrict = typeof (existingApplication as any).district === "string" ? String((existingApplication as any).district).trim() : "";
+          const appNationality = typeof (existingApplication as any).nationality === "string" && String((existingApplication as any).nationality).trim()
+            ? String((existingApplication as any).nationality).trim()
+            : (typeof agentData.nationality === "string" ? String(agentData.nationality).trim() : "");
 
-          const title = String(existingApplication.job.title || "").toLowerCase();
-          const dept = String(existingApplication.job.department || "").toLowerCase();
-          const category = String(existingApplication.job.category || "").toLowerCase();
-          const looksLikeAgentRole = /agent|travel/.test(title) || /agent|travel/.test(dept) || /agent|travel/.test(category);
-
-          // Prefer explicit agentApplicationData (best signal), but allow the job metadata heuristic.
-          const shouldProvisionAgent = existingApplication.agentApplicationData != null || looksLikeAgentRole;
+          // Business rule: only applicants who applied as an agent should be provisioned as Agents
+          // and receive the Agent Portal onboarding email.
+          // Source of truth signal: the Job flag (set by admin when announcing the job).
+          const shouldProvisionAgent = Boolean((existingApplication.job as any)?.isTravelAgentPosition);
           if (shouldProvisionAgent) {
             const email = String(existingApplication.email || "").trim().toLowerCase();
             const phone = String(existingApplication.phone || "").trim();
@@ -407,14 +437,54 @@ router.patch("/:id", async (req, res) => {
                     email: email || undefined,
                     phone: phone || undefined,
                     name: existingApplication.fullName,
+                    fullName: existingApplication.fullName,
                     role: "AGENT",
+                    nationality: appNationality || undefined,
+                    region: appRegion || undefined,
+                    district: appDistrict || undefined,
                   } as any,
                 });
-              } else if (user.role !== "AGENT") {
-                user = await tx.user.update({
+              } else {
+                const userUpdate: any = {};
+                if ((user as any).role !== "AGENT") userUpdate.role = "AGENT";
+                if (!(user as any).fullName && existingApplication.fullName) userUpdate.fullName = existingApplication.fullName;
+                if (!(user as any).name && existingApplication.fullName) userUpdate.name = existingApplication.fullName;
+                if (!(user as any).nationality && appNationality) userUpdate.nationality = appNationality;
+                if (!(user as any).region && appRegion) userUpdate.region = appRegion;
+                if (!(user as any).district && appDistrict) userUpdate.district = appDistrict;
+
+                if (Object.keys(userUpdate).length > 0) {
+                  user = await tx.user.update({
+                    where: { id: user.id },
+                    data: userUpdate as any,
+                  });
+                }
+              }
+
+              // Create a one-time password setup token/link (re-uses reset-password mechanism)
+              // This avoids emailing plaintext temporary passwords.
+              try {
+                const raw = crypto.randomBytes(24).toString("hex");
+                const hashed = crypto.createHash("sha256").update(raw).digest("hex");
+                const expiresAt = Date.now() + 1000 * 60 * 60 * 24; // 24 hours
+
+                await tx.user.update({
                   where: { id: user.id },
-                  data: { role: "AGENT" } as any,
+                  data: {
+                    resetPasswordToken: hashed as any,
+                    resetPasswordExpires: new Date(expiresAt) as any,
+                  } as any,
                 });
+
+                const origin = process.env.WEB_ORIGIN || process.env.APP_ORIGIN || "http://localhost:3000";
+                const next = encodeURIComponent("/account/agent");
+                (req as any)._agentOnboarding = {
+                  username: email || phone || "",
+                  setupLink: `${origin}/account/reset-password?token=${raw}&id=${user.id}&next=${next}&reason=onboarding`,
+                  expiresHours: 24,
+                };
+              } catch (e) {
+                // token generation failure should not block hiring
               }
 
               // Ensure agent profile exists
@@ -422,23 +492,131 @@ router.patch("/:id", async (req, res) => {
                 where: { userId: user.id },
               });
 
+              const normalizeLanguageStrings = (value: unknown): string[] => {
+                if (!Array.isArray(value)) return [];
+                const out: string[] = [];
+                for (const item of value) {
+                  if (typeof item === "string") {
+                    const trimmed = item.trim();
+                    if (trimmed) out.push(trimmed);
+                    continue;
+                  }
+                  if (item && typeof item === "object") {
+                    const maybeLanguage = (item as any).language;
+                    if (typeof maybeLanguage === "string") {
+                      const trimmed = maybeLanguage.trim();
+                      if (trimmed) out.push(trimmed);
+                    }
+                  }
+                }
+                return Array.from(new Set(out));
+              };
+
+              const applicationEducationLevel = (existingApplication as any).educationLevel
+                ? String((existingApplication as any).educationLevel)
+                : null;
+
+              const applicationYearsOfExperience = (existingApplication as any).yearsOfExperience != null
+                ? Number((existingApplication as any).yearsOfExperience)
+                : null;
+
+              const applicationLanguages = normalizeLanguageStrings((existingApplication as any).languages);
+              const agentDataLanguages = normalizeLanguageStrings((agentData as any).languages);
+
+              const jobAreaOfOperationRaw = typeof (existingApplication.job as any)?.locationDetail === "string"
+                ? String((existingApplication.job as any).locationDetail).trim()
+                : "";
+
+              const inferredAreasFromJob = Array.from(
+                new Set(
+                  jobAreaOfOperationRaw
+                    .split(",")
+                    .map((v) => v.trim())
+                    .filter(Boolean)
+                )
+              );
+
+              const normalizeAreas = (value: unknown): string[] => {
+                if (!Array.isArray(value)) return [];
+                return Array.from(
+                  new Set(
+                    value
+                      .filter((v) => typeof v === "string")
+                      .map((v) => v.trim())
+                      .filter(Boolean)
+                  )
+                );
+              };
+
               if (!agentProfile) {
                 agentProfile = await tx.agent.create({
                   data: {
                     user: { connect: { id: user.id } },
                     status: agentData.status || "ACTIVE",
-                    educationLevel: agentData.educationLevel || null,
-                    yearsOfExperience: agentData.yearsOfExperience != null ? Number(agentData.yearsOfExperience) : null,
+                    educationLevel: applicationEducationLevel || agentData.educationLevel || null,
+                    yearsOfExperience: applicationYearsOfExperience != null
+                      ? applicationYearsOfExperience
+                      : (agentData.yearsOfExperience != null ? Number(agentData.yearsOfExperience) : null),
                     bio: agentData.bio || null,
                     maxActiveRequests: agentData.maxActiveRequests != null ? Number(agentData.maxActiveRequests) : 10,
                     isAvailable: agentData.isAvailable !== undefined ? Boolean(agentData.isAvailable) : true,
                     currentActiveRequests: 0,
-                    areasOfOperation: Array.isArray(agentData.areasOfOperation) && agentData.areasOfOperation.length > 0 ? agentData.areasOfOperation : null,
+                    areasOfOperation:
+                      inferredAreasFromJob.length > 0
+                        ? inferredAreasFromJob
+                        : (Array.isArray(agentData.areasOfOperation) && agentData.areasOfOperation.length > 0 ? agentData.areasOfOperation : null),
                     certifications: Array.isArray(agentData.certifications) && agentData.certifications.length > 0 ? agentData.certifications : null,
-                    languages: Array.isArray(agentData.languages) && agentData.languages.length > 0 ? agentData.languages : null,
+                    languages: applicationLanguages.length > 0 ? applicationLanguages : (agentDataLanguages.length > 0 ? agentDataLanguages : null),
                     specializations: Array.isArray(agentData.specializations) && agentData.specializations.length > 0 ? agentData.specializations : null,
                   } as any,
                 });
+              } else {
+                // Best-effort: fill missing agent profile fields from application data
+                const agentUpdate: any = {};
+                const incomingAreas = Array.isArray(agentData.areasOfOperation) ? agentData.areasOfOperation : [];
+                const incomingSpecs = Array.isArray(agentData.specializations) ? agentData.specializations : [];
+                const existingAreas = Array.isArray((agentProfile as any).areasOfOperation) ? (agentProfile as any).areasOfOperation : null;
+                const existingSpecs = Array.isArray((agentProfile as any).specializations) ? (agentProfile as any).specializations : null;
+
+                const existingLanguages = Array.isArray((agentProfile as any).languages) ? (agentProfile as any).languages : null;
+                const existingEducation = (agentProfile as any).educationLevel ? String((agentProfile as any).educationLevel) : null;
+                const existingYears = (agentProfile as any).yearsOfExperience != null ? Number((agentProfile as any).yearsOfExperience) : null;
+
+                // Areas of Operation must match the job advert when set.
+                if (inferredAreasFromJob.length > 0) {
+                  const currentAreas = normalizeAreas(existingAreas);
+                  const advertAreas = inferredAreasFromJob;
+                  const same = currentAreas.length === advertAreas.length && currentAreas.every((v, idx) => v === advertAreas[idx]);
+                  if (!same) agentUpdate.areasOfOperation = advertAreas;
+                } else if ((!existingAreas || existingAreas.length === 0) && incomingAreas.length > 0) {
+                  agentUpdate.areasOfOperation = incomingAreas;
+                }
+                if ((!existingSpecs || existingSpecs.length === 0) && incomingSpecs.length > 0) agentUpdate.specializations = incomingSpecs;
+
+                if (!existingEducation && (applicationEducationLevel || agentData.educationLevel)) {
+                  agentUpdate.educationLevel = applicationEducationLevel || agentData.educationLevel;
+                }
+
+                if (existingYears == null) {
+                  const incomingYears = applicationYearsOfExperience != null
+                    ? applicationYearsOfExperience
+                    : (agentData.yearsOfExperience != null ? Number(agentData.yearsOfExperience) : null);
+                  if (incomingYears != null) agentUpdate.yearsOfExperience = incomingYears;
+                }
+
+                if ((!existingLanguages || existingLanguages.length === 0)) {
+                  const incomingLanguages = applicationLanguages.length > 0
+                    ? applicationLanguages
+                    : (agentDataLanguages.length > 0 ? agentDataLanguages : []);
+                  if (incomingLanguages.length > 0) agentUpdate.languages = incomingLanguages;
+                }
+
+                if (Object.keys(agentUpdate).length > 0) {
+                  agentProfile = await tx.agent.update({
+                    where: { id: (agentProfile as any).id },
+                    data: agentUpdate as any,
+                  });
+                }
               }
 
               // Link application to agent
@@ -471,7 +649,8 @@ router.patch("/:id", async (req, res) => {
           select: {
             id: true,
             title: true,
-            department: true
+            department: true,
+            isTravelAgentPosition: true
           }
         },
         reviewedByUser: {
@@ -501,6 +680,73 @@ router.patch("/:id", async (req, res) => {
     // Send email notification if status changed to a notifiable status
     if (statusChanged && newStatus && ["REVIEWING", "SHORTLISTED", "REJECTED", "HIRED"].includes(newStatus)) {
       try {
+        const onboarding = (req as any)._agentOnboarding as
+          | { username?: string; setupLink?: string; expiresHours?: number }
+          | undefined;
+
+        const origin = process.env.WEB_ORIGIN || process.env.APP_ORIGIN || "http://localhost:3000";
+
+        const isAgentHire = Boolean((finalApplication.job as any)?.isTravelAgentPosition);
+
+        // For agent hires, guarantee HIRED emails include a one-time setup link (even if the agent profile already existed)
+        let hiredSetupLink: string | undefined = onboarding?.setupLink;
+        let hiredUsername: string | undefined = onboarding?.username;
+        let hiredSetupExpiresHours: number | undefined = onboarding?.expiresHours;
+
+        if (isAgentHire && newStatus === "HIRED" && (!hiredSetupLink || !hiredUsername)) {
+          try {
+            const email = String(finalApplication.email || "").trim().toLowerCase();
+            const phone = String(finalApplication.phone || "").trim();
+
+            hiredUsername = hiredUsername || email || phone;
+
+            let userId: number | null = null;
+            if ((finalApplication as any).agent?.userId) userId = Number((finalApplication as any).agent.userId);
+
+            if (!userId && (finalApplication as any).agent?.id) {
+              const a = await prisma.agent.findUnique({
+                where: { id: Number((finalApplication as any).agent.id) },
+                select: { userId: true },
+              });
+              if (a?.userId) userId = a.userId;
+            }
+
+            if (!userId && (email || phone)) {
+              const u = await prisma.user.findFirst({
+                where: {
+                  OR: [
+                    ...(email ? [{ email }] : []),
+                    ...(phone ? [{ phone } as any] : []),
+                  ],
+                } as any,
+                select: { id: true },
+              });
+              if (u?.id) userId = u.id;
+            }
+
+            if (userId) {
+              const raw = crypto.randomBytes(24).toString("hex");
+              const hashed = crypto.createHash("sha256").update(raw).digest("hex");
+              const expiresAt = Date.now() + 1000 * 60 * 60 * 24; // 24 hours
+
+              await prisma.user.update({
+                where: { id: userId },
+                data: {
+                  resetPasswordToken: hashed as any,
+                  resetPasswordExpires: new Date(expiresAt) as any,
+                } as any,
+                select: { id: true },
+              });
+
+              const next = encodeURIComponent("/account/agent");
+              hiredSetupExpiresHours = 24;
+              hiredSetupLink = `${origin}/account/reset-password?token=${raw}&id=${userId}&next=${next}&reason=onboarding`;
+            }
+          } catch {
+            // Do not fail email sending if token generation fails
+          }
+        }
+
         const emailData = {
           applicantName: finalApplication.fullName,
           jobTitle: finalApplication.job.title,
@@ -508,11 +754,31 @@ router.patch("/:id", async (req, res) => {
           status: newStatus as "REVIEWING" | "SHORTLISTED" | "REJECTED" | "HIRED",
           adminNotes: finalApplication.adminNotes || undefined,
           companyName: process.env.COMPANY_NAME || "NoLSAF Inc Limited",
-          supportEmail: process.env.SUPPORT_EMAIL || process.env.CAREERS_EMAIL || "careers@nolsapp.com"
+          supportEmail: process.env.SUPPORT_EMAIL || process.env.CAREERS_EMAIL || "careers@nolsaf.com",
+          ...(newStatus === "HIRED" && isAgentHire
+            ? {
+                portalUrl: `${origin}/account/agent`,
+                loginUrl: `${origin}/account/login`,
+                username: hiredUsername || String(finalApplication.email || "").trim().toLowerCase() || String(finalApplication.phone || "").trim(),
+                setupLink: hiredSetupLink,
+                setupLinkExpiresHours: hiredSetupExpiresHours,
+              }
+            : null),
         };
 
         const subject = getApplicationEmailSubject(emailData.status, emailData.jobTitle);
         const html = generateApplicationStatusEmail(emailData);
+
+        if (newStatus === "HIRED" && isAgentHire && !hiredSetupLink) {
+          console.warn("careers.hired-email.missing-setup-link", {
+            applicationId: parsedId,
+            applicantEmail: finalApplication.email,
+            agentUserId: finalApplication.agent?.userId ?? null,
+            origin,
+            hasWebOrigin: Boolean(process.env.WEB_ORIGIN),
+            hasAppOrigin: Boolean(process.env.APP_ORIGIN),
+          });
+        }
 
         await sendMail(finalApplication.email, subject, html);
         
@@ -745,6 +1011,37 @@ router.patch("/bulk", async (req, res) => {
       include: { job: true }
     });
 
+    const finalized = existingApplications.filter(
+      (app) => (app.status === "HIRED" || app.status === "REJECTED") && app.status !== status
+    );
+    if (finalized.length > 0) {
+      return res.status(409).json({
+        error: "Some applications are finalized (HIRED/REJECTED) and cannot be changed",
+        finalizedIds: finalized.map((a) => a.id),
+      });
+    }
+
+    // Safety: Agent hires require provisioning + a one-time Agent Portal setup link.
+    // Bulk HIRED does not provision agents, so block it for agent applications.
+    if (status === "HIRED") {
+      const agentJobApps = existingApplications.filter((app) => Boolean((app as any)?.job?.isTravelAgentPosition));
+      if (agentJobApps.length > 0) {
+        return res.status(409).json({
+          error: "Some selected applications belong to Travel Agent recruitment jobs and cannot be bulk-marked HIRED. Hire them individually to trigger agent provisioning and onboarding email.",
+          agentApplicationIds: agentJobApps.map((a) => a.id),
+        });
+      }
+    }
+
+    const applicationsToUpdate = existingApplications.filter((app) => app.status !== status || adminNotes !== undefined);
+    if (applicationsToUpdate.length === 0) {
+      return res.json({
+        success: true,
+        updated: 0,
+        applications: [],
+      });
+    }
+
     // Update applications
     const updateData: any = {
       status,
@@ -757,7 +1054,7 @@ router.patch("/bulk", async (req, res) => {
     }
 
     // Track used statuses
-    const updatePromises = existingApplications.map(async (app) => {
+    const updatePromises = applicationsToUpdate.map(async (app) => {
       const usedStatuses: string[] = Array.isArray(app.usedStatuses) 
         ? [...(app.usedStatuses as string[])] 
         : [];
@@ -789,7 +1086,7 @@ router.patch("/bulk", async (req, res) => {
             status: status as "REVIEWING" | "SHORTLISTED" | "REJECTED" | "HIRED",
             adminNotes: adminNotes || undefined,
             companyName: process.env.COMPANY_NAME || "NoLSAF Inc Limited",
-            supportEmail: process.env.SUPPORT_EMAIL || process.env.CAREERS_EMAIL || "careers@nolsapp.com"
+            supportEmail: process.env.SUPPORT_EMAIL || process.env.CAREERS_EMAIL || "careers@nolsaf.com"
           };
 
           const subject = getApplicationEmailSubject(emailData.status, emailData.jobTitle);

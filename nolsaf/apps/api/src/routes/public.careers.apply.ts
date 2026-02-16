@@ -4,12 +4,19 @@ import { prisma } from "@nolsaf/prisma";
 import multer from "multer";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { notifyAdmins } from "../lib/notifications.js";
+import { AFRICA_NATIONALITY_VALUES, AGENT_SPECIALIZATION_VALUES } from "@nolsaf/shared";
 // Generate unique filename
 function generateUniqueId() {
   return Date.now().toString(36) + Math.random().toString(36).substring(2);
 }
 
 const router = Router();
+
+function countWords(text: unknown): number {
+  const trimmed = String(text ?? "").trim();
+  if (!trimmed) return 0;
+  return trimmed.split(/\s+/).filter(Boolean).length;
+}
 
 // Configure multer for file uploads (memory storage)
 const upload = multer({
@@ -53,6 +60,12 @@ router.post("/", upload.single('resume'), async (req, res) => {
       fullName,
       email,
       phone,
+      region,
+      district,
+      nationality,
+      educationLevel,
+      languages,
+      yearsOfExperience,
       coverLetter,
       portfolio,
       linkedIn,
@@ -64,9 +77,18 @@ router.post("/", upload.single('resume'), async (req, res) => {
     const resume = req.file;
 
     // Validation
-    if (!jobId || !fullName || !email || !phone || !coverLetter) {
+    if (!jobId || !fullName || !email || !phone || !region || !district || !coverLetter) {
       return res.status(400).json({ 
-        error: "Missing required fields: jobId, fullName, email, phone, and coverLetter are required" 
+        error: "Missing required fields: jobId, fullName, email, phone, region, district, and coverLetter are required" 
+      });
+    }
+
+    const ABOUT_MIN_WORDS = 120;
+    const ABOUT_MAX_WORDS = 250;
+    const aboutWords = countWords(coverLetter);
+    if (aboutWords < ABOUT_MIN_WORDS || aboutWords > ABOUT_MAX_WORDS) {
+      return res.status(400).json({
+        error: `Tell us about yourself must be between ${ABOUT_MIN_WORDS} and ${ABOUT_MAX_WORDS} words`,
       });
     }
 
@@ -74,6 +96,15 @@ router.post("/", upload.single('resume'), async (req, res) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       return res.status(400).json({ error: "Invalid email format" });
+    }
+
+    // Validate phone format: digits only, optional leading +
+    const normalizedPhone = String(phone ?? "").trim();
+    const phoneRegex = /^\+?[0-9]+$/;
+    if (!phoneRegex.test(normalizedPhone)) {
+      return res.status(400).json({
+        error: "Invalid phone number format. Use digits only, optionally starting with +",
+      });
     }
 
     // Check if job exists
@@ -125,17 +156,129 @@ router.post("/", upload.single('resume'), async (req, res) => {
       }
     }
 
-    // Parse agent application data if provided (should be JSON string)
+    const isAgentRecruitmentJob = Boolean((job as any)?.isTravelAgentPosition);
+    const requiredEducationLevel = String((job as any)?.requiredEducationLevel || "").trim();
+
+    // Parse agent application data if provided.
+    // We use it for controlled fields like specializations.
     let parsedAgentData: any = null;
     if (agentApplicationData) {
       try {
-        parsedAgentData = typeof agentApplicationData === 'string' 
-          ? JSON.parse(agentApplicationData) 
+        parsedAgentData = typeof agentApplicationData === 'string'
+          ? JSON.parse(agentApplicationData)
           : agentApplicationData;
       } catch (parseError) {
         console.warn("Failed to parse agentApplicationData:", parseError);
         // Continue without agent data rather than failing
       }
+    }
+
+    if (parsedAgentData && typeof parsedAgentData === "object") {
+      // Normalize specializations to a controlled list (array of strings)
+      const rawSpecs = (parsedAgentData as any).specializations;
+      const specs = Array.isArray(rawSpecs)
+        ? rawSpecs.map((x: any) => String(x).trim()).filter(Boolean)
+        : [];
+      const filtered = Array.from(new Set(specs)).filter((s) => AGENT_SPECIALIZATION_VALUES.has(s));
+      (parsedAgentData as any).specializations = filtered.length > 0 ? filtered : null;
+    }
+
+    // Normalize top-level nationality / education / languages
+    const normalizedNationality = String(nationality ?? "").trim();
+    const normalizedEducationLevel = String(educationLevel ?? "").trim();
+
+    const normalizedYearsOfExperience = (() => {
+      const raw = String(yearsOfExperience ?? "").trim();
+      if (!raw) return null;
+      const n = parseInt(raw, 10);
+      if (Number.isNaN(n)) return null;
+      if (n < 0) return 0;
+      if (n > 80) return 80;
+      return n;
+    })();
+
+    let normalizedLanguages: string[] = [];
+    try {
+      const raw = languages;
+      if (typeof raw === "string" && raw.trim()) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) normalizedLanguages = parsed.map((x) => String(x).trim()).filter(Boolean);
+      } else if (Array.isArray(raw)) {
+        normalizedLanguages = raw.map((x) => String(x).trim()).filter(Boolean);
+      }
+    } catch {
+      // Ignore malformed languages payload
+    }
+
+    // Required for all job applications
+    if (!normalizedNationality) {
+      return res.status(400).json({ error: "Nationality is required" });
+    }
+    if (!AFRICA_NATIONALITY_VALUES.has(normalizedNationality)) {
+      return res.status(400).json({ error: "Please select a valid nationality from the list" });
+    }
+    if (!normalizedEducationLevel) {
+      return res.status(400).json({ error: "Education level is required" });
+    }
+    if (normalizedYearsOfExperience == null) {
+      return res.status(400).json({ error: "Years of experience is required" });
+    }
+    if (!normalizedLanguages || normalizedLanguages.length === 0) {
+      return res.status(400).json({ error: "Please provide at least one language" });
+    }
+
+    // Required for all job applications
+    const selectedSpecializations = Array.isArray(parsedAgentData?.specializations)
+      ? (parsedAgentData.specializations as any[]).map((x: any) => String(x).trim()).filter(Boolean)
+      : [];
+    if (selectedSpecializations.length === 0) {
+      return res.status(400).json({ error: "Please provide at least one specialization" });
+    }
+
+    if (isAgentRecruitmentJob) {
+      const selectedNationality = normalizedNationality || String(parsedAgentData?.nationality || "").trim();
+      if (!selectedNationality) {
+        return res.status(400).json({ error: "Nationality is required for Travel Agent positions" });
+      }
+      if (!AFRICA_NATIONALITY_VALUES.has(selectedNationality)) {
+        return res.status(400).json({ error: "Please select a valid nationality from the list" });
+      }
+
+      const selectedEducationLevel = normalizedEducationLevel || String(parsedAgentData?.educationLevel || "").trim();
+      if (!selectedEducationLevel) {
+        return res.status(400).json({ error: "Education level is required for Travel Agent positions" });
+      }
+
+      const selectedYears = normalizedYearsOfExperience ?? (parsedAgentData?.yearsOfExperience != null ? Number(parsedAgentData.yearsOfExperience) : null);
+      if (selectedYears == null || Number.isNaN(selectedYears)) {
+        return res.status(400).json({ error: "Years of experience is required for Travel Agent positions" });
+      }
+      if (selectedYears < 0) {
+        return res.status(400).json({ error: "Years of experience must be 0 or more" });
+      }
+
+      const agentLanguages = Array.isArray(parsedAgentData?.languages)
+        ? parsedAgentData.languages.map((x: any) => String(x).trim()).filter(Boolean)
+        : [];
+      const selectedLanguages = normalizedLanguages.length > 0 ? normalizedLanguages : agentLanguages;
+      if (!selectedLanguages || selectedLanguages.length === 0) {
+        return res.status(400).json({ error: "Please provide at least one language" });
+      }
+
+      if (requiredEducationLevel) {
+        if (selectedEducationLevel !== requiredEducationLevel) {
+          return res.status(400).json({
+            error: `Education level must match the job requirement (${requiredEducationLevel})`,
+          });
+        }
+      }
+    }
+
+    // If advert specifies an education requirement, enforce it for all applicants
+    if (requiredEducationLevel && normalizedEducationLevel !== requiredEducationLevel) {
+      return res.status(400).json({
+        error: `Education level must match the job requirement (${requiredEducationLevel})`,
+      });
     }
 
     // Create application record
@@ -144,7 +287,13 @@ router.post("/", upload.single('resume'), async (req, res) => {
         jobId: parseInt(jobId, 10),
         fullName,
         email,
-        phone,
+        phone: normalizedPhone,
+        region: String(region || "").trim() || null,
+        district: String(district || "").trim() || null,
+        nationality: normalizedNationality || (isAgentRecruitmentJob ? String(parsedAgentData?.nationality || "").trim() || null : null),
+        educationLevel: (normalizedEducationLevel || (isAgentRecruitmentJob ? String(parsedAgentData?.educationLevel || "").trim() : "")) || null,
+        yearsOfExperience: normalizedYearsOfExperience ?? (isAgentRecruitmentJob && parsedAgentData?.yearsOfExperience != null ? Number(parsedAgentData.yearsOfExperience) : null),
+        languages: normalizedLanguages.length > 0 ? normalizedLanguages : null,
         coverLetter,
         portfolio: portfolio || null,
         linkedIn: linkedIn || null,

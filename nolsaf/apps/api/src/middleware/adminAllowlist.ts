@@ -90,7 +90,11 @@ export async function adminAllowlist(req: Request, res: Response, next: NextFunc
     if (!ok) return res.status(403).json({ error: "IP not allowed" });
     next();
   } catch {
-    // Fail-closed if you prefer; here we fail-open to avoid lockouts on DB issues.
-    next();
+    // In production, fail-closed to preserve admin perimeter security.
+    if (process.env.NODE_ENV === "production") {
+      return res.status(503).json({ error: "Admin allowlist unavailable" });
+    }
+    // Non-production: fail-open to avoid blocking local/dev environments.
+    return next();
   }
 }

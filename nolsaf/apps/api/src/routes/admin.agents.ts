@@ -185,6 +185,20 @@ const assignAgentSchema = z.object({
   planRequestId: z.number().int().positive(),
 }).strict();
 
+const agentDocParamsSchema = z
+  .object({
+    id: z.string().regex(/^\d+$/).transform(Number),
+    docId: z.string().regex(/^\d+$/).transform(Number),
+  })
+  .strict();
+
+const updateDocStatusSchema = z
+  .object({
+    status: z.enum(["APPROVED", "REJECTED"]),
+    reason: z.string().max(2000).optional().nullable(),
+  })
+  .strict();
+
 // ============================================================
 // Helper Functions
 // ============================================================
@@ -245,28 +259,124 @@ function normalizePhone(phone: unknown): string | null {
 }
 
 async function ensureAgentsFromHiredApplications(req: AuthedRequest): Promise<void> {
+  const normalizeLanguageStrings = (value: unknown): string[] => {
+    if (!Array.isArray(value)) return [];
+    const out: string[] = [];
+    for (const item of value) {
+      if (typeof item === "string") {
+        const trimmed = item.trim();
+        if (trimmed) out.push(trimmed);
+        continue;
+      }
+      if (item && typeof item === "object") {
+        const maybeLanguage = (item as any).language;
+        if (typeof maybeLanguage === "string") {
+          const trimmed = maybeLanguage.trim();
+          if (trimmed) out.push(trimmed);
+        }
+      }
+    }
+    return Array.from(new Set(out));
+  };
+
+  const normalizeAreas = (value: unknown): string[] => {
+    if (!Array.isArray(value)) return [];
+    return Array.from(
+      new Set(
+        value
+          .filter((v) => typeof v === "string")
+          .map((v) => v.trim())
+          .filter(Boolean)
+      )
+    );
+  };
+
   // Source of truth for recruiting: Job applications.
   // When an application is marked HIRED, ensure it has an Agent profile linked.
   const hiredWithoutAgent = await prisma.jobApplication.findMany({
     where: {
       status: "HIRED",
       agentId: null,
+      // Business rule: only jobs flagged as Travel Agent recruitment create Agents.
+      job: { isTravelAgentPosition: true } as any,
     },
     select: {
       id: true,
       fullName: true,
       email: true,
       phone: true,
+      region: true,
+      district: true,
+      nationality: true,
+      educationLevel: true,
+      yearsOfExperience: true,
+      languages: true,
       agentApplicationData: true,
+      job: {
+        select: {
+          locationDetail: true,
+        },
+      },
     },
     orderBy: { id: "asc" },
     take: 50,
   });
 
-  if (hiredWithoutAgent.length === 0) return;
+  // Also best-effort backfill: for already-linked HIRED applications, populate missing
+  // User/Agent profile fields from the application payload.
+  const hiredWithAgent = await prisma.jobApplication.findMany({
+    where: {
+      status: "HIRED",
+      agentId: { not: null },
+      job: { isTravelAgentPosition: true } as any,
+    },
+    select: {
+      id: true,
+      fullName: true,
+      region: true,
+      district: true,
+      nationality: true,
+      educationLevel: true,
+      yearsOfExperience: true,
+      languages: true,
+      agentApplicationData: true,
+      job: {
+        select: {
+          locationDetail: true,
+        },
+      },
+      agent: {
+        select: {
+          id: true,
+          userId: true,
+          areasOfOperation: true,
+          specializations: true,
+          educationLevel: true,
+          yearsOfExperience: true,
+          languages: true,
+          user: {
+            select: {
+              id: true,
+              name: true,
+              fullName: true,
+              nationality: true,
+              region: true,
+              district: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: { id: "asc" },
+    take: 50,
+  });
+
+  if (hiredWithoutAgent.length === 0 && hiredWithAgent.length === 0) return;
 
   const createdAgentIds: number[] = [];
   const linkedApplicationIds: number[] = [];
+  const backfilledAgentIds: number[] = [];
+  const backfilledUserIds: number[] = [];
 
   for (const app of hiredWithoutAgent) {
     const email = normalizeEmail(app.email);
@@ -280,7 +390,7 @@ async function ensureAgentsFromHiredApplications(req: AuthedRequest): Promise<vo
 
     let user = await prisma.user.findFirst({
       where: userOr.length > 0 ? { OR: userOr } : undefined,
-      select: { id: true, role: true },
+      select: { id: true, role: true, nationality: true, region: true, district: true, timezone: true, name: true, fullName: true },
     });
 
     if (!user) {
@@ -290,16 +400,17 @@ async function ensureAgentsFromHiredApplications(req: AuthedRequest): Promise<vo
             email,
             phone,
             name: app.fullName,
+            fullName: app.fullName,
             role: "AGENT",
           } as any,
-          select: { id: true, role: true },
+          select: { id: true, role: true, nationality: true, region: true, district: true, timezone: true, name: true, fullName: true },
         });
       } catch (e: any) {
         // Raced with another request, re-read by unique fields.
         if (e?.code === "P2002") {
           user = await prisma.user.findFirst({
             where: { OR: userOr },
-            select: { id: true, role: true },
+            select: { id: true, role: true, nationality: true, region: true, district: true, timezone: true, name: true, fullName: true },
           });
         } else {
           console.warn("[ensureAgentsFromHiredApplications] Failed to create user", {
@@ -312,6 +423,45 @@ async function ensureAgentsFromHiredApplications(req: AuthedRequest): Promise<vo
     }
 
     if (!user) continue;
+
+    // Best-effort: populate user profile location fields from application data.
+    // Only fill missing values to avoid overwriting any later user updates.
+    const d = (app.agentApplicationData ?? {}) as any;
+    try {
+      const userUpdate: any = {};
+      const nationality = typeof (app as any).nationality === "string" && String((app as any).nationality).trim()
+        ? String((app as any).nationality).trim()
+        : (typeof d.nationality === "string" ? d.nationality.trim() : "");
+      const region = typeof (app as any).region === "string" && String((app as any).region).trim()
+        ? String((app as any).region).trim()
+        : typeof d.region === "string"
+          ? d.region.trim()
+          : "";
+      const district = typeof (app as any).district === "string" && String((app as any).district).trim()
+        ? String((app as any).district).trim()
+        : typeof d.district === "string"
+          ? d.district.trim()
+          : "";
+      const timezone = typeof d.timezone === "string" ? d.timezone.trim() : "";
+
+      if (!user.fullName && app.fullName) userUpdate.fullName = app.fullName;
+      if (!user.name && app.fullName) userUpdate.name = app.fullName;
+      if (!user.nationality && nationality) userUpdate.nationality = nationality;
+      if (!user.region && region) userUpdate.region = region;
+      if (!user.district && district) userUpdate.district = district;
+      if (!user.timezone && timezone) userUpdate.timezone = timezone;
+
+      if (Object.keys(userUpdate).length > 0) {
+        const updated = await prisma.user.update({
+          where: { id: user.id },
+          data: userUpdate,
+          select: { id: true, role: true, nationality: true, region: true, district: true, timezone: true, name: true, fullName: true },
+        });
+        user = updated as any;
+      }
+    } catch {
+      // ignore
+    }
 
     if (user.role !== "AGENT") {
       try {
@@ -327,25 +477,48 @@ async function ensureAgentsFromHiredApplications(req: AuthedRequest): Promise<vo
 
     let agent = await prisma.agent.findUnique({
       where: { userId: user.id },
-      select: { id: true },
+      select: { id: true, areasOfOperation: true, specializations: true, educationLevel: true, yearsOfExperience: true, languages: true },
     });
 
     if (!agent) {
-      const d = (app.agentApplicationData ?? {}) as any;
+      // d already normalized above
       try {
+        const jobAreaOfOperationRaw = typeof (app as any)?.job?.locationDetail === "string"
+          ? String((app as any).job.locationDetail).trim()
+          : "";
+
+        const inferredAreasFromJob = Array.from(
+          new Set(
+            jobAreaOfOperationRaw
+              .split(",")
+              .map((v) => v.trim())
+              .filter(Boolean)
+          )
+        );
+
+        const applicationEducationLevel = (app as any).educationLevel ? String((app as any).educationLevel) : null;
+        const applicationYearsOfExperience = (app as any).yearsOfExperience != null ? Number((app as any).yearsOfExperience) : null;
+        const applicationLanguages = normalizeLanguageStrings((app as any).languages);
+        const agentDataLanguages = normalizeLanguageStrings(d.languages);
+
         agent = await prisma.agent.create({
           data: {
             user: { connect: { id: user.id } },
             status: d.status || DEFAULT_AGENT_STATUS,
-            educationLevel: d.educationLevel || null,
-            yearsOfExperience: d.yearsOfExperience != null ? Number(d.yearsOfExperience) : null,
+            educationLevel: applicationEducationLevel || d.educationLevel || null,
+            yearsOfExperience: applicationYearsOfExperience != null
+              ? applicationYearsOfExperience
+              : (d.yearsOfExperience != null ? Number(d.yearsOfExperience) : null),
             bio: d.bio || null,
             maxActiveRequests: d.maxActiveRequests != null ? Number(d.maxActiveRequests) : DEFAULT_MAX_ACTIVE_REQUESTS,
             isAvailable: d.isAvailable !== undefined ? Boolean(d.isAvailable) : true,
             currentActiveRequests: 0,
-            areasOfOperation: Array.isArray(d.areasOfOperation) && d.areasOfOperation.length > 0 ? d.areasOfOperation : null,
+            areasOfOperation:
+              inferredAreasFromJob.length > 0
+                ? inferredAreasFromJob
+                : (Array.isArray(d.areasOfOperation) && d.areasOfOperation.length > 0 ? d.areasOfOperation : null),
             certifications: Array.isArray(d.certifications) && d.certifications.length > 0 ? d.certifications : null,
-            languages: Array.isArray(d.languages) && d.languages.length > 0 ? d.languages : null,
+            languages: applicationLanguages.length > 0 ? applicationLanguages : (agentDataLanguages.length > 0 ? agentDataLanguages : null),
             specializations: Array.isArray(d.specializations) && d.specializations.length > 0 ? d.specializations : null,
           } as any,
           select: { id: true },
@@ -368,6 +541,77 @@ async function ensureAgentsFromHiredApplications(req: AuthedRequest): Promise<vo
       }
     }
 
+    if (agent) {
+      // Best-effort: fill empty agent profile arrays from application data
+      try {
+        const jobAreaOfOperationRaw = typeof (app as any)?.job?.locationDetail === "string"
+          ? String((app as any).job.locationDetail).trim()
+          : "";
+
+        const inferredAreasFromJob = Array.from(
+          new Set(
+            jobAreaOfOperationRaw
+              .split(",")
+              .map((v) => v.trim())
+              .filter(Boolean)
+          )
+        );
+
+        const applicationEducationLevel = (app as any).educationLevel ? String((app as any).educationLevel) : null;
+        const applicationYearsOfExperience = (app as any).yearsOfExperience != null ? Number((app as any).yearsOfExperience) : null;
+        const applicationLanguages = normalizeLanguageStrings((app as any).languages);
+        const agentDataLanguages = normalizeLanguageStrings(d.languages);
+
+        const incomingAreas = Array.isArray(d.areasOfOperation) ? d.areasOfOperation : [];
+        const incomingSpecs = Array.isArray(d.specializations) ? d.specializations : [];
+        const existingAreas = Array.isArray((agent as any).areasOfOperation) ? (agent as any).areasOfOperation : null;
+        const existingSpecs = Array.isArray((agent as any).specializations) ? (agent as any).specializations : null;
+        const existingLanguages = Array.isArray((agent as any).languages) ? (agent as any).languages : null;
+        const existingEducation = (agent as any).educationLevel ? String((agent as any).educationLevel) : null;
+        const existingYears = (agent as any).yearsOfExperience != null ? Number((agent as any).yearsOfExperience) : null;
+
+        const agentUpdate: any = {};
+        // Areas of Operation must match the job advert when set.
+        if (inferredAreasFromJob.length > 0) {
+          const currentAreas = normalizeAreas(existingAreas);
+          const advertAreas = inferredAreasFromJob;
+          const same = currentAreas.length === advertAreas.length && currentAreas.every((v, idx) => v === advertAreas[idx]);
+          if (!same) agentUpdate.areasOfOperation = advertAreas;
+        } else if ((!existingAreas || existingAreas.length === 0) && incomingAreas.length > 0) {
+          agentUpdate.areasOfOperation = incomingAreas;
+        }
+        if ((!existingSpecs || existingSpecs.length === 0) && incomingSpecs.length > 0) agentUpdate.specializations = incomingSpecs;
+
+        if (!existingEducation && (applicationEducationLevel || d.educationLevel)) {
+          agentUpdate.educationLevel = applicationEducationLevel || d.educationLevel;
+        }
+
+        if (existingYears == null) {
+          const incomingYears = applicationYearsOfExperience != null
+            ? applicationYearsOfExperience
+            : (d.yearsOfExperience != null ? Number(d.yearsOfExperience) : null);
+          if (incomingYears != null) agentUpdate.yearsOfExperience = incomingYears;
+        }
+
+        if ((!existingLanguages || existingLanguages.length === 0)) {
+          const incomingLanguages = applicationLanguages.length > 0
+            ? applicationLanguages
+            : (agentDataLanguages.length > 0 ? agentDataLanguages : []);
+          if (incomingLanguages.length > 0) agentUpdate.languages = incomingLanguages;
+        }
+
+        if (Object.keys(agentUpdate).length > 0) {
+          await prisma.agent.update({
+            where: { id: agent.id },
+            data: agentUpdate as any,
+            select: { id: true },
+          });
+        }
+      } catch {
+        // ignore
+      }
+    }
+
     if (!agent) continue;
 
     try {
@@ -386,11 +630,107 @@ async function ensureAgentsFromHiredApplications(req: AuthedRequest): Promise<vo
     }
   }
 
-  if (createdAgentIds.length > 0 || linkedApplicationIds.length > 0) {
+  for (const app of hiredWithAgent) {
+    const d = (app.agentApplicationData ?? {}) as any;
+    const agent = (app as any).agent as any;
+    const user = agent?.user as any;
+    if (!agent || !user) continue;
+
+    try {
+      const nationality = typeof (app as any).nationality === "string" && String((app as any).nationality).trim()
+        ? String((app as any).nationality).trim()
+        : (typeof d.nationality === "string" ? d.nationality.trim() : "");
+      const region = typeof (app as any).region === "string" && String((app as any).region).trim() ? String((app as any).region).trim() : "";
+      const district = typeof (app as any).district === "string" && String((app as any).district).trim() ? String((app as any).district).trim() : "";
+
+      const userUpdate: any = {};
+      if (!user.fullName && app.fullName) userUpdate.fullName = app.fullName;
+      if (!user.name && app.fullName) userUpdate.name = app.fullName;
+      if (!user.nationality && nationality) userUpdate.nationality = nationality;
+      if (!user.region && region) userUpdate.region = region;
+      if (!user.district && district) userUpdate.district = district;
+
+      if (Object.keys(userUpdate).length > 0) {
+        await prisma.user.update({ where: { id: user.id }, data: userUpdate });
+        backfilledUserIds.push(user.id);
+      }
+    } catch {
+      // ignore
+    }
+
+    try {
+      const jobAreaOfOperationRaw = typeof (app as any)?.job?.locationDetail === "string"
+        ? String((app as any).job.locationDetail).trim()
+        : "";
+
+      const inferredAreasFromJob = Array.from(
+        new Set(
+          jobAreaOfOperationRaw
+            .split(",")
+            .map((v) => v.trim())
+            .filter(Boolean)
+        )
+      );
+
+      const applicationEducationLevel = (app as any).educationLevel ? String((app as any).educationLevel) : null;
+      const applicationYearsOfExperience = (app as any).yearsOfExperience != null ? Number((app as any).yearsOfExperience) : null;
+      const applicationLanguages = normalizeLanguageStrings((app as any).languages);
+      const agentDataLanguages = normalizeLanguageStrings(d.languages);
+
+      const incomingAreas = Array.isArray(d.areasOfOperation) ? d.areasOfOperation : [];
+      const incomingSpecs = Array.isArray(d.specializations) ? d.specializations : [];
+      const existingAreas = Array.isArray(agent.areasOfOperation) ? agent.areasOfOperation : null;
+      const existingSpecs = Array.isArray(agent.specializations) ? agent.specializations : null;
+      const existingLanguages = Array.isArray(agent.languages) ? agent.languages : null;
+      const existingEducation = agent.educationLevel ? String(agent.educationLevel) : null;
+      const existingYears = agent.yearsOfExperience != null ? Number(agent.yearsOfExperience) : null;
+
+      const agentUpdate: any = {};
+      // Areas of Operation must match the job advert when set.
+      if (inferredAreasFromJob.length > 0) {
+        const currentAreas = normalizeAreas(existingAreas);
+        const advertAreas = inferredAreasFromJob;
+        const same = currentAreas.length === advertAreas.length && currentAreas.every((v, idx) => v === advertAreas[idx]);
+        if (!same) agentUpdate.areasOfOperation = advertAreas;
+      } else if ((!existingAreas || existingAreas.length === 0) && incomingAreas.length > 0) {
+        agentUpdate.areasOfOperation = incomingAreas;
+      }
+      if ((!existingSpecs || existingSpecs.length === 0) && incomingSpecs.length > 0) agentUpdate.specializations = incomingSpecs;
+
+      if (!existingEducation && (applicationEducationLevel || d.educationLevel)) {
+        agentUpdate.educationLevel = applicationEducationLevel || d.educationLevel;
+      }
+
+      if (existingYears == null) {
+        const incomingYears = applicationYearsOfExperience != null
+          ? applicationYearsOfExperience
+          : (d.yearsOfExperience != null ? Number(d.yearsOfExperience) : null);
+        if (incomingYears != null) agentUpdate.yearsOfExperience = incomingYears;
+      }
+
+      if ((!existingLanguages || existingLanguages.length === 0)) {
+        const incomingLanguages = applicationLanguages.length > 0
+          ? applicationLanguages
+          : (agentDataLanguages.length > 0 ? agentDataLanguages : []);
+        if (incomingLanguages.length > 0) agentUpdate.languages = incomingLanguages;
+      }
+
+      if (Object.keys(agentUpdate).length > 0) {
+        await prisma.agent.update({ where: { id: agent.id }, data: agentUpdate });
+        backfilledAgentIds.push(agent.id);
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  if (createdAgentIds.length > 0 || linkedApplicationIds.length > 0 || backfilledAgentIds.length > 0 || backfilledUserIds.length > 0) {
     try {
       await audit(req as any, "AGENT_PROVISIONED_FROM_HIRED_APPLICATION", "agents", null, {
         createdAgentIds,
         linkedApplicationIds,
+        backfilledAgentIds,
+        backfilledUserIds,
       });
     } catch {
       // ignore
@@ -489,8 +829,14 @@ router.get("/", validate(listAgentsQuerySchema, "query"), async (req: any, res) 
             select: {
               id: true,
               name: true,
+              fullName: true,
               email: true,
               phone: true,
+              nationality: true,
+              region: true,
+              district: true,
+              timezone: true,
+              avatarUrl: true,
               createdAt: true,
             },
           },
@@ -576,8 +922,14 @@ router.get("/:id", validate(getAgentParamsSchema, "params"), async (req: any, re
           select: {
             id: true,
             name: true,
+            fullName: true,
             email: true,
             phone: true,
+            nationality: true,
+            region: true,
+            district: true,
+            timezone: true,
+            avatarUrl: true,
             createdAt: true,
           },
         },
@@ -693,6 +1045,114 @@ router.get("/:id", validate(getAgentParamsSchema, "params"), async (req: any, re
     sendError(res, 500, "Failed to fetch agent");
   }
 });
+
+// ============================================================
+// GET /api/admin/agents/:id/documents
+// ============================================================
+router.get("/:id/documents", validate(getAgentParamsSchema, "params"), async (req: any, res) => {
+  try {
+    const { id } = req.validatedParams;
+
+    const agent = await prisma.agent.findUnique({
+      where: { id: Number(id) },
+      select: { id: true, userId: true },
+    });
+
+    if (!agent) return sendError(res, 404, "Agent not found");
+
+    if (!(prisma as any).userDocument) {
+      return sendSuccess(res, { documents: [] });
+    }
+
+    const documents = await prisma.userDocument.findMany({
+      where: { userId: agent.userId },
+      orderBy: { id: "desc" },
+      take: 100,
+      select: {
+        id: true,
+        userId: true,
+        type: true,
+        status: true,
+        reason: true,
+        url: true,
+        metadata: true,
+        createdAt: true,
+        updatedAt: true,
+      } as any,
+    });
+
+    return sendSuccess(res, { documents });
+  } catch (err: any) {
+    console.error("[GET /admin/agents/:id/documents] Error:", err);
+    return sendError(res, 500, "Failed to fetch agent documents");
+  }
+});
+
+// ============================================================
+// PATCH /api/admin/agents/:id/documents/:docId
+// ============================================================
+router.patch(
+  "/:id/documents/:docId",
+  validate(agentDocParamsSchema, "params"),
+  validate(updateDocStatusSchema, "body"),
+  async (req: any, res) => {
+    try {
+      const { id, docId } = req.validatedParams;
+      const { status, reason } = req.validatedData;
+
+      const agent = await prisma.agent.findUnique({
+        where: { id: Number(id) },
+        select: { id: true, userId: true },
+      });
+      if (!agent) return sendError(res, 404, "Agent not found");
+
+      if (!(prisma as any).userDocument) {
+        return sendError(res, 404, "Documents feature not enabled in this environment");
+      }
+
+      const existing = await prisma.userDocument.findUnique({ where: { id: Number(docId) } as any });
+      if (!existing || (existing as any).userId !== agent.userId) {
+        return sendError(res, 404, "Document not found");
+      }
+
+      const sanitizedReason =
+        status === "REJECTED" ? sanitizeText(String(reason ?? "").trim()).slice(0, 2000) : null;
+
+      const doc = await prisma.userDocument.update({
+        where: { id: Number(docId) } as any,
+        data: { status, reason: sanitizedReason || null } as any,
+        select: {
+          id: true,
+          userId: true,
+          type: true,
+          status: true,
+          reason: true,
+          url: true,
+          metadata: true,
+          createdAt: true,
+          updatedAt: true,
+        } as any,
+      });
+
+      try {
+        await audit(req as AuthedRequest, "USER_DOCUMENT_STATUS_UPDATED", `user:${agent.userId}`, existing, {
+          agentId: agent.id,
+          docId,
+          status,
+          reason: sanitizedReason || null,
+          type: (existing as any).type,
+        });
+      } catch {
+        // ignore
+      }
+
+      return sendSuccess(res, { doc }, "Document updated");
+    } catch (err: any) {
+      console.error("[PATCH /admin/agents/:id/documents/:docId] Error:", err);
+      return sendError(res, 500, "Failed to update document");
+    }
+  },
+);
 
 // ============================================================
 // POST /api/admin/agents

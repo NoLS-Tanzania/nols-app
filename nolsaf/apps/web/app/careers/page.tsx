@@ -33,6 +33,17 @@ import DriverSiteHeader from "@/components/DriverSiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import LayoutFrame from "@/components/LayoutFrame";
 import { usePathname } from "next/navigation";
+import { REGIONS as TZ_REGIONS } from "@/lib/tzRegions";
+import { PINNED_NATIONALITIES, EAST_AFRICA_COUNTRIES, SOUTHERN_AFRICA_COUNTRIES, AGENT_SPECIALIZATIONS, AGENT_SPECIALIZATION_VALUES } from "@nolsaf/shared";
+
+const EDUCATION_LABELS: Record<string, string> = {
+  HIGH_SCHOOL: "High School",
+  DIPLOMA: "Diploma",
+  BACHELORS: "Bachelors",
+  MASTERS: "Masters",
+  PHD: "PhD",
+  OTHER: "Other",
+};
 
 function getCookie(name: string): string | null {
   if (typeof document === 'undefined') return null;
@@ -68,6 +79,8 @@ interface Job {
   applicationDeadline?: string;
   experienceLevel: "ENTRY" | "MID" | "SENIOR" | "LEAD";
   featured?: boolean;
+  isTravelAgentPosition?: boolean;
+  requiredEducationLevel?: string | null;
 }
 
 // Jobs will be fetched from API - sample data removed
@@ -213,8 +226,18 @@ function JobCard({ job, onClick }: { job: Job; onClick: () => void }) {
 }
 
 function ApplicationForm({ job, onClose, onSuccess }: { job: Job; onClose: () => void; onSuccess?: () => void }) {
-  // Check if this is a Travel Agent position (by title containing "agent" or "travel")
-  const isTravelAgentPosition = job.title.toLowerCase().includes("agent") || job.title.toLowerCase().includes("travel");
+  // Source of truth: admin-set job flag
+  const isTravelAgentPosition = Boolean((job as any).isTravelAgentPosition);
+  const requiredEducationLevel = String((job as any).requiredEducationLevel || "").trim();
+
+  const ABOUT_MIN_WORDS = 120;
+  const ABOUT_MAX_WORDS = 250;
+
+  const countWords = (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed) return 0;
+    return trimmed.split(/\s+/).filter(Boolean).length;
+  };
   
   const [formData, setFormData] = useState({
     fullName: "",
@@ -225,6 +248,10 @@ function ApplicationForm({ job, onClose, onSuccess }: { job: Job; onClose: () =>
     portfolio: "",
     linkedIn: "",
     referredBy: "",
+    // Agent location fields
+    nationality: "",
+    region: "",
+    district: "",
     // Agent-specific fields
     educationLevel: "",
     yearsOfExperience: "",
@@ -245,6 +272,16 @@ function ApplicationForm({ job, onClose, onSuccess }: { job: Job; onClose: () =>
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const districtsForSelectedRegion = useMemo(() => {
+    const selected = TZ_REGIONS.find((r) => r.name === formData.region);
+    return selected?.districts ?? [];
+  }, [formData.region]);
+
+  const aboutWords = useMemo(() => countWords(formData.coverLetter), [formData.coverLetter]);
+  const aboutTooShort = aboutWords > 0 && aboutWords < ABOUT_MIN_WORDS;
+  const aboutTooLong = aboutWords > ABOUT_MAX_WORDS;
+  const aboutInvalid = aboutWords < ABOUT_MIN_WORDS || aboutWords > ABOUT_MAX_WORDS;
   
   // Agent-specific handlers
   const handleAddArea = () => {
@@ -282,13 +319,21 @@ function ApplicationForm({ job, onClose, onSuccess }: { job: Job; onClose: () =>
   };
 
   const handleAddSpecialization = () => {
-    if (specializationInput.trim() && !formData.specializations.includes(specializationInput.trim())) {
-      setFormData({
-        ...formData,
-        specializations: [...formData.specializations, specializationInput.trim()],
-      });
-      setSpecializationInput("");
+    const candidate = String(specializationInput || "").trim();
+    if (!candidate) return;
+    if (!AGENT_SPECIALIZATION_VALUES.has(candidate)) {
+      setError("Please select a specialization from the list");
+      return;
     }
+    if (formData.specializations.includes(candidate)) {
+      setSpecializationInput("");
+      return;
+    }
+    setFormData({
+      ...formData,
+      specializations: [...formData.specializations, candidate],
+    });
+    setSpecializationInput("");
   };
 
   const handleRemoveSpecialization = (spec: string) => {
@@ -343,9 +388,52 @@ function ApplicationForm({ job, onClose, onSuccess }: { job: Job; onClose: () =>
     e.preventDefault();
     setError(null);
 
-    if (!formData.fullName || !formData.email || !formData.phone || !formData.coverLetter || !formData.linkedIn) {
+    if (!formData.fullName || !formData.email || !formData.phone || !formData.region || !formData.district || !formData.coverLetter || !formData.linkedIn) {
       setError("Please fill in all required fields");
       return;
+    }
+
+    if (aboutInvalid) {
+      setError(`Tell us about yourself must be between ${ABOUT_MIN_WORDS} and ${ABOUT_MAX_WORDS} words.`);
+      return;
+    }
+
+    if (!formData.nationality.trim()) {
+      setError("Please select nationality");
+      return;
+    }
+
+    const selectedEducation = String(requiredEducationLevel || formData.educationLevel || "").trim();
+    if (!selectedEducation) {
+      setError("Please select education level");
+      return;
+    }
+
+    if (!String(formData.yearsOfExperience || "").trim()) {
+      setError("Please enter years of experience");
+      return;
+    }
+
+    if (!Array.isArray(formData.languages) || formData.languages.length === 0) {
+      setError("Please add at least one language you can speak/read/write");
+      return;
+    }
+
+    if (!Array.isArray(formData.specializations) || formData.specializations.length === 0) {
+      setError("Please add at least one specialization");
+      return;
+    }
+
+    if (requiredEducationLevel) {
+      const selectedEducation = String(requiredEducationLevel || formData.educationLevel || "").trim();
+      if (!selectedEducation) {
+        setError("Education level is required for this job");
+        return;
+      }
+      if (selectedEducation !== requiredEducationLevel) {
+        setError(`Education level must match the job requirement (${requiredEducationLevel})`);
+        return;
+      }
     }
 
     setSubmitting(true);
@@ -358,6 +446,8 @@ function ApplicationForm({ job, onClose, onSuccess }: { job: Job; onClose: () =>
       formDataToSend.append('fullName', formData.fullName);
       formDataToSend.append('email', formData.email);
       formDataToSend.append('phone', formData.phone);
+      formDataToSend.append('region', formData.region);
+      formDataToSend.append('district', formData.district);
       formDataToSend.append('coverLetter', formData.coverLetter);
       if (formData.resume) {
         formDataToSend.append('resume', formData.resume);
@@ -366,19 +456,33 @@ function ApplicationForm({ job, onClose, onSuccess }: { job: Job; onClose: () =>
       if (formData.linkedIn) formDataToSend.append('linkedIn', formData.linkedIn);
       if (formData.referredBy) formDataToSend.append('referredBy', formData.referredBy);
 
-      // Add agent-specific data if this is a Travel Agent position
-      if (isTravelAgentPosition) {
-        const agentApplicationData = {
-          educationLevel: formData.educationLevel || null,
-          yearsOfExperience: formData.yearsOfExperience ? parseInt(formData.yearsOfExperience) : null,
-          bio: formData.bio || null,
-          areasOfOperation: formData.areasOfOperation.length > 0 ? formData.areasOfOperation : null,
-          languages: formData.languages.length > 0 ? formData.languages : null,
-          specializations: formData.specializations.length > 0 ? formData.specializations : null,
-          certifications: formData.certifications.length > 0 ? formData.certifications : null,
-        };
-        formDataToSend.append('agentApplicationData', JSON.stringify(agentApplicationData));
+      // Always submit these as top-level fields for persistence on JobApplication
+      if (formData.nationality) formDataToSend.append('nationality', formData.nationality.trim());
+      if (requiredEducationLevel || formData.educationLevel) {
+        formDataToSend.append('educationLevel', String(requiredEducationLevel || formData.educationLevel || '').trim());
       }
+      if (formData.yearsOfExperience) formDataToSend.append('yearsOfExperience', String(formData.yearsOfExperience));
+      if (formData.languages.length > 0) formDataToSend.append('languages', JSON.stringify(formData.languages));
+
+      // Always submit specializations as part of agentApplicationData
+      // (required for all applications; for travel agent roles this also includes the richer agent profile fields)
+      const agentApplicationData = isTravelAgentPosition
+        ? {
+            nationality: formData.nationality.trim() || null,
+            region: formData.region.trim() || null,
+            district: formData.district.trim() || null,
+            educationLevel: (requiredEducationLevel || formData.educationLevel) || null,
+            yearsOfExperience: formData.yearsOfExperience ? parseInt(formData.yearsOfExperience) : null,
+            bio: formData.bio || null,
+            areasOfOperation: formData.areasOfOperation.length > 0 ? formData.areasOfOperation : null,
+            languages: formData.languages.length > 0 ? formData.languages : null,
+            specializations: formData.specializations.length > 0 ? formData.specializations : null,
+            certifications: formData.certifications.length > 0 ? formData.certifications : null,
+          }
+        : {
+            specializations: formData.specializations.length > 0 ? formData.specializations : null,
+          };
+      formDataToSend.append('agentApplicationData', JSON.stringify(agentApplicationData));
 
       const response = await fetch(url, {
         method: 'POST',
@@ -387,7 +491,7 @@ function ApplicationForm({ job, onClose, onSuccess }: { job: Job; onClose: () =>
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `HTTP ${response.status}`);
+        throw new Error(errorData.error || errorData.message || `HTTP ${response.status}`);
       }
 
       setSuccess(true);
@@ -479,10 +583,19 @@ function ApplicationForm({ job, onClose, onSuccess }: { job: Job; onClose: () =>
               <input
                 type="tel"
                 required
+                inputMode="tel"
+                pattern="^\+?[0-9]+$"
+                title="Use digits only, optionally starting with +"
                 value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  const hasPlus = raw.trim().startsWith("+");
+                  const digitsOnly = raw.replace(/[^0-9]/g, "");
+                  const normalized = (hasPlus ? "+" : "") + digitsOnly;
+                  setFormData({ ...formData, phone: normalized.slice(0, 20) });
+                }}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border"
-                placeholder="+255 123 456 789"
+                placeholder="+255123456789"
               />
             </div>
 
@@ -499,6 +612,251 @@ function ApplicationForm({ job, onClose, onSuccess }: { job: Job; onClose: () =>
                 placeholder="https://linkedin.com/in/yourprofile"
               />
             </div>
+
+            <div className="min-w-0">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Region <span className="text-red-500">*</span>
+              </label>
+              <select
+                required
+                value={formData.region}
+                onChange={(e) => setFormData({ ...formData, region: e.target.value, district: "" })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border"
+              >
+                <option value="">Select region...</option>
+                {TZ_REGIONS.map((r) => (
+                  <option key={r.id} value={r.name}>
+                    {r.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="min-w-0">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                District <span className="text-red-500">*</span>
+              </label>
+              <select
+                required
+                value={formData.district}
+                onChange={(e) => setFormData({ ...formData, district: e.target.value })}
+                disabled={!formData.region}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border disabled:bg-gray-50 disabled:text-gray-400"
+              >
+                <option value="">{formData.region ? "Select district..." : "Select region first"}</option>
+                {districtsForSelectedRegion.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <>
+              <div className="min-w-0">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Nationality <span className="text-red-500">*</span>
+                </label>
+                <select
+                  required
+                  value={formData.nationality}
+                  onChange={(e) => setFormData({ ...formData, nationality: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border bg-white"
+                >
+                  <option value="">Select nationality...</option>
+                  <optgroup label="Top">
+                    {PINNED_NATIONALITIES.map((c) => (
+                      <option key={c.value} value={c.value}>
+                        {c.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="East Africa">
+                    {EAST_AFRICA_COUNTRIES.filter((c) => !PINNED_NATIONALITIES.some((p) => p.value === c.value)).map((c) => (
+                      <option key={c.value} value={c.value}>
+                        {c.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Southern Africa">
+                    {SOUTHERN_AFRICA_COUNTRIES.map((c) => (
+                      <option key={c.value} value={c.value}>
+                        {c.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
+              </div>
+
+              <div className="min-w-0">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Education Level{requiredEducationLevel ? " (Required)" : ""} <span className="text-red-500">*</span>
+                </label>
+                <select
+                  required
+                  value={requiredEducationLevel || formData.educationLevel}
+                  onChange={(e) => {
+                    if (requiredEducationLevel) return;
+                    setFormData({ ...formData, educationLevel: e.target.value });
+                  }}
+                  disabled={Boolean(requiredEducationLevel)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border"
+                >
+                  {requiredEducationLevel ? (
+                    <option value={requiredEducationLevel}>
+                      {EDUCATION_LABELS[requiredEducationLevel] || requiredEducationLevel.replace(/_/g, " ")}
+                    </option>
+                  ) : (
+                    <>
+                      <option value="">Select education level...</option>
+                      <option value="HIGH_SCHOOL">High School</option>
+                      <option value="DIPLOMA">Diploma</option>
+                      <option value="BACHELORS">Bachelors</option>
+                      <option value="MASTERS">Masters</option>
+                      <option value="PHD">PhD</option>
+                      <option value="OTHER">Other</option>
+                    </>
+                  )}
+                </select>
+                {requiredEducationLevel && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    This job requires: {EDUCATION_LABELS[requiredEducationLevel] || requiredEducationLevel.replace(/_/g, " ")}
+                  </p>
+                )}
+              </div>
+
+              <div className="min-w-0">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Years of Experience <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="80"
+                  required
+                  value={formData.yearsOfExperience}
+                  onChange={(e) => setFormData({ ...formData, yearsOfExperience: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border"
+                  placeholder="e.g., 5"
+                />
+              </div>
+
+              <div className="min-w-0 md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Specializations <span className="text-red-500">*</span>
+                </label>
+                <div className="flex gap-2">
+                  <select
+                    value={specializationInput}
+                    onChange={(e) => setSpecializationInput(e.target.value)}
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border bg-white"
+                  >
+                    <option value="">Select specialization</option>
+                    {AGENT_SPECIALIZATIONS.map((spec) => (
+                      <option key={spec} value={spec}>
+                        {spec}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={handleAddSpecialization}
+                    className="px-4 py-2 bg-[#02665e] text-white rounded-lg text-sm font-medium hover:bg-[#014d47] transition-colors"
+                  >
+                    Add
+                  </button>
+                </div>
+                {formData.specializations.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {formData.specializations.map((spec, idx) => (
+                      <span
+                        key={idx}
+                        className="inline-flex items-center gap-2 px-3 py-1 bg-green-50 text-green-700 rounded-lg text-sm"
+                      >
+                        {spec}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveSpecialization(spec)}
+                          className="hover:text-green-900"
+                        >
+                          <XCircle className="h-4 w-4" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          </div>
+
+          <div className="space-y-2 w-full box-border">
+            <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+              <Languages className="h-4 w-4 text-[#02665e]" />
+              Languages (Speak / Read / Write) <span className="text-red-500">*</span>
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                list="language-options"
+                value={languageInput}
+                onChange={(e) => setLanguageInput(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleAddLanguage();
+                  }
+                }}
+                placeholder="Select or type a language (e.g., English)"
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border"
+              />
+              <datalist id="language-options">
+                {[
+                  "Swahili",
+                  "English",
+                  "French",
+                  "Arabic",
+                  "Portuguese",
+                  "Kinyarwanda",
+                  "Kirundi",
+                  "Luganda",
+                  "Luo",
+                  "Amharic",
+                  "Somali",
+                  "Afrikaans",
+                  "Zulu",
+                  "Shona",
+                  "Ndebele",
+                ].map((l) => (
+                  <option key={l} value={l} />
+                ))}
+              </datalist>
+              <button
+                type="button"
+                onClick={handleAddLanguage}
+                className="px-4 py-2 bg-[#02665e] text-white rounded-lg text-sm font-medium hover:bg-[#014d47] transition-colors"
+              >
+                Add
+              </button>
+            </div>
+            {formData.languages.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {formData.languages.map((lang, idx) => (
+                  <span
+                    key={idx}
+                    className="inline-flex items-center gap-2 px-3 py-1 bg-purple-50 text-purple-700 rounded-lg text-sm"
+                  >
+                    {lang}
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveLanguage(lang)}
+                      className="hover:text-purple-900"
+                    >
+                      <XCircle className="h-4 w-4" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="w-full box-border">
@@ -551,16 +909,26 @@ function ApplicationForm({ job, onClose, onSuccess }: { job: Job; onClose: () =>
 
           <div className="w-full box-border">
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Cover Letter <span className="text-red-500">*</span>
+              Tell us about yourself <span className="text-red-500">*</span>
             </label>
             <textarea
               required
               value={formData.coverLetter}
               onChange={(e) => setFormData({ ...formData, coverLetter: e.target.value })}
               rows={6}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border resize-none"
-              placeholder="Tell us why you're interested in this position and what makes you a great fit..."
+              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border resize-none ${
+                aboutTooLong ? "border-red-300" : aboutTooShort ? "border-amber-300" : "border-gray-300"
+              }`}
+              placeholder="Share a short summary about you, what you have accomplished, and what you can bring to this role..."
             />
+            <div className="mt-2 flex items-center justify-between text-xs">
+              <span className={`font-medium ${aboutTooLong ? "text-red-600" : aboutTooShort ? "text-amber-700" : "text-gray-500"}`}>
+                {ABOUT_MIN_WORDS}–{ABOUT_MAX_WORDS} words
+              </span>
+              <span className={`${aboutTooLong ? "text-red-600" : "text-gray-500"}`}>
+                {aboutWords}/{ABOUT_MAX_WORDS}
+              </span>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full box-border">
@@ -600,46 +968,12 @@ function ApplicationForm({ job, onClose, onSuccess }: { job: Job; onClose: () =>
                 </p>
               </div>
 
-              {/* Education & Experience */}
+              {/* Experience */}
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                   <GraduationCap className="h-5 w-5 text-[#02665e]" />
-                  Education & Experience
+                  Experience
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="min-w-0">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Education Level
-                    </label>
-                    <select
-                      value={formData.educationLevel}
-                      onChange={(e) => setFormData({ ...formData, educationLevel: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border"
-                    >
-                      <option value="">Select education level...</option>
-                      <option value="HIGH_SCHOOL">High School</option>
-                      <option value="DIPLOMA">Diploma</option>
-                      <option value="BACHELORS">Bachelors</option>
-                      <option value="MASTERS">Masters</option>
-                      <option value="PHD">PhD</option>
-                      <option value="OTHER">Other</option>
-                    </select>
-                  </div>
-                  <div className="min-w-0">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Years of Experience
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      max="50"
-                      value={formData.yearsOfExperience}
-                      onChange={(e) => setFormData({ ...formData, yearsOfExperience: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border"
-                      placeholder="e.g., 5"
-                    />
-                  </div>
-                </div>
                 <div className="min-w-0">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Bio/About You
@@ -698,104 +1032,6 @@ function ApplicationForm({ job, onClose, onSuccess }: { job: Job; onClose: () =>
                             type="button"
                             onClick={() => handleRemoveArea(area)}
                             className="hover:text-blue-900"
-                          >
-                            <XCircle className="h-4 w-4" />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Languages */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                    <Languages className="h-4 w-4 text-[#02665e]" />
-                    Languages
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={languageInput}
-                      onChange={(e) => setLanguageInput(e.target.value)}
-                      onKeyPress={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          handleAddLanguage();
-                        }
-                      }}
-                      placeholder="Enter language (e.g., English)"
-                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleAddLanguage}
-                      className="px-4 py-2 bg-[#02665e] text-white rounded-lg text-sm font-medium hover:bg-[#014d47] transition-colors"
-                    >
-                      Add
-                    </button>
-                  </div>
-                  {formData.languages.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {formData.languages.map((lang, idx) => (
-                        <span
-                          key={idx}
-                          className="inline-flex items-center gap-2 px-3 py-1 bg-purple-50 text-purple-700 rounded-lg text-sm"
-                        >
-                          {lang}
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveLanguage(lang)}
-                            className="hover:text-purple-900"
-                          >
-                            <XCircle className="h-4 w-4" />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Specializations */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                    <Briefcase className="h-4 w-4 text-[#02665e]" />
-                    Specializations
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={specializationInput}
-                      onChange={(e) => setSpecializationInput(e.target.value)}
-                      onKeyPress={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          handleAddSpecialization();
-                        }
-                      }}
-                      placeholder="Enter specialization (e.g., Safari Tours)"
-                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleAddSpecialization}
-                      className="px-4 py-2 bg-[#02665e] text-white rounded-lg text-sm font-medium hover:bg-[#014d47] transition-colors"
-                    >
-                      Add
-                    </button>
-                  </div>
-                  {formData.specializations.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {formData.specializations.map((spec, idx) => (
-                        <span
-                          key={idx}
-                          className="inline-flex items-center gap-2 px-3 py-1 bg-green-50 text-green-700 rounded-lg text-sm"
-                        >
-                          {spec}
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveSpecialization(spec)}
-                            className="hover:text-green-900"
                           >
                             <XCircle className="h-4 w-4" />
                           </button>
@@ -895,7 +1131,7 @@ function ApplicationForm({ job, onClose, onSuccess }: { job: Job; onClose: () =>
             </button>
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || aboutInvalid}
               className="flex-1 px-4 sm:px-6 py-3 bg-[#02665e] text-white rounded-lg font-semibold hover:bg-[#024d47] transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-w-0"
             >
               {submitting ? "Submitting..." : "Submit Application"}

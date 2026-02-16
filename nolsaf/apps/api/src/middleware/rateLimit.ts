@@ -1,5 +1,51 @@
 import rateLimit from "express-rate-limit";
 
+export const limitAgentPortalRead = rateLimit({
+  windowMs: 60_000, // 1 minute
+  limit: 60, // 60 requests per minute per agent
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests. Please wait a moment and try again." },
+  keyGenerator: (req) => {
+    const userId = (req as any)?.user?.id;
+    if (typeof userId === "number" && Number.isFinite(userId) && userId > 0) {
+      return `agent:${userId}`;
+    }
+    return req.ip || req.socket.remoteAddress || "unknown";
+  },
+});
+
+export const limitAgentNotifyAdmin = rateLimit({
+  windowMs: 60_000, // 1 minute
+  limit: 5, // prevent inbox spam
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many messages. Please wait a moment before sending another." },
+  keyGenerator: (req) => {
+    const userId = (req as any)?.user?.id;
+    if (typeof userId === "number" && Number.isFinite(userId) && userId > 0) {
+      return `agent-notify-admin:${userId}`;
+    }
+    return req.ip || req.socket.remoteAddress || "unknown";
+  },
+});
+
+export const limitCloudinarySign = rateLimit({
+  windowMs: 60_000, // 1 minute
+  // Allows bursts for multi-file uploads but blocks abuse
+  limit: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many upload signature requests. Please wait and try again." },
+  keyGenerator: (req) => {
+    const userId = (req as any)?.user?.id;
+    if (typeof userId === "number" && Number.isFinite(userId) && userId > 0) {
+      return `cloudinary-sign:${userId}`;
+    }
+    return req.ip || req.socket.remoteAddress || "unknown";
+  },
+});
+
 export const limitCodeSearch = rateLimit({
   windowMs: 60_000, // 1 min
   limit: 20,

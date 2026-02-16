@@ -97,7 +97,7 @@ function pickRoomImages(roomsSpec: any): string[] {
 export function pickImages(opts: {
   images?: Array<Pick<PropertyImage, "url" | "thumbnailUrl" | "status">> | null;
   photos?: any;
-  limit?: number;
+  limit?: number | null;
 }): string[] {
   const { images, photos, limit = 12 } = opts;
 
@@ -120,6 +120,7 @@ export function pickImages(opts: {
 
   // Unique, preserve order
   const uniq = Array.from(new Set(out));
+  if (limit === null) return uniq;
   return uniq.slice(0, Math.max(1, limit));
 }
 
@@ -167,9 +168,9 @@ export function toPublicCard(p: any): PublicPropertyCard {
 export function toPublicDetail(p: any): PublicPropertyDetail {
   const id = Number(p.id);
   const slug = buildPropertySlug(String(p.title || ""), id);
-  const propertyImages = pickImages({ images: p.images, photos: p.photos, limit: 48 });
+  const propertyImages = pickImages({ images: p.images, photos: p.photos, limit: null });
   const roomImages = pickRoomImages(p.roomsSpec);
-  const images = Array.from(new Set<string>([...propertyImages, ...roomImages])).slice(0, 96);
+  const images = Array.from(new Set<string>([...propertyImages, ...roomImages]));
 
   return {
     id,

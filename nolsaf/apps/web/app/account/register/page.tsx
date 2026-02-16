@@ -1235,15 +1235,15 @@ export default function RegisterPage() {
   };
 
     return (
-    <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-950 to-slate-900 py-8 px-4 text-slate-100">
+    <main className="min-h-screen flex items-start sm:items-center justify-center bg-gradient-to-br from-slate-950 to-slate-900 py-8 px-4 text-slate-100">
       <div className="w-full flex items-center justify-center">
           <div className="w-full max-w-[460px]">
-            <div className="rounded-3xl bg-gradient-to-b from-white/14 via-white/8 to-transparent p-px shadow-2xl">
+            <div className="rounded-[28px] bg-gradient-to-b from-white/14 via-white/8 to-transparent p-px shadow-2xl">
               <div
                 style={{ colorScheme: 'dark' }}
-                className="max-h-[calc(100vh-4rem)] overflow-hidden flex flex-col rounded-3xl bg-slate-950 ring-1 ring-white/10"
+                className="flex flex-col rounded-[28px] overflow-hidden bg-slate-950 ring-1 ring-white/10"
               >
-                <div className="flex-1 min-h-0 overflow-auto scrollbar-hide">
+                <div className="flex-1">
                   {authMode === 'register'
                     ? renderRegisterPage()
                     : authMode === 'login'
