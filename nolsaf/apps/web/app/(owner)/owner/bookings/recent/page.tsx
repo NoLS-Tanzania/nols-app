@@ -3,7 +3,7 @@ import { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import io from 'socket.io-client';
 import Link from "next/link";
-import { Calendar, Eye, Check, ExternalLink } from "lucide-react";
+import { Calendar, Eye, Check } from "lucide-react";
 import TableRow from "@/components/TableRow";
 
 // Use same-origin requests + secure httpOnly cookie session

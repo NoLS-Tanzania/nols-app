@@ -4,7 +4,7 @@ import "mapbox-gl/dist/mapbox-gl.css";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
-import { io, Socket } from "socket.io-client";
+import type { Socket } from "socket.io-client";
 import type { ReactNode, ComponentType } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -59,7 +59,6 @@ import {
   Map as MapIcon,
   Lock,
   Share2,
-  Info,
   AlertCircle,
   Clock,
   PlayCircle,
@@ -673,7 +672,7 @@ function PropertyAvailabilityChecker({
   const abortRef = useRef<AbortController | null>(null);
   const lastRunAtRef = useRef<number>(0);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number>(0);
-  const [nowTick, setNowTick] = useState(0);
+  const [, setNowTick] = useState(0);
 
   const runCheckNow = useCallback(async () => {
     if (inFlightRef.current) return;
@@ -753,12 +752,15 @@ function PropertyAvailabilityChecker({
     }, 450);
   }, [runCheckNow]);
 
+  const incomingCheckIn = dates?.checkIn || "";
+  const incomingCheckOut = dates?.checkOut || "";
+
   // Keep local inputs in sync if parent provides date values.
   useEffect(() => {
-    if (!dates) return;
-    if ((dates.checkIn || "") !== checkIn) setCheckIn(dates.checkIn || "");
-    if ((dates.checkOut || "") !== checkOut) setCheckOut(dates.checkOut || "");
-  }, [dates?.checkIn, dates?.checkOut]);
+    if (!incomingCheckIn && !incomingCheckOut) return;
+    if (incomingCheckIn !== checkIn) setCheckIn(incomingCheckIn);
+    if (incomingCheckOut !== checkOut) setCheckOut(incomingCheckOut);
+  }, [incomingCheckIn, incomingCheckOut, checkIn, checkOut]);
 
   // Live updates: whenever the date range changes, auto-check (debounced).
   useEffect(() => {
@@ -1142,8 +1144,8 @@ export default function PublicPropertyDetailPage() {
   const [modalRoomsQty, setModalRoomsQty] = useState(1);
   const [modalGuests, setModalGuests] = useState<{ adults: number; children: number; pets: number }>({ adults: 1, children: 0, pets: 0 });
   const [quickBookingPage, setQuickBookingPage] = useState<"details" | "availability">("details");
-  const [availabilitySocket, setAvailabilitySocket] = useState<Socket | null>(null);
-  const [availabilityConnected, setAvailabilityConnected] = useState(false);
+  const [, setAvailabilitySocket] = useState<Socket | null>(null);
+  const [, setAvailabilityConnected] = useState(false);
   const [availabilityRefreshTick, setAvailabilityRefreshTick] = useState(0);
   const selectedDatesRef = useRef(selectedDates);
 
@@ -1217,29 +1219,40 @@ export default function PublicPropertyDetailPage() {
 
   // Socket.IO connection for real-time availability updates
   useEffect(() => {
-    if (!property?.id) return;
+    const propertyId = property?.id;
+    if (!propertyId) return;
 
     const socketUrl = (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000").replace(/\/$/, "");
-    
+
+    let cancelled = false;
+    let socket: Socket | null = null;
+
     (async () => {
       try {
         const { io } = await import("socket.io-client");
+        if (cancelled) return;
         const newSocket = io(socketUrl, {
           transports: ["websocket", "polling"],
           withCredentials: true,
         });
 
+        socket = newSocket;
+        setAvailabilitySocket(newSocket);
+
         newSocket.on("connect", () => {
+          if (cancelled) return;
           setAvailabilityConnected(true);
-          newSocket.emit("join-property-availability", { propertyId: property.id });
+          newSocket.emit("join-property-availability", { propertyId });
         });
 
         newSocket.on("disconnect", () => {
+          if (cancelled) return;
           setAvailabilityConnected(false);
         });
 
         newSocket.on("availability:update", (data: any) => {
-          if (Number(data?.propertyId) !== Number(property.id)) return;
+          if (cancelled) return;
+          if (Number(data?.propertyId) !== Number(propertyId)) return;
 
           const { checkIn, checkOut } = selectedDatesRef.current;
           if (!checkIn || !checkOut) return;
@@ -1261,17 +1274,18 @@ export default function PublicPropertyDetailPage() {
             setAvailabilityRefreshTick((t) => t + 1);
           }, minGapMs - Math.max(0, since));
         });
-
-        setAvailabilitySocket(newSocket);
-
-        return () => {
-          newSocket.emit("leave-property-availability", { propertyId: property.id });
-          newSocket.disconnect();
-        };
       } catch (e) {
         console.warn("Socket.IO client failed to initialize for availability", e);
       }
     })();
+
+    return () => {
+      cancelled = true;
+      if (socket) {
+        socket.emit("leave-property-availability", { propertyId });
+        socket.disconnect();
+      }
+    };
   }, [property?.id]);
 
   useEffect(() => {

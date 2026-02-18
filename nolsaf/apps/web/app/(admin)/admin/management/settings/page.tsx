@@ -1,6 +1,6 @@
 "use client";
 // AdminPageHeader removed in favor of a centered, compact header for this page
-import { ChevronDown, RefreshCw, Settings, Shield, Lock, AlertTriangle, Network, Clock } from "lucide-react";
+import { ChevronDown, Settings, Shield, Lock, AlertTriangle, Network, Clock } from "lucide-react";
 import axios from "axios";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { sanitizeTrustedHtml } from "@/utils/html";
@@ -385,7 +385,7 @@ export default function SystemSettingsPage(){
     }
   };
 
-  const previewBonus = async () => {
+  const previewBonus = useCallback(async () => {
     const ownerId = Number(bonusOwnerId);
     if (!Number.isFinite(ownerId) || ownerId <= 0) {
       setToast('Valid Owner ID is required');
@@ -402,7 +402,7 @@ export default function SystemSettingsPage(){
       console.error(err);
       setToast('Failed to preview bonus');
     }
-  };
+  }, [bonusOwnerId, bonusPercentInput]);
 
   const grantBonus = async () => {
     const ownerId = Number(bonusOwnerId);
@@ -479,7 +479,7 @@ export default function SystemSettingsPage(){
     return () => {
       if (autoPreviewTimerRef.current) window.clearTimeout(autoPreviewTimerRef.current);
     };
-  }, [bonusOwnerId, bonusPercentInput, bonusOwnerLookup?.id]);
+  }, [bonusOwnerId, bonusPercentInput, bonusOwnerLookup?.id, previewBonus]);
 
   const previewInvoice = async () => {
     try {

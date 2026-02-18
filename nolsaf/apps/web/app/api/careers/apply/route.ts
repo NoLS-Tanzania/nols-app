@@ -51,22 +51,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Prepare application data
-    const applicationData = {
-      jobId,
-      fullName,
-      email,
-      phone,
-      coverLetter,
-      portfolio: portfolio || null,
-      linkedIn: linkedIn || null,
-      referredBy: referredBy || null,
-      submittedAt: new Date().toISOString(),
-      resumeFileName: resume?.name || null,
-      resumeSize: resume?.size || null,
-      resumeType: resume?.type || null,
-    };
-
     // Forward to backend API
     const base = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:4000';
     const backendUrl = base.replace(/\/$/, '') + '/api/careers/apply';

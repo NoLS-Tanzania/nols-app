@@ -14,6 +14,10 @@ type Preview = {
   booking: { roomType: string; rooms: number; nights: number; checkIn: string; checkOut: string; status: string; totalAmount: string };
 } | null;
 
+type Eligibility =
+  | { canValidate: true; status: "IN_WINDOW"; reason?: undefined }
+  | { canValidate: false; status: "BEFORE_CHECKIN" | "AFTER_CHECKOUT" | "INVALID_DATES" | "CODE_NOT_ACTIVE"; reason: string };
+
 export default function CheckinValidation() {
   // Support contact — fetch from public settings endpoint if available, otherwise use env fallbacks.
   const [supportEmail, setSupportEmail] = useState<string>(process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "support@nolsaf.com");
@@ -22,6 +26,10 @@ export default function CheckinValidation() {
   const [code, setCode] = useState("");
   const [resultMsg, setResultMsg] = useState<string | null>(null);
   const [preview, setPreview] = useState<Preview>(null);
+  const [eligibility, setEligibility] = useState<Eligibility | null>(null);
+  const [remainingAttempts, setRemainingAttempts] = useState<number | null>(null);
+  const [lockedUntil, setLockedUntil] = useState<number | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const [loading, setLoading] = useState(false);
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
   const [searching, setSearching] = useState(false);
@@ -34,11 +42,38 @@ export default function CheckinValidation() {
   const [lastValidated, setLastValidated] = useState<string | null>(null);
   const debounceRef = useRef<number | null>(null);
 
+  const lockedMs = lockedUntil ? Math.max(0, lockedUntil - nowMs) : 0;
+  const isLocked = lockedMs > 0;
+  const lockSeconds = Math.ceil(lockedMs / 1000);
+  const lockMinutesPart = Math.floor(lockSeconds / 60);
+  const lockSecondsPart = lockSeconds % 60;
+  const lockCountdown = isLocked ? `${lockMinutesPart}:${String(lockSecondsPart).padStart(2, "0")}` : null;
+
+  useEffect(() => {
+    if (!lockedUntil) return;
+    const t = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+    return () => window.clearInterval(t);
+  }, [lockedUntil]);
+
+  useEffect(() => {
+    if (lockedUntil && lockedUntil <= nowMs) {
+      setLockedUntil(null);
+      setRemainingAttempts(null);
+    }
+  }, [lockedUntil, nowMs]);
+
   const validate = useCallback(async (incomingCode?: string) => {
     const codeToUse = (incomingCode ?? code)?.trim();
     if (!codeToUse) return;
     // avoid re-validating the same code repeatedly
     if (codeToUse === lastValidated) return;
+
+    if (lockedUntil && lockedUntil > Date.now()) {
+      setResultMsg(null);
+      return;
+    }
 
     // reset helpers
     setLoading(true);
@@ -46,6 +81,8 @@ export default function CheckinValidation() {
     setContactSuggest(false);
     setResultMsg(null);
     setPreview(null);
+    setEligibility(null);
+    setRemainingAttempts(null);
     setAttempting(true);
 
     // clear any existing timers
@@ -68,8 +105,11 @@ export default function CheckinValidation() {
     }, 20000);
 
     try {
-      const r = await api.post<{ details: Preview }>("/api/owner/bookings/validate", { code: codeToUse });
+      const r = await api.post<{ details: Preview; eligibility?: Eligibility }>("/api/owner/bookings/validate", { code: codeToUse });
       setPreview(r.data?.details ?? null);
+      setEligibility((r.data as any)?.eligibility ?? null);
+      setRemainingAttempts(null);
+      setLockedUntil(null);
       setLastValidated(codeToUse);
       if (!r.data?.details) setResultMsg("No details returned");
     } catch (e: any) {
@@ -77,7 +117,21 @@ export default function CheckinValidation() {
       if (!e?.response) {
         setResultMsg("Network error: could not reach server. Check your internet connection or contact the NoLSAF team for assistance.");
       } else {
-        setResultMsg(e?.response?.data?.error ?? "Invalid code");
+        const status = Number(e?.response?.status);
+        const data = e?.response?.data ?? {};
+
+        if (status === 429) {
+          const until = typeof data?.lockedUntil === "number" ? data.lockedUntil : null;
+          setLockedUntil(until);
+          setRemainingAttempts(0);
+          if (until) setNowMs(Date.now());
+          // Keep UI clean during lockout: show only countdown banner.
+          setResultMsg(null);
+        } else {
+          const ra = typeof data?.remainingAttempts === "number" ? data.remainingAttempts : null;
+          if (ra !== null) setRemainingAttempts(ra);
+          setResultMsg(data?.error ?? "Invalid code");
+        }
       }
     } finally {
       setLoading(false);
@@ -94,7 +148,7 @@ export default function CheckinValidation() {
       }
       setContactSuggest(false);
     }
-  }, [code, lastValidated]);
+  }, [code, lastValidated, lockedUntil]);
 
   // legacy direct confirm removed; use handleConfirmWithConsent (modal flow) for confirmations.
 
@@ -238,7 +292,7 @@ export default function CheckinValidation() {
     }
   }, [scanOpen, stopScanner, validate]);
 
-  // Auto-validate when the code changes (debounced)
+  // Auto-validate only when a full code is present (debounced)
   useEffect(() => {
     // clear any pending debounce
     if (debounceRef.current) {
@@ -253,8 +307,15 @@ export default function CheckinValidation() {
       return;
     }
 
-    // only attempt auto-validate for codes with >= 3 chars to avoid noise
-    if (trimmed.length < 3) {
+    if (isLocked) {
+      setAttempting(false);
+      return;
+    }
+
+    // Only validate once the full code is entered to avoid consuming attempts on partial typing.
+    // Receipt QR scan payloads are JSON and can be validated immediately.
+    const isQrPayload = trimmed.startsWith("{") && trimmed.includes("bookingId");
+    if (!isQrPayload && trimmed.length !== 8) {
       setAttempting(false);
       return;
     }
@@ -268,7 +329,7 @@ export default function CheckinValidation() {
     return () => {
       if (debounceRef.current) window.clearTimeout(debounceRef.current as number);
     };
-  }, [code, validate]);
+  }, [code, isLocked, validate]);
 
   // cleanup timers on unmount
   useEffect(() => {
@@ -360,8 +421,8 @@ export default function CheckinValidation() {
 
   return (
     <div className="w-full overflow-x-hidden">
-      <div className="relative w-full rounded-[28px] border border-slate-200/70 bg-gradient-to-br from-white via-emerald-50/25 to-slate-50 p-3 sm:p-6 lg:p-8 shadow-sm ring-1 ring-black/5 nols-entrance">
-        <div className="w-full max-w-7xl mx-auto space-y-6 sm:space-y-7">
+      <div className="relative mx-auto w-full max-w-6xl box-border bg-transparent pl-2 pr-4 py-3 nols-entrance sm:rounded-[28px] sm:border sm:border-slate-200/70 sm:bg-gradient-to-br sm:from-white sm:via-emerald-50/25 sm:to-slate-50 sm:p-6 lg:p-7 sm:shadow-sm sm:ring-1 sm:ring-black/5">
+        <div className="w-full min-w-0 space-y-4 sm:space-y-6">
           {/* Header */}
           <div className="nols-entrance nols-delay-1">
             <div className="flex flex-col items-center text-center gap-2">
@@ -388,22 +449,22 @@ export default function CheckinValidation() {
           </div>
 
           {/* Main layout: Validate (left) + Result (right) */}
-          <div className="grid grid-cols-1 xl:grid-cols-[420px_minmax(0,1fr)] gap-4 sm:gap-6 nols-entrance nols-delay-2">
+          <div className="grid min-w-0 grid-cols-1 lg:grid-cols-2 gap-y-5 sm:gap-y-6 gap-x-5 sm:gap-x-6 lg:gap-x-10 xl:gap-x-12 nols-entrance nols-delay-2">
             {/* Validation */}
-            <div>
-              <div className="bg-white/90 backdrop-blur border border-slate-200/80 rounded-3xl shadow-sm ring-1 ring-black/5 p-5 sm:p-6 w-full space-y-4 transition-all duration-300 hover:shadow-md">
+            <div className="min-w-0">
+              <div className="bg-gradient-to-br from-white via-slate-50/70 to-emerald-50/30 backdrop-blur border border-slate-300/70 rounded-2xl sm:rounded-3xl shadow-md ring-1 ring-black/5 p-3 sm:p-5 w-full space-y-3 sm:space-y-4 transition-all duration-300 hover:shadow-lg">
                 <div className="flex flex-col items-center text-center gap-3">
                   <div>
-                    <div className="text-sm font-semibold text-slate-900">Validate guest</div>
+                    <div className="text-sm font-semibold tracking-tight text-slate-900">Validate guest</div>
                     <div className="text-xs text-slate-500 mt-0.5">Paste code, type it, or scan QR</div>
                   </div>
                   <div
                     className={
                       isConnected
-                        ? "inline-flex items-center gap-2 rounded-2xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50 to-white px-3 py-2 text-emerald-800 ring-1 ring-emerald-500/10"
+                        ? "inline-flex items-center gap-2 rounded-xl sm:rounded-2xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50 to-white px-2.5 py-1.5 sm:px-3 sm:py-2 text-emerald-800 shadow-sm ring-1 ring-emerald-500/10"
                         : isConnected === false
-                          ? "inline-flex items-center gap-2 rounded-2xl border border-slate-200/80 bg-gradient-to-br from-slate-50 to-white px-3 py-2 text-slate-700 ring-1 ring-black/5"
-                          : "inline-flex items-center gap-2 rounded-2xl border border-slate-200/80 bg-gradient-to-br from-slate-50 to-white px-3 py-2 text-slate-700 ring-1 ring-black/5"
+                          ? "inline-flex items-center gap-2 rounded-xl sm:rounded-2xl border border-slate-200/80 bg-gradient-to-br from-slate-50 to-white px-2.5 py-1.5 sm:px-3 sm:py-2 text-slate-700 shadow-sm ring-1 ring-black/5"
+                          : "inline-flex items-center gap-2 rounded-xl sm:rounded-2xl border border-slate-200/80 bg-gradient-to-br from-slate-50 to-white px-2.5 py-1.5 sm:px-3 sm:py-2 text-slate-700 shadow-sm ring-1 ring-black/5"
                     }
                     aria-live="polite"
                     title={isConnected ? "API reachable" : isConnected === false ? "API not reachable" : "Checking API"}
@@ -411,8 +472,8 @@ export default function CheckinValidation() {
                     <span
                       className={
                         isConnected
-                          ? "inline-flex h-7 w-7 items-center justify-center rounded-xl bg-white ring-1 ring-emerald-500/10"
-                          : "inline-flex h-7 w-7 items-center justify-center rounded-xl bg-white ring-1 ring-black/5"
+                          ? "inline-flex h-6 w-6 sm:h-7 sm:w-7 items-center justify-center rounded-xl bg-white ring-1 ring-emerald-500/10"
+                          : "inline-flex h-6 w-6 sm:h-7 sm:w-7 items-center justify-center rounded-xl bg-white ring-1 ring-black/5"
                       }
                       aria-hidden
                     >
@@ -451,19 +512,25 @@ export default function CheckinValidation() {
                   <label className="block text-sm font-semibold text-slate-800">
                     Check-in Code
                   </label>
-                  <div className="w-full flex items-stretch gap-2">
+                  <div className="w-full min-w-0 flex items-center rounded-xl sm:rounded-2xl border border-slate-300/90 bg-white/95 shadow-sm ring-1 ring-black/5 overflow-hidden transition-all duration-200 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20">
                     <input
                       value={code}
                       onChange={(e) => setCode(e.target.value)}
                       onPaste={(e) => {
+                        if (isLocked) return;
                         const pasted = e.clipboardData?.getData("text") ?? "";
                         if (pasted) {
                           const normalized = normalizeScanValue(pasted);
                           setCode(normalized);
-                          validate(normalized);
+                          const t = String(normalized || "").trim();
+                          const isQrPayload = t.startsWith("{") && t.includes("bookingId");
+                          if (isQrPayload || t.length === 8) {
+                            validate(normalized);
+                          }
                         }
                       }}
-                      className="flex-1 px-4 py-3 text-base font-mono tracking-[0.2em] uppercase border border-slate-300 rounded-2xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all duration-200 placeholder:text-slate-400 bg-white text-center shadow-sm"
+                      disabled={isLocked}
+                      className="min-w-0 flex-1 px-3 py-2 text-sm sm:text-base font-mono tracking-[0.15em] sm:tracking-[0.18em] uppercase border-0 rounded-none bg-transparent text-center outline-none placeholder:text-slate-400 disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed"
                       placeholder="Enter check-in code"
                       autoFocus
                     />
@@ -473,16 +540,29 @@ export default function CheckinValidation() {
                         setScanOpen(true);
                         setScanError(null);
                       }}
-                      className="shrink-0 inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-3 hover:bg-slate-50 transition-colors shadow-sm ring-1 ring-black/5"
+                      disabled={isLocked}
+                      className="shrink-0 inline-flex h-9 w-10 sm:h-10 sm:w-11 items-center justify-center border-l border-slate-200 bg-gradient-to-b from-slate-50 to-slate-100/80 hover:from-slate-100 hover:to-slate-200/70 transition-colors disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:from-slate-50 disabled:hover:to-slate-100/80"
                       aria-label="Scan QR code"
                       title="Scan QR code"
                     >
                       <Camera className="h-5 w-5 text-slate-700" aria-hidden />
                     </button>
                   </div>
-                  <div className="text-[12px] text-slate-500">
+                  <div className="text-[11px] sm:text-[12px] text-slate-600">
                     Tip: QR scanning may require a supported browser (Chrome/Edge mobile).
                   </div>
+
+                  {isLocked && lockCountdown ? (
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="status" aria-live="polite">
+                      Too many invalid attempts. Try again in <strong className="font-semibold">{lockCountdown}</strong>.
+                    </div>
+                  ) : null}
+
+                  {!isLocked && typeof remainingAttempts === "number" ? (
+                    <div className="text-xs text-slate-600" aria-live="polite">
+                      Attempts remaining: <span className="font-semibold">{remainingAttempts}</span>
+                    </div>
+                  ) : null}
                 </div>
 
                 {/* Loading and status indicators */}
@@ -506,7 +586,7 @@ export default function CheckinValidation() {
                 </div>
 
                 {/* Error message */}
-                {resultMsg && !preview && (
+                {resultMsg && !preview && !isLocked && (
                   <div className="w-full" role="alert" aria-live="polite">
                     <div className="rounded-2xl border border-red-200 bg-red-50 p-4 ring-1 ring-black/5">
                       <div className="flex items-start gap-2">
@@ -562,6 +642,7 @@ export default function CheckinValidation() {
                     <Support compact />
                     <button
                       onClick={() => validate(code)}
+                      disabled={isLocked}
                       className="w-full px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold transition-colors ring-1 ring-black/5"
                     >
                       Retry Validation
@@ -573,9 +654,9 @@ export default function CheckinValidation() {
 
             {/* Result / Preview (shown only after a successful validation) */}
             {preview ? (
-              <div>
-                <div className="xl:sticky xl:top-6">
-                  <div className="bg-white/90 backdrop-blur border border-slate-200/80 rounded-3xl shadow-sm ring-1 ring-black/5 p-5 sm:p-6 w-full transition-all duration-300 hover:shadow-md">
+              <div className="min-w-0">
+                <div className="2xl:sticky 2xl:top-6 min-w-0">
+                  <div className="bg-white/90 backdrop-blur border border-slate-200/80 rounded-3xl shadow-sm ring-1 ring-black/5 p-4 sm:p-5 w-full transition-all duration-300 hover:shadow-md">
                     <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                       <div className="flex items-start gap-3 min-w-0">
                         <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center shadow-sm">
@@ -599,7 +680,7 @@ export default function CheckinValidation() {
                       <InfoTile label="Property ID" value={String(preview.property.id)} />
                     </div>
 
-                    <div className="mt-5 grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div className="mt-5 grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6">
                       <div className="rounded-2xl border border-slate-200/80 overflow-hidden bg-white shadow-sm ring-1 ring-black/5 transition-all duration-300 hover:shadow-md">
                         <div className="px-4 py-3 bg-gradient-to-r from-slate-50 to-white border-b border-slate-200">
                           <div className="text-xs font-bold tracking-wide text-slate-700 uppercase">Personal details</div>
@@ -639,6 +720,11 @@ export default function CheckinValidation() {
                     </div>
 
                     <div className="mt-6 rounded-2xl border border-slate-200/80 bg-gradient-to-r from-white to-emerald-50/40 p-3 sm:p-4 shadow-sm ring-1 ring-black/5">
+                      {!eligibility?.canValidate && eligibility?.reason ? (
+                        <div className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                          {eligibility.reason}
+                        </div>
+                      ) : null}
                       <div className="flex flex-col sm:flex-row gap-3">
                         <button
                           onClick={() => {
@@ -646,7 +732,7 @@ export default function CheckinValidation() {
                             setAgreeTerms(false);
                             setAgreeDisbursement(false);
                           }}
-                          disabled={loading}
+                          disabled={loading || (eligibility ? !eligibility.canValidate : false)}
                           className="flex-1 px-4 py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-green-600 text-white text-sm font-semibold shadow-lg shadow-emerald-500/20 hover:shadow-xl hover:shadow-emerald-500/25 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 active:scale-[0.98]"
                         >
                           Confirm Check-in
@@ -656,6 +742,7 @@ export default function CheckinValidation() {
                             setPreview(null);
                             setCode("");
                             setResultMsg(null);
+                            setEligibility(null);
                           }}
                           className="px-4 py-3 rounded-2xl border border-slate-300 bg-white text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-all duration-200 active:scale-[0.98]"
                         >

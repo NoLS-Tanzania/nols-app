@@ -1384,6 +1384,43 @@ const postLocation: RequestHandler = async (req, res) => {
 router.post('/location', limitDriverLocationUpdate, postLocation as unknown as RequestHandler);
 
 /**
+ * GET /driver/availability
+ * Returns the authenticated driver's availability state.
+ * This is the server source of truth (do not rely on localStorage across accounts).
+ */
+const getAvailability: RequestHandler = async (req, res) => {
+  const user = (req as AuthedRequest).user!;
+  if (String(user.role || '').toUpperCase() !== 'DRIVER') {
+    return res.status(403).json({ error: 'Driver access required' });
+  }
+
+  try {
+    let available = false;
+    try {
+      if ((prisma as any).driverAvailability) {
+        const row = await (prisma as any).driverAvailability.findUnique({
+          where: { driverId: user.id },
+          select: { available: true },
+        });
+        available = Boolean(row?.available);
+      } else if ((prisma as any).user) {
+        const row = await prisma.user.findUnique({
+          where: { id: user.id },
+          select: { available: true, isAvailable: true } as any,
+        });
+        available = Boolean((row as any)?.available ?? (row as any)?.isAvailable ?? false);
+      }
+    } catch {
+      // ignore and fall back to false
+    }
+    return res.json({ ok: true, available });
+  } catch (e) {
+    return res.status(500).json({ error: 'failed' });
+  }
+};
+router.get('/availability', getAvailability as unknown as RequestHandler);
+
+/**
  * POST /driver/availability
  * Body: { available: boolean }
  * Driver toggles their availability. Best-effort persistence: try a driverAvailability or user field, otherwise no-op.
@@ -2014,12 +2051,12 @@ const getLoginHistory: RequestHandler = async (req, res) => {
       } catch (e) { /* ignore and fallthrough */ }
     }
 
-    // Prefer AuditLog entries written by auth flows (USER_LOGIN). This is the closest thing
+    // Prefer AuditLog entries written by auth flows (USER_LOGIN/USER_LOGOUT). This is the closest thing
     // to a real login history in this codebase and includes IP + user-agent.
     if ((prisma as any).auditLog) {
       try {
         const audits = await (prisma as any).auditLog.findMany({
-          where: { actorId: user.id, action: 'USER_LOGIN' },
+          where: { actorId: user.id, action: { in: ['USER_LOGIN', 'USER_LOGOUT'] } },
           orderBy: { createdAt: 'desc' },
           take: 50,
         });
@@ -2027,16 +2064,22 @@ const getLoginHistory: RequestHandler = async (req, res) => {
           const ua = typeof it.ua === 'string' ? it.ua : '';
           const after = it.afterJson as any;
           const method = after && typeof after.loginMethod === 'string' ? after.loginMethod : null;
-          const detailsParts = [method ? `Method: ${method}` : null, ua ? `UA: ${ua}` : null].filter(Boolean);
+          const event = after && typeof after.event === 'string' ? after.event : (it.action === 'USER_LOGOUT' ? 'logout' : 'login');
+          const ok = after && typeof after.success === 'boolean' ? after.success : (it.action === 'USER_LOGIN' ? true : true);
+          const detailsParts = [
+            event ? `Event: ${event}` : null,
+            method ? `Method: ${method}` : null,
+            ua ? `UA: ${ua}` : null,
+          ].filter(Boolean);
           return {
             id: String(it.id),
             at: it.createdAt,
             ip: it.ip ?? null,
-            username: (user as any)?.email ?? null,
+            username: after?.email ?? (user as any)?.email ?? null,
             platform: inferPlatformFromUserAgent(ua),
             details: detailsParts.length ? detailsParts.join('\n') : null,
             timeUsed: null,
-            success: true,
+            success: ok,
           };
         });
         return res.json({ records: mapped });

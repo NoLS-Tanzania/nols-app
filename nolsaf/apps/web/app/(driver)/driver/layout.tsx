@@ -24,7 +24,7 @@ export default function DriverLayout({ children }: { children: ReactNode }) {
       <DriverSiteHeader />
 
       <div className="flex-1 w-full overflow-x-hidden">
-        <div className="max-w-6xl mx-auto w-full relative px-4">
+        <div className="public-container w-full relative">
           {/* Frame spanning sidebar + content (match admin layout) */}
           <LayoutFrame heightVariant="sm" topVariant="sm" colorVariant="muted" variant="solid" box boxRadiusClass="rounded-2xl" className="mb-2" />
 
@@ -32,7 +32,7 @@ export default function DriverLayout({ children }: { children: ReactNode }) {
           <aside
             className={`${
               sidebarOpen ? "block" : "hidden"
-            } ${sidebarOpen ? "md:block" : "md:hidden"} absolute left-4 top-16 w-56 shadow-sm bg-emerald-50/60 border border-slate-200 owner-sidebar-container rounded-l-2xl z-0 h-[calc(100vh-4rem)]`}
+            } ${sidebarOpen ? "md:block" : "md:hidden"} absolute left-2 sm:left-3 md:left-4 top-16 w-56 shadow-sm bg-emerald-50/60 border border-slate-200 owner-sidebar-container rounded-l-2xl z-0 h-[calc(100vh-4rem)]`}
           >
             <div className="sidebar-scroll h-full">
               <div className="p-4 pt-2">

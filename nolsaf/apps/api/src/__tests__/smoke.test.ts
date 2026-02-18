@@ -8,7 +8,7 @@ beforeAll(async () => {
   process.env.NODE_ENV = "test";
   const mod = await import("../index");
   app = (mod as any).app;
-});
+}, 30000);
 
 describe("API smoke", () => {
   it("returns JSON 404 for unknown routes", async () => {

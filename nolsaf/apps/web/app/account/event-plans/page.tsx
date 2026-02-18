@@ -1,7 +1,7 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import axios from "axios";
-import { ClipboardList, Calendar, MapPin, Users, DollarSign, CheckCircle, XCircle, Clock, ArrowRight, Truck, FileText, MessageSquare, Send, ChevronDown } from "lucide-react";
+import { ClipboardList, Calendar, Users, DollarSign, CheckCircle, XCircle, Clock, ArrowRight, Truck, FileText, MessageSquare, Send, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import LogoSpinner from "@/components/LogoSpinner";
 
@@ -604,7 +604,7 @@ type ConversationMessage = {
   sender: 'user' | 'admin';
 };
 
-function FollowUpMessageSection({ requestId, notes, adminResponse, respondedAt, onMessageSent }: { requestId: number; notes: string | null; adminResponse: string | null; respondedAt: string | null; onMessageSent: () => void }) {
+function FollowUpMessageSection({ requestId, notes: _notes, adminResponse: _adminResponse, respondedAt: _respondedAt, onMessageSent }: { requestId: number; notes: string | null; adminResponse: string | null; respondedAt: string | null; onMessageSent: () => void }) {
   const [isOpen, setIsOpen] = useState(false);
   const [messageType, setMessageType] = useState("Ask for Feedback");
   const [message, setMessage] = useState("");
@@ -614,7 +614,7 @@ function FollowUpMessageSection({ requestId, notes, adminResponse, respondedAt, 
   const [conversationMessages, setConversationMessages] = useState<ConversationMessage[]>([]);
   
   // Fetch messages from API instead of parsing from notes
-  const loadMessages = async () => {
+  const loadMessages = useCallback(async () => {
     setMessagesLoading(true);
     try {
       const response = await api.get(`/api/customer/plan-requests/${requestId}/messages`);
@@ -641,12 +641,12 @@ function FollowUpMessageSection({ requestId, notes, adminResponse, respondedAt, 
     } finally {
       setMessagesLoading(false);
     }
-  };
+  }, [requestId]);
   
   // Load messages on mount and when requestId changes
   useEffect(() => {
     loadMessages();
-  }, [requestId]);
+  }, [loadMessages]);
 
   const messageTypes = [
     "Ask for Feedback",

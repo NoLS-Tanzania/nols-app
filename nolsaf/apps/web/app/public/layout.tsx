@@ -15,12 +15,19 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
             className="relative min-h-full overflow-hidden rounded-[25px] border border-white/60 bg-white ring-1 ring-slate-900/5"
             style={{ ['--footer-height' as any]: '0px' }}
           >
-            <div className="pointer-events-none absolute inset-0 rounded-[25px] bg-gradient-to-b from-white/55 via-white/35 to-white/25" aria-hidden />
-            <div className="pointer-events-none absolute -top-28 -right-24 h-80 w-80 rounded-full bg-slate-400/10 blur-3xl" aria-hidden />
+            <div
+              className="pointer-events-none absolute inset-0 z-0 rounded-[25px] bg-gradient-to-b from-white/55 via-white/35 to-white/25"
+              aria-hidden
+            />
+            <div
+              className="pointer-events-none absolute -top-28 -right-24 z-0 h-80 w-80 rounded-full bg-slate-400/10 blur-3xl"
+              aria-hidden
+            />
 
-
-            {children}
-            <PublicFooter withRail={false} />
+            <div className="relative z-10">
+              {children}
+              <PublicFooter withRail={false} />
+            </div>
           </div>
         </div>
       </div>

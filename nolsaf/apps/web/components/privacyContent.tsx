@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "@/components/PolicyLink";
 import { TermsSection } from "./Terms";
 
 export const PRIVACY_LAST_UPDATED = "2025-12-20";

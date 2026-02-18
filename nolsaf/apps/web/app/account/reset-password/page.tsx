@@ -8,7 +8,7 @@ export default function ResetPasswordPage() {
   const router = useRouter();
   const token = search?.get("token") ?? "";
   const id = search?.get("id") ?? "";
-  const method = search?.get("method") ?? "email";
+  const _method = search?.get("method") ?? "email";
   const nextRaw = search?.get("next") ?? "";
 
   const next = (() => {

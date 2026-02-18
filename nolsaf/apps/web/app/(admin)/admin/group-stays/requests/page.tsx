@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
-import { AlertCircle, Search, X, Calendar, MapPin, Clock, User, BarChart3, UsersRound, Home, TrendingUp, CheckCircle, XCircle } from "lucide-react";
+import { AlertCircle, Search, X, Calendar, MapPin, Clock, User, UsersRound, TrendingUp } from "lucide-react";
 import DatePicker from "@/components/ui/DatePicker";
 import axios from "axios";
 import Chart from "@/components/Chart";
@@ -61,7 +61,7 @@ export default function AdminGroupStaysRequestsPage() {
   const [stats, setStats] = useState<RequestStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const params: any = {
@@ -90,7 +90,7 @@ export default function AdminGroupStaysRequestsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [page, pageSize, groupType, date, q]);
 
   const loadStats = useCallback(async () => {
     setStatsLoading(true);
@@ -109,7 +109,7 @@ export default function AdminGroupStaysRequestsPage() {
     authify();
     load();
     loadStats();
-  }, [page, groupType, date, loadStats]);
+  }, [load, loadStats]);
 
   const pages = Math.max(1, Math.ceil(total / pageSize));
 

@@ -1,9 +1,9 @@
 "use client";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import axios from "axios";
-import Image from "next/image";
 import { useSearchParams } from "next/navigation";
-import { User, Upload, CreditCard, Wallet, X, CheckCircle, Save, Lock, LogOut, Trash2, Mail, Phone, MapPin, Building2, FileText, Pencil, AlertTriangle, History, Clock, ChevronDown, ChevronUp, KeyRound, Shield, LogIn, CheckCircle2, XCircle, ShieldCheck, Info } from 'lucide-react';
+import { User, Upload, CreditCard, Wallet, X, CheckCircle, Save, Lock, LogOut, Trash2, Mail, Phone, MapPin, Building2, FileText, Pencil, AlertTriangle, History, Clock, ChevronDown, ChevronUp, KeyRound, Shield, LogIn, CheckCircle2, ShieldCheck, Info } from 'lucide-react';
+import DatePickerField from "@/components/DatePickerField";
 // Use same-origin calls + secure httpOnly cookie session.
 const api = axios.create({ baseURL: "", withCredentials: true });
 
@@ -12,6 +12,7 @@ export default function OwnerProfile() {
   const [me, setMe] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [editingField, setEditingField] = useState<string | null>(null);
@@ -24,6 +25,244 @@ export default function OwnerProfile() {
   const [verifyingEmail, setVerifyingEmail] = useState(false);
   const avatarFileInputRef = useRef<HTMLInputElement>(null);
   const searchParams = useSearchParams();
+
+  const [docUploading, setDocUploading] = useState<string | null>(null);
+  const [docError, setDocError] = useState<string | null>(null);
+  const [docSuccess, setDocSuccess] = useState<string | null>(null);
+  const [docDragOver, setDocDragOver] = useState(false);
+  const [docHelpOpen, setDocHelpOpen] = useState(false);
+  const docHelpRef = useRef<HTMLDivElement>(null);
+  const docInputRef = useRef<HTMLInputElement>(null);
+  const [selectedDocType, setSelectedDocType] = useState<string>("");
+  const [businessLicenceExpiresOn, setBusinessLicenceExpiresOn] = useState<string>("");
+
+  const requiredDocTypes = useMemo(
+    () =>
+      [
+        { type: "BUSINESS_LICENCE", label: "Business Licence (Valid)" },
+        { type: "TIN_CERTIFICATE", label: "TIN Number Certificate" },
+      ] as const,
+    [],
+  );
+
+  type CloudinarySig = {
+    timestamp: number;
+    signature: string;
+    folder: string;
+    cloudName: string;
+    apiKey: string;
+  };
+
+  async function uploadToCloudinary(file: File, folder: string) {
+    const sig = await api.get(`/api/uploads/cloudinary/sign?folder=${encodeURIComponent(folder)}`);
+    const sigData = sig.data as CloudinarySig;
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("timestamp", String(sigData.timestamp));
+    fd.append("api_key", sigData.apiKey);
+    fd.append("signature", sigData.signature);
+    fd.append("folder", sigData.folder);
+    fd.append("overwrite", "true");
+    const resp = await axios.post(`https://api.cloudinary.com/v1_1/${sigData.cloudName}/auto/upload`, fd);
+    return (resp.data as { secure_url: string }).secure_url;
+  }
+
+  const uploadAvatar = async (file: File) => {
+    setError(null);
+    setSuccess(null);
+    setAvatarUploading(true);
+    try {
+      const url = await uploadToCloudinary(file, "avatars");
+      await api.put("/api/account/profile", { avatarUrl: url });
+
+      setForm((prev: any) => ({ ...prev, avatarUrl: url }));
+      try {
+        const updatedMe = { ...(me ?? {}), avatarUrl: url };
+        setMe(updatedMe);
+        try { (window as any).ME = updatedMe; } catch { /* ignore */ }
+      } catch { /* ignore */ }
+
+      try {
+        window.dispatchEvent(new CustomEvent("nolsaf:profile-updated", { detail: { avatarUrl: url } }));
+      } catch {
+        // ignore
+      }
+
+      setSuccess("Profile photo updated.");
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (e: any) {
+      console.warn("Failed to upload avatar", e);
+      setError("Failed to upload profile photo. Please try again.");
+    } finally {
+      setAvatarUploading(false);
+      if (avatarFileInputRef.current) avatarFileInputRef.current.value = "";
+    }
+  };
+
+  function getLatestDocByType(docs: any[] | undefined | null, type: string) {
+    const normalizedType = String(type).toUpperCase();
+    const items = Array.isArray(docs) ? docs : [];
+    for (const d of items) {
+      if (String(d?.type ?? "").toUpperCase() === normalizedType) return d;
+    }
+    return null;
+  }
+
+  const allowedDocTypes = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp"]);
+
+  const todayIsoDate = () => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, "0");
+    const d = String(now.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  };
+
+  const parseDocExpiresAt = (doc: any): Date | null => {
+    const raw = doc?.metadata?.expiresAt ?? doc?.metadata?.expires_on ?? doc?.metadata?.expiresOn;
+    if (!raw) return null;
+    const d = new Date(String(raw));
+    if (!Number.isFinite(d.getTime())) return null;
+    return d;
+  };
+
+  const isBusinessLicenceExpired = useCallback((doc: any): boolean => {
+    const exp = parseDocExpiresAt(doc);
+    if (!exp) return false;
+    return exp.getTime() < Date.now();
+  }, []);
+
+  const uploadDocumentForType = async (type: string, file: File | null) => {
+    if (!file || !type) return;
+    setDocError(null);
+    setDocSuccess(null);
+
+    const normalizedType = String(type).toUpperCase();
+    const isBusinessLicence = normalizedType === "BUSINESS_LICENCE";
+    if (isBusinessLicence) {
+      if (!businessLicenceExpiresOn) {
+        setDocError("Please enter the Business Licence expiry date before uploading.");
+        return;
+      }
+      const parsed = new Date(`${businessLicenceExpiresOn}T23:59:59.999Z`);
+      if (!Number.isFinite(parsed.getTime())) {
+        setDocError("Please enter a valid expiry date.");
+        return;
+      }
+      const minIso = todayIsoDate();
+      if (String(businessLicenceExpiresOn) < String(minIso)) {
+        setDocError("Expiry date must be today or later.");
+        return;
+      }
+    }
+
+    if (!allowedDocTypes.has(file.type)) {
+      setDocError("Please choose a PDF or image file (PDF, JPG, PNG, WebP).");
+      return;
+    }
+    if (file.size > 15 * 1024 * 1024) {
+      setDocError("File is too large. Maximum size is 15MB.");
+      return;
+    }
+
+    try {
+      setDocUploading(type);
+      const url = await uploadToCloudinary(file, "owner-documents");
+      const expiresAtIso = normalizedType === "BUSINESS_LICENCE" && businessLicenceExpiresOn
+        ? new Date(`${businessLicenceExpiresOn}T23:59:59.999Z`).toISOString()
+        : null;
+      const resp = await api.put("/api/account/documents", {
+        type,
+        url,
+        metadata: {
+          fileName: file.name,
+          contentType: file.type,
+          size: file.size,
+          uploadedAt: new Date().toISOString(),
+          ...(expiresAtIso
+            ? { expiresAt: expiresAtIso, expiresOn: businessLicenceExpiresOn }
+            : null),
+        },
+      });
+
+      const saved = (resp as any)?.data?.data?.doc ?? (resp as any)?.data?.doc ?? null;
+
+      const applySavedDoc = (prev: any) => {
+        if (!prev) return prev;
+        const docs = Array.isArray(prev.documents) ? prev.documents : [];
+        const nextDocs = saved ? [saved, ...docs.filter((d: any) => d?.id !== saved?.id)] : docs;
+        return { ...prev, documents: nextDocs };
+      };
+
+      setMe(applySavedDoc);
+      setForm(applySavedDoc);
+      setDocSuccess("Document uploaded. Pending admin review.");
+    } catch (e: any) {
+      const serverMsg = e?.response?.data?.error || e?.response?.data?.message;
+      setDocError(String(serverMsg || e?.message || "Failed to upload document. Please try again."));
+    } finally {
+      setDocUploading(null);
+      setDocDragOver(false);
+      if (docInputRef.current) docInputRef.current.value = "";
+    }
+  };
+
+  const triggerDocUpload = () => {
+    setDocError(null);
+    setDocSuccess(null);
+    docInputRef.current?.click();
+  };
+
+  const onUploadDocumentFromPicker = async (file: File | null) => {
+    await uploadDocumentForType(selectedDocType, file);
+  };
+
+  const actionableDocTypes = useMemo(() => {
+    const docs = Array.isArray(me?.documents) ? me.documents : [];
+    return requiredDocTypes.filter((t) => {
+      const doc = getLatestDocByType(docs, t.type);
+      const hasUrl = Boolean(doc?.url);
+      const status = (doc?.status ? String(doc.status) : "").toUpperCase();
+      const expired = t.type === "BUSINESS_LICENCE" && status === "APPROVED" && isBusinessLicenceExpired(doc);
+      if (!hasUrl) return true;
+      if (status === "REJECTED") return true;
+      if (expired) return true;
+      return false;
+    });
+  }, [me?.documents, requiredDocTypes, isBusinessLicenceExpired]);
+
+  const showUploader = actionableDocTypes.length > 0;
+
+  useEffect(() => {
+    if (!selectedDocType) return;
+    const stillSelectable = actionableDocTypes.some((t) => t.type === selectedDocType);
+    if (!stillSelectable) setSelectedDocType("");
+  }, [actionableDocTypes, selectedDocType]);
+
+  useEffect(() => {
+    if (String(selectedDocType).toUpperCase() !== "BUSINESS_LICENCE") {
+      setBusinessLicenceExpiresOn("");
+    }
+  }, [selectedDocType]);
+
+  useEffect(() => {
+    if (!docHelpOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setDocHelpOpen(false);
+    };
+    const onPointerDown = (e: PointerEvent) => {
+      const root = docHelpRef.current;
+      if (!root) return;
+      if (root.contains(e.target as Node)) return;
+      setDocHelpOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("pointerdown", onPointerDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("pointerdown", onPointerDown);
+    };
+  }, [docHelpOpen]);
 
   // Check for email verification success
   useEffect(() => {
@@ -279,6 +518,85 @@ export default function OwnerProfile() {
     }
   };
 
+  const avatarUrl = (form?.avatarUrl || me?.avatarUrl || null) as string | null;
+  const displayName = String(form?.fullName || form?.name || me?.fullName || me?.name || '').trim();
+  const emailValue = String(form?.email || me?.email || '').trim();
+  const phoneValue = String(form?.phone || me?.phone || '').trim();
+  const tinValue = String(form?.tin || me?.tin || '').trim();
+  const addressValue = String(form?.address || me?.address || '').trim();
+
+  const requiredDocsOk = useMemo(() => {
+    return requiredDocTypes.every((t) => {
+      const doc = getLatestDocByType(me?.documents, t.type);
+      const hasUrl = Boolean(doc?.url);
+      const status = (doc?.status ? String(doc.status) : '').toUpperCase();
+      if (!hasUrl) return false;
+      if (status === 'REJECTED') return false;
+
+      if (t.type === 'BUSINESS_LICENCE') {
+        const exp = parseDocExpiresAt(doc);
+        if (!exp) return false;
+        if (status === 'APPROVED' && isBusinessLicenceExpired(doc)) return false;
+      }
+      return true;
+    });
+  }, [isBusinessLicenceExpired, me?.documents, requiredDocTypes]);
+
+  const payoutPreferred = String(form?.payoutPreferred || me?.payoutPreferred || '').toUpperCase();
+  const payoutDetailsOk = useMemo(() => {
+    if (!payoutPreferred) return false;
+    if (payoutPreferred === 'BANK') {
+      const bankName = String(form?.bankName || me?.bankName || '').trim();
+      const bankAccountName = String(form?.bankAccountName || me?.bankAccountName || '').trim();
+      const bankAccountNumber = String(form?.bankAccountNumber || me?.bankAccountNumber || '').trim();
+      return Boolean(bankName && bankAccountName && bankAccountNumber);
+    }
+    if (payoutPreferred === 'MOBILE_MONEY') {
+      const provider = String(form?.mobileMoneyProvider || me?.mobileMoneyProvider || '').trim();
+      const number = String(form?.mobileMoneyNumber || me?.mobileMoneyNumber || '').trim();
+      return Boolean(provider && number);
+    }
+    return true;
+  }, [
+    form?.bankAccountName,
+    form?.bankAccountNumber,
+    form?.bankName,
+    form?.mobileMoneyNumber,
+    form?.mobileMoneyProvider,
+    me?.bankAccountName,
+    me?.bankAccountNumber,
+    me?.bankName,
+    me?.mobileMoneyNumber,
+    me?.mobileMoneyProvider,
+    payoutPreferred,
+  ]);
+
+  const profileCompletion = useMemo(() => {
+    const checks: Array<boolean> = [
+      Boolean(avatarUrl),
+      Boolean(displayName && displayName !== '—'),
+      Boolean(emailValue),
+      Boolean(phoneValue),
+      Boolean(tinValue),
+      Boolean(addressValue),
+      requiredDocsOk,
+      Boolean(payoutPreferred),
+      payoutDetailsOk,
+    ];
+
+    const total = checks.length;
+    const done = checks.filter(Boolean).length;
+    const pct = total === 0 ? 0 : Math.round((done / total) * 100);
+    return { pct, done, total };
+  }, [addressValue, avatarUrl, displayName, emailValue, phoneValue, payoutDetailsOk, payoutPreferred, requiredDocsOk, tinValue]);
+
+  const completionTone = useMemo(() => {
+    const pct = profileCompletion.pct;
+    if (pct >= 80) return 'good' as const;
+    if (pct >= 50) return 'warn' as const;
+    return 'bad' as const;
+  }, [profileCompletion.pct]);
+
   if (loading) {
     return (
       <div className="w-full max-w-full flex items-center justify-center py-12">
@@ -524,42 +842,84 @@ export default function OwnerProfile() {
       <div className="max-w-6xl mx-auto space-y-4 sm:space-y-6">
         {/* Header Card */}
         <div className="bg-white rounded-2xl shadow-lg border-2 border-slate-200/50 p-4 sm:p-6 lg:p-8 transition-all duration-300 hover:shadow-xl hover:border-emerald-200/50">
-          <div className="flex flex-col items-center text-center">
-            {form.avatarUrl ? (
-              <div className="relative mb-4 sm:mb-6 group">
-                <div className="absolute inset-0 rounded-full bg-emerald-400/20 blur-xl group-hover:bg-emerald-400/30 transition-all duration-300"></div>
-                <Image 
-                  src={form.avatarUrl} 
-                  alt="avatar" 
-                  width={96} 
-                  height={96} 
-                  className="relative rounded-full object-cover border-4 border-emerald-200 shadow-xl transition-all duration-300 hover:scale-105 hover:border-emerald-300" 
-                />
-                <button
-                  type="button"
-                  onClick={() => avatarFileInputRef.current?.click()}
-                  className="absolute bottom-0 right-0 h-9 w-9 sm:h-10 sm:w-10 rounded-full bg-emerald-600 text-white flex items-center justify-center hover:bg-emerald-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-110 active:scale-95"
-                  aria-label="Change avatar"
-                >
-                  <Upload className="h-4 w-4 sm:h-5 sm:w-5" />
-                </button>
-              </div>
-            ) : (
-              <div className="relative mb-4 sm:mb-6 group">
-                <div className="absolute inset-0 rounded-full bg-emerald-400/20 blur-xl group-hover:bg-emerald-400/30 transition-all duration-300"></div>
-                <div className="relative h-20 w-20 sm:h-24 sm:w-24 rounded-full bg-gradient-to-br from-emerald-100 to-blue-100 flex items-center justify-center border-4 border-emerald-200 shadow-xl transition-all duration-300 hover:scale-105 hover:border-emerald-300">
-                  <User className="h-10 w-10 sm:h-12 sm:w-12 text-emerald-600 transition-transform duration-300 group-hover:scale-110" />
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1">Your Profile</h1>
+              <p className="text-xs sm:text-sm text-slate-600">Review and update your information</p>
+            </div>
+
+            <div className="flex items-center gap-3 flex-shrink-0">
+              <div
+                className="flex items-center gap-2 rounded-2xl border-2 border-slate-200 bg-white px-2.5 py-1.5"
+                aria-label={`Profile completion ${profileCompletion.pct}%`}
+                title={`Profile completion ${profileCompletion.pct}%`}
+              >
+                <div className="relative h-10 w-10">
+                  <svg viewBox="0 0 36 36" className="h-10 w-10" aria-hidden>
+                    <circle
+                      cx="18"
+                      cy="18"
+                      r="16"
+                      fill="none"
+                      stroke="currentColor"
+                      className="text-slate-200"
+                      strokeWidth="3.5"
+                    />
+                    <circle
+                      cx="18"
+                      cy="18"
+                      r="16"
+                      fill="none"
+                      stroke="currentColor"
+                      className={
+                        completionTone === 'good'
+                          ? 'text-emerald-600'
+                          : completionTone === 'warn'
+                            ? 'text-amber-500'
+                            : 'text-rose-600'
+                      }
+                      strokeWidth="3.5"
+                      strokeLinecap="round"
+                      pathLength="100"
+                      strokeDasharray={`${profileCompletion.pct} 100`}
+                      transform="rotate(-90 18 18)"
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="text-[11px] font-bold text-slate-900 tabular-nums">{profileCompletion.pct}%</div>
+                  </div>
                 </div>
+
+                <div className="hidden sm:block text-left leading-tight">
+                  <div className="text-[11px] font-semibold text-slate-600">Profile status</div>
+                  <div className="text-[11px] font-semibold text-slate-500">
+                    {profileCompletion.done}/{profileCompletion.total} items
+                  </div>
+                </div>
+              </div>
+
+              <div className="relative">
                 <button
                   type="button"
-                  onClick={() => avatarFileInputRef.current?.click()}
-                  className="absolute bottom-0 right-0 h-9 w-9 sm:h-10 sm:w-10 rounded-full bg-emerald-600 text-white flex items-center justify-center hover:bg-emerald-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-110 active:scale-95"
-                  aria-label="Upload avatar"
+                  onClick={() => {
+                    if (avatarUploading) return;
+                    avatarFileInputRef.current?.click();
+                  }}
+                  className="inline-flex items-center justify-center h-11 w-11 rounded-full border-2 border-slate-200 bg-white text-emerald-700 hover:bg-emerald-50 hover:border-emerald-200 transition"
+                  aria-label={form.avatarUrl ? 'Edit profile photo' : 'Upload profile photo'}
+                  title={form.avatarUrl ? 'Edit profile photo' : 'Upload profile photo'}
                 >
-                  <Upload className="h-4 w-4 sm:h-5 sm:w-5" />
+                  {avatarUploading ? (
+                    <span className="h-5 w-5 rounded-full border-2 border-emerald-200 border-t-emerald-700 animate-spin" aria-hidden />
+                  ) : form.avatarUrl ? (
+                    <Pencil className="h-5 w-5" />
+                  ) : (
+                    <Upload className="h-5 w-5" />
+                  )}
                 </button>
               </div>
-            )}
+            </div>
+
             <input
               ref={avatarFileInputRef}
               type="file"
@@ -568,16 +928,10 @@ export default function OwnerProfile() {
               onChange={async (e) => {
                 const f = e.target.files?.[0];
                 if (!f) return;
-                const reader = new FileReader();
-                reader.onload = () => {
-                  setForm((prev: any) => ({ ...prev, avatarUrl: String(reader.result) }));
-                };
-                reader.readAsDataURL(f);
+                await uploadAvatar(f);
               }}
               className="hidden"
             />
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-2 transition-all duration-300">Your Profile</h1>
-            <p className="text-xs sm:text-sm text-slate-600 max-w-md">Review and update your information</p>
           </div>
         </div>
 
@@ -758,6 +1112,250 @@ export default function OwnerProfile() {
           </div>
         </section>
 
+        {/* Required Documents Section */}
+        <section className="bg-white rounded-2xl shadow-lg border-2 border-slate-200/50 p-4 sm:p-6 lg:p-8 w-full max-w-full overflow-hidden transition-all duration-300 hover:shadow-xl hover:border-emerald-200/50 animate-in fade-in slide-in-from-bottom-4 box-border">
+          <div className="flex items-center gap-2 mb-4 sm:mb-6 pb-3 border-b border-slate-200">
+            <div className="h-10 w-10 rounded-lg bg-emerald-50 flex items-center justify-center">
+              <FileText className="w-5 h-5 text-emerald-700" />
+            </div>
+            <div ref={docHelpRef} className="relative flex items-center gap-2 min-w-0">
+              <button
+                type="button"
+                aria-label="Required documents help"
+                aria-expanded={docHelpOpen}
+                aria-controls="owner-required-docs-help"
+                onClick={() => setDocHelpOpen((v) => !v)}
+                className="inline-flex items-center justify-center border-0 bg-transparent p-0 m-0 appearance-none text-slate-500 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 rounded"
+              >
+                <Info className="h-4 w-4" aria-hidden />
+              </button>
+              <h2 className="text-base sm:text-lg lg:text-xl font-bold text-slate-900 truncate">Required Documents</h2>
+
+              {docHelpOpen && (
+                <div
+                  id="owner-required-docs-help"
+                  role="tooltip"
+                  className="absolute left-0 top-full mt-2 w-[min(360px,calc(100vw-3rem))] rounded-2xl border-2 border-slate-200 bg-white p-3 text-xs shadow-lg"
+                >
+                  <div className="font-semibold text-slate-900">Upload your documents</div>
+                  <div className="mt-1 text-slate-600">Clear scan/photo. Supported: PDF, JPG, PNG, WebP (max 15MB).</div>
+                  <div className="mt-2 text-slate-600">After upload, it will be reviewed by admin for compliance.</div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-4 sm:space-y-5">
+            <input
+              ref={docInputRef}
+              type="file"
+              className="hidden"
+              accept="application/pdf,image/*"
+              onChange={(e) => onUploadDocumentFromPicker(e.target.files?.[0] ?? null)}
+            />
+
+            {(docError || docSuccess) && (
+              <div className="space-y-1">
+                {docError && <div className="text-sm text-red-700 bg-red-50 border-2 border-red-200 rounded-xl px-4 py-3">{docError}</div>}
+                {docSuccess && <div className="text-sm text-emerald-800 bg-emerald-50 border-2 border-emerald-200 rounded-xl px-4 py-3">{docSuccess}</div>}
+              </div>
+            )}
+
+            {showUploader ? (
+              <div className="rounded-xl border-2 border-slate-200 bg-slate-50/40 p-4 sm:p-5">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
+                  <div className="lg:col-span-4">
+                    <div className="text-xs font-semibold text-slate-700">Document type</div>
+                    <select
+                      value={selectedDocType}
+                      onChange={(e) => setSelectedDocType(e.target.value)}
+                      disabled={actionableDocTypes.length === 0}
+                      className="mt-2 w-full h-11 rounded-xl border-2 border-slate-200 bg-white px-4 text-sm font-semibold text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200"
+                    >
+                      <option value="">Select document</option>
+                      {actionableDocTypes.map((t) => (
+                        <option key={t.type} value={t.type}>
+                          {t.label}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="text-xs text-slate-600 mt-2 leading-relaxed">Select a document, then drag & drop (or click) to upload.</div>
+
+                    {String(selectedDocType).toUpperCase() === "BUSINESS_LICENCE" ? (
+                      <div className="mt-3 max-w-xs">
+                        <div className="text-[11px] font-semibold text-slate-700">Business licence expiry date</div>
+                        <div className="mt-1.5">
+                          <DatePickerField
+                            label="Business licence expiry date"
+                            value={businessLicenceExpiresOn}
+                            onChangeAction={(iso) => setBusinessLicenceExpiresOn(String(iso))}
+                            min={todayIsoDate()}
+                            widthClassName="w-[170px]"
+                            size="sm"
+                            allowPast={false}
+                            twoMonths={false}
+                          />
+                        </div>
+                        <div className="text-[11px] text-slate-500 mt-1">Reminders start 10 days before expiry.</div>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="lg:col-span-8">
+                    {(() => {
+                      const isUploading = docUploading != null;
+                      const disabled = isUploading || !selectedDocType || actionableDocTypes.length === 0;
+                      const dropzoneClass =
+                        "w-full rounded-xl border-2 border-dashed px-4 py-4 sm:py-5 transition " +
+                        (disabled
+                          ? "border-slate-200 bg-white/70 opacity-70"
+                          : docDragOver
+                            ? "border-emerald-400 bg-emerald-50/50"
+                            : "border-slate-200 bg-white hover:bg-slate-50");
+
+                      return (
+                        <div>
+                          <div
+                            role="button"
+                            tabIndex={0}
+                            aria-label="Upload required document"
+                            className={dropzoneClass}
+                            onClick={() => {
+                              if (actionableDocTypes.length === 0) return;
+                              if (!selectedDocType) {
+                                setDocError("Please select a document type first.");
+                                return;
+                              }
+                              if (!isUploading) triggerDocUpload();
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                if (actionableDocTypes.length === 0) return;
+                                if (!selectedDocType) {
+                                  setDocError("Please select a document type first.");
+                                  return;
+                                }
+                                if (!isUploading) triggerDocUpload();
+                              }
+                            }}
+                            onDragOver={(e) => {
+                              if (disabled) return;
+                              e.preventDefault();
+                              setDocDragOver(true);
+                            }}
+                            onDragLeave={() => setDocDragOver(false)}
+                            onDrop={(e) => {
+                              if (disabled) return;
+                              e.preventDefault();
+                              setDocDragOver(false);
+                              const f = e.dataTransfer.files?.[0] ?? null;
+                              void uploadDocumentForType(selectedDocType, f);
+                            }}
+                          >
+                            <div className="flex items-center justify-between gap-4">
+                              <div className="min-w-0">
+                                <div className="text-sm font-semibold text-slate-900 truncate">Drag & drop your file here</div>
+                                <div className="text-xs text-slate-600 mt-1">or click to choose a file</div>
+                              </div>
+                              <div className="shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-600 text-white text-xs font-semibold">
+                                <Upload className="h-4 w-4" />
+                                {docUploading ? "Uploading…" : "Upload"}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="p-6 sm:p-8 text-center border-2 border-emerald-200 rounded-xl bg-gradient-to-br from-emerald-50/40 to-emerald-100/20">
+                <CheckCircle2 className="h-10 w-10 sm:h-12 sm:w-12 text-emerald-500 mx-auto mb-3" />
+                <div className="text-sm sm:text-base font-semibold text-slate-900 mb-1">All required documents uploaded</div>
+                <div className="text-xs sm:text-sm text-slate-600">Admin will review and approve them.</div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+              {requiredDocTypes.map((item) => {
+                const docs = Array.isArray(me?.documents) ? me.documents : [];
+                const doc = getLatestDocByType(docs, item.type);
+                const status = (doc?.status ? String(doc.status) : "NOT_UPLOADED").toUpperCase();
+                const isPending = status === "PENDING";
+                const isApproved = status === "APPROVED";
+                const isRejected = status === "REJECTED";
+                const isNotUploaded = !doc?.url;
+                const expiresAt = item.type === "BUSINESS_LICENCE" ? parseDocExpiresAt(doc) : null;
+                const isExpired = item.type === "BUSINESS_LICENCE" && isApproved && Boolean(expiresAt) && (expiresAt as Date).getTime() < Date.now();
+                const daysLeft = expiresAt ? Math.ceil(((expiresAt as Date).getTime() - Date.now()) / (24 * 60 * 60 * 1000)) : null;
+                const isExpiringSoon = Boolean(expiresAt) && !isExpired && typeof daysLeft === "number" && daysLeft <= 10;
+
+                const badgeClass = isApproved
+                  ? "bg-emerald-100 text-emerald-800 border-emerald-200"
+                  : isRejected
+                    ? "bg-red-100 text-red-800 border-red-200"
+                    : isPending
+                      ? "bg-amber-100 text-amber-800 border-amber-200"
+                      : "bg-slate-100 text-slate-700 border-slate-200";
+
+                const effectiveBadgeClass = isExpired
+                  ? "bg-red-100 text-red-800 border-red-200"
+                  : badgeClass;
+
+                const badgeText = isExpired ? "Expired" : isApproved ? "Approved" : isRejected ? "Rejected" : isPending ? "Pending" : "Not uploaded";
+
+                return (
+                  <div key={item.type} className="rounded-xl border-2 border-slate-200 bg-white p-4 sm:p-5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-sm font-bold text-slate-900 truncate">{item.label}</div>
+                        <div className="text-xs text-slate-500 mt-1">Type: <span className="font-mono">{item.type}</span></div>
+                      </div>
+                      <span className={`shrink-0 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${effectiveBadgeClass}`}>{badgeText}</span>
+                    </div>
+
+                    {item.type === "BUSINESS_LICENCE" && expiresAt ? (
+                      <div className="mt-3 text-xs text-slate-700 bg-slate-50 border-2 border-slate-200 rounded-lg px-3 py-2">
+                        Expires on: <span className="font-semibold">{new Date(expiresAt).toLocaleDateString()}</span>
+                        {typeof daysLeft === "number" ? (
+                          <span className={`ml-2 font-semibold ${isExpired ? "text-red-700" : isExpiringSoon ? "text-amber-700" : "text-slate-700"}`}>
+                            ({isExpired ? `${Math.abs(daysLeft)} day(s) ago` : `${daysLeft} day(s) left`})
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    {isRejected && doc?.reason ? (
+                      <div className="mt-3 text-xs text-red-800 bg-red-50 border-2 border-red-200 rounded-lg px-3 py-2">
+                        Rejection reason: {doc.reason}
+                      </div>
+                    ) : null}
+
+                    <div className="mt-4 flex items-center justify-end">
+                      {isNotUploaded || isRejected || isExpired ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedDocType(item.type);
+                            // make it quick to upload the selected doc
+                            triggerDocUpload();
+                          }}
+                          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold border-2 transition-all duration-200 border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 hover:border-emerald-300"
+                        >
+                          <Upload className="h-4 w-4" />
+                          {isNotUploaded ? "Upload" : isRejected ? "Re-upload" : "Renew"}
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
         {/* Actions Section */}
         <section className="bg-white rounded-2xl shadow-lg border-2 border-slate-200/50 p-4 sm:p-6 lg:p-8 w-full max-w-full overflow-hidden transition-all duration-300 hover:shadow-xl hover:border-emerald-200/50 animate-in fade-in slide-in-from-bottom-4 box-border">
           <div className="flex items-center gap-2 mb-4 sm:mb-6 pb-3 sm:pb-4 border-b border-slate-200">
@@ -856,7 +1454,7 @@ export default function OwnerProfile() {
           ) : (
             <div>
               <div className="space-y-3">
-                {(showAllAuditHistory ? auditHistory : auditHistory.slice(0, 2)).map((log: any, index: number) => {
+                {(showAllAuditHistory ? auditHistory : auditHistory.slice(0, 2)).map((log: any) => {
                 const impactStyles: Record<string, { badge: string; bg: string; text: string; border: string }> = {
                   high: {
                     badge: 'bg-gradient-to-r from-red-500 to-rose-600 text-white shadow-md shadow-red-500/20',

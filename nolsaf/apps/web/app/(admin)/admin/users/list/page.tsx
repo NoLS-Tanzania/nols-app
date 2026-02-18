@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
-import { Users, Search, X, Mail, Phone, Lock, ShoppingCart, DollarSign, Calendar, Eye, MoreVertical, CheckCircle, XCircle, Loader2, TrendingUp, Filter } from "lucide-react";
+import { Users, Search, X, Mail, Phone, Lock, ShoppingCart, DollarSign, Eye, MoreVertical, CheckCircle, XCircle, Loader2, Filter } from "lucide-react";
 import axios from "axios";
 import { io, Socket } from "socket.io-client";
 import Link from "next/link";
@@ -54,7 +54,6 @@ export default function AdminUsersListPage(){
 
   const searchRef = useRef<HTMLInputElement | null>(null);
   const [suggestions, setSuggestions] = useState<CustomerRow[]>([]);
-  const [selectedCustomer, setSelectedCustomer] = useState<CustomerRow | null>(null);
   const [showActionsMenu, setShowActionsMenu] = useState<number | null>(null);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
 

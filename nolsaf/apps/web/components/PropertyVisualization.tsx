@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { MapPin, ChevronUp, ChevronDown, BedDouble, Wifi, Tv, Wind } from "lucide-react";
+import { MapPin, ChevronUp, ChevronDown, BedDouble } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 interface Room {

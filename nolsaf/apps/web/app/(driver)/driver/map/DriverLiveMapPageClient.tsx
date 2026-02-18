@@ -221,32 +221,29 @@ export default function DriverLiveMapPage() {
     }
   }, [completedSteps]);
 
-  const [, setIsAvailable] = useState<boolean>(() => {
-    try {
-      const raw = localStorage.getItem('driver_available');
-      return raw === '1' || raw === 'true';
-    } catch (e) {
-      return false;
-    }
-  });
+  const [, setIsAvailable] = useState<boolean>(false);
 
   useEffect(() => {
-    const checkAvailability = () => {
+    const loadAvailability = async () => {
       try {
-        const raw = localStorage.getItem('driver_available');
-        const available = raw === '1' || raw === 'true';
+        const r = await fetch('/api/driver/availability', { credentials: 'include' });
+        if (!r.ok) return;
+        const data = await r.json();
+        const available = Boolean(data?.available);
         setIsAvailable(available);
-        if (!available && liveOnly) {
-          setShowLiveOverlay(true);
-        }
-      } catch (e) {
+        if (liveOnly && !available) setShowLiveOverlay(true);
+        if (liveOnly && available) setShowLiveOverlay(false);
+      } catch {
         // ignore
       }
     };
-    checkAvailability();
+    loadAvailability();
     // Listen for availability changes
     const handleAvailabilityChange = (e: any) => {
-      setIsAvailable(e.detail?.available ?? false);
+      const next = e.detail?.available ?? false;
+      setIsAvailable(next);
+      if (liveOnly && !next) setShowLiveOverlay(true);
+      if (liveOnly && next) setShowLiveOverlay(false);
     };
     window.addEventListener('nols:availability:changed', handleAvailabilityChange as EventListener);
     return () => {
@@ -1485,6 +1482,7 @@ export default function DriverLiveMapPage() {
             <div className="pointer-events-auto">
               <DriverLiveMapFloatingActions
                 isDark={mapTheme === "dark"}
+                raiseForEarningsFab={bottomSheetCollapsed && !tripRequest && !activeTrip}
                 onLocationClick={() => console.log('Center on location')}
                 onLayersClick={() => setLayersOpen(true)}
                 onRoutesClick={() => setRoutesOpen(true)}

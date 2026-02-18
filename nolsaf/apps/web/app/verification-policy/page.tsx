@@ -9,7 +9,6 @@ import OwnerSiteHeader from "@/components/OwnerSiteHeader";
 import DriverSiteHeader from "@/components/DriverSiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import LayoutFrame from "@/components/LayoutFrame";
-import VerifiedIcon from "@/components/VerifiedIcon";
 import { CheckCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
@@ -108,7 +107,7 @@ export default function VerificationPolicyPage() {
   const isAuthenticated = !shouldUsePublicLayout && userRole !== null;
   const isDriver = userRole === "DRIVER";
   const isOwner = userRole === "OWNER";
-  const isAdmin = userRole === "ADMIN";
+  const _isAdmin = userRole === "ADMIN";
 
   // Show loading state briefly to avoid flash
   if (isLoading || isPublicContext === null) {

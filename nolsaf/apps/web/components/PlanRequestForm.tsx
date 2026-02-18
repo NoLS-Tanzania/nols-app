@@ -726,7 +726,7 @@ export default function PlanRequestForm({ selectedRole }: Props) {
   const storageKey = React.useMemo(() => `planRequestForm_${selectedRole || 'default'}`, [selectedRole]);
   const [hasRestored, setHasRestored] = React.useState(false);
 
-  const collectFormAsObject = () => {
+  const collectFormAsObject = React.useCallback(() => {
     if (!formRef.current) return {} as Record<string, string>;
     const fm = new FormData(formRef.current);
     const obj: Record<string, string> = {};
@@ -759,7 +759,7 @@ export default function PlanRequestForm({ selectedRole }: Props) {
     }
     
     return obj;
-  };
+  }, [selectedRole, storageKey]);
 
   // Save form data to sessionStorage
   const saveFormData = React.useCallback(() => {
@@ -785,7 +785,7 @@ export default function PlanRequestForm({ selectedRole }: Props) {
     } catch (e) {
       console.error('Failed to save form data:', e);
     }
-  }, [selectedRole, storageKey, transportRequired, budgetCurrency, budgetCurrencyOther, budgetAmount, touristMustHaves, touristInterests, groupSizeState, passengerCount, step, tripTypeValue, routeStops, routeSaved]);
+  }, [selectedRole, collectFormAsObject, storageKey, transportRequired, budgetCurrency, budgetCurrencyOther, budgetAmount, touristMustHaves, touristInterests, groupSizeState, passengerCount, step, tripTypeValue, routeStops, routeSaved]);
 
   // Restore form data from sessionStorage
   const restoreFormData = React.useCallback(() => {
@@ -1056,7 +1056,7 @@ export default function PlanRequestForm({ selectedRole }: Props) {
       form.removeEventListener('change', handleChange);
       form.removeEventListener('input', handleChange);
     };
-  }, [selectedRole, hasRestored, saveFormData, step, storageKey]);
+  }, [selectedRole, hasRestored, saveFormData, step, storageKey, destinationsText]);
 
   // Friendly labels and preferred order for the review step
   const reviewLabels: Record<string, string> = {

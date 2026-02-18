@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, AlertCircle, Loader2, Gift, DollarSign, ShieldCheck, Ban, RefreshCw, Link as LinkIcon } from "lucide-react";
 
 type Earning = {
@@ -53,12 +53,7 @@ export default function AdminReferralsPage() {
     return base;
   }, [earnings]);
 
-  useEffect(() => {
-    loadEarnings();
-    loadWithdrawals();
-  }, [statusFilter]);
-
-  async function loadEarnings(targetStatus?: string) {
+  const loadEarnings = useCallback(async (targetStatus?: string) => {
     setLoading(true);
     setErr(null);
     try {
@@ -74,9 +69,9 @@ export default function AdminReferralsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [statusFilter]);
 
-  async function loadWithdrawals() {
+  const loadWithdrawals = useCallback(async () => {
     setWLoading(true);
     setWErr(null);
     try {
@@ -91,7 +86,12 @@ export default function AdminReferralsPage() {
     } finally {
       setWLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    void loadEarnings();
+    void loadWithdrawals();
+  }, [loadEarnings, loadWithdrawals]);
 
   async function markAsBonus(earningId: number) {
     const ref = prompt("Bonus payment reference", `BONUS-${earningId}-${Date.now()}`);

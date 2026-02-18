@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { MessageCircle, X, Send, Bot, User, Globe, Minimize2, ThumbsUp, ThumbsDown } from "lucide-react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { MessageCircle, X, Send, Bot, User, Minimize2, ThumbsUp, ThumbsDown } from "lucide-react";
 import LogoSpinner from "@/components/LogoSpinner";
 
 interface Message {
@@ -34,7 +34,7 @@ interface FloatingChatWidgetProps {
   position?: "bottom-right" | "bottom-left";
 }
 
-export default function FloatingChatWidget({ hiddenRoutes = [], position = "bottom-right" }: FloatingChatWidgetProps) {
+export default function FloatingChatWidget({ hiddenRoutes: _hiddenRoutes = [], position = "bottom-right" }: FloatingChatWidgetProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -76,6 +76,7 @@ export default function FloatingChatWidget({ hiddenRoutes = [], position = "bott
   // Auto-clear chat timer (5 minutes)
   const autoClearRef = useRef<NodeJS.Timeout | null>(null);
   const chatStartTimeRef = useRef<number>(Date.now());
+  const startAutoClearTimerRef = useRef<(() => void) | null>(null);
   
   // Fade-out animation state
   const [isClosing, setIsClosing] = useState(false);
@@ -95,7 +96,7 @@ export default function FloatingChatWidget({ hiddenRoutes = [], position = "bott
   }, [messages, isOpen, isMinimized]);
 
   // Reset auto-close timer on any activity
-  const resetAutoCloseTimer = () => {
+  const resetAutoCloseTimer = useCallback(() => {
     lastActivityRef.current = Date.now();
     if (autoCloseRef.current) {
       clearTimeout(autoCloseRef.current);
@@ -111,7 +112,7 @@ export default function FloatingChatWidget({ hiddenRoutes = [], position = "bott
         }, 300); // Match animation duration
       }, 30000); // 30 seconds
     }
-  };
+  }, [isOpen]);
   
   // Save position to localStorage
   const savePosition = (pos: { x: number; y: number }) => {
@@ -222,14 +223,14 @@ export default function FloatingChatWidget({ hiddenRoutes = [], position = "bott
         clearTimeout(autoCloseRef.current);
       }
     };
-  }, [isOpen]);
+  }, [isOpen, resetAutoCloseTimer]);
 
   // Track activity for auto-close
   useEffect(() => {
     if (isOpen) {
       resetAutoCloseTimer();
     }
-  }, [input, messages.length]);
+  }, [input, messages.length, isOpen, resetAutoCloseTimer]);
   
   // Track unread messages when minimized
   useEffect(() => {
@@ -261,13 +262,6 @@ export default function FloatingChatWidget({ hiddenRoutes = [], position = "bott
       setUnreadCount(0);
     }
   }, [messages, isMinimized]);
-
-  // Initialize conversation when widget opens
-  useEffect(() => {
-    if (isOpen && messages.length === 0 && !isLoadingHistory) {
-      initializeConversation();
-    }
-  }, [isOpen]);
   
   // Cleanup auto-clear timer on unmount
   useEffect(() => {
@@ -277,8 +271,56 @@ export default function FloatingChatWidget({ hiddenRoutes = [], position = "bott
       }
     };
   }, []);
+  
+  // Clear all chat messages from UI (but keep in database)
+  const clearChat = useCallback(() => {
+    setMessages([]);
+    setUnreadCount(0);
+    lastReadMessageIdRef.current = null;
+    
+    // Show welcome message after clearing
+    const welcomeMessage: Message = {
+      id: "welcome",
+      role: "assistant",
+      content: "Niaje! 👋 Naitwa Twiga 🦒, your friendly travel assistant at NoLSAF! Just like the giraffe (twiga) gracefully reaches for the highest leaves, I'm here to help you find the perfect accommodation! 🎯 How can I assist you today? 😊",
+      timestamp: new Date(),
+    };
+    setMessages([welcomeMessage]);
+    
+    // Keep the same session ID - messages are still in database
+    // Don't clear session ID from localStorage
+    
+    // Reset chat start time
+    chatStartTimeRef.current = Date.now();
+    
+    // Restart auto-clear timer
+    startAutoClearTimerRef.current?.();
+  }, []);
+  
+  // Start auto-clear timer (5 minutes = 300000ms)
+  const startAutoClearTimer = useCallback(() => {
+    // Clear any existing timer
+    if (autoClearRef.current) {
+      clearTimeout(autoClearRef.current);
+    }
+    
+    // Set new timer for 5 minutes
+    autoClearRef.current = setTimeout(() => {
+      clearChat();
+    }, 5 * 60 * 1000); // 5 minutes
+  }, [clearChat]);
 
-  const initializeConversation = async () => {
+  useEffect(() => {
+    startAutoClearTimerRef.current = startAutoClearTimer;
+  }, [startAutoClearTimer]);
+  
+  // Reset auto-clear timer (call when new message is sent)
+  const resetAutoClearTimer = useCallback(() => {
+    chatStartTimeRef.current = Date.now();
+    startAutoClearTimer();
+  }, [startAutoClearTimer]);
+
+  const initializeConversation = useCallback(async () => {
     setIsLoadingHistory(true);
     try {
       let currentSessionId = localStorage.getItem("chatbot_session_id");
@@ -313,7 +355,8 @@ export default function FloatingChatWidget({ hiddenRoutes = [], position = "bott
           const welcomeMessage: Message = {
             id: "welcome",
             role: "assistant",
-            content: "Niaje! 👋 Naitwa Twiga 🦒, your friendly travel assistant at NoLSAF! Just like the giraffe (twiga) gracefully reaches for the highest leaves, I'm here to help you find the perfect accommodation! 🎯 How can I assist you today? 😊",
+            content:
+              "Niaje! 👋 Naitwa Twiga 🦒, your friendly travel assistant at NoLSAF! Just like the giraffe (twiga) gracefully reaches for the highest leaves, I'm here to help you find the perfect accommodation! 🎯 How can I assist you today? 😊",
             timestamp: new Date(),
           };
           setMessages([welcomeMessage]);
@@ -335,10 +378,10 @@ export default function FloatingChatWidget({ hiddenRoutes = [], position = "bott
         setSessionId(newSessionId);
         localStorage.setItem("chatbot_session_id", newSessionId);
       }
-      
+
       // Reset chat start time
       chatStartTimeRef.current = Date.now();
-      
+
       // Start auto-clear timer (5 minutes) - clears UI but keeps in database
       startAutoClearTimer();
     } catch (error) {
@@ -358,51 +401,14 @@ export default function FloatingChatWidget({ hiddenRoutes = [], position = "bott
     } finally {
       setIsLoadingHistory(false);
     }
-  };
-  
-  // Clear all chat messages from UI (but keep in database)
-  const clearChat = () => {
-    setMessages([]);
-    setUnreadCount(0);
-    lastReadMessageIdRef.current = null;
-    
-    // Show welcome message after clearing
-    const welcomeMessage: Message = {
-      id: "welcome",
-      role: "assistant",
-      content: "Niaje! 👋 Naitwa Twiga 🦒, your friendly travel assistant at NoLSAF! Just like the giraffe (twiga) gracefully reaches for the highest leaves, I'm here to help you find the perfect accommodation! 🎯 How can I assist you today? 😊",
-      timestamp: new Date(),
-    };
-    setMessages([welcomeMessage]);
-    
-    // Keep the same session ID - messages are still in database
-    // Don't clear session ID from localStorage
-    
-    // Reset chat start time
-    chatStartTimeRef.current = Date.now();
-    
-    // Restart auto-clear timer
-    startAutoClearTimer();
-  };
-  
-  // Start auto-clear timer (5 minutes = 300000ms)
-  const startAutoClearTimer = () => {
-    // Clear any existing timer
-    if (autoClearRef.current) {
-      clearTimeout(autoClearRef.current);
+  }, [startAutoClearTimer]);
+
+  // Initialize conversation when widget opens
+  useEffect(() => {
+    if (isOpen && messages.length === 0 && !isLoadingHistory) {
+      void initializeConversation();
     }
-    
-    // Set new timer for 5 minutes
-    autoClearRef.current = setTimeout(() => {
-      clearChat();
-    }, 5 * 60 * 1000); // 5 minutes
-  };
-  
-  // Reset auto-clear timer (call when new message is sent)
-  const resetAutoClearTimer = () => {
-    chatStartTimeRef.current = Date.now();
-    startAutoClearTimer();
-  };
+  }, [isOpen, isLoadingHistory, messages.length, initializeConversation]);
 
   // Handle inactivity timeout (60 seconds)
   useEffect(() => {
@@ -446,16 +452,18 @@ export default function FloatingChatWidget({ hiddenRoutes = [], position = "bott
       }
     }, 60000);
 
+    const timeoutId = timeoutRef.current;
+    const typingTimeoutId = typingTimeoutRef.current;
+    const typingSoundIntervalId = typingSoundIntervalRef.current;
+
     return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-      }
-      if (typingSoundIntervalRef.current) {
-        clearInterval(typingSoundIntervalRef.current);
-        typingSoundIntervalRef.current = null;
+      if (timeoutId) clearTimeout(timeoutId);
+      if (typingTimeoutId) clearTimeout(typingTimeoutId);
+      if (typingSoundIntervalId) {
+        clearInterval(typingSoundIntervalId);
+        if (typingSoundIntervalRef.current === typingSoundIntervalId) {
+          typingSoundIntervalRef.current = null;
+        }
       }
     };
   }, [messages.length, sessionId, language, isOpen, isMinimized, isLoadingHistory]);

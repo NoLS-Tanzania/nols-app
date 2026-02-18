@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
-import { CheckCircle, Search, X, Calendar, MapPin, Eye, FileText } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { CheckCircle, Search, X, Calendar, MapPin, Eye } from "lucide-react";
 import DatePicker from "@/components/ui/DatePicker";
 import axios from "axios";
 
@@ -50,7 +50,7 @@ export default function AdminPlanWithUsRecommendedPage() {
   const [selectedRequest, setSelectedRequest] = useState<RecommendedRequest | null>(null);
   const [showResponseModal, setShowResponseModal] = useState(false);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const params: any = {
@@ -80,12 +80,12 @@ export default function AdminPlanWithUsRecommendedPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [page, pageSize, role, tripType, date, q]);
 
   useEffect(() => {
     authify();
-    load();
-  }, [page, role, tripType, date, q]);
+    void load();
+  }, [load]);
 
   const pages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -120,7 +120,7 @@ export default function AdminPlanWithUsRecommendedPage() {
                   if (e.key === "Enter") {
                     e.preventDefault();
                     setPage(1);
-                    load();
+                    void load();
                   }
                 }}
               />
@@ -130,7 +130,7 @@ export default function AdminPlanWithUsRecommendedPage() {
                   onClick={() => {
                     setQ("");
                     setPage(1);
-                    load();
+                    void load();
                   }}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                   aria-label="Clear search"

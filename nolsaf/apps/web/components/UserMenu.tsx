@@ -8,7 +8,6 @@ import {
   Calendar, 
   Car, 
   Users, 
-  UserCircle, 
   Settings, 
   LogOut,
   ChevronRight,

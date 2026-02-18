@@ -1,9 +1,8 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
-import { Share2, Copy, CheckCircle, Users, Gift, DollarSign, Mail, MessageCircle, Link as LinkIcon, TrendingUp, UserPlus, Bell, Clock, AlertCircle, X, Wallet, ArrowUpRight, Target, BarChart3, Eye } from "lucide-react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
+import { Share2, Copy, CheckCircle, Users, Gift, Mail, MessageCircle, Link as LinkIcon, TrendingUp, UserPlus, Bell, AlertCircle, X, Wallet, ArrowUpRight, Eye } from "lucide-react";
 import axios from "axios";
-import { useSocket } from "@/hooks/useSocket";
 import ToastContainer from "@/components/ToastContainer";
 import { io, Socket } from "socket.io-client";
 
@@ -84,7 +83,6 @@ export default function DriverReferral() {
   const [copied, setCopied] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [userId, setUserId] = useState<string | number | undefined>(undefined);
-  const { socket, connected } = useSocket(userId);
   
   // New state for earnings and withdrawals
   const [earnings, setEarnings] = useState<ReferralEarning[]>([]);
@@ -103,6 +101,11 @@ export default function DriverReferral() {
   const [withdrawLoading, setWithdrawLoading] = useState(false);
   const [notification, setNotification] = useState<ReferralNotification | null>(null);
   const socketRef = useRef<Socket | null>(null);
+  const earningsSummaryRef = useRef(earningsSummary);
+
+  useEffect(() => {
+    earningsSummaryRef.current = earningsSummary;
+  }, [earningsSummary]);
 
   // Add custom animations
   useEffect(() => {
@@ -169,7 +172,7 @@ export default function DriverReferral() {
   }, []);
 
   // Fetch referral data
-  const fetchReferralData = async () => {
+  const fetchReferralData = useCallback(async () => {
     try {
       setLoading(true);
       // Fetch referral data from API
@@ -204,16 +207,10 @@ export default function DriverReferral() {
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchReferralData();
-    fetchEarnings();
-    fetchWithdrawals();
-  }, []);
+  }, [userId]);
 
   // Fetch referral earnings
-  const fetchEarnings = async () => {
+  const fetchEarnings = useCallback(async () => {
     try {
       setLoadingEarnings(true);
       const response = await api.get("/api/driver/referral-earnings");
@@ -233,10 +230,10 @@ export default function DriverReferral() {
     } finally {
       setLoadingEarnings(false);
     }
-  };
+  }, []);
 
   // Fetch withdrawal history
-  const fetchWithdrawals = async () => {
+  const fetchWithdrawals = useCallback(async () => {
     try {
       setLoadingWithdrawals(true);
       const response = await api.get("/api/driver/referral-earnings/withdrawals");
@@ -249,7 +246,13 @@ export default function DriverReferral() {
     } finally {
       setLoadingWithdrawals(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchReferralData();
+    fetchEarnings();
+    fetchWithdrawals();
+  }, [fetchReferralData, fetchEarnings, fetchWithdrawals]);
 
   // Apply for withdrawal
   const applyWithdrawal = async () => {
@@ -388,7 +391,7 @@ export default function DriverReferral() {
     const handleEarningsMarkedAsBonus = (data: { earningIds: number[]; bonusPaymentRef: string; count: number }) => {
       setNotification({
         type: 'earnings-marked-as-bonus',
-        message: `${data.count} referral credit(s) totaling TZS ${earningsSummary.availableForWithdrawal.toLocaleString()} have been converted to bonus!`,
+        message: `${data.count} referral credit(s) totaling TZS ${earningsSummaryRef.current.availableForWithdrawal.toLocaleString()} have been converted to bonus!`,
         paymentRef: data.bonusPaymentRef,
       });
       fetchEarnings();
@@ -417,7 +420,7 @@ export default function DriverReferral() {
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [userId]);
+  }, [fetchReferralData, fetchEarnings, fetchWithdrawals]);
 
   const copyToClipboard = async (text: string, isLink: boolean = false) => {
     try {

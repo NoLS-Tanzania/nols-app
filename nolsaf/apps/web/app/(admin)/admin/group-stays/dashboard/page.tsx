@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { Users, Calendar, CheckCircle, Clock, XCircle, TrendingUp, MapPin, Home, Utensils, Car, UserCheck, Wrench } from "lucide-react";
+import { Users, Calendar, CheckCircle, Clock, TrendingUp, Utensils, Car, UserCheck, Wrench } from "lucide-react";
 import Link from "next/link";
 import axios from "axios";
 import Chart from "@/components/Chart";

@@ -5,8 +5,6 @@ import Link from "next/link";
 import Image from "next/image";
 import { Linkedin, Instagram, Youtube, X, Facebook } from "lucide-react";
 
-type FooterPillVariant = "brand" | "neutral";
-
 const APP_VERSION = "v0.1.0";
 
 function FooterPolicyItem({
@@ -29,50 +27,6 @@ function FooterPolicyItem({
         {children}
         <span className="pointer-events-none absolute -bottom-1 left-0 h-px w-0 bg-gradient-to-r from-[#02665e] to-sky-500 transition-all duration-300 group-hover:w-full" />
       </span>
-    </Link>
-  );
-}
-
-function FooterPill({
-  children,
-  href,
-  variant = "brand",
-}: {
-  children: React.ReactNode;
-  href: string;
-  variant?: FooterPillVariant;
-}) {
-  const base =
-    "group relative inline-flex items-center rounded-full border bg-white/10 px-3 py-1.5 text-xs font-semibold no-underline overflow-hidden " +
-    "transition-[transform,background-color,border-color,color] duration-300 ease-out " +
-    "hover:-translate-y-[1px] active:translate-y-0 active:scale-[0.99] " +
-    "motion-reduce:transition-none motion-reduce:hover:transform-none motion-reduce:active:transform-none";
-
-  const brand =
-    "border-white/15 text-emerald-200 hover:bg-white/15 hover:border-white/25 focus-visible:ring-2 focus-visible:ring-[#02665e]/25";
-  const neutral =
-    "border-white/15 text-slate-200 hover:bg-white/10 hover:border-white/25 focus-visible:ring-2 focus-visible:ring-white/20";
-
-  const overlayTint =
-    variant === "brand"
-      ? "bg-gradient-to-b from-[#02665e]/20 to-[#02665e]/10"
-      : "bg-gradient-to-b from-white/10 to-white/0";
-
-  const overlayShine = variant === "brand" ? "via-white/70" : "via-slate-200/80";
-
-  const className = `${base} ${variant === "brand" ? brand : neutral}`;
-
-  return (
-    <Link href={href} className={className}>
-      <span
-        aria-hidden
-        className={`pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 ease-out group-hover:opacity-100 ${overlayTint}`}
-      />
-      <span
-        aria-hidden
-        className={`pointer-events-none absolute -inset-y-2 -left-1/3 w-1/3 rotate-12 bg-gradient-to-r from-transparent ${overlayShine} to-transparent opacity-0 blur-[1px] transition-all duration-500 ease-out group-hover:left-full group-hover:opacity-60 motion-reduce:hidden`}
-      />
-      <span className="relative z-10">{children}</span>
     </Link>
   );
 }

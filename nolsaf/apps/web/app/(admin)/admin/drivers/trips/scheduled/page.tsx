@@ -120,7 +120,7 @@ function formatDuration(ms: number) {
   return `${minutes}m`;
 }
 
-function claimTimingLabel(row: ScheduledTripRow) {
+function _claimTimingLabel(row: ScheduledTripRow) {
   const now = Date.now();
   const opensAt = new Date(row.claimOpensAt).getTime();
   const scheduledAt = new Date(row.scheduledAt).getTime();

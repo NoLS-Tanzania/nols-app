@@ -29,6 +29,21 @@ function broadcastStatus(req: any, payload: any) {
   if (io) io.emit("admin:property:status", payload);
 }
 
+async function createAdminAuditSafe(data: { adminId: number; targetUserId?: number | null; action: string; details?: any }) {
+  try {
+    await prisma.adminAudit.create({
+      data: {
+        adminId: data.adminId,
+        targetUserId: data.targetUserId ?? null,
+        action: data.action,
+        details: data.details ?? null,
+      },
+    });
+  } catch (e) {
+    console.warn("adminAudit.create failed:", String(e));
+  }
+}
+
 const adminPropertyOwnerSelect = {
   id: true,
   name: true,
@@ -1151,6 +1166,12 @@ router.post("/:id/approve", (async (req: AuthedRequest, res) => {
     invalidateOwnerPropertyLists(before.ownerId),
     notifyOwner(before.ownerId, "property_approved", notificationData),
     notifyAdmins("property_approved", notificationData),
+    createAdminAuditSafe({
+      adminId: req.user!.id,
+      targetUserId: before.ownerId,
+      action: "PROPERTY_APPROVE",
+      details: { propertyId: id, title: before.title, fromStatus: before.status, toStatus: "APPROVED" },
+    }),
     auditLog({
       actorId: req.user!.id,
       actorRole: req.user!.role,
@@ -1231,6 +1252,12 @@ router.post("/:id/reject", (async (req: AuthedRequest, res) => {
       propertyTitle: before.title,
       reasons: parse.data.reasons,
       note: parse.data.note,
+    }),
+    createAdminAuditSafe({
+      adminId: req.user!.id,
+      targetUserId: before.ownerId,
+      action: "PROPERTY_REJECT",
+      details: { propertyId: id, title: before.title, fromStatus: before.status, toStatus: "REJECTED", reasons: parse.data.reasons, note: parse.data.note ?? null },
     }),
     auditLog({
       actorId: req.user!.id,

@@ -1,8 +1,9 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Building2, LineChart, FileText, MessageCircle, CalendarCheck, Eye } from "lucide-react";
+import { Building2, LineChart, FileText, MessageCircle, CalendarCheck, Eye, Activity } from "lucide-react";
 import axios from "axios";
+import { io } from "socket.io-client";
 import {
   Area,
   AreaChart,
@@ -52,48 +53,97 @@ export default function OwnerPage() {
   const [mounted, setMounted] = useState(false);
   const [overview, setOverview] = useState<any>(null);
   const [loadingOverview, setLoadingOverview] = useState(false);
+  const [lastOverviewUpdatedAt, setLastOverviewUpdatedAt] = useState<number | null>(null);
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  const aliveRef = useRef(true);
 
   useEffect(() => {
     const n = readOwnerName();
     if (n) setOwnerName(n);
   }, []);
 
-  useEffect(() => {
-    let mounted = true;
+  const fetchOverview = useCallback(async (opts?: { silent?: boolean }) => {
     const now = new Date();
     const from = new Date(now);
     from.setDate(now.getDate() - 13);
 
-    setLoadingOverview(true);
-    api
-      .get("/api/owner/reports/overview", {
+    if (!opts?.silent) setLoadingOverview(true);
+    try {
+      const r = await api.get("/api/owner/reports/overview", {
         params: {
           from: from.toISOString(),
           to: now.toISOString(),
           groupBy: "day",
         },
       })
-      .then((r) => {
-        if (!mounted) return;
-        setOverview(r.data);
-      })
-      .catch(() => {
-        if (!mounted) return;
-        setOverview(null);
-      })
-      .finally(() => {
-        if (!mounted) return;
-        setLoadingOverview(false);
-      });
+      if (!aliveRef.current) return;
+      setOverview(r.data);
+      setLastOverviewUpdatedAt(Date.now());
+    } catch {
+      if (!aliveRef.current) return;
+      if (!opts?.silent) setOverview(null);
+    } finally {
+      if (!aliveRef.current) return;
+      if (!opts?.silent) setLoadingOverview(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchOverview();
+    return () => {
+      aliveRef.current = false;
+    };
+  }, [fetchOverview]);
+
+  useEffect(() => {
+    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+    const socket = io(socketUrl, {
+      transports: ["websocket", "polling"],
+      reconnection: true,
+      reconnectionAttempts: 5,
+    });
+
+    const refresh = () => {
+      fetchOverview({ silent: true });
+    };
+
+    (async () => {
+      try {
+        const meRes = await fetch("/api/account/me", { credentials: "include" });
+        const meJson: any = meRes.ok ? await meRes.json() : null;
+        const me = meJson?.data ?? meJson;
+        const ownerId = Number(me?.id || 0);
+        if (ownerId) socket.emit("join-owner-room", { ownerId });
+      } catch {}
+    })();
+
+    socket.on("owner:bookings:updated", refresh);
+
+    const onVis = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    const onOnline = () => refresh();
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("online", onOnline);
+    const poll = window.setInterval(refresh, 60000);
 
     return () => {
-      mounted = false;
+      window.clearInterval(poll);
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("online", onOnline);
+      socket.off("owner:bookings:updated", refresh);
+      socket.disconnect();
     };
-  }, []);
+  }, [fetchOverview]);
 
   useEffect(() => {
     const id = window.requestAnimationFrame(() => setMounted(true));
     return () => window.cancelAnimationFrame(id);
+  }, []);
+
+  useEffect(() => {
+    const t = window.setInterval(() => setNowTick(Date.now()), 15000);
+    return () => window.clearInterval(t);
   }, []);
 
   const series = useMemo(() => {
@@ -118,6 +168,17 @@ export default function OwnerPage() {
     const num = Number(n || 0);
     return num.toLocaleString(undefined, { maximumFractionDigits: 0 });
   };
+
+  const liveAgeLabel = useMemo(() => {
+    if (!lastOverviewUpdatedAt) return null;
+    const diffSec = Math.max(0, Math.floor((nowTick - lastOverviewUpdatedAt) / 1000));
+    return `${diffSec}s`;
+  }, [lastOverviewUpdatedAt, nowTick]);
+
+  const isFreshLiveUpdate = useMemo(() => {
+    if (!lastOverviewUpdatedAt) return false;
+    return nowTick - lastOverviewUpdatedAt < 15000;
+  }, [lastOverviewUpdatedAt, nowTick]);
 
   return (
     <div className="w-full">
@@ -175,6 +236,12 @@ export default function OwnerPage() {
               <div>
                 <div className="text-xs uppercase tracking-wide text-slate-500">Bookings</div>
                 <div className="mt-1 text-xl font-semibold text-slate-900">{loadingOverview ? "…" : String(kpis.bookings || 0)}</div>
+                {liveAgeLabel ? (
+                  <div className="mt-1 inline-flex items-center gap-1.5 text-[11px] text-emerald-700">
+                    <Activity className={isFreshLiveUpdate ? "h-3.5 w-3.5 animate-pulse" : "h-3.5 w-3.5"} aria-hidden />
+                    <span>{liveAgeLabel}</span>
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>

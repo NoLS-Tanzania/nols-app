@@ -475,12 +475,15 @@ export default function PropertyPreviewsPage() {
                         className="object-cover group-hover:scale-105 transition-transform duration-200 rounded-2xl"
                       />
                     ) : (
+                      <>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={primaryPhoto}
                         alt=""
                         className="object-cover group-hover:scale-105 transition-transform duration-200 rounded-2xl"
                         style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
                       />
+                      </>
                     )
                       ) : (
                         <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 rounded-2xl">

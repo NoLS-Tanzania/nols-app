@@ -112,8 +112,24 @@ export default function OwnerSiteHeader({ unreadMessages = 0 }: { unreadMessages
       }
     };
 
+    const handleProfileUpdated = (e: Event) => {
+      try {
+        const ce = e as CustomEvent<any>;
+        const nextAvatarUrl = ce?.detail?.avatarUrl;
+        if (typeof nextAvatarUrl === "string" && nextAvatarUrl.trim()) {
+          setAvatarUrl(nextAvatarUrl.trim());
+        }
+      } catch {
+        // ignore
+      }
+    };
+
     document.addEventListener("click", handleClickOutside);
-    return () => document.removeEventListener("click", handleClickOutside);
+    window.addEventListener("nolsaf:profile-updated", handleProfileUpdated as EventListener);
+    return () => {
+      document.removeEventListener("click", handleClickOutside);
+      window.removeEventListener("nolsaf:profile-updated", handleProfileUpdated as EventListener);
+    };
   }, []);
 
   const toggleTheme = () => {

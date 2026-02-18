@@ -144,7 +144,7 @@ export default function OwnerCheckoutPage() {
     setConfirmingId(id);
     setError(null);
     try {
-      const r = await api.post(`/api/owner/bookings/${id}/confirm-checkout`, { rating, feedback: feedback.trim() || null });
+      await api.post(`/api/owner/bookings/${id}/confirm-checkout`, { rating, feedback: feedback.trim() || null });
       // Refresh list + let sidebar update counts
       window.dispatchEvent(new Event("nols:checkout-changed"));
       setConfirmOpen(false);
@@ -370,18 +370,18 @@ export default function OwnerCheckoutPage() {
       </div>
 
       {/* Summary */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
-          <div className="text-xs font-medium text-gray-500">Total in queue</div>
-          <div className="mt-1 text-2xl font-bold text-gray-900">{stats.total.toLocaleString()}</div>
+      <div className="grid grid-cols-3 gap-3 sm:gap-4">
+        <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4 shadow-sm min-w-0">
+          <div className="text-[11px] sm:text-xs font-medium text-gray-500">Total in queue</div>
+          <div className="mt-1 text-xl sm:text-2xl font-bold text-gray-900 truncate">{stats.total.toLocaleString()}</div>
         </div>
-        <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
-          <div className="text-xs font-medium text-gray-500">Urgent (≤ 1h)</div>
-          <div className="mt-1 text-2xl font-bold text-amber-700">{stats.urgent.toLocaleString()}</div>
+        <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4 shadow-sm min-w-0">
+          <div className="text-[11px] sm:text-xs font-medium text-gray-500">Urgent (≤ 1h)</div>
+          <div className="mt-1 text-xl sm:text-2xl font-bold text-amber-700 truncate">{stats.urgent.toLocaleString()}</div>
         </div>
-        <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
-          <div className="text-xs font-medium text-gray-500">Overdue</div>
-          <div className="mt-1 text-2xl font-bold text-red-700">{stats.overdue.toLocaleString()}</div>
+        <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4 shadow-sm min-w-0">
+          <div className="text-[11px] sm:text-xs font-medium text-gray-500">Overdue</div>
+          <div className="mt-1 text-xl sm:text-2xl font-bold text-red-700 truncate">{stats.overdue.toLocaleString()}</div>
         </div>
       </div>
 
@@ -435,7 +435,7 @@ export default function OwnerCheckoutPage() {
               <div className="text-xs text-gray-500 mt-0.5">Confirm check-out after the guest leaves.</div>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <div className="relative">
                 <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
                   <Search className="h-4 w-4 text-gray-400" aria-hidden />
@@ -460,34 +460,36 @@ export default function OwnerCheckoutPage() {
                 />
               </div>
 
-              <button
-                type="button"
-                onClick={() => load({ silent: true })}
-                disabled={refreshing}
-                className="inline-flex items-center justify-center h-10 w-10 rounded-md border border-gray-200 bg-white text-gray-700 shadow-sm hover:bg-gray-50 active:scale-[0.99] transition disabled:opacity-60"
-                aria-label="Refresh check-out list"
-                title="Refresh"
-              >
-                <RotateCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} aria-hidden />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => load({ silent: true })}
+                  disabled={refreshing}
+                  className="inline-flex items-center justify-center h-10 w-10 rounded-md border border-gray-200 bg-white text-gray-700 shadow-sm hover:bg-gray-50 active:scale-[0.99] transition disabled:opacity-60"
+                  aria-label="Refresh check-out list"
+                  title="Refresh"
+                >
+                  <RotateCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} aria-hidden />
+                </button>
 
-              <Link
-                href="/owner/bookings/checked-in"
-                className="no-underline inline-flex items-center justify-center h-10 w-10 rounded-md bg-emerald-700 text-white shadow-sm hover:bg-emerald-800 active:scale-[0.99] transition"
-                aria-label="Checked-In"
-                title="Checked-In"
-              >
-                <Calendar className="h-4 w-4" aria-hidden />
-              </Link>
+                <Link
+                  href="/owner/bookings/checked-in"
+                  className="no-underline inline-flex items-center justify-center h-10 w-10 rounded-md bg-emerald-700 text-white shadow-sm hover:bg-emerald-800 active:scale-[0.99] transition"
+                  aria-label="Checked-In"
+                  title="Checked-In"
+                >
+                  <Calendar className="h-4 w-4" aria-hidden />
+                </Link>
 
-              <Link
-                href="/owner/bookings/checked-out"
-                className="no-underline inline-flex items-center justify-center h-10 w-10 rounded-md bg-slate-900 text-white shadow-sm hover:bg-slate-800 active:scale-[0.99] transition"
-                aria-label="Checked-Out"
-                title="Checked-Out"
-              >
-                <CheckCircle2 className="h-4 w-4" aria-hidden />
-              </Link>
+                <Link
+                  href="/owner/bookings/checked-out"
+                  className="no-underline inline-flex items-center justify-center h-10 w-10 rounded-md bg-slate-900 text-white shadow-sm hover:bg-slate-800 active:scale-[0.99] transition"
+                  aria-label="Checked-Out"
+                  title="Checked-Out"
+                >
+                  <CheckCircle2 className="h-4 w-4" aria-hidden />
+                </Link>
+              </div>
             </div>
           </div>
 
@@ -547,7 +549,7 @@ export default function OwnerCheckoutPage() {
                               ? "bg-amber-50 text-amber-700 border-amber-200"
                               : "bg-emerald-50 text-emerald-700 border-emerald-200"
                         }`}>
-                          <Clock className="h-3 w-3" aria-hidden />
+                          <Clock className="h-3 w-3 stroke-current" aria-hidden />
                           {overdue ? "OVERDUE" : urgent ? "URGENT" : "DUE SOON"}
                         </span>
                       </td>
@@ -560,7 +562,7 @@ export default function OwnerCheckoutPage() {
                             aria-label="View audit history"
                             title="Audit history"
                           >
-                            <History className="h-4 w-4" aria-hidden />
+                            <History className="h-4 w-4 stroke-amber-500" aria-hidden />
                           </button>
                           <a
                             href={phone ? `tel:${phone}` : undefined}
@@ -572,7 +574,7 @@ export default function OwnerCheckoutPage() {
                             aria-label="Call guest"
                             title={phone ? "Call guest" : "No phone number"}
                           >
-                            <PhoneCall className="h-4 w-4" aria-hidden />
+                            <PhoneCall className={`h-4 w-4 ${phone ? "stroke-emerald-600" : "stroke-slate-400"}`} aria-hidden />
                           </a>
                           <a
                             href={email ? `mailto:${email}` : undefined}
@@ -584,14 +586,14 @@ export default function OwnerCheckoutPage() {
                             aria-label="Email guest"
                             title={email ? "Email guest" : "No email"}
                           >
-                            <Mail className="h-4 w-4" aria-hidden />
+                            <Mail className={`h-4 w-4 ${email ? "stroke-slate-900" : "stroke-slate-400"}`} aria-hidden />
                           </a>
                           <button
                             type="button"
                             onClick={() => { setConfirmTarget(b); setConfirmOpen(true); setError(null); setRating(0); setFeedback(""); setAgreeToTerms(false); }}
-                            className="inline-flex items-center justify-center h-9 rounded-md bg-indigo-700 text-white px-4 text-sm font-semibold shadow-sm hover:bg-indigo-800 active:scale-[0.99] transition"
+                            className="inline-flex items-center justify-center h-9 rounded-md border border-gray-200 bg-white px-4 text-sm font-semibold text-indigo-700 shadow-sm hover:bg-gray-50 active:scale-[0.99] transition"
                           >
-                            <CheckCircle2 className="h-4 w-4" aria-hidden />
+                            <CheckCircle2 className="h-4 w-4 stroke-indigo-700" aria-hidden />
                           </button>
                         </div>
                       </td>

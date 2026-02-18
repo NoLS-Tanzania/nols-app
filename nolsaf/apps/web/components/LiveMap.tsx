@@ -17,14 +17,21 @@ export default function LiveMap({ isOpen, onClose, onGoToDashboard }: LiveMapPro
   const [permission, setPermission] = useState<GeoPermission>('unknown');
   const [requesting, setRequesting] = useState(false);
   const [showSpinner, setShowSpinner] = useState(false);
-  const [available, setAvailable] = useState<boolean>(() => {
-    try {
-      const raw = localStorage.getItem('driver_available');
-      return raw === '1' || raw === 'true';
-    } catch (e) {
-      return false;
-    }
-  });
+  const [available, setAvailable] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    (async () => {
+      try {
+        const r = await fetch('/api/driver/availability', { credentials: 'include' });
+        if (!r.ok) return;
+        const data = await r.json();
+        setAvailable(Boolean(data?.available));
+      } catch {
+        // ignore
+      }
+    })();
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;

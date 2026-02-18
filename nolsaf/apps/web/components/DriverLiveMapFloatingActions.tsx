@@ -4,6 +4,7 @@ import { ChevronDown, Layers, MapPin, MessageCircle, Moon, Navigation, Route, Su
 
 interface DriverLiveMapFloatingActionsProps {
   isDark?: boolean;
+  raiseForEarningsFab?: boolean;
   onLocationClick?: () => void;
   onLayersClick?: () => void;
   onNavigationClick?: () => void;
@@ -27,6 +28,7 @@ interface DriverLiveMapFloatingActionsProps {
 
 export default function DriverLiveMapFloatingActions({
   isDark,
+  raiseForEarningsFab,
   onLocationClick,
   onLayersClick,
   onNavigationClick,
@@ -60,7 +62,9 @@ export default function DriverLiveMapFloatingActions({
       className={[
         "absolute z-40 flex flex-col gap-2",
         // Keep the stack low, but respect mobile safe-area insets (Android/iOS).
-        "bottom-[calc(0.75rem+env(safe-area-inset-bottom))] sm:bottom-[calc(1rem+env(safe-area-inset-bottom))]",
+        raiseForEarningsFab
+          ? "bottom-[calc(4.25rem+env(safe-area-inset-bottom))] sm:bottom-[calc(4.5rem+env(safe-area-inset-bottom))]"
+          : "bottom-[calc(0.75rem+env(safe-area-inset-bottom))] sm:bottom-[calc(1rem+env(safe-area-inset-bottom))]",
         "right-[calc(1rem+env(safe-area-inset-right))]",
       ].join(" ")}
     >

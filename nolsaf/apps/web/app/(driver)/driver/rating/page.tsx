@@ -15,7 +15,7 @@ const STAR_DESCRIPTIONS = {
 export default function DriverRatingPage() {
   const [rating, setRating] = useState(0);
   const [hoveredRating, setHoveredRating] = useState(0);
-  const [stats, setStats] = useState({
+  const [stats, _setStats] = useState({
     averageRating: 4.7,
     totalReviews: 127,
     ratingBreakdown: {

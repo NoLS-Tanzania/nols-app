@@ -13,44 +13,96 @@ import {
   ChevronDown,
   ChevronRight,
   Bell,
+  BadgeDollarSign,
 } from "lucide-react";
 import React from "react";
 
-function Item({ href, label, Icon, isSubItem = false }: { href: string; label: string; Icon?: React.ComponentType<React.SVGProps<SVGSVGElement>>; isSubItem?: boolean }) {
-  const path = usePathname();
-  const active = path === href || path?.startsWith(href + "/");
+function Item({
+  href,
+  label,
+  Icon,
+  currentPath,
+  isSubItem = false,
+}: {
+  href: string;
+  label: string;
+  Icon?: React.ComponentType<React.SVGProps<SVGSVGElement>>;
+  currentPath: string;
+  isSubItem?: boolean;
+}) {
+  const hrefPath = href.split("?")[0];
+  const active = currentPath === hrefPath || currentPath?.startsWith(hrefPath + "/");
   return (
     <Link
       href={href}
-      className={`no-underline flex items-center justify-between rounded-lg px-4 py-3 text-sm font-medium transition-all duration-200 bg-white border border-transparent
-        ${active ? "text-[#02665e] border-[#02665e]/20" : "text-[#02665e] hover:bg-gray-50"}
-        ${isSubItem ? "ml-4" : ""}`}
+      aria-current={active ? "page" : undefined}
+      className={[
+        "no-underline group relative flex items-center justify-between",
+        "rounded-2xl border transition-all duration-150",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-200 focus-visible:ring-offset-0",
+        isSubItem ? "ml-3 px-3 py-2" : "px-3 py-2.5",
+        active
+          ? "border-brand-200/80 bg-brand-50/80 text-slate-900 shadow-sm"
+          : "border-transparent bg-white/0 text-slate-700 hover:bg-white/70 hover:border-slate-200/70 hover:shadow-sm",
+      ].join(" ")}
       style={{ backfaceVisibility: 'hidden', transform: 'translateZ(0)' }}
     >
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 min-w-0">
         {Icon ? (
-          <Icon className="h-4 w-4 text-[#02665e] flex-shrink-0" aria-hidden />
+          <span
+            className={[
+              "relative inline-flex items-center justify-center flex-shrink-0",
+              isSubItem ? "h-8 w-8 rounded-2xl" : "h-9 w-9 rounded-2xl",
+              "border bg-white/70 shadow-sm ring-1 ring-slate-900/5",
+              active
+                ? "border-brand-200/70 bg-brand-50 text-brand-700"
+                : "border-slate-200/70 text-slate-500 group-hover:text-slate-600 group-hover:bg-white",
+            ].join(" ")}
+            aria-hidden
+          >
+            <span className="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-br from-brand/10 via-transparent to-transparent" aria-hidden />
+            <Icon className={isSubItem ? "relative h-4 w-4" : "relative h-[18px] w-[18px]"} aria-hidden />
+          </span>
         ) : null}
-        <span>{label}</span>
+
+        <span
+          className={[
+            "truncate",
+            isSubItem ? "text-[13px] font-medium" : "text-[13px] font-semibold tracking-tight",
+          ].join(" ")}
+        >
+          {label}
+        </span>
       </div>
-      <ChevronRight className="h-4 w-4 text-[#02665e] opacity-60 flex-shrink-0" aria-hidden />
+
+      <ChevronRight
+        className={[
+          "h-4 w-4 flex-shrink-0 transition-opacity",
+          active ? "text-brand-700/70 opacity-100" : "text-slate-400 opacity-70 group-hover:opacity-100",
+        ].join(" ")}
+        aria-hidden
+      />
     </Link>
   );
 }
 
 export default function DriverSidebar() {
+  const path = usePathname() || "";
   const [revenueOpen, setRevenueOpen] = useState<boolean>(true);
+
+  const isRevenueRoute = path === "/driver/invoices" || path === "/driver/payouts" || path.startsWith("/driver/invoices/") || path.startsWith("/driver/payouts/");
 
   useEffect(() => {
     try {
       if (typeof window !== "undefined") {
         const raw = localStorage.getItem("driver_revenue_open");
-        setRevenueOpen(raw === null ? true : raw !== "0");
+        const persisted = raw === null ? true : raw !== "0";
+        setRevenueOpen(isRevenueRoute ? true : persisted);
       }
     } catch (e) {
       // ignore
     }
-  }, []);
+  }, [isRevenueRoute]);
 
   useEffect(() => {
     try {
@@ -64,47 +116,75 @@ export default function DriverSidebar() {
 
   return (
     <div>
-      <div className="bg-gray-50 rounded-2xl p-3 border border-gray-200">
-        <div className="space-y-2">
+      <div className="relative overflow-hidden rounded-3xl border border-slate-200/70 bg-white/75 backdrop-blur shadow-card ring-1 ring-slate-900/5">
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-brand/10 via-white/80 to-slate-50" aria-hidden />
+        <div className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full bg-brand/10 blur-3xl" aria-hidden />
+        <div className="relative p-2.5">
+          <div className="space-y-1">
           {/* Dashboard */}
-          <Item href="/driver" label="Dashboard" Icon={LayoutDashboard} />
+          <Item href="/driver" label="Dashboard" Icon={LayoutDashboard} currentPath={path} />
 
           {/* Live Map */}
-          <Item href="/driver/map?live=1" label="Live Map" Icon={Map} />
+          <Item href="/driver/map?live=1" label="Live Map" Icon={Map} currentPath={path} />
 
           {/* My Trips */}
-          <Item href="/driver/trips" label="My Trips" Icon={ListChecks} />
+          <Item href="/driver/trips" label="My Trips" Icon={ListChecks} currentPath={path} />
 
           {/* Claim Trips */}
-          <Item href="/driver/trips/scheduled" label="Claim Trips" Icon={BarChart2} />
+          <Item href="/driver/trips/scheduled" label="Claim Trips" Icon={BarChart2} currentPath={path} />
 
           {/* Reminders */}
-          <Item href="/driver/reminders" label="Reminders" Icon={Bell} />
+          <Item href="/driver/reminders" label="Reminders" Icon={Bell} currentPath={path} />
 
           {/* My Revenue */}
           <div>
             <button 
               onClick={() => setRevenueOpen(v => !v)} 
-              className="w-full flex items-center justify-between rounded-lg px-4 py-3 text-sm font-medium text-[#02665e] bg-white border border-gray-300 hover:bg-gray-50 transition-all duration-200"
+              className={[
+                "w-full group relative flex items-center justify-between",
+                "rounded-2xl px-3 py-2.5 text-[13px] font-semibold tracking-tight",
+                "border transition-all duration-150",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-200 focus-visible:ring-offset-0",
+                revenueOpen || isRevenueRoute
+                  ? "border-slate-200/70 bg-white/70 text-slate-900 shadow-sm"
+                  : "border-transparent bg-white/0 text-slate-700 hover:bg-white/70 hover:border-slate-200/70 hover:shadow-sm",
+              ].join(" ")}
               style={{ backfaceVisibility: 'hidden', transform: 'translateZ(0)' }}
             >
-              <span>My Revenue</span>
+              <span className="flex items-center gap-3 min-w-0">
+                <span
+                  className={[
+                    "relative inline-flex h-9 w-9 items-center justify-center rounded-2xl flex-shrink-0",
+                    "border bg-white/70 shadow-sm ring-1 ring-slate-900/5",
+                    revenueOpen || isRevenueRoute
+                      ? "border-brand-200/70 bg-brand-50 text-brand-700"
+                      : "border-slate-200/70 text-slate-500 group-hover:text-slate-600 group-hover:bg-white",
+                  ].join(" ")}
+                  aria-hidden
+                >
+                  <span className="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-br from-brand/10 via-transparent to-transparent" aria-hidden />
+                  <BadgeDollarSign className="relative h-[18px] w-[18px]" aria-hidden />
+                </span>
+                <span className="truncate">My Revenue</span>
+              </span>
               {revenueOpen ? (
-                <ChevronDown className="h-4 w-4 text-[#02665e] opacity-60" aria-hidden />
+                <ChevronDown className="h-4 w-4 text-slate-500 group-hover:text-slate-600" aria-hidden />
               ) : (
-                <ChevronRight className="h-4 w-4 text-[#02665e] opacity-60" aria-hidden />
+                <ChevronRight className="h-4 w-4 text-slate-500 group-hover:text-slate-600" aria-hidden />
               )}
             </button>
             {revenueOpen && (
-              <div className="mt-2 space-y-2">
-                <Item href="/driver/invoices" label="Invoices" Icon={FileText} isSubItem />
-                <Item href="/driver/payouts" label="Payouts" Icon={Wallet} isSubItem />
+              <div className="mt-1 space-y-1">
+                <Item href="/driver/invoices" label="Invoices" Icon={FileText} isSubItem currentPath={path} />
+                <Item href="/driver/payouts" label="Payouts" Icon={Wallet} isSubItem currentPath={path} />
               </div>
             )}
           </div>
 
           {/* Management */}
-          <Item href="/driver/management" label="Managements" Icon={Settings} />
+          <div className="my-1 h-px bg-slate-200/60" aria-hidden />
+          <Item href="/driver/management" label="Management" Icon={Settings} currentPath={path} />
+          </div>
         </div>
       </div>
     </div>

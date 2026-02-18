@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -11,8 +11,6 @@ import {
   ShieldCheck,
   CreditCard,
   Smartphone,
-  X,
-  Info,
 } from "lucide-react";
 import LogoSpinner from "@/components/LogoSpinner";
 
@@ -102,6 +100,39 @@ export default function PaymentPage() {
   const [paymentStatus, setPaymentStatus] = useState<"idle" | "pending" | "success" | "failed">("idle");
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  const fetchInvoice = useCallback(
+    async (invoiceId: number) => {
+      try {
+        const API = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000").replace(/\/$/, "");
+        const response = await fetch(`${API}/api/public/invoices/${invoiceId}`);
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch invoice");
+        }
+
+        const data = await response.json();
+
+        // Validate that we have required data
+        if (!data || !data.property || !data.property.id) {
+          throw new Error("Invoice data is incomplete. Property information is missing.");
+        }
+
+        setInvoice(data);
+
+        // If already paid, redirect to receipt
+        if (data.status === "PAID") {
+          router.push(`/public/booking/receipt?invoiceId=${invoiceId}`);
+          return;
+        }
+      } catch (err: any) {
+        setError(err?.message || "Failed to load invoice");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [router]
+  );
+
   useEffect(() => {
     const invoiceId = searchParams?.get("invoiceId");
     if (!invoiceId) {
@@ -111,7 +142,7 @@ export default function PaymentPage() {
     }
 
     fetchInvoice(Number(invoiceId));
-  }, [searchParams]);
+  }, [searchParams, fetchInvoice]);
 
   // Cleanup polling on unmount
   useEffect(() => {
@@ -121,36 +152,6 @@ export default function PaymentPage() {
       }
     };
   }, []);
-
-  async function fetchInvoice(invoiceId: number) {
-    try {
-      const API = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000").replace(/\/$/, "");
-      const response = await fetch(`${API}/api/public/invoices/${invoiceId}`);
-      
-      if (!response.ok) {
-        throw new Error("Failed to fetch invoice");
-      }
-
-      const data = await response.json();
-      
-      // Validate that we have required data
-      if (!data || !data.property || !data.property.id) {
-        throw new Error("Invoice data is incomplete. Property information is missing.");
-      }
-      
-      setInvoice(data);
-      
-      // If already paid, redirect to receipt
-      if (data.status === "PAID") {
-        router.push(`/public/booking/receipt?invoiceId=${invoiceId}`);
-        return;
-      }
-    } catch (err: any) {
-      setError(err?.message || "Failed to load invoice");
-    } finally {
-      setLoading(false);
-    }
-  }
 
   async function handlePayment() {
     if (!selectedMethod || !phoneNumber.trim() || !invoice) {

@@ -116,7 +116,6 @@ function extractBuildingStructure(property: Property): FloorInfo[] {
 
   const roomsSpec = Array.isArray(property.roomsSpec) ? property.roomsSpec : [];
   const isMultiStorey = property.buildingType === "multi_storey";
-  const totalFloors = property.totalFloors || 1;
 
   // Group rooms by floor
   const floorMap = new Map<number, Map<string, { roomType: string; roomsCount: number; beds?: any }>>();

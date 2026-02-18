@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { Car, MapPin, Clock, Star, User, CheckCircle, Calendar, ArrowRight, Phone, Navigation, MessageCircle, Eye } from "lucide-react";
+import { Car, MapPin, Star, User, CheckCircle, Calendar, ArrowRight, Phone, Navigation, Eye } from "lucide-react";
 import Link from "next/link";
 
 const api = axios.create({ baseURL: "", withCredentials: true });
@@ -84,7 +84,7 @@ export default function MyRidesPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "scheduled" | "completed" | "expired">("all");
   const [entered, setEntered] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadRides();

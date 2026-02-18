@@ -290,6 +290,9 @@ export default function Requested() {
                     const gross = Number(invoice.total);
                     return Number.isFinite(gross) ? gross : 0;
                   })();
+                  const invoiceNumber = String((invoice as any)?.invoiceNumber ?? "");
+                  const isOwnerSubmittedInvoice = invoiceNumber.startsWith("OINV-");
+                  const viewHref = isOwnerSubmittedInvoice ? `/owner/invoices/${invoice.id}` : `/owner/revenue/invoices/${invoice.id}`;
                   return (
                     <TableRow key={invoice.id} className="hover:bg-slate-50/60 transition-colors duration-150">
                       <td className="px-4 sm:px-6 py-3 sm:py-4">
@@ -310,7 +313,7 @@ export default function Requested() {
                       <td className="px-4 sm:px-6 py-3 sm:py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <Link
-                            href={`/owner/invoices/${invoice.id}`}
+                            href={viewHref}
                             className="inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-semibold text-blue-700 hover:text-blue-800 hover:bg-blue-50 rounded-lg border border-blue-200 hover:border-blue-300 transition-all duration-200 no-underline active:scale-95"
                           >
                             <FileText className="h-4 w-4" aria-hidden />

@@ -47,13 +47,11 @@ async function main() {
     if (updated >= max) break;
   }
 
-  // eslint-disable-next-line no-console
   console.log(JSON.stringify({ ok: true, updated }));
 }
 
 main()
   .catch((e) => {
-    // eslint-disable-next-line no-console
     console.error(e);
     process.exitCode = 1;
   })

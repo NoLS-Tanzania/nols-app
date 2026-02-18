@@ -11,7 +11,6 @@ export default function DriverAvailabilitySwitch({ className = "" }: { className
   // Start with false to match server-side render (prevents hydration mismatch)
   const [available, setAvailable] = useState<boolean>(false);
   const [isClient, setIsClient] = useState(false);
-  const [initDone, setInitDone] = useState(false);
   const [meId, setMeId] = useState<string | number | undefined>(undefined);
 
   const { socket } = useSocket(meId);
@@ -19,23 +18,6 @@ export default function DriverAvailabilitySwitch({ className = "" }: { className
   // Mark as client-side after mount to prevent hydration mismatch
   useEffect(() => {
     setIsClient(true);
-    try {
-      // First, check localStorage
-      const raw = localStorage.getItem("driver_available");
-      if (raw === "1" || raw === "true") {
-        setAvailable(true);
-      } else if (raw === "0" || raw === "false") {
-        setAvailable(false);
-      }
-      
-      // Then, check window.__DRIVER_AVAILABLE if set
-      const w = (window as any).__DRIVER_AVAILABLE;
-      if (typeof w === "boolean") {
-        setAvailable(w);
-        try { localStorage.setItem("driver_available", w ? "1" : "0"); } catch (e) {}
-      }
-    } catch (e) { /* ignore */ }
-    setInitDone(true);
   }, []);
 
   // Resolve current user id for socket room scoping.
@@ -57,45 +39,49 @@ export default function DriverAvailabilitySwitch({ className = "" }: { className
     };
   }, []);
 
-  // Ensure the server-side availability (DB + Socket.IO room membership) matches the UI.
-  // Without this, a driver can see themselves as "available" (localStorage) while the
-  // backend still considers them unavailable, so they won't receive live offers.
-  const initialSyncDoneRef = React.useRef(false);
+  // Load availability from the server (source of truth) once we know who the driver is.
+  // We keep a per-driver localStorage cache only for fast UI, but we do NOT push it to the server on mount.
   useEffect(() => {
-    if (!isClient || !initDone) return;
+    if (!isClient) return;
     if (!meId) return;
-    if (initialSyncDoneRef.current) return;
-    initialSyncDoneRef.current = true;
 
-    const desired = available;
+    const storageKey = `driver_available:${String(meId)}`;
+
+    // Fast path: hydrate from per-driver cache (or migrate legacy key)
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (raw === '1' || raw === 'true') setAvailable(true);
+      else if (raw === '0' || raw === 'false') setAvailable(false);
+      else {
+        const legacy = localStorage.getItem('driver_available');
+        if (legacy === '1' || legacy === 'true' || legacy === '0' || legacy === 'false') {
+          const val = legacy === '1' || legacy === 'true';
+          setAvailable(val);
+          try { localStorage.setItem(storageKey, val ? '1' : '0'); } catch {}
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    // Source of truth: server
+    let cancelled = false;
     (async () => {
       try {
-        // Prefer socket path when connected.
-        let socketOk = false;
-        try {
-          if (socket && socket.connected) {
-            socketOk = await new Promise<boolean>((resolve) => {
-              try {
-                socket.emit('driver:availability:set', { available: desired }, (resp: any) => {
-                  resolve(Boolean(resp && resp.status === 'ok'));
-                });
-              } catch {
-                resolve(false);
-              }
-            });
-          }
-        } catch {
-          socketOk = false;
-        }
-
-        if (!socketOk) {
-          await api.post("/api/driver/availability", { available: desired });
-        }
+        const r = await api.get('/api/driver/availability');
+        const serverAvailable = Boolean(r?.data?.available);
+        if (cancelled) return;
+        setAvailable(serverAvailable);
+        try { localStorage.setItem(storageKey, serverAvailable ? '1' : '0'); } catch {}
       } catch {
-        // non-fatal; user can still toggle manually
+        // ignore: keep cached UI state
       }
     })();
-  }, [available, initDone, isClient, meId, socket]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isClient, meId]);
   // transient status control: idle | pending | success | error
   const [status, setStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle');
   const timeoutRef = React.useRef<number | null>(null);
@@ -113,7 +99,9 @@ export default function DriverAvailabilitySwitch({ className = "" }: { className
     const next = !available;
   // optimistic UI: flip immediately for a smooth feel
   setAvailable(next);
-  try { localStorage.setItem("driver_available", next ? "1" : "0"); } catch (e) {}
+  try {
+    if (meId) localStorage.setItem(`driver_available:${String(meId)}`, next ? '1' : '0');
+  } catch (e) {}
   // notify other components immediately so they can animate (optimistic)
   try { window.dispatchEvent(new CustomEvent('nols:availability:changed', { detail: { available: next }, bubbles: true, composed: true } as any)); } catch (e) {}
 
@@ -168,7 +156,9 @@ export default function DriverAvailabilitySwitch({ className = "" }: { className
 
       // Keep the optimistic state in both directions (pinned by user). Notify components and persist.
       try {
-        try { localStorage.setItem("driver_available", next ? "1" : "0"); } catch (e) {}
+        try {
+          if (meId) localStorage.setItem(`driver_available:${String(meId)}`, next ? '1' : '0');
+        } catch (e) {}
         try { window.dispatchEvent(new CustomEvent('nols:availability:changed', { detail: { available: next } })); } catch (e) {}
       } catch (e) {}
       // eslint-disable-next-line no-console

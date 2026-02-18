@@ -1,9 +1,9 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import axios from "axios";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, FileText, DollarSign, Building2, Calendar, CheckCircle2, XCircle, Clock, Receipt, CreditCard, Edit2 } from "lucide-react";
+import { ArrowLeft, FileText, DollarSign, Building2, Calendar, CheckCircle2, Clock, Receipt, CreditCard } from "lucide-react";
 
 // Use same-origin calls + secure httpOnly cookie session.
 const api = axios.create({ baseURL: "", withCredentials: true });
@@ -16,6 +16,15 @@ type Inv = {
   verifiedAt?:string|null; verifiedByUser?:{id:number;name:string|null}|null;
   approvedAt?:string|null; approvedByUser?:{id:number;name:string|null}|null;
   paidByUser?:{id:number;name:string|null}|null;
+  ownerPayout?: {
+    payoutPreferred: 'BANK' | 'MOBILE_MONEY' | null;
+    bankAccountName: string | null;
+    bankName: string | null;
+    bankAccountNumber: string | null;
+    bankBranch: string | null;
+    mobileMoneyProvider: string | null;
+    mobileMoneyNumber: string | null;
+  } | null;
 };
 
 export default function Page(){
@@ -25,7 +34,6 @@ export default function Page(){
   const [inv, setInv] = useState<Inv| null>(null);
   const [loading, setLoading] = useState(true);
   const [notes, setNotes] = useState("");
-  const [overrideCommission, setOverrideCommission] = useState<string>("");
   const [overrideTax, setOverrideTax] = useState<string>("");
   const [payMethod, setPayMethod] = useState("BANK");
   const [payRef, setPayRef] = useState("");
@@ -33,7 +41,7 @@ export default function Page(){
   
   const defaultVerificationMessage = "Invoice verified and approved for processing.";
 
-  async function load(){
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const r = await api.get<Inv>(`/api/admin/revenue/invoices/${id}`);
@@ -43,8 +51,23 @@ export default function Page(){
     } finally {
       setLoading(false);
     }
-  }
-  useEffect(()=>{ load(); },[id]);
+  }, [id]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  // Auto-pick payout method based on owner's preferred payout settings.
+  useEffect(() => {
+    const pref = String(inv?.ownerPayout?.payoutPreferred || "").toUpperCase();
+    if (pref === "MOBILE_MONEY") {
+      setPayMethod("MOBILE");
+      return;
+    }
+    if (pref === "BANK") {
+      setPayMethod("BANK");
+    }
+  }, [inv?.ownerPayout?.payoutPreferred]);
 
   async function verify(){
     setActionLoading(true);
@@ -63,11 +86,9 @@ export default function Page(){
     setActionLoading(true);
     try {
       await api.post(`/api/admin/revenue/invoices/${id}/approve`, {
-        commissionPercent: overrideCommission===""? undefined : Number(overrideCommission),
         taxPercent: overrideTax===""? undefined : Number(overrideTax),
       });
       await load();
-      setOverrideCommission("");
       setOverrideTax("");
     } catch (err: any) {
       alert(err?.response?.data?.error || "Failed to approve invoice");
@@ -269,17 +290,17 @@ export default function Page(){
                       <div className="text-base sm:text-lg font-bold text-blue-900 mt-1 break-words">{fmt(inv.commissionAmount)}</div>
                     </div>
                     
-                    {inv.taxPercent !== null && inv.taxPercent !== undefined ? (
-                      <div className="p-3 sm:p-4 bg-purple-50 rounded-lg min-w-0">
-                        <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Tax</div>
-                        <div className="text-xs sm:text-sm font-semibold text-purple-900">{inv.taxPercent}%</div>
-                      </div>
-                    ) : (
-                      <div className="p-3 sm:p-4 bg-purple-50 rounded-lg min-w-0">
-                        <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Tax</div>
-                        <div className="text-xs sm:text-sm font-semibold text-purple-900">0%</div>
-                      </div>
-                    )}
+                    {(() => {
+                      const taxPercent = inv.taxPercent !== null && inv.taxPercent !== undefined ? Number(inv.taxPercent) : 0;
+                      const taxAmount = (Number(inv.total || 0) * taxPercent) / 100;
+                      return (
+                        <div className="p-3 sm:p-4 bg-purple-50 rounded-lg min-w-0">
+                          <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Tax</div>
+                          <div className="text-xs sm:text-sm font-semibold text-purple-900">{taxPercent}%</div>
+                          <div className="text-base sm:text-lg font-bold text-purple-900 mt-1 break-words">{fmt(taxAmount)}</div>
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   <div className="flex items-center justify-between p-3 sm:p-4 bg-emerald-50 rounded-lg border-2 border-emerald-200 min-w-0">
@@ -315,6 +336,7 @@ export default function Page(){
 
                       {inv.receiptNumber && (
                         <div className="p-3 sm:p-4 bg-gray-50 rounded-lg overflow-hidden flex items-center justify-center">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src={`/admin/revenue/invoices/${inv.id}/receipt.png`}
                             alt="Receipt QR"
@@ -332,6 +354,41 @@ export default function Page(){
 
         {/* Sidebar - Actions */}
         <div className="space-y-4 sm:space-y-6 min-w-0">
+          {/* Saved payout details */}
+          {(inv.ownerPayout?.payoutPreferred || inv.ownerPayout?.bankAccountNumber || inv.ownerPayout?.mobileMoneyNumber) && (
+            <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-900">Saved payout details</h3>
+                  {inv.ownerPayout?.payoutPreferred && (
+                    <div className="text-xs text-gray-500 mt-0.5">
+                      Preferred: {inv.ownerPayout.payoutPreferred === 'MOBILE_MONEY' ? 'Mobile Money' : 'Bank'}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-3 text-sm">
+                <div className="min-w-0">
+                  <div className="text-gray-600">
+                    Bank: <span className="font-semibold text-gray-900">{inv.ownerPayout?.bankName || '—'}</span>
+                    {inv.ownerPayout?.bankAccountNumber ? (
+                      <span className="text-gray-600"> — Account: <span className="font-mono break-all">{maskAccountNumber(inv.ownerPayout.bankAccountNumber)}</span></span>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="min-w-0">
+                  <div className="text-gray-600">
+                    Mobile money ({inv.ownerPayout?.mobileMoneyProvider || '—'}): <span className="font-semibold text-gray-900 font-mono break-all">{inv.ownerPayout?.mobileMoneyNumber ? maskAccountNumber(inv.ownerPayout.mobileMoneyNumber) : '—'}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Verify Action */}
           {inv.status==="REQUESTED" && (
             <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden">
@@ -395,15 +452,15 @@ export default function Page(){
                 <div className="min-w-0">
                   <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
                     Commission %
-                    <span className="text-gray-400 font-normal ml-1 text-xs">(current: {inv.commissionPercent}%)</span>
+                    <span className="text-gray-400 font-normal ml-1 text-xs">(property rate: {inv.commissionPercent}%)</span>
                   </label>
                   <input
                     type="number"
                     step="0.01"
-                    className="w-full px-3 sm:px-4 py-2 sm:py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all text-sm sm:text-base box-border"
-                    placeholder={`${inv.commissionPercent}%`}
-                    value={overrideCommission}
-                    onChange={e=>setOverrideCommission(e.target.value)}
+                    className="w-full px-3 sm:px-4 py-2 sm:py-3 border-2 border-gray-200 rounded-lg bg-gray-50 text-gray-700 text-sm sm:text-base box-border cursor-not-allowed"
+                    value={String(inv.commissionPercent ?? 0)}
+                    readOnly
+                    disabled
                   />
                 </div>
                 <div className="min-w-0">
@@ -613,39 +670,40 @@ function fmt(n:any){
 
 function maskAccountNumber(account?: string | null): string | null {
   if (!account) return null;
-  
-  const cleaned = String(account).trim().replace(/[\s\-\(\)]/g, '');
-  const digits = cleaned.replace(/\D/g, '');
-  const isPhoneNumber = /^(0|255|\+255|254|\+254)/.test(cleaned) || /^\d{9,10}$/.test(cleaned);
-  
+
+  const cleaned = String(account).trim().replace(/[\s\-\(\)]/g, "");
+  const digits = cleaned.replace(/\D/g, "");
+
+  const maskMiddle = (value: string, startVisible: number, endVisible: number): string => {
+    if (!value) return value;
+    if (value.length <= startVisible + endVisible) return value;
+    const start = value.slice(0, startVisible);
+    const end = value.slice(-endVisible);
+    const middleLen = value.length - startVisible - endVisible;
+    return `${start}${"*".repeat(middleLen)}${end}`;
+  };
+
+  // Phone numbers: show first 3 + last 2, mask the middle.
+  const looksLikePhonePrefix = /^(0|255|\+255|254|\+254)/.test(cleaned);
+  const looksLikePhoneDigits = digits.length >= 9 && digits.length <= 12;
+  const isPhoneNumber = looksLikePhonePrefix || looksLikePhoneDigits;
+
   if (isPhoneNumber) {
     let localNumber = digits;
-    if (digits.startsWith('255')) {
-      localNumber = '0' + digits.slice(3);
-    } else if (digits.startsWith('254')) {
-      localNumber = '0' + digits.slice(3);
+    if (localNumber.startsWith("255") || localNumber.startsWith("254")) {
+      localNumber = "0" + localNumber.slice(3);
     }
-    if (!localNumber.startsWith('0') && localNumber.length >= 9) {
-      localNumber = '0' + localNumber;
+    if (!localNumber.startsWith("0") && localNumber.length >= 9) {
+      localNumber = "0" + localNumber;
     }
-    if (localNumber.length >= 9 && localNumber.startsWith('0')) {
-      const first3 = localNumber.slice(0, 3);
-      const last2 = localNumber.slice(-2);
-      return `${first3}*****${last2}`;
+    if (localNumber.length > 10 && localNumber.startsWith("0")) {
+      localNumber = localNumber.slice(0, 10);
     }
+    const basePhone = localNumber || digits || cleaned;
+    return maskMiddle(basePhone, 3, 2);
   }
-  
-  if (cleaned.length > 8) {
-    const first3 = cleaned.slice(0, 3);
-    const last2 = cleaned.slice(-2);
-    return `${first3}*****${last2}`;
-  }
-  
-  if (cleaned.length > 5) {
-    const first3 = cleaned.slice(0, 3);
-    const last2 = cleaned.slice(-2);
-    return `${first3}${'*'.repeat(Math.max(5, cleaned.length - 5))}${last2}`;
-  }
-  
-  return cleaned;
+
+  // Bank account (or other account identifiers): show first 3 + last 3, mask the middle.
+  const baseAccount = digits.length >= 6 ? digits : (cleaned || String(account).trim());
+  return maskMiddle(baseAccount, 3, 3);
 }

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ExternalLink, Megaphone, Calendar, Image as ImageIcon, Video, Play } from 'lucide-react';
+import { ExternalLink, Megaphone, Calendar, Video, Play } from 'lucide-react';
 import axios from 'axios';
 import LogoSpinner from "@/components/LogoSpinner";
 
@@ -28,16 +28,6 @@ function isSafeMediaUrl(url: string): boolean {
   } catch {
     return false;
   }
-}
-
-function isYouTubeEmbedUrl(url: string): boolean {
-  const trimmed = url.trim();
-  if (!trimmed) return false;
-  // Admin updates UI stores YouTube embed URLs.
-  return (
-    trimmed.startsWith('https://www.youtube.com/embed/') ||
-    trimmed.startsWith('https://www.youtube-nocookie.com/embed/')
-  );
 }
 
 function getYouTubeId(url: string): string | null {

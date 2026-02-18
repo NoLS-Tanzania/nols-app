@@ -11,6 +11,21 @@ import type { RequestHandler } from "express";
 
 router.use(requireAuth as RequestHandler, requireRole("ADMIN") as RequestHandler);
 
+async function createAdminAuditSafe(data: { adminId: number; targetUserId?: number | null; action: string; details?: any }) {
+  try {
+    await prisma.adminAudit.create({
+      data: {
+        adminId: data.adminId,
+        targetUserId: data.targetUserId ?? null,
+        action: data.action,
+        details: data.details ?? null,
+      },
+    });
+  } catch (e) {
+    console.warn("adminAudit.create failed:", String(e));
+  }
+}
+
 /** GET /admin/invoices - List invoices with pagination */
 router.get("/", async (req, res) => {
   try {
@@ -133,8 +148,18 @@ function nextReceiptNumber(prefix = "RCPT", seq: number) {
 /** POST /admin/invoices/:id/approve */
 router.post("/:id/approve", async (req, res) => {
   const id = Number(req.params.id);
+  const me = (req as AuthedRequest).user?.id;
+  const before = await prisma.invoice.findUnique({ where: { id }, select: { status: true, ownerId: true, invoiceNumber: true } });
   const inv = await prisma.invoice.update({ where: { id }, data: { status: "APPROVED", approvedAt: new Date() } });
   await invalidateOwnerReports(inv.ownerId); // invalidate cache for the owner
+  if (me) {
+    await createAdminAuditSafe({
+      adminId: me,
+      targetUserId: before?.ownerId ?? inv.ownerId,
+      action: "INVOICE_APPROVE",
+      details: { invoiceId: inv.id, invoiceNumber: before?.invoiceNumber ?? null, fromStatus: before?.status ?? null, toStatus: inv.status },
+    });
+  }
   req.app.get("io").emit("admin:invoice:status", { id: inv.id, status: inv.status });
   res.json({ ok: true, status: inv.status });
 });
@@ -142,8 +167,18 @@ router.post("/:id/approve", async (req, res) => {
 /** POST /admin/invoices/:id/process */
 router.post("/:id/process", async (req, res) => {
   const id = Number(req.params.id);
+  const me = (req as AuthedRequest).user?.id;
+  const before = await prisma.invoice.findUnique({ where: { id }, select: { status: true, ownerId: true, invoiceNumber: true } });
   const inv = await prisma.invoice.update({ where: { id }, data: { status: "PROCESSING" } });
   await invalidateOwnerReports(inv.ownerId); // invalidate cache for the owner
+  if (me) {
+    await createAdminAuditSafe({
+      adminId: me,
+      targetUserId: before?.ownerId ?? inv.ownerId,
+      action: "INVOICE_PROCESS",
+      details: { invoiceId: inv.id, invoiceNumber: before?.invoiceNumber ?? null, fromStatus: before?.status ?? null, toStatus: inv.status },
+    });
+  }
   req.app.get("io").emit("admin:invoice:status", { id: inv.id, status: inv.status });
   res.json({ ok: true, status: inv.status });
 });
@@ -155,6 +190,9 @@ router.post("/:id/process", async (req, res) => {
 router.post("/:id/pay", async (req, res) => {
   const id = Number(req.params.id);
   const { paymentRef, commissionPercent } = req.body ?? {};
+
+  const me = (req as AuthedRequest).user?.id;
+  const before = await prisma.invoice.findUnique({ where: { id }, select: { status: true, ownerId: true, invoiceNumber: true, total: true } });
 
   const updated = await prisma.$transaction(async (tx: { invoice: { findUnique: (arg0: { where: { id: number; }; }) => any; update: (arg0: { where: { id: number; }; data: { status: string; paidAt: Date; commissionPercent: any; commissionAmount: any; netPayable: any; receiptNumber: any; paymentRef: any; }; }) => any; }; }) => {
   const inv = await tx.invoice.findUnique({ where: { id } });
@@ -215,6 +253,23 @@ router.post("/:id/pay", async (req, res) => {
 
   if (!updated) return res.status(404).json({ error: "Not found" });
   try { await invalidateOwnerReports(updated.ownerId); } catch (e) { /* ignore */ }
+
+  if (me) {
+    await createAdminAuditSafe({
+      adminId: me,
+      targetUserId: before?.ownerId ?? updated.ownerId,
+      action: "INVOICE_PAY",
+      details: {
+        invoiceId: updated.id,
+        invoiceNumber: before?.invoiceNumber ?? null,
+        fromStatus: before?.status ?? null,
+        toStatus: updated.status,
+        paymentRef: updated.paymentRef ?? paymentRef ?? null,
+        receiptNumber: updated.receiptNumber ?? null,
+        total: before?.total ?? null,
+      },
+    });
+  }
   
   const io = req.app.get("io");
   io.emit("admin:invoice:paid", { id: updated.id });
@@ -327,12 +382,22 @@ router.post("/:id/pay", async (req, res) => {
 /** POST /admin/invoices/:id/reject  Body: { reason } */
 router.post("/:id/reject", async (req, res) => {
   const id = Number(req.params.id);
+  const me = (req as AuthedRequest).user?.id;
   const reason = (req.body?.reason as string) || "Not specified";
+  const before = await prisma.invoice.findUnique({ where: { id }, select: { status: true, ownerId: true, invoiceNumber: true } });
   const inv = await prisma.invoice.update({
     where: { id },
     data: { status: "REJECTED", rejectedAt: new Date(), rejectedReason: reason } as any,
   });
   await invalidateOwnerReports(inv.ownerId); // invalidate cache for the owner
+  if (me) {
+    await createAdminAuditSafe({
+      adminId: me,
+      targetUserId: before?.ownerId ?? inv.ownerId,
+      action: "INVOICE_REJECT",
+      details: { invoiceId: inv.id, invoiceNumber: before?.invoiceNumber ?? null, fromStatus: before?.status ?? null, toStatus: inv.status, reason },
+    });
+  }
   req.app.get("io").emit("admin:invoice:status", { id: inv.id, status: inv.status, reason });
   res.json({ ok: true, status: inv.status });
 });
@@ -386,6 +451,21 @@ router.post("/:id/mark-paid", async (req, res) => {
         receiptQrPng: png,
       },
       include: { booking: true },
+    });
+
+    await createAdminAuditSafe({
+      adminId,
+      targetUserId: inv.ownerId,
+      action: "INVOICE_MARK_PAID",
+      details: {
+        invoiceId: updated.id,
+        invoiceNumber: inv.invoiceNumber ?? null,
+        fromStatus: inv.status,
+        toStatus: updated.status,
+        method,
+        ref,
+        receiptNumber: updated.receiptNumber ?? null,
+      },
     });
 
     await invalidateOwnerReports(updated.ownerId);

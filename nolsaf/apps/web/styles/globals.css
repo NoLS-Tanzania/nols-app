@@ -530,6 +530,7 @@ html, body, #__next {
 @media (min-width: 768px) {
   .owner-content-gap {
     padding-left: calc(var(--admin-sidebar-width) + 0.5rem) !important;
+    box-sizing: border-box;
   }
 }
 
@@ -3100,7 +3101,7 @@ article[class*="max-w"] span {
 .public-container img,
 .public-container video,
 .public-container iframe,
-.public-container svg,
+.public-container svg:not(.lucide),
 .public-container canvas {
   max-width: 100%;
   height: auto;

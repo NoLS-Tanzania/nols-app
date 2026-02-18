@@ -1,7 +1,7 @@
 "use client";
 import React, { useEffect, useMemo, useState } from 'react';
 import TableRow from "@/components/TableRow";
-import { Building2, Download, Eye, Mail, MapPin, Package, X, ExternalLink, RefreshCw, CheckCircle2 } from "lucide-react";
+import { Building2, Download, Eye, X, ExternalLink, RefreshCw, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import axios from "axios";
 
@@ -81,9 +81,9 @@ export default function OwnersPage() {
   const [owners, setOwners] = useState<Owner[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<Owner | null>(null);
-  const [preview, setPreview] = useState<PayoutPreview | null>(null);
-  const [previewLoading, setPreviewLoading] = useState(false);
-  const [granting, setGranting] = useState(false);
+  const [, setPreview] = useState<PayoutPreview | null>(null);
+  const [, setPreviewLoading] = useState(false);
+  const [, setGranting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -162,7 +162,7 @@ export default function OwnersPage() {
     }
   };
 
-  const handlePreview = async (ownerId: number) => {
+  const _handlePreview = async (ownerId: number) => {
     setPreviewLoading(true);
     setError(null);
     try {
@@ -182,7 +182,7 @@ export default function OwnersPage() {
     }
   };
 
-  const handleGrant = async (ownerId: number) => {
+  const _handleGrant = async (ownerId: number) => {
     if (!confirm('Grant payout to owner? This will be recorded in audit logs.')) return;
     setGranting(true);
     try {

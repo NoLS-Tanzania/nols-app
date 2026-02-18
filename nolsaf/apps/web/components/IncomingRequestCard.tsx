@@ -242,10 +242,10 @@ export default function IncomingRequestCard({ request }: { request?: any }) {
                   const vibThreshold = 72;
                   try {
                     if (limited >= vibThreshold && (knob as any)._vibrated !== 1) {
-                      (navigator as any).vibrate && (navigator as any).vibrate(40);
+                      if ((navigator as any).vibrate) (navigator as any).vibrate(40);
                       (knob as any)._vibrated = 1;
                     } else if (limited <= -vibThreshold && (knob as any)._vibrated !== -1) {
-                      (navigator as any).vibrate && (navigator as any).vibrate(40);
+                      if ((navigator as any).vibrate) (navigator as any).vibrate(40);
                       (knob as any)._vibrated = -1;
                     } else if (limited > -vibThreshold && limited < vibThreshold) {
                       // reset vibrate flag when back to center

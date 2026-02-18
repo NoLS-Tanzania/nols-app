@@ -196,7 +196,8 @@ const getMe: RequestHandler = async (req, res) => {
     };
     // Common/profile fields
     if (hasField('fullName')) select.fullName = true;
-    if (hasField('avatarUrl')) select.avatarUrl = true;
+    // Always try to include avatarUrl; fall back if missing in older DBs.
+    select.avatarUrl = true;
     if (hasField('emailVerifiedAt')) select.emailVerifiedAt = true;
     if (hasField('phoneVerifiedAt')) select.phoneVerifiedAt = true;
     if (hasField('twoFactorEnabled')) select.twoFactorEnabled = true;
@@ -264,6 +265,8 @@ const getMe: RequestHandler = async (req, res) => {
           };
           // Always try to include payout, twoFactorEnabled, and twoFactorMethod even in minimal select
           minimalSelect.payout = true;
+          // Always try to include avatarUrl
+          minimalSelect.avatarUrl = true;
           if (hasField('twoFactorEnabled')) minimalSelect.twoFactorEnabled = true;
           if (hasField('twoFactorMethod')) minimalSelect.twoFactorMethod = true;
           
@@ -1525,11 +1528,11 @@ router.post(
 const getAccountLoginHistory: RequestHandler = async (req, res) => {
   const userId = getUserId(req as AuthedRequest);
   try {
-    // Prefer audit logs produced by auth flows (USER_LOGIN). These include IP + UA.
+    // Prefer audit logs produced by auth flows (USER_LOGIN/USER_LOGOUT). These include IP + UA.
     if ((prisma as any).auditLog) {
       try {
         const audits = await (prisma as any).auditLog.findMany({
-          where: { actorId: userId, action: "USER_LOGIN" },
+          where: { actorId: userId, action: { in: ["USER_LOGIN", "USER_LOGOUT"] } },
           orderBy: { createdAt: "desc" },
           take: 50,
         });
@@ -1537,7 +1540,13 @@ const getAccountLoginHistory: RequestHandler = async (req, res) => {
           const ua = typeof it.ua === "string" ? it.ua : "";
           const after = it.afterJson as any;
           const method = after && typeof after.loginMethod === "string" ? after.loginMethod : null;
-          const detailsParts = [method ? `Method: ${method}` : null, ua ? `UA: ${ua}` : null].filter(Boolean);
+          const event = after && typeof after.event === "string" ? after.event : (it.action === "USER_LOGOUT" ? "logout" : "login");
+          const ok = after && typeof after.success === "boolean" ? after.success : (it.action === "USER_LOGIN" ? true : true);
+          const detailsParts = [
+            event ? `Event: ${event}` : null,
+            method ? `Method: ${method}` : null,
+            ua ? `UA: ${ua}` : null,
+          ].filter(Boolean);
           return {
             id: String(it.id),
             at: it.createdAt,
@@ -1546,7 +1555,7 @@ const getAccountLoginHistory: RequestHandler = async (req, res) => {
             platform: inferPlatformFromUserAgent(ua),
             details: detailsParts.length ? detailsParts.join("\n") : null,
             timeUsed: null,
-            success: true,
+            success: ok,
           };
         });
         return res.json({ records });

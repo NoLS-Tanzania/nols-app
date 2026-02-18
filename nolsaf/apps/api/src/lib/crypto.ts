@@ -120,42 +120,77 @@ export function decrypt(encryptedData: string): string {
   if (!encryptedData || encryptedData.length === 0) {
     return '';
   }
-  
-  try {
-    // Decode from base64
-    const combined = Buffer.from(encryptedData, 'base64');
-    
-    // Check minimum length (IV: 12 + auth tag: 16 = 28 bytes minimum)
-    if (combined.length < 28) {
-      // Might be old XOR-encrypted data, try legacy decryption
-      return decryptLegacy(encryptedData);
+
+  const input = String(encryptedData).trim();
+
+  // If it already looks like a plain number/identifier, don't attempt to decrypt.
+  // This prevents producing garbage from accidental base64 decoding of plaintext digits.
+  if (/^\+?\d{6,40}$/.test(input)) {
+    throw new Error('Value appears to be plaintext, not encrypted');
+  }
+
+  const normalizeBase64 = (s: string) => {
+    const compact = s.replace(/\s+/g, '');
+    if (!/^[A-Za-z0-9+/]*={0,2}$/.test(compact)) {
+      throw new Error('Invalid base64');
     }
-    
-    // Extract components
-    const iv = combined.slice(0, 12);
-    const authTag = combined.slice(-16);
-    const encrypted = combined.slice(12, -16);
-    
-    // Create decipher
-    const decipher = crypto.createDecipheriv('aes-256-gcm', ENC_KEY, iv);
-    decipher.setAuthTag(authTag);
-    
-    // Decrypt
-    const decrypted = Buffer.concat([
-      decipher.update(encrypted),
-      decipher.final()
-    ]);
-    
-    return decrypted.toString('utf8');
-  } catch (error) {
-    // If GCM decryption fails, might be legacy XOR-encrypted data
+    const mod = compact.length % 4;
+    if (mod === 1) {
+      throw new Error('Invalid base64 length');
+    }
+    if (mod === 2) return compact + '==';
+    if (mod === 3) return compact + '=';
+    return compact;
+  };
+
+  const isMostlyPrintable = (s: string) => {
+    if (!s) return false;
+    if (s.includes('\uFFFD')) return false;
+    // Allow common printable ASCII + whitespace.
+    const printable = s.replace(/[\t\n\r\x20-\x7E]/g, '');
+    return printable.length / s.length < 0.05;
+  };
+
+  let combined: Buffer;
+  try {
+    combined = Buffer.from(normalizeBase64(input), 'base64');
+  } catch (e) {
+    // Not base64 => not encrypted in our system.
+    throw new Error('Not encrypted');
+  }
+
+  // AES-256-GCM format: IV (12) + ciphertext + authTag (16)
+  if (combined.length >= 28) {
     try {
-      return decryptLegacy(encryptedData);
-    } catch (legacyError) {
-      console.error('Decryption failed (both GCM and legacy):', error);
+      const iv = combined.slice(0, 12);
+      const authTag = combined.slice(-16);
+      const encrypted = combined.slice(12, -16);
+
+      const decipher = crypto.createDecipheriv('aes-256-gcm', ENC_KEY, iv);
+      decipher.setAuthTag(authTag);
+      const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
+      return decrypted.toString('utf8');
+    } catch (error) {
+      // Fall back to legacy only if output looks reasonable.
+      try {
+        const legacy = decryptLegacy(input);
+        if (isMostlyPrintable(legacy)) return legacy;
+      } catch {
+        // ignore
+      }
+      console.error('Decryption failed:', error);
       throw new Error('Failed to decrypt sensitive data - invalid format or corrupted');
     }
   }
+
+  // Short buffers can't be GCM; try legacy XOR but only if it yields printable text.
+  try {
+    const legacy = decryptLegacy(input);
+    if (isMostlyPrintable(legacy)) return legacy;
+  } catch {
+    // ignore
+  }
+  throw new Error('Failed to decrypt sensitive data - invalid format or corrupted');
 }
 
 /**

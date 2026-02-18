@@ -66,7 +66,7 @@ export default function OwnerLayout({ children }: { children: ReactNode }) {
           )}
 
           {/* Main content: add left padding on md+ equal to sidebar width plus small gap so content clears it */}
-          <div className={`pt-16 pb-6 transition-all duration-300 ease-in-out ${sidebarOpen ? 'owner-content-gap' : 'md:ml-16'} h-[calc(100vh-4rem)] overflow-y-auto scroll-smooth`}>
+          <div className={`pt-16 pb-6 transition-all duration-300 ease-in-out box-border max-w-full overflow-x-hidden ${sidebarOpen ? 'owner-content-gap' : 'md:ml-16'} h-[calc(100vh-4rem)] overflow-y-auto scroll-smooth`}>
             <main>
               <div className="w-full">
                 {children}

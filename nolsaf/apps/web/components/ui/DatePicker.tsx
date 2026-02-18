@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 
 const MONTHS = [
@@ -103,9 +103,10 @@ export default function DatePicker({
     return () => document.removeEventListener("mousedown", onDoc);
   }, [onCloseAction]);
 
-  const view2 = twoMonths
-    ? { year: view.month === 11 ? view.year + 1 : view.year, month: (view.month + 1) % 12 }
-    : null;
+  const view2 = useMemo(
+    () => (twoMonths ? { year: view.month === 11 ? view.year + 1 : view.year, month: (view.month + 1) % 12 } : null),
+    [twoMonths, view.year, view.month]
+  );
   const days = buildDays(view.year, view.month);
   const days2 = view2 ? buildDays(view2.year, view2.month) : [];
   const allDays = twoMonths ? [...days, ...days2] : days;
@@ -199,7 +200,7 @@ export default function DatePicker({
         // ignore failures — calendar will still work without counts
       }
     })();
-  }, [view.year, view.month, view2?.year, view2?.month]);
+  }, [view.year, view.month, view2]);
 
   const renderCell = (cell: DayCell, idx: number, refOffset: number) => {
     const isoKey = `${cell.y}-${pad(cell.m + 1)}-${pad(cell.d)}`;

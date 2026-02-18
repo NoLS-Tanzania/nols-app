@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useRef } from "react";
-import { io, Socket } from "socket.io-client";
+import { io } from "socket.io-client";
 import { Send, Phone, MessageCircle } from "lucide-react";
 import axios from "axios";
 import LogoSpinner from "@/components/LogoSpinner";
@@ -39,7 +39,6 @@ export default function TransportChat({
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
-  const [socket, setSocket] = useState<Socket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
@@ -107,8 +106,6 @@ export default function TransportChat({
         }
       }
     });
-
-    setSocket(newSocket);
 
     return () => {
       newSocket.disconnect();

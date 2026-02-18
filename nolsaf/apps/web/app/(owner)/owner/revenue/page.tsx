@@ -667,7 +667,11 @@ export default function OwnerRevenuePage() {
                     const gross = Number(invoice.total);
                     return Number.isFinite(gross) ? gross : 0;
                   })();
-                  const viewHref = invoice.status === "PAID" ? `/owner/revenue/receipts/${invoice.id}` : `/owner/invoices/${invoice.id}`;
+                  const invoiceNumber = String((invoice as any)?.invoiceNumber ?? "");
+                  const isOwnerSubmittedInvoice = invoiceNumber.startsWith("OINV-");
+                  const viewHref = isOwnerSubmittedInvoice
+                    ? `/owner/invoices/${invoice.id}`
+                    : (invoice.status === "PAID" ? `/owner/revenue/receipts/${invoice.id}` : `/owner/revenue/invoices/${invoice.id}`);
                   const viewLabel = invoice.status === "PAID" ? "Receipt" : "View";
                   return (
                     <tr key={invoice.id} className="hover:bg-slate-50/60 transition-colors duration-150">

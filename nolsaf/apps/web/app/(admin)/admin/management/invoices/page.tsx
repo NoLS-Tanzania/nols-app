@@ -2,7 +2,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import TableRow from "@/components/TableRow";
 import { Receipt, ChevronLeft, ChevronRight, Download, Search, ChevronDown, X, CheckCircle2, Clock, XCircle } from "lucide-react";
-import Link from "next/link";
 
 type InvoiceRow = {
   id: number;

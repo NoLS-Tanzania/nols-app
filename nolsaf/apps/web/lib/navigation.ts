@@ -54,15 +54,12 @@ export function openRouteInMaps(
   originLng: number,
   destinationLat: number,
   destinationLng: number,
-  originName?: string,
-  destinationName?: string
+  _originName?: string,
+  _destinationName?: string
 ) {
   const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
   const isIOS = /iPad|iPhone|iPod/.test(userAgent) && !(window as any).MSStream;
   const isAndroid = /android/i.test(userAgent);
-
-  const encodedOrigin = originName ? encodeURIComponent(originName) : "";
-  const encodedDestination = destinationName ? encodeURIComponent(destinationName) : "";
 
   if (isIOS) {
     const appleMapsUrl = `maps://maps.apple.com/?saddr=${originLat},${originLng}&daddr=${destinationLat},${destinationLng}`;

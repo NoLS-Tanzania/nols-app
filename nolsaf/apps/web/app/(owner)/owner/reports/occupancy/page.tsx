@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import ReportsFilter, { ReportsFilters } from "@/components/ReportsFilter";
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { AlertTriangle, Building2, Percent, TrendingUp } from "lucide-react";
 // Use same-origin calls + secure httpOnly cookie session.
 const api = axios.create({ baseURL: "", withCredentials: true });
@@ -49,6 +49,11 @@ export default function Occupancy() {
       .map((p: any) => ({ title: String(p.title ?? ""), net: Number(p.net ?? 0) }))
       .sort((a: any, b: any) => b.net - a.net);
   }, [data]);
+
+  const propertyBarColors = useMemo(
+    () => ["#16a34a", "#eab308", "#3b82f6", "#f97316", "#14b8a6", "#a855f7"],
+    []
+  );
 
   const kpis = useMemo(() => {
     if (!heat.length) return { avg: 0, peak: 0, days: 0 };
@@ -124,7 +129,11 @@ export default function Occupancy() {
                   <XAxis dataKey="title" tick={{ fill: "#6b7280", fontSize: 11 }} axisLine={{ stroke: "#e5e7eb" }} tickLine={false} />
                   <YAxis tick={{ fill: "#6b7280", fontSize: 12 }} axisLine={{ stroke: "#e5e7eb" }} tickLine={false} tickFormatter={fmtCompact} />
                   <Tooltip content={<MoneyTooltip />} />
-                  <Bar dataKey="net" name="Net" radius={[8, 8, 0, 0]} fill="#0f172a" />
+                  <Bar dataKey="net" name="Net" radius={[8, 8, 0, 0]}>
+                    {byProperty.map((_: any, i: number) => (
+                      <Cell key={i} fill={propertyBarColors[i % propertyBarColors.length]} />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>

@@ -119,6 +119,7 @@ import { adminOriginGuard } from "./middleware/adminOriginGuard.js";
 import { performanceMiddleware } from './middleware/performance.js';
 import { prisma } from "@nolsaf/prisma";
 import { startTransportAutoDispatch } from "./workers/transportAutoDispatch.js";
+import { startOwnerBusinessLicenceExpiryReminders } from "./workers/ownerBusinessLicenceExpiryReminders.js";
 
 // moved the POST handler to after the app is created
 // Create app and server before using them
@@ -182,6 +183,7 @@ app.set('io', io);
 // If no driver is assigned within the grace window, the trip will later become claimable.
 if (process.env.NODE_ENV !== "test") {
   startTransportAutoDispatch({ io });
+  startOwnerBusinessLicenceExpiryReminders({ io });
 }
 
 // Socket.IO authentication middleware
@@ -201,8 +203,21 @@ io.on('connection', (socket: AuthenticatedSocket) => {
       // Best-effort: join/leave the available-drivers room from DB state on connect.
       (async () => {
         try {
-          const row = await prisma.user.findUnique({ where: { id: user.id }, select: { available: true, isAvailable: true } });
-          const isAvailable = Boolean(row?.available ?? row?.isAvailable ?? false);
+          let isAvailable = false;
+          try {
+            if ((prisma as any).driverAvailability) {
+              const row = await (prisma as any).driverAvailability.findUnique({
+                where: { driverId: user.id },
+                select: { available: true },
+              });
+              isAvailable = Boolean(row?.available);
+            } else {
+              const row = await prisma.user.findUnique({ where: { id: user.id }, select: { available: true, isAvailable: true } });
+              isAvailable = Boolean(row?.available ?? row?.isAvailable ?? false);
+            }
+          } catch {
+            isAvailable = false;
+          }
           if (isAvailable) socket.join('drivers:available');
           else socket.leave('drivers:available');
         } catch {

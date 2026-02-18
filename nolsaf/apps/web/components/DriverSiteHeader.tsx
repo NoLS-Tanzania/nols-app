@@ -128,7 +128,7 @@ export default function DriverSiteHeader({ unreadMessages = 0 }: { unreadMessage
       />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-white/10" aria-hidden />
 
-      <div className="mx-auto max-w-6xl px-4 h-16 flex items-center relative">
+      <div className="public-container h-16 flex items-center relative">
         <div className="w-full h-14 rounded-3xl border border-white/10 backdrop-blur-xl shadow-[0_18px_70px_rgba(0,0,0,0.40),0_0_50px_rgba(2,102,94,0.14)] flex items-center justify-between px-5 md:px-6 relative bg-gradient-to-b from-[#0b1220]/90 via-[#0a1624]/75 to-[#070f1a]/85">
           {/* Left: sidebar toggle + brand (kept inside bar) */}
           <div className="inline-flex items-center gap-3">

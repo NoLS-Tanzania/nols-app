@@ -4,7 +4,6 @@ import React, { useState, useEffect, useRef } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { ChevronLeft, Smartphone, CheckCircle, XCircle, MessageSquare } from 'lucide-react'
-import { useRouter } from 'next/navigation'
 import axios from "axios"
 
 const api = axios.create({ baseURL: "", withCredentials: true })
@@ -29,8 +28,6 @@ export default function Owner2FAPage() {
   const [smsFlow, setSmsFlow] = useState<'idle'|'sent'|'verifying'|'enabled'|'disabled'>('idle')
   const totpVerifyingRef = useRef(false)
   const smsVerifyingRef = useRef(false)
-  const router = useRouter()
-
   useEffect(() => {
     let mounted = true
     setInitialLoading(true)

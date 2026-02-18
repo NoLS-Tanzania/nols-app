@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { Globe, ChevronDown } from 'lucide-react';
+import { Globe } from 'lucide-react';
 
 const KEY_LOCALE = 'nolsaf_locale';
 const KEY_CURRENCY = 'nolsaf_currency';

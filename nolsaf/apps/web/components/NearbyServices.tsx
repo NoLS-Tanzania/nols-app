@@ -3,12 +3,7 @@
 import { useState } from "react";
 import {
   MapPin,
-  Hospital,
-  Fuel,
-  Plane,
   Bus,
-  Route,
-  Shield,
   Link as LinkIcon,
   ChevronDown,
   ChevronUp,
@@ -26,30 +21,6 @@ function getTransportIcon(mode: string): ComponentType<{ className?: string }> |
   if (modeLower.includes('boda') || modeLower.includes('motorcycle') || modeLower.includes('bike')) return Bike;
   if (modeLower.includes('public') || modeLower.includes('bus') || modeLower.includes('transport')) return Bus;
   return null;
-}
-
-// Get facility icon based on type
-function getFacilityIcon(type: string) {
-  const t = (type || "").toLowerCase();
-  if (t.includes("hospital") || t.includes("clinic") || t.includes("pharmacy") || t.includes("polyclinic")) {
-    return { Icon: Hospital, color: "text-rose-600" };
-  }
-  if (t.includes("petrol") || t.includes("fuel") || t.includes("gas")) {
-    return { Icon: Fuel, color: "text-orange-600" };
-  }
-  if (t.includes("airport")) {
-    return { Icon: Plane, color: "text-blue-600" };
-  }
-  if (t.includes("bus") || t.includes("station")) {
-    return { Icon: Bus, color: "text-amber-700" };
-  }
-  if (t.includes("road") || t.includes("main road")) {
-    return { Icon: Route, color: "text-slate-700" };
-  }
-  if (t.includes("police")) {
-    return { Icon: Shield, color: "text-indigo-600" };
-  }
-  return { Icon: MapPin, color: "text-[#02665e]" };
 }
 
 type NearbyServicesProps = {
@@ -84,9 +55,6 @@ export default function NearbyServices({
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-3">
         {displayedFacilities.map((facility: any, idx: number) => {
-          const facilityIcon = getFacilityIcon(facility.type || "");
-          const Icon = facilityIcon.Icon;
-
           return (
             <div
               key={idx}

@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import crypto from "crypto";
 import { sendSms } from "./sms.js";
 import { sendMail } from "./mailer.js";
+import { getBookingValidationWindowStatus } from "./bookingValidationWindow.js";
 
 function getModelFieldSet(modelName: string): Set<string> | null {
   try {
@@ -593,6 +594,8 @@ export async function markBookingCodeAsUsed(
         booking: {
           select: {
             id: true,
+            checkIn: true,
+            checkOut: true,
             property: {
               select: {
                 ownerId: true,
@@ -613,6 +616,15 @@ export async function markBookingCodeAsUsed(
 
     if (checkinCode.status !== "ACTIVE") {
       return { success: false, error: "Code is not active" };
+    }
+
+    const windowStatus = getBookingValidationWindowStatus(
+      new Date(checkinCode.booking.checkIn as any),
+      new Date(checkinCode.booking.checkOut as any),
+      new Date()
+    );
+    if (!windowStatus.canValidate) {
+      return { success: false, error: windowStatus.reason };
     }
 
     // Update code status and booking status

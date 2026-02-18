@@ -52,6 +52,7 @@ export default function Receipt() {
         </div>
         <div className="p-3">
           <div className="text-sm font-semibold mb-2">Receipt QR</div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={`/api/owner/revenue/invoices/${inv.id}/receipt/qr.png`}
             alt="Receipt QR"

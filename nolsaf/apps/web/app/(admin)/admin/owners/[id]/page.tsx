@@ -1,11 +1,11 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import axios from "axios";
 import { io, Socket } from "socket.io-client";
 import Link from "next/link";
 import Image from "next/image";
 import { useParams } from "next/navigation";
-import { ArrowLeft, User, Building2, FileText, DollarSign, Mail, Phone, Calendar, CheckCircle2, XCircle, Clock, Eye, Shield, Ban, Copy, MapPin, ImageIcon, Bell, Send, X, History, Activity, FileCheck, Home, Search, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { ArrowLeft, User, Building2, FileText, DollarSign, Mail, Phone, Calendar, CheckCircle2, XCircle, Clock, Eye, Shield, Ban, Copy, MapPin, ImageIcon, Bell, Send, X, History, Activity, Home, Search, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, FileX, RefreshCw, Check, ExternalLink } from "lucide-react";
 import VerifiedIcon from "@/components/VerifiedIcon";
 import TableRow from "@/components/TableRow";
 
@@ -25,7 +25,20 @@ type Snapshot = {
   revenue: { netSum:number; grossSum:number; commissionSum:number; paidCount:number };
 };
 
-type Doc = { id:number; type:string; url:string; status:string; reason?:string|null; createdAt:string };
+type Doc = { id:number; type:string; url:string; status:string; reason?:string|null; createdAt:string; metadata?: any | null };
+
+const REQUIRED_OWNER_DOCS = [
+  { type: "BUSINESS_LICENCE", label: "Business Licence (Valid)" },
+  { type: "TIN_CERTIFICATE", label: "TIN Number Certificate" },
+] as const;
+
+function getLatestDocByType(docs: Doc[], type: string): Doc | null {
+  const normalizedType = String(type).toUpperCase();
+  for (const d of docs) {
+    if (String(d?.type ?? "").toUpperCase() === normalizedType) return d;
+  }
+  return null;
+}
 
 type Property = {
   id: number;
@@ -74,6 +87,24 @@ export default function OwnerDetailPage() {
   const [bookingsSearch, setBookingsSearch] = useState<string>("");
   const [bookingsSortBy, setBookingsSortBy] = useState<string | null>(null);
   const [bookingsSortDir, setBookingsSortDir] = useState<"asc" | "desc">("desc");
+
+  const [toast, setToast] = useState<{ tone: "success" | "error"; message: string } | null>(null);
+  const toastTimerRef = useRef<number | null>(null);
+
+  const showToast = useCallback((tone: "success" | "error", message: string) => {
+    setToast({ tone, message });
+    if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = window.setTimeout(() => {
+      setToast(null);
+      toastTimerRef.current = null;
+    }, 3000);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+    };
+  }, []);
 
 
   const load = useCallback(async () => {
@@ -461,6 +492,42 @@ export default function OwnerDetailPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 xl:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6 min-w-0">
+      {toast ? (
+        <div className="fixed top-4 right-4 z-50">
+          <div
+            className={
+              "min-w-[280px] max-w-[420px] rounded-2xl border shadow-xl px-4 py-3 backdrop-blur bg-white/95 transition-all duration-200 " +
+              (toast.tone === "success" ? "border-emerald-200" : "border-red-200")
+            }
+            role="status"
+            aria-live="polite"
+          >
+            <div className="flex items-start gap-3">
+              <div
+                className={
+                  "mt-0.5 h-9 w-9 rounded-xl flex items-center justify-center " +
+                  (toast.tone === "success" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700")
+                }
+              >
+                {toast.tone === "success" ? <CheckCircle2 className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
+              </div>
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-gray-900">{toast.tone === "success" ? "Success" : "Error"}</div>
+                <div className="text-sm text-gray-700 mt-0.5 break-words">{toast.message}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setToast(null)}
+                className="ml-auto inline-flex items-center justify-center h-8 w-8 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition-colors duration-200"
+                aria-label="Close notification"
+                title="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {/* Header */}
       <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6 shadow-sm overflow-hidden">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -1033,124 +1100,181 @@ export default function OwnerDetailPage() {
 
           {tab === "documents" && (
             <div className="space-y-4">
-              {docs.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {docs.map(d => {
-                    const getStatusBadge = () => {
-                      const status = d.status?.toUpperCase() || '';
-                      if (status === 'APPROVED') {
-                        return (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-medium">
-                            <CheckCircle2 className="h-3 w-3" />
-                            Approved
-                          </span>
-                        );
-                      }
-                      if (status === 'REJECTED') {
-                        return (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 text-red-800 text-xs font-medium">
-                            <XCircle className="h-3 w-3" />
-                            Rejected
-                          </span>
-                        );
-                      }
-                      return (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-xs font-medium">
-                          <Clock className="h-3 w-3" />
-                          Pending
-                        </span>
-                      );
-                    };
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-sm font-semibold text-gray-900">Required documents</div>
+                <button
+                  type="button"
+                  onClick={() => loadDocs()}
+                  className="inline-flex items-center justify-center rounded-lg border border-gray-200 p-2 text-gray-700 hover:bg-gray-50 transition-colors duration-200"
+                  aria-label="Reload documents"
+                  title="Reload"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </button>
+              </div>
 
-                    const getDocumentIcon = () => {
-                      const type = d.type?.toLowerCase() || '';
-                      if (type.includes('id') || type.includes('passport')) {
-                        return <FileCheck className="h-8 w-8 text-blue-600" />;
-                      }
-                      if (type.includes('license') || type.includes('permit')) {
-                        return <FileCheck className="h-8 w-8 text-purple-600" />;
-                      }
-                      return <FileText className="h-8 w-8 text-gray-600" />;
-                    };
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {REQUIRED_OWNER_DOCS.map((req) => {
+                  const latest = getLatestDocByType(docs, req.type);
+                  const status = String(latest?.status || "NOT_UPLOADED").toUpperCase();
+                  const isApproved = status === "APPROVED";
+                  const isRejected = status === "REJECTED";
+                  const isPending = status === "PENDING";
+                  const canPreview = Boolean(latest?.url);
+                  const isNotUploaded = !latest?.url;
 
-                    return (
-                      <div key={d.id} className="group border border-gray-200 rounded-xl bg-white hover:shadow-lg transition-all duration-200 overflow-hidden">
-                        {/* Document Thumbnail/Preview */}
-                        <div className="relative bg-gradient-to-br from-gray-50 to-gray-100 p-6 flex items-center justify-center min-h-[120px]">
-                          <div className="flex flex-col items-center gap-2">
-                            {getDocumentIcon()}
-                            <div className="text-xs font-medium text-gray-600 text-center px-2 line-clamp-2">
-                              {d.type || 'Document'}
-                            </div>
-                          </div>
-                          {/* Status overlay */}
-                          <div className="absolute top-2 right-2">
-                            {getStatusBadge()}
+                  const expiresAtRaw = req.type === "BUSINESS_LICENCE" ? (latest as any)?.metadata?.expiresAt : null;
+                  const expiresAt = expiresAtRaw ? new Date(String(expiresAtRaw)) : null;
+                  const isExpired =
+                    req.type === "BUSINESS_LICENCE" &&
+                    isApproved &&
+                    expiresAt instanceof Date &&
+                    Number.isFinite(expiresAt.getTime()) &&
+                    expiresAt.getTime() < Date.now();
+
+                  const badge = isExpired
+                    ? { cls: "bg-red-100 text-red-800", Icon: XCircle, text: "Expired" }
+                    : isApproved
+                      ? { cls: "bg-emerald-100 text-emerald-800", Icon: CheckCircle2, text: "Approved" }
+                    : isRejected
+                      ? { cls: "bg-red-100 text-red-800", Icon: XCircle, text: "Rejected" }
+                      : isPending
+                        ? { cls: "bg-amber-100 text-amber-800", Icon: Clock, text: "Pending" }
+                        : { cls: "bg-gray-100 text-gray-700", Icon: FileX, text: "Not uploaded" };
+
+                  return (
+                    <div key={req.type} className="border border-gray-200 rounded-xl p-4 bg-white shadow-sm">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-gray-900 truncate">{req.label}</div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            Type: <span className="font-mono">{req.type}</span>
                           </div>
                         </div>
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${badge.cls}`}>
+                          <badge.Icon className="h-3 w-3" />
+                          {badge.text}
+                        </span>
+                      </div>
 
-                        {/* Document Details */}
-                        <div className="p-4 space-y-3">
-                          <div className="space-y-1">
-                            <div className="text-xs text-gray-500 flex items-center gap-1">
-                              <Calendar className="h-3 w-3" />
-                              {new Date(d.createdAt).toLocaleDateString()}
-                            </div>
-                            {d.reason && (
-                              <div className="text-xs text-gray-600 bg-gray-50 p-2 rounded border border-gray-200">
-                                <span className="font-medium">Note:</span> {d.reason}
-                              </div>
-                            )}
-                          </div>
+                      {isRejected && latest?.reason ? (
+                        <div className="mt-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">
+                          Rejection reason: {latest.reason}
+                        </div>
+                      ) : null}
 
-                          {/* Actions */}
-                          <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
-                            {d.url && (
-                              <a
-                                href={d.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex-1 px-3 py-2 text-xs font-medium text-center border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors duration-200 flex items-center justify-center gap-1.5"
+                      {req.type === "BUSINESS_LICENCE" && expiresAt && Number.isFinite(expiresAt.getTime()) ? (
+                        <div className="mt-3 text-xs text-gray-700 bg-gray-50 border border-gray-200 rounded-md px-3 py-2">
+                          Expires on: <span className="font-semibold">{expiresAt.toLocaleDateString()}</span>
+                        </div>
+                      ) : null}
+
+                      <div className="mt-4 flex items-center justify-between gap-3">
+                        <div className="text-xs text-gray-500 flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          {latest?.createdAt ? new Date(latest.createdAt).toLocaleDateString() : "—"}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {isNotUploaded ? (
+                            <span
+                              className="inline-flex items-center justify-center h-9 w-9 rounded-lg border border-gray-200 bg-gray-50 text-gray-500"
+                              title="Not uploaded"
+                              aria-label={`${req.label} not uploaded`}
+                            >
+                              <FileX className="h-4.5 w-4.5" />
+                            </span>
+                          ) : null}
+
+                          {canPreview ? (
+                            <a
+                              href={latest!.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center justify-center h-9 w-9 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition-all duration-200 hover:-translate-y-[1px]"
+                              aria-label={`View ${req.label}`}
+                              title="View"
+                            >
+                              <Eye className="h-4.5 w-4.5" />
+                            </a>
+                          ) : null}
+
+                          {canPreview && !isApproved ? (
+                            <>
+                              <button
+                                type="button"
+                                disabled={!latest?.id || actionLoading}
+                                onClick={() => {
+                                  if (!latest?.id) return;
+                                  void docApprove(
+                                    ownerId,
+                                    latest.id,
+                                    () => {
+                                      showToast("success", "Document approved.");
+                                      void loadDocs();
+                                    },
+                                    (msg) => showToast("error", msg),
+                                  );
+                                }}
+                                className="inline-flex items-center justify-center h-9 w-9 rounded-lg bg-[#02665e] text-white hover:bg-[#014d47] transition-all duration-200 hover:-translate-y-[1px] disabled:opacity-50 disabled:cursor-not-allowed"
+                                aria-label={`Approve ${req.label}`}
+                                title="Approve"
                               >
-                                <Eye className="h-3.5 w-3.5" />
-                                View
-                              </a>
-                            )}
-                            {d.status === 'PENDING' && (
-                              <>
-                                <button
-                                  className="flex-1 px-3 py-2 text-xs font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors duration-200 disabled:opacity-50 flex items-center justify-center gap-1.5"
-                                  onClick={()=>docApprove(ownerId, d.id)}
-                                  disabled={actionLoading}
-                                >
-                                  <CheckCircle2 className="h-3.5 w-3.5" />
-                                  Approve
-                                </button>
-                                <button
-                                  className="flex-1 px-3 py-2 text-xs font-medium bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors duration-200 disabled:opacity-50 flex items-center justify-center gap-1.5"
-                                  onClick={()=>docReject(ownerId, d.id)}
-                                  disabled={actionLoading}
-                                >
-                                  <XCircle className="h-3.5 w-3.5" />
-                                  Reject
-                                </button>
-                              </>
-                            )}
-                          </div>
+                                <Check className="h-4.5 w-4.5" />
+                              </button>
+
+                              <button
+                                type="button"
+                                disabled={!latest?.id || actionLoading}
+                                onClick={() => {
+                                  if (!latest?.id) return;
+                                  void docReject(
+                                    ownerId,
+                                    latest.id,
+                                    () => {
+                                      showToast("success", "Document rejected.");
+                                      void loadDocs();
+                                    },
+                                    (msg) => showToast("error", msg),
+                                  );
+                                }}
+                                className="inline-flex items-center justify-center h-9 w-9 rounded-lg border border-red-200 bg-white text-red-700 hover:bg-red-50 transition-all duration-200 hover:-translate-y-[1px] disabled:opacity-50 disabled:cursor-not-allowed"
+                                aria-label={`Reject ${req.label}`}
+                                title="Reject"
+                              >
+                                <X className="h-4.5 w-4.5" />
+                              </button>
+                            </>
+                          ) : null}
+
+                          {canPreview && isApproved ? (
+                            <a
+                              href={latest!.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center justify-center h-9 w-9 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition-all duration-200 hover:-translate-y-[1px]"
+                              aria-label={`Open ${req.label} in new tab`}
+                              title="Open"
+                            >
+                              <ExternalLink className="h-4.5 w-4.5" />
+                            </a>
+                          ) : null}
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gray-100 mb-4">
-                    <FileText className="h-10 w-10 text-gray-400" />
+                    </div>
+                  );
+                })}
+              </div>
+
+              {REQUIRED_OWNER_DOCS.every((req) => !getLatestDocByType(docs, req.type)?.url) ? (
+                <div className="text-center py-8">
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-3">
+                    <FileText className="h-8 w-8 text-gray-400" />
                   </div>
                   <p className="text-gray-600 font-medium mb-1">No documents uploaded</p>
                   <p className="text-sm text-gray-500">Documents will appear here once uploaded by the owner</p>
                 </div>
-              )}
+              ) : null}
             </div>
           )}
 
@@ -1671,24 +1795,35 @@ export default function OwnerDetailPage() {
   );
 }
 
-async function docApprove(ownerId:number, docId:number){
+async function docApprove(
+  ownerId: number,
+  docId: number,
+  onSuccess?: () => void,
+  onError?: (message: string) => void,
+) {
   try {
     await api.post(`/api/admin/owners/${ownerId}/documents/${docId}/approve`);
-    alert("Document approved successfully.");
-    window.location.reload();
+    onSuccess?.();
   } catch (err: any) {
-    alert(err?.response?.data?.error || "Failed to approve document");
+    console.error(err);
+    onError?.(err?.response?.data?.error || "Failed to approve document");
   }
 }
-async function docReject(ownerId:number, docId:number){
+
+async function docReject(
+  ownerId: number,
+  docId: number,
+  onSuccess?: () => void,
+  onError?: (message: string) => void,
+) {
   const reason = prompt("Reason for rejection?") || "";
   if (!reason.trim()) return;
   try {
     await api.post(`/api/admin/owners/${ownerId}/documents/${docId}/reject`, { reason });
-    alert("Document rejected successfully.");
-    window.location.reload();
+    onSuccess?.();
   } catch (err: any) {
-    alert(err?.response?.data?.error || "Failed to reject document");
+    console.error(err);
+    onError?.(err?.response?.data?.error || "Failed to reject document");
   }
 }
 function fmt(n:any){ return new Intl.NumberFormat(undefined,{ style:"currency", currency:"TZS" }).format(Number(n||0)); }

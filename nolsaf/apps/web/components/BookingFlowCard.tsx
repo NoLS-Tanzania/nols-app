@@ -6,6 +6,35 @@ import Image from 'next/image';
 import { ArrowRight, BadgeCheck, CheckCircle2, Home, KeyRound, MapPinned, PlayCircle, ShieldCheck, User } from 'lucide-react';
 import VoiceRecorder from './VoiceRecorder';
 
+const STEP_META = [
+  {
+    title: 'Book',
+    kicker: 'Search smarter with filters or voice.',
+    image: '/assets/book_step_1.jpg',
+  },
+  {
+    title: 'Pay',
+    kicker: 'Easy payments with local providers.',
+    // Use exact filename case (important for Linux deployments)
+    image: '/assets/Pay_step_2.jpg',
+  },
+  {
+    title: 'Receive code',
+    kicker: 'Get a unique code after payment.',
+    image: '/assets/Booking_code_step_3.jpg',
+  },
+  {
+    title: 'Driver confirm',
+    kicker: 'Quick safety checks before you go.',
+    image: '/assets/nolsaf_driver.jpg',
+  },
+  {
+    title: 'Arrive',
+    kicker: 'You’re all set for check‑in.',
+    image: '/assets/Arrive_step_5.jpg',
+  },
+] as const;
+
 export default function BookingFlowCard() {
   const [busy, setBusy] = useState(false);
   const [activeStep, setActiveStep] = useState<number>(1);
@@ -187,41 +216,12 @@ export default function BookingFlowCard() {
   const stepHighlightWidth = 100 / steps.length;
   const highlightOffset = ((activeStep ?? 1) - 1) * stepHighlightWidth;
 
-  const stepMeta = [
-    {
-      title: 'Book',
-      kicker: 'Search smarter with filters or voice.',
-      image: '/assets/book_step_1.jpg',
-    },
-    {
-      title: 'Pay',
-      kicker: 'Easy payments with local providers.',
-      // Use exact filename case (important for Linux deployments)
-      image: '/assets/Pay_step_2.jpg',
-    },
-    {
-      title: 'Receive code',
-      kicker: 'Get a unique code after payment.',
-      image: '/assets/Booking_code_step_3.jpg',
-    },
-    {
-      title: 'Driver confirm',
-      kicker: 'Quick safety checks before you go.',
-      image: '/assets/nolsaf_driver.jpg',
-    },
-    {
-      title: 'Arrive',
-      kicker: 'You’re all set for check‑in.',
-      image: '/assets/Arrive_step_5.jpg',
-    },
-  ] as const;
-
-  const activeMeta = stepMeta[(activeStep ?? 1) - 1] ?? stepMeta[0];
+  const activeMeta = STEP_META[(activeStep ?? 1) - 1] ?? STEP_META[0];
 
   // Preload step images so you don't see "faint/blank" while switching steps.
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const imgs = stepMeta.map((s) => {
+    const imgs = STEP_META.map((s) => {
       const img = new window.Image();
       img.src = s.image;
       return img;

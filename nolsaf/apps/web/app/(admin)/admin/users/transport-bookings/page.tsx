@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Truck,
   Search,
   X,
-  User,
   MapPin,
   Calendar,
   Clock,
@@ -219,7 +218,7 @@ export default function TransportBookingsPage() {
     }
   }, [markedKeys]);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
@@ -253,12 +252,11 @@ export default function TransportBookingsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [page, pageSize, status, q, sortKey, sortDir]);
 
   useEffect(() => {
-    authify();
-    load();
-  }, [page, status, q, sortKey, sortDir]);
+    void load();
+  }, [load]);
 
   const pages = Math.max(1, Math.ceil(total / pageSize));
 

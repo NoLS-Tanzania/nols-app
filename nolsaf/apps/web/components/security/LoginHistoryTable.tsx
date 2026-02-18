@@ -12,7 +12,6 @@ type LoginRecord = {
   username?: string | null
   platform?: string | null
   details?: string | null
-  timeUsed?: number | null
   success?: boolean | null
 }
 
@@ -117,14 +116,13 @@ export default function LoginHistoryTable({ apiUrl, backHref, containerClassName
                   <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-200">Username</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-200">Platform</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-200">Other details</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-200">Time used</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-200">Result</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-slate-100">
                 {records.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-12 text-center">
+                    <td colSpan={6} className="px-6 py-12 text-center">
                       <div className="flex flex-col items-center">
                         <LogIn className="h-12 w-12 text-slate-300 mb-3" aria-hidden />
                         <div className="text-sm font-medium text-slate-600 mb-1">No login history available</div>
@@ -140,7 +138,6 @@ export default function LoginHistoryTable({ apiUrl, backHref, containerClassName
                       <td className="px-6 py-4 text-sm text-slate-700">{r.username ?? "—"}</td>
                       <td className="px-6 py-4 text-sm text-slate-700">{r.platform ?? "—"}</td>
                       <td className="px-6 py-4 text-sm text-slate-700 whitespace-pre-wrap max-w-xs">{r.details ?? "—"}</td>
-                      <td className="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">{formatDuration(r.timeUsed)}</td>
                       <td className="px-6 py-4 text-sm whitespace-nowrap">{renderResultBadge(r.success ?? null)}</td>
                     </TableRow>
                   ))
@@ -153,16 +150,4 @@ export default function LoginHistoryTable({ apiUrl, backHref, containerClassName
       </div>
     </SecuritySettingsShell>
   )
-}
-
-function formatDuration(sec?: number | null) {
-  if (sec == null) return "—"
-  const s = Number(sec)
-  if (!isFinite(s) || s <= 0) return "—"
-  const hrs = Math.floor(s / 3600)
-  const mins = Math.floor((s % 3600) / 60)
-  const secs = Math.floor(s % 60)
-  if (hrs > 0) return `${hrs}h ${mins}m ${secs}s`
-  if (mins > 0) return `${mins}m ${secs}s`
-  return `${secs}s`
 }

@@ -46,7 +46,6 @@ import {
   Eye,
 } from 'lucide-react';
 import DriverAvailabilitySwitch from "@/components/DriverAvailabilitySwitch";
-import StatCard from "./StatCard";
 import {
   LineChart,
   Line,
@@ -110,14 +109,7 @@ export default function DriverDashboard({ className }: { className?: string }) {
   const [loading, setLoading] = useState(true);
   const [reminders, setReminders] = useState<Array<DashboardStats['reminders'][number]>>([]);
   const socketRef = useRef<Socket | null>(null);
-  const [available, setAvailable] = useState<boolean>(() => {
-    try {
-      const raw = localStorage.getItem('driver_available');
-      return raw === '1' || raw === 'true';
-    } catch (e) {
-      return false;
-    }
-  });
+  const [available, setAvailable] = useState<boolean>(false);
 
   // mapVisible state removed (was unused)
 
@@ -150,6 +142,53 @@ export default function DriverDashboard({ className }: { className?: string }) {
       // ignore
     }
   }, []);
+
+  // Once we know which driver is logged in, scope local overrides to that driver.
+  useEffect(() => {
+    const id = me?.id;
+    if (!id) return;
+
+    const goalsKey = `driver_goals:${String(id)}`;
+    const availKey = `driver_available:${String(id)}`;
+
+    // Goals: hydrate from per-driver key; migrate legacy key if present.
+    try {
+      const raw = localStorage.getItem(goalsKey);
+      if (raw) {
+        setGoals(JSON.parse(raw));
+      } else {
+        const legacy = localStorage.getItem('driver_goals');
+        if (legacy) {
+          setGoals(JSON.parse(legacy));
+          try {
+            localStorage.setItem(goalsKey, legacy);
+            localStorage.removeItem('driver_goals');
+          } catch {}
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    // Availability: fast hydrate from per-driver cache
+    try {
+      const raw = localStorage.getItem(availKey);
+      if (raw === '1' || raw === 'true') setAvailable(true);
+      else if (raw === '0' || raw === 'false') setAvailable(false);
+    } catch {}
+
+    // Source of truth: server availability
+    (async () => {
+      try {
+        const r = await api.get('/api/driver/availability');
+        const serverAvailable = Boolean(r?.data?.available);
+        setAvailable(serverAvailable);
+        try { localStorage.setItem(availKey, serverAvailable ? '1' : '0'); } catch {}
+      } catch {
+        // ignore
+      }
+    })();
+  }, [me?.id]);
 
   // Setup Socket.IO for real-time reminder updates
   useEffect(() => {
@@ -214,11 +253,12 @@ export default function DriverDashboard({ className }: { className?: string }) {
 
   const saveGoals = (g: { trips?: number; money?: number; moneyUrgent?: boolean } | null) => {
     try {
+      const goalsKey = me?.id ? `driver_goals:${String(me.id)}` : 'driver_goals';
       if (g) {
-        localStorage.setItem('driver_goals', JSON.stringify(g));
+        localStorage.setItem(goalsKey, JSON.stringify(g));
         setGoals(g);
       } else {
-        localStorage.removeItem('driver_goals');
+        localStorage.removeItem(goalsKey);
         setGoals(null);
       }
     } catch (e) {}
@@ -355,12 +395,16 @@ export default function DriverDashboard({ className }: { className?: string }) {
         const detail = (ev as CustomEvent).detail || {};
         if (typeof detail.available === 'boolean') {
           setAvailable(detail.available);
+          try {
+            if (me?.id) localStorage.setItem(`driver_available:${String(me.id)}`, detail.available ? '1' : '0');
+          } catch {}
         }
       } catch (e) {}
     };
 
     const storageHandler = (e: StorageEvent) => {
-      if (e.key === 'driver_available') {
+      const key = me?.id ? `driver_available:${String(me.id)}` : 'driver_available';
+      if (e.key === key) {
         const val = e.newValue;
         const avail = val === '1' || val === 'true';
         setAvailable(avail);
@@ -373,7 +417,7 @@ export default function DriverDashboard({ className }: { className?: string }) {
       window.removeEventListener('nols:availability:changed', handler as EventListener);
       window.removeEventListener('storage', storageHandler as any);
     };
-  }, []);
+  }, [me?.id]);
 
   // Map initialization is centralized in DriverLiveMap to avoid duplicate instances.
 
@@ -522,7 +566,9 @@ export default function DriverDashboard({ className }: { className?: string }) {
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="space-y-2">
             <p className="text-sm text-slate-200">{greeting()}, {name}</p>
-            <h1 className="text-2xl md:text-3xl font-semibold leading-tight">You&apos;re online and ready for rides</h1>
+            <h1 className="text-2xl md:text-3xl font-semibold leading-tight">
+              {available ? "You\u0027re online and ready for rides" : "You\u0027re offline and not receiving rides"}
+            </h1>
             <div className="flex items-center gap-2">
               <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-sm font-medium text-white ring-1 ring-white/20">
                 <span className={`h-2 w-2 rounded-full ${available ? "bg-emerald-400" : "bg-red-400"} animate-pulse`} />

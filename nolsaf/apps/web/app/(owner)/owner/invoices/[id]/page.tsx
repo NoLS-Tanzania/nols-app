@@ -12,6 +12,7 @@ export default function InvoiceView() {
   const routeParams = useParams<{ id?: string | string[] }>();
   const idParam = Array.isArray(routeParams?.id) ? routeParams?.id?.[0] : routeParams?.id;
   const [inv, setInv] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -20,10 +21,49 @@ export default function InvoiceView() {
   const [agreeDisbursement, setAgreeDisbursement] = useState(false);
 
   useEffect(() => {
-    api.get(`/api/owner/invoices/${idParam}`).then(r => setInv(r.data));
+    let mounted = true;
+
+    if (!idParam) {
+      setInv(null);
+      setErr("Missing invoice id.");
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setErr(null);
+    setInv(null);
+
+    api
+      .get(`/api/owner/invoices/${idParam}`)
+      .then((r) => {
+        if (!mounted) return;
+        setInv(r.data);
+      })
+      .catch((e: any) => {
+        if (!mounted) return;
+        const status = Number(e?.response?.status ?? 0);
+        if (status === 404) {
+          setErr("Invoice not found (or you don’t have access to it).");
+        } else {
+          setErr(String(e?.response?.data?.error || e?.message || "Failed to load invoice"));
+        }
+      })
+      .finally(() => {
+        if (!mounted) return;
+        setLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
   }, [idParam]);
 
   const submit = async () => {
+    if (!idParam) {
+      setErr("Missing invoice id.");
+      return;
+    }
     setSubmitting(true);
     setErr(null);
     setSuccessMsg(null);
@@ -45,6 +85,41 @@ export default function InvoiceView() {
       setSubmitting(false);
     }
   };
+
+  if (loading) return <div>Loading...</div>;
+
+  if (err && !inv) {
+    return (
+      <div className="w-full overflow-x-hidden">
+        <div className="rounded-[28px] border border-slate-200/70 bg-white p-4 sm:p-6 shadow-sm ring-1 ring-black/5">
+          <div className="max-w-3xl mx-auto space-y-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="text-xs text-slate-500">Invoice</div>
+                <h1 className="text-2xl font-semibold tracking-tight text-slate-900 truncate">Unable to open invoice</h1>
+              </div>
+              <Link
+                href="/owner/revenue/requested"
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-all active:scale-[0.98] no-underline"
+                title="Back"
+              >
+                <ArrowLeft className="h-4 w-4" aria-hidden />
+                Back
+              </Link>
+            </div>
+
+            <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-sm text-red-700">
+              {err}
+            </div>
+
+            <div className="text-sm text-slate-600">
+              If you believe this is incorrect, confirm you are logged in as the correct Owner account.
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!inv) return <div>Loading...</div>;
 

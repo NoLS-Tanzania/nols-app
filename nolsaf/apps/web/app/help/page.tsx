@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { LifeBuoy, ChevronDown, ChevronRight, Mail, MessageCircle, BookOpen, HelpCircle, CreditCard, Users, Car, Home } from "lucide-react";
+import { LifeBuoy, ChevronDown, ChevronRight, Mail, MessageCircle, BookOpen, CreditCard, Car, Home } from "lucide-react";
 import LayoutFrame from "@/components/LayoutFrame";
 import PublicHeader from "@/components/PublicHeader";
 import PublicFooter from "@/components/PublicFooter";
@@ -280,7 +280,7 @@ export default function HelpCenterPage() {
   const [contactName, setContactName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [contactMessage, setContactMessage] = useState("");
-  const [sending, setSending] = useState(false);
+  const [sending, _setSending] = useState(false);
   const [sent, setSent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>("All");

@@ -258,13 +258,21 @@ export function useAdminRecentActivities() {
           parsed = [];
         }
 
-        const items = Array.isArray(parsed) ? (parsed as AdminAuditEntry[]).slice(0, 5) : [];
+        const fromWrappedResponse = (() => {
+          if (!parsed || typeof parsed !== "object") return null;
+          const data = (parsed as any).data;
+          const items = data?.items;
+          return Array.isArray(items) ? (items as AdminAuditEntry[]) : null;
+        })();
+
+        const items = (Array.isArray(parsed) ? (parsed as AdminAuditEntry[]) : fromWrappedResponse ?? []).slice(0, 6);
         setRecentActivities(items);
       } catch {
         if (!mounted) return;
         setRecentActivities([]);
       }
     }
+
 
     load();
     const t = setInterval(load, 30_000);
@@ -275,7 +283,42 @@ export function useAdminRecentActivities() {
     };
   }, []);
 
-  return { recentActivities };
+  return {
+    recentActivities,
+    refresh: () => {
+      // Avoid forcing an abort; just run a one-off refresh.
+      setRecentActivities((prev) => prev);
+      // fire-and-forget fetch; the effect interval will also refresh
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      (async () => {
+        try {
+          const res = await fetch("/api/admin/audits");
+          if (!res.ok) return;
+          const txt = await res.text();
+          if (!txt || !txt.trim()) {
+            setRecentActivities([]);
+            return;
+          }
+          let parsed: unknown = [];
+          try {
+            parsed = JSON.parse(txt);
+          } catch {
+            parsed = [];
+          }
+          const fromWrappedResponse = (() => {
+            if (!parsed || typeof parsed !== "object") return null;
+            const data = (parsed as any).data;
+            const items = data?.items;
+            return Array.isArray(items) ? (items as AdminAuditEntry[]) : null;
+          })();
+          const items = (Array.isArray(parsed) ? (parsed as AdminAuditEntry[]) : fromWrappedResponse ?? []).slice(0, 6);
+          setRecentActivities(items);
+        } catch {
+          // ignore
+        }
+      })();
+    },
+  };
 }
 
 export function useAdminPerformanceHighlights(days = 30) {

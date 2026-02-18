@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useId, useMemo, useState } from "react";
+import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
@@ -22,14 +22,15 @@ import {
 } from "lucide-react";
 
 import { useAdminHomeKpis, useAdminMonitoring, useAdminPerformanceHighlights, useAdminRecentActivities } from "./adminHomeHooks";
+import { useSocket } from "@/hooks/useSocket";
 
 const Chart = dynamic(() => import("../../../../components/Chart"), { ssr: false });
 
 type RevenueChartDataset = {
   label: string;
   data: number[];
-  borderColor: string;
-  backgroundColor: string;
+  borderColor: string | string[];
+  backgroundColor: string | string[];
   tension: number;
   borderWidth: number;
   pointRadius: number;
@@ -241,8 +242,10 @@ function MiniDotTrend({
 export default function AdminHomePage() {
   const router = useRouter();
 
+  const { socket } = useSocket(undefined, { enabled: true, joinDriverRoom: false });
+
   const { monitoring } = useAdminMonitoring();
-  const { recentActivities } = useAdminRecentActivities();
+  const { recentActivities, refresh: refreshRecentActivities } = useAdminRecentActivities();
   const { driversPending, usersNew, paymentsWaiting } = useAdminHomeKpis();
   const { highlights } = useAdminPerformanceHighlights(30);
 
@@ -257,6 +260,74 @@ export default function AdminHomePage() {
   const propertiesCount = 5;
 
   const [chartData, setChartData] = useState<RevenueChartData | null>(null);
+  const [chartRefreshNonce, setChartRefreshNonce] = useState(0);
+  const refreshTimerRef = useRef<number | null>(null);
+
+  const truncateLabel = (label: string, maxLen = 16) => {
+    const s = String(label ?? "");
+    if (s.length <= maxLen) return s;
+    return s.slice(0, Math.max(1, maxLen - 1)) + "…";
+  };
+
+  const revenueRangeTabClass = (tab: "hours" | "months" | "properties") => {
+    const isActive = rangeType === tab;
+    const base =
+      "px-3 py-1.5 rounded-xl text-xs font-semibold border " +
+      "transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/15 ";
+
+    const variants = {
+      hours: {
+        active: "bg-emerald-500/15 border-emerald-400/25 text-emerald-100",
+        inactive: "bg-transparent border-transparent text-slate-300 hover:bg-emerald-500/10 hover:border-emerald-400/20 hover:text-emerald-100",
+      },
+      months: {
+        active: "bg-yellow-500/15 border-yellow-400/25 text-yellow-100",
+        inactive: "bg-transparent border-transparent text-slate-300 hover:bg-yellow-500/10 hover:border-yellow-400/20 hover:text-yellow-100",
+      },
+      properties: {
+        active: "bg-blue-500/15 border-blue-400/25 text-blue-100",
+        inactive: "bg-transparent border-transparent text-slate-300 hover:bg-blue-500/10 hover:border-blue-400/20 hover:text-blue-100",
+      },
+    } as const;
+
+    return base + (isActive ? variants[tab].active : variants[tab].inactive);
+  };
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const scheduleRefresh = () => {
+      if (refreshTimerRef.current) {
+        try {
+          window.clearTimeout(refreshTimerRef.current);
+        } catch {
+          // ignore
+        }
+      }
+      refreshTimerRef.current = window.setTimeout(() => {
+        setChartRefreshNonce((n) => n + 1);
+        refreshRecentActivities();
+      }, 350);
+    };
+
+    socket.on("admin:invoice:paid", scheduleRefresh);
+    socket.on("admin:invoice:status", scheduleRefresh);
+    socket.on("admin:property:status", scheduleRefresh);
+
+    return () => {
+      socket.off("admin:invoice:paid", scheduleRefresh);
+      socket.off("admin:invoice:status", scheduleRefresh);
+      socket.off("admin:property:status", scheduleRefresh);
+      if (refreshTimerRef.current) {
+        try {
+          window.clearTimeout(refreshTimerRef.current);
+        } catch {
+          // ignore
+        }
+        refreshTimerRef.current = null;
+      }
+    };
+  }, [socket, refreshRecentActivities]);
 
   useEffect(() => {
     try {
@@ -279,15 +350,130 @@ export default function AdminHomePage() {
     useEffect(() => {
       if (!iso) return;
       try {
-        setLabel(new Date(iso).toLocaleString());
+        const d = new Date(iso);
+        if (!Number.isFinite(d.getTime())) {
+          setLabel(iso || null);
+          return;
+        }
+        const date = d.toLocaleDateString(undefined, { year: "numeric", month: "2-digit", day: "2-digit" });
+        const time = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+        setLabel(`${date}, ${time}`);
       } catch {
         setLabel(iso || null);
       }
     }, [iso]);
 
     if (!label) return <span className="text-xs text-slate-400">&nbsp;</span>;
-    return <span className="text-xs text-slate-400 whitespace-nowrap">{label}</span>;
+    return <span className="text-xs text-slate-400 whitespace-nowrap tabular-nums">{label}</span>;
   }
+
+  const formatAuditAction = (value: unknown) => {
+    const raw = String(value ?? "").trim();
+    if (!raw) return "Activity";
+    const tokens = raw.replace(/[.]/g, "_").split(/_+/g).filter(Boolean);
+    if (!tokens.length) return raw;
+    return tokens
+      .map((t) => {
+        const lower = t.toLowerCase();
+        return lower.charAt(0).toUpperCase() + lower.slice(1);
+      })
+      .join(" ");
+  };
+
+  const auditTone = (action: unknown) => {
+    const a = String(action ?? "").toUpperCase();
+    if (a.startsWith("PROPERTY_")) {
+      return {
+        dot: "bg-emerald-400/60",
+        pill: "border-emerald-400/20 bg-emerald-500/10 text-emerald-100",
+      };
+    }
+    if (a.startsWith("INVOICE_") || a.includes("PAYMENT")) {
+      return {
+        dot: "bg-teal-400/60",
+        pill: "border-teal-400/20 bg-teal-500/10 text-teal-100",
+      };
+    }
+    if (a.includes("USER") || a.includes("OWNER") || a.includes("DRIVER")) {
+      return {
+        dot: "bg-blue-400/60",
+        pill: "border-blue-400/20 bg-blue-500/10 text-blue-100",
+      };
+    }
+    return {
+      dot: "bg-white/30",
+      pill: "border-white/10 bg-white/5 text-white",
+    };
+  };
+
+  const truncateText = (value: unknown, maxLen = 64) => {
+    const s = String(value ?? "").replace(/\s+/g, " ").trim();
+    if (!s) return "";
+    if (s.length <= maxLen) return s;
+    return s.slice(0, Math.max(1, maxLen - 1)) + "…";
+  };
+
+  const parseDetails = (details: unknown): any => {
+    if (!details) return null;
+    if (typeof details === "object") return details;
+    if (typeof details === "string") {
+      const t = details.trim();
+      if (!t) return null;
+      try {
+        return JSON.parse(t);
+      } catch {
+        return details;
+      }
+    }
+    return details;
+  };
+
+  const formatAuditDetails = (action: unknown, details: unknown) => {
+    const a = String(action ?? "").toUpperCase();
+    const d = parseDetails(details);
+
+    if (!d) return "";
+
+    if (typeof d === "object") {
+      const obj: any = d;
+
+      const status = obj.toStatus ?? obj.status ?? obj.to ?? obj.result ?? "";
+      if (obj.propertyId) return truncateText(`Property ${obj.propertyId}${status ? ` — ${status}` : ""}`);
+      if (obj.invoiceId) return truncateText(`Invoice ${obj.invoiceId}${status ? ` — ${status}` : ""}`);
+      if (obj.bookingId) return truncateText(`Booking ${obj.bookingId}${status ? ` — ${status}` : ""}`);
+
+      if (a.includes("GRANT_BONUS") && obj.ownerId) return truncateText(`Owner ${obj.ownerId} — bonus granted`);
+      if (a.includes("DISABLE_USER") && typeof obj.disable !== "undefined") return truncateText(`disable: ${String(obj.disable)}`);
+      if (a.includes("ENABLE_USER")) return "disable: false";
+
+      const ignoreKeys = new Set([
+        "from",
+        "to",
+        "createdAt",
+        "updatedAt",
+        "payload",
+        "png",
+        "receiptQrPng",
+        "receiptQrPayload",
+        "notes",
+        "reason",
+      ]);
+
+      const parts: string[] = [];
+      for (const [k, v] of Object.entries(obj)) {
+        if (ignoreKeys.has(k)) continue;
+        if (v === null || typeof v === "undefined") continue;
+        if (typeof v === "object") continue;
+        const piece = `${k}: ${String(v)}`;
+        parts.push(piece);
+        if (parts.length >= 2) break;
+      }
+
+      return truncateText(parts.join(", "));
+    }
+
+    return truncateText(d);
+  };
 
   function useCountUp(value: number, enabled: boolean, durationMs = 650) {
     const [display, setDisplay] = useState<number>(value);
@@ -604,13 +790,23 @@ export default function AdminHomePage() {
           const res = await fetch(`/api/admin/revenue/properties?top=${encodeURIComponent(String(propertiesCount))}`);
           if (!res.ok) throw new Error("no properties");
           const json = await res.json();
-          const labels = Array.isArray(json) ? json.map((it: any) => it.name ?? it.title ?? `Property ${it.id ?? ""}`) : [];
-          const commission = Array.isArray(json)
-            ? json.map((it: any) => Number(it.commission ?? it.commission_total ?? it.commissionAmount ?? 0))
+
+          const rows = Array.isArray(json)
+            ? json
+                .map((it: any) => {
+                  const label = it.name ?? it.title ?? `Property ${it.id ?? ""}`;
+                  const commission = Number(it.commission ?? it.commission_total ?? it.commissionAmount ?? 0);
+                  const subscription = Number(it.subscription ?? it.subscription_total ?? it.subscriptionAmount ?? 0);
+                  const total = commission + subscription;
+                  return { label: String(label), commission, subscription, total };
+                })
+                .sort((a, b) => (b.total || 0) - (a.total || 0))
+                .slice(0, propertiesCount)
             : [];
-          const subscription = Array.isArray(json)
-            ? json.map((it: any) => Number(it.subscription ?? it.subscription_total ?? it.subscriptionAmount ?? 0))
-            : [];
+
+          const labels = rows.map((r) => r.label);
+          const commission = rows.map((r) => r.commission);
+          const subscription = rows.map((r) => r.subscription);
 
           setChartData({
             labels,
@@ -618,8 +814,20 @@ export default function AdminHomePage() {
               {
                 label: "Commission",
                 data: commission,
-                borderColor: "rgba(56,189,248,0.95)",
-                backgroundColor: "rgba(56,189,248,0.06)",
+                borderColor: [
+                  "rgba(34,197,94,0.95)",
+                  "rgba(234,179,8,0.95)",
+                  "rgba(56,189,248,0.95)",
+                  "rgba(249,115,22,0.95)",
+                  "rgba(20,184,166,0.95)",
+                ].slice(0, commission.length),
+                backgroundColor: [
+                  "rgba(34,197,94,0.18)",
+                  "rgba(234,179,8,0.18)",
+                  "rgba(56,189,248,0.18)",
+                  "rgba(249,115,22,0.18)",
+                  "rgba(20,184,166,0.18)",
+                ].slice(0, commission.length),
                 tension: 0.4,
                 borderWidth: 2,
                 pointRadius: 0,
@@ -627,8 +835,8 @@ export default function AdminHomePage() {
               {
                 label: "Subscription",
                 data: subscription,
-                borderColor: "rgba(34,197,94,0.95)",
-                backgroundColor: "rgba(34,197,94,0.05)",
+                borderColor: "rgba(148,163,184,0.9)",
+                backgroundColor: "rgba(148,163,184,0.08)",
                 tension: 0.4,
                 borderWidth: 2,
                 pointRadius: 0,
@@ -638,15 +846,39 @@ export default function AdminHomePage() {
           return;
         }
 
-        const res = await fetch(
-          `/api/admin/revenue/series?type=${encodeURIComponent(rangeType)}&hours=${encodeURIComponent(String(hoursWindow))}&months=${encodeURIComponent(String(monthsWindow))}`
-        );
-        if (!res.ok) throw new Error("no series");
-        const json = await res.json();
+        const now = new Date();
+        let interval: "hour" | "day" | "month" = "day";
+        let fromDate = new Date(Date.now() - 30 * 24 * 3600 * 1000);
+        if (rangeType === "hours") {
+          interval = "hour";
+          fromDate = new Date(now.getTime() - (Math.max(1, hoursWindow) - 1) * 60 * 60 * 1000);
+        } else if (rangeType === "months") {
+          interval = "month";
+          fromDate = new Date(now.getFullYear(), now.getMonth() - (Math.max(1, monthsWindow) - 1), 1);
+        }
 
-        const labels = Array.isArray(json?.labels) ? json.labels : [];
-        const commission = Array.isArray(json?.commission) ? json.commission.map((n: any) => Number(n || 0)) : [];
-        const subscription = Array.isArray(json?.subscription) ? json.subscription.map((n: any) => Number(n || 0)) : [];
+        const q = new URLSearchParams();
+        q.set("from", fromDate.toISOString());
+        q.set("to", now.toISOString());
+        q.set("interval", interval);
+
+        const res = await fetch(`/api/admin/revenue/series?${q.toString()}`);
+        if (!res.ok) throw new Error("no series");
+
+        const json = await res.json();
+        let labels: string[] = [];
+        let commission: number[] = [];
+        let subscription: number[] = [];
+
+        if (Array.isArray(json)) {
+          labels = json.map((r: any) => String(r?.label ?? ""));
+          commission = json.map((r: any) => Number(r?.commission ?? r?.commission_total ?? 0));
+          subscription = json.map((r: any) => Number(r?.subscription ?? r?.subscription_total ?? 0));
+        } else {
+          labels = Array.isArray((json as any)?.labels) ? (json as any).labels.map((v: any) => String(v)) : [];
+          commission = Array.isArray((json as any)?.commission) ? (json as any).commission.map((n: any) => Number(n || 0)) : [];
+          subscription = Array.isArray((json as any)?.subscription) ? (json as any).subscription.map((n: any) => Number(n || 0)) : [];
+        }
 
         setChartData({
           labels,
@@ -675,7 +907,7 @@ export default function AdminHomePage() {
         // keep placeholders on failure
       }
     })();
-  }, [hoursWindow, monthsWindow, propertiesCount, rangeType]);
+  }, [hoursWindow, monthsWindow, propertiesCount, rangeType, chartRefreshNonce]);
 
   const totalCommission = chartData ? chartData.datasets[0].data.reduce((s, v) => s + Number(v || 0), 0) : 0;
   const totalSubscription = chartData ? chartData.datasets[1].data.reduce((s, v) => s + Number(v || 0), 0) : 0;
@@ -1108,31 +1340,39 @@ export default function AdminHomePage() {
                       <button
                         type="button"
                         onClick={() => setRangeType("hours")}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition ${rangeType === "hours" ? "bg-white/10 border-white/10 text-white" : "bg-transparent border-transparent text-slate-300 hover:bg-white/10 hover:border-white/10"}`}
+                        className={revenueRangeTabClass("hours")}
                       >
                         Hours
                       </button>
                       <button
                         type="button"
                         onClick={() => setRangeType("months")}
-                        className={`mx-1 px-3 py-1.5 rounded-xl text-xs font-semibold border transition ${rangeType === "months" ? "bg-white/10 border-white/10 text-white" : "bg-transparent border-transparent text-slate-300 hover:bg-white/10 hover:border-white/10"}`}
+                        className={"mx-1 " + revenueRangeTabClass("months")}
                       >
                         Months
                       </button>
                       <button
                         type="button"
                         onClick={() => setRangeType("properties")}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition ${rangeType === "properties" ? "bg-white/10 border-white/10 text-white" : "bg-transparent border-transparent text-slate-300 hover:bg-white/10 hover:border-white/10"}`}
+                        className={revenueRangeTabClass("properties")}
                       >
                         Properties
                       </button>
                     </div>
 
+                    <button
+                      type="button"
+                      onClick={() => router.push("/admin/revenue")}
+                      className="inline-flex items-center rounded-2xl border border-teal-400/20 bg-teal-500/10 px-3 py-2 text-xs font-semibold text-teal-100 hover:bg-teal-500/15 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/25"
+                    >
+                      View details
+                    </button>
+
                     {rangeType === "hours" && (
                       <select
                         title="Hours range"
                         aria-label="Hours range"
-                        className="border border-white/10 rounded-2xl px-3 py-2 bg-white/5 text-xs text-slate-100"
+                        className="border border-white/10 rounded-2xl px-3 py-2 bg-white/5 text-xs text-slate-100 hover:bg-white/10 transition-colors duration-200"
                         value={hoursWindow}
                         onChange={(e) => setHoursWindow(Number(e.target.value))}
                       >
@@ -1146,7 +1386,7 @@ export default function AdminHomePage() {
                       <select
                         title="Months range"
                         aria-label="Months range"
-                        className="border border-white/10 rounded-2xl px-3 py-2 bg-white/5 text-xs text-slate-100"
+                        className="border border-white/10 rounded-2xl px-3 py-2 bg-white/5 text-xs text-slate-100 hover:bg-white/10 transition-colors duration-200"
                         value={monthsWindow}
                         onChange={(e) => setMonthsWindow(Number(e.target.value))}
                       >
@@ -1191,9 +1431,14 @@ export default function AdminHomePage() {
                           </div>
 
                           <div className="h-72">
+                            {rangeType === "properties" ? (
+                              <div className="mb-2 text-xs text-slate-400">
+                                Showing top {propertiesCount} properties (ranked) by revenue.
+                              </div>
+                            ) : null}
                             {hasPoints ? (
                               <Chart
-                                type="line"
+                                type={rangeType === "properties" ? "bar" : "line"}
                                 data={chartData}
                                 options={{
                                   responsive: true,
@@ -1201,9 +1446,31 @@ export default function AdminHomePage() {
                                   interaction: { mode: "index", intersect: false },
                                   plugins: {
                                     legend: { labels: { color: "rgba(226,232,240,0.9)" } },
+                                    tooltip: {
+                                      callbacks: {
+                                        labelColor: (ctx: any) => {
+                                          if (rangeType !== "properties") return undefined as any;
+                                          try {
+                                            const ds: any = ctx?.dataset;
+                                            const i = Number(ctx?.dataIndex ?? 0);
+                                            const borderColor = Array.isArray(ds?.borderColor) ? ds.borderColor[i] : ds?.borderColor;
+                                            const backgroundColor = Array.isArray(ds?.backgroundColor)
+                                              ? ds.backgroundColor[i]
+                                              : ds?.backgroundColor;
+                                            return {
+                                              borderColor: borderColor ?? "rgba(226,232,240,0.9)",
+                                              backgroundColor: backgroundColor ?? "rgba(226,232,240,0.18)",
+                                            };
+                                          } catch {
+                                            return undefined as any;
+                                          }
+                                        },
+                                      },
+                                    },
                                   },
                                   scales: {
                                     y: {
+                                      beginAtZero: true,
                                       grid: { color: "rgba(255,255,255,0.06)" },
                                       ticks: { color: "rgba(226,232,240,0.8)" },
                                     },
@@ -1214,6 +1481,17 @@ export default function AdminHomePage() {
                                         autoSkip: rangeType !== "properties",
                                         maxRotation: 45,
                                         minRotation: 0,
+                                        callback: (value: any) => {
+                                          try {
+                                            const idx = Number(value);
+                                            const axisLabel = Number.isFinite(idx) ? (chartData.labels as any)?.[idx] : value;
+                                            const label = axisLabel ?? value;
+                                            if (rangeType !== "properties") return String(label);
+                                            return truncateLabel(String(label), 14);
+                                          } catch {
+                                            return String(value);
+                                          }
+                                        },
                                       },
                                     },
                                   },
@@ -1268,42 +1546,27 @@ export default function AdminHomePage() {
 
                     return (
                       <ul className="divide-y divide-white/10 rounded-2xl border border-white/10 bg-white/0 p-2">
-                        {recentActivities!.slice(0, 10).map((a: any) => {
-                          let detailsText = "";
-                          try {
-                            if (typeof a.details === "string") {
-                              const parsed = JSON.parse(a.details);
-                              if (parsed && typeof parsed === "object") {
-                                if ((parsed as any).propertyId)
-                                  detailsText = `Property ${(parsed as any).propertyId} — ${(parsed as any).status ?? (parsed as any).result ?? ""}`;
-                                else if ((parsed as any).bookingId)
-                                  detailsText = `Booking ${(parsed as any).bookingId} — ${(parsed as any).status ?? ""}`;
-                                else detailsText = Object.entries(parsed as any)
-                                  .map(([k, v]) => `${k}: ${v}`)
-                                  .join(", ");
-                              } else {
-                                detailsText = String(parsed);
-                              }
-                            } else if (a.details && typeof a.details === "object") {
-                              const d = a.details;
-                              if (d.propertyId) detailsText = `Property ${d.propertyId} — ${d.status ?? d.result ?? ""}`;
-                              else if (d.bookingId) detailsText = `Booking ${d.bookingId} — ${d.status ?? ""}`;
-                              else detailsText = Object.entries(d)
-                                .map(([k, v]) => `${k}: ${v}`)
-                                .join(", ");
-                            } else {
-                              detailsText = String(a.details ?? "");
-                            }
-                          } catch {
-                            detailsText = String(a.details ?? "");
-                          }
+                        {recentActivities!.slice(0, 6).map((a: any) => {
+                          const tone = auditTone(a.action);
+                          const detailsText = formatAuditDetails(a.action, a.details);
 
                           return (
-                            <li key={a.id ?? `${a.action}-${a.createdAt ?? ""}`} className="py-3 px-3">
+                            <li
+                              key={a.id ?? `${a.action}-${a.createdAt ?? ""}`}
+                              className="py-3 px-3 rounded-xl hover:bg-white/5 transition-colors duration-200"
+                            >
                               <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0">
-                                  <div className="text-sm font-semibold text-white truncate">{String(a.action ?? "Activity")}</div>
-                                  <div className="text-xs text-slate-400 truncate mt-0.5">{detailsText}</div>
+                                <div className="min-w-0 flex items-start gap-3">
+                                  <div className={"mt-1.5 h-2.5 w-2.5 rounded-full shrink-0 " + tone.dot} aria-hidden />
+                                  <div className="min-w-0">
+                                    <div className="min-w-0 flex flex-wrap items-center gap-2">
+                                      <span className={"inline-flex items-center rounded-lg border px-2 py-0.5 text-xs font-semibold " + tone.pill}>
+                                        {String(a.action ?? "Activity")}
+                                      </span>
+                                      <span className="text-sm font-semibold text-white truncate">{formatAuditAction(a.action)}</span>
+                                    </div>
+                                    <div className="text-xs text-slate-400 truncate mt-1">{detailsText || "—"}</div>
+                                  </div>
                                 </div>
                                 <ClientTime iso={a.createdAt} />
                               </div>

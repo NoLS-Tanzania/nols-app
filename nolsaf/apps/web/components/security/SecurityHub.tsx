@@ -13,7 +13,7 @@ export type SecurityHubItem = {
   iconBgClassName: string
   iconClassName: string
   actionLabel: string
-  actionIcon: LucideIcon
+  actionIcon?: LucideIcon
   actionAriaLabel: string
   tone?: "light" | "soft"
 }
@@ -138,8 +138,10 @@ export default function SecurityHub({
                     </div>
 
                     <div className="mt-5 flex justify-start">
-                      <span className={`inline-flex max-w-full items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold group-hover:border-slate-300 ${item.iconClassName}`}>
-                        <ActionIcon className="h-4 w-4" aria-hidden />
+                      <span
+                        className={`inline-flex max-w-full items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold group-hover:border-slate-300 ${item.iconClassName} ${ActionIcon ? "gap-2" : "gap-0"}`}
+                      >
+                        {ActionIcon ? <ActionIcon className="h-4 w-4" aria-hidden /> : null}
                         <span className="whitespace-normal">{item.actionLabel}</span>
                       </span>
                     </div>
@@ -223,7 +225,7 @@ export default function SecurityHub({
                     className={`inline-flex w-fit items-center gap-2 px-4 py-2 text-sm font-semibold rounded-full transition-colors border no-underline ${actionClassName}`}
                     aria-label={item.actionAriaLabel}
                   >
-                    <ActionIcon className="h-4 w-4" aria-hidden />
+                    {ActionIcon ? <ActionIcon className="h-4 w-4" aria-hidden /> : null}
                     <span>{item.actionLabel}</span>
                   </Link>
                 </div>

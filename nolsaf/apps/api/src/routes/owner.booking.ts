@@ -6,6 +6,12 @@ import { prisma } from "@nolsaf/prisma";
 import { AuthedRequest, requireAuth, requireRole } from "../middleware/auth.js";
 import { invalidateOwnerReports } from "../lib/cache.js";
 import { validateBookingCode, markBookingCodeAsUsed } from "../lib/bookingCodeService.js";
+import { getBookingValidationWindowStatus } from "../lib/bookingValidationWindow.js";
+import {
+  clearBookingCodeFailures,
+  getBookingCodeLockoutStatus,
+  recordBookingCodeFailure,
+} from "../lib/bookingCodeAttemptTracker.js";
 
 export const router = Router();
 router.use(
@@ -30,6 +36,18 @@ const validateBooking: RequestHandler = async (req, res) => {
 
   const raw = String(code).trim();
   const ownerId = r.user!.id;
+
+  // Brute-force protection: lock validation after 3 consecutive invalid codes.
+  const lockStatus = await getBookingCodeLockoutStatus(ownerId);
+  if (lockStatus.locked) {
+    const retryAfterSeconds = Math.max(1, Math.ceil((lockStatus.remainingMs ?? 0) / 1000));
+    return (res as Response).status(429).json({
+      error: `Too many invalid booking code attempts. Please wait ${retryAfterSeconds} seconds before trying again.`,
+      lockedUntil: lockStatus.lockedUntil,
+      retryAfterSeconds,
+      remainingAttempts: 0,
+    });
+  }
 
   // --- QR payload support ---
   // Receipt QR codes encode a JSON payload including bookingId.
@@ -63,7 +81,8 @@ const validateBooking: RequestHandler = async (req, res) => {
     // Normalize the code (trim and uppercase) before validation
     const normalizedCode = raw.toUpperCase();
     // Use the booking code service to validate
-    const validation = await validateBookingCode(normalizedCode, ownerId);
+    // Allow USED codes so owners can still preview details (button will be disabled).
+    const validation = await validateBookingCode(normalizedCode, ownerId, true);
     if (!validation.valid || !validation.booking) {
       validationError = validation.error || "Invalid or expired code";
     } else {
@@ -72,8 +91,25 @@ const validateBooking: RequestHandler = async (req, res) => {
   }
 
   if (!booking) {
-    return (res as Response).status(400).json({ error: validationError || "Invalid code" });
+    const attempt = await recordBookingCodeFailure(ownerId);
+    if (attempt.locked) {
+      const retryAfterSeconds = Math.max(1, Math.ceil((attempt.remainingMs ?? 0) / 1000));
+      return (res as Response).status(429).json({
+        error: "Too many invalid booking code attempts. Validation is locked for 5 minutes.",
+        lockedUntil: attempt.lockedUntil,
+        retryAfterSeconds,
+        remainingAttempts: 0,
+      });
+    }
+
+    return (res as Response).status(400).json({
+      error: validationError || "Invalid code",
+      remainingAttempts: attempt.remainingAttempts,
+    });
   }
+
+  // Successful validation resets the consecutive failure streak.
+  await clearBookingCodeFailures(ownerId);
 
   const codeRecord = booking.code;
 
@@ -108,7 +144,21 @@ const validateBooking: RequestHandler = async (req, res) => {
     }
   };
 
-  return (res as Response).json({ ok: true, details });
+  const windowStatus = getBookingValidationWindowStatus(new Date(booking.checkIn), new Date(booking.checkOut), new Date());
+  const codeStatus = String(codeRecord?.status || "");
+  const eligibility =
+    windowStatus.canValidate && codeStatus && codeStatus !== "ACTIVE"
+      ? {
+          canValidate: false as const,
+          status: "CODE_NOT_ACTIVE" as const,
+          reason:
+            codeStatus === "USED"
+              ? "This booking code has already been validated and cannot be used again."
+              : "This booking code is not active.",
+        }
+      : windowStatus;
+
+  return (res as Response).json({ ok: true, details, eligibility });
 };
 router.post("/validate", validateBooking);
 
@@ -130,6 +180,12 @@ const confirmCheckin: RequestHandler = async (req, res) => {
 
   if (!booking.code) {
     return (res as Response).status(400).json({ error: "No booking code found for this booking" });
+  }
+
+  // Enforce policy: validation only allowed within check-in/check-out date window.
+  const windowStatus = getBookingValidationWindowStatus(new Date(booking.checkIn), new Date(booking.checkOut), new Date());
+  if (!windowStatus.canValidate) {
+    return (res as Response).status(400).json({ error: windowStatus.reason });
   }
 
   // Idempotent: if already checked-in and code used, do not attempt to mark again.

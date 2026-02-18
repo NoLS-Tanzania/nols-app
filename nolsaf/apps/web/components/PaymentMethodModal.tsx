@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { X, CreditCard, Smartphone, Wallet, Check } from "lucide-react";
+import { X, Smartphone, Wallet, Check } from "lucide-react";
 import axios from "axios";
 
 const api = axios.create({ baseURL: "", withCredentials: true });
@@ -62,7 +62,7 @@ export default function PaymentMethodModal({
   isOpen,
   onClose,
   onSelect,
-  invoiceId,
+  invoiceId: _invoiceId,
   amount,
   currency = "TZS",
   defaultPhone,
@@ -70,7 +70,7 @@ export default function PaymentMethodModal({
   const [selectedProvider, setSelectedProvider] = useState<string>("");
   const [phoneNumber, setPhoneNumber] = useState<string>(defaultPhone || "");
   const [savedPhones, setSavedPhones] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, _setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function loadSavedPhones() {

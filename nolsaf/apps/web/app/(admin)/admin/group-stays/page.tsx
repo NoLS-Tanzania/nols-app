@@ -1,5 +1,4 @@
 "use client";
-import AdminPageHeader from "@/components/AdminPageHeader";
 import { Users } from "lucide-react";
 import GroupStaysDashboard from "./dashboard/page";
 

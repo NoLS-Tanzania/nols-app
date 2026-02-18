@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
-import { Award, Plus, Edit, Trash2, Image as ImageIcon, ExternalLink, X, Loader2, Upload, Link2, Hash, ToggleLeft, ToggleRight, Eye, EyeOff, Camera } from "lucide-react";
+import { Award, Plus, Edit, Trash2, Image as ImageIcon, ExternalLink, X, Loader2, Upload, Link2, Hash, Eye, EyeOff, Camera } from "lucide-react";
 import axios from "axios";
 
 // Use same-origin for HTTP calls so Next.js rewrites proxy to the API
@@ -358,6 +358,7 @@ export default function AdminTrustPartnersPage() {
                               className="block"
                             >
                               <div className="h-16 w-40 bg-white border border-gray-200 rounded-lg p-3 flex items-center justify-center hover:border-emerald-500 transition-colors">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img
                                   src={partner.logoUrl}
                                   alt={`${partner.name} logo`}
@@ -378,6 +379,7 @@ export default function AdminTrustPartnersPage() {
                           ) : (
                             <div className="relative">
                               <div className="h-16 w-40 bg-white border border-gray-200 rounded-lg p-3 flex items-center justify-center">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img
                                   src={partner.logoUrl}
                                   alt={`${partner.name} logo`}
@@ -565,6 +567,7 @@ export default function AdminTrustPartnersPage() {
                                 </button>
                               </div>
                               <div className="h-16 w-48 bg-gray-50 border border-gray-200 rounded flex items-center justify-center overflow-hidden">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img
                                   src={formData.logoUrl}
                                   alt="Logo preview"

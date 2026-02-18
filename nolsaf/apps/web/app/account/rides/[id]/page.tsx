@@ -1,15 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import axios from "axios";
 import {
-  Car,
   MapPin,
-  Star,
   User,
-  CheckCircle,
-  Calendar,
   ArrowLeft,
   Phone,
   Navigation,
@@ -69,7 +65,6 @@ type Ride = {
 
 export default function RideDetailPage() {
   const params = useParams();
-  const router = useRouter();
   const rideId = Number((params as any)?.id ?? "");
   const [ride, setRide] = useState<Ride | null>(null);
   const [loading, setLoading] = useState(true);

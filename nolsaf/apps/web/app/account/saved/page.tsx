@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import Link from "next/link";
 import Image from "next/image";
-import { Heart, Share2, MapPin, ArrowLeft, ImageIcon, Calendar } from "lucide-react";
+import { Heart, Share2, MapPin, ArrowLeft, ImageIcon } from "lucide-react";
 import VerifiedIcon from "../../../components/VerifiedIcon";
 import LogoSpinner from "@/components/LogoSpinner";
 
@@ -68,20 +68,6 @@ export default function SavedPropertiesPage() {
     }).format(price);
     // Remove currency symbol if it's duplicated (some locales add it)
     return formatted.replace(/TZS\s*TZS/, "TZS").replace(/TSh\s*TSh/, "TSh");
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffTime = Math.abs(now.getTime() - date.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    if (diffDays === 0) return "Today";
-    if (diffDays === 1) return "Yesterday";
-    if (diffDays < 7) return `${diffDays} days ago`;
-    if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
-    if (diffDays < 365) return `${Math.floor(diffDays / 30)} months ago`;
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   };
 
   return (

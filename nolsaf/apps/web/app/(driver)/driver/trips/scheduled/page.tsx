@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import axios from "axios";
 import {
   Car,
@@ -559,7 +559,7 @@ export default function DriverScheduledTripsPage() {
   const [auctionAccepted, setAuctionAccepted] = useState(false);
   const [view, setView] = useState<"available" | "pending" | "awarded" | "finished">("available");
   const [filter, setFilter] = useState<"all" | "BODA" | "BAJAJI" | "CAR" | "XL" | "VIP">("all");
-  const [total, setTotal] = useState<number>(0);
+  const [, setTotal] = useState<number>(0);
   const [overview, setOverview] = useState<{ available: number; pending: number; awarded: number; finished: number }>(
     { available: 0, pending: 0, awarded: 0, finished: 0 }
   );
@@ -613,9 +613,36 @@ export default function DriverScheduledTripsPage() {
     return { text, classes };
   };
 
+  const loadTrips = useCallback(async () => {
+    try {
+      setLoading(true);
+      let url = "/api/driver/trips/scheduled";
+      const params = new URLSearchParams();
+      if (view === "available") {
+        if (filter !== "all") params.set("vehicleType", filter === "VIP" ? "PREMIUM" : filter);
+        url = `/api/driver/trips/scheduled?${params.toString()}`;
+      } else if (view === "pending") {
+        url = `/api/driver/trips/claims/pending`;
+      } else if (view === "awarded") {
+        url = `/api/driver/trips/scheduled/assigned`;
+      } else {
+        url = `/api/driver/trips/claims/finished`;
+      }
+
+      const response = await api.get(url);
+      setTrips(response.data.items || []);
+      setTotal(Number(response.data.total || 0));
+    } catch (err: any) {
+      const msg = err?.response?.data?.error || "Failed to load scheduled trips";
+      showError(msg);
+    } finally {
+      setLoading(false);
+    }
+  }, [filter, showError, view]);
+
   useEffect(() => {
-    loadTrips();
-  }, [filter, view]);
+    void loadTrips();
+  }, [loadTrips]);
 
   useEffect(() => {
     setSelectedTripId((prev) => {
@@ -648,33 +675,6 @@ export default function DriverScheduledTripsPage() {
     };
     loadOverview();
   }, []);
-
-  const loadTrips = async () => {
-    try {
-      setLoading(true);
-      let url = "/api/driver/trips/scheduled";
-      const params = new URLSearchParams();
-      if (view === "available") {
-        if (filter !== "all") params.set("vehicleType", filter === "VIP" ? "PREMIUM" : filter);
-        url = `/api/driver/trips/scheduled?${params.toString()}`;
-      } else if (view === "pending") {
-        url = `/api/driver/trips/claims/pending`;
-      } else if (view === "awarded") {
-        url = `/api/driver/trips/scheduled/assigned`;
-      } else {
-        url = `/api/driver/trips/claims/finished`;
-      }
-
-      const response = await api.get(url);
-      setTrips(response.data.items || []);
-      setTotal(Number(response.data.total || 0));
-    } catch (err: any) {
-      const msg = err?.response?.data?.error || "Failed to load scheduled trips";
-      showError(msg);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleClaim = async (tripId: number) => {
     try {

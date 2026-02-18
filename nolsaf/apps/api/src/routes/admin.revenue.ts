@@ -8,9 +8,25 @@ import { makeQR } from "../lib/qr.js";
 import { toCsv } from "../lib/csv.js";
 import { invalidateOwnerReports } from "../lib/cache.js";
 import { generateBookingPDF } from "../lib/pdfGenerator.js";
+import { decrypt } from "../lib/crypto.js";
 
 export const router = Router();
 router.use(requireAuth as express.RequestHandler, requireRole("ADMIN") as express.RequestHandler);
+
+async function createAdminAuditSafe(data: { adminId: number; targetUserId?: number | null; action: string; details?: any }) {
+  try {
+    await prisma.adminAudit.create({
+      data: {
+        adminId: data.adminId,
+        targetUserId: data.targetUserId ?? null,
+        action: data.action,
+        details: data.details ?? null,
+      },
+    });
+  } catch (e) {
+    console.warn("adminAudit.create failed:", String(e));
+  }
+}
 
 // Drift-safe selects: avoid selecting columns that may not exist in older DBs
 // (e.g. Property.tourismSiteId).
@@ -61,6 +77,80 @@ function formatPremiumDocNumber(prefix: "INV" | "RCPT", issuedAt: Date, uniqueId
   const ym = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}`;
   // 7 digits reads well and scales; does not truncate larger ids.
   return `${prefix}-${ym}-${String(uniqueId).padStart(7, "0")}`;
+}
+
+async function getEffectiveCommissionPercent(propertyServices: unknown): Promise<number> {
+  const fromProperty = (() => {
+    const services = propertyServices as any;
+    const v = services?.commissionPercent;
+    const n = Number(v);
+    if (!Number.isFinite(n)) return null;
+    if (n < 0) return 0;
+    if (n > 100) return 100;
+    return n;
+  })();
+
+  if (fromProperty != null) return fromProperty;
+
+  // Global default (SystemSetting singleton)
+  try {
+    const s =
+      (await prisma.systemSetting.findUnique({ where: { id: 1 }, select: { commissionPercent: true } as any })) ??
+      (await prisma.systemSetting.create({ data: { id: 1 } } as any));
+    const n = Number((s as any)?.commissionPercent ?? 0);
+    if (!Number.isFinite(n)) return 0;
+    return Math.max(0, Math.min(100, n));
+  } catch {
+    return 0;
+  }
+}
+
+function normalizeOwnerPayout(payoutRaw: unknown): {
+  payoutPreferred: "BANK" | "MOBILE_MONEY" | null;
+  bankAccountName: string | null;
+  bankName: string | null;
+  bankAccountNumber: string | null;
+  bankBranch: string | null;
+  mobileMoneyProvider: string | null;
+  mobileMoneyNumber: string | null;
+} {
+  const payout = payoutRaw && typeof payoutRaw === "object" ? (payoutRaw as any) : {};
+
+  const safeStr = (v: any) => {
+    if (v === null || v === undefined) return null;
+    const s = String(v).trim();
+    return s ? s : null;
+  };
+
+  const maybeDecrypt = (v: any) => {
+    const s = safeStr(v);
+    if (!s) return null;
+    try {
+      const dec = decrypt(s);
+      const out = String(dec ?? "").trim();
+      return out ? out : s;
+    } catch {
+      return s;
+    }
+  };
+
+  const pref = (() => {
+    const v = safeStr(payout.payoutPreferred);
+    if (!v) return null;
+    const up = v.toUpperCase();
+    if (up === "BANK" || up === "MOBILE_MONEY") return up as any;
+    return null;
+  })();
+
+  return {
+    payoutPreferred: pref,
+    bankAccountName: safeStr(payout.bankAccountName),
+    bankName: safeStr(payout.bankName),
+    bankAccountNumber: maybeDecrypt(payout.bankAccountNumber),
+    bankBranch: safeStr(payout.bankBranch),
+    mobileMoneyProvider: safeStr(payout.mobileMoneyProvider),
+    mobileMoneyNumber: maybeDecrypt(payout.mobileMoneyNumber),
+  };
 }
 
 /** GET /admin/invoices */
@@ -239,6 +329,14 @@ router.get("/invoices/:id(\\d+)", async (req, res) => {
     // Add accountNumber to response
     const response: any = { ...inv };
     response.accountNumber = accountNumber;
+
+    // Attach owner payout details (for admin payout processing / UI autofill)
+    try {
+      const owner = await prisma.user.findUnique({ where: { id: (inv as any).ownerId }, select: { payout: true } });
+      response.ownerPayout = normalizeOwnerPayout(owner?.payout);
+    } catch {
+      response.ownerPayout = null;
+    }
     
     // Explicitly set Content-Type to JSON
     res.setHeader('Content-Type', 'application/json');
@@ -359,10 +457,25 @@ router.post("/invoices/:id/verify", async (req, res) => {
   const adminId = (req.user as any)!.id;
     const notes = String(req.body?.notes ?? "");
 
+    const before = await prisma.invoice.findUnique({ where: { id }, select: { status: true, ownerId: true, invoiceNumber: true } });
+
     const updated = await prisma.invoice.update({
       where: { id },
       data: { status: "VERIFIED", verifiedBy: adminId, verifiedAt: new Date(), notes },
       include: { booking: true },
+    });
+
+    await createAdminAuditSafe({
+      adminId,
+      targetUserId: before?.ownerId ?? updated.ownerId,
+      action: "INVOICE_VERIFY",
+      details: {
+        invoiceId: updated.id,
+        invoiceNumber: before?.invoiceNumber ?? null,
+        fromStatus: before?.status ?? null,
+        toStatus: updated.status,
+        notes,
+      },
     });
 
     await invalidateOwnerReports(updated.ownerId);
@@ -391,9 +504,23 @@ router.post("/invoices/:id/approve", async (req, res) => {
       return res.status(401).json({ error: "Unauthorized" });
     }
     
-    const { commissionPercent, taxPercent } = req.body || {};
+    const { taxPercent } = req.body || {};
 
-    const inv = await prisma.invoice.findUnique({ where: { id }, include: { booking: true } });
+    const inv = await prisma.invoice.findUnique({
+      where: { id },
+      include: {
+        booking: {
+          include: {
+            property: {
+              select: {
+                id: true,
+                services: true,
+              },
+            },
+          },
+        },
+      },
+    });
     if (!inv) {
       return res.status(404).json({ error: "Invoice not found" });
     }
@@ -401,7 +528,37 @@ router.post("/invoices/:id/approve", async (req, res) => {
       return res.status(400).json({ error: "Already PAID" });
     }
 
-    const calc = compute(inv, { commissionPercent, taxPercent });
+    // Commission is derived from property commission policy (set during property approval).
+    // Admin can only override taxPercent here.
+    const propertyServices = (inv as any)?.booking?.property?.services;
+    const effectiveCommissionPercent = await getEffectiveCommissionPercent(propertyServices);
+    const calc = compute(inv, { commissionPercent: effectiveCommissionPercent, taxPercent });
+
+    // Enforce payout preference/details before approving (required for CSV payout processing)
+    const owner = await prisma.user.findUnique({ where: { id: (inv as any).ownerId }, select: { payout: true } });
+    const payout = normalizeOwnerPayout(owner?.payout);
+    if (!payout.payoutPreferred) {
+      return res.status(400).json({
+        error: "Owner payout method not set",
+        detail: "Owner must set payout details and preferred payout method (BANK or MOBILE_MONEY) before invoice can be approved.",
+      });
+    }
+    if (payout.payoutPreferred === "BANK") {
+      if (!payout.bankName || !payout.bankAccountNumber) {
+        return res.status(400).json({
+          error: "Owner bank payout details missing",
+          detail: "Bank name and account number are required for BANK payouts.",
+        });
+      }
+    }
+    if (payout.payoutPreferred === "MOBILE_MONEY") {
+      if (!payout.mobileMoneyProvider || !payout.mobileMoneyNumber) {
+        return res.status(400).json({
+          error: "Owner mobile money payout details missing",
+          detail: "Mobile money provider and number are required for MOBILE_MONEY payouts.",
+        });
+      }
+    }
 
     // Premium numbering (collision-safe): derive from immutable unique invoice id.
     // Keep existing invoiceNumber if already assigned by public/owner flows.
@@ -424,6 +581,20 @@ router.post("/invoices/:id/approve", async (req, res) => {
         paymentRef, // <<—— critical
       },
       include: { booking: true },
+    });
+
+    await createAdminAuditSafe({
+      adminId,
+      targetUserId: inv.ownerId,
+      action: "INVOICE_APPROVE",
+      details: {
+        invoiceId: updated.id,
+        invoiceNumber: updated.invoiceNumber ?? null,
+        fromStatus: inv.status,
+        toStatus: updated.status,
+        commissionPercent: calc.commissionPercent,
+        taxPercent: calc.taxPercent,
+      },
     });
 
     await invalidateOwnerReports(updated.ownerId);
@@ -492,7 +663,7 @@ router.post("/invoices/:id/approve", async (req, res) => {
 router.post("/invoices/:id/mark-paid", async (req, res) => {
   try {
     const id = Number(req.params.id);
-  const adminId = (req.user as any)!.id;
+    const adminId = (req.user as any)!.id;
     const method = String(req.body?.method ?? "BANK");
     const ref = String(req.body?.ref ?? "");
 
@@ -510,6 +681,29 @@ router.post("/invoices/:id/mark-paid", async (req, res) => {
     });
     if (!inv) return res.status(404).json({ error: "Invoice not found" });
     if (inv.status === "PAID") return res.status(400).json({ error: "Already PAID" });
+
+    // paymentRef is UNIQUE and primarily used as a gateway/merchant reference.
+    // Do not blindly overwrite it with admin-entered refs.
+    let nextPaymentRef: string | null = inv.paymentRef ?? null;
+    const trimmedRef = ref.trim();
+    if (!nextPaymentRef) {
+      nextPaymentRef = trimmedRef || `INVREF-${inv.id}-${Date.now()}`;
+
+      // Pre-check for a friendlier error than Prisma P2002
+      const existing = await prisma.invoice.findFirst({
+        where: {
+          paymentRef: nextPaymentRef,
+          NOT: { id: inv.id },
+        },
+        select: { id: true },
+      });
+      if (existing) {
+        return res.status(409).json({
+          error: "Payment reference already used",
+          detail: `paymentRef is already set on invoice #${existing.id}`,
+        });
+      }
+    }
 
     const receiptNumber = inv.receiptNumber ?? formatPremiumDocNumber("RCPT", new Date(), inv.id);
 
@@ -531,12 +725,27 @@ router.post("/invoices/:id/mark-paid", async (req, res) => {
         paidBy: adminId,
         paidAt: new Date(),
         paymentMethod: method,
-        paymentRef: ref || inv.paymentRef || null,
+        paymentRef: nextPaymentRef,
         receiptNumber,
         receiptQrPayload: qrPayload,
         receiptQrPng: png,
       },
       include: { booking: true },
+    });
+
+    await createAdminAuditSafe({
+      adminId,
+      targetUserId: inv.ownerId,
+      action: "INVOICE_MARK_PAID",
+      details: {
+        invoiceId: updated.id,
+        invoiceNumber: inv.invoiceNumber ?? null,
+        fromStatus: inv.status,
+        toStatus: updated.status,
+        method,
+        ref,
+        receiptNumber: updated.receiptNumber ?? null,
+      },
     });
 
     await invalidateOwnerReports(updated.ownerId);
@@ -634,6 +843,11 @@ router.post("/invoices/:id/mark-paid", async (req, res) => {
 
     res.json({ ok: true, invoice: updated });
   } catch (err: any) {
+    // Prisma unique constraint (e.g. Invoice_paymentRef_key)
+    if (err?.code === "P2002" && (err?.meta?.modelName === "Invoice" || String(err?.message || "").includes("Invoice_paymentRef_key"))) {
+      return res.status(409).json({ error: "Payment reference must be unique" });
+    }
+
     console.error("Error in POST /admin/invoices/:id/mark-paid", err);
     res.status(500).json({ error: "Internal server error" });
   }
@@ -688,7 +902,7 @@ router.get("/invoices/export.csv", async (req, res) => {
         where,
         include: {
           booking: { include: { property: { select: adminInvoicePropertySelect } } },
-          owner: { select: { id: true, name: true, email: true, phone: true } },
+          owner: { select: { id: true, name: true, email: true, phone: true, payout: true } },
         },
         orderBy: { id: "desc" },
         take: 5000,
@@ -704,7 +918,8 @@ router.get("/invoices/export.csv", async (req, res) => {
         "id","invoiceNumber","receiptNumber","status","issuedAt","approvedAt",
         "property","propertyId","ownerId","ownerName","ownerEmail","ownerPhone",
         "total","commissionPercent","commissionAmount","taxPercent","taxAmount","netPayable",
-        "paidAt","paymentMethod","paymentRef"
+        "paidAt","paymentMethod","paymentRef",
+        "payoutPreferred","bankName","bankAccountName","bankAccountNumber","bankBranch","mobileMoneyProvider","mobileMoneyNumber"
       ];
       const csv = headers.join(",") + "\n";
       const filename = status === "APPROVED" 
@@ -739,6 +954,7 @@ router.get("/invoices/export.csv", async (req, res) => {
         const booking = r.booking || null;
         const property = booking?.property || null;
         const propertyId = booking?.propertyId || null;
+        const payout = normalizeOwnerPayout(r.owner?.payout);
 
         return {
           id: String(r.id || ""),
@@ -762,6 +978,13 @@ router.get("/invoices/export.csv", async (req, res) => {
           paidAt: safeDate(r.paidAt),
           paymentMethod: String(r.paymentMethod || ""),
           paymentRef: String(r.paymentRef || ""),
+          payoutPreferred: payout.payoutPreferred ? String(payout.payoutPreferred) : "",
+          bankName: payout.bankName ? String(payout.bankName) : "",
+          bankAccountName: payout.bankAccountName ? String(payout.bankAccountName) : "",
+          bankAccountNumber: payout.bankAccountNumber ? String(payout.bankAccountNumber) : "",
+          bankBranch: payout.bankBranch ? String(payout.bankBranch) : "",
+          mobileMoneyProvider: payout.mobileMoneyProvider ? String(payout.mobileMoneyProvider) : "",
+          mobileMoneyNumber: payout.mobileMoneyNumber ? String(payout.mobileMoneyNumber) : "",
         };
       } catch (rowErr: any) {
         console.error(`Error mapping invoice row ${r.id}:`, rowErr);
@@ -788,6 +1011,13 @@ router.get("/invoices/export.csv", async (req, res) => {
           paidAt: "",
           paymentMethod: "",
           paymentRef: "",
+          payoutPreferred: "",
+          bankName: "",
+          bankAccountName: "",
+          bankAccountNumber: "",
+          bankBranch: "",
+          mobileMoneyProvider: "",
+          mobileMoneyNumber: "",
         };
       }
     });
@@ -801,7 +1031,8 @@ router.get("/invoices/export.csv", async (req, res) => {
           "id","invoiceNumber","receiptNumber","status","issuedAt","approvedAt",
           "property","propertyId","ownerId","ownerName","ownerEmail","ownerPhone",
           "total","commissionPercent","commissionAmount","taxPercent","taxAmount","netPayable",
-          "paidAt","paymentMethod","paymentRef"
+          "paidAt","paymentMethod","paymentRef",
+          "payoutPreferred","bankName","bankAccountName","bankAccountNumber","bankBranch","mobileMoneyProvider","mobileMoneyNumber"
         ]
       );
     } catch (csvErr: any) {

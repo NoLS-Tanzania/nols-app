@@ -9,6 +9,7 @@ import crypto from "crypto";
 import { checkPropertyAvailability, checkGuestCapacity } from "../lib/bookingAvailability.js";
 import { sanitizeText } from "../lib/sanitize.js";
 import { notifyAdmins, notifyOwner } from "../lib/notifications.js";
+import { invalidateOwnerReports } from "../lib/cache.js";
 import { maybeAuth } from "../middleware/auth.js";
 import { AUTO_DISPATCH_LOOKAHEAD_MS, MIN_TRANSPORT_LEAD_MS } from "../lib/transportPolicy.js";
 import { generateTransportTripCode } from "../lib/tripCode.js";
@@ -1322,6 +1323,9 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
       } catch {}
 
       if (ownerId) {
+        try {
+          await invalidateOwnerReports(ownerId);
+        } catch {}
         await notifyOwner(ownerId, "booking_created", payload);
         try {
           io?.to?.(`owner:${ownerId}`)?.emit?.("owner:bookings:updated", { bookingId: result.bookingId, propertyId: property.id });

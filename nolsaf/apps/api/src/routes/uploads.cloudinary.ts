@@ -30,6 +30,7 @@ const allowedFolderPatterns: Array<{ type: "exact"; value: string } | { type: "p
   { type: "exact", value: "uploads" },
   { type: "exact", value: "avatars" },
   { type: "exact", value: "agent-documents" },
+  { type: "exact", value: "owner-documents" },
   { type: "prefix", value: "driver-documents/" },
   { type: "exact", value: "properties" },
   { type: "exact", value: "trust-partners" },

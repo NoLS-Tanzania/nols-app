@@ -1,7 +1,7 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { FileCheck2, Calendar, MapPin, User, CreditCard, CheckCircle } from "lucide-react";
+import { FileCheck2, Calendar, User, CreditCard, CheckCircle } from "lucide-react";
 
 type BookingData = {
   booking: {
@@ -41,12 +41,8 @@ export default function PublicBookingViewPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadBooking = useCallback(async () => {
     if (!code) return;
-    loadBooking();
-  }, [code]);
-
-  const loadBooking = async () => {
     try {
       setLoading(true);
       const response = await fetch(`/api/public/booking/${code}`);
@@ -61,7 +57,11 @@ export default function PublicBookingViewPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [code]);
+
+  useEffect(() => {
+    void loadBooking();
+  }, [loadBooking]);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {

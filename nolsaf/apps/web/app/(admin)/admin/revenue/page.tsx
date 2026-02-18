@@ -287,7 +287,6 @@ export default function AdminRevenue() {
     // Use direct API URL for Socket.IO in browser to ensure WebSocket works in dev
     // Convert http:// to ws:// for WebSocket connections
     const apiUrl = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-    const wsUrl = apiUrl.replace(/^http/, 'ws');
     
     let s: Socket | null = null;
     try {

@@ -23,18 +23,37 @@ export default function DriverWelcome({ className }: { className?: string }) {
   const name = me && (me.fullName || me.email) ? (me.fullName || me.email) : "Driver";
   const isoDate = (new Date()).toISOString().slice(0,10);
   
-  const [available, setAvailable] = useState<boolean>(() => {
-    try {
-      const raw = localStorage.getItem('driver_available');
-      return raw === '1' || raw === 'true';
-    } catch (e) {
-      return false;
-    }
-  });
+  const [available, setAvailable] = useState<boolean>(false);
 
   // minimal placeholder state for the welcome card's map area (map is mounted on the Live Map page)
   const [mapVisible, setMapVisible] = useState<boolean>(false);
-  const [mapError, setMapError] = useState<string | null>(null);
+  const [mapError, _setMapError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const id = me?.id;
+    if (!id) return;
+
+    const availKey = `driver_available:${String(id)}`;
+
+    // Fast hydrate from per-driver cache
+    try {
+      const raw = localStorage.getItem(availKey);
+      if (raw === '1' || raw === 'true') setAvailable(true);
+      else if (raw === '0' || raw === 'false') setAvailable(false);
+    } catch {}
+
+    // Server source of truth
+    (async () => {
+      try {
+        const r = await api.get('/api/driver/availability');
+        const serverAvailable = Boolean(r?.data?.available);
+        setAvailable(serverAvailable);
+        try { localStorage.setItem(availKey, serverAvailable ? '1' : '0'); } catch {}
+      } catch {
+        // ignore
+      }
+    })();
+  }, [me?.id]);
 
   useEffect(() => {
     const handler = (ev: Event) => {
@@ -43,13 +62,17 @@ export default function DriverWelcome({ className }: { className?: string }) {
         if (typeof detail.available === 'boolean') {
           setAvailable(detail.available);
           try { setMapVisible(detail.available); } catch (e) {}
+          try {
+            if (me?.id) localStorage.setItem(`driver_available:${String(me.id)}`, detail.available ? '1' : '0');
+          } catch {}
         }
       } catch (e) {
         // ignore
       }
     };
     const storageHandler = (e: StorageEvent) => {
-      if (e.key === 'driver_available') {
+      const key = me?.id ? `driver_available:${String(me.id)}` : 'driver_available';
+      if (e.key === key) {
         const val = e.newValue;
         const avail = val === '1' || val === 'true';
         setAvailable(avail);
@@ -62,7 +85,7 @@ export default function DriverWelcome({ className }: { className?: string }) {
       window.removeEventListener('nols:availability:changed', handler as EventListener);
       window.removeEventListener('storage', storageHandler as any);
     };
-  }, []);
+  }, [me?.id]);
   
 
   // Map is provided by the Live Map page; welcome card shows a placeholder.

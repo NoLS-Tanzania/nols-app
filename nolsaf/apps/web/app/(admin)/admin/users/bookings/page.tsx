@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { Calendar, ChevronDown, ChevronUp, User, Building2, CreditCard, Clock, ExternalLink, Search } from "lucide-react";
+import { Calendar, ChevronDown, User, Building2, CreditCard, Clock, ExternalLink, Search } from "lucide-react";
 import DatePicker from "@/components/ui/DatePicker";
 import axios from "axios";
 import type { Socket } from "socket.io-client";
@@ -54,7 +54,7 @@ function badgeClasses(v: string) {
   }
 }
 
-function CompletedStatusBadge({ status }: { status: string }) {
+function _CompletedStatusBadge({ status }: { status: string }) {
   const s = String(status || "").toUpperCase();
   const label =
     s === "CONFIRMED" ? "Paid" : s === "PENDING_CHECKIN" ? "Waiting" : s === "CHECKED_IN" ? "Checked In" : s || "Unknown";
@@ -190,7 +190,7 @@ type FilterButtonProps = {
   badgeClass: string;
 };
 
-function FilterButton({ label, value, count, isActive, onClick, badgeClass }: FilterButtonProps) {
+function FilterButton({ label, value: _value, count, isActive, onClick, badgeClass }: FilterButtonProps) {
   return (
     <button
       type="button"

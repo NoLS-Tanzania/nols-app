@@ -586,6 +586,22 @@ router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res,
       } catch (err) {
         console.error('[LOGIN] Failed to record failed attempt:', err);
       }
+
+      // Audit failed login attempt for known user (best-effort)
+      try {
+        ;(req as any).user = user
+        await audit(req, "USER_LOGIN", `user:${user.id}`, null, {
+          role: user.role,
+          email: user.email,
+          loginMethod: "password",
+          event: "login",
+          success: false,
+          error: "verify_error",
+        })
+      } catch {
+        /* ignore */
+      }
+
       let remaining = 5; // Default
       try {
         remaining = await getRemainingAttempts(identifier);
@@ -605,6 +621,22 @@ router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res,
       } catch (err) {
         console.error('[LOGIN] Failed to record failed attempt:', err);
       }
+
+      // Audit failed login attempt for known user (best-effort)
+      try {
+        ;(req as any).user = user
+        await audit(req, "USER_LOGIN", `user:${user.id}`, null, {
+          role: user.role,
+          email: user.email,
+          loginMethod: "password",
+          event: "login",
+          success: false,
+          error: "invalid_credentials",
+        })
+      } catch {
+        /* ignore */
+      }
+
       let remaining = 5; // Default
       try {
         remaining = await getRemainingAttempts(identifier);
@@ -664,10 +696,15 @@ router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res,
 
     // Audit successful login
     try {
+      // `audit()` derives actorId/actorRole from `req.user`. During login, middleware
+      // has not attached a user yet, so explicitly attach for attribution.
+      ;(req as any).user = user
       await audit(req, "USER_LOGIN", `user:${user.id}`, null, { 
         role: user.role,
         email: user.email,
-        loginMethod: 'password'
+        loginMethod: 'password',
+        event: 'login',
+        success: true,
       });
     } catch (auditError) {
       // Don't block login if audit fails
@@ -741,7 +778,12 @@ router.get("/logout", maybeAuth, async (req, res) => {
   try {
     const userId = (req as any).user?.id;
     if (userId) {
+      const u = (req as any).user
       await audit(req, "USER_LOGOUT", `user:${userId}`, null, {
+        role: u?.role ?? null,
+        email: u?.email ?? null,
+        event: "logout",
+        success: true,
         logoutMethod: "manual",
         via: "GET",
       });
@@ -760,7 +802,12 @@ router.post("/logout", maybeAuth, async (req, res) => {
   try {
     const userId = (req as any).user?.id;
     if (userId) {
+      const u = (req as any).user
       await audit(req, "USER_LOGOUT", `user:${userId}`, null, { 
+        role: u?.role ?? null,
+        email: u?.email ?? null,
+        event: "logout",
+        success: true,
         logoutMethod: 'manual'
       });
     }

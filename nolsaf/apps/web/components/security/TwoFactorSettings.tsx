@@ -1,8 +1,7 @@
 "use client"
 
 import React, { useEffect, useRef, useState } from "react"
-import Link from "next/link"
-import { ChevronLeft, Lock, Smartphone, Shield, CheckCircle, XCircle } from "lucide-react"
+import { Lock, Smartphone, Shield, CheckCircle, XCircle } from "lucide-react"
 import Spinner from "@/components/Spinner"
 import SecuritySettingsShell from "@/components/security/SecuritySettingsShell"
 

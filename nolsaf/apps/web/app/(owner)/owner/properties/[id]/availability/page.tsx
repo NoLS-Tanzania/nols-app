@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import axios from "axios";
@@ -15,14 +15,11 @@ import {
   Clock,
   Home,
   BedDouble,
-  Users,
   Save,
   Loader2,
   ChevronLeft,
   ChevronRight,
   Filter,
-  Download,
-  Upload,
   RefreshCw,
   Info,
   AlertTriangle,
@@ -159,11 +156,10 @@ export default function PropertyAvailabilityPage() {
   const [property, setProperty] = useState<any>(null);
   const [calendarData, setCalendarData] = useState<CalendarData | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [viewMode, setViewMode] = useState<"month" | "week" | "day">("month");
   const [selectedRoomCode, setSelectedRoomCode] = useState<string | null>(null);
   const [showBlockForm, setShowBlockForm] = useState(false);
   const [editingBlock, setEditingBlock] = useState<AvailabilityBlock | null>(null);
-  const [socket, setSocket] = useState<Socket | null>(null);
+  const [, setSocket] = useState<Socket | null>(null);
   const [connected, setConnected] = useState(false);
   const [showConflictModal, setShowConflictModal] = useState(false);
   const [conflictData, setConflictData] = useState<{ conflictingBookings: any[]; conflictingBlocks: any[] } | null>(null);
@@ -204,7 +200,7 @@ export default function PropertyAvailabilityPage() {
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const [filterRangePickerOpen, setFilterRangePickerOpen] = useState(false);
   const [filterPicking, setFilterPicking] = useState<"start" | "end">("start");
-  const [filterAwaitingEnd, setFilterAwaitingEnd] = useState(false);
+  const [, setFilterAwaitingEnd] = useState(false);
   
   // Date picker states (block form)
   const [blockRangePickerOpen, setBlockRangePickerOpen] = useState(false);
@@ -334,7 +330,7 @@ export default function PropertyAvailabilityPage() {
       setConnected(false);
     });
 
-    newSocket.on("availability:update", (data: any) => {
+    newSocket.on("availability:update", (_data: any) => {
       // Reload calendar data and summary when availability changes
       loadCalendarData();
       loadAvailabilitySummary();

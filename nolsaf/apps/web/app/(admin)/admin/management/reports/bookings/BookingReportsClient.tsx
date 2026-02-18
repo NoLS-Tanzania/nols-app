@@ -311,13 +311,6 @@ function MoreRangesPopover({
   );
 }
 
-async function fetchTotal(url: string): Promise<number> {
-  const r = await fetch(url, { credentials: "include" });
-  const j = (await safeJson(r)) as any;
-  const total = Number(j?.total ?? 0);
-  return Number.isFinite(total) ? total : 0;
-}
-
 async function fetchAllPages<T>(baseUrl: URL, maxItems = 20000): Promise<{ items: T[]; total: number }>
 {
   const items: T[] = [];
@@ -434,15 +427,6 @@ export default function BookingReportsClient() {
   const [ownerChartCanvas, setOwnerChartCanvas] = useState<HTMLCanvasElement | null>(null);
   const [planChartCanvas, setPlanChartCanvas] = useState<HTMLCanvasElement | null>(null);
 
-  const quickRanges = useMemo(
-    () => [
-      { key: "today", label: "Today", days: 0 },
-      { key: "7d", label: "7D", days: 6 },
-      { key: "30d", label: "1M", days: 29 },
-    ] as const,
-    []
-  );
-
   const applyQuickRange = useCallback((daysBackInclusive: number) => {
     const end = startOfTodayUtc();
     const start = addDaysUtc(end, -daysBackInclusive);
@@ -547,17 +531,6 @@ export default function BookingReportsClient() {
       { key: "PENDING_CHECKIN", label: "Pending check-in" },
       { key: "CHECKED_IN", label: "Checked in" },
       { key: "CHECKED_OUT", label: "Checked out" },
-      { key: "CANCELED", label: "Canceled" },
-    ],
-    []
-  );
-
-  const groupStatusOrder = useMemo(
-    () => [
-      { key: "PENDING", label: "Pending" },
-      { key: "PROCESSING", label: "Processing" },
-      { key: "CONFIRMED", label: "Confirmed" },
-      { key: "COMPLETED", label: "Completed" },
       { key: "CANCELED", label: "Canceled" },
     ],
     []

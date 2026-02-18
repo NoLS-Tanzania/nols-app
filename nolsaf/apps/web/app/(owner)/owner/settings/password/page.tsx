@@ -6,7 +6,7 @@ import { ChevronLeft, Eye, EyeOff, Lock, CheckCircle2, XCircle, AlertCircle } fr
 import { useRouter } from 'next/navigation'
 
 // Password validation function with DoS protection (12 characters for OWNER)
-function validatePasswordStrength(password: string, role?: string | null) {
+function validatePasswordStrength(password: string, _role?: string | null) {
   // Backend enforces 12 characters minimum for OWNER/ADMIN roles
   const minLength = 12; // DoS protection: minimum 12 characters for OWNER
   const maxLength = 12; // DoS protection: maximum 12 characters
