@@ -421,7 +421,7 @@ const getMe: RequestHandler = async (req, res) => {
         // Decrypt sensitive fields before returning to client
         if (payout.bankAccountNumber && typeof payout.bankAccountNumber === 'string') {
           try {
-            payout.bankAccountNumber = decrypt(payout.bankAccountNumber);
+              payout.bankAccountNumber = decrypt(payout.bankAccountNumber, { log: false });
           } catch (e) {
             console.warn(`[account/me] Failed to decrypt bankAccountNumber, keeping as-is:`, e);
             // If decryption fails, might be plain text (migration scenario)
@@ -694,7 +694,7 @@ const updatePayouts: RequestHandler = async (req, res) => {
       // Decrypt sensitive fields from existing data
       if (before.bankAccountNumber && typeof before.bankAccountNumber === 'string') {
         try {
-          currentDecrypted.bankAccountNumber = decrypt(before.bankAccountNumber);
+            currentDecrypted.bankAccountNumber = decrypt(before.bankAccountNumber, { log: false });
           payoutData.bankAccountNumber = currentDecrypted.bankAccountNumber;
         } catch (e) {
           // If decryption fails, might be plain text (migration scenario)
@@ -704,7 +704,7 @@ const updatePayouts: RequestHandler = async (req, res) => {
       }
       if (before.mobileMoneyNumber && typeof before.mobileMoneyNumber === 'string') {
         try {
-          currentDecrypted.mobileMoneyNumber = decrypt(before.mobileMoneyNumber);
+            currentDecrypted.mobileMoneyNumber = decrypt(before.mobileMoneyNumber, { log: false });
           payoutData.mobileMoneyNumber = currentDecrypted.mobileMoneyNumber;
         } catch (e) {
           currentDecrypted.mobileMoneyNumber = before.mobileMoneyNumber;

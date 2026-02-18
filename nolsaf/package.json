@@ -10,11 +10,17 @@
   "devDependencies": {
     "@prisma/adapter-mariadb": "^7.3.0",
     "@prisma/client": "^7.3.0",
+    "@prisma/debug": "^7.0.0",
+    "@typescript-eslint/eslint-plugin": "8.54.0",
+    "@typescript-eslint/parser": "8.54.0",
     "cliui": "^9.0.1",
     "concurrently": "^9.0.1",
     "dotenv": "^17.2.3",
+    "eslint": "9.39.2",
+    "eslint-plugin-react-hooks": "7.0.1",
     "prisma": "^7.3.0",
-    "snyk": "^1.1300.0"
+    "snyk": "^1.1300.0",
+    "yargs": "^18.0.0"
   },
   "scripts": {
     "dev": "pnpm --filter @nolsaf/web predev && concurrently -n api,web -c green,cyan \"pnpm --filter @nolsaf/api dev\" \"pnpm --filter @nolsaf/web dev\"",
@@ -31,16 +37,33 @@
     "create:test-user-data": "node scripts/create-comprehensive-test-user-data.js",
     "create:test-owners": "node scripts/create-test-owners.js"
   },
-  "dependencies": {
-    "@prisma/debug": "^7.0.0",
-    "@typescript-eslint/eslint-plugin": "8.54.0",
-    "@typescript-eslint/parser": "8.54.0",
-    "eslint": "9.39.2",
-    "eslint-plugin-react-hooks": "7.0.1",
-    "yargs": "^18.0.0"
+  "dependencies": {},
+  "pnpm": {
+    "overrides": {
+      "axios": "1.13.5",
+      "diff": "4.0.4",
+      "fast-xml-parser": "5.3.6",
+      "glob": "10.5.0",
+      "hono": "4.11.7",
+      "js-yaml": "4.1.1",
+      "jspdf": "4.1.0",
+      "jws": "3.2.3",
+      "lodash": "4.17.23",
+      "nodemailer": "7.0.11",
+      "qs": "6.14.2"
+    }
   },
   "overrides": {
+    "axios": "1.13.5",
+    "diff": "4.0.4",
+    "fast-xml-parser": "5.3.6",
+    "glob": "10.5.0",
     "hono": "4.11.7",
-    "lodash": "4.17.23"
+    "js-yaml": "4.1.1",
+    "jspdf": "4.1.0",
+    "jws": "3.2.3",
+    "lodash": "4.17.23",
+    "nodemailer": "7.0.11",
+    "qs": "6.14.2"
   }
 }

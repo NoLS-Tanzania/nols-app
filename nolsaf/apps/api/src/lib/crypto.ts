@@ -116,7 +116,7 @@ export function encrypt(plaintext: string): string {
  * @param encryptedData - Base64-encoded string from encrypt()
  * @returns Decrypted plain text
  */
-export function decrypt(encryptedData: string): string {
+export function decrypt(encryptedData: string, opts?: { log?: boolean }): string {
   if (!encryptedData || encryptedData.length === 0) {
     return '';
   }
@@ -178,7 +178,7 @@ export function decrypt(encryptedData: string): string {
       } catch {
         // ignore
       }
-      console.error('Decryption failed:', error);
+      if (opts?.log !== false) console.error('Decryption failed:', error);
       throw new Error('Failed to decrypt sensitive data - invalid format or corrupted');
     }
   }

@@ -126,7 +126,7 @@ function normalizeOwnerPayout(payoutRaw: unknown): {
     const s = safeStr(v);
     if (!s) return null;
     try {
-      const dec = decrypt(s);
+      const dec = decrypt(s, { log: false });
       const out = String(dec ?? "").trim();
       return out ? out : s;
     } catch {
