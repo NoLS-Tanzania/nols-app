@@ -97,10 +97,14 @@ Simplest safe production choice:
 Create a Vercel project pointing to `apps/web`.
 
 Because this is a monorepo, the common working configuration is:
-- Root directory: `nolsaf/apps/web`
-- Build command: `cd ../.. && npm ci && npm run prisma:generate && npm run --workspace=@nolsaf/shared build && npm run --workspace=@nolsaf/prisma build && npm run --workspace=@nolsaf/web build`
+
+- Root directory: `nolsaf/apps/web` (use forward slashes)
+- Install command: `cd ../.. && npm ci`
+- Build command: `cd ../.. && npm run prisma:generate && npm run --workspace=@nolsaf/web build`
 
 (You can also rely on Vercel’s install step and set build command to only the build portion.)
+
+If Vercel shows: "No Next.js version detected", it almost always means the **Root Directory** is pointing at `nolsaf/` (workspace root) instead of `nolsaf/apps/web`.
 
 ## Staging vs production
 
