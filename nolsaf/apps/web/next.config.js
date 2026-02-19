@@ -7,6 +7,7 @@ const socketOrigin = (process.env.NEXT_PUBLIC_SOCKET_URL || '').replace(/\/$/, '
 
 const nextConfig = {
   reactStrictMode: true,
+  transpilePackages: ['@nolsaf/shared'],
   output: 'standalone',
   experimental: {
     // Allow larger proxied bodies for draft property submissions in development.

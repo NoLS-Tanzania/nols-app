@@ -8,6 +8,7 @@ const socketOrigin = (process.env.NEXT_PUBLIC_SOCKET_URL || '').replace(/\/$/, '
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  transpilePackages: ['@nolsaf/shared'],
   output: 'standalone', // Enable standalone output for Docker
   experimental: {
     // Allow larger proxied bodies for draft property submissions in development.
