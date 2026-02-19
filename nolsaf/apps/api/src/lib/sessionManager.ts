@@ -115,6 +115,7 @@ export async function setAuthCookie(
 ): Promise<void> {
   try {
     const isProd = process.env.NODE_ENV === "production";
+    const cookieDomain = (process.env.COOKIE_DOMAIN || "").trim() || undefined;
     const roleMaxMinutes = await getRoleSessionMaxMinutes(role);
     const maxAge = roleMaxMinutes * 60 * 1000;
     
@@ -124,6 +125,7 @@ export async function setAuthCookie(
       sameSite: "lax" as const,
       path: "/",
       maxAge,
+      ...(cookieDomain ? { domain: cookieDomain } : {}),
     };
     
     // Set the JWT token cookie
@@ -138,6 +140,7 @@ export async function setAuthCookie(
         sameSite: "lax" as const,
         path: "/",
         maxAge,
+        ...(cookieDomain ? { domain: cookieDomain } : {}),
       });
     }
   } catch (error: any) {
@@ -158,8 +161,10 @@ export async function shouldForceLogout(): Promise<boolean> {
  * Clear all auth cookies (used for force logout)
  */
 export function clearAuthCookie(res: any): void {
-  res.clearCookie("nolsaf_token", { path: "/" });
-  res.clearCookie("token", { path: "/" });
-  res.clearCookie("role", { path: "/" });
+  const cookieDomain = (process.env.COOKIE_DOMAIN || "").trim() || undefined;
+  const baseOpts = { path: "/", ...(cookieDomain ? { domain: cookieDomain } : {}) };
+  res.clearCookie("nolsaf_token", baseOpts);
+  res.clearCookie("token", baseOpts);
+  res.clearCookie("role", baseOpts);
 }
 
