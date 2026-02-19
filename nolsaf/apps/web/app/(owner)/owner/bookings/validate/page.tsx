@@ -11,7 +11,18 @@ type Preview = {
   bookingId: number;
   property: { id: number; title: string; type: string };
   personal: { fullName: string; phone: string; nationality: string; sex: string; ageGroup: string };
-  booking: { roomType: string; rooms: number; nights: number; checkIn: string; checkOut: string; status: string; totalAmount: string };
+  booking: {
+    roomType: string;
+    rooms: number;
+    nights: number;
+    checkIn: string;
+    checkOut: string;
+    status: string;
+    totalAmount: string;
+    transportFare?: string;
+    ownerBaseAmount?: string;
+    includeTransport?: boolean;
+  };
 } | null;
 
 type Eligibility =
@@ -186,7 +197,7 @@ export default function CheckinValidation() {
           property: preview.property.title,
           roomType: preview.booking.roomType,
           nights: preview.booking.nights,
-          amountPaid: preview.booking.totalAmount,
+          amountPaid: preview.booking.ownerBaseAmount ?? preview.booking.totalAmount,
           bookingCode: (preview as any).booking?.code ?? null,
           nationality: preview.personal.nationality
         }
@@ -373,7 +384,6 @@ export default function CheckinValidation() {
   useEffect(() => {
     let mounted = true;
     let timer: number | null = null;
-
     const ping = async () => {
       try {
         const r = await fetch('/api/health', { method: 'GET', credentials: 'include' });
@@ -707,7 +717,7 @@ export default function CheckinValidation() {
                             <InfoTile label="Room type" value={preview.booking.roomType} />
                             <InfoTile label="Rooms" value={String(preview.booking.rooms)} />
                             <InfoTile label="Nights" value={String(preview.booking.nights)} />
-                            <InfoTile label="Amount paid" value={formatTZS(preview.booking.totalAmount)} />
+                            <InfoTile label="Base amount" value={formatTZS(preview.booking.ownerBaseAmount ?? preview.booking.totalAmount)} />
                             <div className="min-[420px]:col-span-2">
                               <InfoTile variant="checkin" label="Check-in" value={formatDateTime(preview.booking.checkIn)} />
                             </div>

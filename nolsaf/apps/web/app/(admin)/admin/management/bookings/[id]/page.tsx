@@ -179,7 +179,7 @@ export default function ManagementBookingDetail() {
         {/* Main Content */}
         <div className="lg:col-span-2 space-y-6">
           {/* Property Details */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+          <div className="bg-gradient-to-br from-white to-emerald-50 rounded-lg border border-gray-200 p-6 shadow-sm">
             <div className="flex items-start gap-3 mb-4">
               <div className="w-10 h-10 rounded-lg bg-[#02665e]/10 flex items-center justify-center flex-shrink-0">
                 <Home className="h-5 w-5 text-[#02665e]" />
@@ -200,7 +200,7 @@ export default function ManagementBookingDetail() {
           </div>
 
           {/* Guest Information */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+          <div className="bg-gradient-to-br from-white to-blue-50 rounded-lg border border-gray-200 p-6 shadow-sm">
             <div className="flex items-start gap-3 mb-4">
               <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
                 <User className="h-5 w-5 text-blue-600" />
@@ -228,7 +228,7 @@ export default function ManagementBookingDetail() {
           </div>
 
           {/* Booking Dates and Details */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+          <div className="bg-gradient-to-br from-white to-purple-50 rounded-lg border border-gray-200 p-6 shadow-sm">
             <div className="flex items-start gap-3 mb-4">
               <div className="w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center flex-shrink-0">
                 <Calendar className="h-5 w-5 text-purple-600" />
@@ -278,7 +278,7 @@ export default function ManagementBookingDetail() {
           </div>
 
           {/* Check-in Code */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+          <div className="bg-gradient-to-br from-white to-emerald-50 rounded-lg border border-gray-200 p-6 shadow-sm">
             <div className="flex items-start gap-3 mb-4">
               <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
                 <FileText className="h-5 w-5 text-emerald-600" />
@@ -324,7 +324,7 @@ export default function ManagementBookingDetail() {
         {/* Sidebar */}
         <div className="space-y-6">
           {/* Amount */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+          <div className="bg-gradient-to-br from-white to-amber-50 rounded-lg border border-gray-200 p-6 shadow-sm">
             <div className="flex items-start gap-3 mb-4">
               <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
                 <DollarSign className="h-5 w-5 text-amber-600" />
@@ -339,7 +339,7 @@ export default function ManagementBookingDetail() {
           </div>
 
           {/* Actions */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+          <div className="bg-gradient-to-br from-white to-gray-50 rounded-lg border border-gray-200 p-6 shadow-sm">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Actions</h2>
             <div className="space-y-3">
               {(booking.user?.email || booking.guestPhone || booking.user?.phone) && (

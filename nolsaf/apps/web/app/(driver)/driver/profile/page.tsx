@@ -86,6 +86,11 @@ export default function DriverProfile() {
       } catch (err: any) {
         console.error('Failed to load profile', err);
         if (mounted) setError(String(err?.message ?? err));
+        const status = err?.response?.status;
+        const code = err?.response?.data?.code;
+        if (status === 403 && code === 'ACCOUNT_SUSPENDED') {
+          return;
+        }
         if (typeof window !== 'undefined') window.location.href = '/driver/login';
       } finally {
         if (mounted) setLoading(false);

@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, FileText, Send, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, FileText, Send, CheckCircle2, Download, Clock } from "lucide-react";
 
 // Use same-origin calls + secure httpOnly cookie session.
 const api = axios.create({ baseURL: "", withCredentials: true });
@@ -19,6 +19,7 @@ export default function InvoiceView() {
   const [consentOpen, setConsentOpen] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [agreeDisbursement, setAgreeDisbursement] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -100,11 +101,12 @@ export default function InvoiceView() {
               </div>
               <Link
                 href="/owner/revenue/requested"
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-all active:scale-[0.98] no-underline"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white/90 text-slate-700 shadow-sm hover:bg-slate-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/20 no-underline"
                 title="Back"
+                aria-label="Back"
               >
                 <ArrowLeft className="h-4 w-4" aria-hidden />
-                Back
+                <span className="sr-only">Back</span>
               </Link>
             </div>
 
@@ -123,31 +125,163 @@ export default function InvoiceView() {
 
   if (!inv) return <div>Loading...</div>;
 
+  const invNumber = String(inv?.invoiceNumber ?? "");
+  const hasReceipt = Boolean(inv?.receiptNumber) || String(inv?.status ?? "").toUpperCase() === "PAID";
+  const subtotal = (() => {
+    const s = Number(inv?.subtotal);
+    if (Number.isFinite(s) && s > 0) return s;
+    const t = Number(inv?.total);
+    return Number.isFinite(t) ? t : 0;
+  })();
+  const taxAmount = (() => {
+    const t = Number(inv?.taxAmount);
+    return Number.isFinite(t) ? t : 0;
+  })();
+  const taxPercent = (() => {
+    const p = Number(inv?.taxPercent);
+    return Number.isFinite(p) ? p : 0;
+  })();
+
+  const downloadInvoicePDF = async () => {
+    const container = document.getElementById("owner-invoice-pdf");
+    if (!container) throw new Error("Missing invoice container");
+
+    const html2pdfModule: any = await import("html2pdf.js");
+    const h2p = html2pdfModule?.default || html2pdfModule;
+    if (!h2p) throw new Error("html2pdf load failed");
+
+    const filename = `${String(invNumber || `invoice-${String(inv?.id ?? "")}`).replace(/[^a-zA-Z0-9._-]+/g, "-")}.pdf`;
+    await h2p()
+      .from(container)
+      .set({
+        filename,
+        margin: 10,
+        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+        html2canvas: { scale: Math.max(1, window.devicePixelRatio || 1) },
+      })
+      .save();
+  };
+
+  const downloadReceiptPDF = async () => {
+    const html2pdfModule: any = await import("html2pdf.js");
+    const h2p = html2pdfModule?.default || html2pdfModule;
+    if (!h2p) throw new Error("html2pdf load failed");
+
+    const receiptUrl = `${window.location.origin}/owner/revenue/receipts/${inv.id}`;
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    iframe.style.opacity = "0";
+    iframe.src = receiptUrl;
+
+    const waitForLoad = new Promise<void>((resolve, reject) => {
+      const timeout = window.setTimeout(() => reject(new Error("Receipt preview timed out")), 20000);
+      iframe.onload = () => {
+        window.clearTimeout(timeout);
+        resolve();
+      };
+      iframe.onerror = () => {
+        window.clearTimeout(timeout);
+        reject(new Error("Failed to load receipt preview"));
+      };
+    });
+
+    document.body.appendChild(iframe);
+    try {
+      await waitForLoad;
+
+      const start = Date.now();
+      while (Date.now() - start < 20000) {
+        const doc = iframe.contentDocument;
+        const root = doc?.getElementById("receipt-root");
+        if (root?.getAttribute("data-receipt-ready") === "true") break;
+        await new Promise((r) => setTimeout(r, 150));
+      }
+
+      // Give images/fonts a moment to finish painting.
+      await new Promise((r) => setTimeout(r, 500));
+
+      const receiptDoc = iframe.contentDocument;
+      const receiptCard = receiptDoc?.getElementById("receipt-card") || receiptDoc?.body;
+      if (!receiptCard) throw new Error("Receipt content not available");
+
+      const receiptNumber = String(inv?.receiptNumber ?? "");
+      const safeBase = receiptNumber || invNumber || `receipt-${String(inv?.id ?? "")}`;
+      const filename = `${safeBase.replace(/[^a-zA-Z0-9._-]+/g, "-")}.pdf`;
+
+      await h2p()
+        .from(receiptCard)
+        .set({
+          filename,
+          margin: 0,
+          image: { type: "jpeg", quality: 0.98 },
+          jsPDF: { unit: "mm", format: [148, 210], orientation: "portrait" },
+          html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff" },
+          pagebreak: { mode: ["avoid-all", "css", "legacy"] },
+        })
+        .save();
+    } finally {
+      if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+    }
+  };
+
+  const downloadPDF = async () => {
+    if (pdfBusy) return;
+    setPdfBusy(true);
+    try {
+      if (hasReceipt) {
+        await downloadReceiptPDF();
+      } else {
+        await downloadInvoicePDF();
+      }
+    } catch (e: any) {
+      console.error("PDF generation failed", e);
+      window.alert("Unable to generate PDF. Please try again.");
+    } finally {
+      setPdfBusy(false);
+    }
+  };
+
   return (
     <div className="w-full overflow-x-hidden">
       <div className="rounded-[28px] border border-slate-200/70 bg-gradient-to-br from-white via-emerald-50/30 to-slate-50 p-4 sm:p-6 lg:p-8 shadow-sm ring-1 ring-black/5 nols-entrance">
-        <div className="max-w-5xl mx-auto space-y-5 sm:space-y-6">
-          <div className="flex items-start justify-between gap-4 nols-entrance nols-delay-1">
-            <div className="flex items-start gap-3 min-w-0">
-              <div className="h-11 w-11 rounded-2xl bg-gradient-to-br from-emerald-600 to-green-600 flex items-center justify-center shadow-sm">
+        <div className="max-w-5xl mx-auto space-y-5 sm:space-y-6" id="owner-invoice-pdf">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between nols-entrance nols-delay-1">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="h-11 w-11 rounded-2xl bg-gradient-to-br from-emerald-600 to-green-600 flex items-center justify-center shadow-sm flex-shrink-0">
                 <FileText className="h-5 w-5 text-white" aria-hidden />
               </div>
               <div className="min-w-0">
                 <div className="text-xs text-slate-500">Invoice</div>
-                <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-slate-900 truncate">
+                <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-slate-900 truncate">
                   {inv.invoiceNumber}
                 </h1>
                 <div className="text-sm text-slate-600 truncate">{inv.title}</div>
               </div>
             </div>
-            <Link
-              href="/owner/revenue/requested"
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-all active:scale-[0.98] no-underline"
-              title="Back"
-            >
-              <ArrowLeft className="h-4 w-4" aria-hidden />
-              Back
-            </Link>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                type="button"
+                onClick={downloadPDF}
+                disabled={pdfBusy}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white/90 text-slate-700 shadow-sm hover:bg-slate-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/20 disabled:opacity-60 disabled:cursor-not-allowed"
+                title={hasReceipt ? "Download receipt PDF" : "Download PDF"}
+                aria-label={hasReceipt ? "Download receipt PDF" : "Download PDF"}
+              >
+                <Download className="h-4 w-4" aria-hidden />
+              </button>
+              <Link
+                href="/owner/revenue/requested"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white/90 text-slate-700 shadow-sm hover:bg-slate-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/20 no-underline"
+                title="Back"
+                aria-label="Back"
+              >
+                <ArrowLeft className="h-4 w-4" aria-hidden />
+                <span className="sr-only">Back</span>
+              </Link>
+            </div>
           </div>
 
           <div className="bg-white/90 backdrop-blur border border-slate-200 rounded-3xl shadow-sm overflow-hidden transition-all duration-300 hover:shadow-md nols-entrance nols-delay-2">
@@ -158,7 +292,7 @@ export default function InvoiceView() {
               </span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 sm:p-6 border-b border-slate-200">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 p-4 sm:p-6 border-b border-slate-200">
               <Party title="Sender (Owner)" lines={[inv.senderName, inv.senderPhone ?? "", inv.senderAddress ?? ""].filter(Boolean)} />
               <Party title="Receiver (NoLSAF)" lines={[inv.receiverName, inv.receiverPhone ?? "", inv.receiverAddress ?? ""].filter(Boolean)} />
             </div>
@@ -187,14 +321,14 @@ export default function InvoiceView() {
                       <td className="px-4 py-3 font-semibold text-slate-700">Subtotal</td>
                       <td className="px-4 py-3" />
                       <td className="px-4 py-3" />
-                      <td className="px-4 py-3 text-right font-semibold text-slate-900">{`TZS ${inv.subtotal}`}</td>
+                      <td className="px-4 py-3 text-right font-semibold text-slate-900">{`TZS ${subtotal}`}</td>
                     </tr>
-                    {Number(inv.taxAmount) > 0 && (
+                    {taxAmount > 0 && (
                       <tr className="bg-slate-50/60">
-                        <td className="px-4 py-3 font-semibold text-slate-700">{`Tax (${inv.taxPercent}%)`}</td>
+                        <td className="px-4 py-3 font-semibold text-slate-700">{`Tax (${taxPercent}%)`}</td>
                         <td className="px-4 py-3" />
                         <td className="px-4 py-3" />
-                        <td className="px-4 py-3 text-right font-semibold text-slate-900">{`TZS ${inv.taxAmount}`}</td>
+                        <td className="px-4 py-3 text-right font-semibold text-slate-900">{`TZS ${taxAmount}`}</td>
                       </tr>
                     )}
                     <tr className="bg-white">
@@ -226,6 +360,82 @@ export default function InvoiceView() {
               </div>
             </div>
           )}
+
+          {/* Receipt + QR (for paid invoices) */}
+          {hasReceipt && (
+            <div className="bg-white/90 backdrop-blur border border-slate-200 rounded-3xl shadow-sm overflow-hidden nols-entrance">
+              <div className="px-5 sm:px-6 py-4 bg-gradient-to-r from-slate-50 to-white border-b border-slate-200 flex items-center justify-between gap-3">
+                <div className="text-xs font-bold tracking-wide text-slate-600 uppercase">Receipt</div>
+                {inv.receiptNumber ? (
+                  <div className="text-xs font-mono font-semibold tracking-[0.12em] tabular-nums text-slate-700 truncate">
+                    {inv.receiptNumber}
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="text-sm font-semibold text-slate-900">Receipt details</div>
+                  <div className="mt-2 space-y-2 text-sm text-slate-700">
+                    {inv.receiptNumber && (
+                      <div className="grid grid-cols-[auto,1fr] items-start gap-3">
+                        <span className="text-slate-600">Receipt #</span>
+                        <span className="min-w-0 text-right font-mono font-semibold tracking-[0.12em] tabular-nums text-slate-900 truncate">
+                          {inv.receiptNumber}
+                        </span>
+                      </div>
+                    )}
+                    {inv.paymentRef && (
+                      <div className="grid grid-cols-[auto,1fr] items-start gap-3">
+                        <span className="text-slate-600">Payment Ref</span>
+                        <span className="min-w-0 text-right font-mono font-semibold tabular-nums text-slate-900 break-all">
+                          {inv.paymentRef}
+                        </span>
+                      </div>
+                    )}
+                    {inv.paidAt && (
+                      <div className="grid grid-cols-[auto,1fr] items-start gap-3">
+                        <span className="text-slate-600">Paid on</span>
+                        <span className="min-w-0 text-right font-semibold">{new Date(inv.paidAt).toLocaleString()}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="text-sm font-semibold text-slate-900">Receipt QR</div>
+                  <div className="mt-3 flex items-start gap-4">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={`/api/owner/revenue/invoices/${inv.id}/receipt/qr.png`}
+                      alt="Receipt QR"
+                      className="w-40 h-40 border border-slate-200 rounded-2xl bg-white"
+                    />
+                    <div className="text-xs text-slate-600">
+                      Scan to verify receipt.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Process timeline */}
+          <div className="rounded-3xl border border-slate-200 bg-white/90 backdrop-blur p-4 sm:p-5 shadow-sm ring-1 ring-black/5 nols-entrance">
+            <div className="flex items-center gap-2 text-slate-900 font-semibold">
+              <Clock className="h-5 w-5 text-slate-700" aria-hidden />
+              Process timeline
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:gap-3 text-sm">
+              <TimelineItem label="Issued" value={inv.issuedAt ? new Date(inv.issuedAt).toLocaleString() : "—"} />
+              <TimelineItem label="Verified" value={inv.verifiedAt ? new Date(inv.verifiedAt).toLocaleString() : "—"} />
+              <TimelineItem label="Approved" value={inv.approvedAt ? new Date(inv.approvedAt).toLocaleString() : "—"} />
+              <TimelineItem label="Paid" value={inv.paidAt ? new Date(inv.paidAt).toLocaleString() : "—"} />
+            </div>
+            <div className="mt-3 text-xs text-slate-600">
+              Current status: <span className="font-semibold text-slate-800">{inv.status}</span>
+            </div>
+          </div>
 
           {inv.status === "DRAFT" ? (
             <div className="rounded-3xl border border-slate-200 bg-white/90 backdrop-blur p-4 sm:p-5 shadow-sm ring-1 ring-black/5 nols-entrance nols-delay-3">
@@ -319,6 +529,42 @@ function Party({ title, lines }: { title: string; lines: string[] }) {
           <div key={i} className="break-words">{l}</div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function TimelineItem({ label, value }: { label: string; value: string }) {
+  const key = label.trim().toLowerCase();
+  const theme =
+    key === "issued"
+      ? {
+          card: "border-sky-200 bg-sky-50/60 hover:bg-sky-50 hover:border-sky-300",
+          label: "text-sky-700",
+        }
+      : key === "verified"
+        ? {
+            card: "border-amber-200 bg-amber-50/60 hover:bg-amber-50 hover:border-amber-300",
+            label: "text-amber-700",
+          }
+        : key === "approved"
+          ? {
+              card: "border-emerald-200 bg-emerald-50/60 hover:bg-emerald-50 hover:border-emerald-300",
+              label: "text-emerald-700",
+            }
+          : key === "paid"
+            ? {
+                card: "border-violet-200 bg-violet-50/60 hover:bg-violet-50 hover:border-violet-300",
+                label: "text-violet-700",
+              }
+            : {
+                card: "border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300",
+                label: "text-slate-600",
+              };
+
+  return (
+    <div className={`rounded-2xl border p-3 shadow-sm transition-colors duration-200 ${theme.card}`}>
+      <div className={`text-xs font-bold uppercase tracking-wide ${theme.label}`}>{label}</div>
+      <div className="mt-0.5 font-semibold text-slate-900">{value}</div>
     </div>
   );
 }

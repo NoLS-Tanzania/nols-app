@@ -18,6 +18,8 @@ type Booking = {
   checkOut: string;
   status: string;
   totalAmount: number | string;
+  transportFare?: number | string | null;
+  ownerBaseAmount?: number | string | null;
   guestName?: string | null;
   checkedInAt?: string | null;
 };
@@ -526,10 +528,16 @@ function BookingRow({
 
   const guestInitial = String(booking.guestName || 'G').trim().charAt(0).toUpperCase() || 'G';
   const safeAmount = (() => {
-    const raw = booking.totalAmount;
+    const raw = booking.ownerBaseAmount ?? booking.totalAmount;
     const normalized = typeof raw === 'string' ? raw.replace(/,/g, '') : String(raw);
     const n = Number(normalized);
-    return Number.isFinite(n) ? n : 0;
+    if (Number.isFinite(n)) return n;
+
+    const totalRaw = booking.totalAmount;
+    const totalNormalized = typeof totalRaw === 'string' ? totalRaw.replace(/,/g, '') : String(totalRaw);
+    const total = Number(totalNormalized);
+    const transport = Number(booking.transportFare ?? 0);
+    return Number.isFinite(total) && Number.isFinite(transport) ? Math.max(0, total - transport) : 0;
   })();
 
   const formatCompact = (dateStr: string, includeYear: boolean) => {

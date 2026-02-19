@@ -5,6 +5,7 @@ import "@/styles/property-visualization.css";
 import { Suspense, type ReactNode } from "react";
 import Script from "next/script";
 import ToastContainer from "../components/ToastContainer";
+import SuspendedAccessOverlay from "../components/SuspendedAccessOverlay";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -50,6 +51,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <div className="min-h-screen bg-neutral-50">
           <Suspense fallback={null}>{children}</Suspense>
         </div>
+        <Suspense fallback={null}>
+          <SuspendedAccessOverlay />
+        </Suspense>
         <ToastContainer />
       </body>
     </html>

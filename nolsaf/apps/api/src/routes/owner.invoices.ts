@@ -187,6 +187,9 @@ router.get("/:id", async (req: Request, res: Response) => {
   const propertyTitle = (inv as any).booking?.property?.title ?? "property";
   const lineDescription = `Accommodation at ${propertyTitle}${nights ? ` (${nights} nights)` : ""}`;
   const total = Number((inv as any).total ?? 0);
+  const taxPercent = Number((inv as any).taxPercent ?? 0) || 0;
+  const taxAmount = Number((inv as any).taxAmount ?? 0) || 0;
+  const subtotal = Number((inv as any).subtotal ?? (total - taxAmount)) || total;
 
   return res.json({
     ...inv,
@@ -198,6 +201,9 @@ router.get("/:id", async (req: Request, res: Response) => {
     receiverName: "NoLSAF",
     receiverPhone: "+255",
     receiverAddress: "Dar es Salaam, Tanzania",
+    subtotal,
+    taxPercent,
+    taxAmount,
     items: [
       {
         id: `synthetic-${inv.id}-1`,

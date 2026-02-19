@@ -407,6 +407,8 @@ export async function validateBookingCode(
     };
     const optionalBookingFields = [
       'totalAmount',
+      'includeTransport',
+      'transportFare',
       'guestName',
       'guestPhone',
       'nationality',

@@ -17,6 +17,8 @@ type CheckedInBooking = {
   roomType?: string | null;
   roomCode?: string | null;
   totalAmount?: number | null;
+  transportFare?: number | string | null;
+  ownerBaseAmount?: number | string | null;
   checkIn?: string | null;
   checkOut?: string | null;
   validatedAt?: string | null;
@@ -159,9 +161,16 @@ export default function CheckedIn() {
       return Number.isFinite(n) ? n : 0;
     };
 
+    const amountFor = (b: any) => {
+      if (b?.ownerBaseAmount != null) return toNum(b.ownerBaseAmount);
+      const total = toNum(b?.totalAmount);
+      const transport = toNum(b?.transportFare);
+      return Math.max(0, total - transport);
+    };
+
     arr.sort((A, B) => {
       if (key === "name") return mul * String(A.guestName ?? A.customerName ?? "").localeCompare(String(B.guestName ?? B.customerName ?? ""));
-      if (key === "amount") return mul * (toNum(A.totalAmount) - toNum(B.totalAmount));
+      if (key === "amount") return mul * (amountFor(A) - amountFor(B));
       if (key === "checkOut") return mul * (toTime(A.checkOut) - toTime(B.checkOut));
       if (key === "validatedAt") return mul * (toTime((A as any)?.validatedAt ?? (A as any)?.code?.usedAt) - toTime((B as any)?.validatedAt ?? (B as any)?.code?.usedAt));
       if (key === "nights") return mul * (toNum(nightsFor(A) ?? 0) - toNum(nightsFor(B) ?? 0));
@@ -294,7 +303,7 @@ export default function CheckedIn() {
                     <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">Full Name</th>
                     <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">Phone No</th>
                     <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600 text-right">NIGHTS</th>
-                    <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600 text-right">Amount Paid</th>
+                    <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600 text-right">Base Amount</th>
                     <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">Status</th>
                     <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">VALIDATED AT</th>
                     <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600 text-right">CHECK-OUT</th>
@@ -306,7 +315,10 @@ export default function CheckedIn() {
                     const fullName = b?.guestName ?? b?.customerName ?? '—';
                     const phone = b?.guestPhone ?? b?.phone ?? '—';
                     const nights = nightsFor(b);
-                    const amount = b?.totalAmount != null ? formatCurrency(Number(b.totalAmount)) : '—';
+                    const baseAmount = b?.ownerBaseAmount != null
+                      ? Number(b.ownerBaseAmount)
+                      : Math.max(0, Number(b?.totalAmount ?? 0) - Number(b?.transportFare ?? 0));
+                    const amount = b?.totalAmount != null ? formatCurrency(baseAmount) : '—';
                     const validatedAt = (b as any)?.validatedAt ?? (b as any)?.code?.usedAt ?? null;
                     
                     return (

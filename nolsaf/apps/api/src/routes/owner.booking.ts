@@ -116,6 +116,10 @@ const validateBooking: RequestHandler = async (req, res) => {
   // Compute derived fields
   const nights = differenceInCalendarDays(booking.checkOut, booking.checkIn);
 
+  const totalAmount = Number(booking.totalAmount || 0);
+  const transportFare = Number((booking as any).transportFare || 0);
+  const ownerBaseAmount = Math.max(0, totalAmount - transportFare);
+
   // Map details with all booking information
   const details = {
     bookingId: booking.id,
@@ -140,7 +144,10 @@ const validateBooking: RequestHandler = async (req, res) => {
       checkIn: booking.checkIn,
       checkOut: booking.checkOut,
       status: booking.status,
-      totalAmount: Number(booking.totalAmount || 0).toFixed(2)
+      totalAmount: totalAmount.toFixed(2),
+      transportFare: transportFare.toFixed(2),
+      ownerBaseAmount: ownerBaseAmount.toFixed(2),
+      includeTransport: Boolean((booking as any).includeTransport),
     }
   };
 
@@ -304,6 +311,8 @@ const getCheckedInBookings: RequestHandler = async (req, res) => {
       checkOut: b.checkOut,
       status: b.status,
       totalAmount: b.totalAmount,
+      transportFare: (b as any).transportFare ?? null,
+      ownerBaseAmount: Math.max(0, Number(b.totalAmount || 0) - Number((b as any).transportFare || 0)),
       createdAt: b.createdAt,
       user: b.user,
     }));
@@ -355,6 +364,8 @@ const getForCheckoutBookings: RequestHandler = async (req, res) => {
       checkOut: b.checkOut,
       status: b.status,
       totalAmount: b.totalAmount,
+      transportFare: (b as any).transportFare ?? null,
+      ownerBaseAmount: Math.max(0, Number(b.totalAmount || 0) - Number((b as any).transportFare || 0)),
       createdAt: b.createdAt,
     }));
     return (res as Response).json(mapped);
@@ -453,6 +464,8 @@ const getCheckedOutBookings: RequestHandler = async (req, res) => {
       checkOut: b.checkOut,
       status: b.status,
       totalAmount: b.totalAmount,
+      transportFare: (b as any).transportFare ?? null,
+      ownerBaseAmount: Math.max(0, Number(b.totalAmount || 0) - Number((b as any).transportFare || 0)),
       createdAt: b.createdAt,
       user: b.user,
       checkoutConfirmedAt: confirmedAt,
@@ -482,7 +495,16 @@ const getBooking: RequestHandler = async (req, res) => {
     },
   });
   if (!b) return (res as Response).status(404).json({ error: "Not found" });
-  (res as Response).json(b);
+
+  const totalAmount = Number((b as any).totalAmount ?? 0);
+  const transportFare = Number((b as any).transportFare ?? 0);
+  const ownerBaseAmount = Math.max(0, totalAmount - transportFare);
+
+  (res as Response).json({
+    ...(b as any),
+    transportFare: (b as any).transportFare ?? null,
+    ownerBaseAmount,
+  });
 };
 
 /** GET /owner/bookings/:id/audit - audit history (check-in + check-out confirmations) */
@@ -819,6 +841,8 @@ const getRecentBookings: RequestHandler = async (req, res) => {
     checkOut: b.checkOut,
     status: b.status,
     totalAmount: b.totalAmount,
+    transportFare: (b as any).transportFare ?? null,
+    ownerBaseAmount: Math.max(0, Number(b.totalAmount || 0) - Number((b as any).transportFare || 0)),
     createdAt: b.createdAt,
     user: b.user,
   }));

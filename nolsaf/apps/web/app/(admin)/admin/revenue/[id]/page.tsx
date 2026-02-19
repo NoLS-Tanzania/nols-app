@@ -12,6 +12,17 @@ type Inv = {
   id:number; invoiceNumber:string|null; receiptNumber:string|null; status:string;
   issuedAt:string; total:number; commissionPercent:number; commissionAmount:number; taxPercent:number; netPayable:number;
   booking: { id:number; property: { id:number; title:string } };
+  relatedInvoices?: Array<{ id: number; invoiceNumber: string | null; status: string }>;
+  effectiveCommissionPercent?: number;
+  financialPreview?: {
+    grossTotal: number;
+    baseAmount: number;
+    commissionPercent: number;
+    commissionAmount: number;
+    taxPercent: number;
+    taxAmount: number;
+    netPayable: number;
+  };
   notes?:string|null; paidAt?:string|null; paymentMethod?:string|null; paymentRef?:string|null; accountNumber?:string|null;
   verifiedAt?:string|null; verifiedByUser?:{id:number;name:string|null}|null;
   approvedAt?:string|null; approvedByUser?:{id:number;name:string|null}|null;
@@ -176,6 +187,29 @@ export default function Page(){
     );
   }
 
+  const fp = inv.financialPreview;
+  const commissionPercent = Number(fp?.commissionPercent ?? inv.effectiveCommissionPercent ?? inv.commissionPercent ?? 0);
+  const grossTotal = Number(fp?.grossTotal ?? inv.total ?? 0);
+  const baseAmount = Number(fp?.baseAmount ?? inv.netPayable ?? inv.total ?? 0);
+  const commissionAmount = Number(fp?.commissionAmount ?? inv.commissionAmount ?? 0);
+  const taxPercent = Number(fp?.taxPercent ?? (inv.taxPercent !== null && inv.taxPercent !== undefined ? inv.taxPercent : 0) ?? 0);
+  const taxAmount = Number(fp?.taxAmount ?? 0);
+  // UI conventions for Admin:
+  // - "Gross Amount" is the owner payout base (base price × nights)
+  // - "Total Paid" is the guest total (base + commission)
+
+  const invNumUpper = String(inv.invoiceNumber ?? "").toUpperCase();
+  const isOwnerClaim = invNumUpper.startsWith("OINV-");
+  const invoiceTypeLabel = isOwnerClaim ? "Owner Claim" : (invNumUpper.startsWith("INV-") ? "Customer Payment" : "Invoice");
+  const invoiceTypeHint = isOwnerClaim
+    ? "Owner payout request (admin approval flow)"
+    : (invNumUpper.startsWith("INV-") ? "Customer payment record (booking paid)" : "");
+  const related = (inv.relatedInvoices || []).find((r) => {
+    const n = String(r.invoiceNumber ?? "").toUpperCase();
+    if (!n) return false;
+    return isOwnerClaim ? n.startsWith("INV-") : n.startsWith("OINV-");
+  }) ?? (inv.relatedInvoices || [])[0] ?? null;
+
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 xl:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6 min-w-0">
       {/* Header */}
@@ -201,6 +235,18 @@ export default function Page(){
               <div className="mt-2">
                 {getStatusBadge(inv.status)}
               </div>
+              <div className="mt-2 text-xs sm:text-sm text-gray-600">
+                Type: <span className="font-medium text-gray-800" title={invoiceTypeHint}>{invoiceTypeLabel}</span>
+              </div>
+              {related && (
+                <div className="mt-2 text-xs sm:text-sm text-gray-600">
+                  {isOwnerClaim ? "Customer payment invoice" : "Owner claim invoice"}:{" "}
+                  <Link href={`/admin/revenue/${related.id}`} className="text-[#02665e] hover:underline">
+                    {related.invoiceNumber ?? `Invoice #${related.id}`}
+                  </Link>{" "}
+                  <span className="text-gray-500">({String(related.status || "").toUpperCase() || "—"})</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -280,32 +326,26 @@ export default function Page(){
                 <div className="space-y-3 sm:space-y-4">
                   <div className="flex items-center justify-between p-3 sm:p-4 bg-gray-50 rounded-lg min-w-0">
                     <span className="text-xs sm:text-sm font-medium text-gray-700 truncate pr-2">Gross Amount</span>
-                    <span className="text-base sm:text-lg font-bold text-gray-900 flex-shrink-0">{fmt(inv.total)}</span>
+                    <span className="text-base sm:text-lg font-bold text-gray-900 flex-shrink-0">{fmt(baseAmount)}</span>
                   </div>
                   
                   <div className="grid grid-cols-2 sm:grid-cols-2 gap-3 sm:gap-4">
                     <div className="p-3 sm:p-4 bg-blue-50 rounded-lg min-w-0">
                       <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Commission</div>
-                      <div className="text-xs sm:text-sm font-semibold text-blue-900">{inv.commissionPercent}%</div>
-                      <div className="text-base sm:text-lg font-bold text-blue-900 mt-1 break-words">{fmt(inv.commissionAmount)}</div>
+                      <div className="text-xs sm:text-sm font-semibold text-blue-900">{commissionPercent}%</div>
+                      <div className="text-base sm:text-lg font-bold text-blue-900 mt-1 break-words">{fmt(commissionAmount)}</div>
                     </div>
                     
-                    {(() => {
-                      const taxPercent = inv.taxPercent !== null && inv.taxPercent !== undefined ? Number(inv.taxPercent) : 0;
-                      const taxAmount = (Number(inv.total || 0) * taxPercent) / 100;
-                      return (
-                        <div className="p-3 sm:p-4 bg-purple-50 rounded-lg min-w-0">
-                          <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Tax</div>
-                          <div className="text-xs sm:text-sm font-semibold text-purple-900">{taxPercent}%</div>
-                          <div className="text-base sm:text-lg font-bold text-purple-900 mt-1 break-words">{fmt(taxAmount)}</div>
-                        </div>
-                      );
-                    })()}
+                    <div className="p-3 sm:p-4 bg-purple-50 rounded-lg min-w-0">
+                      <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Tax (on commission)</div>
+                      <div className="text-xs sm:text-sm font-semibold text-purple-900">{taxPercent}%</div>
+                      <div className="text-base sm:text-lg font-bold text-purple-900 mt-1 break-words">{fmt(taxAmount)}</div>
+                    </div>
                   </div>
 
                   <div className="flex items-center justify-between p-3 sm:p-4 bg-emerald-50 rounded-lg border-2 border-emerald-200 min-w-0">
-                    <span className="text-sm sm:text-base font-semibold text-emerald-900 truncate pr-2">Net Payable</span>
-                    <span className="text-xl sm:text-2xl font-bold text-emerald-900 flex-shrink-0 break-words">{fmt(inv.netPayable)}</span>
+                    <span className="text-sm sm:text-base font-semibold text-emerald-900 truncate pr-2">Total Paid</span>
+                    <span className="text-xl sm:text-2xl font-bold text-emerald-900 flex-shrink-0 break-words">{fmt(grossTotal)}</span>
                   </div>
 
                   {(inv.paymentMethod || inv.receiptNumber) && (
@@ -452,13 +492,13 @@ export default function Page(){
                 <div className="min-w-0">
                   <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
                     Commission %
-                    <span className="text-gray-400 font-normal ml-1 text-xs">(property rate: {inv.commissionPercent}%)</span>
+                    <span className="text-gray-400 font-normal ml-1 text-xs">(property rate: {commissionPercent}%)</span>
                   </label>
                   <input
                     type="number"
                     step="0.01"
                     className="w-full px-3 sm:px-4 py-2 sm:py-3 border-2 border-gray-200 rounded-lg bg-gray-50 text-gray-700 text-sm sm:text-base box-border cursor-not-allowed"
-                    value={String(inv.commissionPercent ?? 0)}
+                    value={String(commissionPercent ?? 0)}
                     readOnly
                     disabled
                   />
@@ -467,14 +507,14 @@ export default function Page(){
                   <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
                     Tax %
                     <span className="text-gray-400 font-normal ml-1 text-xs">
-                      (current: {inv.taxPercent !== null && inv.taxPercent !== undefined ? `${inv.taxPercent}%` : 'not set'})
+                      (current: {taxPercent ? `${taxPercent}%` : '0%'})
                     </span>
                   </label>
                   <input
                     type="number"
                     step="0.01"
                     className="w-full px-3 sm:px-4 py-2 sm:py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all text-sm sm:text-base box-border"
-                    placeholder={inv.taxPercent !== null && inv.taxPercent !== undefined ? `${inv.taxPercent}%` : '0%'}
+                    placeholder={taxPercent ? `${taxPercent}%` : '0%'}
                     value={overrideTax}
                     onChange={e=>setOverrideTax(e.target.value)}
                   />

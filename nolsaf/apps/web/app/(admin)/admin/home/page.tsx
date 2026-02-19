@@ -841,7 +841,7 @@ export default function AdminHomePage() {
                                 if (loading) {
                                   return (
                                     <ul className="divide-y divide-white/10 rounded-2xl border border-white/10 bg-white/0 p-2">
-                                      {Array.from({ length: 6 }).map((_, i) => (
+                                      {Array.from({ length: 5 }).map((_, i) => (
                                         <li key={i} className="py-3 px-3">
                                           <div className="flex items-center justify-between gap-3">
                                             <div className="flex-1">
@@ -862,7 +862,7 @@ export default function AdminHomePage() {
 
                                 return (
                                   <ul className="divide-y divide-white/10 rounded-2xl border border-white/10 bg-white/0 p-2">
-                                    {recentActivities!.slice(0, 10).map((a: any) => {
+                                    {recentActivities!.slice(0, 5).map((a: any) => {
                                       let detailsText = '';
                                       try {
                                         if (typeof a.details === 'string') {

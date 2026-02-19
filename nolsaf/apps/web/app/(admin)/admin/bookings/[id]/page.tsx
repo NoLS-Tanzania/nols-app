@@ -453,7 +453,7 @@ export default function AdminBookingDetail() {
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
             {/* Booking Dates & Details */}
-            <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+            <div className="bg-gradient-to-br from-white to-purple-50 rounded-lg border border-gray-200 p-6 shadow-sm">
               <div className="flex items-start gap-3 mb-4">
                 <div className="w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center flex-shrink-0">
                   <Calendar className="h-5 w-5 text-purple-600" />
@@ -488,7 +488,7 @@ export default function AdminBookingDetail() {
             </div>
 
             {/* Property Details */}
-            <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+            <div className="bg-gradient-to-br from-white to-emerald-50 rounded-lg border border-gray-200 p-6 shadow-sm">
               <div className="flex items-start gap-3 mb-4">
                 <div className="w-10 h-10 rounded-lg bg-[#02665e]/10 flex items-center justify-center flex-shrink-0">
                   <Home className="h-5 w-5 text-[#02665e]" />
@@ -509,7 +509,7 @@ export default function AdminBookingDetail() {
             </div>
 
             {/* Guest Information */}
-            <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+            <div className="bg-gradient-to-br from-white to-blue-50 rounded-lg border border-gray-200 p-6 shadow-sm">
               <div className="flex items-start gap-3 mb-4">
                 <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
                   <User className="h-5 w-5 text-blue-600" />
@@ -526,7 +526,7 @@ export default function AdminBookingDetail() {
             </div>
 
             {/* Room Assignment */}
-            <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+            <div className="bg-gradient-to-br from-white to-teal-50 rounded-lg border border-gray-200 p-6 shadow-sm">
               <div className="flex items-start gap-3 mb-4">
                 <div className="w-10 h-10 rounded-lg bg-[#02665e]/10 flex items-center justify-center flex-shrink-0">
                   <Home className="h-5 w-5 text-[#02665e]" />
@@ -570,7 +570,7 @@ export default function AdminBookingDetail() {
             </div>
 
             {/* Financials */}
-            <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+            <div className="bg-gradient-to-br from-white to-amber-50 rounded-lg border border-gray-200 p-6 shadow-sm">
               <div className="flex items-start gap-3 mb-4">
                 <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
                   <DollarSign className="h-5 w-5 text-amber-600" />
@@ -593,7 +593,7 @@ export default function AdminBookingDetail() {
           {/* Sidebar */}
           <div className="space-y-6">
             {/* Check-in Code */}
-            <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+            <div className="bg-gradient-to-br from-white to-emerald-50 rounded-lg border border-gray-200 p-6 shadow-sm">
               <div className="flex items-start gap-3 mb-4">
                 <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
                   <Key className="h-5 w-5 text-emerald-600" />
@@ -649,7 +649,7 @@ export default function AdminBookingDetail() {
             </div>
 
             {/* Owner Information */}
-            <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+            <div className="bg-gradient-to-br from-white to-indigo-50 rounded-lg border border-gray-200 p-6 shadow-sm">
               <div className="flex items-start gap-3 mb-4">
                 <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center flex-shrink-0">
                   <User className="h-5 w-5 text-indigo-600" />

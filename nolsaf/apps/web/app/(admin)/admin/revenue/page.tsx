@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Wallet, Calendar, Eye, DollarSign, Building2, Receipt, FileText, Download, ChevronLeft, ChevronRight, ArrowUpDown, CheckSquare, Square, Printer, Filter, X, CheckCircle2, ArrowUp, ArrowDown } from "lucide-react";
+import { Wallet, Calendar, Eye, DollarSign, Building2, Receipt, FileText, Download, ChevronLeft, ChevronRight, ArrowUpDown, CheckSquare, Square, Printer, Filter, X, CheckCircle2, ArrowUp, ArrowDown, HandCoins, CreditCard, Info } from "lucide-react";
 import DatePicker from "@/components/ui/DatePicker";
 import TableRow from "@/components/TableRow";
 import axios from "axios";
@@ -31,7 +31,158 @@ type InvoiceRow = {
   taxPercent: number;
   netPayable: number;
   booking: { id: number; property: { id: number; title: string } };
+  effectiveCommissionPercent?: number;
+  financialPreview?: {
+    grossTotal: number;
+    baseAmount: number;
+    commissionPercent: number;
+    commissionAmount: number;
+    taxPercent: number;
+    taxAmount: number;
+    netPayable: number;
+  };
 };
+
+function isOwnerClaimInvoice(inv: InvoiceRow) {
+  const n = String(inv.invoiceNumber ?? "");
+  return n.toUpperCase().startsWith("OINV-");
+}
+
+function isDraftStatus(statusRaw: string) {
+  return String(statusRaw || "").toUpperCase() === "DRAFT";
+}
+
+function invoiceTypeInfo(inv: InvoiceRow) {
+  const n = String(inv.invoiceNumber ?? "").toUpperCase();
+  if (n.startsWith("OINV-")) {
+    return { label: "Owner Claim", description: "Owner payout request (admin approval flow)" };
+  }
+  if (n.startsWith("INV-")) {
+    return { label: "Customer Payment", description: "Customer payment record (booking paid)" };
+  }
+  return { label: "Invoice", description: "" };
+}
+
+function InvoiceTypeIcon({ inv, size = "sm" }: { inv: InvoiceRow; size?: "sm" | "xs" }) {
+  const { label, description } = invoiceTypeInfo(inv);
+  const n = String(inv.invoiceNumber ?? "").toUpperCase();
+
+  const isOwnerClaim = n.startsWith("OINV-");
+  const isCustomerPayment = n.startsWith("INV-");
+
+  const Icon = isOwnerClaim ? HandCoins : isCustomerPayment ? CreditCard : Info;
+  const colorClass = isOwnerClaim
+    ? "text-amber-700"
+    : isCustomerPayment
+      ? "text-blue-700"
+      : "text-gray-600";
+
+  const iconSizeClass = size === "xs" ? "h-3.5 w-3.5" : "h-4 w-4";
+  const buttonSizeClass = size === "xs" ? "p-1" : "p-1.5";
+
+  const tooltipText = description ? `${label}: ${description}` : label;
+
+  return (
+    <div className="relative group/tooltip inline-flex flex-shrink-0">
+      <button
+        type="button"
+        className={`${buttonSizeClass} inline-flex items-center justify-center ${colorClass} focus:outline-none focus:ring-2 focus:ring-[#02665e]/20`}
+        aria-label={tooltipText}
+        onClick={(e) => {
+          // Keep it simple: tap focuses the button (mobile) so tooltip can show.
+          e.preventDefault();
+          try {
+            (e.currentTarget as HTMLButtonElement).focus();
+          } catch {
+            // ignore
+          }
+        }}
+      >
+        <Icon className={iconSizeClass} aria-hidden />
+      </button>
+
+      {!!(label || description) && (
+        <div
+          role="tooltip"
+          className="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-64 max-w-[calc(100vw-1rem)] translate-x-0 whitespace-normal break-words rounded-lg border border-gray-200 bg-white px-3 py-2 text-left text-xs text-gray-900 opacity-0 shadow-lg transition-opacity duration-150 group-hover/tooltip:opacity-100 group-focus-within/tooltip:opacity-100"
+        >
+          <div className="font-semibold">{label}</div>
+          {description ? <div className="mt-0.5 text-[11px] text-gray-600">{description}</div> : null}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function statusScore(statusRaw: string) {
+  const s = String(statusRaw || "").toUpperCase();
+  switch (s) {
+    case "PAID":
+      return 60;
+    case "APPROVED":
+      return 50;
+    case "PROCESSING":
+      return 40;
+    case "VERIFIED":
+      return 30;
+    case "REQUESTED":
+      return 20;
+    case "REJECTED":
+      return 10;
+    default:
+      return 0;
+  }
+}
+
+function pickBetterInvoice(a: InvoiceRow, b: InvoiceRow) {
+  // We keep both records in DB (public payment invoice: INV-..., owner-claim invoice: OINV-...).
+  // For the Admin list, show a single row per booking:
+  // - Before owner submits/requests payout, show the public invoice (INV-...)
+  // - After owner submits (OINV status != DRAFT), switch to the owner-claim invoice (OINV-...)
+  const aIsClaim = isOwnerClaimInvoice(a);
+  const bIsClaim = isOwnerClaimInvoice(b);
+  if (aIsClaim !== bIsClaim) {
+    const claim = aIsClaim ? a : b;
+    const normal = aIsClaim ? b : a;
+    if (!isDraftStatus(claim.status)) return claim;
+    return normal;
+  }
+
+  // Prefer higher lifecycle status.
+  const as = statusScore(a.status);
+  const bs = statusScore(b.status);
+  if (as !== bs) return as > bs ? a : b;
+
+  // Prefer the most recently issued.
+  const at = +new Date(a.issuedAt);
+  const bt = +new Date(b.issuedAt);
+  if (Number.isFinite(at) && Number.isFinite(bt) && at !== bt) return at > bt ? a : b;
+
+  // Finally, prefer higher id.
+  return a.id >= b.id ? a : b;
+}
+
+function collapseMirrorInvoices(rows: InvoiceRow[]) {
+  const map = new Map<number, InvoiceRow>();
+  const firstIndex = new Map<number, number>();
+
+  rows.forEach((inv, idx) => {
+    const bookingId = Number(inv.booking?.id);
+    if (!Number.isFinite(bookingId) || bookingId <= 0) return;
+    if (!firstIndex.has(bookingId)) firstIndex.set(bookingId, idx);
+
+    const existing = map.get(bookingId);
+    if (!existing) {
+      map.set(bookingId, inv);
+      return;
+    }
+    map.set(bookingId, pickBetterInvoice(existing, inv));
+  });
+
+  return Array.from(map.entries())
+    .sort((a, b) => (firstIndex.get(a[0]) ?? 0) - (firstIndex.get(b[0]) ?? 0))
+    .map(([, inv]) => inv);
+}
 
 export default function AdminRevenue() {
   const [status, setStatus] = useState<string>("");
@@ -189,14 +340,14 @@ export default function AdminRevenue() {
           });
         }
         
-        setItems(merged);
+        setItems(q?.trim() ? merged : collapseMirrorInvoices(merged));
         // Use the larger total from the two requests
         setTotal(Math.max(r1.data.total || 0, r2.data.total || 0));
       } else {
         const r = await api.get<{ items: InvoiceRow[]; total: number }>("/api/admin/revenue/invoices", {
           params: { ...params, status: status || undefined },
         });
-        setItems(r.data.items || []);
+        setItems(q?.trim() ? (r.data.items || []) : collapseMirrorInvoices(r.data.items || []));
         setTotal(r.data.total || 0);
       }
     } catch (e: any) {
@@ -495,6 +646,37 @@ export default function AdminRevenue() {
           </div>
           <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Revenue (Invoices &amp; Payouts)</h1>
           <p className="mt-2 text-xs sm:text-sm text-gray-500">Invoices, payouts and exports</p>
+          <div className="mt-2">
+            <div className="relative group/tooltip inline-flex">
+              <button
+                type="button"
+                className="p-1.5 inline-flex items-center justify-center text-gray-600 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20"
+                aria-label="Invoice type info"
+                onClick={(e) => {
+                  e.preventDefault();
+                  try {
+                    (e.currentTarget as HTMLButtonElement).focus();
+                  } catch {
+                    // ignore
+                  }
+                }}
+              >
+                <Info className="h-4 w-4" aria-hidden />
+              </button>
+              <div
+                role="tooltip"
+                className="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-72 max-w-[calc(100vw-1rem)] translate-x-0 whitespace-normal break-words rounded-lg border border-gray-200 bg-white px-3 py-2 text-left text-xs text-gray-900 opacity-0 shadow-lg transition-opacity duration-150 group-hover/tooltip:opacity-100 group-focus-within/tooltip:opacity-100"
+              >
+                <div className="font-semibold">Invoice types</div>
+                <div className="mt-0.5 text-[11px] text-gray-600">
+                  <span className="font-medium text-gray-900">INV-</span>: Customer payment record (booking paid)
+                </div>
+                <div className="mt-0.5 text-[11px] text-gray-600">
+                  <span className="font-medium text-gray-900">OINV-</span>: Owner payout claim (approval flow)
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -612,6 +794,12 @@ export default function AdminRevenue() {
               <span className="hidden sm:inline">Print</span>
             </button>
       </div>
+
+          <div className="text-[11px] sm:text-xs text-gray-500">
+            {q?.trim()
+              ? "Search shows all invoice records (INV and OINV)."
+              : "List shows one row per booking when both INV and OINV exist. Use search to view both."}
+          </div>
 
           {/* Advanced Filters Panel */}
           {showAdvancedFilters && (
@@ -790,14 +978,14 @@ export default function AdminRevenue() {
                   }
 
                   const blob = await response.blob();
-                  
+
                   // Check if blob is actually CSV (not an error response)
                   if (blob.type && !blob.type.includes('csv') && !blob.type.includes('text')) {
                     const text = await blob.text();
                     console.error("CSV export returned non-CSV:", text);
                     throw new Error("Server returned an error instead of CSV");
                   }
-                  
+
                   const url = URL.createObjectURL(blob);
                   const a = document.createElement("a");
                   a.href = url;
@@ -855,13 +1043,15 @@ export default function AdminRevenue() {
                     </button>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <FileText className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                        <div className="text-sm font-semibold text-gray-900 truncate">
-                          {inv.invoiceNumber ?? `#${inv.id}`}
+                        <InvoiceTypeIcon inv={inv} size="xs" />
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <div className="text-sm font-semibold text-gray-900 truncate">
+                            {inv.invoiceNumber ?? `#${inv.id}`}
+                          </div>
                         </div>
                       </div>
                       {inv.receiptNumber && (
-                        <div className="text-xs text-gray-500 ml-6">Receipt: {inv.receiptNumber}</div>
+                        <div className="text-xs font-medium text-[#02665e] ml-6">Receipt: {inv.receiptNumber}</div>
                       )}
                     </div>
                   </div>
@@ -889,20 +1079,24 @@ export default function AdminRevenue() {
 
                   <div className="grid grid-cols-2 gap-3 pt-2 border-t border-gray-100">
                     <div>
-                      <div className="text-xs text-gray-500">Gross</div>
-                      <div className="text-sm font-medium text-gray-900">{fmt(inv.total)}</div>
+                        <div className="text-xs text-gray-500">Total Paid</div>
+                        <div className="text-sm font-medium text-gray-900">{fmt(inv.financialPreview?.grossTotal ?? (Number(inv.netPayable || 0) + Number(inv.commissionAmount || 0)))}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-gray-500">Net Payable</div>
-                      <div className="text-sm font-bold text-[#02665e]">{fmt(inv.netPayable)}</div>
+                        <div className="text-xs text-gray-500">Owner Payout</div>
+                        <div className="text-sm font-bold text-[#02665e]">{fmt(inv.financialPreview?.baseAmount ?? inv.netPayable)}</div>
                     </div>
                     <div>
                       <div className="text-xs text-gray-500">Commission</div>
-                      <div className="text-sm text-gray-900">{Number(inv.commissionPercent)}% ({fmt(inv.commissionAmount)})</div>
+                        <div className="text-sm text-gray-900">
+                          {Number(inv.financialPreview?.commissionPercent ?? inv.effectiveCommissionPercent ?? inv.commissionPercent) || 0}% ({fmt(inv.financialPreview?.commissionAmount ?? inv.commissionAmount)})
+                        </div>
                     </div>
                     <div>
                       <div className="text-xs text-gray-500">Tax</div>
-                      <div className="text-sm text-gray-900">{Number(inv.taxPercent) || 0}%</div>
+                      <div className="text-sm text-gray-900">
+                        {Number(inv.financialPreview?.taxPercent ?? inv.taxPercent) || 0}% ({fmt(inv.financialPreview?.taxAmount ?? 0)})
+                      </div>
                     </div>
                   </div>
 
@@ -915,8 +1109,8 @@ export default function AdminRevenue() {
       </div>
 
           {/* Desktop Table - Hidden on mobile */}
-          <div className="hidden md:block bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
+          <div className="hidden md:block bg-white rounded-xl border border-gray-200 shadow-sm overflow-visible">
+            <div className="overflow-x-auto overflow-y-visible">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
@@ -963,18 +1157,8 @@ export default function AdminRevenue() {
                         )}
                       </div>
                     </th>
-                    <th 
-                      className="px-3 sm:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
-                      onClick={() => handleSort("total")}
-                    >
-                      <div className="flex items-center gap-1.5">
-                        <span>Gross</span>
-                        {sortBy === "total" ? (
-                          sortDir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-                        ) : (
-                          <ArrowUpDown className="h-3 w-3 text-gray-400" />
-                        )}
-                      </div>
+                    <th className="px-3 sm:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                      Total Paid
                     </th>
                     <th className="px-3 sm:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                       Commission
@@ -985,18 +1169,8 @@ export default function AdminRevenue() {
                     <th className="px-3 sm:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                       Status
                     </th>
-                    <th 
-                      className="px-3 sm:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
-                      onClick={() => handleSort("netPayable")}
-                    >
-                      <div className="flex items-center gap-1.5">
-                        <span>Net Payable</span>
-                        {sortBy === "netPayable" ? (
-                          sortDir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-                        ) : (
-                          <ArrowUpDown className="h-3 w-3 text-gray-400" />
-                        )}
-                      </div>
+                    <th className="px-3 sm:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                      Owner Payout
                     </th>
                     <th className="px-3 sm:px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">
                       Actions
@@ -1022,13 +1196,15 @@ export default function AdminRevenue() {
                       </td>
                       <td className="px-3 sm:px-4 py-3 whitespace-nowrap">
                         <div className="flex items-center gap-2">
-                          <FileText className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                          <InvoiceTypeIcon inv={inv} size="xs" />
                           <div className="min-w-0">
-                            <div className="text-sm font-semibold text-gray-900 truncate">
-                              {inv.invoiceNumber ?? `#${inv.id}`}
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="text-sm font-semibold text-gray-900 truncate">
+                                {inv.invoiceNumber ?? `#${inv.id}`}
+                              </div>
                             </div>
                             {inv.receiptNumber && (
-                              <div className="text-xs text-gray-500 truncate">
+                              <div className="text-xs font-medium text-[#02665e] truncate">
                                 Receipt: {inv.receiptNumber}
                               </div>
                             )}
@@ -1050,22 +1226,25 @@ export default function AdminRevenue() {
                         </div>
                       </td>
                       <td className="px-3 sm:px-4 py-3 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">{fmt(inv.total)}</div>
+                        <div className="text-sm font-medium text-gray-900">{fmt(inv.financialPreview?.grossTotal ?? (Number(inv.netPayable || 0) + Number(inv.commissionAmount || 0)))}</div>
                       </td>
                       <td className="px-3 sm:px-4 py-3 whitespace-nowrap">
                         <div className="text-xs text-gray-600">
-                          {Number(inv.commissionPercent)}%
+                          {Number(inv.financialPreview?.commissionPercent ?? inv.effectiveCommissionPercent ?? inv.commissionPercent) || 0}%
                         </div>
-                        <div className="text-sm font-medium text-gray-900">{fmt(inv.commissionAmount)}</div>
+                        <div className="text-sm font-medium text-gray-900">{fmt(inv.financialPreview?.commissionAmount ?? inv.commissionAmount)}</div>
                       </td>
                       <td className="px-3 sm:px-4 py-3 whitespace-nowrap">
-                        <div className="text-sm text-gray-600">{Number(inv.taxPercent) || 0}%</div>
+                        <div className="text-xs text-gray-600">
+                          {Number(inv.financialPreview?.taxPercent ?? inv.taxPercent) || 0}%
+                        </div>
+                        <div className="text-sm font-medium text-gray-900">{fmt(inv.financialPreview?.taxAmount ?? 0)}</div>
                       </td>
                       <td className="px-3 sm:px-4 py-3 whitespace-nowrap">
                         {getStatusBadge(inv.status)}
                       </td>
                       <td className="px-3 sm:px-4 py-3 whitespace-nowrap">
-                        <div className="text-sm font-bold text-[#02665e]">{fmt(inv.netPayable)}</div>
+                        <div className="text-sm font-bold text-[#02665e]">{fmt(inv.financialPreview?.baseAmount ?? inv.netPayable)}</div>
                       </td>
                       <td className="px-3 sm:px-4 py-3 whitespace-nowrap text-center">
                         <Link

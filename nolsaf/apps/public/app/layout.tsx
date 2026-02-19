@@ -1,6 +1,7 @@
 import './globals.css'
 import Header from './components/Header'
 import Footer from './components/Footer'
+import SuspendedAccessOverlay from './components/SuspendedAccessOverlay'
 
 export const metadata = {
   title: 'Nolsaf — Public listings',
@@ -14,6 +15,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Header />
   <main className="container content">{children}</main>
         <Footer />
+        <SuspendedAccessOverlay />
       </body>
     </html>
   )

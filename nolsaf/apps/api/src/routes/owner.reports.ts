@@ -426,6 +426,8 @@ const bookingsHandler: RequestHandler = async (req, res, next) => {
             checkOut: b.checkOut,
             status: b.status,
             totalAmount: b.totalAmount,
+            transportFare: (b as any).transportFare ?? null,
+            ownerBaseAmount: Math.max(0, Number(b.totalAmount || 0) - Number((b as any).transportFare || 0)),
             guestName: (b as any).guestName ?? null,
             checkedInAt: null, // code relation unavailable
           })),

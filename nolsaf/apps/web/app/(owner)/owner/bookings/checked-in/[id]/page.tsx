@@ -18,7 +18,7 @@ export default function BookingDetail() {
   useEffect(() => {
     let mounted = true;
     Promise.all([
-      api.get(`/owner/bookings/${idParam}`),
+      api.get(`/api/owner/bookings/${idParam}`),
       api.get(`/api/owner/invoices/for-booking/${idParam}`),
     ])
       .then(([br, ir]) => {
@@ -77,6 +77,13 @@ export default function BookingDetail() {
   const formatCurrency = (amount: number) => {
     return `TZS ${Number(amount).toLocaleString("en-TZ")}`;
   };
+
+  const baseAmount = (() => {
+    const total = Number(b?.totalAmount ?? 0);
+    const transport = Number(b?.transportFare ?? 0);
+    if (!Number.isFinite(total) || !Number.isFinite(transport)) return 0;
+    return Math.max(0, total - transport);
+  })();
 
   return (
     <div className="min-h-[60vh] px-4 py-6 max-w-4xl mx-auto">
@@ -145,7 +152,7 @@ export default function BookingDetail() {
             <DetailRow icon={<Building2 className="h-4 w-4 text-slate-400" />} label="Property" value={`${b.property?.title ?? "-"} • ${b.property?.type ?? "-"}`} />
             <DetailRow icon={<Calendar className="h-4 w-4 text-slate-400" />} label="Check-in" value={formatDateTime(b.checkIn)} />
             <DetailRow icon={<Calendar className="h-4 w-4 text-slate-400" />} label="Check-out" value={formatDateTime(b.checkOut)} />
-            <DetailRow icon={<DollarSign className="h-4 w-4 text-slate-400" />} label="Amount paid" value={b.totalAmount != null ? formatCurrency(Number(b.totalAmount)) : "-"} />
+            <DetailRow icon={<DollarSign className="h-4 w-4 text-slate-400" />} label="Base amount" value={b.totalAmount != null ? formatCurrency(baseAmount) : "-"} />
             <DetailRow icon={<FileText className="h-4 w-4 text-slate-400" />} label="NoLSAF Code" value={bookingCode} />
           </div>
         </div>

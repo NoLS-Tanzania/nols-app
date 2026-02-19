@@ -49,18 +49,56 @@ const adminInvoicePropertySelect = {
 
 const adminInvoicePropertyWithOwnerSelect = {
   ...adminInvoicePropertySelect,
+  services: true,
   owner: { select: adminInvoiceOwnerSelect },
 } as const;
 
-/** Utility: compute commission/tax/net */
+/** Utility: compute commission/tax/net
+ * Conventions used across booking + invoice flows:
+ * - `booking.totalAmount` is accommodation base + transport (NO commission).
+ * - Commission is calculated as a % of the accommodation base (excluding transport).
+ * - `invoice.total` should represent what the guest pays: booking.totalAmount + commission.
+ * - Owner net payable is the accommodation base (commission and transport are not paid out).
+ * - Tax (if any) applies to the commission amount (platform revenue).
+ */
 function compute(invoice: any, cfg?: { commissionPercent?: number; taxPercent?: number }) {
-  const commissionPercent = Number(cfg?.commissionPercent ?? invoice.commissionPercent ?? 0);
-  const taxPercent = Number(cfg?.taxPercent ?? invoice.taxPercent ?? 0);
-  const total = Number(invoice.total ?? 0);
-  const commissionAmount = +(total * (commissionPercent / 100)).toFixed(2);
-  const taxOnCommission = +(commissionAmount * (taxPercent / 100)).toFixed(2);
-  const netPayable = +(total - commissionAmount - taxOnCommission).toFixed(2);
-  return { total, commissionPercent, commissionAmount, taxPercent, netPayable };
+  const commissionPercentRaw = Number(cfg?.commissionPercent ?? invoice.commissionPercent ?? 0);
+  const taxPercentRaw = Number(cfg?.taxPercent ?? invoice.taxPercent ?? 0);
+
+  const commissionPercent = Number.isFinite(commissionPercentRaw)
+    ? Math.max(0, Math.min(100, commissionPercentRaw))
+    : 0;
+  const taxPercent = Number.isFinite(taxPercentRaw) ? Math.max(0, Math.min(100, taxPercentRaw)) : 0;
+
+  const bookingTotalAmountRaw = Number((invoice as any)?.booking?.totalAmount);
+  const transportFareRaw = Number((invoice as any)?.booking?.transportFare ?? 0);
+  const bookingTotalAmount = Number.isFinite(bookingTotalAmountRaw) ? Math.max(0, bookingTotalAmountRaw) : NaN;
+  const transportFare = Number.isFinite(transportFareRaw) ? Math.max(0, transportFareRaw) : 0;
+
+  const baseFromBooking = Number.isFinite(bookingTotalAmount)
+    ? Math.max(0, bookingTotalAmount - transportFare)
+    : NaN;
+  const baseFallback = Number(invoice.netPayable ?? 0);
+  const baseAmount = Number.isFinite(baseFromBooking)
+    ? baseFromBooking
+    : (Number.isFinite(baseFallback) && baseFallback > 0 ? Math.max(0, baseFallback) : Math.max(0, Number(invoice.total ?? 0)));
+
+  const commissionAmount = +Math.max(0, (baseAmount * commissionPercent) / 100).toFixed(2);
+  const taxOnCommission = +Math.max(0, (commissionAmount * taxPercent) / 100).toFixed(2);
+
+  // Admin revenue breakdown should EXCLUDE transport.
+  // Total involved in property revenue is accommodation base + commission only.
+  const grossTotal = +(baseAmount + commissionAmount).toFixed(2);
+
+  return {
+    grossTotal,
+    baseAmount: +baseAmount.toFixed(2),
+    commissionPercent,
+    commissionAmount,
+    taxPercent,
+    taxOnCommission,
+    netPayable: +baseAmount.toFixed(2),
+  };
 }
 
 function nextInvoiceNumber(prefix = "INV", seq: number) {
@@ -233,10 +271,13 @@ router.get("/invoices", async (req, res) => {
           booking: {
             select: {
               id: true,
+              totalAmount: true,
+              transportFare: true,
               property: {
                 select: {
                   id: true,
                   title: true,
+                  services: true,
                 },
               },
             },
@@ -248,7 +289,47 @@ router.get("/invoices", async (req, res) => {
       prisma.invoice.count({ where }),
     ]);
 
-    return res.json({ total, page: Number(page), pageSize: take, items });
+    // Attach effective commission percent + computed preview breakdown so Admin list view can
+    // show the correct default commission rate/amount even before an invoice is approved.
+    let globalDefaultCommissionPercent = 0;
+    try {
+      globalDefaultCommissionPercent = await getEffectiveCommissionPercent(null);
+    } catch {
+      globalDefaultCommissionPercent = 0;
+    }
+
+    const withPreview = (items as any[]).map((inv) => {
+      const propertyServices = inv?.booking?.property?.services;
+      const fromProperty = (() => {
+        const services = propertyServices as any;
+        const v = services?.commissionPercent;
+        const n = Number(v);
+        if (!Number.isFinite(n)) return null;
+        if (n < 0) return 0;
+        if (n > 100) return 100;
+        return n;
+      })();
+
+      const effectiveCommissionPercent = fromProperty != null ? fromProperty : globalDefaultCommissionPercent;
+      const taxPercent = inv?.taxPercent ?? 0;
+      const breakdown = compute(inv, { commissionPercent: effectiveCommissionPercent, taxPercent });
+
+      return {
+        ...inv,
+        effectiveCommissionPercent,
+        financialPreview: {
+          grossTotal: breakdown.grossTotal,
+          baseAmount: breakdown.baseAmount,
+          commissionPercent: breakdown.commissionPercent,
+          commissionAmount: breakdown.commissionAmount,
+          taxPercent: breakdown.taxPercent,
+          taxAmount: breakdown.taxOnCommission,
+          netPayable: breakdown.netPayable,
+        },
+      };
+    });
+
+    return res.json({ total, page: Number(page), pageSize: take, items: withPreview });
   } catch (err: any) {
     // Ensure error responses are JSON
     res.setHeader('Content-Type', 'application/json');
@@ -329,6 +410,40 @@ router.get("/invoices/:id(\\d+)", async (req, res) => {
     // Add accountNumber to response
     const response: any = { ...inv };
     response.accountNumber = accountNumber;
+
+    // Mirror invoices: for the same booking we may have both a public payment invoice (INV-...)
+    // and an owner-claim invoice (OINV-...). Expose them so Admin can navigate without losing records.
+    try {
+      response.relatedInvoices = await prisma.invoice.findMany({
+        where: { bookingId: (inv as any).bookingId, id: { not: (inv as any).id } },
+        select: { id: true, invoiceNumber: true, status: true },
+        orderBy: { id: "asc" },
+      });
+    } catch {
+      response.relatedInvoices = [];
+    }
+
+    // Compute a preview breakdown using the effective property commission (even before approval).
+    // This keeps Admin UI consistent and prevents showing 0% / 0.00 while an invoice is still REQUESTED/VERIFIED.
+    try {
+      const propertyServices = (inv as any)?.booking?.property?.services;
+      const effectiveCommissionPercent = await getEffectiveCommissionPercent(propertyServices);
+      const taxPercent = (inv as any)?.taxPercent ?? 0;
+      const breakdown = compute(inv, { commissionPercent: effectiveCommissionPercent, taxPercent });
+
+      response.effectiveCommissionPercent = effectiveCommissionPercent;
+      response.financialPreview = {
+        grossTotal: breakdown.grossTotal,
+        baseAmount: breakdown.baseAmount,
+        commissionPercent: breakdown.commissionPercent,
+        commissionAmount: breakdown.commissionAmount,
+        taxPercent: breakdown.taxPercent,
+        taxAmount: breakdown.taxOnCommission,
+        netPayable: breakdown.netPayable,
+      };
+    } catch {
+      // Non-fatal; UI will fall back to stored fields.
+    }
 
     // Attach owner payout details (for admin payout processing / UI autofill)
     try {
@@ -574,6 +689,8 @@ router.post("/invoices/:id/approve", async (req, res) => {
         approvedBy: adminId,
         approvedAt: new Date(),
         invoiceNumber,
+        // NOTE: do not overwrite `invoice.total` here. It may represent the customer-paid amount
+        // (which can include transport). Admin revenue breakdown excludes transport.
         commissionPercent: calc.commissionPercent,
         commissionAmount: calc.commissionAmount,
         taxPercent: calc.taxPercent,

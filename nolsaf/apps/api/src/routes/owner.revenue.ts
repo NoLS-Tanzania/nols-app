@@ -257,7 +257,24 @@ router.get("/invoices/:id/receipt", (async (req: AuthedRequest, res) => {
     include: {
       booking: {
         include: {
-          property: { select: { id: true, title: true } },
+          property: {
+            select: {
+              id: true,
+              title: true,
+              type: true,
+              regionName: true,
+              district: true,
+              city: true,
+              country: true,
+              photos: true,
+              images: {
+                where: { status: "READY" },
+                take: 1,
+                orderBy: { createdAt: "asc" },
+                select: { url: true, thumbnailUrl: true },
+              },
+            },
+          },
           code: true,
         },
       },

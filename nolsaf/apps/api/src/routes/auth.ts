@@ -1007,6 +1007,7 @@ router.post('/profile', upload.any(), async (req, res) => {
       role,
       name,
       email,
+      password,
       referralCode,
       tin,
       address,
@@ -1047,18 +1048,21 @@ router.post('/profile', upload.any(), async (req, res) => {
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
     // Enforce that the role in the request (if any) matches the user's role (prevents role hopping)
+    let dbRole: string | null = null;
+    let hasPasswordAlready = false;
     try {
-      const dbUser = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true } });
+      const dbUser = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true, passwordHash: true } as any });
       if (!dbUser) return res.status(401).json({ error: 'Unauthorized' });
       const requested = normalizeSignupRole(role);
       // Normalize DB roles too (e.g. USER/TRAVELLER should be treated as CUSTOMER)
-      const dbRole = normalizeSignupRole(dbUser.role) || String(dbUser.role || '').trim().toUpperCase();
+      dbRole = normalizeSignupRole(dbUser.role) || String(dbUser.role || '').trim().toUpperCase();
       if (requested && requested !== 'RESET' && dbRole !== requested) {
         return res.status(400).json({
           error: 'role_mismatch',
           message: `Role mismatch: account role is ${dbRole || 'UNKNOWN'} but request role is ${requested}.`,
         });
       }
+      hasPasswordAlready = Boolean((dbUser as any)?.passwordHash);
     } catch (e) {
       return res.status(503).json({ error: 'database_unavailable', message: 'Unable to save profile right now.' });
     }
@@ -1087,6 +1091,7 @@ router.post('/profile', upload.any(), async (req, res) => {
 
     const cleanEmail = email ? String(email).trim().toLowerCase() : null;
     let updatedUser: any = null;
+    let newPasswordHash: string | null = null;
     const extractUnknownArg = (err: any): string | null => {
       const msg = String(err?.message ?? '');
       const m = msg.match(/Unknown argument `([^`]+)`/);
@@ -1103,6 +1108,15 @@ router.post('/profile', upload.any(), async (req, res) => {
         name: name ? String(name) : undefined,
         email: cleanEmail || undefined,
       };
+
+      // Allow setting a password during onboarding so users can login with email/password.
+      // For safety: only set if the account does not already have a password.
+      if (!hasPasswordAlready && typeof password === 'string' && password.trim().length > 0) {
+        const strength = await validatePasswordWithSettings(String(password), dbRole);
+        if (!strength.valid) return res.status(400).json({ error: 'weak_password', reasons: strength.reasons });
+        newPasswordHash = await hashPassword(String(password));
+        dataToUpdate.passwordHash = newPasswordHash;
+      }
 
       // Owner fields
       if (hasField('tin') && typeof tin === 'string') dataToUpdate.tin = tin;
@@ -1172,6 +1186,14 @@ router.post('/profile', upload.any(), async (req, res) => {
         }
       } else {
         throw e;
+      }
+    }
+
+    if (newPasswordHash) {
+      try {
+        await addPasswordToHistory(userId, newPasswordHash);
+      } catch {
+        // ignore
       }
     }
 

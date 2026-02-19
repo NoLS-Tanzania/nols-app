@@ -238,6 +238,7 @@ export default function PropertyPreview({
   const [showLightbox, setShowLightbox] = useState(false);
   const [rejectReasons, setRejectReasons] = useState("");
   const [showRejectDialog, setShowRejectDialog] = useState(false);
+  const [showApproveDialog, setShowApproveDialog] = useState(false);
   const [suspendReason, setSuspendReason] = useState("");
   const [showSuspendDialog, setShowSuspendDialog] = useState(false);
   const [notifyOwnerOnSuspend, setNotifyOwnerOnSuspend] = useState(true);
@@ -411,8 +412,14 @@ export default function PropertyPreview({
   }, [showShareMenu]);
 
 
-  async function handleApprove() {
-    if (!confirm("Are you sure you want to approve this property?")) return;
+  function handleApprove() {
+    setAdminNotice(null);
+    setShowApproveDialog(true);
+  }
+
+  async function confirmApprove() {
+    if (saving) return;
+    setShowApproveDialog(false);
     try {
       setSaving(true);
       await api.post(`/api/admin/properties/${propertyId}/approve`, { note: "" });
@@ -2649,6 +2656,65 @@ export default function PropertyPreview({
           </div>
         </div>
       ) : null}
+
+      {/* Approve Dialog */}
+      {showApproveDialog && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
+          onClick={() => {
+            if (!saving) setShowApproveDialog(false);
+          }}
+        >
+          <div
+            className="bg-white rounded-xl p-4 sm:p-5 max-w-md w-full shadow-2xl my-auto max-h-[90vh] flex flex-col box-border overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Approve property"
+          >
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 inline-flex items-center justify-center h-10 w-10 rounded-full bg-emerald-100 flex-shrink-0">
+                <CheckCircle2 className="h-5 w-5 text-emerald-700" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-base sm:text-lg font-semibold text-gray-900">Approve this property?</h3>
+                <p className="mt-1 text-xs sm:text-sm text-gray-600">
+                  Are you sure you want to approve this property? It will become visible to guests.
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-label="Close"
+                onClick={() => {
+                  if (!saving) setShowApproveDialog(false);
+                }}
+                className="p-2 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="mt-4 flex flex-col sm:flex-row gap-2 justify-end">
+              <button
+                type="button"
+                onClick={() => setShowApproveDialog(false)}
+                disabled={saving}
+                className="order-2 sm:order-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmApprove}
+                disabled={saving}
+                className="order-1 sm:order-2 px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50"
+              >
+                {saving ? "Approving..." : "Approve"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Reject Dialog */}
       {showRejectDialog && (

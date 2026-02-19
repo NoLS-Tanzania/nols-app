@@ -180,6 +180,19 @@ const getMe: RequestHandler = async (req, res) => {
     stage = 'get_user_id';
     const userId = getUserId(req as AuthedRequest);
 
+    // Safe boolean: whether the account has a password set (never return passwordHash).
+    let hasPassword = false;
+    try {
+      const pw = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { passwordHash: true } as any,
+      });
+      hasPassword = Boolean((pw as any)?.passwordHash);
+    } catch {
+      // ignore - keep default
+      hasPassword = false;
+    }
+
     // Fail-soft: some local DBs may be missing newer columns that exist in Prisma schema.
     // Avoid `findUnique()` without `select` (Prisma will select all columns and can crash with P2022).
     let user: any = null;
@@ -354,6 +367,9 @@ const getMe: RequestHandler = async (req, res) => {
     if (!user) {
       return sendError(res, 404, "User not found");
     }
+
+    // Attach safe derived fields
+    (user as any).hasPassword = hasPassword;
     
     // Ensure payout is always attempted to be loaded, even if main query didn't include it
     if (!(user as any).payout) {

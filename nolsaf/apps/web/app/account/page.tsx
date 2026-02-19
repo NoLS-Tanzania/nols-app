@@ -88,6 +88,12 @@ export default function AccountIndex() {
       setForm(response.data);
     } catch (err) {
       console.error("Failed to load profile", err);
+      const anyErr: any = err as any;
+      const status = anyErr?.response?.status;
+      const code = anyErr?.response?.data?.code;
+      if (status === 403 && code === "ACCOUNT_SUSPENDED") {
+        return;
+      }
       try {
         if (typeof window !== "undefined") window.location.href = "/account/login";
       } catch {}

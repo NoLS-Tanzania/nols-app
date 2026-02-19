@@ -27,6 +27,8 @@ type CheckedOutItem = {
   checkoutTiming?: "OVERDUE" | "NORMAL" | "UNKNOWN" | string | null;
   status?: string | null;
   totalAmount?: number | null;
+  transportFare?: number | string | null;
+  ownerBaseAmount?: number | string | null;
   createdAt?: string | null;
 };
 
@@ -448,7 +450,7 @@ export default function OwnerCheckedOutPage() {
                         </span>
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-gray-900 font-semibold">{formatCurrencyTZS(b.totalAmount)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-gray-900 font-semibold">{formatCurrencyTZS(b.ownerBaseAmount ?? Math.max(0, Number(b.totalAmount ?? 0) - Number(b.transportFare ?? 0)))}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-right">
                       <button
                         type="button"

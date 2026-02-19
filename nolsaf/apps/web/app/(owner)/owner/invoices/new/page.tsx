@@ -66,6 +66,15 @@ export default function NewInvoice() {
     return Number.isFinite(n) ? Math.max(0, n) : 0;
   }, [preview?.checkIn, preview?.checkOut]);
 
+  const baseAmount = useMemo(() => {
+    const total = Number(preview?.totalAmount ?? 0);
+    const transportFare = Number(preview?.transportFare ?? 0);
+    const serverBase = Number(preview?.ownerBaseAmount ?? NaN);
+    const computed = Math.max(0, total - transportFare);
+    const value = Number.isFinite(serverBase) ? serverBase : computed;
+    return Number.isFinite(value) ? value : 0;
+  }, [preview?.ownerBaseAmount, preview?.totalAmount, preview?.transportFare]);
+
   if (!bookingId) {
     return (
       <div className="w-full">
@@ -151,7 +160,7 @@ export default function NewInvoice() {
 
                 <div className="p-4 sm:p-6 space-y-4">
                   {/* Parties */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
                     <PartyCard
                       title="Sender (Owner)"
                       icon={<Building2 className="h-4 w-4 text-slate-600" aria-hidden />}
@@ -176,7 +185,7 @@ export default function NewInvoice() {
                     <InfoTile icon={<CalendarDays className="h-4 w-4 text-slate-500" aria-hidden />} label="Check-in" value={new Date(preview.checkIn).toLocaleString()} span />
                     <InfoTile icon={<CalendarDays className="h-4 w-4 text-slate-500" aria-hidden />} label="Check-out" value={new Date(preview.checkOut).toLocaleString()} span />
                     <InfoTile label="Nights" value={String(nights)} />
-                    <InfoTile label="Amount" value={`TZS ${preview.totalAmount}`} />
+                    <InfoTile label="Base amount" value={`TZS ${baseAmount}`} />
                   </div>
                 </div>
               </div>

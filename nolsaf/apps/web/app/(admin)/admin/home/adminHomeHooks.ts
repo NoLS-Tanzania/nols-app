@@ -265,7 +265,7 @@ export function useAdminRecentActivities() {
           return Array.isArray(items) ? (items as AdminAuditEntry[]) : null;
         })();
 
-        const items = (Array.isArray(parsed) ? (parsed as AdminAuditEntry[]) : fromWrappedResponse ?? []).slice(0, 6);
+        const items = (Array.isArray(parsed) ? (parsed as AdminAuditEntry[]) : fromWrappedResponse ?? []).slice(0, 5);
         setRecentActivities(items);
       } catch {
         if (!mounted) return;
@@ -311,7 +311,7 @@ export function useAdminRecentActivities() {
             const items = data?.items;
             return Array.isArray(items) ? (items as AdminAuditEntry[]) : null;
           })();
-          const items = (Array.isArray(parsed) ? (parsed as AdminAuditEntry[]) : fromWrappedResponse ?? []).slice(0, 6);
+          const items = (Array.isArray(parsed) ? (parsed as AdminAuditEntry[]) : fromWrappedResponse ?? []).slice(0, 5);
           setRecentActivities(items);
         } catch {
           // ignore

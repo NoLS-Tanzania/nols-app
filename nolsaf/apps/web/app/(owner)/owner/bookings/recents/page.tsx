@@ -21,7 +21,7 @@ export default function RecentBookings() {
               <div className="font-medium">#{b.id} • {b.property?.title}</div>
               <div className="text-xs opacity-70">{new Date(b.createdAt).toLocaleString()}</div>
             </div>
-            <div className="text-sm">TZS {b.totalAmount}</div>
+            <div className="text-sm">TZS {b.ownerBaseAmount ?? Math.max(0, Number(b.totalAmount ?? 0) - Number(b.transportFare ?? 0))}</div>
           </div>
         ))}
         {list.length === 0 && <div className="text-sm opacity-70">No recent activity.</div>}
