@@ -16,21 +16,25 @@ WORKDIR /app
 # Copy the monorepo (Render will build from the repo root you select)
 COPY . .
 
-# Install dependencies (uses package-lock.json)
-RUN npm ci
-
-# Generate Prisma client + build workspace packages + build the API
-RUN npm run prisma:generate
-RUN npm run --workspace=@nolsaf/shared build
-RUN npm run --workspace=@nolsaf/prisma build
-RUN npm run --workspace=@nolsaf/api build
-
-# Fail fast if build output is missing (prevents runtime MODULE_NOT_FOUND)
-RUN test -f /app/apps/api/dist/src/index.js
+# Install + build from the monorepo root.
+# This Dockerfile may be used with either build context:
+# - context = nolsaf/ (recommended) => lockfile at /app/package-lock.json
+# - context = repo root            => lockfile at /app/nolsaf/package-lock.json
+RUN set -eu; \
+	if [ -f /app/package-lock.json ]; then ROOT=/app; \
+	elif [ -f /app/nolsaf/package-lock.json ]; then ROOT=/app/nolsaf; \
+	else echo "package-lock.json not found in /app or /app/nolsaf"; ls -la /app; exit 1; fi; \
+	cd "$ROOT"; \
+	npm ci; \
+	npm run prisma:generate; \
+	npm run --workspace=@nolsaf/shared build; \
+	npm run --workspace=@nolsaf/prisma build; \
+	npm run --workspace=@nolsaf/api build; \
+	test -f "$ROOT/apps/api/dist/src/index.js"
 
 ENV NODE_ENV=production
 
 EXPOSE 4000
 
-WORKDIR /app/apps/api
-CMD ["node", "dist/src/index.js"]
+# Start the API from the correct working directory so relative paths behave.
+CMD ["sh", "-lc", "if [ -d /app/apps/api ]; then cd /app/apps/api; else cd /app/nolsaf/apps/api; fi; node dist/src/index.js"]
