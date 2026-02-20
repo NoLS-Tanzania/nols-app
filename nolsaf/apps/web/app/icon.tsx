@@ -6,7 +6,7 @@ export const runtime = 'nodejs';
 export const contentType = 'image/png';
 
 export default function Icon() {
-  const logoPath = path.join(process.cwd(), 'public', 'assets', 'nolsnewlog.png');
+  const logoPath = path.join(process.cwd(), 'public', 'assets', 'Record Icon.png');
   const logoBase64 = fs.readFileSync(logoPath).toString('base64');
   const logoSrc = `data:image/png;base64,${logoBase64}`;
 
@@ -19,15 +19,15 @@ export default function Icon() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: '#02665e',
+          background: 'rgba(0,0,0,0)',
         }}
       >
         <img
           src={logoSrc}
           alt="NoLSAF"
           style={{
-            width: 28,
-            height: 28,
+            width: 32,
+            height: 32,
             objectFit: 'contain',
           }}
         />
