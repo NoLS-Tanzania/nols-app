@@ -4,6 +4,18 @@ import { prisma } from "@nolsaf/prisma";
 export const healthRouter = Router();
 
 /**
+ * GET /
+ * Convenience root endpoint so opening the service URL shows it's alive.
+ */
+healthRouter.get("/", (_req: Request, res: Response) => {
+  res.status(200).json({
+    status: "ok",
+    service: "nolsaf-api",
+    timestamp: new Date().toISOString(),
+  });
+});
+
+/**
  * GET /health
  * Basic health check - returns 200 if server is running
  * Used by load balancers and monitoring tools
