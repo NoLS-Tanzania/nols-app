@@ -27,16 +27,17 @@ export default function Icon() {
           src={logoSrc}
           alt="NoLSAF"
           style={{
-            width: 30,
-            height: 30,
+            width: 64,
+            height: 64,
             objectFit: 'contain',
+            transform: 'scale(1.22)',
           }}
         />
       </div>
     ),
     {
-      width: 32,
-      height: 32,
+      width: 64,
+      height: 64,
     }
   );
 }

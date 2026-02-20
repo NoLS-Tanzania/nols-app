@@ -17,7 +17,7 @@ export const metadata: Metadata = {
     template: "%s | NoLSAF",
   },
   icons: {
-    icon: [{ url: "/icon", type: "image/png", sizes: "32x32" }],
+    icon: [{ url: "/icon", type: "image/png", sizes: "64x64" }],
     apple: [{ url: "/apple-icon", type: "image/png", sizes: "180x180" }],
   },
 };
