@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-export const runtime = 'edge';
+export const runtime = 'nodejs';
 
 // This is a lightweight mock implementation for development.
 // It accepts a multipart/form-data POST with field `file` (audio Blob),
