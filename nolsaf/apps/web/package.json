@@ -9,7 +9,7 @@
   "scripts": {
     "predev": "node -e \"require('fs').rmSync('.next',{ recursive:true, force:true })\"",
     "dev": "next dev --webpack -p 3000",
-    "build": "next build --experimental-build-mode compile",
+    "build": "next build",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"
