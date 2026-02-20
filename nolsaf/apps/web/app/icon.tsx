@@ -19,15 +19,15 @@ export default function Icon() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: '#ffffff',
+          background: '#02665e',
         }}
       >
         <img
           src={logoSrc}
           alt="NoLSAF"
           style={{
-            width: 26,
-            height: 26,
+            width: 28,
+            height: 28,
             objectFit: 'contain',
           }}
         />
