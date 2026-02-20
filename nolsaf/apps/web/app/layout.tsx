@@ -13,8 +13,12 @@ export const revalidate = 0;
 
 export const metadata: Metadata = {
   title: {
-    default: "NoLS Africa",
-    template: "%s | NoLS Africa",
+    default: "NoLSAF | Quality Stay for Every Wallet...",
+    template: "%s | NoLSAF",
+  },
+  icons: {
+    icon: [{ url: "/icon", type: "image/png", sizes: "32x32" }],
+    apple: [{ url: "/apple-icon", type: "image/png", sizes: "180x180" }],
   },
 };
 

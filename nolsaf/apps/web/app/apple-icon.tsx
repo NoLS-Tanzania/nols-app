@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 import fs from 'node:fs';
 import path from 'node:path';
 import { ImageResponse } from 'next/og';
@@ -6,7 +7,7 @@ export const runtime = 'nodejs';
 export const contentType = 'image/png';
 
 export default function AppleIcon() {
-  const logoPath = path.join(process.cwd(), 'public', 'assets', 'Record Icon.png');
+  const logoPath = path.join(process.cwd(), 'public', 'assets', 'NoLS2025-04.png');
   const logoBase64 = fs.readFileSync(logoPath).toString('base64');
   const logoSrc = `data:image/png;base64,${logoBase64}`;
 
@@ -19,7 +20,7 @@ export default function AppleIcon() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: 'rgba(0,0,0,0)',
+          background: '#ffffff',
         }}
       >
         <img
