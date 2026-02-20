@@ -40,9 +40,14 @@ Why this is simpler:
 At minimum:
 - `NODE_ENV=production`
 - `DATABASE_URL=...` (RDS connection string)
+- `JWT_SECRET=...` (JWT signing key)
+- `ENCRYPTION_KEY=...` (32-byte key for AES-256-GCM; base64 recommended)
 - `WEB_ORIGIN=https://<your web domain>`
 - `CORS_ORIGIN=https://<your web domain>`
-- `NEXT_PUBLIC_SOCKET_URL=https://<your api domain>` (optional; used by CSP/CORS allowlists in API)
+
+Common optional:
+- `COOKIE_DOMAIN=.yourdomain.com` (share cookies across subdomains)
+- `REDIS_URL=...` (required if you enable Redis-backed features)
 
 If you run a separate staging frontend/domain, add it too:
 - `CORS_ORIGIN=https://prod.example.com,https://staging.example.com`
