@@ -1,8 +1,13 @@
 /** @type {import('next').NextConfig} */
-// IMPORTANT: rewrites run on the Next.js server. Do not depend on NEXT_PUBLIC_API_URL here
-// (it is often set to the web origin and would cause /api/* to stop proxying and 404).
-// Use API_ORIGIN for server-to-server proxying, with a safe dev default.
-const apiOrigin = (process.env.API_ORIGIN || 'http://localhost:4000').replace(/\/$/, '');
+// IMPORTANT: rewrites run on the Next.js server.
+// Use API_ORIGIN for server-to-server proxying.
+// In production, do NOT default to localhost; require explicit configuration.
+const apiOriginRaw = process.env.API_ORIGIN || process.env.NEXT_PUBLIC_API_URL || '';
+const apiOrigin = (apiOriginRaw || (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:4000')).replace(/\/$/, '');
+
+if (!apiOrigin) {
+  throw new Error('Missing API_ORIGIN. Set API_ORIGIN to your API base URL (e.g. https://api.nolsaf.com).');
+}
 const socketOrigin = (process.env.NEXT_PUBLIC_SOCKET_URL || '').replace(/\/$/, '');
 
 const nextConfig = {
