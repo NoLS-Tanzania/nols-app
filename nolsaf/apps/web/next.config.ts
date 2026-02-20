@@ -62,6 +62,13 @@ const nextConfig: NextConfig = {
   },
   async rewrites() {
     return [
+      // Favicon/app-icon compatibility: Next metadata routes here are `/icon` and `/apple-icon`.
+      // Many browsers still request `/favicon.ico` and some tooling uses `/icon.png`.
+      { source: '/favicon.ico', destination: '/icon' },
+      { source: '/apple-touch-icon.png', destination: '/apple-icon' },
+      { source: '/icon.png', destination: '/icon' },
+      { source: '/apple-icon.png', destination: '/apple-icon' },
+
       // Map health probes (API exposes these at the root, not under /api)
       { source: '/api/health', destination: `${apiOrigin}/health` },
       { source: '/api/ready', destination: `${apiOrigin}/ready` },
