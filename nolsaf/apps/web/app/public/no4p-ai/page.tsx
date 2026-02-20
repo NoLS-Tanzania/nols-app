@@ -15,9 +15,9 @@ import {
 } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "No4P AI | NoLSAF",
+  title: "No4P AI",
   description:
-    "No4P AI is the intelligence layer inside NoLSAF—designed to help customers, owners, and drivers use sophisticated technology while pursuing their goals.",
+    "No4P AI is the intelligence layer inside NoLS Africa—designed to help customers, owners, and drivers use sophisticated technology while pursuing their goals.",
 };
 
 function GlowCard({

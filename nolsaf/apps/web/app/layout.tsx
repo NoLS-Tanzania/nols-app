@@ -4,11 +4,19 @@ import "@/styles/globals.css";
 import "@/styles/property-visualization.css";
 import { Suspense, type ReactNode } from "react";
 import Script from "next/script";
+import type { Metadata } from "next";
 import ToastContainer from "../components/ToastContainer";
 import SuspendedAccessOverlay from "../components/SuspendedAccessOverlay";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+
+export const metadata: Metadata = {
+  title: {
+    default: "NoLS Africa",
+    template: "%s | NoLS Africa",
+  },
+};
 
 /**
  * Root shell: keep it neutral (no role header, no sidebars).
