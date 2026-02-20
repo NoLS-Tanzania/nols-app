@@ -37,4 +37,6 @@ ENV NODE_ENV=production
 EXPOSE 4000
 
 # Start the API from the correct working directory so relative paths behave.
-CMD ["sh", "-lc", "if [ -d /app/apps/api ]; then cd /app/apps/api; else cd /app/nolsaf/apps/api; fi; node dist/src/index.js"]
+# The API is compiled to ESM and many local imports are extensionless (e.g. ./env).
+# This flag makes Node resolve those like CommonJS-style (./env -> ./env.js).
+CMD ["sh", "-lc", "if [ -d /app/apps/api ]; then cd /app/apps/api; else cd /app/nolsaf/apps/api; fi; node --experimental-specifier-resolution=node dist/src/index.js"]
