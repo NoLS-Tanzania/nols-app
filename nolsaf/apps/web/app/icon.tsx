@@ -20,17 +20,19 @@ export default function Icon() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: '#ffffff',
+          background: 'transparent',
+          overflow: 'hidden',
         }}
       >
         <img
           src={logoSrc}
           alt="NoLSAF"
           style={{
-            width: 64,
-            height: 64,
+            width: '100%',
+            height: '100%',
             objectFit: 'contain',
-            transform: 'scale(1.22)',
+            transform: 'scale(1.6)',
+            transformOrigin: 'center',
           }}
         />
       </div>

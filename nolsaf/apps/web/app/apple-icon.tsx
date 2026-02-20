@@ -20,16 +20,19 @@ export default function AppleIcon() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: '#ffffff',
+          background: 'transparent',
+          overflow: 'hidden',
         }}
       >
         <img
           src={logoSrc}
           alt="NoLSAF"
           style={{
-            width: 180,
-            height: 180,
+            width: '100%',
+            height: '100%',
             objectFit: 'contain',
+            transform: 'scale(1.25)',
+            transformOrigin: 'center',
           }}
         />
       </div>
