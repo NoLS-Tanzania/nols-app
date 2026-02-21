@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 
 import TypingStory from "./TypingStory";
 import FounderPhotoRotator from "./FounderPhotoRotator";
@@ -261,7 +262,7 @@ export default function AboutStoryPage() {
               <h3>Where we’re going</h3>
               <p>
                 We’re building NoLSAF into a future-ready travel platform where accommodation, transportation booking, and tourism planning
-                work together in one connected journey. The focus is a premium standard you can trust — accurate listings, predictable
+                work together in one connected journey. The focus is a premium standard you can trust accurate listings, predictable
                 movement, clearer costs, and better guidance from discovery to arrival. The goal stays simple and ambitious:
                 <strong>
                   <em> Quality Stay For Every Wallet</em>
@@ -347,7 +348,7 @@ export default function AboutStoryPage() {
 
                           <p className="m-0 mt-2 text-sm italic leading-relaxed text-slate-700">
                             I founded NoLSAF to solve a common travel problem: the journey is often <strong>fragmented</strong>. We’re building
-                            <strong> one platform</strong> that brings accommodation, transportation booking, and tourism discovery togethers so
+                            <strong> one platform</strong> that brings accommodation, transportation booking, and tourism discovery together — so
                             planning feels <strong>clear, predictable, and human</strong>.
                           </p>
                         </div>
@@ -518,6 +519,110 @@ export default function AboutStoryPage() {
                             </span>
                           </li>
                         </ul>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 border-t border-slate-200/80 pt-6">
+                    <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
+                      <div className="relative h-24 w-24 flex-none overflow-hidden rounded-full border border-slate-200 bg-white ring-1 ring-brand-500/10">
+                        <Image
+                          src="/assets/Rashid%20Sued.png"
+                          alt="Rashid Sued Rashid"
+                          fill
+                          sizes="96px"
+                          className="object-cover"
+                          priority={false}
+                        />
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-semibold uppercase tracking-wide text-[#02665e]">Co-Founder</div>
+                        <div className="mt-1 text-base font-semibold text-slate-900">Rashid Sued Rashid</div>
+                        <p className="mt-3 text-sm leading-relaxed text-slate-700">
+                          Rashidi Sued Rashidi is an experienced co-founder and business strategist with a strong foundation in technology and a
+                          passion for agriculture-driven impact. A graduate of the <strong>University of Dar es Salaam</strong>, Rashid and Daniel first met
+                          during a TANTRADE-led exhibition and aligned on a shared ambition: build and lead innovation that is structured,
+                          measurable, and built for real people.
+                          <br />
+                          <br />
+                          He is highly oriented toward technology, with the ability to <strong>unlock market niches</strong> and turn insights into
+                          execution. Currently leading <strong>NoLSAF</strong>, he applies <strong>data-driven</strong> decision-making to drive
+                          growth and maximize ROI. He is also an advocate for an inclusive economy and a <strong>UN SDGs champion</strong>. At NoLSAF, Rashid
+                          brings strategy, research, and commercialization focus, with innovations increasingly driven by <strong>Artificial Intelligence</strong>.
+                        </p>
+
+                        <div className="mt-5 grid gap-6 md:grid-cols-2">
+                          <div className="relative overflow-hidden rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+                            <div aria-hidden className="pointer-events-none absolute inset-0">
+                              <div className="absolute inset-0 bg-gradient-to-br from-white via-[#02665e]/5 to-white" />
+                              <svg className="absolute inset-0 h-full w-full text-[#02665e]/10" viewBox="0 0 600 360" fill="none">
+                                <path d="M0 72H600M0 144H600M0 216H600M0 288H600" stroke="currentColor" strokeWidth="1" />
+                                <path d="M120 0V360M240 0V360M360 0V360M480 0V360" stroke="currentColor" strokeWidth="1" />
+                                <path d="M72 70h96v44H72z" stroke="currentColor" strokeWidth="1.2" />
+                                <path d="M216 210h120v56H216z" stroke="currentColor" strokeWidth="1.2" />
+                              </svg>
+                              <div className="absolute -bottom-16 -right-16 h-48 w-48 rounded-full bg-[#02665e]/10 blur-3xl" />
+                            </div>
+
+                            <div className="relative">
+                              <div className="text-sm font-semibold text-slate-900">Characteristics</div>
+                              <ul className="mt-3 space-y-2 text-sm leading-relaxed text-slate-700">
+                                <li className="flex gap-3">
+                                  <span aria-hidden className="mt-[0.55rem] h-[2px] w-4 flex-none rounded bg-[#02665e]/60" />
+                                  <span>
+                                    <strong>Structured</strong>, technology-oriented leadership with strong <strong>ownership</strong>.
+                                  </span>
+                                </li>
+                                <li className="flex gap-3">
+                                  <span aria-hidden className="mt-[0.55rem] h-[2px] w-4 flex-none rounded bg-[#02665e]/60" />
+                                  <span>
+                                    Strong ability to <strong>identify niches</strong> and build toward <strong>innovation</strong>.
+                                  </span>
+                                </li>
+                              </ul>
+                            </div>
+                          </div>
+
+                          <div className="relative overflow-hidden rounded-lg border border-info-500/25 bg-slate-950 p-4 shadow-card ring-1 ring-info-500/10">
+                            <div aria-hidden className="pointer-events-none absolute inset-0">
+                              <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950" />
+                              <div className="absolute inset-0 bg-[radial-gradient(60%_60%_at_70%_30%,rgba(56,189,248,0.16),transparent_60%)]" />
+                              <div className="absolute inset-0 opacity-[0.2] [background:repeating-linear-gradient(to_bottom,rgba(255,255,255,0.06)_0px,rgba(255,255,255,0.06)_1px,transparent_1px,transparent_6px)]" />
+                              <svg className="absolute inset-0 h-full w-full" viewBox="0 0 600 360" fill="none">
+                                <g className="text-info-300/55">
+                                  <path d="M64 92H216" stroke="currentColor" strokeWidth="1.2" />
+                                  <path d="M216 92V156H356" stroke="currentColor" strokeWidth="1.2" />
+                                  <path d="M356 156V236H540" stroke="currentColor" strokeWidth="1.2" />
+                                  <circle cx="64" cy="92" r="6" fill="currentColor" />
+                                  <circle cx="216" cy="92" r="6" fill="currentColor" />
+                                  <circle cx="356" cy="156" r="6" fill="currentColor" />
+                                  <circle cx="540" cy="236" r="6" fill="currentColor" />
+                                </g>
+                              </svg>
+                              <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-info-500/16 blur-3xl" />
+                              <div className="absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-info-400/12 blur-3xl" />
+                            </div>
+
+                            <div className="relative">
+                              <div className="text-sm font-semibold text-slate-50">Qualifications</div>
+                              <ul className="mt-3 space-y-2 text-sm leading-relaxed text-slate-200">
+                                <li className="flex gap-3">
+                                  <span aria-hidden className="mt-[0.55rem] h-[2px] w-4 flex-none rounded bg-info-300/70" />
+                                  <span>
+                                    Graduate of <strong className="text-slate-50">University of Dar es Salaam</strong>, with a strong technology and research orientation.
+                                  </span>
+                                </li>
+                                <li className="flex gap-3">
+                                  <span aria-hidden className="mt-[0.55rem] h-[2px] w-4 flex-none rounded bg-info-300/70" />
+                                  <span>
+                                    Skilled in <strong className="text-slate-50">data analysis</strong>, <strong className="text-slate-50">statistical modeling</strong>, and <strong className="text-slate-50">market research</strong> to identify opportunities and maximize ROI.
+                                  </span>
+                                </li>
+                              </ul>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
