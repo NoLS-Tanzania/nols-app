@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 
 export default function AboutWhatPage() {
   return (
-    <article className="prose prose-slate max-w-none">
+    <article className="prose prose-slate">
       <h2>What we do</h2>
       <p>
         NoLSAF provides end-to-end services that make travel feel simple: choose a place to stay, plan how to reach it, pay using the

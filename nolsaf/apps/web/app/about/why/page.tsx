@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 
 export default function AboutWhyPage() {
   return (
-    <article className="prose prose-slate max-w-none">
+    <article className="prose prose-slate">
       <h2>Why us</h2>
       <p>
         NoLSAF is designed to make travel feel connected and predictable. We reduce uncertainty through verification, simplify choices

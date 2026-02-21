@@ -3,15 +3,19 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Who are we",
   description:
-    "Who we are at NoLSAF: a verification-first, end-to-end travel platform for accommodation, transport, payments, and planning — built to deliver quality stay for every wallet.",
+    "Who we are at NoLSAF: a verification-first, end-to-end travel platform for accommodation, transport, payments, and planning — built to deliver Quality Stay For Every Wallet.",
 };
 
 export default function AboutWhoPage() {
   return (
-    <article className="prose prose-slate max-w-none">
+    <article className="prose prose-slate">
       <h2>Who are we</h2>
       <p>
-        NoLSAF is an end-to-end travel platform built around one promise: <strong>Quality stay for every wallet</strong>. We treat
+        NoLSAF is an end-to-end travel platform built around one promise:{" "}
+        <strong>
+          <em>Quality Stay For Every Wallet</em>
+        </strong>
+        . We treat
         accommodation as more than a listing — it’s a form of recovery, comfort, and stability. In that sense, a good stay is not just a
         room; it’s part of a traveler’s well-being.
       </p>
