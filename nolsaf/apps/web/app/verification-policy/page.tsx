@@ -146,18 +146,20 @@ export default function VerificationPolicyPage() {
         
         {/* Hero Image Section */}
         <section className="relative h-48 md:h-64 lg:h-80 overflow-hidden">
-          <div className="public-container h-full relative">
-            <div className="absolute inset-0 bg-[url('/assets/nolsaf%20picture%201.jpg')] bg-cover bg-center rounded-lg" />
-            <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-transparent rounded-lg" />
-            <div className="relative h-full flex flex-col items-center justify-center">
-              <div className="mb-4">
-                <span className="rounded-full w-20 h-20 md:w-24 md:h-24 flex items-center justify-center shadow-lg ring-4 ring-white/60 bg-white/20 backdrop-blur-md backdrop-saturate-150">
-                  <CheckCircle className="w-12 h-12 md:w-14 md:h-14 text-green-700" strokeWidth={2} />
-                </span>
+          <div className="public-container h-full">
+            <div className="relative h-full w-full max-w-[1200px] mx-auto overflow-hidden rounded-3xl">
+              <div className="absolute inset-0 bg-[url('/assets/nolsaf%20picture%201.jpg')] bg-cover bg-center" />
+              <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-transparent" />
+              <div className="relative h-full flex flex-col items-center justify-center">
+                <div className="mb-4">
+                  <span className="rounded-full w-20 h-20 md:w-24 md:h-24 flex items-center justify-center shadow-lg ring-4 ring-white/60 bg-white/20 backdrop-blur-md backdrop-saturate-150">
+                    <CheckCircle className="w-12 h-12 md:w-14 md:h-14 text-green-700" strokeWidth={2} />
+                  </span>
+                </div>
+                <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white text-center px-4 drop-shadow-lg">
+                  Verification Policy
+                </h1>
               </div>
-              <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white text-center px-4 drop-shadow-lg">
-                Verification Policy
-              </h1>
             </div>
           </div>
         </section>

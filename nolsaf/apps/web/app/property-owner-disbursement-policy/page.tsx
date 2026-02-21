@@ -135,17 +135,19 @@ export default function PropertyOwnerDisbursementPolicyPage() {
         <LayoutFrame heightVariant="sm" topVariant="sm" colorVariant="muted" variant="solid" />
         
         <section className="relative h-48 md:h-64 lg:h-80 overflow-hidden">
-          <div className="public-container h-full relative">
-            <div className="absolute inset-0 bg-[url('/assets/nolsaf%20picture%201.jpg')] bg-cover bg-center rounded-lg" />
-            <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-transparent rounded-lg" />
-            <div className="relative h-full flex flex-col items-center justify-center">
-              <DollarSign size={64} className="text-white mb-4 drop-shadow-lg" strokeWidth={1.5} />
-              <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white text-center px-4 drop-shadow-lg">
-                Property Owner Disbursement Policy
-              </h1>
-              <p className="text-white text-center px-4 mt-2 text-lg drop-shadow-lg">
-                For Property Owners
-              </p>
+          <div className="public-container h-full">
+            <div className="relative h-full w-full max-w-[1200px] mx-auto overflow-hidden rounded-3xl">
+              <div className="absolute inset-0 bg-[url('/assets/nolsaf%20picture%201.jpg')] bg-cover bg-center" />
+              <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-transparent" />
+              <div className="relative h-full flex flex-col items-center justify-center">
+                <DollarSign size={64} className="text-white mb-4 drop-shadow-lg" strokeWidth={1.5} />
+                <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white text-center px-4 drop-shadow-lg">
+                  Property Owner Disbursement Policy
+                </h1>
+                <p className="text-white text-center px-4 mt-2 text-lg drop-shadow-lg">
+                  For Property Owners
+                </p>
+              </div>
             </div>
           </div>
         </section>
