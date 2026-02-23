@@ -1,30 +1,23 @@
-"use client";
+﻿"use client";
 
 import React from "react";
 
 export type HeroRingsMode = "stays" | "transport" | "host";
 export type HeroRingsVariant = "card" | "full";
 
-function modeAccent(mode: HeroRingsMode) {
+// ----- colour palette per mode -----
+function modeColors(mode: HeroRingsMode): {
+  a: string; b: string;
+  ga: string; gb: string;
+  dotA: string; dotB: string;
+} {
   switch (mode) {
     case "transport":
-      return {
-        glow: "rgba(34,211,238,0.24)",
-        stroke: "rgba(34,211,238,0.85)",
-        soft: "rgba(34,211,238,0.18)",
-      };
+      return { a: "#22d3ee", b: "#06b6d4", ga: "rgba(6,182,212,0.26)",  gb: "rgba(6,182,212,0.12)",  dotA: "rgba(34,211,238,0.80)",  dotB: "rgba(6,182,212,0.60)"  };
     case "host":
-      return {
-        glow: "rgba(167,139,250,0.22)",
-        stroke: "rgba(196,181,253,0.78)",
-        soft: "rgba(167,139,250,0.16)",
-      };
+      return { a: "#a78bfa", b: "#8b5cf6", ga: "rgba(139,92,246,0.26)",  gb: "rgba(139,92,246,0.12)", dotA: "rgba(167,139,250,0.80)", dotB: "rgba(139,92,246,0.60)" };
     default:
-      return {
-        glow: "rgba(56,189,248,0.24)",
-        stroke: "rgba(56,189,248,0.82)",
-        soft: "rgba(34,197,94,0.12)",
-      };
+      return { a: "#38bdf8", b: "#10b981", ga: "rgba(56,189,248,0.26)",   gb: "rgba(16,185,129,0.14)", dotA: "rgba(56,189,248,0.85)",  dotB: "rgba(16,185,129,0.65)" };
   }
 }
 
@@ -37,215 +30,228 @@ export default function HeroRingsBackground({
   className?: string;
   variant?: HeroRingsVariant;
 }) {
-  const accent = modeAccent(mode);
-  const uid = React.useId();
-  const softGlowId = `${uid}-softGlow`;
-  const ringGradId = `${uid}-ringGrad`;
-  const blurGlowId = `${uid}-blurGlow`;
-  const softShadowId = `${uid}-softShadow`;
+  const { a, b, ga, gb, dotA, dotB } = modeColors(mode);
+  const uid     = React.useId();
+  const coronaId = `${uid}-corona`;
+  const glowId   = `${uid}-glow`;
+  const blurId   = `${uid}-blur`;
+  const ringGId  = `${uid}-ringG`;
 
-  // Small inline “grain” svg (no external assets)
+  // Off-canvas ring origin â€” bottom-right so only elegant arcs bleed in
+  const cx = 900;
+  const cy = 580;
+
   const noiseSvg =
-    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='.22'/%3E%3C/svg%3E";
+    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='.20'/%3E%3C/svg%3E";
+
+  // Sparse star-field seed (deterministic so no hydration mismatch)
+  const stars: { x: number; y: number; r: number; o: number }[] = [
+    { x: 620, y:  45, r: 1.2, o: 0.65 },
+    { x: 740, y: 130, r: 0.9, o: 0.50 },
+    { x: 680, y: 210, r: 1.4, o: 0.70 },
+    { x: 810, y:  80, r: 0.8, o: 0.45 },
+    { x: 870, y: 195, r: 1.1, o: 0.55 },
+    { x: 590, y: 310, r: 1.0, o: 0.42 },
+    { x: 770, y: 340, r: 1.3, o: 0.60 },
+    { x: 840, y: 390, r: 0.7, o: 0.35 },
+    { x: 700, y: 440, r: 1.2, o: 0.52 },
+    { x: 920, y: 290, r: 0.9, o: 0.40 },
+    { x: 955, y:  55, r: 1.0, o: 0.48 },
+    { x: 545, y: 150, r: 0.8, o: 0.38 },
+    { x: 480, y: 260, r: 1.1, o: 0.44 },
+    { x: 510, y:  70, r: 0.7, o: 0.32 },
+    { x: 780, y: 500, r: 1.3, o: 0.55 },
+    { x: 640, y: 520, r: 0.9, o: 0.42 },
+    { x: 890, y: 460, r: 1.0, o: 0.50 },
+    { x: 960, y: 360, r: 0.8, o: 0.36 },
+    { x: 430, y: 180, r: 1.2, o: 0.40 },
+    { x: 460, y: 400, r: 0.9, o: 0.38 },
+  ];
 
   return (
     <div
       className={[
-        "relative",
-        "overflow-hidden",
-        "bg-[#070b14]",
-        variant === "card" ? "rounded-3xl" : "rounded-none",
-        variant === "card"
-          ? "[mask-image:radial-gradient(circle_at_50%_40%,black_0%,black_58%,transparent_74%)]"
-          : "[mask-image:none]",
-        className || "",
+        "relative overflow-hidden bg-[#011a16]",
+        variant === "card" ? "rounded-3xl" : "",
+        className ?? "",
       ].join(" ")}
       aria-hidden
     >
-      {/* Base vignette */}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,rgba(255,255,255,0.08),transparent_45%),radial-gradient(circle_at_70%_70%,rgba(2,132,199,0.10),transparent_55%),radial-gradient(circle_at_90%_55%,rgba(0,0,0,0.65),transparent_60%)]" />
-
-      {/* Rings */}
-      <svg
-        className="absolute inset-0 h-full w-full"
-        viewBox="0 0 900 700"
-        preserveAspectRatio="xMidYMid slice"
-      >
-        <defs>
-          <radialGradient id={softGlowId} cx="70%" cy="60%" r="70%">
-            <stop offset="0%" stopColor={accent.glow} />
-            <stop offset="45%" stopColor="rgba(0,0,0,0)" />
-            <stop offset="100%" stopColor="rgba(0,0,0,0)" />
-          </radialGradient>
-
-          <linearGradient id={ringGradId} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor={accent.stroke} stopOpacity={0.15} />
-            <stop offset="55%" stopColor={accent.stroke} stopOpacity={0.95} />
-            <stop offset="100%" stopColor={accent.stroke} stopOpacity={0.18} />
-          </linearGradient>
-
-          <filter id={blurGlowId} x="-40%" y="-40%" width="180%" height="180%">
-            <feGaussianBlur stdDeviation="7" />
-          </filter>
-
-          <filter id={softShadowId} x="-40%" y="-40%" width="180%" height="180%">
-            <feGaussianBlur stdDeviation="1.5" />
-          </filter>
-        </defs>
-
-        {/* big soft aura */}
-        <rect width="900" height="700" fill={`url(#${softGlowId})`} />
-
-        {/* ring system (centered right) */}
-        <g transform="translate(635 385)">
-          <circle r="240" fill="none" stroke={`url(#${ringGradId})`} strokeWidth="10" strokeLinecap="round" strokeDasharray="360 1140" className="hrb-spin-1" />
-          <circle r="190" fill="none" stroke={`url(#${ringGradId})`} strokeWidth="7" strokeLinecap="round" strokeDasharray="260 980" className="hrb-spin-2" opacity="0.9" />
-          <circle r="145" fill="none" stroke={`url(#${ringGradId})`} strokeWidth="6" strokeLinecap="round" strokeDasharray="220 840" className="hrb-spin-3" opacity="0.78" />
-          <circle r="105" fill="none" stroke={accent.stroke} strokeOpacity="0.55" strokeWidth="4" strokeLinecap="round" strokeDasharray="120 660" className="hrb-spin-4" />
-
-          {/* inner highlight arc */}
-          <path
-            d="M 0 -105 A 105 105 0 0 1 90 -55"
-            fill="none"
-            stroke={accent.stroke}
-            strokeWidth="10"
-            strokeLinecap="round"
-            filter={`url(#${blurGlowId})`}
-            opacity="0.85"
-          />
-
-          {/* floating glyph dots */}
-          <g className="hrb-float">
-            <g transform="translate(150 -120)">
-              <circle r="12" fill="rgba(8,12,22,0.70)" stroke={accent.stroke} strokeOpacity="0.55" />
-              <circle r="18" fill="none" stroke={accent.stroke} strokeOpacity="0.20" filter={`url(#${softShadowId})`} />
-              <text
-                x="0"
-                y="5"
-                textAnchor="middle"
-                fontSize="14"
-                fill={accent.stroke}
-                opacity="0.9"
-                fontFamily="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial"
-              >
-                ₮
-              </text>
-            </g>
-
-            <g transform="translate(-20 155)">
-              <circle r="12" fill="rgba(8,12,22,0.70)" stroke={accent.stroke} strokeOpacity="0.55" />
-              <circle r="18" fill="none" stroke={accent.stroke} strokeOpacity="0.20" filter={`url(#${softShadowId})`} />
-              <text
-                x="0"
-                y="5"
-                textAnchor="middle"
-                fontSize="14"
-                fill={accent.stroke}
-                opacity="0.9"
-                fontFamily="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial"
-              >
-                $ 
-              </text>
-            </g>
-
-            <g transform="translate(215 35)">
-              <circle r="12" fill="rgba(8,12,22,0.70)" stroke={accent.stroke} strokeOpacity="0.55" />
-              <circle r="18" fill="none" stroke={accent.stroke} strokeOpacity="0.20" filter={`url(#${softShadowId})`} />
-              <text
-                x="0"
-                y="5"
-                textAnchor="middle"
-                fontSize="14"
-                fill={accent.stroke}
-                opacity="0.9"
-                fontFamily="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial"
-              >
-                ₿
-              </text>
-            </g>
-          </g>
-        </g>
-      </svg>
-
-      {/* Grain overlay */}
+      {/* â”€â”€ Layer 1: ambient colour blobs â”€â”€ */}
       <div
-        className={[
-          "absolute inset-0 mix-blend-overlay",
-          variant === "card" ? "opacity-[0.18]" : "opacity-[0.14]",
-        ].join(" ")}
+        className="absolute inset-0"
         style={{
-          backgroundImage: `url(${noiseSvg})`,
-          backgroundRepeat: "repeat",
-          backgroundSize: "180px 180px",
+          background: [
+            `radial-gradient(ellipse 900px 700px at 94% 88%, ${ga}, transparent 60%)`,
+            `radial-gradient(ellipse 560px 420px at  6% 12%, ${gb}, transparent 55%)`,
+            `radial-gradient(ellipse 420px 340px at 50% 55%, rgba(255,255,255,0.025), transparent 52%)`,
+          ].join(","),
         }}
       />
 
-      {/* Soft glass highlight */}
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_15%,rgba(255,255,255,0.10),transparent_40%),radial-gradient(circle_at_30%_85%,rgba(34,197,94,0.07),transparent_45%)]" />
+      {/* â”€â”€ Layer 2: orbital ring SVG â”€â”€ */}
+      <svg
+        className="absolute inset-0 h-full w-full"
+        viewBox="0 0 1000 700"
+        preserveAspectRatio="xMidYMid slice"
+      >
+        <defs>
+          {/* Soft corona centred on ring origin */}
+          <radialGradient id={coronaId} cx={`${cx / 10}%`} cy={`${cy / 7}%`} r="52%">
+            <stop offset="0%"  stopColor={a} stopOpacity="0.28" />
+            <stop offset="35%" stopColor={a} stopOpacity="0.10" />
+            <stop offset="100%" stopColor={a} stopOpacity="0"   />
+          </radialGradient>
 
-      {/* Full-bleed edge darkening (helps it feel like a hero page) */}
-      {variant === "full" ? (
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_25%,rgba(0,0,0,0.15),transparent_50%),radial-gradient(circle_at_85%_55%,rgba(0,0,0,0.55),transparent_62%),linear-gradient(to_bottom,rgba(2,6,23,0.55),rgba(2,6,23,0.25),rgba(2,6,23,0.75))]" />
-      ) : null}
+          {/* Per-ring crescent gradient */}
+          <linearGradient id={ringGId} x1="1" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stopColor={a} stopOpacity="0.05" />
+            <stop offset="50%"  stopColor={a} stopOpacity="0.90" />
+            <stop offset="100%" stopColor={b} stopOpacity="0.12" />
+          </linearGradient>
+
+          {/* Glow filter for nodes */}
+          <filter id={glowId} x="-80%" y="-80%" width="260%" height="260%">
+            <feGaussianBlur stdDeviation="4.5" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+
+          {/* Soft blur for background corona */}
+          <filter id={blurId} x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur stdDeviation="18" />
+          </filter>
+        </defs>
+
+        {/* Blurred corona blob */}
+        <ellipse
+          cx={cx} cy={cy} rx="400" ry="340"
+          fill={a} fillOpacity="0.10"
+          filter={`url(#${blurId})`}
+        />
+
+        {/* Soft gradient corona */}
+        <ellipse cx={cx} cy={cy} rx="440" ry="360" fill={`url(#${coronaId})`} />
+
+        {/* â”€â”€ Rings (5 from tight to wide) â”€â”€ */}
+        {/* Ring 1 â€“ tightest, brightest crescent */}
+        <circle
+          cx={cx} cy={cy} r="120"
+          fill="none"
+          stroke={`url(#${ringGId})`} strokeWidth="1.8"
+          strokeLinecap="round" strokeDasharray="168 586"
+          className="hrb-s1"
+        />
+        {/* Ring 2 */}
+        <circle
+          cx={cx} cy={cy} r="210"
+          fill="none"
+          stroke={`url(#${ringGId})`} strokeWidth="1.4"
+          strokeLinecap="round" strokeDasharray="245 1074"
+          className="hrb-s2"
+        />
+        {/* Ring 3 */}
+        <circle
+          cx={cx} cy={cy} r="320"
+          fill="none"
+          stroke={b} strokeOpacity="0.44" strokeWidth="1.1"
+          strokeLinecap="round" strokeDasharray="275 1732"
+          className="hrb-s3"
+        />
+        {/* Ring 4 */}
+        <circle
+          cx={cx} cy={cy} r="450"
+          fill="none"
+          stroke={b} strokeOpacity="0.26" strokeWidth="0.9"
+          strokeLinecap="round" strokeDasharray="300 2527"
+          className="hrb-s4"
+        />
+        {/* Ring 5 â€“ outermost, barely visible */}
+        <circle
+          cx={cx} cy={cy} r="590"
+          fill="none"
+          stroke={a} strokeOpacity="0.14" strokeWidth="0.7"
+          strokeLinecap="round" strokeDasharray="320 3388"
+          className="hrb-s5"
+        />
+
+        {/* â”€â”€ Glowing orbital nodes â”€â”€ */}
+        <g filter={`url(#${glowId})`}>
+          {/* Node on ring 1 â€” top */}
+          <circle cx={cx}       cy={cy - 120} r="4.2" fill={a}    opacity="0.96" className="hrb-s1" />
+          <circle cx={cx}       cy={cy - 120} r="8"   fill={a}    opacity="0.18" className="hrb-s1" />
+
+          {/* Node on ring 2 â€” right side */}
+          <circle cx={cx + 210} cy={cy}       r="3.6" fill={b}    opacity="0.88" className="hrb-s2" />
+          <circle cx={cx + 210} cy={cy}       r="7"   fill={b}    opacity="0.16" className="hrb-s2" />
+
+          {/* Node on ring 3 â€” lower-left */}
+          <circle cx={cx - 40}  cy={cy + 320} r="3.2" fill={dotA} opacity="0.80" className="hrb-s3" />
+          <circle cx={cx - 40}  cy={cy + 320} r="6"   fill={dotA} opacity="0.14" className="hrb-s3" />
+
+          {/* Node on ring 4 */}
+          <circle cx={cx - 420} cy={cy - 70}  r="2.6" fill={dotB} opacity="0.65" className="hrb-s4" />
+        </g>
+
+        {/* â”€â”€ Star field (right half only) â”€â”€ */}
+        <g>
+          {stars.map((s, i) => (
+            <circle key={i} cx={s.x} cy={s.y} r={s.r} fill={a} opacity={s.o} />
+          ))}
+        </g>
+
+        {/* â”€â”€ Blueprint scan-lines (horizontal, very faint) â”€â”€ */}
+        <g stroke={a} strokeOpacity="0.032" strokeWidth="1">
+          {[55, 110, 165, 220, 275, 330, 385, 440, 495, 550, 605].map((y) => (
+            <line key={y} x1="380" y1={y} x2="1000" y2={y} />
+          ))}
+        </g>
+
+        {/* â”€â”€ Vertical accent line from ring origin â”€â”€ */}
+        <line
+          x1={cx} y1={cy - 600} x2={cx} y2={cy + 80}
+          stroke={a} strokeOpacity="0.06" strokeWidth="1"
+          strokeDasharray="4 8"
+        />
+        <line
+          x1={cx - 500} y1={cy} x2={cx + 80} y2={cy}
+          stroke={a} strokeOpacity="0.06" strokeWidth="1"
+          strokeDasharray="4 8"
+        />
+      </svg>
+
+      {/* â”€â”€ Layer 3: film grain â”€â”€ */}
+      <div
+        className="absolute inset-0 mix-blend-overlay opacity-[0.14]"
+        style={{
+          backgroundImage: `url(${noiseSvg})`,
+          backgroundRepeat: "repeat",
+          backgroundSize: "200px 200px",
+        }}
+      />
+
+      {/* â”€â”€ Layer 4: top glass sheen â”€â”€ */}
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_30%_at_50%_0%,rgba(255,255,255,0.10),transparent)]" />
+
+      {/* â”€â”€ Layer 5: bottom fade-to-dark (for full variant) â”€â”€ */}
+      {variant === "full" && (
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom,rgba(5,8,15,0.50),rgba(5,8,15,0.10)_40%,rgba(5,8,15,0.72))]" />
+      )}
 
       <style jsx>{`
-        @keyframes hrb-rot {
-          from {
-            transform: rotate(0deg);
-          }
-          to {
-            transform: rotate(360deg);
-          }
-        }
-        @keyframes hrb-rot2 {
-          from {
-            transform: rotate(0deg);
-          }
-          to {
-            transform: rotate(-360deg);
-          }
-        }
-        @keyframes hrb-float {
-          0% {
-            transform: translateY(0px);
-          }
-          50% {
-            transform: translateY(-6px);
-          }
-          100% {
-            transform: translateY(0px);
-          }
-        }
+        @keyframes hrb-cw  { to { transform: rotate( 360deg); } }
+        @keyframes hrb-ccw { to { transform: rotate(-360deg); } }
 
-        .hrb-spin-1 {
-          transform-origin: 0px 0px;
-          animation: hrb-rot 16s linear infinite;
-        }
-        .hrb-spin-2 {
-          transform-origin: 0px 0px;
-          animation: hrb-rot2 20s linear infinite;
-        }
-        .hrb-spin-3 {
-          transform-origin: 0px 0px;
-          animation: hrb-rot 24s linear infinite;
-        }
-        .hrb-spin-4 {
-          transform-origin: 0px 0px;
-          animation: hrb-rot2 30s linear infinite;
-        }
-        .hrb-float {
-          transform-origin: 0px 0px;
-          animation: hrb-float 6s ease-in-out infinite;
-        }
+        .hrb-s1 { transform-origin: ${cx}px ${cy}px; animation: hrb-cw  14s linear infinite; }
+        .hrb-s2 { transform-origin: ${cx}px ${cy}px; animation: hrb-ccw 22s linear infinite; }
+        .hrb-s3 { transform-origin: ${cx}px ${cy}px; animation: hrb-cw  33s linear infinite; }
+        .hrb-s4 { transform-origin: ${cx}px ${cy}px; animation: hrb-ccw 46s linear infinite; }
+        .hrb-s5 { transform-origin: ${cx}px ${cy}px; animation: hrb-cw  62s linear infinite; }
 
         @media (prefers-reduced-motion: reduce) {
-          .hrb-spin-1,
-          .hrb-spin-2,
-          .hrb-spin-3,
-          .hrb-spin-4,
-          .hrb-float {
-            animation: none !important;
-          }
+          .hrb-s1,.hrb-s2,.hrb-s3,.hrb-s4,.hrb-s5 { animation: none !important; }
         }
       `}</style>
     </div>

@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { LifeBuoy, ChevronDown, ChevronRight, Mail, MessageCircle, BookOpen, CreditCard, Car, Home } from "lucide-react";
 import LayoutFrame from "@/components/LayoutFrame";
-import PublicHeader from "@/components/PublicHeader";
-import PublicFooter from "@/components/PublicFooter";
+import { HelpFooter, HelpHeader } from "./HelpChrome";
 
 const DEFAULT_FAQS = [
   // Booking Category
@@ -240,39 +239,65 @@ const HELP_CATEGORIES = [
   {
     title: "Getting Started",
     icon: BookOpen,
+    cardClass: "bg-emerald-50/60 border-emerald-100",
+    iconWrapClass: "bg-emerald-100/70",
+    iconClass: "text-emerald-700",
     links: [
       { href: "/help/getting-started", label: "How to Book" },
       { href: "/help/account-setup", label: "Account Setup" },
-      { href: "/public/properties", label: "Browse Properties" }
-    ]
+      { href: "/public/properties", label: "Browse Properties" },
+    ],
   },
   {
     title: "Payments & Billing",
     icon: CreditCard,
+    cardClass: "bg-sky-50/70 border-sky-100",
+    iconWrapClass: "bg-sky-100/70",
+    iconClass: "text-sky-700",
     links: [
       { href: "/help/payments", label: "Payment Methods" },
       { href: "/help/refunds", label: "Refunds & Cancellations" },
-      { href: "/help/pricing", label: "Pricing Information" }
-    ]
+      { href: "/help/pricing", label: "Pricing Information" },
+    ],
   },
   {
     title: "For Property Owners",
     icon: Home,
+    cardClass: "bg-amber-50/70 border-amber-100",
+    iconWrapClass: "bg-amber-100/70",
+    iconClass: "text-amber-800",
     links: [
       { href: "/account/onboard/owner", label: "List Your Property" },
       { href: "/help/owner-guide", label: "Owner Guide" },
-      { href: "/help/payouts", label: "Payouts & Earnings" }
-    ]
+      { href: "/help/payouts", label: "Payouts & Earnings" },
+    ],
   },
   {
     title: "For Drivers",
     icon: Car,
+    cardClass: "bg-indigo-50/70 border-indigo-100",
+    iconWrapClass: "bg-indigo-100/70",
+    iconClass: "text-indigo-700",
     links: [
       { href: "/account/onboard/driver", label: "Become a Driver" },
       { href: "/help/driver-tools", label: "Driver Tools" },
-      { href: "/help/driver-earnings", label: "Earnings & Payments" }
-    ]
-  }
+      { href: "/help/driver-earnings", label: "Earnings & Payments" },
+    ],
+  },
+  {
+    title: "Agent Portal",
+    icon: MessageCircle,
+    cardClass: "bg-slate-50 border-slate-200",
+    iconWrapClass: "bg-slate-200/70",
+    iconClass: "text-slate-700",
+    links: [
+      { href: "/account/agent", label: "Open Agent Dashboard" },
+      { href: "/account/agent/assignments", label: "View Assignments" },
+      { href: "/account/agent/notifications", label: "Notifications" },
+      { href: "/account/agent/profile", label: "Profile" },
+      { href: "/account/agent/security", label: "Security & Access" },
+    ],
+  },
 ];
 
 export default function HelpCenterPage() {
@@ -285,6 +310,24 @@ export default function HelpCenterPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
   const [showAllFAQs, setShowAllFAQs] = useState(false);
+  const [isAgentContext, setIsAgentContext] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const queryCtx = new URLSearchParams(window.location.search).get("ctx")?.toLowerCase() || "";
+    const stored = (sessionStorage.getItem("navigationContext") || "").toLowerCase();
+    const next = queryCtx === "agent" || stored === "agent";
+    if (next) {
+      sessionStorage.setItem("navigationContext", "agent");
+      setIsAgentContext(true);
+    }
+  }, []);
+
+  const withHelpCtx = (href: string) => {
+    if (!isAgentContext) return href;
+    if (!href.startsWith("/help")) return href;
+    return `${href}${href.includes("?") ? "&" : "?"}ctx=agent`;
+  };
 
   const categories = ["All", ...Array.from(new Set(DEFAULT_FAQS.map(f => f.category)))];
   const filteredFAQs = selectedCategory === "All" 
@@ -316,7 +359,7 @@ export default function HelpCenterPage() {
 
   return (
     <>
-      <PublicHeader />
+      <HelpHeader />
       <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
         <LayoutFrame heightVariant="sm" topVariant="sm" colorVariant="muted" variant="solid" />
         <div className="public-container py-8 sm:py-12">
@@ -339,27 +382,35 @@ export default function HelpCenterPage() {
             {/* Help Categories */}
             <section className="bg-white rounded-2xl p-6 sm:p-8">
               <h2 className="text-2xl font-bold text-gray-900 mb-6">Browse by Category</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div className="grid grid-cols-2 gap-4 sm:gap-6">
                 {HELP_CATEGORIES.map((category, idx) => {
                   const Icon = category.icon;
                   return (
-                    <div key={idx} className="transition-all duration-200">
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="p-2 bg-[#02665e]/10 rounded-lg">
-                          <Icon className="h-5 w-5 text-[#02665e]" />
+                    <div
+                      key={idx}
+                      className={`group min-w-0 rounded-xl border p-4 sm:p-5 shadow-sm transition-all duration-200 hover:shadow-md ${category.cardClass}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`inline-flex items-center justify-center rounded-lg p-2 ${category.iconWrapClass}`}>
+                          <Icon className={`h-5 w-5 ${category.iconClass}`} />
                         </div>
-                        <h3 className="font-semibold text-gray-900">{category.title}</h3>
+                        <h3 className="text-base font-semibold text-slate-900 leading-tight">{category.title}</h3>
                       </div>
-                      <div className="space-y-0.5">
+
+                      <div className="mt-3 space-y-1">
                         {category.links.map((link, linkIdx) => (
                           <Link
                             key={linkIdx}
-                            href={link.href}
-                            className="text-sm text-gray-600 hover:text-[#02665e] flex items-center justify-between group transition-all duration-200 no-underline py-2"
-                            style={{ textDecoration: 'none' }}
+                            href={withHelpCtx(link.href)}
+                            onClick={() => {
+                              if (isAgentContext && typeof window !== "undefined") {
+                                sessionStorage.setItem("navigationContext", "agent");
+                              }
+                            }}
+                            className="group/link text-sm text-slate-700 hover:text-slate-950 flex items-center justify-between gap-2 transition-colors duration-150 no-underline py-1"
                           >
-                            <span className="group-hover:font-medium transition-all duration-200">{link.label}</span>
-                            <ChevronRight className="h-3.5 w-3.5 text-gray-400 opacity-0 group-hover:opacity-100 group-hover:text-[#02665e] transition-all duration-200 flex-shrink-0" />
+                            <span className="min-w-0 truncate">{link.label}</span>
+                            <ChevronRight className="h-4 w-4 flex-shrink-0 text-slate-400 opacity-0 group-hover/link:opacity-100 transition-opacity duration-150" />
                           </Link>
                         ))}
                       </div>
@@ -471,7 +522,7 @@ export default function HelpCenterPage() {
                     type="text"
                     value={contactName}
                     onChange={(e) => setContactName(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] outline-none transition-all"
+                    className="w-full max-w-full box-border px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] outline-none transition-all"
                     placeholder="Your name"
                   />
                 </div>
@@ -485,7 +536,7 @@ export default function HelpCenterPage() {
                     required
                     value={contactEmail}
                     onChange={(e) => setContactEmail(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] outline-none transition-all"
+                    className="w-full max-w-full box-border px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] outline-none transition-all"
                     placeholder="your@email.com"
                   />
                 </div>
@@ -499,7 +550,7 @@ export default function HelpCenterPage() {
                     value={contactMessage}
                     onChange={(e) => setContactMessage(e.target.value)}
                     rows={4}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] outline-none transition-all resize-none"
+                    className="w-full max-w-full box-border px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] outline-none transition-all resize-none"
                     placeholder="How can we help you?"
                   />
                 </div>
@@ -540,7 +591,7 @@ export default function HelpCenterPage() {
         </div>
         </div>
       </div>
-      <PublicFooter withRail={false} />
+      <HelpFooter />
     </>
   );
 }

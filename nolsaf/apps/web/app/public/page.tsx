@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import NextImage from "next/image";
 import React from "react";
 import {
   User,
   ChevronRight,
-  ChevronLeft,
   X,
   Calendar,
+  Search,
   Eye,
   Sparkles,
   Gavel,
@@ -16,11 +17,13 @@ import {
   Users,
   CreditCard,
   LifeBuoy,
+  BedDouble,
+  PlayCircle,
+  Plus,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, FormEvent, useMemo } from "react";
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import PropertyCard from '../../components/PropertyCard';
 import AttentionBlink from '../../components/AttentionBlink';
 import CountryCard from '../../components/CountryCard';
 import BookingFlowCard from '../../components/BookingFlowCard';
@@ -29,8 +32,8 @@ import Testimonials from '../../components/Testimonials';
 import LatestUpdate from '../../components/LatestUpdate';
 import TrustedBySection from '../../components/TrustedBySection';
 import LayoutFrame from '../../components/LayoutFrame';
-import { DayPicker } from 'react-day-picker';
 import axios from 'axios';
+import DatePicker from '../../components/ui/DatePicker';
 
 // Component to fetch and display trust partners from API
 function TrustedBySectionWithData() {
@@ -69,7 +72,7 @@ function TrustedBySectionWithData() {
   return <TrustedBySection brands={brands} hideTitle className={loading ? "opacity-90" : ""} />;
 }
 
-function SectionHeading({
+function _SectionHeading({
   title,
   subtitle,
   kicker,
@@ -219,10 +222,7 @@ function SectionHeading({
     </div>
   );
 }
-/* react-day-picker in this project/version doesn't export a Range type,
-   so provide a local Range type compatible with the code below. */
-type Range = { from: Date; to?: Date };
-import 'react-day-picker/dist/style.css';
+
 import { useRouter } from 'next/navigation';
 
 import HeroRingsBackground from "../../components/HeroRingsBackground";
@@ -344,7 +344,7 @@ export default function Page() {
         {
           city: "Arusha",
           country: "Tanzania",
-          tagline: "Gateway to parks — lodges, villas, and adventure trips.",
+          tagline: "Gateway to parks lodges, villas, and adventure trips.",
         },
         {
           city: "Mwanza",
@@ -354,7 +354,7 @@ export default function Page() {
         {
           city: "Dodoma",
           country: "Tanzania",
-          tagline: "New capital energy — apartments, hotels, and homes.",
+          tagline: "New capital energy apartments, hotels, and homes.",
         },
       ] as const,
     []
@@ -369,7 +369,7 @@ export default function Page() {
   const [featuredSlide, setFeaturedSlide] = useState(0);
   const [featuredSlidePaused, setFeaturedSlidePaused] = useState(false);
 
-  const fmtMoney = (amount: number | null | undefined, currency?: string | null) => {
+  const _fmtMoney = (amount: number | null | undefined, currency?: string | null) => {
     if (amount == null || !Number.isFinite(Number(amount))) return "";
     const cur = currency || "TZS";
     try {
@@ -588,32 +588,15 @@ export default function Page() {
     }, 30000);
     return () => window.clearInterval(id);
   }, [prefersReducedMotion, guestOpen, dateOpen]);
-  // compute today's date in local YYYY-MM-DD for input min values
-  const todayStr = (() => {
-    const d = new Date();
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-  })();
 
-  // DayPicker range state (derived/synced with checkin/checkout strings)
-  const [selectedRange, setSelectedRange] = useState<Range | undefined>(() => {
-    if (!checkin) return undefined;
-    const from = new Date(checkin);
-    const to = checkout ? new Date(checkout) : undefined;
-    return { from, to } as Range;
-  });
-
-  const todayDate = useMemo(() => new Date(todayStr), [todayStr]);
-
-  const formatDate = (d?: Date) => {
-    if (!d) return '';
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-  };
+  // Responsive: show two months on md+ screens, single month on small screens
+  const [isWideScreen, setIsWideScreen] = useState(false);
+  useEffect(() => {
+    const check = () => setIsWideScreen(window.innerWidth >= 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   // Rotating search hints for the search input placeholder
   const searchHints = ['Region', 'Accommodations', 'Amenities', 'Nearby', 'Cities', 'Districts', 'Prices'];
@@ -766,29 +749,8 @@ export default function Page() {
       window.removeEventListener('resize', update);
       window.removeEventListener('scroll', update, true);
     };
-  }, [dateOpen, selectedRange?.from]);
+  }, [dateOpen]);
 
-  // Date panel: intentionally do not close on outside click or Escape —
-  // it should only close via the Clear or Done buttons so users don't lose their selection.
-
-  // keep selectedRange in sync when checkin/checkout change externally
-  useEffect(() => {
-    if (!checkin) {
-      setSelectedRange(undefined);
-      return;
-    }
-    const from = new Date(checkin);
-    const to = checkout ? new Date(checkout) : undefined;
-    setSelectedRange({ from, to });
-  }, [checkin, checkout]);
-
-  // Responsive months for DayPicker: 1 on small screens, 2 on md+
-  const [pickerMonths, setPickerMonths] = useState<number>(2);
-  const [currentMonth, setCurrentMonth] = useState<Date | undefined>(undefined);
-  const dayGridRef = useRef<HTMLDivElement | null>(null);
-
-  // Card hover/touch state: which main card is currently hovered/touched (0,1,2) or null
-  const [_hoveredCard, setHoveredCard] = useState<number | null>(null);
   useEffect(() => {
     // Inject card animations and fade-in effects
     const styleId = 'nolsaf-card-animations';
@@ -814,116 +776,8 @@ export default function Page() {
       document.head.appendChild(el);
     }
 
-    const update = () => setPickerMonths(window.innerWidth >= 768 ? 2 : 1);
-    update();
-    window.addEventListener('resize', update);
-    return () => window.removeEventListener('resize', update);
+    return () => {};
   }, []);
-
-  // Touch-to-hover behaviour: add pointer handlers to the DayPicker container so touching a day
-  // adds a transient class that mirrors hover styles for touch users.
-  useEffect(() => {
-    const grid = dayGridRef.current;
-    if (!grid) return;
-    let last: HTMLElement | null = null;
-    let previewButtons: HTMLElement[] = [];
-    const dayFromNode = (node: HTMLElement | null): Date | null => {
-      if (!node) return null;
-      const attr = node.getAttribute('data-day') || (node as any).dataset?.day || node.getAttribute('aria-label');
-      if (!attr) return null;
-      const ymdMatch = attr.match(/^(\d{4}-\d{2}-\d{2})/);
-      const val = ymdMatch ? ymdMatch[1] : attr;
-      const d = new Date(val + 'T00:00:00');
-      return isNaN(d.getTime()) ? null : d;
-    };
-
-    const clearPreview = () => {
-      if (previewButtons.length) {
-        previewButtons.forEach((b) => b.classList.remove('nolsaf-day-preview'));
-        previewButtons = [];
-      }
-    };
-
-    const applyPreviewRange = (from: Date, to: Date) => {
-      clearPreview();
-      const start = Math.min(from.getTime(), to.getTime());
-      const end = Math.max(from.getTime(), to.getTime());
-      const buttons = Array.from(grid.querySelectorAll('button.rdp-day')) as HTMLElement[];
-      buttons.forEach((b) => {
-        const bd = dayFromNode(b);
-        if (!bd) return;
-        const t = bd.getTime();
-        if (t >= start && t <= end) {
-          b.classList.add('nolsaf-day-preview');
-          previewButtons.push(b);
-        }
-      });
-    };
-
-    const onPointerDown = (e: PointerEvent) => {
-      const t = (e.target as HTMLElement).closest('button') as HTMLElement | null;
-      if (!t) return;
-      if (!t.classList.contains('rdp-day')) return;
-      if (last && last !== t) last.classList.remove('nolsaf-day-touch');
-      t.classList.add('nolsaf-day-touch');
-      last = t;
-
-      const touched = dayFromNode(t);
-      if (!touched) return;
-      if (selectedRange?.from) {
-        applyPreviewRange(selectedRange.from, touched);
-      } else {
-        applyPreviewRange(touched, touched);
-      }
-    };
-
-    const onPointerMove = (e: PointerEvent) => {
-      const t = (e.target as HTMLElement).closest('button') as HTMLElement | null;
-      if (!t) return;
-      if (!t.classList.contains('rdp-day')) return;
-      const touched = dayFromNode(t);
-      if (!touched) return;
-      if (selectedRange?.from) {
-        applyPreviewRange(selectedRange.from, touched);
-      } else {
-        applyPreviewRange(touched, touched);
-      }
-    };
-
-    const onPointerUp = () => {
-      if (last) {
-        setTimeout(() => {
-          last?.classList.remove('nolsaf-day-touch');
-          last = null;
-        }, 200);
-      }
-      setTimeout(() => clearPreview(), 250);
-    };
-
-    grid.addEventListener('pointerdown', onPointerDown);
-    grid.addEventListener('pointermove', onPointerMove);
-    document.addEventListener('pointerup', onPointerUp);
-    document.addEventListener('pointercancel', onPointerUp);
-    return () => {
-      grid.removeEventListener('pointerdown', onPointerDown);
-      grid.removeEventListener('pointermove', onPointerMove);
-      document.removeEventListener('pointerup', onPointerUp);
-      document.removeEventListener('pointercancel', onPointerUp);
-      clearPreview();
-      };
-    }, [dateOpen, selectedRange?.from]);
-
-    
-
-
-  // Keep currentMonth in sync with selectedRange or default to today
-  useEffect(() => {
-    if (selectedRange?.from) {
-      setCurrentMonth(selectedRange.from);
-    } else {
-      setCurrentMonth(new Date());
-    }
-  }, [selectedRange]);
 
   // Countries list: stable order (no auto-rotation)
   const countryList = useMemo(
@@ -933,7 +787,7 @@ export default function Page() {
         name: 'Tanzania',
         flag: '🇹🇿',
         subtitle: 'Safaris, parks & islands',
-        blurb: 'From Serengeti to Zanzibar — find stays near major attractions, coordinate transport, and book securely with clear terms.',
+        blurb: 'From Serengeti to Zanzibar find stays near major attractions, coordinate transport, and book securely with clear terms.',
         href: '/public/countries/tanzania',
         accentClass: 'from-sky-100/75 via-white/70 to-emerald-100/55',
         stats: { cities: 12, regions: 31, listings: 1250, payments: ['M-Pesa', 'Airtel Money', 'Halopesa', 'Mixx by Yas', 'Visa'] },
@@ -943,7 +797,7 @@ export default function Page() {
         name: 'Kenya',
         flag: '🇰🇪',
         subtitle: 'Big Five & coast',
-        blurb: 'Explore Maasai Mara, Amboseli, and the coast — book verified stays, plan your route, and pay securely in one flow.',
+        blurb: 'Explore Maasai Mara, Amboseli, and the coast book verified stays, plan your route, and pay securely in one flow.',
         href: '/public/countries/kenya',
         accentClass: 'from-amber-100/65 via-white/70 to-emerald-100/55',
         stats: { cities: 10, listings: 980, payments: ['M-Pesa', 'Airtel Money', 'T Kash', 'Visa'] },
@@ -953,7 +807,7 @@ export default function Page() {
         name: 'Uganda',
         flag: '🇺🇬',
         subtitle: 'Gorillas, falls & lakes',
-        blurb: 'From Bwindi to Murchison Falls — discover lodges near top sites and coordinate stays + transport with secure booking.',
+        blurb: 'From Bwindi to Murchison Falls discover lodges near top sites and coordinate stays + transport with secure booking.',
         href: '/public/countries/uganda',
         accentClass: 'from-violet-100/65 via-white/70 to-emerald-100/55',
         stats: { cities: 7, listings: 430, payments: ['MTN Mobile Money', 'Visa'] },
@@ -964,38 +818,23 @@ export default function Page() {
 
   const orderedCountries = countryList;
 
-  const addMonths = (d: Date, n: number) => {
-    const r = new Date(d.getFullYear(), d.getMonth() + n, 1);
-    return r;
-  };
-
-  const goNextMonth = useCallback(() => {
-    setCurrentMonth((m) => (m ? addMonths(m, 1) : addMonths(new Date(), 1)));
-  }, []);
-
-  const goPrevMonth = useCallback(() => {
-    setCurrentMonth((m) => (m ? addMonths(m, -1) : addMonths(new Date(), -1)));
-  }, []);
-
   return (
-    <main className="min-h-screen bg-white text-slate-900">
+    <main className="min-h-screen text-slate-900" style={{ background: 'linear-gradient(160deg,#f0fdf8 0%,#ffffff 45%,#f5fefb 100%)' }}>
       {/* Layout edge markers (left/right) to indicate content boundaries */}
       <LayoutFrame heightVariant="sm" topVariant="sm" colorVariant="muted" variant="solid" />
       {/* Hero surround frame (tinted border on ALL sides) */}
       <div className="public-container">
-        <div className="relative overflow-hidden rounded-[40px] sm:rounded-[56px] p-3 sm:p-4 lg:p-5 bg-gradient-to-br from-slate-200/85 via-slate-100/65 to-slate-200/75 shadow-[0_26px_70px_rgba(15,23,42,0.18)] ring-1 ring-white/70">
-          {/* Soft ambient tint + top highlight streaks like the reference */}
-          <div className="pointer-events-none absolute inset-0 rounded-[40px] sm:rounded-[56px] bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.75),transparent_55%)]" aria-hidden />
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-44 bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.75)_48%,rgba(255,255,255,0.28)_52%,transparent_100%)] opacity-70" aria-hidden />
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-52 bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.32)_45%,rgba(255,255,255,0.08)_55%,transparent_100%)] opacity-55" aria-hidden />
+        <div className="relative overflow-hidden rounded-[40px] sm:rounded-[56px] p-3 sm:p-4 lg:p-5 shadow-[0_32px_80px_rgba(2,102,94,0.40)]" style={{ background: 'linear-gradient(135deg,#012e29 0%,#01241f 50%,#013530 100%)' }}>
+          {/* Soft ambient tint — a deep teal glow, no white wash */}
+          <div className="pointer-events-none absolute inset-0 rounded-[40px] sm:rounded-[56px]" style={{ background: 'radial-gradient(circle at 50% 40%,rgba(2,102,94,0.35),transparent 65%)' }} aria-hidden />
 
           {/* Inner hero border (thin premium gradient line) */}
-          <div className="relative rounded-[32px] sm:rounded-[44px] p-[1px] bg-gradient-to-br from-white/35 via-[#02b4f5]/18 to-[#02665e]/22 shadow-[0_30px_80px_rgba(0,0,0,0.40)]">
-            <div className="pointer-events-none absolute inset-0 rounded-[32px] sm:rounded-[44px] bg-gradient-to-b from-white/25 via-white/10 to-transparent" aria-hidden />
+          <div className="relative rounded-[32px] sm:rounded-[44px] p-[1px] shadow-[0_30px_80px_rgba(0,0,0,0.50)]" style={{ background: 'linear-gradient(135deg,rgba(255,255,255,0.22) 0%,rgba(2,180,245,0.30) 50%,rgba(2,102,94,0.50) 100%)' }}>
+            <div className="pointer-events-none absolute inset-0 rounded-[32px] sm:rounded-[44px] bg-gradient-to-b from-white/12 via-white/5 to-transparent" aria-hidden />
 
             <section
               id="public-hero"
-              className="relative overflow-hidden bg-slate-900 text-white rounded-[calc(32px-1px)] sm:rounded-[calc(44px-1px)]"
+              className="relative overflow-hidden text-white rounded-[calc(32px-1px)] sm:rounded-[calc(44px-1px)]" style={{ background: '#011a16' }}
               ref={heroRef as any}
               onPointerEnter={() => setHeroPointerActive(true)}
               onPointerLeave={() => {
@@ -1018,186 +857,118 @@ export default function Page() {
           {/* Inner ring highlight (subtle premium frame) */}
           <div className="pointer-events-none absolute inset-0 rounded-[calc(32px-1px)] sm:rounded-[calc(44px-1px)] ring-1 ring-white/14" aria-hidden />
           <div className="pointer-events-none absolute inset-0 rounded-[calc(32px-1px)] sm:rounded-[calc(44px-1px)] ring-1 ring-[#02b4f5]/10 [mask-image:radial-gradient(1200px_600px_at_85%_50%,#000_35%,transparent_70%)]" aria-hidden />
-        {/* Full-bleed hero background (covers the whole hero page) */}
+        {/* Full-bleed hero background */}
         <div className="absolute inset-0" aria-hidden>
+          {/* Solid teal floor — ensures no white/grey ever shows through */}
+          <div className="absolute inset-0" style={{ background: 'linear-gradient(150deg,#01291f 0%,#01362a 40%,#013530 70%,#012520 100%)' }} />
+
           <HeroRingsBackground mode={heroMode} variant="full" className="absolute inset-0" />
 
-          {/* Deep premium dark wash (2–3 tone split with a clean transition) */}
-          <div className="absolute inset-0 bg-gradient-to-r from-slate-900/92 via-slate-950/55 to-emerald-950/55" />
-          <div className="absolute inset-0 bg-gradient-to-br from-slate-950/55 via-slate-950/22 to-sky-950/30" />
-          <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-cyan-950/24 to-transparent mix-blend-soft-light opacity-70" />
+          {/* Brand teal tint — colours the rings with #02665e presence */}
+          <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg,rgba(2,102,94,0.62) 0%,rgba(1,54,48,0.45) 45%,rgba(2,102,94,0.25) 100%)' }} />
 
-          {/* Brighter center highlight (keeps it intense, but not "too dark") */}
-          <div className="absolute inset-0 bg-[radial-gradient(740px_circle_at_50%_34%,rgba(255,255,255,0.14),transparent_62%)]" />
-          <div className="absolute inset-0 bg-[radial-gradient(860px_circle_at_22%_18%,rgba(2,180,245,0.14),transparent_60%)] opacity-80" />
-          <div className="absolute inset-0 bg-[radial-gradient(920px_circle_at_78%_26%,rgba(2,102,94,0.12),transparent_62%)] opacity-75" />
+          {/* Strong dark washes so rings sit on a deep teal base */}
+          <div className="absolute inset-0" style={{ background: 'linear-gradient(to right,rgba(1,12,10,0.88) 0%,rgba(1,12,10,0.56) 50%,rgba(1,12,10,0.22) 100%)' }} />
+          <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom,rgba(1,12,10,0.55) 0%,rgba(1,12,10,0.08) 45%,rgba(1,12,10,0.82) 100%)' }} />
 
-          {/* Diagonal glass glint (ultra-subtle premium finish) */}
-          <div className="absolute -top-40 left-1/2 h-72 w-[1200px] -translate-x-1/2 rotate-[-12deg] bg-gradient-to-r from-transparent via-white/12 to-transparent opacity-35 blur-2xl" />
+          {/* Brand teal glow — replaces the white radial */}
+          <div className="absolute inset-0" style={{ background: 'radial-gradient(900px circle at 50% 38%,rgba(2,102,94,0.28),transparent 65%)' }} />
 
-          {/* Subtle bloom around the transition seam (adds premium depth) */}
-          <div className="absolute inset-0 [mask-image:radial-gradient(820px_640px_at_82%_54%,#000_32%,transparent_74%)] opacity-60 mix-blend-screen">
-            <div className="absolute inset-0 bg-[radial-gradient(closest-side_at_80%_55%,rgba(56,189,248,0.20),transparent_64%)]" />
-            <div className="absolute inset-0 bg-[radial-gradient(closest-side_at_82%_58%,rgba(16,185,129,0.12),transparent_66%)]" />
-          </div>
-
-          {/* Technical micro-lines (very faint; masked away from headline) */}
-          <div className="absolute inset-0 opacity-18 mix-blend-overlay [mask-image:radial-gradient(900px_520px_at_78%_22%,#000_38%,transparent_74%)]">
-            <div className="absolute inset-0 bg-[repeating-linear-gradient(115deg,rgba(255,255,255,0.08)_0px,rgba(255,255,255,0.08)_1px,transparent_1px,transparent_14px)]" />
-          </div>
-
-          {/* Thunder/transition seam (subtle lightning line to sell the split) */}
-          <div className="absolute inset-0 pointer-events-none opacity-70 mix-blend-soft-light [mask-image:radial-gradient(760px_640px_at_80%_52%,#000_42%,transparent_78%)]">
-            <svg className="absolute inset-0 h-full w-full" viewBox="0 0 1200 800" preserveAspectRatio="none" aria-hidden>
-              <g fill="none" strokeLinecap="round" strokeLinejoin="round">
-                <path
-                  d="M 760 0 L 820 125 L 800 210 L 860 335 L 830 420 L 910 565 L 875 660 L 940 800"
-                  className="stroke-white/22"
-                  strokeWidth="2"
-                  opacity="0.78"
-                />
-                <path
-                  d="M 760 0 L 820 125 L 800 210 L 860 335 L 830 420 L 910 565 L 875 660 L 940 800"
-                  className="stroke-sky-200/20"
-                  strokeWidth="7"
-                  opacity="0.22"
-                />
-                <path
-                  d="M 770 70 L 860 335 L 914 568"
-                  className="stroke-emerald-200/14"
-                  strokeWidth="10"
-                  opacity="0.14"
-                />
-
-                {/* Soft cyan glow edge */}
-                <path
-                  d="M 760 0 L 820 125 L 800 210 L 860 335 L 830 420 L 910 565 L 875 660 L 940 800"
-                  className="stroke-cyan-200/12"
-                  strokeWidth="14"
-                  opacity="0.10"
-                />
-
-                {/* Small branches to feel more like lightning */}
-                <path d="M 820 125 L 900 175" className="stroke-white/18" strokeWidth="2" opacity="0.55" />
-                <path d="M 860 335 L 960 370" className="stroke-white/16" strokeWidth="2" opacity="0.45" />
-                <path d="M 830 420 L 920 470" className="stroke-sky-200/16" strokeWidth="3" opacity="0.22" />
-              </g>
-
-              {/* Spark nodes along the seam (very subtle) */}
-              <g opacity="0.85">
-                <circle cx="820" cy="125" r="2.5" className="fill-white/25" />
-                <circle cx="860" cy="335" r="2.5" className="fill-white/18" />
-                <circle cx="910" cy="565" r="2.5" className="fill-white/16" />
-              </g>
-            </svg>
-          </div>
-
-          {/* Subtle line-art drawing (premium tech/map feel) */}
-          <div className="absolute inset-0 pointer-events-none opacity-50 [mask-image:radial-gradient(900px_520px_at_20%_45%,#000_40%,transparent_78%)]">
-            <svg
-              className="absolute inset-0 h-full w-full"
-              viewBox="0 0 1200 800"
-              preserveAspectRatio="none"
-              aria-hidden
-            >
-              <g fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" className="text-white/25">
-                <path d="M 40 210 C 200 150, 310 150, 470 220 S 760 300, 980 240 S 1120 210, 1180 250" strokeWidth="2" opacity="0.55" />
-                <path d="M 60 360 C 250 290, 380 310, 520 380 S 770 470, 1010 420 S 1130 390, 1180 430" strokeWidth="2" opacity="0.45" />
-                <path d="M 70 520 C 260 450, 420 470, 560 540 S 820 650, 1050 590 S 1140 560, 1180 600" strokeWidth="2" opacity="0.40" />
-              </g>
-
-              <g fill="none" stroke="currentColor" strokeLinecap="round" className="text-sky-300/25">
-                <path d="M 120 140 L 330 230 L 520 170 L 680 260 L 820 210" strokeWidth="2" opacity="0.55" strokeDasharray="6 10" />
-                <path d="M 160 610 L 360 520 L 520 610 L 720 540 L 880 620" strokeWidth="2" opacity="0.45" strokeDasharray="6 10" />
-              </g>
-
-              <g className="text-emerald-300/25" fill="currentColor" opacity="0.7">
-                <circle cx="330" cy="230" r="3" />
-                <circle cx="520" cy="170" r="3" />
-                <circle cx="680" cy="260" r="3" />
-                <circle cx="360" cy="520" r="3" />
-                <circle cx="720" cy="540" r="3" />
-              </g>
-            </svg>
-          </div>
-
-          {/* Decorative glows (Central-like) */}
-          <div className="absolute -inset-[30%] bg-[radial-gradient(circle_at_18%_8%,rgba(56,189,248,0.16),transparent_52%)]" />
-          <div className="absolute -inset-[30%] bg-[radial-gradient(circle_at_80%_52%,rgba(34,211,238,0.14),transparent_55%)]" />
-          <div className="absolute -inset-[30%] bg-[radial-gradient(circle_at_55%_92%,rgba(16,185,129,0.10),transparent_58%)]" />
-
-          {/* Cursor/touch spotlight: fades in on hover/touch and amplifies slightly on press */}
+          {/* Cursor / touch spotlight */}
           <div
             className={[
-              "pointer-events-none absolute inset-0",
-              "transition-opacity duration-500 ease-out motion-reduce:transition-none",
-              "bg-[radial-gradient(720px_circle_at_var(--hero-x,52%)_var(--hero-y,42%),rgba(2,180,245,0.22),transparent_55%),radial-gradient(520px_circle_at_var(--hero-x,52%)_var(--hero-y,42%),rgba(2,102,94,0.18),transparent_62%),radial-gradient(1000px_circle_at_50%_115%,rgba(255,255,255,0.05),transparent_60%)]",
-              heroPointerActive ? (heroPressed ? "opacity-95" : "opacity-70") : "opacity-0",
+              "pointer-events-none absolute inset-0 transition-opacity duration-500 ease-out motion-reduce:transition-none",
+              "bg-[radial-gradient(700px_circle_at_var(--hero-x,50%)_var(--hero-y,40%),rgba(56,189,248,0.20),transparent_55%),radial-gradient(500px_circle_at_var(--hero-x,50%)_var(--hero-y,40%),rgba(16,185,129,0.14),transparent_60%)]",
+              heroPointerActive ? (heroPressed ? "opacity-100" : "opacity-75") : "opacity-0",
               heroPressed ? "saturate-150" : "saturate-125",
             ].join(" ")}
             aria-hidden
           />
-          {/* Vignette + depth */}
-          <div className="absolute inset-0 bg-gradient-to-br from-transparent via-slate-950/35 to-slate-950/82" />
-          <div className="absolute inset-0 bg-gradient-to-b from-slate-950/10 via-slate-950/22 to-slate-950/70" />
-          <div className="absolute inset-0 [background-image:radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.06)_1px,transparent_0)] [background-size:26px_26px] opacity-22" />
-          <div className="absolute inset-0 [background-image:radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.05)_1px,transparent_0)] [background-size:14px_14px] opacity-12 mix-blend-soft-light" />
-          {/* Right-side curved (separate) arc lines — teal/cyan/white */}
-          <div className="absolute inset-y-0 right-0 w-[60%] pointer-events-none opacity-100">
-            <svg
-              className="absolute inset-0 h-full w-full overflow-hidden"
-              viewBox="0 0 1000 800"
-              preserveAspectRatio="xMaxYMid meet"
-              aria-hidden
-            >
+
+          {/* ── PREMIUM ① Slow-breathing aurora blobs ── */}
+          {!prefersReducedMotion && (
+            <>
+              <motion.div
+                className="pointer-events-none absolute"
+                style={{ top: "12%", left: "58%", width: 680, height: 520, borderRadius: "50%",
+                  background: "radial-gradient(ellipse at center, rgba(56,189,248,0.22), rgba(16,185,129,0.10) 45%, transparent 72%)",
+                  filter: "blur(48px)", transformOrigin: "center center" }}
+                animate={{ scale: [1, 1.12, 1], opacity: [0.7, 1, 0.7] }}
+                transition={{ duration: 9, ease: "easeInOut", repeat: Infinity, repeatType: "mirror" }}
+                aria-hidden
+              />
+              <motion.div
+                className="pointer-events-none absolute"
+                style={{ bottom: "8%", right: "4%", width: 440, height: 360, borderRadius: "50%",
+                  background: "radial-gradient(ellipse at center, rgba(16,185,129,0.18), rgba(56,189,248,0.08) 50%, transparent 74%)",
+                  filter: "blur(56px)", transformOrigin: "center center" }}
+                animate={{ scale: [1, 1.10, 1], opacity: [0.55, 0.90, 0.55] }}
+                transition={{ duration: 11, ease: "easeInOut", repeat: Infinity, repeatType: "mirror", delay: 3.5 }}
+                aria-hidden
+              />
+            </>
+          )}
+
+          {/* ── PREMIUM ② Constellation dot-network (lower-right zone) ── */}
+          <div className="pointer-events-none absolute inset-0 opacity-60" aria-hidden>
+            <svg className="absolute inset-0 h-full w-full" viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid slice">
               <defs>
-                <filter id="hero-arc-glow" x="-40%" y="-40%" width="180%" height="180%">
-                  <feGaussianBlur stdDeviation="2.4" result="blur" />
-                  <feColorMatrix
-                    in="blur"
-                    type="matrix"
-                    values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 0.75 0"
-                    result="glow"
-                  />
-                  <feMerge>
-                    <feMergeNode in="glow" />
-                    <feMergeNode in="SourceGraphic" />
-                  </feMerge>
-                </filter>
+                <radialGradient id="cst-fade" cx="75%" cy="70%" r="40%">
+                  <stop offset="0%"   stopColor="#ffffff" stopOpacity="1"   />
+                  <stop offset="100%" stopColor="#ffffff" stopOpacity="0"   />
+                </radialGradient>
+                <mask id="cst-mask">
+                  <rect width="1000" height="700" fill="url(#cst-fade)" />
+                </mask>
               </defs>
-
-              <g filter="url(#hero-arc-glow)" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                {/* White arcs (separate segments) */}
-                <path d="M 980 110 A 560 560 0 0 1 820 420" stroke="#ffffff" strokeWidth="5" opacity="0.26" />
-                <path d="M 900 510 A 560 560 0 0 1 760 770" stroke="#ffffff" strokeWidth="5" opacity="0.22" />
-
-                {/* Teal arcs (separate segments) */}
-                <path d="M 990 170 A 500 500 0 0 1 830 470" stroke="#02665e" strokeWidth="8" opacity="0.52" />
-                <path d="M 910 565 A 500 500 0 0 1 790 775" stroke="#02665e" strokeWidth="8" opacity="0.44" />
-
-                {/* Cyan arcs (separate segments) */}
-                <path d="M 995 235 A 440 440 0 0 1 845 520" stroke="#02b4f5" strokeWidth="11" opacity="0.88" />
-                <path d="M 920 610 A 440 440 0 0 1 835 780" stroke="#02b4f5" strokeWidth="11" opacity="0.72" />
-
-                {/* Thick cyan highlight segment */}
-                <path d="M 995 390 A 360 360 0 0 1 900 540" stroke="#02b4f5" strokeWidth="18" opacity="0.98" />
-
-                {/* Orbit nodes (aligned to the arcs region) */}
-                <g opacity="0.95">
-                  <circle cx="835" cy="360" r="16" stroke="#ffffff" strokeWidth="2" opacity="0.32" />
-                  <circle cx="835" cy="360" r="4" fill="#ffffff" opacity="0.40" />
-
-                  <circle cx="870" cy="520" r="18" stroke="#02665e" strokeWidth="3" opacity="0.82" />
-                  <circle cx="870" cy="520" r="5" fill="#02665e" opacity="0.82" />
-
-                  <circle cx="855" cy="705" r="20" stroke="#02b4f5" strokeWidth="3.5" opacity="0.90" />
-                  <circle cx="855" cy="705" r="5.5" fill="#02b4f5" opacity="0.95" />
+              <g mask="url(#cst-mask)" fill="none">
+                {/* Connecting lines */}
+                <g stroke="#38bdf8" strokeOpacity="0.22" strokeWidth="0.8">
+                  <line x1="570" y1="420" x2="640" y2="380" /><line x1="640" y1="380" x2="720" y2="410" />
+                  <line x1="720" y1="410" x2="790" y2="370" /><line x1="790" y1="370" x2="860" y2="400" />
+                  <line x1="640" y1="380" x2="680" y2="320" /><line x1="680" y1="320" x2="760" y2="300" />
+                  <line x1="760" y1="300" x2="830" y2="340" /><line x1="830" y1="340" x2="900" y2="310" />
+                  <line x1="570" y1="420" x2="590" y2="510" /><line x1="590" y1="510" x2="660" y2="490" />
+                  <line x1="660" y1="490" x2="730" y2="530" /><line x1="730" y1="530" x2="810" y2="500" />
+                  <line x1="810" y1="500" x2="880" y2="540" /><line x1="760" y1="300" x2="800" y2="240" />
+                  <line x1="800" y1="240" x2="870" y2="270" /><line x1="870" y1="270" x2="940" y2="250" />
+                </g>
+                {/* Dot nodes */}
+                <g fill="#38bdf8" fillOpacity="0.55">
+                  {[
+                    [570,420,2.0],[640,380,2.4],[720,410,1.9],[790,370,2.2],[860,400,1.8],
+                    [680,320,2.0],[760,300,2.5],[830,340,2.0],[900,310,1.7],[940,250,1.6],
+                    [590,510,1.9],[660,490,2.1],[730,530,2.0],[810,500,2.3],[880,540,1.8],
+                    [800,240,1.8],[870,270,2.0],
+                  ].map(([x,y,r],i) => <circle key={i} cx={x} cy={y} r={r} />)}
+                </g>
+                {/* Accent nodes (brighter, slightly larger) */}
+                <g fill="#10b981" fillOpacity="0.70">
+                  <circle cx="640" cy="380" r="3.4" />
+                  <circle cx="760" cy="300" r="3.2" />
+                  <circle cx="730" cy="530" r="3.0" />
                 </g>
               </g>
             </svg>
           </div>
-          {/* Subtle top highlight */}
-          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+
+          {/* ── PREMIUM ③ Bottom colour-horizon strip ── */}
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32"
+            style={{ background: "linear-gradient(to top, rgba(16,185,129,0.18) 0%, rgba(56,189,248,0.10) 40%, transparent 100%)" }} />
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-emerald-400/30 to-transparent" />
+
+          {/* ── PREMIUM ④ Subtle vertical tick-marks on the right edge ── */}
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-px" aria-hidden>
+            <svg className="h-full w-8" viewBox="0 8 32 684" preserveAspectRatio="none">
+              {[80,160,240,320,400,480,560,640].map((y) => (
+                <line key={y} x1="28" y1={y} x2="32" y2={y} stroke="#38bdf8" strokeOpacity="0.28" strokeWidth="1.5" />
+              ))}
+              <line x1="30" y1="8" x2="30" y2="692" stroke="#38bdf8" strokeOpacity="0.07" strokeWidth="0.8" />
+            </svg>
+          </div>
+
+          {/* Subtle top highlight line */}
+          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/22 to-transparent" />
         </div>
 
         <div className="relative z-10">
@@ -1209,70 +980,36 @@ export default function Page() {
                   transition={{ duration: 0.6, ease: [0.2, 0.8, 0.2, 1] }}
                   className="max-w-4xl mx-auto text-center"
                 >
-                  <AnimatePresence mode="wait" initial={false}>
-                    <motion.div
-                      key={heroMode}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.75, ease: [0.2, 0.8, 0.2, 1] }}
-                    >
-                      <h1 className="mt-5 text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-[-0.04em] leading-[0.94] text-transparent bg-clip-text bg-gradient-to-b from-white via-white to-white/70 text-balance drop-shadow-[0_18px_55px_rgba(0,0,0,0.55)]">
-                        {heroMode === "transport" ? (
-                          "Book stays and add transport in one click."
-                        ) : heroMode === "host" ? (
-                          "Grow your bookings with a platform built for Africa."
-                        ) : (
-                          <>
-                            <span className="block">Quality stay for</span>
-                            <span className="block">
-                              every <span className="font-serif italic">wallet.</span>
-                            </span>
-                          </>
-                        )}
-                      </h1>
+                  <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-extrabold tracking-[-0.04em] leading-[0.90] text-white text-balance drop-shadow-[0_20px_60px_rgba(0,0,0,0.50)]">
+                    Quality stay
+                    <span className="block text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 via-teal-200 to-white">
+                      for every <em className="font-serif not-italic">wallet.</em>
+                    </span>
+                  </h1>
 
-                      <div className="mt-7 flex flex-wrap items-center justify-center gap-2">
-                        {heroMode === "transport" ? (
-                          <>
-                            <span className="inline-flex items-center px-3.5 py-1.5 rounded-full bg-gradient-to-b from-white/[0.16] to-white/[0.06] ring-1 ring-white/22 shadow-[0_12px_38px_rgba(0,0,0,0.22)] text-white/90 text-xs font-semibold backdrop-blur-md hover:bg-white/[0.10] hover:ring-white/30 transition">Transparent pricing</span>
-                            <span className="inline-flex items-center px-3.5 py-1.5 rounded-full bg-gradient-to-b from-white/[0.16] to-white/[0.06] ring-1 ring-white/22 shadow-[0_12px_38px_rgba(0,0,0,0.22)] text-white/90 text-xs font-semibold backdrop-blur-md hover:bg-white/[0.10] hover:ring-white/30 transition">Verified drivers</span>
-                            <span className="inline-flex items-center px-3.5 py-1.5 rounded-full bg-gradient-to-b from-white/[0.16] to-white/[0.06] ring-1 ring-white/22 shadow-[0_12px_38px_rgba(0,0,0,0.22)] text-white/90 text-xs font-semibold backdrop-blur-md hover:bg-white/[0.10] hover:ring-white/30 transition">Live support</span>
-                          </>
-                        ) : heroMode === "host" ? (
-                          <>
-                            <span className="inline-flex items-center px-3.5 py-1.5 rounded-full bg-gradient-to-b from-white/[0.16] to-white/[0.06] ring-1 ring-white/22 shadow-[0_12px_38px_rgba(0,0,0,0.22)] text-white/90 text-xs font-semibold backdrop-blur-md hover:bg-white/[0.10] hover:ring-white/30 transition">Owner dashboard</span>
-                            <span className="inline-flex items-center px-3.5 py-1.5 rounded-full bg-gradient-to-b from-white/[0.16] to-white/[0.06] ring-1 ring-white/22 shadow-[0_12px_38px_rgba(0,0,0,0.22)] text-white/90 text-xs font-semibold backdrop-blur-md hover:bg-white/[0.10] hover:ring-white/30 transition">Fast payouts</span>
-                            <span className="inline-flex items-center px-3.5 py-1.5 rounded-full bg-gradient-to-b from-white/[0.16] to-white/[0.06] ring-1 ring-white/22 shadow-[0_12px_38px_rgba(0,0,0,0.22)] text-white/90 text-xs font-semibold backdrop-blur-md hover:bg-white/[0.10] hover:ring-white/30 transition">AI powered platform</span>
-                          </>
-                        ) : (
-                          <>
-                            <span className="inline-flex items-center px-3.5 py-1.5 rounded-full bg-gradient-to-b from-white/[0.16] to-white/[0.06] ring-1 ring-white/22 shadow-[0_12px_38px_rgba(0,0,0,0.22)] text-white/90 text-xs font-semibold backdrop-blur-md hover:bg-white/[0.10] hover:ring-white/30 transition">Physical Verified listings</span>
-                            <span className="inline-flex items-center px-3.5 py-1.5 rounded-full bg-gradient-to-b from-white/[0.16] to-white/[0.06] ring-1 ring-white/22 shadow-[0_12px_38px_rgba(0,0,0,0.22)] text-white/90 text-xs font-semibold backdrop-blur-md hover:bg-white/[0.10] hover:ring-white/30 transition">Secure payments</span>
-                            <span className="inline-flex items-center px-3.5 py-1.5 rounded-full bg-gradient-to-b from-white/[0.16] to-white/[0.06] ring-1 ring-white/22 shadow-[0_12px_38px_rgba(0,0,0,0.22)] text-white/90 text-xs font-semibold backdrop-blur-md hover:bg-white/[0.10] hover:ring-white/30 transition">AI & Human support</span>
-                          </>
-                        )}
-                      </div>
-                    </motion.div>
-                  </AnimatePresence>
+                  <p className="mx-auto mt-6 max-w-xl text-sm sm:text-base text-white/55 leading-relaxed font-light">
+                    One connected journey for accommodation, transport, and tourism simpler, trusted, unforgettable.
+                  </p>
+
                 </motion.div>
 
                 <motion.div
                   initial={{ opacity: 0, y: 18 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6, delay: 0.08, ease: [0.2, 0.8, 0.2, 1] }}
-                  className="mt-7 w-full max-w-2xl mx-auto"
+                  className="mt-8 w-full max-w-3xl mx-auto"
                 >
                 <form onSubmit={submitSearch} className="w-full pointer-events-auto">
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-1.5 bg-gradient-to-b from-white/[0.16] to-white/[0.06] backdrop-blur-2xl rounded-3xl sm:rounded-full p-2 sm:p-2 shadow-[0_22px_80px_rgba(0,0,0,0.42)] ring-1 ring-white/22 w-full sm:w-fit mx-auto">
+                  <div className="flex items-center gap-1.5 bg-gradient-to-b from-white/[0.16] to-white/[0.06] backdrop-blur-2xl rounded-full p-2 shadow-[0_22px_80px_rgba(0,0,0,0.42)] ring-1 ring-white/22 w-full sm:w-fit mx-auto">
                     <input
                       aria-label="Search query"
                       value={q}
                       onChange={(e) => setQ(e.target.value)}
                       placeholder={searchPlaceholder}
-                      className="w-full sm:w-auto sm:flex-none sm:min-w-[170px] min-w-0 px-3 sm:px-4 py-2 text-sm sm:text-base rounded-full sm:rounded-l-full sm:rounded-r-none border border-white/22 bg-white/[0.06] text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-emerald-400/45 focus:border-emerald-400/55"
+                      className="flex-1 sm:flex-none sm:min-w-[170px] min-w-0 px-3 sm:px-4 py-2 text-sm sm:text-base rounded-l-full rounded-r-none border border-white/22 bg-white/[0.06] text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-emerald-400/45 focus:border-emerald-400/55"
                     />
-                      <div ref={guestRef} className="w-full sm:w-auto inline-flex items-center justify-center gap-1 sm:gap-1.5 border border-white/20 rounded-full overflow-visible px-2 sm:px-2 py-1.5 sm:py-1.5 relative bg-white/5">
+
+                      <div ref={guestRef} className="flex-none w-14 sm:w-auto inline-flex items-center justify-center gap-1.5 border border-white/20 rounded-full overflow-visible px-2 py-1.5 relative bg-white/5">
                         <div className="relative inline-block">
                           <button
                             type="button"
@@ -1281,10 +1018,10 @@ export default function Page() {
                             ref={triggerRef}
                             onClick={() => { setGuestOpen(true); }}
                             onTouchStart={() => { setGuestOpen(true); }}
-                            className="inline-flex items-center gap-1 sm:gap-1.5 px-1.5 py-1 bg-transparent text-white text-sm sm:text-sm"
+                            className="w-full inline-flex items-center justify-center gap-1.5 px-1 py-1 bg-transparent text-white text-sm"
                           >
-                            <User className="w-3 h-3 sm:w-4 sm:h-4 text-white/90 flex-shrink-0" aria-hidden />
-                            <span className="text-white whitespace-nowrap text-xs sm:text-sm">{adults}{children ? ` + ${children}` : ''}</span>
+                            <User className="w-4 h-4 text-white/90 flex-shrink-0" aria-hidden />
+                            <span className="text-white whitespace-nowrap text-sm">{adults}{children ? ` + ${children}` : ''}</span>
                           </button>
                         </div>
 
@@ -1437,150 +1174,90 @@ export default function Page() {
                           )
                         ) : null}
                       </div>
-                      <div ref={dateRef} className="w-full sm:w-auto inline-flex items-center justify-center gap-1 sm:gap-1.5 relative border border-white/20 rounded-full px-2.5 sm:px-2.5 py-1.5 sm:py-1.5 bg-white/5">
+                      <div ref={dateRef} className="flex-none w-12 sm:w-auto inline-flex items-center justify-center gap-1.5 relative border border-white/20 rounded-full px-2.5 py-1.5 bg-white/5">
                         <button
                           type="button"
                           aria-label="Select dates"
                           onClick={() => { setDateOpen((v) => !v); }}
-                          className="w-full sm:w-auto text-center px-0 py-0 bg-transparent text-white border-0 text-sm sm:text-sm whitespace-nowrap"
+                          className="w-full inline-flex items-center justify-center px-0 py-0 bg-transparent text-white border-0 text-sm"
                         >
-                          {checkin ? (checkout ? formatRangeShort(checkin, checkout) : formatSingleShort(checkin)) : 'Add dates'}
+                          <Calendar className="h-5 w-5 sm:hidden" aria-hidden />
+                          <span className="hidden sm:inline truncate">
+                            {checkin ? (checkout ? formatRangeShort(checkin, checkout) : formatSingleShort(checkin)) : 'Add dates'}
+                          </span>
                         </button>
 
                         {dateOpen ? (
                           createPortal(
-                            <div className="nolsaf-date-popper bg-white text-slate-900 rounded shadow-lg z-30 border border-slate-200">
-                                {/* Mobile grabber shown on small screens to indicate draggable sheet */}
-                                <div className="nolsaf-sheet-grabber-wrapper">
-                                  <div className="nolsaf-sheet-grabber" aria-hidden />
-                                </div>
-                                <div className="p-3 w-full md:w-auto">
-                                <div className="relative">
-                                  <div className="w-full text-center">
-                                    <div className="text-xs text-slate-500">Select dates</div>
-                                    <div className="text-sm mb-2">{checkin ? (checkout ? formatRangeShort(checkin, checkout) : formatSingleShort(checkin)) : 'No dates selected'}</div>
-                                  </div>
-                                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center gap-2">
-                                    <button type="button" aria-label="Previous month" onClick={goPrevMonth} className="p-2 rounded hover:bg-slate-100 text-slate-700">
-                                      <ChevronLeft className="w-5 h-5" />
-                                    </button>
-                                    <button type="button" aria-label="Next month" onClick={goNextMonth} className="p-2 rounded hover:bg-slate-100 text-slate-700">
-                                      <ChevronRight className="w-5 h-5" />
-                                    </button>
-                                  </div>
-                                </div>
-
-                                <div ref={dayGridRef} className="bg-white text-slate-900 rounded p-2 overflow-auto max-h-[60vh]">
-                                  <DayPicker
-                                    mode="range"
-                                    selected={selectedRange}
-                                    onSelect={(r) => {
-                                      const range = r as Range | undefined;
-                                      if (!range || !range.from) {
-                                        setCheckin('');
-                                        setCheckout('');
-                                        setSelectedRange(undefined);
-                                        return;
-                                      }
-                                      const fromStr = formatDate(range.from);
-                                      const toStr = range.to ? formatDate(range.to) : '';
-                                      setCheckin(fromStr);
-                                      setCheckout(toStr);
-                                      setSelectedRange(range);
-                                    }}
-                                    numberOfMonths={pickerMonths}
-                                    month={currentMonth}
-                                    onMonthChange={(m) => setCurrentMonth(m)}
-                                    disabled={{ before: todayDate }}
-                                  />
-                                </div>
-
-                                <div className="mt-2 flex justify-end gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => { setCheckin(''); setCheckout(''); setSelectedRange(undefined); }}
-                                    className="px-3 py-1.5 text-sm text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-full transition"
-                                  >
-                                    Clear
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => { setDateOpen(false); }}
-                                    className="px-3 py-1.5 text-sm text-white rounded-full bg-gradient-to-r from-emerald-500 via-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 shadow-[0_10px_30px_rgba(16,185,129,0.30)] active:scale-95 transition"
-                                  >
-                                    Done
-                                  </button>
-                                </div>
+                            <div className="nolsaf-date-popper z-30">
+                              {/* Mobile grabber */}
+                              <div className="nolsaf-sheet-grabber-wrapper">
+                                <div className="nolsaf-sheet-grabber" aria-hidden />
                               </div>
+                              <DatePicker
+                                selected={checkin && checkout ? [checkin, checkout] : checkin || undefined}
+                                onSelectAction={(s) => {
+                                  if (!s) { setCheckin(''); setCheckout(''); return; }
+                                  if (Array.isArray(s)) {
+                                    setCheckin(s[0] || '');
+                                    setCheckout(s[1] || '');
+                                  } else {
+                                    setCheckin(s);
+                                    setCheckout('');
+                                  }
+                                }}
+                                onCloseAction={() => setDateOpen(false)}
+                                allowRange
+                                allowPast={false}
+                                twoMonths={isWideScreen}
+                              />
                             </div>,
                             document.body
                           )
                         ) : null}
                       </div>
-                      <button 
-                        type="submit" 
-                        className="w-full sm:w-auto flex-shrink-0 px-3 sm:px-3 py-2 sm:py-2 text-white rounded-full sm:rounded-r-full sm:rounded-l-none font-semibold text-sm sm:text-sm transition-all duration-200 whitespace-nowrap bg-gradient-to-r from-emerald-500 via-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 shadow-[0_12px_40px_rgba(16,185,129,0.30)] hover:shadow-[0_18px_55px_rgba(16,185,129,0.32)] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/60"
+                      <button
+                        type="submit"
+                        className="flex-none flex-shrink-0 flex items-center justify-center w-12 h-12 sm:w-auto sm:h-auto px-0 sm:px-3 py-0 sm:py-2 text-white rounded-r-full rounded-l-none font-semibold text-sm transition-all duration-200 whitespace-nowrap bg-gradient-to-r from-emerald-500 via-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 shadow-[0_12px_40px_rgba(16,185,129,0.30)] hover:shadow-[0_18px_55px_rgba(16,185,129,0.32)] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/60"
                       >
-                        Search
+                        <Search className="h-5 w-5 sm:hidden" aria-hidden />
+                        <span className="hidden sm:inline">Search</span>
                       </button>
                     </div>
                   </form>
-                  <div className="mt-5 flex flex-col sm:flex-row flex-wrap items-center justify-center gap-3 w-full">
-                    <AnimatePresence mode="wait" initial={false}>
-                      {heroMode === "transport" ? (
-                        <motion.div
-                          key="hero-ctas-transport"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          transition={{ duration: 0.6, ease: [0.2, 0.8, 0.2, 1] }}
-                          className="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-3 w-full"
-                        >
-                          <button
-                            type="button"
-                            onClick={scrollToBookingFlow}
-                            className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 bg-white/[0.08] text-white/90 rounded-full ring-1 ring-white/18 hover:bg-white/[0.12] backdrop-blur-sm transition-colors"
-                          >
-                            How it works
-                          </button>
-                          <Link href="/public/properties" className="no-underline">
-                            <span className="w-full sm:w-auto inline-flex items-center justify-center px-5 py-2.5 text-white rounded-full bg-gradient-to-r from-emerald-500 via-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 shadow-[0_12px_40px_rgba(16,185,129,0.28)] transition-colors">Browse stays</span>
-                          </Link>
-                        </motion.div>
-                      ) : heroMode === "host" ? (
-                        <motion.div
-                          key="hero-ctas-host"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          transition={{ duration: 0.6, ease: [0.2, 0.8, 0.2, 1] }}
-                          className="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-3 w-full"
-                        >
-                          <Link href="/account/register?role=owner" className="no-underline">
-                            <span className="w-full sm:w-auto inline-flex items-center justify-center px-5 py-2.5 text-white rounded-full bg-gradient-to-r from-emerald-500 via-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 shadow-[0_12px_40px_rgba(16,185,129,0.28)] transition-colors">List your property</span>
-                          </Link>
-                          <Link href="/public/properties" className="no-underline">
-                            <span className="w-full sm:w-auto inline-flex items-center justify-center px-5 py-2.5 bg-white/[0.08] text-white/90 rounded-full ring-1 ring-white/18 hover:bg-white/[0.12] backdrop-blur-sm transition-colors">Browse stays</span>
-                          </Link>
-                        </motion.div>
-                      ) : (
-                        <motion.div
-                          key="hero-ctas-stays"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          transition={{ duration: 0.6, ease: [0.2, 0.8, 0.2, 1] }}
-                          className="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-3 w-full"
-                        >
-                          <Link href="/public/properties" className="no-underline">
-                            <span className="w-full sm:w-auto inline-flex items-center justify-center px-5 py-2.5 text-white rounded-full bg-gradient-to-r from-emerald-500 via-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 shadow-[0_12px_40px_rgba(16,185,129,0.28)] transition-colors">Browse stays</span>
-                          </Link>
-                          <Link href="/account/register?role=owner" className="no-underline">
-                            <span className="w-full sm:w-auto inline-flex items-center justify-center px-5 py-2.5 bg-white/[0.08] text-white/90 rounded-full ring-1 ring-white/18 hover:bg-white/[0.12] backdrop-blur-sm transition-colors">List your property</span>
-                          </Link>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
+                  <div className="mt-8 lg:mt-10 w-full">
+                    <div className="flex items-center justify-center gap-3 w-full">
+                      <Link href="/public/properties" aria-label="Browse stays" className="group relative no-underline flex-shrink-0">
+                        <span className="inline-flex items-center gap-2 px-4 py-2.5 text-sm text-white font-medium rounded-full bg-emerald-500/90 hover:bg-emerald-400 active:bg-emerald-400 shadow-[0_8px_28px_rgba(16,185,129,0.30)] transition-all">
+                          <BedDouble className="w-4 h-4 flex-shrink-0" />
+                          <span className="hidden sm:inline whitespace-nowrap">Browse stays</span>
+                        </span>
+                        <span className="pointer-events-none sm:hidden absolute -top-9 left-1/2 -translate-x-1/2 z-20 whitespace-nowrap px-2 py-1 text-xs font-medium text-white/90 rounded-full bg-white/[0.10] ring-1 ring-white/20 backdrop-blur-sm opacity-0 translate-y-1 transition-all duration-150 group-hover:opacity-100 group-hover:translate-y-0 group-active:opacity-100 group-active:translate-y-0">
+                          Browse stays
+                        </span>
+                      </Link>
+                      <Link href="/account/register?role=owner" aria-label="List your property" className="group relative no-underline flex-shrink-0">
+                        <span className="inline-flex items-center gap-2 px-4 py-2.5 text-sm text-white/85 font-medium rounded-full bg-white/[0.08] ring-1 ring-white/15 hover:bg-white/[0.14] active:bg-white/[0.18] backdrop-blur-sm transition-all">
+                          <Plus className="w-4 h-4 flex-shrink-0" />
+                          <span className="hidden sm:inline whitespace-nowrap">List your property</span>
+                        </span>
+                        <span className="pointer-events-none sm:hidden absolute -top-9 left-1/2 -translate-x-1/2 z-20 whitespace-nowrap px-2 py-1 text-xs font-medium text-white/90 rounded-full bg-white/[0.10] ring-1 ring-white/20 backdrop-blur-sm opacity-0 translate-y-1 transition-all duration-150 group-hover:opacity-100 group-hover:translate-y-0 group-active:opacity-100 group-active:translate-y-0">
+                          List your property
+                        </span>
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={scrollToBookingFlow}
+                        aria-label="How it works"
+                        className="group relative flex-shrink-0 inline-flex items-center gap-2 px-4 py-2.5 text-sm text-white/85 font-medium rounded-full bg-white/[0.08] ring-1 ring-white/15 hover:bg-white/[0.14] active:bg-white/[0.18] backdrop-blur-sm transition-all"
+                      >
+                        <PlayCircle className="w-4 h-4 flex-shrink-0" />
+                        <span className="hidden sm:inline whitespace-nowrap">How it works</span>
+                        <span className="pointer-events-none sm:hidden absolute -top-9 left-1/2 -translate-x-1/2 z-20 whitespace-nowrap px-2 py-1 text-xs font-medium text-white/90 rounded-full bg-white/[0.10] ring-1 ring-white/20 backdrop-blur-sm opacity-0 translate-y-1 transition-all duration-150 group-hover:opacity-100 group-hover:translate-y-0 group-active:opacity-100 group-active:translate-y-0">
+                          How it works
+                        </span>
+                      </button>
+                    </div>
                   </div>
                 </motion.div>
               </div>
@@ -1598,222 +1275,389 @@ export default function Page() {
         </div>
       </div>
 
-      <section id="public-audience" className="py-10 sm:py-12 lg:py-16">
-        <div className="public-container">
-          <SectionHeading
-            title="Built for"
-            variant="eyebrow"
-            subtitle="Travelers, drivers, and property owners — connected by verified listings, clear policies, and dependable support."
-            className="mb-8"
-          />
-          <div className="grid grid-cols-1 min-[420px]:grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-8 min-[420px]:gap-y-10 sm:gap-x-6 sm:gap-y-10 md:gap-y-8 mb-6 sm:mb-8">
+      <section id="public-audience" className="relative py-14 sm:py-18 lg:py-24 overflow-hidden">
+        {/* Premium section background */}
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg,#f0fdf8 0%,#ffffff 55%,#f0fdf4 100%)' }} />
+        {/* Ambient color blooms matching the cards beneath */}
+        <div aria-hidden className="pointer-events-none absolute -top-32 -left-24 w-[500px] h-[500px] rounded-full opacity-[0.07] blur-[100px]"
+          style={{ background: 'radial-gradient(circle, #10b981, transparent 70%)' }} />
+        <div aria-hidden className="pointer-events-none absolute -top-24 left-1/2 -translate-x-1/2 w-[440px] h-[380px] rounded-full opacity-[0.05] blur-[110px]"
+          style={{ background: 'radial-gradient(circle, #38bdf8, transparent 70%)' }} />
+        <div aria-hidden className="pointer-events-none absolute -top-28 -right-20 w-[480px] h-[480px] rounded-full opacity-[0.06] blur-[100px]"
+          style={{ background: 'radial-gradient(circle, #a78bfa, transparent 70%)' }} />
+        {/* Subtle dot grid */}
+        <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.018]"
+          style={{ backgroundImage: 'radial-gradient(circle, #64748b 1px, transparent 1px)', backgroundSize: '32px 32px' }} />
+        {/* Top + bottom accent lines */}
+        <div aria-hidden className="pointer-events-none absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
+        <div aria-hidden className="pointer-events-none absolute bottom-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
+
+        <div className="public-container relative z-10">
+          {/* ── Premium centered heading ── */}
+          <div className="mb-12 flex flex-col items-center text-center">
+            {/* Eyebrow pill */}
+            <div className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-[11px] font-semibold tracking-[0.12em] uppercase shadow-sm ring-1
+              bg-gradient-to-r from-emerald-50 via-white to-sky-50 ring-slate-200/80 text-slate-500">
+              <span className="w-1.5 h-1.5 rounded-full bg-gradient-to-br from-emerald-400 to-sky-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]" aria-hidden />
+              Who It&apos;s For
+            </div>
+
+            {/* Main title — gradient two-tone */}
+            <h2 className="mt-5 text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-none">
+              <span className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700 bg-clip-text text-transparent">Built&nbsp;</span>
+              <span style={{ color: '#02665e' }}>for&nbsp;you</span>
+            </h2>
+
+            {/* Decorative rule */}
+            <div className="mt-5 flex items-center gap-3 w-full max-w-xs" aria-hidden>
+              <div className="flex-1 h-px bg-gradient-to-r from-transparent to-slate-200" />
+              <span className="w-2 h-2 rounded-full bg-gradient-to-br from-emerald-400 to-sky-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]" />
+              <div className="flex-1 h-px bg-gradient-to-l from-transparent to-slate-200" />
+            </div>
+
+            {/* Subtitle */}
+            <p className="mt-4 text-sm sm:text-base leading-relaxed max-w-[62ch] text-slate-500">
+              Travelers, drivers, and property owners {" "}
+              <span className="text-slate-700 font-medium">connected by verified listings, clear policies, and dependable support.</span>
+            </p>
+          </div>
+          <div className="grid grid-cols-1 min-[420px]:grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-6 min-[420px]:gap-y-6 sm:gap-x-5 sm:gap-y-6 md:gap-y-0 mb-6 sm:mb-8">
+
+            {/* ── Travelers ── */}
             <div
               onClick={() => router.push('/public/properties')}
               onKeyDown={(e) => { if (e.key === 'Enter') router.push('/public/properties'); }}
               role="link"
               tabIndex={0}
               aria-label="Travelers - Browse stays"
-              className="group relative min-w-0 h-full cursor-pointer rounded-[26px] p-[1px] bg-gradient-to-br from-white/25 via-emerald-400/12 to-teal-400/18 shadow-[0_14px_40px_rgba(15,23,42,0.10)] sm:shadow-[0_22px_60px_rgba(15,23,42,0.12)] transition-all duration-300 sm:hover:shadow-[0_30px_80px_rgba(15,23,42,0.16)] sm:hover:scale-[1.01]"
-              style={{ animation: 'fadeInUp 0.6s ease-out 0.1s both' }}
+              className="group relative min-w-0 h-full cursor-pointer rounded-3xl overflow-hidden transition-all duration-500 hover:-translate-y-2 hover:shadow-[0_28px_70px_rgba(4,120,87,0.40)]"
+              style={{ boxShadow: '0 8px 32px rgba(4,120,87,0.22)' }}
             >
-              <div className="relative flex h-full flex-col overflow-hidden rounded-[25px] bg-gradient-to-b from-[#062a58] via-[#031f45] to-[#021735] p-3 min-[420px]:p-4 sm:p-6 md:p-7 ring-1 ring-white/10">
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_70%_18%,rgba(16,185,129,0.16),transparent_60%)]" aria-hidden />
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_25%_82%,rgba(20,184,166,0.12),transparent_58%)]" aria-hidden />
-                <div className="pointer-events-none absolute inset-0 opacity-20 [background-image:radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.10)_1px,transparent_0)] [background-size:28px_28px]" aria-hidden />
+              {/* Rich emerald gradient fill */}
+              <div className="absolute inset-0" style={{ background: 'linear-gradient(145deg, #022c22 0%, #064e3b 35%, #065f46 65%, #047857 100%)' }} />
+              {/* Mesh shimmer overlay */}
+              <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.8) 1px, transparent 1px)', backgroundSize: '22px 22px' }} />
+              {/* Large decorative ring top-right */}
+              <div aria-hidden className="pointer-events-none absolute -top-14 -right-14 w-56 h-56 rounded-full opacity-[0.15] group-hover:opacity-[0.25] transition-opacity duration-500"
+                style={{ border: '2px solid #34d399', boxShadow: 'inset 0 0 60px rgba(52,211,153,0.3)' }} />
+              <div aria-hidden className="pointer-events-none absolute -top-4 -right-4 w-32 h-32 rounded-full opacity-[0.10] group-hover:opacity-[0.18] transition-opacity duration-500"
+                style={{ border: '1px solid #6ee7b7' }} />
+              {/* Bottom glow */}
+              <div aria-hidden className="pointer-events-none absolute bottom-0 left-0 right-0 h-32 opacity-40"
+                style={{ background: 'linear-gradient(to top, rgba(16,185,129,0.25), transparent)' }} />
 
-                <div className="inline-flex self-start max-w-full items-center px-3 py-1 sm:px-4 sm:py-1.5 rounded-full bg-emerald-500/20 text-emerald-200 text-[11px] sm:text-sm font-semibold ring-1 ring-emerald-300/15 truncate">Travelers</div>
-                <h3 className="mt-4 sm:mt-6 text-lg sm:text-2xl lg:text-3xl font-semibold text-white tracking-tight font-mono leading-tight break-words">
-                  Trusted stays, simpler booking.
-                </h3>
-
-                <div
-                  onPointerEnter={() => setHoveredCard(0)}
-                  onPointerLeave={() => setHoveredCard(null)}
-                  onFocus={() => setHoveredCard(0)}
-                  onBlur={() => setHoveredCard(null)}
-                  onTouchStart={() => setHoveredCard(0)}
-                  onTouchEnd={() => setHoveredCard(null)}
-                  className="mt-3 sm:mt-4"
-                >
-                  <p className="text-xs sm:text-sm md:text-base text-slate-200/70 leading-relaxed">
-                    One platform for accommodation + transport + tourism, So a trip like Serengeti comes together in one booking and one checkout, with verified options and flexible payments.
-                  </p>
+              <div className="relative flex h-full flex-col p-5 sm:p-6 md:p-7 min-h-[260px]">
+                {/* Tag */}
+                <div className="inline-flex self-start items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold tracking-widest uppercase"
+                  style={{ background: 'rgba(52,211,153,0.18)', color: '#6ee7b7', border: '1px solid rgba(52,211,153,0.35)' }}>
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#34d399]" />
+                  Travelers
                 </div>
 
-                <div className="mt-auto pt-5 sm:pt-7 flex flex-col gap-2 text-xs sm:text-sm text-slate-200/70 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-3">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Calendar className="w-4 h-4 opacity-80" aria-hidden />
-                    <span className="min-w-0 truncate">One checkout</span>
-                  </div>
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Eye className="w-4 h-4 opacity-80" aria-hidden />
-                    <span className="min-w-0 truncate">Verified listings</span>
-                  </div>
+                <h3 className="mt-5 text-xl sm:text-2xl font-bold text-white leading-tight tracking-tight">
+                  Trusted stays,<br/>simpler booking.
+                </h3>
+                <p className="mt-3 text-sm leading-relaxed" style={{ color: 'rgba(167,243,208,0.80)' }}>
+                  One platform for accommodation, transport, and tourism in one smooth booking flow.
+                </p>
+
+                <div className="mt-auto pt-5 flex flex-wrap gap-x-5 gap-y-2 text-xs" style={{ color: 'rgba(110,231,183,0.70)', borderTop: '1px solid rgba(52,211,153,0.15)' }}>
+                  <span className="flex items-center gap-1.5 pt-4"><Calendar className="w-3.5 h-3.5" style={{ color: '#34d399' }} aria-hidden />One checkout</span>
+                  <span className="flex items-center gap-1.5 pt-4"><Eye className="w-3.5 h-3.5" style={{ color: '#34d399' }} aria-hidden />Verified listings</span>
                 </div>
               </div>
             </div>
 
+            {/* ── Drivers ── */}
             <div
               onClick={() => router.push('/account/register?role=driver')}
               onKeyDown={(e) => { if (e.key === 'Enter') router.push('/account/register?role=driver'); }}
               role="link"
               tabIndex={0}
               aria-label="Drivers - Register as a driver"
-              className="group relative min-w-0 h-full cursor-pointer rounded-[26px] p-[1px] bg-gradient-to-br from-white/25 via-sky-400/12 to-cyan-400/18 shadow-[0_14px_40px_rgba(15,23,42,0.10)] sm:shadow-[0_22px_60px_rgba(15,23,42,0.12)] transition-all duration-300 sm:hover:shadow-[0_30px_80px_rgba(15,23,42,0.16)] sm:hover:scale-[1.01]"
-              style={{ animation: 'fadeInUp 0.6s ease-out 0.2s both' }}
+              className="group relative min-w-0 h-full cursor-pointer rounded-3xl overflow-hidden transition-all duration-500 hover:-translate-y-2 hover:shadow-[0_28px_70px_rgba(2,132,199,0.40)]"
+              style={{ boxShadow: '0 8px 32px rgba(2,132,199,0.22)' }}
             >
-              <div className="relative flex h-full flex-col overflow-hidden rounded-[25px] bg-gradient-to-b from-[#062a58] via-[#031f45] to-[#021735] p-3 min-[420px]:p-4 sm:p-6 md:p-7 ring-1 ring-white/10">
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_70%_18%,rgba(56,189,248,0.16),transparent_60%)]" aria-hidden />
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_25%_82%,rgba(34,211,238,0.12),transparent_58%)]" aria-hidden />
-                <div className="pointer-events-none absolute inset-0 opacity-20 [background-image:radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.10)_1px,transparent_0)] [background-size:28px_28px]" aria-hidden />
+              <div className="absolute inset-0" style={{ background: 'linear-gradient(145deg, #0c1a2e 0%, #0c4a6e 35%, #075985 65%, #0369a1 100%)' }} />
+              <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.8) 1px, transparent 1px)', backgroundSize: '22px 22px' }} />
+              <div aria-hidden className="pointer-events-none absolute -top-14 -right-14 w-56 h-56 rounded-full opacity-[0.15] group-hover:opacity-[0.25] transition-opacity duration-500"
+                style={{ border: '2px solid #38bdf8', boxShadow: 'inset 0 0 60px rgba(56,189,248,0.3)' }} />
+              <div aria-hidden className="pointer-events-none absolute -top-4 -right-4 w-32 h-32 rounded-full opacity-[0.10] group-hover:opacity-[0.18] transition-opacity duration-500"
+                style={{ border: '1px solid #7dd3fc' }} />
+              <div aria-hidden className="pointer-events-none absolute bottom-0 left-0 right-0 h-32 opacity-40"
+                style={{ background: 'linear-gradient(to top, rgba(56,189,248,0.22), transparent)' }} />
 
-                <div className="inline-flex self-start max-w-full items-center px-3 py-1 sm:px-4 sm:py-1.5 rounded-full bg-sky-500/20 text-sky-200 text-[11px] sm:text-sm font-semibold ring-1 ring-sky-300/15 truncate">Drivers</div>
-                <h3 className="mt-4 sm:mt-6 text-lg sm:text-2xl lg:text-3xl font-semibold text-white tracking-tight font-mono leading-tight break-words">
-                  Get more rides, earn reliably.
-                </h3>
-
-                <div
-                  onPointerEnter={() => setHoveredCard(1)}
-                  onPointerLeave={() => setHoveredCard(null)}
-                  onFocus={() => setHoveredCard(1)}
-                  onBlur={() => setHoveredCard(null)}
-                  onTouchStart={() => setHoveredCard(1)}
-                  onTouchEnd={() => setHoveredCard(null)}
-                  className="mt-3 sm:mt-4"
-                >
-                  <p className="text-xs sm:text-sm md:text-base text-slate-200/70 leading-relaxed">
-                    Join NoLSAF to access more rides (Auction style), receive fast payouts, and grow your earnings with reliable booking flows and driver tools.
-                  </p>
+              <div className="relative flex h-full flex-col p-5 sm:p-6 md:p-7 min-h-[260px]">
+                <div className="inline-flex self-start items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold tracking-widest uppercase"
+                  style={{ background: 'rgba(56,189,248,0.18)', color: '#7dd3fc', border: '1px solid rgba(56,189,248,0.35)' }}>
+                  <span className="w-1.5 h-1.5 rounded-full bg-sky-400 shadow-[0_0_6px_#38bdf8]" />
+                  Drivers
                 </div>
 
-                <div className="mt-auto pt-5 sm:pt-7 flex flex-col gap-2 text-xs sm:text-sm text-slate-200/70 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-3">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Calendar className="w-4 h-4 opacity-80" aria-hidden />
-                    <span className="min-w-0 truncate">Quick onboarding</span>
-                  </div>
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Eye className="w-4 h-4 opacity-80" aria-hidden />
-                    <span className="min-w-0 truncate">Driver Dashboard</span>
-                  </div>
+                <h3 className="mt-5 text-xl sm:text-2xl font-bold text-white leading-tight tracking-tight">
+                  Get more rides,<br/>earn reliably.
+                </h3>
+                <p className="mt-3 text-sm leading-relaxed" style={{ color: 'rgba(186,230,253,0.80)' }}>
+                  Join NoLSAF to access more rides, reliable payouts, and practical driver tools.
+                </p>
+
+                <div className="mt-auto pt-5 flex flex-wrap gap-x-5 gap-y-2 text-xs" style={{ color: 'rgba(125,211,252,0.70)', borderTop: '1px solid rgba(56,189,248,0.15)' }}>
+                  <span className="flex items-center gap-1.5 pt-4"><Calendar className="w-3.5 h-3.5" style={{ color: '#38bdf8' }} aria-hidden />Quick onboarding</span>
+                  <span className="flex items-center gap-1.5 pt-4"><Eye className="w-3.5 h-3.5" style={{ color: '#38bdf8' }} aria-hidden />Driver Dashboard</span>
                 </div>
               </div>
             </div>
 
+            {/* ── Property Owners ── */}
             <div
               onClick={() => router.push('/account/register?role=owner')}
               onKeyDown={(e) => { if (e.key === 'Enter') router.push('/account/register?role=owner'); }}
               role="link"
               tabIndex={0}
               aria-label="Property Owners - List your property"
-              className="group relative min-w-0 col-span-1 min-[420px]:col-span-2 md:col-span-1 h-full sm:mt-2 md:mt-0 cursor-pointer rounded-[26px] p-[1px] bg-gradient-to-br from-white/25 via-violet-400/12 to-fuchsia-400/18 shadow-[0_14px_40px_rgba(15,23,42,0.10)] sm:shadow-[0_22px_60px_rgba(15,23,42,0.12)] transition-all duration-300 sm:hover:shadow-[0_30px_80px_rgba(15,23,42,0.16)] sm:hover:scale-[1.01]"
-              style={{ animation: 'fadeInUp 0.6s ease-out 0.3s both' }}
+              className="group relative min-w-0 col-span-1 min-[420px]:col-span-2 md:col-span-1 h-full sm:mt-0 cursor-pointer rounded-3xl overflow-hidden transition-all duration-500 hover:-translate-y-2 hover:shadow-[0_28px_70px_rgba(109,40,217,0.40)]"
+              style={{ boxShadow: '0 8px 32px rgba(109,40,217,0.22)' }}
             >
-              <div className="relative flex h-full flex-col overflow-hidden rounded-[25px] bg-gradient-to-b from-[#062a58] via-[#031f45] to-[#021735] p-3 min-[420px]:p-4 sm:p-6 md:p-7 ring-1 ring-white/10">
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_70%_18%,rgba(167,139,250,0.16),transparent_60%)]" aria-hidden />
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_25%_82%,rgba(232,121,249,0.12),transparent_58%)]" aria-hidden />
-                <div className="pointer-events-none absolute inset-0 opacity-20 [background-image:radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.10)_1px,transparent_0)] [background-size:28px_28px]" aria-hidden />
+              <div className="absolute inset-0" style={{ background: 'linear-gradient(145deg, #130828 0%, #2e1065 35%, #3b0764 65%, #4c1d95 100%)' }} />
+              <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.8) 1px, transparent 1px)', backgroundSize: '22px 22px' }} />
+              <div aria-hidden className="pointer-events-none absolute -top-14 -right-14 w-56 h-56 rounded-full opacity-[0.15] group-hover:opacity-[0.25] transition-opacity duration-500"
+                style={{ border: '2px solid #a78bfa', boxShadow: 'inset 0 0 60px rgba(167,139,250,0.3)' }} />
+              <div aria-hidden className="pointer-events-none absolute -top-4 -right-4 w-32 h-32 rounded-full opacity-[0.10] group-hover:opacity-[0.18] transition-opacity duration-500"
+                style={{ border: '1px solid #c4b5fd' }} />
+              <div aria-hidden className="pointer-events-none absolute bottom-0 left-0 right-0 h-32 opacity-40"
+                style={{ background: 'linear-gradient(to top, rgba(139,92,246,0.25), transparent)' }} />
 
-                <div className="inline-flex self-start max-w-full items-center px-3 py-1 sm:px-4 sm:py-1.5 rounded-full bg-violet-500/20 text-violet-200 text-[11px] sm:text-sm font-semibold ring-1 ring-violet-300/15 truncate">Property Owners</div>
-                <h3 className="mt-4 sm:mt-6 text-lg sm:text-2xl lg:text-3xl font-semibold text-white tracking-tight font-mono leading-tight break-words">
-                  Grow bookings with less work.
+              <div className="relative flex h-full flex-col p-5 sm:p-6 md:p-7 min-h-[260px]">
+                <div className="inline-flex self-start items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold tracking-widest uppercase"
+                  style={{ background: 'rgba(167,139,250,0.18)', color: '#c4b5fd', border: '1px solid rgba(167,139,250,0.35)' }}>
+                  <span className="w-1.5 h-1.5 rounded-full bg-violet-400 shadow-[0_0_6px_#a78bfa]" />
+                  Property Owners
+                </div>
+
+                <h3 className="mt-5 text-xl sm:text-2xl font-bold text-white leading-tight tracking-tight">
+                  Grow bookings<br/>with less work.
                 </h3>
+                <p className="mt-3 text-sm leading-relaxed" style={{ color: 'rgba(221,214,254,0.80)' }}>
+                  List your property, manage availability, and grow bookings with less manual work.
+                </p>
 
-                <div
-                  onPointerEnter={() => setHoveredCard(2)}
-                  onPointerLeave={() => setHoveredCard(null)}
-                  onFocus={() => setHoveredCard(2)}
-                  onBlur={() => setHoveredCard(null)}
-                  onTouchStart={() => setHoveredCard(2)}
-                  onTouchEnd={() => setHoveredCard(null)}
-                  className="mt-3 sm:mt-4"
-                >
-                  <p className="text-xs sm:text-sm md:text-base text-slate-200/70 leading-relaxed">
-                    List your property to reach travelers across world. Manage bookings, set availability, and get paid fast through local payment integrations.
+                <div className="mt-auto pt-5 flex flex-wrap gap-x-5 gap-y-2 text-xs" style={{ color: 'rgba(196,181,253,0.70)', borderTop: '1px solid rgba(167,139,250,0.15)' }}>
+                  <span className="flex items-center gap-1.5 pt-4"><Calendar className="w-3.5 h-3.5" style={{ color: '#a78bfa' }} aria-hidden />Fast onboarding</span>
+                  <span className="flex items-center gap-1.5 pt-4"><Eye className="w-3.5 h-3.5" style={{ color: '#a78bfa' }} aria-hidden />Owner dashboard</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          {/* ── Explore heading — split editorial layout ── */}
+          <div className="relative z-10 mt-14 sm:mt-16 overflow-hidden">
+            {/* Ghost background word */}
+            <div aria-hidden className="pointer-events-none select-none absolute -top-6 left-0 right-0 flex justify-center">
+              <span className="text-[clamp(72px,16vw,160px)] font-black tracking-tighter leading-none bg-gradient-to-r from-[#02b4f5]/[0.055] via-[#02665e]/[0.045] to-transparent bg-clip-text text-transparent whitespace-nowrap">
+                EXPLORE
+              </span>
+            </div>
+
+            <div className="relative flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8 py-2">
+              {/* LEFT — badge + title + accent line */}
+              <div className="min-w-0">
+                {/* Numbered badge — sharp angled style */}
+                <div className="inline-flex items-center gap-2.5 mb-4">
+                  <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-[11px] font-black text-white shadow-[0_6px_18px_rgba(2,102,94,0.35)]"
+                    style={{ background: 'linear-gradient(135deg, #02665e, #02b4f5)' }}>
+                    02
+                  </span>
+                  <span className="h-px w-10 bg-gradient-to-r from-[#02b4f5]/60 to-transparent" aria-hidden />
+                  <span className="text-[11px] font-semibold tracking-[0.14em] uppercase text-[#02665e]/70">Property Types</span>
+                </div>
+
+                <h2 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-none text-slate-900">
+                  Expl<span className="bg-gradient-to-r from-[#02b4f5] to-[#02665e] bg-clip-text text-transparent">ore</span>
+                </h2>
+
+                {/* Underline accent */}
+                <div className="mt-4 flex items-center gap-2" aria-hidden>
+                  <div className="h-[3px] w-12 rounded-full bg-gradient-to-r from-[#02b4f5] to-[#02665e] shadow-[0_2px_10px_rgba(2,180,245,0.40)]" />
+                  <div className="h-[3px] w-4 rounded-full bg-gradient-to-r from-[#02665e]/40 to-transparent" />
+                </div>
+              </div>
+
+              {/* RIGHT — subtitle in a contained block */}
+              <div className="lg:max-w-[46ch] flex-shrink-0">
+                <div className="rounded-2xl px-5 py-4 ring-1 ring-slate-200/80 bg-white/60 backdrop-blur-sm shadow-[0_4px_20px_rgba(2,6,23,0.05)]">
+                  <p className="text-sm sm:text-[15px] leading-relaxed text-slate-600">
+                    Browse by property type, compare verified options, and{" "}
+                    <span className="font-semibold text-slate-800">move from discovery to booking in minutes.</span>
                   </p>
-                </div>
-
-                <div className="mt-auto pt-5 sm:pt-7 flex flex-col gap-2 text-xs sm:text-sm text-slate-200/70 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-3">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Calendar className="w-4 h-4 opacity-80" aria-hidden />
-                    <span className="min-w-0 truncate">Fast onboarding</span>
-                  </div>
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Eye className="w-4 h-4 opacity-80" aria-hidden />
-                    <span className="min-w-0 truncate">Owner dashboard</span>
+                  <div className="mt-3 flex items-center gap-2 text-[11px] font-semibold text-[#02665e] tracking-wide">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#02b4f5] shadow-[0_0_6px_rgba(2,180,245,0.7)]" aria-hidden />
+                    Start exploring
                   </div>
                 </div>
               </div>
             </div>
+
+            {/* Full-width bottom rule */}
+            <div className="mt-6 h-px w-full bg-gradient-to-r from-transparent via-[#02b4f5]/25 to-transparent" aria-hidden />
           </div>
 
-          <div className="relative z-10 mt-14 sm:mt-16">
-            <div className="rounded-[28px] p-[1px] bg-gradient-to-r from-slate-200/70 via-[#02b4f5]/18 to-slate-200/70 shadow-[0_18px_55px_rgba(2,6,23,0.08)]">
-              <div className="rounded-[27px] bg-white/70 backdrop-blur-xl ring-1 ring-white/70 px-5 py-7 sm:px-8 sm:py-9">
-                <SectionHeading
-                  title="Explore"
-                  kicker="Start exploring"
-                  variant="center"
-                  subtitle="Browse by property type, compare verified options, and move from discovery to booking in minutes."
-                  className="mt-0"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-5 lg:gap-6 mt-6">
-            {PROPERTY_TYPE_CARDS.map((c) => {
+          {/* ── Property type cards — bespoke premium grid ── */}
+          <div className="mt-7 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
+            {PROPERTY_TYPE_CARDS.map((c, idx) => {
               const count = typeCounts[c.key];
               const sample = typeSamples[c.key];
               const href = `/public/properties?types=${encodeURIComponent(c.key)}&page=1`;
+              const img = sample?.primaryImage || c.fallbackImageSrc;
+
+              // Per-card accent — curated 5-colour cycle so adjacent cards never clash
+              const accents = [
+                { glow: 'rgba(2,180,245,0.55)',  line: '#02b4f5', tint: 'rgba(2,180,245,0.16)'  },   // cyan
+                { glow: 'rgba(16,185,129,0.55)', line: '#10b981', tint: 'rgba(16,185,129,0.16)' },   // emerald
+                { glow: 'rgba(251,191,36,0.50)', line: '#fbbf24', tint: 'rgba(251,191,36,0.14)' },   // amber
+                { glow: 'rgba(167,139,250,0.55)',line: '#a78bfa', tint: 'rgba(167,139,250,0.16)'},   // violet
+                { glow: 'rgba(251,113,133,0.50)',line: '#fb7185', tint: 'rgba(251,113,133,0.14)'},   // rose
+              ];
+              const ac = accents[idx % accents.length];
+
               return (
-                <PropertyCard
+                <Link
                   key={c.key}
-                  title={c.title}
-                  description={
-                    sample
-                      ? `${sample.title}${sample.location ? ` • ${sample.location}` : ""}${sample.basePrice != null ? ` • from ${fmtMoney(sample.basePrice, sample.currency)}` : ""}`
-                      : `${c.title} stays`
-                  }
                   href={href}
-                  imageSrc={sample?.primaryImage || c.fallbackImageSrc}
-                    hideCaption
-                  topLeftBadge={
-                    <AttentionBlink active={blinkCounts}>
-                      <span
-                        className={[
-                          "inline-flex items-center gap-2 rounded-full px-2.5 py-1",
-                          "bg-white/70 backdrop-blur-md",
-                          "border border-white/70 ring-1 ring-slate-200/60",
-                          "shadow-sm",
-                          "text-[11px] font-semibold text-slate-900",
+                  aria-label={`Browse ${c.title} stays`}
+                  className="group relative block overflow-hidden rounded-[22px] no-underline
+                    ring-1 ring-white/20 shadow-[0_8px_28px_rgba(2,6,23,0.13)]
+                    transition-all duration-500
+                    hover:ring-white/40 hover:shadow-[0_20px_56px_rgba(2,6,23,0.22)] hover:-translate-y-1"
+                >
+                  {/* ── Image ── */}
+                  <div className="relative h-[190px] sm:h-[215px] overflow-hidden">
+                    {img ? (
+                      <NextImage
+                        src={img}
+                        alt={c.title}
+                        fill
+                        sizes="(min-width:1024px) 20vw, (min-width:640px) 33vw, 50vw"
+                        className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.07] group-hover:saturate-[1.08]"
+                      />
+                    ) : (
+                      <div className="absolute inset-0" style={{ background: '#012e29' }} />
+                    )}
+
+                    {/* Base dark scrim for legibility */}
+                    <div aria-hidden className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-black/10" />
+                    {/* Colour wash at bottom matching accent */}
+                    <div aria-hidden className="absolute inset-0 bg-gradient-to-t from-[var(--ac-tint)] via-transparent to-transparent"
+                      style={{ '--ac-tint': ac.tint } as React.CSSProperties} />
+
+                    {/* ── Top-right count pill ── */}
+                    <div className="absolute top-2.5 right-2.5 z-10">
+                      <AttentionBlink active={blinkCounts}>
+                        <span className={[
+                          "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1",
+                          "bg-black/45 backdrop-blur-md ring-1 ring-white/20",
+                          "text-[11px] font-bold text-white tabular-nums",
                           countsLoading ? "animate-pulse" : "",
-                        ].join(" ")}
-                      >
-                        <span className="text-slate-600">Total</span>
-                        <span className="tabular-nums">{typeof count === "number" ? count.toLocaleString() : "—"}</span>
+                        ].join(" ")}>
+                          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                            style={{ background: ac.line, boxShadow: `0 0 6px ${ac.glow}` }} aria-hidden />
+                          {typeof count === "number" ? count.toLocaleString() : "—"}
+                        </span>
+                      </AttentionBlink>
+                    </div>
+
+                    {/* ── Slide-up hover CTA ── */}
+                    <div aria-hidden
+                      className="absolute inset-x-0 bottom-0 flex items-center justify-center pb-3
+                        translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100
+                        transition-all duration-400 ease-out z-10">
+                      <span className="inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-semibold text-white
+                        backdrop-blur-md ring-1 ring-white/35 shadow-lg"
+                        style={{ background: `linear-gradient(135deg, ${ac.line}cc, ${ac.line}88)` }}>
+                        Browse &rarr;
                       </span>
-                    </AttentionBlink>
-                  }
-                  topLeftSubBadge={
-                    <span className="inline-flex items-center rounded-full px-2.5 py-1 bg-gradient-to-r from-[#02665e]/95 via-emerald-600/90 to-teal-500/85 text-white text-xs font-semibold ring-1 ring-white/25 shadow-[0_10px_20px_rgba(2,102,94,0.20)] backdrop-blur-md">
-                      {c.title}
+                    </div>
+                  </div>
+
+                  {/* ── Footer strip ── */}
+                  <div className="bg-white px-3 py-2.5 flex items-center justify-between gap-2">
+                    <span className="text-[13px] font-bold text-slate-900 tracking-tight leading-none">{c.title}</span>
+                    {/* thin coloured accent dot + line */}
+                    <span aria-hidden className="flex items-center gap-1 flex-shrink-0">
+                      <span className="h-0.5 w-4 rounded-full" style={{ background: ac.line, opacity: 0.6 }} />
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: ac.line, boxShadow: `0 0 5px ${ac.glow}` }} />
                     </span>
-                  }
-                />
+                  </div>
+                </Link>
               );
             })}
           </div>
 
-          <div className="mt-10">
-            <SectionHeading
-              title="Featured Destinations"
-              variant="split"
-              subtitle="Cities with strong availability — designed for fast filtering and confident booking."
-              className="mt-0"
-            />
+          {/* ── Featured Destinations — departure-board / travel-ticker heading ── */}
+          <div className="mt-14 sm:mt-16 relative">
+
+            {/* Horizontal dashed separator — mimics a boarding-pass tear line */}
+            <div aria-hidden className="absolute top-1/2 inset-x-0 -translate-y-1/2 flex items-center gap-0 pointer-events-none select-none">
+              <div className="flex-1 border-t border-dashed border-slate-200" />
+              <span className="mx-3 w-2 h-2 rounded-full flex-shrink-0 bg-gradient-to-br from-[#02b4f5] to-[#02665e] shadow-[0_0_8px_rgba(2,180,245,0.55)]" />
+              <div className="flex-1 border-t border-dashed border-slate-200" />
+            </div>
+
+            {/* Main content sits above the dashed line */}
+            <div className="relative flex flex-col sm:flex-row sm:items-end sm:justify-between gap-5 sm:gap-10 bg-white/0">
+
+              {/* LEFT — staggered weight title */}
+              <div className="min-w-0">
+                {/* Step badge — different from Explore's numbered square */}
+                <div className="inline-flex items-center gap-2 mb-3">
+                  {/* Pill with location-pin dot */}
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-slate-300 px-3 py-1 text-[10px] font-bold tracking-[0.18em] uppercase text-slate-400">
+                    <svg className="w-2.5 h-2.5 text-[#02b4f5] flex-shrink-0" viewBox="0 0 10 13" fill="currentColor" aria-hidden>
+                      <path d="M5 0a5 5 0 0 0-5 5c0 3.5 5 8 5 8s5-4.5 5-8a5 5 0 0 0-5-5Zm0 7a2 2 0 1 1 0-4 2 2 0 0 1 0 4Z"/>
+                    </svg>
+                    East Africa
+                  </span>
+                </div>
+
+                {/* Two-line staggered title */}
+                <div className="leading-none">
+                  <div className="text-[clamp(28px,5.5vw,52px)] font-light tracking-tight text-slate-400 leading-[1.05]">
+                    Featured
+                  </div>
+                  <div className="text-[clamp(32px,6.5vw,64px)] font-black tracking-tight leading-[1] -mt-1"
+                    style={{ background: 'linear-gradient(100deg, #0c4a6e 0%, #02b4f5 45%, #02665e 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+                    Destinations
+                  </div>
+                </div>
+              </div>
+
+              {/* RIGHT — tag-style subtitle (like a luggage label) */}
+              <div className="flex-shrink-0 sm:max-w-[44ch] sm:pb-1">
+                <div className="relative rounded-2xl border border-dashed border-slate-200 px-4 py-3.5 bg-slate-50/70">
+                  {/* Corner notch decoration */}
+                  <span aria-hidden className="absolute -top-1.5 -right-1.5 w-3 h-3 rounded-full bg-white border border-dashed border-slate-300" />
+                  <span aria-hidden className="absolute -bottom-1.5 -left-1.5 w-3 h-3 rounded-full bg-white border border-dashed border-slate-300" />
+
+                  <p className="text-[13px] sm:text-sm leading-relaxed text-slate-500">
+                    Cities with strong availability —{" "}
+                    <span className="text-slate-800 font-semibold">designed for fast filtering and confident booking.</span>
+                  </p>
+
+                  {/* Airport-style meta row */}
+                  <div className="mt-3 flex items-center gap-3 text-[10px] font-bold tracking-[0.16em] uppercase text-slate-300">
+                    <span>EAF</span>
+                    <span className="h-px flex-1 bg-slate-200" aria-hidden />
+                    <span className="text-[#02b4f5]">Verified</span>
+                    <span className="h-px flex-1 bg-slate-200" aria-hidden />
+                    <span>Live now</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
             <div
-              className="mt-6"
+              className="mt-7"
               onMouseEnter={() => setFeaturedSlidePaused(true)}
               onMouseLeave={() => setFeaturedSlidePaused(false)}
               onFocus={() => setFeaturedSlidePaused(true)}
@@ -1822,84 +1666,93 @@ export default function Page() {
               <AnimatePresence mode="wait" initial={false}>
                 <motion.div
                   key={`featured-slide-${featuredSlide}`}
-                  initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: prefersReducedMotion ? 0 : -10 }}
-                  transition={{ duration: prefersReducedMotion ? 0 : 0.55, ease: "easeOut" }}
-                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: prefersReducedMotion ? 0 : 0.4, ease: "easeInOut" }}
+                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5"
                 >
                   {(featuredDestinationSlides[featuredSlide] || featuredDestinationSlides[0] || []).map((d, idx) => {
                     const href = `/public/properties?city=${encodeURIComponent(d.city)}&page=1`;
                     const total = featuredCityCounts[d.city];
-                    const accent =
-                      idx % 3 === 0
-                        ? "from-[#02b4f5]/18 via-white/8 to-[#02665e]/20"
-                        : idx % 3 === 1
-                          ? "from-[#02665e]/20 via-white/8 to-[#02b4f5]/16"
-                          : "from-white/14 via-[#02b4f5]/12 to-[#02665e]/18";
+
+                    // Each city gets a unique palette — no two adjacent cards share the same
+                    const palettes = [
+                      { from: '#0c4a6e', to: '#0369a1', glow: 'rgba(3,105,161,0.45)', line: '#38bdf8', tag: 'rgba(56,189,248,0.18)', tagText: '#7dd3fc', tagBorder: 'rgba(56,189,248,0.30)' },
+                      { from: '#134e4a', to: '#0f766e', glow: 'rgba(15,118,110,0.45)', line: '#2dd4bf', tag: 'rgba(45,212,191,0.18)', tagText: '#5eead4', tagBorder: 'rgba(45,212,191,0.30)' },
+                      { from: '#1e1b4b', to: '#3730a3', glow: 'rgba(55,48,163,0.45)', line: '#818cf8', tag: 'rgba(129,140,248,0.18)', tagText: '#a5b4fc', tagBorder: 'rgba(129,140,248,0.30)' },
+                      { from: '#3b0764', to: '#6b21a8', glow: 'rgba(107,33,168,0.45)', line: '#c084fc', tag: 'rgba(192,132,252,0.18)', tagText: '#d8b4fe', tagBorder: 'rgba(192,132,252,0.30)' },
+                    ];
+                    const p = palettes[idx % palettes.length];
 
                     return (
                       <Link
                         key={`${d.city}-${idx}`}
                         href={href}
-                        className={[
-                          "group/card relative rounded-[28px] p-[1px] no-underline",
-                          `bg-gradient-to-br ${accent}`,
-                          "shadow-[0_18px_55px_rgba(2,6,23,0.10)] ring-1 ring-white/30",
-                          "transition-all duration-300",
-                          "hover:shadow-[0_28px_80px_rgba(2,6,23,0.14)] hover:scale-[1.01]",
-                        ].join(" ")}
-                        aria-label={`View ${d.city}`}
+                        aria-label={`Browse stays in ${d.city}`}
+                        className="group/card relative block no-underline rounded-[24px] overflow-hidden
+                          transition-transform duration-500 ease-out
+                          hover:-translate-y-2"
+                        style={{ willChange: 'transform' }}
                       >
-                        <div className="relative h-64 overflow-hidden rounded-[27px] bg-gradient-to-b from-[#051b36] via-[#03152c] to-[#020b18] ring-1 ring-white/10">
-                          <div
-                            className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(2,180,245,0.18),transparent_56%),radial-gradient(circle_at_88%_82%,rgba(2,102,94,0.16),transparent_60%)]"
-                            aria-hidden
-                          />
-                          <div className="pointer-events-none absolute -right-10 -top-10 h-44 w-44 rounded-full bg-[#02b4f5]/18 blur-3xl" aria-hidden />
+                        {/* Card body */}
+                        <div className="relative h-full overflow-hidden rounded-[24px] ring-1 ring-white/12"
+                          style={{ background: `linear-gradient(160deg, ${p.from} 0%, ${p.to} 100%)`, boxShadow: `0 12px 40px ${p.glow}, 0 2px 0 rgba(255,255,255,0.08) inset` }}>
 
-                          {/* Right-side cyan arcs */}
-                          <div className="pointer-events-none absolute right-[-40px] top-[-10px] h-[120%] w-[180px] opacity-90" aria-hidden>
-                            <svg viewBox="0 0 220 280" className="h-full w-full" fill="none" xmlns="http://www.w3.org/2000/svg">
-                              <path d="M210 22C160 54 128 106 112 160c-16 56-16 92 10 112" stroke="#02b4f5" strokeWidth="10" strokeLinecap="round" opacity="0.85" />
-                              <path d="M210 62c-44 32-70 74-84 120-14 48-10 78 14 96" stroke="#ffffff" strokeWidth="6" strokeLinecap="round" opacity="0.55" />
-                              <path d="M210 100c-34 26-54 58-64 94-10 36-6 60 16 74" stroke="#02665e" strokeWidth="8" strokeLinecap="round" opacity="0.55" />
-                            </svg>
-                          </div>
+                          {/* Dot-grid texture */}
+                          <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.04]"
+                            style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.9) 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
 
-                          <div className="relative z-10 flex h-full flex-col justify-between p-6">
-                            <div className="flex items-center justify-between gap-3">
-                              <div className="inline-flex items-center gap-2 rounded-full bg-white/10 ring-1 ring-white/15 px-3 py-1.5 text-white/90 text-xs font-semibold">
+                          {/* Soft radial bloom top-right */}
+                          <div aria-hidden className="pointer-events-none absolute -top-16 -right-16 w-48 h-48 rounded-full opacity-25 blur-3xl"
+                            style={{ background: p.line }} />
+
+                          {/* Thin coloured left-edge accent bar */}
+                          <div aria-hidden className="absolute left-0 top-6 bottom-6 w-[3px] rounded-full opacity-60"
+                            style={{ background: `linear-gradient(to bottom, transparent, ${p.line}, transparent)` }} />
+
+                          <div className="relative z-10 flex flex-col gap-4 p-5 sm:p-6">
+
+                            {/* Row 1 — country + stays count */}
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold tracking-[0.12em] uppercase rounded-full px-2.5 py-1"
+                                style={{ background: p.tag, color: p.tagText, border: `1px solid ${p.tagBorder}` }}>
+                                <span className="w-1 h-1 rounded-full flex-shrink-0" style={{ background: p.line }} aria-hidden />
                                 {d.country}
-                              </div>
-                              <div className="inline-flex items-center gap-2 rounded-full bg-white/10 ring-1 ring-white/15 px-3 py-1.5 text-white/90 text-xs font-semibold">
+                              </span>
+
+                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-white/60">
                                 {featuredCitiesLoading ? (
-                                  <span className="inline-block h-3 w-10 rounded bg-white/20 animate-pulse" aria-hidden />
+                                  <span className="inline-block h-3 w-8 rounded bg-white/15 animate-pulse" aria-hidden />
                                 ) : (
-                                  <span className="tabular-nums">{typeof total === "number" ? total.toLocaleString() : "—"}</span>
+                                  <span className="tabular-nums font-bold text-white/90">{typeof total === "number" ? total.toLocaleString() : "—"}</span>
                                 )}
-                                <span className="text-white/75 font-medium">stays</span>
-                              </div>
+                                <span>stays</span>
+                              </span>
                             </div>
 
+                            {/* Row 2 — city name */}
                             <div>
-                              <div className="text-white font-bold text-2xl tracking-tight leading-tight">
+                              <h3 className="text-2xl sm:text-[26px] font-black tracking-tight leading-tight text-white">
                                 {d.city}
-                              </div>
-                              <div className="mt-2 text-white/75 text-sm leading-relaxed max-w-[40ch]">
+                              </h3>
+                              <p className="mt-2 text-[13px] leading-relaxed text-white/60 max-w-[34ch]">
                                 {d.tagline}
-                              </div>
-
-                              <div className="mt-4 flex items-center gap-2 flex-wrap">
-                                <span className="inline-flex items-center rounded-full bg-white/10 ring-1 ring-white/15 px-3 py-1.5 text-white/85 text-xs font-semibold">
-                                  Verified listings
-                                </span>
-                              </div>
+                              </p>
                             </div>
 
-                            <div className="flex items-center justify-end">
-                              <span className="inline-flex items-center rounded-full bg-white/12 border border-white/30 backdrop-blur-md p-2.5 text-white/95 shadow-[0_12px_28px_rgba(2,6,23,0.22)] transition-all duration-300 group-hover/card:bg-white/16 group-hover/card:border-white/40" aria-hidden>
-                                <ChevronRight className="h-4 w-4" />
+                            {/* Row 3 — bottom action row */}
+                            <div className="flex items-center justify-between mt-1 pt-4"
+                              style={{ borderTop: `1px solid rgba(255,255,255,0.09)` }}>
+                              <span className="text-[11px] font-semibold tracking-wide"
+                                style={{ color: p.tagText }}>
+                                Verified listings
+                              </span>
+                              <span className="inline-flex items-center justify-center w-7 h-7 rounded-full transition-all duration-300
+                                group-hover/card:scale-110"
+                                style={{ background: p.tag, border: `1px solid ${p.tagBorder}` }}
+                                aria-hidden>
+                                <ChevronRight className="w-3.5 h-3.5" style={{ color: p.tagText }} />
                               </span>
                             </div>
                           </div>
@@ -1910,7 +1763,6 @@ export default function Page() {
                 </motion.div>
               </AnimatePresence>
             </div>
-          </div>
 
           <div className="mt-12">
             <div className="relative overflow-hidden rounded-[32px] bg-gradient-to-br from-slate-950 via-slate-950 to-slate-900 ring-1 ring-white/10 shadow-[0_22px_70px_rgba(2,6,23,0.22)]">
@@ -1992,13 +1844,40 @@ export default function Page() {
               {/* very subtle grid */}
               <div className="pointer-events-none absolute inset-0 opacity-20 [background-image:linear-gradient(to_right,rgba(255,255,255,0.06)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.05)_1px,transparent_1px)] [background-size:46px_46px]" aria-hidden />
               <div className="relative p-6 sm:p-8 lg:p-10">
-                <SectionHeading
-                  title="Connected Services"
-                  variant="eyebrow"
-                  subtitle="An end‑to‑end travel flow — stays, transport, and experiences coordinated around your booking."
-                  tone="dark"
-                  className="mt-0"
-                />
+                {/* ── Connected Services heading — dark cinematic treatment ── */}
+                <div className="mb-8">
+                  {/* Top connector bar — node chain */}
+                  <div aria-hidden className="flex items-center gap-0 mb-5">
+                    <span className="w-2 h-2 rounded-full flex-shrink-0 bg-[#02b4f5] shadow-[0_0_10px_rgba(2,180,245,0.85)]" />
+                    <span className="h-px flex-1 bg-gradient-to-r from-[#02b4f5]/80 via-[#02b4f5]/30 to-transparent" />
+                    <span className="mx-1.5 w-1 h-1 rounded-full bg-white/25 flex-shrink-0" />
+                    <span className="h-px w-8 bg-white/10" />
+                    <span className="mx-1.5 w-1 h-1 rounded-full bg-white/15 flex-shrink-0" />
+                    <span className="h-px w-12 bg-white/8" />
+                  </div>
+
+                  {/* Label chip */}
+                  <div className="inline-flex items-center gap-2 rounded-full border border-dashed border-white/20 px-3 py-1 mb-4">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#02b4f5] shadow-[0_0_6px_rgba(2,180,245,0.9)]" aria-hidden />
+                    <span className="text-[10px] font-bold tracking-[0.20em] uppercase text-white/50">Platform overview</span>
+                  </div>
+
+                  {/* Main title — oversized, weight/colour contrast */}
+                  <h2 className="text-[clamp(28px,5vw,54px)] font-black leading-[1.0] tracking-tight">
+                    <span className="text-white/30 font-light">Connected</span>{" "}
+                    <span className="text-white">Services</span>
+                  </h2>
+
+                  {/* Glow underline accent */}
+                  <div aria-hidden className="mt-3 h-[3px] w-24 rounded-full"
+                    style={{ background: 'linear-gradient(90deg, #02b4f5, #02665e)', boxShadow: '0 0 14px rgba(2,180,245,0.55)' }} />
+
+                  {/* Subtitle — two-part split */}
+                  <p className="mt-4 text-[13px] sm:text-sm leading-relaxed max-w-[64ch]">
+                    <span className="text-white/40">An end‑to‑end travel flow — </span>
+                    <span className="text-white/75 font-medium">stays, transport, and experiences coordinated around your booking.</span>
+                  </p>
+                </div>
 
                 <div className="relative mt-6">
                   {/* wiring overlay (connectivity cue) */}
@@ -2172,7 +2051,7 @@ export default function Page() {
                     "group relative block rounded-[28px] p-[1px] no-underline",
                     "bg-gradient-to-br from-white/45 via-sky-400/16 to-emerald-500/14",
                     "shadow-[0_20px_70px_rgba(2,6,23,0.16)] ring-1 ring-white/45",
-                    "transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_32px_110px_rgba(2,6,23,0.22)] hover:scale-[1.012]",
+                    "transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_32px_110px_rgba(2,6,23,0.22)]",
                   ].join(" ")}
                   aria-label="Explore Group Stays"
                 >
@@ -2192,10 +2071,10 @@ export default function Page() {
                       <AnimatePresence mode="wait" initial={false}>
                         <motion.div
                           key={groupStaySlides[groupStaySlide]?.key}
-                          initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 12, scale: prefersReducedMotion ? 1 : 0.985 }}
-                          animate={{ opacity: 1, y: 0, scale: 1 }}
-                          exit={{ opacity: 0, y: prefersReducedMotion ? 0 : -12, scale: prefersReducedMotion ? 1 : 0.99 }}
-                          transition={prefersReducedMotion ? { duration: 0 } : { type: "spring", stiffness: 260, damping: 28, mass: 0.9 }}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: prefersReducedMotion ? 0 : 0.3, ease: 'easeInOut' }}
                         >
                           {(() => {
                             const s = groupStaySlides[groupStaySlide] || groupStaySlides[0];
@@ -2255,7 +2134,7 @@ export default function Page() {
 
                 {/* Card 2 (bottom) */}
                 <div
-                  className="group relative rounded-[28px] p-[1px] bg-gradient-to-br from-white/45 via-emerald-500/12 to-sky-400/16 shadow-[0_20px_70px_rgba(2,6,23,0.16)] ring-1 ring-white/45 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_32px_110px_rgba(2,6,23,0.22)] hover:scale-[1.012]"
+                  className="group relative rounded-[28px] p-[1px] bg-gradient-to-br from-white/45 via-emerald-500/12 to-sky-400/16 shadow-[0_20px_70px_rgba(2,6,23,0.16)] ring-1 ring-white/45 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_32px_110px_rgba(2,6,23,0.22)]"
                   onMouseEnter={() => setConnectedServicesPaused(true)}
                   onMouseLeave={() => setConnectedServicesPaused(false)}
                   onFocus={() => setConnectedServicesPaused(true)}
@@ -2271,10 +2150,10 @@ export default function Page() {
                       <AnimatePresence mode="wait" initial={false}>
                         <motion.div
                           key={connectedSlides[connectedSlide]?.key}
-                          initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 12, scale: prefersReducedMotion ? 1 : 0.985 }}
-                          animate={{ opacity: 1, y: 0, scale: 1 }}
-                          exit={{ opacity: 0, y: prefersReducedMotion ? 0 : -12, scale: prefersReducedMotion ? 1 : 0.99 }}
-                          transition={prefersReducedMotion ? { duration: 0 } : { type: "spring", stiffness: 260, damping: 28, mass: 0.9 }}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: prefersReducedMotion ? 0 : 0.3, ease: 'easeInOut' }}
                         >
                           {(() => {
                             const s = connectedSlides[connectedSlide] || connectedSlides[0];
@@ -2356,25 +2235,76 @@ export default function Page() {
       </div>
     </div>
 
-          <div className="mt-12">
-            <div className="relative overflow-hidden rounded-3xl border border-white/70 bg-white/70 backdrop-blur-xl ring-1 ring-slate-200/70 shadow-[0_18px_55px_rgba(2,6,23,0.08)]">
-              <div
-                className="pointer-events-none absolute inset-0 opacity-60 bg-[radial-gradient(circle_at_16%_18%,rgba(2,180,245,0.16),transparent_50%),radial-gradient(circle_at_86%_82%,rgba(2,102,94,0.12),transparent_52%)]"
-                aria-hidden
-              />
-              <div
-                className="pointer-events-none absolute inset-x-0 top-0 h-24 opacity-55 bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.78)_48%,rgba(255,255,255,0.30)_52%,transparent_100%)]"
-                aria-hidden
-              />
-              <div className="relative px-5 py-5 sm:px-6">
-                <SectionHeading
-                  title="Explore Tourism by Country"
-                  variant="compact"
-                  subtitle="Choose a country to see major and minor tourist sites — then book verified stays and coordinate transport in one flow."
-                  className="mt-0"
-                />
+          {/* ── Explore Tourism by Country — atlas / geography heading ── */}
+          <div className="mt-12 relative overflow-hidden rounded-3xl">
+            {/* Background: warm off-white with a faint world-grid pattern */}
+            <div aria-hidden className="absolute inset-0 bg-gradient-to-br from-amber-50/80 via-white to-orange-50/50" />
+            <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.04]"
+              style={{ backgroundImage: 'linear-gradient(rgba(0,0,0,1) 1px,transparent 1px),linear-gradient(90deg,rgba(0,0,0,1) 1px,transparent 1px)', backgroundSize: '48px 48px' }} />
+
+            {/* Ghost coordinate numbers — atlas feel */}
+            <div aria-hidden className="pointer-events-none select-none absolute top-2 left-4 text-[10px] font-mono text-slate-300 leading-4">
+              {['3°S', '6°S', '9°S'].map(l => <div key={l}>{l}</div>)}
+            </div>
+            <div aria-hidden className="pointer-events-none select-none absolute top-2 right-4 text-[10px] font-mono text-slate-300 leading-4 text-right">
+              {['33°E', '36°E', '39°E'].map(l => <div key={l}>{l}</div>)}
+            </div>
+
+            {/* Top amber accent line */}
+            <div aria-hidden className="absolute top-0 inset-x-0 h-[3px] bg-gradient-to-r from-transparent via-amber-400/60 to-transparent" />
+
+            <div className="relative z-10 px-6 py-6 sm:px-8 sm:py-7 flex flex-col sm:flex-row sm:items-center gap-6">
+
+              {/* LEFT — title block */}
+              <div className="min-w-0 flex-1">
+                {/* Step tag — roman numeral style */}
+                <div className="inline-flex items-center gap-2 mb-3">
+                  <span className="text-[10px] font-black tracking-[0.22em] uppercase text-amber-500/80">III</span>
+                  <span className="h-px w-8 bg-amber-300/60" aria-hidden />
+                  <span className="text-[10px] font-bold tracking-[0.18em] uppercase text-slate-400">Regional Focus</span>
+                </div>
+
+                {/* Two-weight title */}
+                <h2 className="text-[clamp(22px,4vw,42px)] leading-tight tracking-tight">
+                  <span className="font-black text-slate-900">Explore </span>
+                  <span className="font-light text-slate-500">Tourism </span>
+                  <span className="font-black" style={{ background: 'linear-gradient(100deg,#b45309,#d97706,#f59e0b)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>by Country</span>
+                </h2>
+
+                {/* Subtitle with inline path arrow */}
+                <p className="mt-3 text-[13px] sm:text-sm leading-relaxed text-slate-500 max-w-[60ch]">
+                  Choose a country to see major and minor tourist sites —
+                  {" "}<span className="inline-flex items-center gap-1 font-semibold text-slate-700">
+                    then book verified stays
+                    <svg className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" viewBox="0 0 14 14" fill="none" aria-hidden>
+                      <path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </span>
+                  {" "}and coordinate transport in one flow.
+                </p>
+              </div>
+
+              {/* RIGHT — three country colour bars */}
+              <div className="flex-shrink-0 flex flex-row sm:flex-col gap-2 sm:gap-2 sm:items-end">
+                {[
+                  { name: 'Tanzania', colors: ['#1eb53a','#fcd116','#00a3dd','#000000'] },
+                  { name: 'Kenya',    colors: ['#006600','#cc0001','#ffffff','#000000'] },
+                  { name: 'Uganda',   colors: ['#000000','#fcdc04','#da121a'] },
+                ].map(c => (
+                  <div key={c.name} className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold tracking-wide text-slate-400 hidden sm:block w-12 text-right">{c.name}</span>
+                    <div className="flex rounded-full overflow-hidden h-2 w-16 sm:w-20">
+                      {c.colors.map((col, i) => (
+                        <div key={i} className="flex-1 h-full" style={{ background: col }} />
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
+
+            {/* Bottom amber rule */}
+            <div aria-hidden className="absolute bottom-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-amber-200 to-transparent" />
           </div>
           <div className="mt-6">
             <div
@@ -2395,36 +2325,123 @@ export default function Page() {
             <BookingFlowCard />
           </div>
 
-          <SectionHeading
-            title="Our story"
-            variant="eyebrow"
-            subtitle="How NoLSAF was built — and the standards we hold ourselves to."
-            className="mt-12"
-          />
+          {/* ── Our story — chapter / memoir heading ── */}
+          <div className="mt-12 relative">
+            {/* Faint ruled-paper lines behind the heading */}
+            <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl"
+              style={{ backgroundImage: 'repeating-linear-gradient(transparent,transparent 27px,rgba(203,213,225,0.35) 27px,rgba(203,213,225,0.35) 28px)', backgroundSize: '100% 28px' }} />
+            <div className="relative z-10 px-1 py-2">
+              {/* Title with italic contrast */}
+              <h2 className="text-[clamp(28px,5vw,56px)] leading-none tracking-tight">
+                <em className="not-italic font-light text-slate-400">Our </em>
+                <span className="font-black text-slate-900" style={{ letterSpacing: '-0.03em' }}>story</span>
+              </h2>
+              {/* Ink-stroke underline */}
+              <div aria-hidden className="mt-2 h-[3px] w-24 rounded-full" style={{ background: 'linear-gradient(90deg,#fb7185,#f43f5e,transparent)' }} />
+              {/* Subtitle as pull-quote */}
+              <p className="mt-4 text-[13px] sm:text-sm text-slate-500 max-w-[55ch] border-l-2 border-rose-200 pl-4 italic">
+                How NoLSAF was built and the standards we hold ourselves to.
+              </p>
+            </div>
+          </div>
           <FounderStory />
 
-          <SectionHeading
-            title="What people say"
-            variant="split"
-            subtitle="Feedback from travelers and operators — focused on what matters most."
-            className="mt-12"
-          />
+          {/* ── What people say — quotation / voice heading ── */}
+          <div className="mt-14 relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 px-6 py-7 sm:px-10">
+            {/* Giant decorative opening quote */}
+            <div aria-hidden className="pointer-events-none select-none absolute -top-4 -left-2 text-[160px] font-black leading-none text-sky-500/10" style={{ fontFamily: 'Georgia, serif' }}>&ldquo;</div>
+            {/* Closing quote bottom-right */}
+            <div aria-hidden className="pointer-events-none select-none absolute -bottom-10 right-4 text-[160px] font-black leading-none text-sky-500/10" style={{ fontFamily: 'Georgia, serif' }}>&rdquo;</div>
+            {/* Top rule */}
+            <div aria-hidden className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-sky-400/50 to-transparent" />
+            <div className="relative z-10 flex flex-col sm:flex-row sm:items-end gap-4">
+              <div className="flex-1">
+                {/* Eyebrow */}
+                <div className="flex items-center gap-2 mb-3">
+                  {[1,2,3].map(i => <span key={i} className="w-1.5 h-1.5 rounded-full bg-sky-400/60" />)}
+                  <span className="text-[10px] font-bold tracking-[0.22em] uppercase text-sky-400/70 ml-1">Voices</span>
+                </div>
+                {/* Title */}
+                <h2 className="text-[clamp(24px,4.5vw,50px)] leading-tight">
+                  <span className="font-light text-white/50">What people </span>
+                  <span className="font-black" style={{ color: '#02665e' }}>say</span>
+                </h2>
+              </div>
+              {/* Subtitle pill on the right */}
+              <div className="flex-shrink-0 max-w-[280px] rounded-xl border border-white/10 bg-white/5 px-4 py-3">
+                <p className="text-[12px] text-white/50 leading-relaxed">
+                  Feedback from travelers and operators — focused on what matters most.
+                </p>
+              </div>
+            </div>
+          </div>
           <Testimonials hideTitle />
 
-          <SectionHeading
-            title="Trusted by"
-            variant="compact"
-            subtitle="Organizations that trust NoLSAF for reliable bookings and operations."
-            className="mt-12"
-          />
+          {/* ── Trusted by — authority / institutional heading ── */}
+          <div className="mt-14 relative overflow-hidden">
+            {/* Gold horizontal band */}
+            <div aria-hidden className="absolute inset-y-0 left-0 w-1 rounded-r-full bg-gradient-to-b from-yellow-300 via-amber-400 to-yellow-300" />
+            <div className="pl-6 py-1">
+              {/* Top row: shield icon + spaced label */}
+              <div className="flex items-center gap-3 mb-2">
+                <svg className="w-4 h-4 text-amber-400 flex-shrink-0" viewBox="0 0 16 16" fill="none" aria-hidden>
+                  <path d="M8 1.5L2 4v4c0 3.31 2.55 6.21 6 6.93C11.45 14.21 14 11.31 14 8V4L8 1.5z" fill="currentColor" fillOpacity="0.2" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
+                  <path d="M5.5 8l1.75 1.75L10.5 6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                <span className="text-[10px] font-black tracking-[0.28em] uppercase text-amber-500/80">Verified Partners</span>
+                <span className="h-px flex-1 max-w-[60px] bg-amber-200/50" aria-hidden />
+              </div>
+              {/* Title */}
+              <h2 className="text-[clamp(24px,4.5vw,50px)] leading-tight tracking-tight">
+                <span className="font-black text-slate-900">Trusted </span>
+                <span className="font-light text-slate-400">by</span>
+              </h2>
+              {/* Dotted rule */}
+              <div aria-hidden className="mt-2.5 flex gap-1">
+                {Array.from({length: 16}).map((_,i) => <span key={i} className="w-1.5 h-1.5 rounded-full bg-amber-200/70" />)}
+              </div>
+              {/* Subtitle */}
+              <p className="mt-3 text-[13px] sm:text-sm text-slate-500 max-w-[55ch]">
+                Organizations that trust NoLSAF for reliable bookings and operations.
+              </p>
+            </div>
+          </div>
           <TrustedBySectionWithData />
 
-          <SectionHeading
-            title="Latest updates"
-            variant="eyebrow"
-            subtitle="New features and improvements — shipping steadily."
-            className="mt-12"
-          />
+          {/* ── Latest updates — changelog / terminal heading ── */}
+          <div className="mt-14 relative overflow-hidden rounded-2xl border border-slate-200/80 bg-gradient-to-r from-slate-50 to-emerald-50/40">
+            {/* Scan-line texture */}
+            <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.025]"
+              style={{ backgroundImage: 'repeating-linear-gradient(0deg,rgba(0,0,0,1) 0px,rgba(0,0,0,1) 1px,transparent 1px,transparent 3px)' }} />
+            {/* Green accent top bar */}
+            <div aria-hidden className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-emerald-400/70 to-transparent" />
+            <div className="relative z-10 px-6 py-6 sm:px-8 flex flex-col sm:flex-row sm:items-center gap-5">
+              <div className="flex-1">
+                {/* Terminal-style label */}
+                <div className="inline-flex items-center gap-2 rounded-md border border-emerald-200/80 bg-emerald-50 px-3 py-1 mb-3">
+                  {/* Pulse dot */}
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
+                  </span>
+                  <span className="text-[10px] font-mono font-bold tracking-widest text-emerald-700 uppercase">Changelog</span>
+                </div>
+                {/* Title */}
+                <h2 className="text-[clamp(22px,4vw,44px)] leading-tight tracking-tight">
+                  <span className="font-black text-slate-900">Latest </span>
+                  <span className="font-light" style={{ background: 'linear-gradient(100deg,#059669,#10b981)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>updates</span>
+                </h2>
+              </div>
+              {/* Right: version tag */}
+              <div className="flex-shrink-0 font-mono text-right">
+                <div className="text-[10px] text-slate-400 tracking-wider">NOLSAF</div>
+                <div className="text-[11px] font-bold text-emerald-600 tracking-wider">EAST AFRICA</div>
+                <p className="mt-1.5 text-[11px] text-slate-400 max-w-[200px] text-right font-sans">
+                  Verified stays, integrated transport & group travel — built for every traveller.
+                </p>
+              </div>
+            </div>
+          </div>
           <LatestUpdate hideTitle />
         </div>
       </section>

@@ -332,7 +332,6 @@ export default function PublicFooter({ withRail = true }: { withRail?: boolean }
                   {[
                     { href: "/about/who", label: "Who are we" },
                     { href: "/about/what", label: "What we do" },
-                    { href: "/about/why", label: "Why us" },
                     { href: "/about/story", label: "Our Best Story" },
                   ].map((item) => (
                     <li key={item.href}>

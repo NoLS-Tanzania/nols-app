@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import CountryTourismSiteList, { type TourismSite } from "@/components/CountryTourismSiteList";
 import CountryFiltersRow from "@/components/CountryFiltersRow";
@@ -32,7 +32,7 @@ const COUNTRY_TOURISM: Record<string, CountryTourism> = {
     subtitle: "Safaris, parks, mountains, and islands",
     hero: {
       title: "Plan your Tanzania trip by park",
-      body: "Choose a park, then review approved stays inside or nearby. NoLSAF keeps booking, payment, and transport coordinated end‑to‑end.",
+      body: "Choose a park, then review approved stays inside or nearby. NoLSAF keeps booking, payment, and transport coordinated endâ€‘toâ€‘end.",
     },
     highlights: [
       { src: "/assets/Mount Kilimanjaro.jpg", alt: "Mount Kilimanjaro" },
@@ -93,7 +93,7 @@ const COUNTRY_TOURISM: Record<string, CountryTourism> = {
     subtitle: "Big Five safaris, lakes, and coast",
     hero: {
       title: "Explore Kenya with confidence",
-      body: "Pick your safari regions or coastal escape — then book stays, plan transport, and keep your trip coordinated from one place.",
+      body: "Pick your safari regions or coastal escape â€” then book stays, plan transport, and keep your trip coordinated from one place.",
     },
     highlights: [
       { src: "/assets/Big Five.jpg", alt: "Big Five" },
@@ -102,7 +102,7 @@ const COUNTRY_TOURISM: Record<string, CountryTourism> = {
     major: [
       { slug: "maasai-mara", name: "Maasai Mara", note: "World-class safari and seasonal wildebeest migration.", imageSrc: "/assets/Great Migration.jpg", imageAlt: "Great Migration", details: ["Pick lodging that matches your game drive plans."] },
       { slug: "amboseli-national-park", name: "Amboseli National Park", note: "Elephants with dramatic Mount Kilimanjaro views.", imageSrc: "/assets/Mount Kilimanjaro.jpg", imageAlt: "Mount Kilimanjaro view", details: ["Great for short safaris and photo trips."] },
-      { slug: "tsavo", name: "Tsavo (East & West)", note: "One of Kenya’s largest park systems for classic game drives.", imageSrc: "/assets/Big Five.jpg", imageAlt: "Safari wildlife", details: ["Ideal for road-trip style itineraries."] },
+      { slug: "tsavo", name: "Tsavo (East & West)", note: "One of Kenyaâ€™s largest park systems for classic game drives.", imageSrc: "/assets/Big Five.jpg", imageAlt: "Safari wildlife", details: ["Ideal for road-trip style itineraries."] },
       { slug: "diani-beach", name: "Diani Beach", note: "Top beach destination with excursions and water activities.", imageSrc: "/assets/Toursite.jpeg", imageAlt: "Coastal travel", details: ["Combine beach stays with day tours."] },
       { slug: "nairobi-national-park", name: "Nairobi (city + Nairobi National Park)", note: "Gateway hub with a unique park near the city.", imageSrc: "/assets/Lion in the Jangle.jpg", imageAlt: "Wildlife", details: ["Useful for arrivals, departures, and short stays."] },
     ],
@@ -111,7 +111,7 @@ const COUNTRY_TOURISM: Record<string, CountryTourism> = {
       { slug: "samburu", name: "Samburu", note: "Distinct northern scenery and unique wildlife species.", details: ["Strong for travelers seeking something different."] },
       { slug: "mount-kenya", name: "Mount Kenya", note: "Hiking, scenic viewpoints, and highland stays.", details: ["Match your stay to your trail plan."] },
       { slug: "lamu", name: "Lamu", note: "Culture, history, and slow-travel coastal atmosphere.", details: ["Perfect for calm, cultural coastal trips."] },
-      { slug: "hells-gate", name: "Hell’s Gate", note: "Gorges, cycling routes, and day-trip adventures.", details: ["Easy add-on near Naivasha."] },
+      { slug: "hells-gate", name: "Hells Gate", note: "Gorges, cycling routes, and day-trip adventures.", details: ["Easy add-on near Naivasha."] },
     ],
   },
 
@@ -120,8 +120,8 @@ const COUNTRY_TOURISM: Record<string, CountryTourism> = {
     name: "Uganda",
     subtitle: "Gorillas, waterfalls, lakes, and forests",
     hero: {
-      title: "Know what you’re booking in Uganda",
-      body: "See key tourist sites by country — then choose verified stays nearby and coordinate transport for a smoother, safer trip.",
+      title: "Know what youre booking in Uganda",
+      body: "See key tourist sites by country â€” then choose verified stays nearby and coordinate transport for a smoother, safer trip.",
     },
     highlights: [{ src: "/assets/Lion in the Jangle.jpg", alt: "Wildlife" }],
     major: [
@@ -215,7 +215,7 @@ export default async function CountryTourismPage({
             <div className="rounded-[31px] bg-white/75 backdrop-blur-xl border border-white/70 p-6 sm:p-8">
               <div className="text-slate-900 text-2xl sm:text-3xl font-semibold tracking-tight">Country page not available yet</div>
               <div className="mt-2 text-slate-600 text-sm sm:text-base leading-relaxed max-w-[78ch]">
-                We couldn’t find details for <span className="font-semibold text-slate-900">{decoded || raw || "this country"}</span>.
+                We couldnâ€™t find details for <span className="font-semibold text-slate-900">{decoded || raw || "this country"}</span>.
                 Choose an option below, or pick one of the available countries to explore tourism sites.
               </div>
 
@@ -270,65 +270,125 @@ export default async function CountryTourismPage({
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-white/55" />
       </div>
       <section className="public-container py-8 sm:py-10">
-        <div className="flex items-center justify-between gap-4">
-          <Link
-            href="/public"
-            className="inline-flex items-center gap-2 rounded-full bg-slate-900/90 text-white px-4 py-2 text-sm font-semibold no-underline hover:no-underline shadow-sm"
+
+        {/* ── hero card ─────────────────────────────────── */}
+        <div className="relative overflow-hidden rounded-[28px] shadow-[0_28px_80px_rgba(2,6,23,0.28)]">
+          {/* flag color bar */}
+          <div
+            className="h-[5px] w-full flex-shrink-0"
+            style={{
+              background:
+                data.id === 'tanzania'
+                  ? 'linear-gradient(90deg,#1C8B3C 25%,#F7D100 25%,#F7D100 50%,#1a1a1a 50%,#1a1a1a 75%,#00A3DD 75%)'
+                  : data.id === 'kenya'
+                    ? 'linear-gradient(90deg,#006600 25%,#cc0000 25%,#cc0000 50%,#1a1a1a 50%,#1a1a1a 75%,#fff 75%)'
+                    : data.id === 'uganda'
+                      ? 'linear-gradient(90deg,#000 25%,#FCDC04 25%,#FCDC04 50%,#D90000 50%,#D90000 75%,#000 75%)'
+                      : 'linear-gradient(90deg,#02665e,#024d47)',
+            }}
+          />
+
+          {/* dark card body */}
+          <div
+            className="relative px-6 py-10 sm:px-12 sm:py-14"
+            style={{ background: 'linear-gradient(135deg,#02665e 0%,#024d47 55%,#021f1c 100%)' }}
           >
-            <ChevronRight className="h-4 w-4 rotate-180" aria-hidden />
-            Back
-          </Link>
+            {/* back button — top-left overlay */}
+            <Link
+              href="/public"
+              className="absolute top-4 left-4 inline-flex items-center gap-1 rounded-full bg-white/15 ring-1 ring-white/25 text-white/80 px-3 py-1.5 text-xs font-semibold no-underline hover:no-underline motion-safe:transition hover:bg-white/22 z-10"
+            >
+              <ChevronRight className="h-3 w-3 rotate-180" aria-hidden />
+              Back
+            </Link>
 
-          <div className="hidden sm:flex items-center gap-2 rounded-full bg-emerald-700/10 ring-1 ring-emerald-700/20 px-4 py-2 text-emerald-900 text-xs font-semibold backdrop-blur">
-            {data.name}
-            <span className="text-emerald-800/50">•</span>
-            {data.subtitle}
-          </div>
-        </div>
+            {/* dot-grid texture */}
+            <div
+              className="pointer-events-none absolute inset-0 opacity-[0.07]"
+              aria-hidden
+              style={{
+                backgroundImage: 'radial-gradient(circle,rgba(255,255,255,0.9) 1px,transparent 1px)',
+                backgroundSize: '22px 22px',
+              }}
+            />
 
-        <div className="mt-6 relative overflow-hidden rounded-[32px] p-[1px] bg-gradient-to-br from-white/70 via-emerald-200/25 to-teal-200/25 shadow-[0_22px_70px_rgba(2,6,23,0.10)] ring-1 ring-white/60">
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/35 via-transparent to-emerald-200/20" aria-hidden />
-          <div className="relative rounded-[31px] bg-white/75 backdrop-blur-xl border border-white/70 p-6 sm:p-8">
-            <div className="text-center max-w-[78ch] mx-auto">
-              <div className="text-slate-900 text-3xl sm:text-4xl font-bold tracking-tight leading-tight">
+            {/* ghost country code */}
+            <div
+              className="pointer-events-none absolute right-4 bottom-2 text-[120px] sm:text-[180px] font-black leading-none select-none"
+              aria-hidden
+              style={{ color: 'rgba(255,255,255,0.04)', fontFamily: 'serif', lineHeight: 1 }}
+            >
+              {data.id === 'tanzania' ? 'TZ' : data.id === 'kenya' ? 'KE' : data.id === 'uganda' ? 'UG' : data.name.slice(0, 2).toUpperCase()}
+            </div>
+
+            {/* content */}
+            <div className="relative max-w-[62ch] mx-auto text-center">
+
+              {/* country / subtitle pill */}
+              <div className="inline-flex items-center gap-2 rounded-full bg-white/10 ring-1 ring-white/20 px-4 py-1.5 mb-6">
+                <span className="text-[11px] font-bold tracking-[0.12em] uppercase text-white">{data.name}</span>
+                <span className="text-white/30 text-xs">•</span>
+                <span className="text-[11px] font-normal text-white/60">{data.subtitle}</span>
+              </div>
+
+              {/* headline */}
+              <h1 className="text-white text-3xl sm:text-[2.6rem] font-extrabold tracking-tight leading-tight">
                 {data.hero.title}
-              </div>
-              <div className="mt-2 text-slate-600 text-sm sm:text-base leading-relaxed">
+              </h1>
+
+              {/* body */}
+              <p className="mt-3 text-white/65 text-sm sm:text-base leading-relaxed">
                 {data.hero.body}
+              </p>
+
+              {/* 3-step flow */}
+              <div className="mt-8 flex items-start justify-center">
+                {[
+                  { num: '01', label: 'Choose a park' },
+                  { num: '02', label: 'Shortlist stays' },
+                  { num: '03', label: 'Book + coordinate transport' },
+                ].map((step, i) => (
+                  <div key={step.num} className="flex items-start">
+                    <div className="flex flex-col items-center text-center w-28 sm:w-32">
+                      <div
+                        className="flex items-center justify-center w-10 h-10 rounded-full text-[13px] font-bold text-white ring-1 ring-white/30"
+                        style={{ background: 'rgba(255,255,255,0.13)' }}
+                      >
+                        {step.num}
+                      </div>
+                      <div className="mt-2 text-[11px] sm:text-xs font-medium text-white/65 leading-snug px-1">
+                        {step.label}
+                      </div>
+                    </div>
+                    {i < 2 && (
+                      <div
+                        className="mt-5 h-px bg-white/20 flex-shrink-0"
+                        style={{ width: 36 }}
+                      />
+                    )}
+                  </div>
+                ))}
               </div>
 
-              <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-[12px] sm:text-[13px] font-medium text-slate-600">
-                <span className="inline-flex items-center">Choose a park</span>
-                <span className="text-slate-300" aria-hidden>
-                  |
-                </span>
-                <span className="inline-flex items-center">Shortlist stays</span>
-                <span className="text-slate-300" aria-hidden>
-                  |
-                </span>
-                <span className="inline-flex items-center">Book + coordinate transport</span>
-              </div>
-
-              <div className="mt-6 w-full max-w-[78ch] mx-auto">
-                <div className="grid grid-cols-2 gap-2">
+              {/* CTA buttons */}
+              <div className="mt-9 flex flex-col sm:flex-row items-center justify-center gap-3">
                 <Link
                   href={`/public/properties?country=${encodeURIComponent(data.id)}&page=1`}
                   className={
-                    `min-w-0 w-full h-11 inline-flex items-center justify-center rounded-xl px-3 py-0 text-sm font-semibold no-underline hover:no-underline border border-slate-200/70 shadow-none motion-safe:transition ` +
+                    `inline-flex items-center justify-center rounded-full px-8 h-11 text-sm font-bold no-underline hover:no-underline shadow-[0_8px_28px_rgba(0,0,0,0.30)] motion-safe:transition ` +
                     (heroCtaGradient
                       ? `text-white ${heroCtaGradient}`
-                      : "text-white bg-emerald-700 motion-safe:transition-colors hover:bg-emerald-700/95")
+                      : 'text-[#02665e] bg-white hover:bg-white/95')
                   }
                 >
-                  <span className="min-w-0 truncate whitespace-nowrap">Accommodation only</span>
+                  Accommodation only
                 </Link>
                 <Link
                   href={`/public/plan-with-us?country=${encodeURIComponent(data.id)}`}
-                  className="min-w-0 w-full h-11 inline-flex items-center justify-center rounded-xl bg-white/75 border border-slate-200/70 px-3 sm:px-4 py-0 text-slate-900 text-sm font-semibold no-underline hover:no-underline motion-safe:transition hover:bg-white/90 hover:border-slate-300/70"
+                  className="inline-flex items-center justify-center rounded-full px-8 h-11 bg-white/12 ring-1 ring-white/30 text-white text-sm font-semibold no-underline hover:no-underline motion-safe:transition hover:bg-white/18"
                 >
-                  <span className="min-w-0 truncate whitespace-nowrap">Full tour package</span>
+                  Full tour package
                 </Link>
-                </div>
               </div>
             </div>
           </div>
@@ -351,8 +411,12 @@ export default async function CountryTourismPage({
           const basePath = `/public/countries/${encodeURIComponent(data.id)}`;
 
           return (
-            <div className="mt-6 max-w-[78ch] mx-auto">
-              <div className="rounded-2xl border border-slate-200/70 bg-white/80 backdrop-blur-md p-3 sm:p-4">
+            <div className="mt-5">
+              <div className="rounded-2xl border border-slate-200/60 bg-white/90 backdrop-blur-md shadow-[0_4px_18px_rgba(2,6,23,0.06)] px-4 py-4 sm:px-5">
+                <div className="mb-3 flex items-center gap-2">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: '#02665e' }} />
+                  <span className="text-[10px] font-bold tracking-[0.12em] uppercase text-slate-400">Filter parks &amp; zones</span>
+                </div>
                 <CountryFiltersRow
                   basePath={basePath}
                   hasZones={Boolean(hasZones)}
@@ -375,8 +439,6 @@ export default async function CountryTourismPage({
             return true;
           };
 
-          // If a specific park/site is selected, hide all other lists
-          // and show the selected park expanded with a wider properties grid.
           if (siteFilter && selectedSites.length) {
             return (
               <div className="mt-8">
@@ -442,67 +504,85 @@ export default async function CountryTourismPage({
           );
         })()}
 
-        <div className="mt-8 rounded-[32px] p-[1px] bg-gradient-to-br from-white/70 via-emerald-200/22 to-teal-200/22 ring-1 ring-white/60 shadow-[0_18px_55px_rgba(2,6,23,0.10)]">
-          <div className="rounded-[31px] bg-white/75 backdrop-blur-xl border border-white/70 p-6 sm:p-10">
-            <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-              <div className="min-w-0">
-                <div className="text-slate-900 text-2xl sm:text-3xl font-semibold tracking-tight">
-                  The NoLSAF advantage
-                </div>
-                <div className="mt-2 text-slate-600 text-sm sm:text-base leading-relaxed max-w-[78ch]">
-                  A tourism trip is only smooth when stays, transport, and verification work together. NoLSAF connects the steps so you don’t have to piece everything together.
-                </div>
-              </div>
+        {/* ── NoLSAF advantage ─────────────────────────────────── */}
+        <div className="mt-10 overflow-hidden rounded-[24px] bg-white border border-slate-100 shadow-[0_8px_40px_rgba(2,6,23,0.10)]">
 
-              <div className="grid grid-cols-2 gap-2 sm:gap-3 md:flex md:flex-wrap md:justify-end">
-                <Link
-                  href={`/public/properties?country=${encodeURIComponent(data.id)}&page=1`}
-                  className="h-11 w-full md:w-auto inline-flex items-center justify-center rounded-full bg-emerald-700 text-white px-6 text-sm font-semibold no-underline hover:no-underline shadow-[0_14px_32px_rgba(2,6,23,0.14)]"
-                >
-                  Start booking
-                </Link>
-                <Link
-                  href="/public/group-stays"
-                  className="h-11 w-full md:w-auto inline-flex items-center justify-center rounded-full bg-white/70 ring-1 ring-slate-200/70 px-6 text-slate-900 text-sm font-semibold no-underline hover:no-underline"
-                >
-                  Group stays
-                </Link>
+          {/* rainbow top strip */}
+          <div className="h-[5px] w-full grid grid-cols-3">
+            <div style={{ background: '#02665e' }} />
+            <div style={{ background: '#10b981' }} />
+            <div style={{ background: '#02b4f5' }} />
+          </div>
+
+          {/* header area */}
+          <div className="px-6 pt-8 pb-6 sm:px-10 sm:pt-10 flex flex-col md:flex-row md:items-start md:justify-between gap-6">
+            <div className="min-w-0">
+              <div className="inline-flex items-center gap-2 rounded-full px-3 py-1 mb-4" style={{ background: 'rgba(2,102,94,0.08)' }}>
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#02665e' }} />
+                <span className="text-[10px] font-bold tracking-[0.15em] uppercase" style={{ color: '#02665e' }}>Why NoLSAF</span>
               </div>
+              <h2 className="text-slate-900 text-2xl sm:text-[2rem] font-extrabold tracking-tight leading-snug">
+                The{' '}
+                <span style={{ color: '#02665e' }}>NoLSAF</span>
+                {' '}advantage
+              </h2>
+              <p className="mt-3 text-slate-500 text-sm sm:text-base leading-relaxed max-w-[54ch]">
+                A tourism trip is only smooth when stays, transport, and verification work together. NoLSAF connects the steps so you don&apos;t have to piece everything together.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3 shrink-0 md:pt-2">
+              <Link
+                href={`/public/properties?country=${encodeURIComponent(data.id)}&page=1`}
+                className="inline-flex items-center justify-center rounded-full px-7 h-11 text-sm font-bold no-underline hover:no-underline shadow-[0_6px_20px_rgba(2,102,94,0.28)] motion-safe:transition hover:opacity-90 text-white"
+                style={{ background: '#02665e' }}
+              >
+                Start booking
+              </Link>
+              <Link
+                href="/public/group-stays"
+                className="inline-flex items-center justify-center rounded-full px-7 h-11 bg-white border border-slate-200 text-slate-800 text-sm font-semibold no-underline hover:no-underline motion-safe:transition hover:border-slate-300 hover:bg-slate-50"
+              >
+                Group stays
+              </Link>
+            </div>
+          </div>
+
+          {/* divider */}
+          <div className="mx-6 sm:mx-10 border-t border-slate-100" />
+
+          {/* benefit tiles */}
+          <div className="px-4 pt-5 pb-6 sm:px-6 sm:pb-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+
+            {/* tile 1 — emerald */}
+            <div className="relative overflow-hidden rounded-2xl p-5 flex flex-col gap-3" style={{ background: 'linear-gradient(135deg,#f0fdf8 0%,#dcfce7 100%)' }}>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-black shadow-sm" style={{ background: '#02665e' }}>
+                01
+              </div>
+              <div className="text-slate-900 font-bold tracking-tight">Verified stays</div>
+              <p className="text-[13px] text-slate-500 leading-relaxed">Book listings with clearer details so you can match location to your itinerary.</p>
+              <div className="pointer-events-none absolute -bottom-4 -right-4 w-20 h-20 rounded-full opacity-30" style={{ background: '#02665e' }} />
             </div>
 
-            <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4 md:gap-5">
-              {[
-                {
-                  title: "Verified stays",
-                  body: "Book listings with clearer details so you can match location to your itinerary.",
-                },
-                {
-                  title: "Coordinated transport",
-                  body: "Add pickup and move from booking to arrival with confirmation steps.",
-                },
-                {
-                  title: "Secure payments + support",
-                  body: "Pay with trusted methods and get assistance when you need it.",
-                },
-              ].map((b) => (
-                <div
-                  key={b.title}
-                  className={[
-                    "h-full rounded-3xl overflow-hidden",
-                    "bg-gradient-to-b from-white/80 via-white/60 to-slate-50/40",
-                    "ring-1 ring-slate-200/70 shadow-sm",
-                    "p-6",
-                    "motion-safe:transition motion-safe:duration-200",
-                    "hover:shadow-md hover:ring-slate-300/70",
-                  ].join(" ")}
-                >
-                  <div className="flex flex-col gap-2">
-                    <div className="text-slate-900 font-semibold tracking-tight">{b.title}</div>
-                    <div className="text-sm text-slate-600 leading-relaxed">{b.body}</div>
-                  </div>
-                </div>
-              ))}
+            {/* tile 2 — sky */}
+            <div className="relative overflow-hidden rounded-2xl p-5 flex flex-col gap-3" style={{ background: 'linear-gradient(135deg,#f0f9ff 0%,#e0f2fe 100%)' }}>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-black shadow-sm" style={{ background: '#0284c7' }}>
+                02
+              </div>
+              <div className="text-slate-900 font-bold tracking-tight">Coordinated transport</div>
+              <p className="text-[13px] text-slate-500 leading-relaxed">Add pickup and move from booking to arrival with confirmation steps.</p>
+              <div className="pointer-events-none absolute -bottom-4 -right-4 w-20 h-20 rounded-full opacity-25" style={{ background: '#0284c7' }} />
             </div>
+
+            {/* tile 3 — amber */}
+            <div className="relative overflow-hidden rounded-2xl p-5 flex flex-col gap-3" style={{ background: 'linear-gradient(135deg,#fffbeb 0%,#fef3c7 100%)' }}>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-black shadow-sm" style={{ background: '#b45309' }}>
+                03
+              </div>
+              <div className="text-slate-900 font-bold tracking-tight">Secure payments + support</div>
+              <p className="text-[13px] text-slate-500 leading-relaxed">Pay with trusted methods and get assistance when you need it.</p>
+              <div className="pointer-events-none absolute -bottom-4 -right-4 w-20 h-20 rounded-full opacity-25" style={{ background: '#b45309' }} />
+            </div>
+
           </div>
         </div>
       </section>

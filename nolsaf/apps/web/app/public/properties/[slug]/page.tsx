@@ -74,7 +74,6 @@ import {
   Minus,
 } from "lucide-react";
 import LogoSpinner from "@/components/LogoSpinner";
-import VerifiedIcon from "../../../../components/VerifiedIcon";
 import DatePicker from "../../../../components/ui/DatePicker";
 import { PropertyVisualizationPreview } from "@/app/(owner)/owner/properties/add/_components/PropertyVisualizationPreview";
 import { 
@@ -1732,293 +1731,275 @@ export default function PublicPropertyDetailPage() {
   return (
     <main className="min-h-screen bg-white text-slate-900 header-offset">
       <div className="public-container py-8">
-        <div className="flex items-center justify-start gap-3">
-          <button
-            type="button"
-            onClick={() => router.back()}
-            className="group relative inline-flex items-center justify-center w-10 h-10 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-colors"
-            aria-label="Back"
-          >
-            <ChevronLeft className="w-5 h-5" />
-            <span className="absolute left-full ml-2 px-2 py-1 text-xs font-medium text-white bg-slate-900 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 group-active:opacity-100 pointer-events-none transition-opacity">
-            Back
-            </span>
-          </button>
-        </div>
 
-        {/* Title */}
-        <div className="mt-5">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex-1 min-w-0">
-              <h1 className="mt-2 text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">{property.title}</h1>
-              <div className="mt-2 flex items-center gap-2 text-sm text-slate-700">
-                <MapPin className="w-4 h-4" />
-                <span className="truncate">{location || "—"}</span>
-              </div>
-            </div>
-            {/* Favorite & Share Buttons */}
-            <div className="flex items-center gap-2 mt-2 flex-shrink-0">
-              <button
-                type="button"
-                onClick={async () => {
-                  if (!property?.id || favoriteLoading) return;
-                  setFavoriteLoading(true);
-                  try {
-                    if (isFavorite) {
-                      // Unsave
-                      const res = await fetch(`/api/customer/saved-properties/${property.id}`, {
-                        method: "DELETE",
-                        credentials: "include",
-                      });
-                      if (res.ok) {
-                        setIsFavorite(false);
-                      } else {
-                        const json = await res.json().catch(() => ({}));
-                        if (json.error?.includes("not found")) {
-                          setIsFavorite(false);
-                        } else {
-                          alert(json.error || "Failed to remove from saved list. Please try again.");
-                        }
-                      }
-                    } else {
-                      // Save
-                      const propertyId = Number(property.id);
-                      if (!propertyId || isNaN(propertyId)) {
-                        alert("Invalid property ID");
-                        setFavoriteLoading(false);
-                        return;
-                      }
-                      const res = await fetch(`/api/customer/saved-properties`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        credentials: "include",
-                        body: JSON.stringify({ propertyId }),
-                      });
-                      const json = await res.json().catch(() => ({}));
-                      if (res.ok) {
-                        setIsFavorite(true);
-                      } else if (res.status === 401 || res.status === 403) {
-                        // Not logged in - redirect to login
-                        alert("Please log in to save properties");
-                        router.push(`/login?next=${encodeURIComponent(window.location.pathname)}`);
-                      } else {
-                        const errorMsg = json.error || json.message || "Failed to save property. Please try again.";
-                        alert(errorMsg);
-                      }
-                    }
-                  } catch (e: any) {
-                    alert("Network error. Please check your connection and try again.");
-                  } finally {
-                    setFavoriteLoading(false);
-                  }
-                }}
-                disabled={favoriteLoading}
-                className={[
-                  "inline-flex items-center justify-center w-10 h-10 rounded-lg border",
-                  "transition-all duration-300 ease-in-out",
-                  "hover:scale-110 active:scale-95",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30 focus-visible:ring-offset-2",
-                  "disabled:opacity-50 disabled:cursor-not-allowed",
-                  isFavorite
-                    ? "bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-100 hover:border-rose-300 hover:shadow-md"
-                    : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 hover:shadow-sm",
-                ].join(" ")}
-                aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
-                title={isFavorite ? "Remove from favorites" : "Save property"}
-              >
-                {favoriteLoading ? (
-                  <LogoSpinner size="sm" ariaLabel="Saving" />
-                ) : (
-                  <Heart className={`w-5 h-5 transition-all duration-300 ${isFavorite ? "fill-current scale-110" : "scale-100"}`} />
-                )}
-              </button>
-              <div className="relative">
+        {/* ── Property header card ── */}
+        <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-white border border-slate-100 shadow-[0_4px_24px_rgba(2,102,94,0.10)]">
+
+          {/* Teal gradient top accent bar */}
+          <div className="h-1.5 w-full" style={{ background: 'linear-gradient(90deg,#02665e 0%,#02b4f5 50%,#02665e 100%)' }} />
+
+          <div className="relative px-5 sm:px-8 pt-5 sm:pt-6 pb-6 sm:pb-7">
+
+            {/* Subtle radial tint */}
+            <div className="pointer-events-none absolute inset-0" style={{ background: 'radial-gradient(ellipse 80% 60% at 100% 0%,rgba(2,180,245,0.05),transparent 65%)' }} aria-hidden />
+
+            <div className="relative z-10">
+
+              {/* Top row: Back pill + action buttons */}
+              <div className="flex items-center justify-between gap-3 mb-5">
                 <button
                   type="button"
-                  onClick={() => setShowShareMenu(!showShareMenu)}
-                  className={[
-                    "inline-flex items-center justify-center w-10 h-10 rounded-lg border border-slate-200 bg-white text-slate-600",
-                    "transition-all duration-300 ease-in-out",
-                    "hover:bg-slate-50 hover:border-slate-300 hover:shadow-sm hover:scale-110",
-                    "active:scale-95",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30 focus-visible:ring-offset-2",
-                    showShareMenu ? "bg-slate-50 border-slate-300 shadow-sm" : "",
-                  ].join(" ")}
-                  aria-label="Share property"
-                  title="Share property"
+                  onClick={() => router.back()}
+                  className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/20"
+                  style={{ color: '#02665e', background: 'rgba(2,102,94,0.07)', border: '1px solid rgba(2,102,94,0.15)' }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(2,102,94,0.13)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(2,102,94,0.07)')}
+                  aria-label="Back"
                 >
-                  <Share2 className={`w-5 h-5 transition-transform duration-300 ${showShareMenu ? "rotate-12" : ""}`} />
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  Back
                 </button>
-                {showShareMenu && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm transition-opacity duration-200"
-                      onClick={() => setShowShareMenu(false)}
-                    />
-                    <div
-                      className="absolute right-0 top-full mt-2 w-56 max-w-none rounded-2xl border border-slate-200/60 bg-white/95 backdrop-blur-xl shadow-2xl ring-1 ring-black/5 z-50 overflow-hidden transform transition-all duration-200 origin-top-right"
-                      style={{ maxWidth: "none" }}
-                    >
-                      <div className="p-3 grid gap-2">
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          const url = window.location.href;
-                          navigator.clipboard.writeText(url).then(() => {
-                            setCopyLinkSuccess(true);
-                            setTimeout(() => setCopyLinkSuccess(false), 2000);
+
+                {/* Favorite + Share */}
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!property?.id || favoriteLoading) return;
+                      setFavoriteLoading(true);
+                      try {
+                        if (isFavorite) {
+                          const res = await fetch(`/api/customer/saved-properties/${property.id}`, {
+                            method: "DELETE",
+                            credentials: "include",
                           });
-                          setShowShareMenu(false);
-                          // Mark as shared if property is saved
-                          if (property?.id && isFavorite) {
-                            try {
-                              await fetch(`/api/customer/saved-properties/${property.id}/share`, {
-                                method: "POST",
-                                credentials: "include",
-                              });
-                            } catch (e) {
-                              // Silently fail
+                          if (res.ok) {
+                            setIsFavorite(false);
+                          } else {
+                            const json = await res.json().catch(() => ({}));
+                            if (json.error?.includes("not found")) {
+                              setIsFavorite(false);
+                            } else {
+                              alert(json.error || "Failed to remove from saved list. Please try again.");
                             }
                           }
-                        }}
-                        className="group w-full flex items-center gap-3 rounded-xl border border-slate-200/70 bg-slate-50/80 px-3 py-2.5 text-sm font-medium text-slate-800 transition-colors duration-200 hover:bg-slate-100/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30"
-                      >
-                        <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-black/5">
-                          <Copy className={`w-4 h-4 flex-shrink-0 transition-colors duration-200 ${copyLinkSuccess ? "text-[#02665e]" : "text-slate-600"}`} />
-                        </span>
-                        <span className={copyLinkSuccess ? "font-semibold text-[#02665e]" : ""}>
-                          {copyLinkSuccess ? "Link copied!" : "Copy link"}
-                        </span>
-                      </button>
-                      <a
-                        href={`mailto:?subject=${encodeURIComponent(property.title)}&body=${encodeURIComponent(window.location.href)}`}
-                        onClick={async () => {
-                          setShowShareMenu(false);
-                          // Mark as shared if property is saved
-                          if (property?.id && isFavorite) {
-                            try {
-                              await fetch(`/api/customer/saved-properties/${property.id}/share`, {
-                                method: "POST",
-                                credentials: "include",
-                              });
-                            } catch (e) {
-                              // Silently fail
-                            }
+                        } else {
+                          const propertyId = Number(property.id);
+                          if (!propertyId || isNaN(propertyId)) {
+                            alert("Invalid property ID");
+                            setFavoriteLoading(false);
+                            return;
                           }
-                        }}
-                        className="group w-full flex items-center gap-3 rounded-xl border border-amber-200/60 bg-amber-50/70 px-3 py-2.5 text-sm font-medium text-amber-900 transition-colors duration-200 hover:bg-amber-100/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30 no-underline"
-                      >
-                        <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-amber-900/10">
-                          <Mail className="w-4 h-4 flex-shrink-0 text-amber-700 transition-colors duration-200" />
-                        </span>
-                        <span>Email</span>
-                      </a>
-                      <a
-                        href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={async () => {
-                          setShowShareMenu(false);
-                          // Mark as shared if property is saved
-                          if (property?.id && isFavorite) {
-                            try {
-                              await fetch(`/api/customer/saved-properties/${property.id}/share`, {
-                                method: "POST",
-                                credentials: "include",
-                              });
-                            } catch (e) {
-                              // Silently fail
-                            }
+                          const res = await fetch(`/api/customer/saved-properties`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            credentials: "include",
+                            body: JSON.stringify({ propertyId }),
+                          });
+                          const json = await res.json().catch(() => ({}));
+                          if (res.ok) {
+                            setIsFavorite(true);
+                          } else if (res.status === 401 || res.status === 403) {
+                            alert("Please log in to save properties");
+                            router.push(`/login?next=${encodeURIComponent(window.location.pathname)}`);
+                          } else {
+                            const errorMsg = json.error || json.message || "Failed to save property. Please try again.";
+                            alert(errorMsg);
                           }
-                        }}
-                        className="group w-full flex items-center gap-3 rounded-xl border border-blue-200/60 bg-blue-50/70 px-3 py-2.5 text-sm font-medium text-blue-900 transition-colors duration-200 hover:bg-blue-100/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30 no-underline"
-                      >
-                        <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-blue-900/10">
-                          <Facebook className="w-4 h-4 flex-shrink-0 text-blue-700 transition-colors duration-200" />
-                        </span>
-                        <span>Facebook</span>
-                      </a>
-                      <a
-                        href={`https://wa.me/?text=${encodeURIComponent(`${property.title} - ${window.location.href}`)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={async () => {
-                          setShowShareMenu(false);
-                          // Mark as shared if property is saved
-                          if (property?.id && isFavorite) {
-                            try {
-                              await fetch(`/api/customer/saved-properties/${property.id}/share`, {
-                                method: "POST",
-                                credentials: "include",
+                        }
+                      } catch (e: any) {
+                        alert("Network error. Please check your connection and try again.");
+                      } finally {
+                        setFavoriteLoading(false);
+                      }
+                    }}
+                    disabled={favoriteLoading}
+                    className="inline-flex items-center justify-center w-9 h-9 rounded-full transition-all duration-200 hover:scale-110 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{
+                      background: isFavorite ? 'rgba(244,63,94,0.10)' : 'rgba(2,102,94,0.07)',
+                      border: isFavorite ? '1px solid rgba(244,63,94,0.25)' : '1px solid rgba(2,102,94,0.15)',
+                      color: isFavorite ? '#e11d48' : '#64748b',
+                    }}
+                    aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
+                  >
+                    {favoriteLoading ? (
+                      <LogoSpinner size="sm" ariaLabel="Saving" />
+                    ) : (
+                      <Heart className={`w-4 h-4 transition-all duration-300 ${isFavorite ? "fill-current scale-110" : "scale-100"}`} />
+                    )}
+                  </button>
+
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setShowShareMenu(!showShareMenu)}
+                      className="inline-flex items-center justify-center w-9 h-9 rounded-full transition-all duration-200 hover:scale-110 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/20"
+                      style={{
+                        background: showShareMenu ? 'rgba(2,102,94,0.12)' : 'rgba(2,102,94,0.07)',
+                        border: '1px solid rgba(2,102,94,0.15)',
+                        color: '#02665e',
+                      }}
+                      aria-label="Share property"
+                    >
+                      <Share2 className={`w-4 h-4 transition-transform duration-300 ${showShareMenu ? "rotate-12" : ""}`} />
+                    </button>
+                    {showShareMenu && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm transition-opacity duration-200"
+                          onClick={() => setShowShareMenu(false)}
+                        />
+                        <div
+                          className="absolute right-0 top-full mt-2 w-56 max-w-none rounded-2xl border border-slate-200/60 bg-white/95 backdrop-blur-xl shadow-2xl ring-1 ring-black/5 z-50 overflow-hidden transform transition-all duration-200 origin-top-right"
+                          style={{ maxWidth: "none" }}
+                        >
+                          <div className="p-3 grid gap-2">
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const url = window.location.href;
+                              navigator.clipboard.writeText(url).then(() => {
+                                setCopyLinkSuccess(true);
+                                setTimeout(() => setCopyLinkSuccess(false), 2000);
                               });
-                            } catch (e) {
-                              // Silently fail
-                            }
-                          }
-                        }}
-                        className="group w-full flex items-center gap-3 rounded-xl border border-emerald-200/60 bg-emerald-50/70 px-3 py-2.5 text-sm font-medium text-emerald-900 transition-colors duration-200 hover:bg-emerald-100/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30 no-underline"
-                      >
-                        <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-emerald-900/10">
-                          <MessageSquare className="w-4 h-4 flex-shrink-0 text-emerald-700 transition-colors duration-200" />
-                        </span>
-                        <span>WhatsApp</span>
-                      </a>
-                      <a
-                        href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(window.location.href)}&text=${encodeURIComponent(property.title)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={async () => {
-                          setShowShareMenu(false);
-                          // Mark as shared if property is saved
-                          if (property?.id && isFavorite) {
-                            try {
-                              await fetch(`/api/customer/saved-properties/${property.id}/share`, {
-                                method: "POST",
-                                credentials: "include",
-                              });
-                            } catch (e) {
-                              // Silently fail
-                            }
-                          }
-                        }}
-                        className="group w-full flex items-center gap-3 rounded-xl border border-sky-200/60 bg-sky-50/70 px-3 py-2.5 text-sm font-medium text-sky-900 transition-colors duration-200 hover:bg-sky-100/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30 no-underline"
-                      >
-                        <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-sky-900/10">
-                          <Twitter className="w-4 h-4 flex-shrink-0 text-sky-700 transition-colors duration-200" />
-                        </span>
-                        <span>Twitter</span>
-                      </a>
-                      </div>
-                    </div>
-                  </>
+                              setShowShareMenu(false);
+                              if (property?.id && isFavorite) {
+                                try {
+                                  await fetch(`/api/customer/saved-properties/${property.id}/share`, {
+                                    method: "POST",
+                                    credentials: "include",
+                                  });
+                                } catch (e) { /* Silently fail */ }
+                              }
+                            }}
+                            className="group w-full flex items-center gap-3 rounded-xl border border-slate-200/70 bg-slate-50/80 px-3 py-2.5 text-sm font-medium text-slate-800 transition-colors duration-200 hover:bg-slate-100/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30"
+                          >
+                            <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-black/5">
+                              <Copy className={`w-4 h-4 flex-shrink-0 transition-colors duration-200 ${copyLinkSuccess ? "text-[#02665e]" : "text-slate-600"}`} />
+                            </span>
+                            <span className={copyLinkSuccess ? "font-semibold text-[#02665e]" : ""}>{copyLinkSuccess ? "Link copied!" : "Copy link"}</span>
+                          </button>
+                          <a
+                            href={`mailto:?subject=${encodeURIComponent(property.title)}&body=${encodeURIComponent(window.location.href)}`}
+                            onClick={async () => {
+                              setShowShareMenu(false);
+                              if (property?.id && isFavorite) {
+                                try {
+                                  await fetch(`/api/customer/saved-properties/${property.id}/share`, { method: "POST", credentials: "include" });
+                                } catch (e) { /* Silently fail */ }
+                              }
+                            }}
+                            className="group w-full flex items-center gap-3 rounded-xl border border-amber-200/60 bg-amber-50/70 px-3 py-2.5 text-sm font-medium text-amber-900 transition-colors duration-200 hover:bg-amber-100/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30 no-underline"
+                          >
+                            <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-amber-900/10">
+                              <Mail className="w-4 h-4 flex-shrink-0 text-amber-700 transition-colors duration-200" />
+                            </span>
+                            <span>Email</span>
+                          </a>
+                          <a
+                            href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}`}
+                            target="_blank" rel="noopener noreferrer"
+                            onClick={async () => {
+                              setShowShareMenu(false);
+                              if (property?.id && isFavorite) {
+                                try {
+                                  await fetch(`/api/customer/saved-properties/${property.id}/share`, { method: "POST", credentials: "include" });
+                                } catch (e) { /* Silently fail */ }
+                              }
+                            }}
+                            className="group w-full flex items-center gap-3 rounded-xl border border-blue-200/60 bg-blue-50/70 px-3 py-2.5 text-sm font-medium text-blue-900 transition-colors duration-200 hover:bg-blue-100/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30 no-underline"
+                          >
+                            <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-blue-900/10">
+                              <Facebook className="w-4 h-4 flex-shrink-0 text-blue-700 transition-colors duration-200" />
+                            </span>
+                            <span>Facebook</span>
+                          </a>
+                          <a
+                            href={`https://wa.me/?text=${encodeURIComponent(`${property.title} - ${window.location.href}`)}`}
+                            target="_blank" rel="noopener noreferrer"
+                            onClick={async () => {
+                              setShowShareMenu(false);
+                              if (property?.id && isFavorite) {
+                                try {
+                                  await fetch(`/api/customer/saved-properties/${property.id}/share`, { method: "POST", credentials: "include" });
+                                } catch (e) { /* Silently fail */ }
+                              }
+                            }}
+                            className="group w-full flex items-center gap-3 rounded-xl border border-emerald-200/60 bg-emerald-50/70 px-3 py-2.5 text-sm font-medium text-emerald-900 transition-colors duration-200 hover:bg-emerald-100/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30 no-underline"
+                          >
+                            <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-emerald-900/10">
+                              <MessageSquare className="w-4 h-4 flex-shrink-0 text-emerald-700 transition-colors duration-200" />
+                            </span>
+                            <span>WhatsApp</span>
+                          </a>
+                          <a
+                            href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(window.location.href)}&text=${encodeURIComponent(property.title)}`}
+                            target="_blank" rel="noopener noreferrer"
+                            onClick={async () => {
+                              setShowShareMenu(false);
+                              if (property?.id && isFavorite) {
+                                try {
+                                  await fetch(`/api/customer/saved-properties/${property.id}/share`, { method: "POST", credentials: "include" });
+                                } catch (e) { /* Silently fail */ }
+                              }
+                            }}
+                            className="group w-full flex items-center gap-3 rounded-xl border border-sky-200/60 bg-sky-50/70 px-3 py-2.5 text-sm font-medium text-sky-900 transition-colors duration-200 hover:bg-sky-100/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30 no-underline"
+                          >
+                            <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-sky-900/10">
+                              <Twitter className="w-4 h-4 flex-shrink-0 text-sky-700 transition-colors duration-200" />
+                            </span>
+                            <span>Twitter</span>
+                          </a>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Title + location */}
+              <div className="mb-5">
+                <p className="text-[10px] sm:text-xs font-bold tracking-[0.20em] uppercase mb-2" style={{ color: '#02665e' }}>
+                  Property
+                </p>
+                <h1 className="text-3xl sm:text-4xl lg:text-[2.75rem] font-bold tracking-tight leading-[1.1] text-slate-900">
+                  {property.title}
+                </h1>
+                {location && (
+                  <div className="mt-2.5 flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 flex-shrink-0 text-slate-400" />
+                    <span className="text-sm font-medium text-slate-500 truncate">{location}</span>
+                  </div>
                 )}
               </div>
-            </div>
-          </div>
 
-          {/* Verified by NoLSAF statement (anti-fraud) */}
-          <div className="mt-3 relative overflow-hidden rounded-xl border border-emerald-200/60 bg-gradient-to-br from-emerald-50 via-emerald-50/95 to-teal-50/80 p-3 shadow-sm">
-            <div className="flex items-start gap-3 pr-12">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <div className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-emerald-600 to-emerald-700 text-white shadow-sm shadow-emerald-600/30 flex-shrink-0">
-                    <CheckCircle className="w-4 h-4" strokeWidth={2.5} />
+              {/* Verified by NoLSAF strip */}
+              <div className="flex items-center justify-between gap-3 rounded-xl px-4 py-3" style={{ background: 'rgba(2,102,94,0.05)', border: '1px solid rgba(2,102,94,0.12)' }}>
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="inline-flex h-7 w-7 items-center justify-center rounded-full flex-shrink-0" style={{ background: 'linear-gradient(135deg,#10b981,#059669)', boxShadow: '0 3px 8px rgba(16,185,129,0.30)' }}>
+                    <CheckCircle className="w-4 h-4 text-white" strokeWidth={2.5} />
                   </div>
-                  <h3 className="text-sm font-bold text-emerald-900 leading-tight">Verified by NoLSAF</h3>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-slate-800 leading-tight">Verified by NoLSAF</p>
+                    <p className="text-[11px] mt-0.5 text-slate-500 leading-relaxed">
+                      Physical site visit · location &amp; documentation review
+                    </p>
+                  </div>
                 </div>
-                <div className="text-xs text-emerald-900 leading-relaxed pl-9">
-                  This property was verified through <strong className="font-semibold text-emerald-900">physical site visitation</strong>, location validation, and documentation review. We do this to ensure authenticity and protect you from fraud and misleading listings{" "}
-                  (<Link href="/verification-policy" className="text-emerald-700 hover:text-emerald-900 font-medium underline underline-offset-2">
-                    visit our Verification Policy
-                  </Link>
-                  ).
-                </div>
+                <Link
+                  href="/verification-policy"
+                  className="flex-shrink-0 text-[11px] font-semibold whitespace-nowrap no-underline hover:underline"
+                  style={{ color: '#02665e' }}
+                >
+                  Learn more
+                </Link>
               </div>
-            </div>
 
-            <VerifiedIcon href={`/public/properties/${property.slug}`} ariaLabel="Verified — view details" />
+            </div>
           </div>
         </div>
+
 
         {/* Gallery */}
         <div className="mt-6">
@@ -2401,14 +2382,37 @@ export default function PublicPropertyDetailPage() {
 
         {/* Building visualization (owner-declared) */}
         {property.roomsSpec && property.roomsSpec.length > 0 && (
-          <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5">
-            <div className="flex items-center gap-2">
-              <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#02665e]/10 text-[#02665e]">
-                <Building2 className="w-5 h-5" aria-hidden />
-              </span>
-              <h2 className="text-lg font-semibold text-slate-900">Building layout</h2>
-            </div>
-            <div className="mt-4">
+          <div className="mt-6 relative overflow-hidden rounded-[28px] sm:rounded-[36px] p-[1px] shadow-[0_20px_60px_rgba(2,102,94,0.18)]"
+            style={{ background: 'linear-gradient(135deg,rgba(2,102,94,0.70) 0%,rgba(2,180,245,0.35) 50%,rgba(2,102,94,0.60) 100%)' }}>
+            <div className="relative overflow-hidden rounded-[27px] sm:rounded-[35px]"
+              style={{ background: 'linear-gradient(140deg,#012e29 0%,#013530 55%,#01241f 100%)' }}>
+
+              {/* Ambient glows */}
+              <div className="pointer-events-none absolute -top-20 -right-20 w-72 h-72 rounded-full" style={{ background: 'radial-gradient(circle,rgba(2,180,245,0.16) 0%,transparent 65%)' }} aria-hidden />
+              <div className="pointer-events-none absolute -bottom-16 -left-16 w-60 h-60 rounded-full" style={{ background: 'radial-gradient(circle,rgba(2,102,94,0.14) 0%,transparent 65%)' }} aria-hidden />
+
+              {/* Header */}
+              <div className="relative z-10 flex items-center justify-between gap-3 px-6 sm:px-8 pt-6 pb-5 border-b" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
+                <div className="flex items-center gap-3">
+                  <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl flex-shrink-0"
+                    style={{ background: 'rgba(2,180,245,0.12)', border: '1px solid rgba(2,180,245,0.22)' }}>
+                    <Building2 className="w-5 h-5" style={{ color: '#02b4f5' }} aria-hidden />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold tracking-[0.18em] uppercase" style={{ color: '#02b4f5' }}>Property Structure</p>
+                    <h2 className="text-base sm:text-lg font-bold text-white leading-tight">Building Layout</h2>
+                  </div>
+                </div>
+                <div className="hidden sm:flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold"
+                  style={{ color: 'rgba(255,255,255,0.55)', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}>
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
+                  Owner-declared
+                </div>
+              </div>
+
+              {/* Visualization body — white surface for the interactive floor plan */}
+              <div className="relative z-10 mx-5 sm:mx-7 my-5 rounded-2xl overflow-hidden bg-white shadow-[0_8px_32px_rgba(0,0,0,0.22)]">
+            <div className="p-4 sm:p-5">
               {(() => {
                 const roomsSpec = Array.isArray(property.roomsSpec) ? property.roomsSpec : [];
                 const explicitFloors = typeof property.totalFloors === "number" ? property.totalFloors : null;
@@ -2467,6 +2471,8 @@ export default function PublicPropertyDetailPage() {
                   />
                 );
               })()}
+            </div>
+              </div>
             </div>
           </div>
         )}

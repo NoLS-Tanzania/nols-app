@@ -24,9 +24,9 @@
     "yargs": "^18.0.0"
   },
   "scripts": {
-    "dev": "pnpm --filter @nolsaf/web predev && concurrently -n api,web -c green,cyan \"pnpm --filter @nolsaf/api dev\" \"pnpm --filter @nolsaf/web dev\"",
+    "dev": "npm --workspace=@nolsaf/web run predev && concurrently -n api,web -c green,cyan \"npm --workspace=@nolsaf/api run dev\" \"npm --workspace=@nolsaf/web run dev\"",
     "dev:flow": "powershell -NoProfile -ExecutionPolicy Bypass -File start-dev.ps1",
-    "dev:npm": "concurrently -n api,web -c green,cyan \"npm:dev --workspace=@nolsaf/api\" \"npm:dev --workspace=@nolsaf/web\"",
+    "dev:npm": "npm --workspace=@nolsaf/web run predev && concurrently -n api,web -c green,cyan \"npm --workspace=@nolsaf/api run dev\" \"npm --workspace=@nolsaf/web run dev\"",
     "build": "npm run --workspaces --if-present build",
     "lint": "npm run --workspaces --if-present lint",
     "typecheck": "npm run --workspaces --if-present typecheck",

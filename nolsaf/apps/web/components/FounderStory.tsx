@@ -47,14 +47,30 @@ export default function FounderStory({ imageSrc = '/assets/Founder.jpg' }: Props
                 <h3 className="mt-3 text-xl sm:text-2xl font-semibold tracking-tight text-slate-900">Founder’s statement</h3>
 
                 <p className="mt-3 text-sm sm:text-[15px] text-slate-700 leading-relaxed">
-                  NoLSAF offers curated verified comprehensive accommodations that provide our customers with budgetary freedom. We collaborate with reliable local partners and offer integrated payment options, all combined with single-click bookings, transport, and logistics. This enables both local and international visitors to easily plan safe and affordable trips, enjoying the freedom of choice in their travel experiences.
+                  NoLSAF offers curated verified comprehensive accommodations that provide our customers with budgetary freedom. We collaborate with reliable local partners and offer integrated payment options, all combined with single-click bookings, transport, and tourism. This enables both local and international visitors to easily plan safe and affordable trips, enjoying the freedom of choice in their travel experiences.
                 </p>
 
-                <blockquote className="mt-5 rounded-2xl border border-white/70 bg-white/60 backdrop-blur px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] ring-1 ring-slate-200/70">
-                  <div className="text-[11px] font-semibold tracking-wide text-slate-500 uppercase">In one line</div>
-                  <p className="mt-2 italic text-sm sm:text-[15px] text-slate-700 leading-relaxed">
-                    We believe that everyone deserves an easy and friendly way to travel, explore, and connect with new cultures through a single platform that offers comprehensive, end-to-end service.
-                  </p>
+                <blockquote className="mt-5 relative overflow-hidden rounded-2xl px-5 py-5" style={{ background: 'linear-gradient(135deg,#02665e,#024d47)' }}>
+                  {/* Giant decorative quote */}
+                  <div aria-hidden className="pointer-events-none select-none absolute -top-5 -left-1 text-[120px] font-black leading-none" style={{ color: 'rgba(255,255,255,0.07)', fontFamily: 'Georgia, serif' }}>&ldquo;</div>
+                  {/* Subtle dot-grid texture */}
+                  <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.06]" style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,1) 1px, transparent 1px)', backgroundSize: '18px 18px' }} />
+                  {/* Top shimmer line */}
+                  <div aria-hidden className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+                  <div className="relative z-10">
+                    {/* Label row */}
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="h-px w-5 bg-white/30" aria-hidden />
+                      <span className="text-[10px] font-black tracking-[0.28em] uppercase text-white/50">In one line</span>
+                      <span className="h-px flex-1 bg-white/10" aria-hidden />
+                    </div>
+                    {/* Quote text */}
+                    <p className="italic text-sm sm:text-[15px] leading-relaxed text-white/90 font-light">
+                      We believe that everyone deserves an easy and friendly way to travel, explore, and connect with new cultures through a single platform that offers comprehensive, end-to-end service.
+                    </p>
+                  </div>
+                  {/* Bottom shimmer line */}
+                  <div aria-hidden className="absolute bottom-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
                 </blockquote>
 
                 {/* Story shown in full per design */}

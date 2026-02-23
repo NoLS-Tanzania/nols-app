@@ -24,7 +24,15 @@ function FooterPolicyItem({
     "motion-reduce:transition-none";
 
   return (
-    <Link href={href} className={className}>
+    <Link
+      href={href}
+      className={className}
+      onClick={() => {
+        if (href.startsWith("/") && typeof window !== "undefined") {
+          sessionStorage.setItem("navigationContext", "agent");
+        }
+      }}
+    >
       <span className="relative">
         {children}
         <span className="pointer-events-none absolute -bottom-1 left-0 h-px w-0 bg-gradient-to-r from-[#02665e] to-sky-500 transition-all duration-300 group-hover:w-full" />
@@ -91,7 +99,15 @@ function FooterPill({
   const className = `${base} ${variant === "brand" ? brand : neutral}`;
 
   return (
-    <Link href={href} className={className}>
+    <Link
+      href={href}
+      className={className}
+      onClick={() => {
+        if (href.startsWith("/") && typeof window !== "undefined") {
+          sessionStorage.setItem("navigationContext", "agent");
+        }
+      }}
+    >
       <span
         aria-hidden
         className={`pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 ease-out group-hover:opacity-100 ${overlayTint}`}
@@ -315,7 +331,7 @@ export default function AgentFooter({ withRail = true }: { withRail?: boolean })
                   </div>
 
                   <div className="mt-4 flex flex-wrap gap-2">
-                    <FooterPill href="/help" variant="brand">Help Center</FooterPill>
+                    <FooterPill href="/help?ctx=agent" variant="brand">Help Center</FooterPill>
                     <FooterPill href="mailto:support@nolsaf.com" variant="neutral">support@nolsaf.com</FooterPill>
                     <FooterPill href="/account/agent/security" variant="neutral">Security</FooterPill>
                   </div>
@@ -328,10 +344,9 @@ export default function AgentFooter({ withRail = true }: { withRail?: boolean })
                 <h3 className="text-base font-semibold text-white">About</h3>
                 <ul className="m-0 list-none p-0 space-y-1">
                   {[
-                    { href: "/about/who", label: "Who are we" },
-                    { href: "/about/what", label: "What we do" },
-                    { href: "/about/why", label: "Why us" },
-                    { href: "/about/story", label: "Our Best Story" },
+                    { href: "/about/who?ctx=agent", label: "Who are we" },
+                    { href: "/about/what?ctx=agent", label: "What we do" },
+                    { href: "/about/story?ctx=agent", label: "Our Best Story" },
                   ].map((item) => (
                     <li key={item.href}>
                       <FooterPolicyItem href={item.href}>{item.label}</FooterPolicyItem>
@@ -344,8 +359,8 @@ export default function AgentFooter({ withRail = true }: { withRail?: boolean })
                 <h3 className="text-base font-semibold text-white">Resources</h3>
                 <ul className="m-0 list-none p-0 space-y-1">
                   {[
-                    { href: "/help", label: "Help Center" },
-                    { href: "/careers", label: "Careers" },
+                    { href: "/help?ctx=agent", label: "Help Center" },
+                    { href: "/careers?ctx=agent", label: "Careers" },
                   ].map((item) => (
                     <li key={item.href}>
                       <FooterPolicyItem href={item.href}>{item.label}</FooterPolicyItem>

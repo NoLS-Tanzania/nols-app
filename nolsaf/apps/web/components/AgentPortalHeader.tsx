@@ -20,6 +20,12 @@ export default function AgentPortalHeader() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
 
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("navigationContext", "agent");
+    }
+  }, []);
+
   const { socket } = useSocket(undefined, { enabled: true, joinDriverRoom: false });
 
   useEffect(() => {

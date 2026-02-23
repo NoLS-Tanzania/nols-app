@@ -304,7 +304,14 @@ export default function AboutStoryPage() {
 
                 <div className="min-w-0 flex-1">
                   <div className="text-xs font-semibold uppercase tracking-wide text-[#02665e]">CEO &amp; Founder</div>
-                  <div className="mt-1 text-base font-semibold text-slate-900">Daniel M. Ngeleja</div>
+                  <a
+                    href="https://www.linkedin.com/in/daniel-mussa-ngeleja-9898a7241"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-1 inline-flex text-base font-semibold text-slate-900 no-underline transition-colors hover:text-[#02665e]"
+                  >
+                    Daniel M. Ngeleja
+                  </a>
 
                   <div className="mt-3 grid gap-4 lg:grid-cols-3 lg:items-start">
                     <div className="lg:col-span-2">
@@ -538,7 +545,14 @@ export default function AboutStoryPage() {
 
                       <div className="min-w-0 flex-1">
                         <div className="text-xs font-semibold uppercase tracking-wide text-[#02665e]">Co-Founder</div>
-                        <div className="mt-1 text-base font-semibold text-slate-900">Rashid Sued Rashid</div>
+                        <a
+                          href="https://www.linkedin.com/in/rashidi-sued-rashidi-957959206"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-1 inline-flex text-base font-semibold text-slate-900 no-underline transition-colors hover:text-[#02665e]"
+                        >
+                          Rashid Sued Rashid
+                        </a>
                         <p className="mt-3 text-sm leading-relaxed text-slate-700">
                           Rashidi Sued Rashidi is an experienced co-founder and business strategist with a strong foundation in technology and a
                           passion for agriculture-driven impact. A graduate of the <strong>University of Dar es Salaam</strong>, Rashid and Daniel first met

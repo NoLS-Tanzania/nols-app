@@ -143,6 +143,77 @@ function submitGuard(_p: any): boolean {
   return true;
 }
 
+function safeParseJsonWithRepair(value: unknown) {
+  if (typeof value !== "string") {
+    return { ok: true as const, value, repaired: false, snippet: "" };
+  }
+
+  const raw = value.trim();
+  if (!raw) {
+    return { ok: true as const, value: null, repaired: false, snippet: "" };
+  }
+
+  try {
+    return { ok: true as const, value: JSON.parse(raw), repaired: false, snippet: "" };
+  } catch (error: any) {
+    const repairedRaw = raw
+      .replace(/\\u(?![0-9a-fA-F]{4})/g, "\\\\u")
+      .replace(/\\(?![\"\\/bfnrtu])/g, "\\\\");
+
+    if (repairedRaw !== raw) {
+      try {
+        return { ok: true as const, value: JSON.parse(repairedRaw), repaired: true, snippet: "" };
+      } catch {
+        // continue to detailed error info
+      }
+    }
+
+    const msg = String(error?.message || "");
+    const m = msg.match(/position\s+(\d+)/i);
+    const pos = m ? Number(m[1]) : -1;
+    const start = pos >= 0 ? Math.max(0, pos - 24) : 0;
+    const end = pos >= 0 ? Math.min(raw.length, pos + 24) : Math.min(raw.length, 48);
+    const snippet = raw.slice(start, end);
+
+    return { ok: false as const, value: null, repaired: false, snippet };
+  }
+}
+
+function sanitizePropertyJsonFields(property: any, contextLabel: string) {
+  const updateData: any = {};
+  let hasRepairForDb = false;
+
+  const rooms = safeParseJsonWithRepair(property?.roomsSpec);
+  if (rooms.ok) {
+    if (typeof property?.roomsSpec === "string") {
+      property.roomsSpec = rooms.value;
+      if (rooms.repaired) {
+        updateData.roomsSpec = rooms.value;
+        hasRepairForDb = true;
+      }
+    }
+  } else if (typeof property?.roomsSpec === "string") {
+    property.roomsSpec = [];
+    console.warn(`[owner.properties] invalid roomsSpec JSON (${contextLabel})`, rooms.snippet);
+  }
+
+  const services = safeParseJsonWithRepair(property?.services);
+  if (services.ok) {
+    if (typeof property?.services === "string") {
+      property.services = services.value;
+      if (services.repaired) {
+        updateData.services = services.value;
+        hasRepairForDb = true;
+      }
+    }
+  } else if (typeof property?.services === "string") {
+    property.services = {};
+    console.warn(`[owner.properties] invalid services JSON (${contextLabel})`, services.snippet);
+  }
+
+  return { hasRepairForDb, updateData };
+}
+
 export const router = Router();
 
 // Note: Body parser middleware with 10mb limit is applied at app level in index.ts
@@ -441,6 +512,8 @@ router.get("/mine", (async (req: AuthedRequest, res) => {
     
     for (const item of items) {
       try {
+        sanitizePropertyJsonFields(item, `GET /mine property ${item?.id ?? "unknown"}`);
+
         // Serialize the Prisma object to a plain JavaScript object
         let processedItem: any;
         try {
@@ -575,6 +648,18 @@ router.get("/:id", (async (req: AuthedRequest, res) => {
 
     const property = await findOwnerPropertyById(ownerId, id);
     if (!property) return res.status(404).json({ error: "Property not found" });
+
+    const sanitized = sanitizePropertyJsonFields(property as any, `GET /:id property ${id}`);
+    if (sanitized.hasRepairForDb && Object.keys(sanitized.updateData).length > 0) {
+      try {
+        await prisma.property.update({
+          where: { id, ownerId },
+          data: sanitized.updateData,
+        });
+      } catch (persistErr) {
+        console.warn(`[owner.properties] failed to persist repaired JSON for property ${id}`, persistErr);
+      }
+    }
 
   // Safely serialize the property object
   const serializePrismaObject = (obj: any): any => {

@@ -553,54 +553,56 @@ export default function PropertiesPage() {
         <div className="public-container">
           <div className="flex flex-col gap-3">
             <div className="w-full min-w-0">
-              <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
-                {q ? `Search results for “${q}”` : "Properties"}
-              </h1>
+              {/* Premium header card */}
+              <div className="relative overflow-hidden rounded-[28px] sm:rounded-[36px] p-[1px] shadow-[0_20px_60px_rgba(2,102,94,0.22)]" style={{ background: 'linear-gradient(135deg,rgba(2,102,94,0.75) 0%,rgba(2,180,245,0.40) 50%,rgba(2,102,94,0.65) 100%)' }}>
+                <div className="relative overflow-hidden rounded-[27px] sm:rounded-[35px] px-6 sm:px-10 py-7 sm:py-8" style={{ background: 'linear-gradient(140deg,#012e29 0%,#013530 55%,#01241f 100%)' }}>
 
-              <div className="mt-4 rounded-2xl p-[1px] bg-gradient-to-r from-white/60 via-slate-200/60 to-white/60">
-                <div className="rounded-2xl bg-white/45 backdrop-blur-2xl border border-white/60 ring-1 ring-slate-200/50 px-4 py-3 shadow-sm">
-                  <p className="max-w-2xl mx-auto text-center text-sm sm:text-base font-medium text-slate-600 tracking-wide">
-                    Trusted listings, smooth booking, reliable support.
-                  </p>
+                  {/* Ambient glows */}
+                  <div className="pointer-events-none absolute -top-24 -right-24 w-80 h-80 rounded-full" style={{ background: 'radial-gradient(circle,rgba(2,180,245,0.22) 0%,transparent 65%)' }} aria-hidden />
+                  <div className="pointer-events-none absolute -bottom-20 -left-20 w-72 h-72 rounded-full" style={{ background: 'radial-gradient(circle,rgba(2,102,94,0.18) 0%,transparent 65%)' }} aria-hidden />
+                  <div className="pointer-events-none absolute inset-0" style={{ background: 'radial-gradient(ellipse 70% 55% at 50% 0%,rgba(2,102,94,0.18),transparent 70%)' }} aria-hidden />
 
-                  <div className="mt-3 w-full flex flex-nowrap items-center justify-between gap-2">
-                    <div className="inline-flex items-center gap-2 rounded-full bg-white/40 backdrop-blur-2xl border border-white/60 ring-1 ring-slate-200/60 px-4 py-1.5 text-xs sm:text-sm font-semibold text-slate-800 shadow-sm">
-                      <BadgeCheck className="w-4 h-4 text-[#02665e]" />
-                      {loading ? (
-                        "Loading verified listings…"
-                      ) : (
-                        <>
-                          <span className="tabular-nums">{total.toLocaleString()}</span> verified &amp; approved listings
-                        </>
-                      )}
+                  <div className="relative z-10 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-5">
+                    {/* Left: title + tagline */}
+                    <div className="min-w-0">
+                      <p className="text-[10px] sm:text-xs font-bold tracking-[0.20em] uppercase mb-2.5" style={{ color: '#02b4f5' }}>
+                        Verified &amp; Trusted
+                      </p>
+                      <h1 className="text-3xl sm:text-4xl lg:text-[2.75rem] font-bold tracking-tight leading-[1.1] text-white">
+                        {q
+                          ? <>{`Search results for `}<span style={{ color: '#02b4f5' }}>&ldquo;{q}&rdquo;</span></>
+                          : 'Properties'}
+                      </h1>
+                      <p className="mt-2.5 text-sm sm:text-base font-medium" style={{ color: 'rgba(255,255,255,0.52)' }}>
+                        Trusted listings, smooth booking, reliable support.
+                      </p>
                     </div>
 
-                <Link
-                  href="/public"
-                  className={[
-                    "inline-flex items-center gap-2",
-                    "rounded-full",
-                    "bg-white/40 backdrop-blur-2xl",
-                    "border border-white/60",
-                    "ring-1 ring-slate-200/60",
-                    "px-4 py-1.5",
-                    "text-xs sm:text-sm",
-                    "font-semibold",
-                    "text-[#02665e]",
-                    "whitespace-nowrap",
-                    "shadow-sm",
-                    "transition-colors",
-                    "hover:bg-white",
-                    "active:bg-slate-50",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/25 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
-                  ].join(" ")}
-                >
-                  <Search className="w-4 h-4" />
-                  Refine search on home
-                </Link>
+                    {/* Right: badges */}
+                    <div className="flex flex-row sm:flex-col items-start sm:items-end gap-2 shrink-0 flex-wrap">
+                      <div className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold text-white" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.13)' }}>
+                        <BadgeCheck className="w-3.5 h-3.5 flex-none" style={{ color: '#10b981' }} />
+                        {loading ? (
+                          'Loading…'
+                        ) : (
+                          <><span className="tabular-nums">{total.toLocaleString()}</span>&nbsp;verified &amp; approved listings</>
+                        )}
+                      </div>
+                      <Link
+                        href="/public"
+                        className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02b4f5]/40"
+                        style={{ color: '#02b4f5', background: 'rgba(2,180,245,0.08)', border: '1px solid rgba(2,180,245,0.22)' }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(2,180,245,0.16)')}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(2,180,245,0.08)')}
+                      >
+                        <Search className="w-3.5 h-3.5 flex-none" />
+                        Refine search on home
+                      </Link>
+                    </div>
                   </div>
                 </div>
               </div>
+
             </div>
           </div>
 

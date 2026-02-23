@@ -9,15 +9,17 @@ export const metadata: Metadata = {
 export default function AboutWhatPage() {
   return (
     <article className="max-w-none space-y-6">
-      <header className="max-w-3xl min-w-0">
-        <div className="prose prose-slate w-full min-w-0 break-words">
-          <h2>What we do</h2>
-          <p>
-            NoLSAF provides end-to-end services that make travel feel simple: choose a place to stay, plan how to reach it, pay using the
-            method that fits your location, and get support for the experience around the stay.
-          </p>
-        </div>
-      </header>
+      <div className="not-prose -mx-5 sm:-mx-8">
+        <section className="relative min-w-0 overflow-hidden rounded-lg border border-white/10 bg-[#02665e] shadow-card p-6 ring-1 ring-white/10 sm:p-7">
+          <div className="prose prose-invert w-full min-w-0 max-w-3xl break-words">
+            <h2>What we do</h2>
+            <p>
+              NoLSAF provides end-to-end services that make travel feel simple: choose a place to stay, plan how to reach it, pay using the
+              method that fits your location, and get support for the experience around the stay.
+            </p>
+          </div>
+        </section>
+      </div>
 
       <div className="not-prose -mx-5 grid min-w-0 gap-4 sm:-mx-8 lg:grid-cols-2">
         <section className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-6 shadow-card sm:p-7">

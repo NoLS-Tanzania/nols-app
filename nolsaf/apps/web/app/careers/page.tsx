@@ -25,6 +25,8 @@ import {
   Languages,
   XCircle
 } from "lucide-react";
+import AgentFooter from "@/components/AgentFooter";
+import AgentPortalHeader from "@/components/AgentPortalHeader";
 import PublicHeader from "@/components/PublicHeader";
 import PublicFooter from "@/components/PublicFooter";
 import SiteHeader from "@/components/SiteHeader";
@@ -1310,6 +1312,7 @@ export default function CareersPage() {
   const [userRole, setUserRole] = useState<"ADMIN" | "OWNER" | "DRIVER" | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isPublicContext, setIsPublicContext] = useState<boolean | null>(null);
+  const [isAgentContext, setIsAgentContext] = useState<boolean | null>(null);
   
   const [jobs, setJobs] = useState<Job[]>([]);
   const [jobsLoading, setJobsLoading] = useState(true);
@@ -1392,18 +1395,42 @@ export default function CareersPage() {
 
   useEffect(() => {
     // Context detection logic (same as other public pages)
-    let navigationContext: 'public' | 'owner' | 'driver' | 'admin' | null = null;
+    let navigationContext: 'public' | 'owner' | 'driver' | 'admin' | 'agent' | null = null;
     if (typeof window !== 'undefined') {
-      navigationContext = sessionStorage.getItem('navigationContext') as 'public' | 'owner' | 'driver' | 'admin' | null;
+      const queryCtx = new URLSearchParams(window.location.search).get('ctx')?.toLowerCase();
+      if (queryCtx === 'agent') {
+        navigationContext = 'agent';
+        sessionStorage.setItem('navigationContext', 'agent');
+      }
+
+      if (!navigationContext) {
+      navigationContext = sessionStorage.getItem('navigationContext') as 'public' | 'owner' | 'driver' | 'admin' | 'agent' | null;
+      }
+
+      if (!navigationContext) {
+        const ref = (document.referrer || '').toLowerCase();
+        if (ref.includes('/account/agent')) {
+          navigationContext = 'agent';
+          sessionStorage.setItem('navigationContext', 'agent');
+        }
+      }
     }
 
     if (navigationContext) {
       if (navigationContext === 'public') {
+        setIsAgentContext(false);
         setIsPublicContext(true);
         setUserRole(null);
         setIsLoading(false);
         return;
+      } else if (navigationContext === 'agent') {
+        setIsAgentContext(true);
+        setIsPublicContext(false);
+        setUserRole(null);
+        setIsLoading(false);
+        return;
       } else {
+        setIsAgentContext(false);
         setIsPublicContext(false);
         setUserRole(navigationContext.toUpperCase() as "ADMIN" | "OWNER" | "DRIVER");
         setIsLoading(false);
@@ -1424,6 +1451,7 @@ export default function CareersPage() {
     }
 
     if (isFromPublicRoute) {
+      setIsAgentContext(false);
       setIsPublicContext(true);
       setUserRole(null);
       setIsLoading(false);
@@ -1432,6 +1460,7 @@ export default function CareersPage() {
 
     const role = getCookie('role') as "ADMIN" | "OWNER" | "DRIVER" | null;
     if (role) {
+      setIsAgentContext(false);
       setIsPublicContext(false);
       setUserRole(role);
       setIsLoading(false);
@@ -1439,15 +1468,19 @@ export default function CareersPage() {
     }
     
     if (pathname?.includes('/driver')) {
+      setIsAgentContext(false);
       setIsPublicContext(false);
       setUserRole('DRIVER');
     } else if (pathname?.includes('/owner')) {
+      setIsAgentContext(false);
       setIsPublicContext(false);
       setUserRole('OWNER');
     } else if (pathname?.includes('/admin')) {
+      setIsAgentContext(false);
       setIsPublicContext(false);
       setUserRole('ADMIN');
     } else {
+      setIsAgentContext(false);
       setIsPublicContext(true);
       setUserRole(null);
     }
@@ -1492,7 +1525,7 @@ export default function CareersPage() {
 
   
 
-  const shouldUsePublicLayout = isPublicContext === true || (isPublicContext === null && userRole === null);
+  const shouldUsePublicLayout = !isAgentContext && (isPublicContext === true || (isPublicContext === null && userRole === null));
   const isAuthenticated = !shouldUsePublicLayout && userRole !== null;
   const isDriver = userRole === "DRIVER";
   const isOwner = userRole === "OWNER";
@@ -1525,23 +1558,23 @@ export default function CareersPage() {
     { value: "ONSITE", label: "On-site" },
   ];
 
-  if (isLoading || isPublicContext === null) {
+  if (isLoading || isPublicContext === null || isAgentContext === null) {
     return (
       <>
-        <PublicHeader />
         <main className="min-h-screen bg-white text-slate-900">
           <div className="public-container py-10">
             <div className="text-center">Loading...</div>
           </div>
         </main>
-        <PublicFooter withRail={false} />
       </>
     );
   }
 
   return (
     <>
-      {shouldUsePublicLayout ? (
+      {isAgentContext ? (
+        <AgentPortalHeader />
+      ) : shouldUsePublicLayout ? (
         <PublicHeader />
       ) : isAuthenticated ? (
         isDriver ? (
@@ -1555,7 +1588,7 @@ export default function CareersPage() {
         <PublicHeader />
       )}
       
-      <main className="min-h-screen bg-white text-slate-900">
+      <main className="min-h-screen bg-white text-slate-900 overflow-x-hidden">
         <LayoutFrame heightVariant="sm" topVariant="sm" colorVariant="muted" variant="solid" />
         
         {/* Careers Hero Image */}
@@ -1639,23 +1672,23 @@ export default function CareersPage() {
         {/* Job Listings Section */}
         <section className="pt-0 pb-16 bg-white">
           <div className="public-container">
-            <div className="max-w-7xl mx-auto">
+            <div className="w-full min-w-0 max-w-7xl mx-auto">
               <div className="mb-8">
                 <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">Open Positions</h2>
                 <p className="text-gray-600">Find the perfect role for you</p>
               </div>
 
               {/* Search and Filters */}
-              <div className="bg-gray-50 rounded-lg p-6 mb-8">
+              <div className="bg-gray-50 rounded-lg p-6 mb-8 min-w-0 overflow-hidden">
                 <div className="mb-4">
-                  <div className="relative">
+                  <div className="relative w-full min-w-0 max-w-full">
                     <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
                     <input
                       type="text"
                       placeholder="Search jobs by title, department, or location..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent"
+                      className="w-full min-w-0 max-w-full box-border pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent"
                     />
                   </div>
                 </div>
@@ -1915,7 +1948,9 @@ export default function CareersPage() {
         </section>
       </main>
       
-      {shouldUsePublicLayout ? (
+      {isAgentContext ? (
+        <AgentFooter withRail={false} />
+      ) : shouldUsePublicLayout ? (
         <PublicFooter withRail={false} />
       ) : isAuthenticated ? (
         <SiteFooter withRail={false} topSeparator={true} />

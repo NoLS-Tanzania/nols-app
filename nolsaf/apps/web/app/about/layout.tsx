@@ -2,22 +2,20 @@ import type { ReactNode } from "react";
 import Image from "next/image";
 
 import LayoutFrame from "@/components/LayoutFrame";
-import PublicFooter from "@/components/PublicFooter";
-import PublicHeader from "@/components/PublicHeader";
+import { AboutFooter, AboutHeader } from "./AboutChrome";
 
 import AboutNav from "./AboutNav";
 
 const ABOUT_NAV = [
   { href: "/about/who", label: "Who are we" },
   { href: "/about/what", label: "What we do" },
-  { href: "/about/why", label: "Why us" },
   { href: "/about/story", label: "Our Best Story" },
 ] as const;
 
 export default function AboutLayout({ children }: { children: ReactNode }) {
   return (
     <>
-      <PublicHeader />
+      <AboutHeader />
 
       <main className="min-h-screen bg-white text-slate-900 overflow-x-hidden">
         <LayoutFrame heightVariant="sm" topVariant="sm" colorVariant="muted" variant="solid" />
@@ -109,7 +107,7 @@ export default function AboutLayout({ children }: { children: ReactNode }) {
         </section>
       </main>
 
-      <PublicFooter withRail={false} />
+      <AboutFooter />
     </>
   );
 }
