@@ -124,6 +124,10 @@ export async function notifyOwner(ownerId: number, template: string, data: any) 
         title: "New Booking Received",
         body: `You have a new booking${data.bookingId ? ` #${data.bookingId}` : ""}${data.propertyTitle ? ` for "${data.propertyTitle}"` : ""}${data.checkIn ? ` (check-in: ${data.checkIn})` : ""}. Open your bookings to view details and prepare for check-in.`
       },
+      booking_cancelled_by_guest: {
+        title: "Booking Cancelled",
+        body: `A guest's cancellation request for booking${data.bookingId ? ` #${data.bookingId}` : ""}${data.propertyTitle ? ` at "${data.propertyTitle}"` : ""}${data.bookingCode ? ` (code: ${data.bookingCode})` : ""} has been approved by admin. The check-in code has been voided and the booking is now cancelled.`
+      },
     };
 
     const templateData = notificationTemplates[template] || {
