@@ -42,22 +42,22 @@ router.get("/highlights", async (req, res) => {
                      (COALESCE(rv.reviews, 0) + COALESCE(sv.saves, 0)) AS interactions
               FROM (
                 SELECT p.type AS type, COUNT(*) AS bookings
-                FROM Booking b
-                JOIN Property p ON p.id = b.propertyId
+                FROM booking b
+                JOIN property p ON p.id = b.propertyId
                 WHERE b.checkIn >= ${sinceIso} AND b.status <> 'CANCELED'
                 GROUP BY p.type
               ) t
               LEFT JOIN (
                 SELECT p.type AS type, COUNT(*) AS reviews
                 FROM property_reviews r
-                JOIN Property p ON p.id = r.propertyId
+                JOIN property p ON p.id = r.propertyId
                 WHERE r.createdAt >= ${sinceIso}
                 GROUP BY p.type
               ) rv ON rv.type = t.type
               LEFT JOIN (
                 SELECT p.type AS type, COUNT(*) AS saves
-                FROM SavedProperty s
-                JOIN Property p ON p.id = s.propertyId
+                FROM savedproperty s
+                JOIN property p ON p.id = s.propertyId
                 WHERE s.savedAt >= ${sinceIso}
                 GROUP BY p.type
               ) sv ON sv.type = t.type
@@ -70,9 +70,9 @@ router.get("/highlights", async (req, res) => {
                      COALESCE(d.fullName, d.name) AS name,
                      COUNT(DISTINCT b.id) AS bookings,
                      COALESCE(SUM(i.commissionAmount), 0) AS nolsRevenue
-              FROM Invoice i
-              JOIN Booking b ON b.id = i.bookingId
-              LEFT JOIN User d ON d.id = b.driverId
+              FROM invoice i
+              JOIN booking b ON b.id = i.bookingId
+              LEFT JOIN \`user\` d ON d.id = b.driverId
               WHERE i.status IN ('APPROVED', 'PAID')
                 AND i.issuedAt >= ${sinceIso}
                 AND b.driverId IS NOT NULL
@@ -86,10 +86,10 @@ router.get("/highlights", async (req, res) => {
                      COALESCE(o.fullName, o.name) AS name,
                      COUNT(DISTINCT b.id) AS bookings,
                      COALESCE(SUM(i.commissionAmount), 0) AS nolsRevenue
-              FROM Invoice i
-              JOIN Booking b ON b.id = i.bookingId
-              JOIN Property p ON p.id = b.propertyId
-              LEFT JOIN User o ON o.id = p.ownerId
+              FROM invoice i
+              JOIN booking b ON b.id = i.bookingId
+              JOIN property p ON p.id = b.propertyId
+              LEFT JOIN \`user\` o ON o.id = p.ownerId
               WHERE i.status IN ('APPROVED', 'PAID')
                 AND i.issuedAt >= ${sinceIso}
               GROUP BY p.ownerId
@@ -100,8 +100,8 @@ router.get("/highlights", async (req, res) => {
             prisma.$queryRaw<any[]>`
               SELECT COALESCE(p.regionName, 'Unknown') AS regionName,
                      COUNT(*) AS bookings
-              FROM Booking b
-              JOIN Property p ON p.id = b.propertyId
+              FROM booking b
+              JOIN property p ON p.id = b.propertyId
               WHERE b.checkIn >= ${sinceIso} AND b.status <> 'CANCELED'
               GROUP BY regionName
               ORDER BY bookings DESC
@@ -117,8 +117,8 @@ router.get("/highlights", async (req, res) => {
                      (COALESCE(rv.reviews, 0) + COALESCE(sv.saves, 0)) AS interactions,
                      COALESCE(rv.reviews, 0) AS reviews,
                      COALESCE(sv.saves, 0) AS saves
-              FROM Property p
-              JOIN Booking b ON b.propertyId = p.id AND b.checkIn >= ${sinceIso} AND b.status <> 'CANCELED'
+              FROM property p
+              JOIN booking b ON b.propertyId = p.id AND b.checkIn >= ${sinceIso} AND b.status <> 'CANCELED'
               LEFT JOIN (
                 SELECT propertyId, COUNT(*) AS reviews
                 FROM property_reviews
@@ -127,7 +127,7 @@ router.get("/highlights", async (req, res) => {
               ) rv ON rv.propertyId = p.id
               LEFT JOIN (
                 SELECT propertyId, COUNT(*) AS saves
-                FROM SavedProperty
+                FROM savedproperty
                 WHERE savedAt >= ${sinceIso}
                 GROUP BY propertyId
               ) sv ON sv.propertyId = p.id

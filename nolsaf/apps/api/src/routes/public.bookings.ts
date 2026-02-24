@@ -404,7 +404,7 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
     const availabilityCheck = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // Lock property row to prevent concurrent bookings (parameterized query for security)
       await tx.$executeRaw`
-        SELECT id FROM Property WHERE id = ${data.propertyId} FOR UPDATE
+        SELECT id FROM \`property\` WHERE id = ${data.propertyId} FOR UPDATE
       `;
 
       // Fetch property to get room specifications
@@ -852,7 +852,7 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
 
       // Double-check availability with lock (prevent race conditions)
       await tx.$executeRaw`
-        SELECT id FROM Property WHERE id = ${data.propertyId} FOR UPDATE
+        SELECT id FROM \`property\` WHERE id = ${data.propertyId} FOR UPDATE
       `;
 
       // Final availability check: fetch ALL overlapping to count by room TYPE

@@ -1194,9 +1194,9 @@ router.get('/properties', async (req, res) => {
         COALESCE(SUM(i.total), 0) AS total,
         COALESCE(SUM(i.commissionAmount), 0) AS commission_total,
         0 AS subscription_total
-      FROM Invoice i
-      JOIN Booking b ON i.bookingId = b.id
-      JOIN Property p ON b.propertyId = p.id
+      FROM invoice i
+      JOIN booking b ON i.bookingId = b.id
+      JOIN property p ON b.propertyId = p.id
       WHERE i.status IN ('APPROVED', 'PAID')
       GROUP BY p.id, p.title
       ORDER BY total DESC
@@ -1239,7 +1239,7 @@ router.get('/series', async (req, res) => {
       SELECT DATE_FORMAT(CONVERT_TZ(i.issuedAt, '+00:00', '+03:00'), ${fmt}) AS label,
         COALESCE(SUM(i.commissionAmount),0) AS commission_total,
         0 AS subscription_total
-      FROM Invoice i
+      FROM invoice i
       WHERE i.status IN ('APPROVED','PAID') AND i.issuedAt BETWEEN ${sqlFromIso} AND ${sqlToIso}
       GROUP BY label
       ORDER BY label
@@ -1275,7 +1275,7 @@ router.get('/summary', async (req, res) => {
       SELECT
         COALESCE(SUM(CASE WHEN DATE(CONVERT_TZ(i.issuedAt, '+00:00', '+03:00')) = DATE(CONVERT_TZ(${todayStart.toISOString()}, '+00:00', '+03:00')) THEN COALESCE(i.commissionAmount,0) ELSE 0 END),0) AS today_total,
         COALESCE(SUM(CASE WHEN DATE(CONVERT_TZ(i.issuedAt, '+00:00', '+03:00')) = DATE(CONVERT_TZ(${yesterdayStart.toISOString()}, '+00:00', '+03:00')) THEN COALESCE(i.commissionAmount,0) ELSE 0 END),0) AS yesterday_total
-      FROM Invoice i
+      FROM invoice i
       WHERE i.status IN ('APPROVED','PAID') AND i.issuedAt BETWEEN ${fromIso} AND ${toIso}
     ` as any;
 

@@ -30,62 +30,62 @@ router.get("/", async (req, res) => {
     // invoices: counts and sums using paidAt when available, otherwise issuedAt
     const invoicesWeek = await prisma.$queryRaw`
       SELECT COUNT(*) AS cnt, COALESCE(SUM(netPayable),0) AS sum
-      FROM Invoice
+      FROM invoice
       WHERE status = 'PAID' AND (paidAt IS NOT NULL AND paidAt >= ${params.weekStart} OR (paidAt IS NULL AND issuedAt >= ${params.weekStart}))
     `;
     const invoicesMonth = await prisma.$queryRaw`
       SELECT COUNT(*) AS cnt, COALESCE(SUM(netPayable),0) AS sum
-      FROM Invoice
+      FROM invoice
       WHERE status = 'PAID' AND (paidAt IS NOT NULL AND paidAt >= ${params.monthStart} OR (paidAt IS NULL AND issuedAt >= ${params.monthStart}))
     `;
     const invoicesYear = await prisma.$queryRaw`
       SELECT COUNT(*) AS cnt, COALESCE(SUM(netPayable),0) AS sum
-      FROM Invoice
+      FROM invoice
       WHERE status = 'PAID' AND (paidAt IS NOT NULL AND paidAt >= ${params.yearStart} OR (paidAt IS NULL AND issuedAt >= ${params.yearStart}))
     `;
 
-    // revenue: sum of PaymentEvent.amount where status indicates success and receivedAt >= period
+    // revenue: sum of PaymentEvent.amount where status indicates success and createdAt >= period
     const revenueWeek = await prisma.$queryRaw`
-      SELECT COALESCE(SUM(amount),0) AS sum FROM PaymentEvent WHERE status IN ('SUCCESS','COMPLETED','PAID') AND receivedAt >= ${params.weekStart}
+      SELECT COALESCE(SUM(amount),0) AS sum FROM payment_events WHERE status IN ('SUCCESS','COMPLETED','PAID') AND createdAt >= ${params.weekStart}
     `;
     const revenueMonth = await prisma.$queryRaw`
-      SELECT COALESCE(SUM(amount),0) AS sum FROM PaymentEvent WHERE status IN ('SUCCESS','COMPLETED','PAID') AND receivedAt >= ${params.monthStart}
+      SELECT COALESCE(SUM(amount),0) AS sum FROM payment_events WHERE status IN ('SUCCESS','COMPLETED','PAID') AND createdAt >= ${params.monthStart}
     `;
     const revenueYear = await prisma.$queryRaw`
-      SELECT COALESCE(SUM(amount),0) AS sum FROM PaymentEvent WHERE status IN ('SUCCESS','COMPLETED','PAID') AND receivedAt >= ${params.yearStart}
+      SELECT COALESCE(SUM(amount),0) AS sum FROM payment_events WHERE status IN ('SUCCESS','COMPLETED','PAID') AND createdAt >= ${params.yearStart}
     `;
 
     // properties approved
     const propsWeek = await prisma.$queryRaw`
-      SELECT COUNT(*) AS cnt FROM Property WHERE status = 'APPROVED' AND createdAt >= ${params.weekStart}
+      SELECT COUNT(*) AS cnt FROM property WHERE status = 'APPROVED' AND createdAt >= ${params.weekStart}
     `;
     const propsMonth = await prisma.$queryRaw`
-      SELECT COUNT(*) AS cnt FROM Property WHERE status = 'APPROVED' AND createdAt >= ${params.monthStart}
+      SELECT COUNT(*) AS cnt FROM property WHERE status = 'APPROVED' AND createdAt >= ${params.monthStart}
     `;
     const propsYear = await prisma.$queryRaw`
-      SELECT COUNT(*) AS cnt FROM Property WHERE status = 'APPROVED' AND createdAt >= ${params.yearStart}
+      SELECT COUNT(*) AS cnt FROM property WHERE status = 'APPROVED' AND createdAt >= ${params.yearStart}
     `;
 
     // new owners
     const ownersWeek = await prisma.$queryRaw`
-      SELECT COUNT(*) AS cnt FROM User WHERE role = 'OWNER' AND createdAt >= ${params.weekStart}
+      SELECT COUNT(*) AS cnt FROM \`user\` WHERE role = 'OWNER' AND createdAt >= ${params.weekStart}
     `;
     const ownersMonth = await prisma.$queryRaw`
-      SELECT COUNT(*) AS cnt FROM User WHERE role = 'OWNER' AND createdAt >= ${params.monthStart}
+      SELECT COUNT(*) AS cnt FROM \`user\` WHERE role = 'OWNER' AND createdAt >= ${params.monthStart}
     `;
     const ownersYear = await prisma.$queryRaw`
-      SELECT COUNT(*) AS cnt FROM User WHERE role = 'OWNER' AND createdAt >= ${params.yearStart}
+      SELECT COUNT(*) AS cnt FROM \`user\` WHERE role = 'OWNER' AND createdAt >= ${params.yearStart}
     `;
 
     // bookings count (bookings with checkIn in period)
     const bookingsWeek = await prisma.$queryRaw`
-      SELECT COUNT(*) AS cnt FROM Booking WHERE checkIn >= ${params.weekStart} AND checkIn < ${new Date(startOfWeek.getTime()+7*24*3600*1000).toISOString()}
+      SELECT COUNT(*) AS cnt FROM booking WHERE checkIn >= ${params.weekStart} AND checkIn < ${new Date(startOfWeek.getTime()+7*24*3600*1000).toISOString()}
     `;
     const bookingsMonth = await prisma.$queryRaw`
-      SELECT COUNT(*) AS cnt FROM Booking WHERE checkIn >= ${params.monthStart}
+      SELECT COUNT(*) AS cnt FROM booking WHERE checkIn >= ${params.monthStart}
     `;
     const bookingsYear = await prisma.$queryRaw`
-      SELECT COUNT(*) AS cnt FROM Booking WHERE checkIn >= ${params.yearStart}
+      SELECT COUNT(*) AS cnt FROM booking WHERE checkIn >= ${params.yearStart}
     `;
 
     const result = {

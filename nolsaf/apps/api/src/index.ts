@@ -110,6 +110,7 @@ import customerCancellationsRouter from "./routes/customer.cancellations";
 import customerPlanRequestsRouter from "./routes/customer.planRequests";
 import chatbotRouter from "./routes/chatbot";
 import adminChatbotRouter from "./routes/admin.chatbot";
+import adminReportsRouter from "./routes/admin.reports";
 import agentAssignmentsRouter from "./routes/agent.assignments";
 import agentNotificationsRouter from "./routes/agent.notifications";
 import { healthRouter } from "./routes/health";
@@ -741,6 +742,8 @@ app.use('/api/public/availability', publicAvailabilityRouter as express.RequestH
 app.use('/api/chatbot', chatbotRouter as express.RequestHandler);
 // Admin chatbot endpoints (for tracking and follow-up)
 app.use('/api/admin/chatbot', adminChatbotRouter as express.RequestHandler);
+// Admin reports (weekly/monthly/yearly aggregates)
+app.use('/api/admin/reports', adminReportsRouter as express.RequestHandler);
 // Group bookings (requires authentication)
 app.use('/api/group-bookings', requireRole() as express.RequestHandler, groupBookingsRouter);
 // Property reviews (public GET, authenticated POST)

@@ -60,7 +60,7 @@ async function findLegacyBookingIdsByPhoneTail(tail9: string): Promise<number[]>
   try {
     const rows = await prisma.$queryRaw<Array<{ id: number }>>`
       SELECT id
-      FROM \`Booking\`
+      FROM \`booking\`
       WHERE \`userId\` IS NULL
         AND \`guestPhone\` IS NOT NULL
         AND RIGHT(REGEXP_REPLACE(\`guestPhone\`, '[^0-9]', ''), 9) = ${tail9}
@@ -73,7 +73,7 @@ async function findLegacyBookingIdsByPhoneTail(tail9: string): Promise<number[]>
     try {
       const rows = await prisma.$queryRaw<Array<{ id: number }>>`
         SELECT id
-        FROM \`Booking\`
+        FROM \`booking\`
         WHERE \`userId\` IS NULL
           AND \`guestPhone\` IS NOT NULL
           AND RIGHT(

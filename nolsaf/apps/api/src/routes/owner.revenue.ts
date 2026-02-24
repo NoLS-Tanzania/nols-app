@@ -122,7 +122,7 @@ router.get("/stats", (async (req: AuthedRequest, res) => {
       SELECT
         COUNT(*) AS cnt,
         COALESCE(SUM(CASE WHEN i.netPayable IS NULL THEN i.total ELSE i.netPayable END), 0) AS payout
-      FROM Invoice i
+      FROM invoice i
       ${joinBooking}
       WHERE ${whereSql}
     `;
@@ -131,7 +131,7 @@ router.get("/stats", (async (req: AuthedRequest, res) => {
       SELECT
         COUNT(*) AS cnt,
         COALESCE(SUM(CASE WHEN i.netPayable IS NULL THEN i.total ELSE i.netPayable END), 0) AS payout
-      FROM Invoice i
+      FROM invoice i
       ${joinBooking}
       WHERE ${whereSql} AND i.status = 'PAID'
     `;
