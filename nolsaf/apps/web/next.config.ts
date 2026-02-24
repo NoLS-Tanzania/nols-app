@@ -61,39 +61,56 @@ const nextConfig: NextConfig = {
     ];
   },
   async rewrites() {
-    return [
-      // Favicon/app-icon compatibility: Next metadata routes here are `/icon` and `/apple-icon`.
-      // Many browsers still request `/favicon.ico` and some tooling uses `/icon.png`.
-      { source: '/favicon.ico', destination: '/icon' },
-      { source: '/apple-touch-icon.png', destination: '/apple-icon' },
-      { source: '/icon.png', destination: '/icon' },
-      { source: '/apple-icon.png', destination: '/apple-icon' },
+    return {
+      // beforeFiles: rewrites run before filesystem/page checks.
+      // Use for rewrites that must always apply (uploads, webhooks, API proxies, socket.io).
+      beforeFiles: [
+        // Favicon/app-icon compatibility: Next metadata routes here are `/icon` and `/apple-icon`.
+        // Many browsers still request `/favicon.ico` and some tooling uses `/icon.png`.
+        { source: '/favicon.ico', destination: '/icon' },
+        { source: '/apple-touch-icon.png', destination: '/apple-icon' },
+        { source: '/icon.png', destination: '/icon' },
+        { source: '/apple-icon.png', destination: '/apple-icon' },
 
-      // Map health probes (API exposes these at the root, not under /api)
-      { source: '/api/health', destination: `${apiOrigin}/health` },
-      { source: '/api/ready', destination: `${apiOrigin}/ready` },
-      { source: '/api/live', destination: `${apiOrigin}/live` },
-      { source: '/api/:path*', destination: `${apiOrigin}/api/:path*` },
-      {
-        // NOTE: include /admin/management/* (Next pages) as excluded too.
-        // Also exclude user detail pages (users/:id) and profile page so Next.js serves them, not the API proxy
-        source:
-          '/admin/:path((?!cancellations/\\d+$|bookings/\\d+$|owners/\\d+$|properties/\\d+$|revenue/\\d+$|users/\\d+$|management/.*|drivers/audit/.*|profile$|profile/).*)',
-        destination: `${apiOrigin}/admin/:path*`,
-      },
-      {
-        // NOTE: exclude owner UI pages so Next.js serves them, not the API proxy.
-        source:
-          '/owner/:path((?!bookings$|bookings/recent$|bookings/recents$|bookings/validate$|bookings/checked-in$|bookings/checked-in/\\d+$|bookings/check-out$|invoices$|invoices/new$|invoices/\\d+$|revenue$|revenue/.*|group-stays$|group-stays/\\d+$|group-stays/claims$|group-stays/claims/my-claims$|properties/availability$|properties/\\d+/availability$|properties/\\d+/availability/.*|properties/\\d+/layout$).*)',
-        destination: `${apiOrigin}/owner/:path*`,
-      },
-      { source: '/uploads/:path*', destination: `${apiOrigin}/uploads/:path*` },
-      { source: '/webhooks/:path*', destination: `${apiOrigin}/webhooks/:path*` },
-      // Explicit socket.io rewrites to ensure both base and nested paths proxy
-      { source: '/socket.io', destination: `${apiOrigin}/socket.io/` },
-      { source: '/socket.io/', destination: `${apiOrigin}/socket.io/` },
-      { source: '/socket.io/:path*', destination: `${apiOrigin}/socket.io/:path*` },
-    ];
+        // Map health probes (API exposes these at the root, not under /api)
+        { source: '/api/health', destination: `${apiOrigin}/health` },
+        { source: '/api/ready', destination: `${apiOrigin}/ready` },
+        { source: '/api/live', destination: `${apiOrigin}/live` },
+        { source: '/api/:path*', destination: `${apiOrigin}/api/:path*` },
+
+        { source: '/uploads/:path*', destination: `${apiOrigin}/uploads/:path*` },
+        { source: '/webhooks/:path*', destination: `${apiOrigin}/webhooks/:path*` },
+        // Explicit socket.io rewrites to ensure both base and nested paths proxy
+        { source: '/socket.io', destination: `${apiOrigin}/socket.io/` },
+        { source: '/socket.io/', destination: `${apiOrigin}/socket.io/` },
+        { source: '/socket.io/:path*', destination: `${apiOrigin}/socket.io/:path*` },
+      ],
+
+      // afterFiles: rewrites run AFTER Next.js pages/filesystem checks.
+      // This ensures Next.js pages (e.g. /admin/owners/[id], /admin/users/[id]) are served
+      // by the Next.js router first, and only fall through to the API proxy if no page is found.
+      // This prevents the catch-all proxy from accidentally swallowing RSC navigation requests
+      // for page routes that exist in the Next.js app.
+      afterFiles: [
+        {
+          // Proxy legacy /admin/* routes to the API backend.
+          // IMPORTANT: This runs AFTER Next.js pages, so Next.js admin pages always win.
+          // The exclusion list is kept for safety but the afterFiles ordering is the main guard.
+          source:
+            '/admin/:path((?!cancellations/\\d+$|bookings/\\d+$|owners/\\d+$|properties/\\d+$|revenue/\\d+$|users/\\d+$|management/.*|drivers/audit/.*|profile$|profile/).*)',
+          destination: `${apiOrigin}/admin/:path*`,
+        },
+        {
+          // Proxy legacy /owner/* routes to the API backend.
+          // IMPORTANT: This runs AFTER Next.js pages, so Next.js owner pages always win.
+          source:
+            '/owner/:path((?!bookings$|bookings/recent$|bookings/recents$|bookings/validate$|bookings/checked-in$|bookings/checked-in/\\d+$|bookings/check-out$|invoices$|invoices/new$|invoices/\\d+$|revenue$|revenue/.*|group-stays$|group-stays/\\d+$|group-stays/claims$|group-stays/claims/my-claims$|properties/availability$|properties/\\d+/availability$|properties/\\d+/availability/.*|properties/\\d+/layout$).*)',
+          destination: `${apiOrigin}/owner/:path*`,
+        },
+      ],
+
+      fallback: [],
+    };
   },
 };
 
