@@ -2,7 +2,22 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { LifeBuoy, ChevronDown, ChevronRight, Mail, MessageCircle, BookOpen, CreditCard, Car, Home } from "lucide-react";
+import {
+  ArrowRight,
+  BookOpen,
+  Car,
+  ChevronDown,
+  ChevronRight,
+  CreditCard,
+  Home,
+  Mail,
+  MessageCircle,
+  Search,
+  Shield,
+  Sparkles,
+  Users,
+  LifeBuoy,
+} from "lucide-react";
 import LayoutFrame from "@/components/LayoutFrame";
 import { HelpFooter, HelpHeader } from "./HelpChrome";
 
@@ -239,9 +254,10 @@ const HELP_CATEGORIES = [
   {
     title: "Getting Started",
     icon: BookOpen,
-    cardClass: "bg-emerald-50/60 border-emerald-100",
-    iconWrapClass: "bg-emerald-100/70",
-    iconClass: "text-emerald-700",
+    gradient: "from-emerald-500 to-teal-600",
+    bg: "bg-emerald-50/60 border-emerald-100/80",
+    pill: "bg-emerald-100 text-emerald-700",
+    accent: "#059669",
     links: [
       { href: "/help/getting-started", label: "How to Book" },
       { href: "/help/account-setup", label: "Account Setup" },
@@ -251,9 +267,10 @@ const HELP_CATEGORIES = [
   {
     title: "Payments & Billing",
     icon: CreditCard,
-    cardClass: "bg-sky-50/70 border-sky-100",
-    iconWrapClass: "bg-sky-100/70",
-    iconClass: "text-sky-700",
+    gradient: "from-sky-500 to-blue-600",
+    bg: "bg-sky-50/60 border-sky-100/80",
+    pill: "bg-sky-100 text-sky-700",
+    accent: "#0284c7",
     links: [
       { href: "/help/payments", label: "Payment Methods" },
       { href: "/help/refunds", label: "Refunds & Cancellations" },
@@ -263,9 +280,10 @@ const HELP_CATEGORIES = [
   {
     title: "For Property Owners",
     icon: Home,
-    cardClass: "bg-amber-50/70 border-amber-100",
-    iconWrapClass: "bg-amber-100/70",
-    iconClass: "text-amber-800",
+    gradient: "from-amber-500 to-orange-500",
+    bg: "bg-amber-50/60 border-amber-100/80",
+    pill: "bg-amber-100 text-amber-700",
+    accent: "#d97706",
     links: [
       { href: "/account/onboard/owner", label: "List Your Property" },
       { href: "/help/owner-guide", label: "Owner Guide" },
@@ -275,9 +293,10 @@ const HELP_CATEGORIES = [
   {
     title: "For Drivers",
     icon: Car,
-    cardClass: "bg-indigo-50/70 border-indigo-100",
-    iconWrapClass: "bg-indigo-100/70",
-    iconClass: "text-indigo-700",
+    gradient: "from-indigo-500 to-violet-600",
+    bg: "bg-indigo-50/60 border-indigo-100/80",
+    pill: "bg-indigo-100 text-indigo-700",
+    accent: "#6366f1",
     links: [
       { href: "/account/onboard/driver", label: "Become a Driver" },
       { href: "/help/driver-tools", label: "Driver Tools" },
@@ -285,17 +304,29 @@ const HELP_CATEGORIES = [
     ],
   },
   {
-    title: "Agent Portal",
-    icon: MessageCircle,
-    cardClass: "bg-slate-50 border-slate-200",
-    iconWrapClass: "bg-slate-200/70",
-    iconClass: "text-slate-700",
+    title: "For Agents",
+    icon: Users,
+    gradient: "from-[#02665e] to-[#4dd9ac]",
+    bg: "bg-teal-50/60 border-teal-100/80",
+    pill: "bg-teal-100 text-teal-700",
+    accent: "#02665e",
     links: [
-      { href: "/account/agent", label: "Open Agent Dashboard" },
-      { href: "/account/agent/assignments", label: "View Assignments" },
-      { href: "/account/agent/notifications", label: "Notifications" },
-      { href: "/account/agent/profile", label: "Profile" },
-      { href: "/account/agent/security", label: "Security & Access" },
+      { href: "/help/become-agent", label: "Become an Agent" },
+      { href: "/help/event-manager", label: "Event Manager" },
+      { href: "/help/nolsaf-stand", label: "NoLSAF Stand" },
+    ],
+  },
+  {
+    title: "Safety & Security",
+    icon: Shield,
+    gradient: "from-rose-500 to-pink-600",
+    bg: "bg-rose-50/60 border-rose-100/80",
+    pill: "bg-rose-100 text-rose-700",
+    accent: "#e11d48",
+    links: [
+      { href: "/help/getting-started#safety", label: "Safety Guidelines" },
+      { href: "/help/account-setup#security", label: "Account Security" },
+      { href: "/help/refunds#disputes", label: "Dispute Resolution" },
     ],
   },
 ];
@@ -360,235 +391,302 @@ export default function HelpCenterPage() {
   return (
     <>
       <HelpHeader />
-      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
+      <div className="min-h-screen bg-[#f8fafb]">
         <LayoutFrame heightVariant="sm" topVariant="sm" colorVariant="muted" variant="solid" />
-        <div className="public-container py-8 sm:py-12">
-          {/* Header Section */}
-          <div className="max-w-3xl mx-auto text-center mb-12 animate-[fadeIn_0.5s_ease-out]">
-            <div className="inline-flex items-center justify-center rounded-full bg-gradient-to-br from-[#02665e] to-[#024d47] p-4 shadow-lg transform transition-all duration-300 hover:scale-110 hover:shadow-xl">
-              <LifeBuoy className="h-8 w-8 text-white" />
-            </div>
-            <h1 className="mt-6 text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 tracking-tight">
-              Help Center
-            </h1>
-            <p className="mt-3 text-base sm:text-lg text-gray-600">
-              Find answers to common questions and get support
-            </p>
-          </div>
+        <div className="public-container py-8 sm:py-10">
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
-          {/* Main Content - Knowledge Base */}
-          <main className="lg:col-span-2 space-y-6">
-            {/* Help Categories */}
-            <section className="bg-white rounded-2xl p-6 sm:p-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">Browse by Category</h2>
-              <div className="grid grid-cols-2 gap-4 sm:gap-6">
-                {HELP_CATEGORIES.map((category, idx) => {
-                  const Icon = category.icon;
-                  return (
-                    <div
-                      key={idx}
-                      className={`group min-w-0 rounded-xl border p-4 sm:p-5 shadow-sm transition-all duration-200 hover:shadow-md ${category.cardClass}`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={`inline-flex items-center justify-center rounded-lg p-2 ${category.iconWrapClass}`}>
-                          <Icon className={`h-5 w-5 ${category.iconClass}`} />
-                        </div>
-                        <h3 className="text-base font-semibold text-slate-900 leading-tight">{category.title}</h3>
-                      </div>
+        {/* ── Premium Hero ─────────────────────────────────────── */}
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#010f0e] via-[#011a18] to-[#022820] text-white">
+          <div className="pointer-events-none absolute inset-0 opacity-[0.03]"
+            style={{ backgroundImage: "radial-gradient(circle, #ffffff 1px, transparent 1px)", backgroundSize: "20px 20px" }} />
+          <div className="pointer-events-none absolute -top-24 right-0 w-[500px] h-[500px] rounded-full blur-3xl opacity-20"
+            style={{ background: "radial-gradient(circle, #4dd9ac 0%, transparent 65%)" }} />
+          <div className="pointer-events-none absolute bottom-0 left-0 w-80 h-80 rounded-full blur-3xl opacity-10"
+            style={{ background: "radial-gradient(circle, #02b4f5 0%, transparent 70%)" }} />
 
-                      <div className="mt-3 space-y-1">
-                        {category.links.map((link, linkIdx) => (
-                          <Link
-                            key={linkIdx}
-                            href={withHelpCtx(link.href)}
-                            onClick={() => {
-                              if (isAgentContext && typeof window !== "undefined") {
-                                sessionStorage.setItem("navigationContext", "agent");
-                              }
-                            }}
-                            className="group/link text-sm text-slate-700 hover:text-slate-950 flex items-center justify-between gap-2 transition-colors duration-150 no-underline py-1"
-                          >
-                            <span className="min-w-0 truncate">{link.label}</span>
-                            <ChevronRight className="h-4 w-4 flex-shrink-0 text-slate-400 opacity-0 group-hover/link:opacity-100 transition-opacity duration-150" />
-                          </Link>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
+          <div className="py-12 sm:py-16 px-6 sm:px-10 relative z-10">
+            <div className="max-w-2xl mx-auto text-center">
+              <div className="inline-flex items-center gap-2 rounded-full border border-[#4dd9ac]/25 bg-[#4dd9ac]/10 px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-widest text-[#4dd9ac] mb-6">
+                <Sparkles className="h-3 w-3" /> Support &amp; Documentation
               </div>
-            </section>
-
-            {/* FAQs Section */}
-            <section className="bg-white rounded-2xl p-6 sm:p-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">Frequently Asked Questions</h2>
-              
-              {/* Clean Category Filter */}
-              <div className="flex flex-wrap gap-2 mb-8 pb-6 border-b border-gray-100">
-                {categories.map((cat) => (
-                  <button
-                    key={cat}
-                    onClick={() => {
-                      setSelectedCategory(cat);
-                      setShowAllFAQs(false);
-                      setOpenFaq(null);
-                    }}
-                    className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${
-                      selectedCategory === cat
-                        ? 'bg-[#02665e] text-white'
-                        : 'text-gray-500 hover:text-[#02665e]'
-                    }`}
-                  >
-                    {cat}
-                  </button>
-                ))}
-              </div>
-
-              {/* Clean FAQ Items */}
-              <div className="space-y-0">
-                {displayedFAQs.map((f, idx) => {
-                  const isOpen = openFaq === idx;
-                  return (
-                    <div
-                      key={idx}
-                      className="py-4 border-b border-gray-50 last:border-b-0"
-                    >
-                      <button
-                        onClick={() => setOpenFaq(isOpen ? null : idx)}
-                        className="w-full flex items-center justify-between text-left transition-all duration-200 group"
-                      >
-                        <span className={`text-base pr-4 transition-colors ${
-                          isOpen ? 'text-[#02665e] font-semibold' : 'text-gray-900 font-medium group-hover:text-[#02665e]'
-                        }`}>
-                          {f.question}
-                        </span>
-                        <ChevronDown
-                          className={`h-4 w-4 flex-shrink-0 transition-all duration-200 ${
-                            isOpen ? 'rotate-180 text-[#02665e]' : 'text-gray-400 group-hover:text-gray-600'
-                          }`}
-                        />
-                      </button>
-                      {isOpen && (
-                        <div className="mt-3 text-gray-600 leading-relaxed text-sm">
-                          {f.answer}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-              
-              {/* Show More/Less Button */}
-              {hasMoreFAQs && (
-                <div className="mt-8 pt-6 border-t border-gray-100 text-center">
-                  <button
-                    onClick={() => {
-                      setShowAllFAQs(!showAllFAQs);
-                      setOpenFaq(null);
-                    }}
-                    className="inline-flex items-center gap-2 px-6 py-2.5 bg-[#02665e] text-white rounded-full font-medium hover:bg-[#024d47] transition-all duration-200 hover:shadow-lg active:scale-95"
-                  >
-                    <span>{showAllFAQs ? 'Show Less' : 'Show More'}</span>
-                    <span className="text-xs opacity-90 font-normal">
-                      ({showAllFAQs ? `${filteredFAQs.length - 10} hidden` : `${filteredFAQs.length - 10} more`})
-                    </span>
-                  </button>
-                </div>
-              )}
-            </section>
-          </main>
-
-          {/* Sidebar - Contact Form */}
-          <aside className="space-y-6">
-            <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-sm sticky top-4">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-[#02665e]/10 rounded-lg">
-                  <MessageCircle className="h-5 w-5 text-[#02665e]" />
-                </div>
-                <h3 className="font-semibold text-gray-900">Still need help?</h3>
-              </div>
-              <p className="text-sm text-gray-600 mb-4">
-                Can't find what you're looking for? Contact our support team.
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-[1.05]">
+                How can we<br /><span className="text-[#4dd9ac]">help you?</span>
+              </h1>
+              <p className="mt-5 text-[15px] text-slate-300 leading-relaxed max-w-xl mx-auto">
+                Find answers to common questions, explore guides for every role, and reach our support team — all in one place.
               </p>
 
-              <form onSubmit={submitContact} className="space-y-4">
-                <div>
-                  <label htmlFor="contact-name" className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Name (optional)
-                  </label>
-                  <input
-                    id="contact-name"
-                    type="text"
-                    value={contactName}
-                    onChange={(e) => setContactName(e.target.value)}
-                    className="w-full max-w-full box-border px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] outline-none transition-all"
-                    placeholder="Your name"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="contact-email" className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Email <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    id="contact-email"
-                    type="email"
-                    required
-                    value={contactEmail}
-                    onChange={(e) => setContactEmail(e.target.value)}
-                    className="w-full max-w-full box-border px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] outline-none transition-all"
-                    placeholder="your@email.com"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="contact-message" className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Message <span className="text-red-500">*</span>
-                  </label>
-                  <textarea
-                    id="contact-message"
-                    required
-                    value={contactMessage}
-                    onChange={(e) => setContactMessage(e.target.value)}
-                    rows={4}
-                    className="w-full max-w-full box-border px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] outline-none transition-all resize-none"
-                    placeholder="How can we help you?"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  disabled={sending}
-                  className="w-full px-4 py-2.5 bg-[#02665e] text-white rounded-lg font-semibold hover:bg-[#024d47] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
-                >
-                  {sending ? 'Sending...' : 'Send Message'}
-                </button>
-              </form>
+              {/* fake search bar for aesthetics */}
+              <div className="mt-8 flex items-center gap-3 bg-white/8 border border-white/15 rounded-2xl px-5 py-3.5 max-w-lg mx-auto backdrop-blur-sm">
+                <Search className="h-4 w-4 text-slate-400 flex-shrink-0" />
+                <span className="text-sm text-slate-400 flex-1 text-left">Search help articles, guides, FAQs…</span>
+                <span className="hidden sm:inline text-[11px] text-slate-500 border border-white/10 rounded-md px-2 py-0.5">Browse below ↓</span>
+              </div>
 
-              {sent && (
-                <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-700">
-                  {sent}
-                </div>
-              )}
-              {error && (
-                <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-                  {error}
-                </div>
-              )}
-
-              <div className="mt-6 pt-6 border-t border-gray-200">
-                <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
-                  <Mail className="h-4 w-4" />
-                  <span className="font-medium">Email us directly:</span>
-                </div>
-                <a
-                  href="mailto:info@nolsaf.com"
-                  className="text-[#02665e] hover:text-[#024d47] text-sm font-medium transition-colors"
-                >
-                  info@nolsaf.com
-                </a>
+              {/* trust pills */}
+              <div className="mt-8 flex items-center justify-center flex-wrap gap-3">
+                {[
+                  { icon: BookOpen, label: "50+ guides" },
+                  { icon: MessageCircle, label: "Live support" },
+                  { icon: Shield, label: "Secure platform" },
+                ].map(({ icon: Icon, label }) => (
+                  <div key={label} className="inline-flex items-center gap-2 rounded-full bg-white/8 border border-white/10 px-4 py-1.5 text-xs font-semibold text-slate-300">
+                    <Icon className="h-3.5 w-3.5 text-[#4dd9ac]" /> {label}
+                  </div>
+                ))}
               </div>
             </div>
-          </aside>
+          </div>
         </div>
+
+        <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+            {/* ── Main Content ─────────────────────────────────── */}
+            <main className="lg:col-span-2 space-y-10">
+
+              {/* Browse by Category */}
+              <section>
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="inline-flex items-center gap-2 rounded-full bg-[#02665e]/10 px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-[#02665e]">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#02665e]" /> Browse by Category
+                  </div>
+                </div>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  {HELP_CATEGORIES.map((cat, idx) => {
+                    const Icon = cat.icon;
+                    return (
+                      <div key={idx}
+                        className={`group relative overflow-hidden rounded-2xl border bg-white shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 ${cat.bg}`}>
+                        {/* shimmer */}
+                        <div className="pointer-events-none absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/30 to-transparent z-10" />
+                        {/* top gradient bar */}
+                        <div className={`h-[3px] w-full bg-gradient-to-r ${cat.gradient}`} />
+                        {/* watermark number */}
+                        <span className="pointer-events-none select-none absolute right-3 bottom-2 text-[4rem] font-black leading-none opacity-[0.04] text-slate-900">
+                          {String(idx + 1).padStart(2, "0")}
+                        </span>
+
+                        <div className="p-5 relative z-10">
+                          <div className="flex items-center gap-3 mb-4">
+                            <div className={`h-10 w-10 rounded-xl bg-gradient-to-br ${cat.gradient} flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300 flex-shrink-0`}>
+                              <Icon className="h-5 w-5 text-white drop-shadow" />
+                            </div>
+                            <h3 className="text-sm font-extrabold text-gray-900 leading-snug">{cat.title}</h3>
+                          </div>
+                          <div className="space-y-1">
+                            {cat.links.map((link, li) => (
+                              <Link key={li} href={withHelpCtx(link.href)}
+                                onClick={() => { if (isAgentContext && typeof window !== "undefined") sessionStorage.setItem("navigationContext", "agent"); }}
+                                className="group/link no-underline flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-white/80 hover:text-gray-900 transition-all duration-150">
+                                <span className="min-w-0 truncate font-medium">{link.label}</span>
+                                <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 opacity-0 group-hover/link:opacity-100 transition-opacity duration-150" style={{ color: cat.accent }} />
+                              </Link>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+
+              {/* FAQ Section */}
+              <section>
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="inline-flex items-center gap-2 rounded-full bg-[#02665e]/10 px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-[#02665e]">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#02665e]" /> Frequently Asked Questions
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+                  {/* Category filter */}
+                  <div className="px-6 sm:px-8 pt-6 pb-5 border-b border-slate-100">
+                    <div className="flex flex-wrap gap-2">
+                      {categories.map((cat) => (
+                        <button key={cat}
+                          onClick={() => { setSelectedCategory(cat); setShowAllFAQs(false); setOpenFaq(null); }}
+                          className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all duration-200 ${
+                            selectedCategory === cat
+                              ? "bg-[#02665e] text-white shadow-sm"
+                              : "bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700"
+                          }`}>
+                          {cat}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* FAQ items */}
+                  <div className="divide-y divide-slate-50">
+                    {displayedFAQs.map((f, idx) => {
+                      const isOpen = openFaq === idx;
+                      return (
+                        <div key={idx} className={`transition-colors duration-200 ${isOpen ? "bg-[#f0fdfc]" : "hover:bg-slate-50/60"}`}>
+                          <button onClick={() => setOpenFaq(isOpen ? null : idx)}
+                            className="w-full flex items-center justify-between gap-4 text-left px-6 sm:px-8 py-4">
+                            <span className={`text-sm font-semibold leading-snug transition-colors duration-150 ${isOpen ? "text-[#02665e]" : "text-gray-900"}`}>
+                              {f.question}
+                            </span>
+                            <div className={`flex-shrink-0 h-7 w-7 rounded-full flex items-center justify-center transition-all duration-200 ${isOpen ? "bg-[#02665e] text-white" : "bg-slate-100 text-slate-400"}`}>
+                              <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
+                            </div>
+                          </button>
+                          {isOpen && (
+                            <div className="px-6 sm:px-8 pb-5">
+                              <div className="text-sm text-gray-600 leading-relaxed border-l-2 border-[#4dd9ac] pl-4">
+                                {f.answer}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Show more */}
+                  {hasMoreFAQs && (
+                    <div className="px-6 sm:px-8 py-5 border-t border-slate-100 bg-slate-50/50">
+                      <button
+                        onClick={() => { setShowAllFAQs(!showAllFAQs); setOpenFaq(null); }}
+                        className="inline-flex items-center gap-2 rounded-xl bg-[#02665e] text-white px-5 py-2.5 text-sm font-bold hover:bg-[#024d47] transition-all duration-200 shadow-sm hover:shadow-md">
+                        {showAllFAQs ? "Show Less" : `Show More`}
+                        <span className="text-[11px] font-normal opacity-80">
+                          ({showAllFAQs ? `${filteredFAQs.length - 10} fewer` : `${filteredFAQs.length - 10} more`})
+                        </span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              {/* Quick links strip */}
+              <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#010f0e] via-[#011a18] to-[#022820] text-white p-6 sm:p-8">
+                <div className="pointer-events-none absolute inset-0 opacity-[0.03]"
+                  style={{ backgroundImage: "radial-gradient(circle, #ffffff 1px, transparent 1px)", backgroundSize: "20px 20px" }} />
+                <div className="pointer-events-none absolute -top-10 right-0 w-48 h-48 rounded-full blur-3xl opacity-20"
+                  style={{ background: "radial-gradient(circle, #4dd9ac 0%, transparent 65%)" }} />
+                <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
+                  <div className="flex items-start gap-4">
+                    <div className="h-11 w-11 rounded-xl bg-[#4dd9ac]/15 border border-[#4dd9ac]/25 flex items-center justify-center flex-shrink-0">
+                      <LifeBuoy className="h-5 w-5 text-[#4dd9ac]" />
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-bold uppercase tracking-widest text-[#4dd9ac] mb-1">Need more help?</p>
+                      <h3 className="text-base font-extrabold text-white leading-snug">Our team is available around the clock.</h3>
+                      <p className="mt-1 text-sm text-slate-400">Email us directly and we will respond within 24 hours.</p>
+                    </div>
+                  </div>
+                  <a href="mailto:info@nolsaf.com"
+                    className="no-underline flex-shrink-0 inline-flex items-center gap-2 rounded-xl bg-[#4dd9ac] text-[#011a14] px-5 py-2.5 text-sm font-extrabold hover:brightness-110 hover:gap-3 transition-all duration-200 shadow-xl shadow-[#4dd9ac]/20">
+                    Email support <ArrowRight className="h-4 w-4" />
+                  </a>
+                </div>
+              </section>
+            </main>
+
+            {/* ── Sidebar ──────────────────────────────────────── */}
+            <aside className="space-y-5">
+              {/* Contact form card */}
+              <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden sticky top-4">
+                {/* card header */}
+                <div className="bg-gradient-to-r from-[#02665e] to-[#024d47] p-5">
+                  <div className="flex items-center gap-3">
+                    <div className="h-9 w-9 rounded-xl bg-white/15 flex items-center justify-center">
+                      <MessageCircle className="h-4 w-4 text-white" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-extrabold text-white">Still need help?</p>
+                      <p className="text-[11px] text-white/70 mt-0.5">We typically respond within 24 hours</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-5">
+                  <form onSubmit={submitContact} className="space-y-4">
+                    <div>
+                      <label htmlFor="contact-name" className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">
+                        Name <span className="text-gray-400 font-normal normal-case tracking-normal">(optional)</span>
+                      </label>
+                      <input id="contact-name" type="text" value={contactName}
+                        onChange={(e) => setContactName(e.target.value)}
+                        className="w-full box-border px-3.5 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#02665e]/30 focus:border-[#02665e] outline-none transition-all bg-slate-50/50 placeholder:text-slate-400"
+                        placeholder="Your name" />
+                    </div>
+                    <div>
+                      <label htmlFor="contact-email" className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">
+                        Email <span className="text-rose-500">*</span>
+                      </label>
+                      <input id="contact-email" type="email" required value={contactEmail}
+                        onChange={(e) => setContactEmail(e.target.value)}
+                        className="w-full box-border px-3.5 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#02665e]/30 focus:border-[#02665e] outline-none transition-all bg-slate-50/50 placeholder:text-slate-400"
+                        placeholder="your@email.com" />
+                    </div>
+                    <div>
+                      <label htmlFor="contact-message" className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">
+                        Message <span className="text-rose-500">*</span>
+                      </label>
+                      <textarea id="contact-message" required value={contactMessage}
+                        onChange={(e) => setContactMessage(e.target.value)}
+                        rows={4}
+                        className="w-full box-border px-3.5 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#02665e]/30 focus:border-[#02665e] outline-none transition-all resize-none bg-slate-50/50 placeholder:text-slate-400"
+                        placeholder="How can we help you?" />
+                    </div>
+                    <button type="submit" disabled={sending}
+                      className="w-full py-2.5 rounded-xl bg-[#02665e] text-white text-sm font-extrabold hover:bg-[#024d47] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm hover:shadow-md">
+                      {sending ? "Sending…" : "Send Message"}
+                    </button>
+                  </form>
+
+                  {sent && (
+                    <div className="mt-4 flex items-start gap-2.5 p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-700 leading-relaxed">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 flex-shrink-0 mt-1" />
+                      {sent}
+                    </div>
+                  )}
+                  {error && (
+                    <div className="mt-4 flex items-start gap-2.5 p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 leading-relaxed">
+                      <span className="h-1.5 w-1.5 rounded-full bg-rose-500 flex-shrink-0 mt-1" />
+                      {error}
+                    </div>
+                  )}
+
+                  <div className="mt-5 pt-5 border-t border-slate-100 flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-lg bg-[#02665e]/10 flex items-center justify-center flex-shrink-0">
+                      <Mail className="h-3.5 w-3.5 text-[#02665e]" />
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-gray-500 font-medium uppercase tracking-wide">Direct email</p>
+                      <a href="mailto:info@nolsaf.com"
+                        className="text-[#02665e] hover:text-[#024d47] text-sm font-bold transition-colors">
+                        info@nolsaf.com
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick links card */}
+              <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5">
+                <p className="text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-4">Popular guides</p>
+                <div className="space-y-1">
+                  {[
+                    { href: "/help/getting-started", label: "How to make your first booking" },
+                    { href: "/help/payments", label: "Accepted payment methods" },
+                    { href: "/help/refunds", label: "Cancellation & refund policy" },
+                    { href: "/help/owner-guide", label: "Property owner guide" },
+                    { href: "/help/become-agent", label: "Become a NoLSAF Agent" },
+                    { href: "/help/nolsaf-stand", label: "Register a safari stand" },
+                  ].map(({ href, label }) => (
+                    <Link key={href} href={href}
+                      className="no-underline group flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-slate-50 hover:text-gray-900 transition-all duration-150">
+                      <span className="font-medium">{label}</span>
+                      <ChevronRight className="h-3.5 w-3.5 text-slate-300 group-hover:text-[#02665e] flex-shrink-0 transition-colors" />
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            </aside>
+          </div>
         </div>
       </div>
       <HelpFooter />

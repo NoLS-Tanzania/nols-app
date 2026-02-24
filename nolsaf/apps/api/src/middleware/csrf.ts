@@ -1,42 +1,85 @@
 // apps/api/src/middleware/csrf.ts
 import { Request, Response, NextFunction } from "express";
 import crypto from "crypto";
+import { getRedis } from "../lib/redis.js";
 
-// In-memory store for CSRF tokens (in production, use Redis)
+const CSRF_TTL_SEC = 60 * 60; // 1 hour
+
+// ---------------------------------------------------------------------------
+// In-memory fallback (used when Redis is unavailable, e.g. local dev without Redis)
+// ---------------------------------------------------------------------------
 const tokenStore = new Map<string, { token: string; expiresAt: number }>();
 
-// Clean up expired tokens every 5 minutes
+// Prune expired entries every 5 minutes to avoid unbounded memory growth.
 setInterval(() => {
   const now = Date.now();
   for (const [key, value] of tokenStore.entries()) {
-    if (value.expiresAt < now) {
-      tokenStore.delete(key);
-    }
+    if (value.expiresAt < now) tokenStore.delete(key);
   }
 }, 5 * 60 * 1000);
 
+function memSet(sessionId: string, token: string): void {
+  tokenStore.set(sessionId, { token, expiresAt: Date.now() + CSRF_TTL_SEC * 1000 });
+}
+
+function memGet(sessionId: string): string | null {
+  const stored = tokenStore.get(sessionId);
+  if (!stored || stored.expiresAt < Date.now()) return null;
+  return stored.token;
+}
+
+// ---------------------------------------------------------------------------
+// Redis-backed store with in-memory fallback
+// ---------------------------------------------------------------------------
+const REDIS_PREFIX = "csrf:";
+
+async function storeToken(sessionId: string, token: string): Promise<void> {
+  const redis = getRedis();
+  if (redis) {
+    try {
+      await redis.set(`${REDIS_PREFIX}${sessionId}`, token, "EX", CSRF_TTL_SEC);
+      return;
+    } catch {
+      // Redis unavailable — fall through to in-memory
+    }
+  }
+  memSet(sessionId, token);
+}
+
+async function retrieveToken(sessionId: string): Promise<string | null> {
+  const redis = getRedis();
+  if (redis) {
+    try {
+      return await redis.get(`${REDIS_PREFIX}${sessionId}`);
+    } catch {
+      // Redis unavailable — fall through to in-memory
+    }
+  }
+  return memGet(sessionId);
+}
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
 /**
- * Generate a CSRF token for a session
+ * Generate a CSRF token for a session and persist it.
  */
-export function generateCsrfToken(sessionId: string): string {
+export async function generateCsrfToken(sessionId: string): Promise<string> {
   const token = crypto.randomBytes(32).toString("hex");
-  tokenStore.set(sessionId, {
-    token,
-    expiresAt: Date.now() + 60 * 60 * 1000, // 1 hour
-  });
+  await storeToken(sessionId, token);
   return token;
 }
 
 /**
- * Verify CSRF token
+ * Verify a submitted CSRF token against the stored value using
+ * constant-time comparison to resist timing attacks.
  */
-export function verifyCsrfToken(sessionId: string, token: string): boolean {
-  const stored = tokenStore.get(sessionId);
-  if (!stored || stored.expiresAt < Date.now()) {
-    return false;
-  }
+export async function verifyCsrfToken(sessionId: string, token: string): Promise<boolean> {
+  const stored = await retrieveToken(sessionId);
+  if (!stored) return false;
   try {
-    const a = Buffer.from(stored.token);
+    const a = Buffer.from(stored);
     const b = Buffer.from(token);
     if (a.length !== b.length) return false;
     return crypto.timingSafeEqual(a, b);
@@ -60,7 +103,7 @@ function getSessionId(req: Request): string {
  * CSRF protection middleware for state-changing operations
  * Only applies to POST, PUT, DELETE, PATCH methods
  */
-export function csrfProtection(req: Request, res: Response, next: NextFunction) {
+export async function csrfProtection(req: Request, res: Response, next: NextFunction) {
   // Skip CSRF for GET, HEAD, OPTIONS
   if (["GET", "HEAD", "OPTIONS"].includes(req.method)) {
     return next();
@@ -86,7 +129,7 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction) 
     });
   }
 
-  if (!verifyCsrfToken(sessionId, token)) {
+  if (!(await verifyCsrfToken(sessionId, token))) {
     return res.status(403).json({
       error: "Invalid CSRF token",
       message: "CSRF token verification failed",
@@ -100,10 +143,10 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction) 
  * Middleware to add CSRF token to response headers
  * Call this on GET requests to provide token to frontend
  */
-export function csrfTokenHeader(req: Request, res: Response, next: NextFunction) {
+export async function csrfTokenHeader(req: Request, res: Response, next: NextFunction) {
   if (req.method === "GET") {
     const sessionId = getSessionId(req);
-    const token = generateCsrfToken(sessionId);
+    const token = await generateCsrfToken(sessionId);
     res.setHeader("X-CSRF-Token", token);
   }
   next();

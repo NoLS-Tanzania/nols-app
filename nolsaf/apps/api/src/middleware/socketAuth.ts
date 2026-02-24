@@ -15,6 +15,13 @@ export interface AuthenticatedSocket extends Socket {
   };
 }
 
+/** Shape of the JWT payload this app issues. */
+interface JwtSocketPayload {
+  sub: string | number;
+  iat?: number;
+  exp?: number;
+}
+
 function parseCookies(cookieHeader: string | undefined): Record<string, string> {
   if (!cookieHeader) return {};
   const out: Record<string, string> = {};
@@ -43,8 +50,8 @@ async function verifyToken(token: string): Promise<{ id: number; role: string; e
       return null;
     }
 
-    const decoded = jwt.verify(token, secret) as any;
-    if (!decoded || !decoded.sub) {
+    const decoded = jwt.verify(token, secret) as JwtSocketPayload;
+    if (!decoded || decoded.sub == null) {
       return null;
     }
 
@@ -64,7 +71,7 @@ async function verifyToken(token: string): Promise<{ id: number; role: string; e
     const mappedRole = role === 'CUSTOMER' ? 'USER' : role;
 
     // Enforce dynamic per-role TTL based on token issuance time
-    const issuedAtSec = typeof (decoded as any).iat === 'number' ? (decoded as any).iat : Number((decoded as any).iat);
+    const issuedAtSec = typeof decoded.iat === 'number' ? decoded.iat : Number(decoded.iat);
     if (Number.isFinite(issuedAtSec) && issuedAtSec > 0) {
       const maxMinutes = await getRoleSessionMaxMinutes(mappedRole);
       const ageSec = Math.floor(Date.now() / 1000) - issuedAtSec;
@@ -138,3 +145,24 @@ export function socketAuthMiddleware(socket: AuthenticatedSocket, next: (err?: E
     });
 }
 
+/**
+ * Guard helper for socket event handlers.
+ *
+ * Call at the top of any handler that requires an authenticated user:
+ *
+ *   socket.on("some:event", (data) => {
+ *     if (!requireSocketUser(socket)) return;
+ *     // socket.data.user is guaranteed non-null here
+ *   });
+ *
+ * Returns `true` when the user is present, emits an UNAUTHENTICATED error
+ * and returns `false` otherwise — without disconnecting the socket so other
+ * public listeners (e.g. driver-location tracking) keep working.
+ */
+export function requireSocketUser(
+  socket: AuthenticatedSocket,
+): socket is AuthenticatedSocket & { data: { user: NonNullable<AuthenticatedSocket["data"]["user"]> } } {
+  if (socket.data.user) return true;
+  socket.emit("error", { code: "UNAUTHENTICATED", message: "Authentication required" });
+  return false;
+}

@@ -8,6 +8,14 @@ import { touchActiveUser } from '../lib/activePresence.js';
 
 export type Role = 'ADMIN' | 'OWNER' | 'USER' | 'DRIVER' | 'AGENT';
 
+/** Shape of the payload our JWT tokens carry. */
+interface JwtTokenPayload {
+  sub: string | number;
+  iat?: number;
+  exp?: number;
+  role?: string;
+}
+
 export interface AuthedUser {
   id: number;
   role: Role;
@@ -21,6 +29,8 @@ export interface AuthedRequest extends Request {
 
 function isLocalDevBypassAllowed(req: Request): boolean {
   if (process.env.NODE_ENV === "production" || process.env.NODE_ENV === "test") return false;
+  // Set DISABLE_DEV_BYPASS=true in .env to opt-out even in development/staging.
+  if (process.env.DISABLE_DEV_BYPASS === "true") return false;
   const ip = String((req as any).ip ?? "");
   // Express may surface IPv6 loopback or IPv4-mapped IPv6 addresses.
   return ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1";
@@ -71,8 +81,8 @@ async function verifyToken(token: string): Promise<AuthedUser | null> {
       return null;
     }
 
-    const decoded = jwt.verify(token, secret) as any;
-    if (!decoded || !decoded.sub) return null;
+    const decoded = jwt.verify(token, secret) as JwtTokenPayload;
+    if (!decoded || decoded.sub == null) return null;
 
     // Try to get user from database to verify role
     const userId = Number(decoded.sub);
@@ -162,8 +172,8 @@ export const requireAuth: RequestHandler = async (req, res, next) => {
     try {
       const secret = process.env.JWT_SECRET || (process.env.NODE_ENV !== "production" ? (process.env.DEV_JWT_SECRET || "dev_jwt_secret") : "");
       if (secret) {
-        const decoded = jwt.verify(token, secret) as any;
-        if (decoded?.sub) {
+        const decoded = jwt.verify(token, secret) as JwtTokenPayload;
+        if (decoded?.sub != null) {
           const userId = Number(decoded.sub);
           const dbUser = await prisma.user.findUnique({
             where: { id: userId },
@@ -182,6 +192,7 @@ export const requireAuth: RequestHandler = async (req, res, next) => {
   // DEV behavior: keep current dev-bypass so the app keeps working locally.
   // Production is strict: no token -> 401.
   if (isLocalDevBypassAllowed(req)) {
+    console.warn(`[DEV_BYPASS] No token on ${req.method} ${req.path} — injecting dev admin stub. Set DISABLE_DEV_BYPASS=true to disable.`);
     (req as AuthedRequest).user = { id: 1, role: "ADMIN" };
     try {
       touchActiveUser(1, "ADMIN");
@@ -218,8 +229,8 @@ export function requireRole(required?: Role) {
           try {
             const secret = process.env.JWT_SECRET || (process.env.NODE_ENV !== "production" ? (process.env.DEV_JWT_SECRET || "dev_jwt_secret") : "");
             if (secret) {
-              const decoded = jwt.verify(token, secret) as any;
-              if (decoded?.sub) {
+              const decoded = jwt.verify(token, secret) as JwtTokenPayload;
+              if (decoded?.sub != null) {
                 const userId = Number(decoded.sub);
                 const dbUser = await prisma.user.findUnique({
                   where: { id: userId },
@@ -239,7 +250,10 @@ export function requireRole(required?: Role) {
 
     // Dev bypass: keep local development productive.
     if (isLocalDevBypassAllowed(req)) {
-      if (!(req as AuthedRequest).user) (req as AuthedRequest).user = { id: 1, role: "ADMIN" };
+      if (!(req as AuthedRequest).user) {
+        console.warn(`[DEV_BYPASS] No user on ${req.method} ${req.path} — injecting dev admin stub. Set DISABLE_DEV_BYPASS=true to disable.`);
+        (req as AuthedRequest).user = { id: 1, role: "ADMIN" };
+      }
       try {
         touchActiveUser((req as AuthedRequest).user!.id, (req as AuthedRequest).user!.role);
       } catch {}
