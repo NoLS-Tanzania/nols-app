@@ -1,7 +1,7 @@
-"use client";
+﻿"use client";
 
 import React from "react";
-import { ChevronDown, CheckCircle, ArrowRight, Plus, Trash2, ArrowUp, ArrowDown, MapPin, Calendar } from 'lucide-react';
+import { ChevronDown, CheckCircle, ArrowRight, Plus, Trash2, ArrowUp, ArrowDown, MapPin, Calendar, Plane } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import DatePicker from "@/components/ui/DatePicker";
@@ -725,6 +725,7 @@ export default function PlanRequestForm({ selectedRole }: Props) {
   // Storage key for autosave - based on role to separate different form sessions
   const storageKey = React.useMemo(() => `planRequestForm_${selectedRole || 'default'}`, [selectedRole]);
   const [hasRestored, setHasRestored] = React.useState(false);
+  const [redirectingToAuth, setRedirectingToAuth] = React.useState(false);
 
   const collectFormAsObject = React.useCallback(() => {
     if (!formRef.current) return {} as Record<string, string>;
@@ -1058,6 +1059,24 @@ export default function PlanRequestForm({ selectedRole }: Props) {
     };
   }, [selectedRole, hasRestored, saveFormData, step, storageKey, destinationsText]);
 
+  // Auto-submit: when the user returns from registration with a pending plan request
+  React.useEffect(() => {
+    if (!selectedRole || !hasRestored || !formRef.current) return;
+    let pending: string | null = null;
+    try { pending = sessionStorage.getItem('nolsaf_plan_pending_submit'); } catch {}
+    if (!pending) return;
+    // Confirm user is now authenticated before auto-submitting
+    fetch('/api/account/me', { credentials: 'include' })
+      .then((res) => {
+        if (!res.ok) return;
+        try { sessionStorage.removeItem('nolsaf_plan_pending_submit'); } catch {}
+        // Small delay so the form state is fully ready before submitting
+        setTimeout(() => { formRef.current?.requestSubmit(); }, 800);
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedRole, hasRestored]);
+
   // Friendly labels and preferred order for the review step
   const reviewLabels: Record<string, string> = {
     role: 'Role',
@@ -1210,6 +1229,22 @@ export default function PlanRequestForm({ selectedRole }: Props) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formRef.current) return;
+
+    // Auth gate: require a logged-in account before submitting
+    try {
+      const authCheck = await fetch('/api/account/me', { credentials: 'include' });
+      if (!authCheck.ok) {
+        // Persist form data and mark as pending so it auto-submits after registration
+        saveFormData();
+        try { sessionStorage.setItem('nolsaf_plan_pending_submit', '1'); } catch {}
+        setRedirectingToAuth(true);
+        router.push(`/register?next=${encodeURIComponent('/public/plan-with-us')}`);
+        return;
+      }
+    } catch {
+      // Network error checking auth – continue and let the API enforce it
+    }
+
     setSubmitting(true);
     
     // Collect all form data - first try from saved sessionStorage (most complete)
@@ -1322,7 +1357,13 @@ export default function PlanRequestForm({ selectedRole }: Props) {
       setSubmitted(true);
     } catch (err: any) {
       console.error('Submit error:', err);
-      alert(err.message || 'Failed to submit request. Please try again later.');
+      const msg: string = (err as any)?.message || '';
+      const isServerBusy = /pool timeout|pool connections|ECONNREFUSED|ETIMEDOUT/i.test(msg);
+      alert(
+        isServerBusy
+          ? 'Our server is temporarily busy. Please wait a moment and try again.'
+          : (msg || 'Failed to submit request. Please try again later.')
+      );
     } finally {
       setSubmitting(false);
     }
@@ -2159,184 +2200,116 @@ export default function PlanRequestForm({ selectedRole }: Props) {
       )}
 
       {step === 2 && selectedRole === 'Tourist' && (
-        <div className="rounded-2xl border border-slate-200 bg-gradient-to-b from-white to-slate-50/40 p-5 mb-4 groupstays-section shadow-sm" aria-labelledby="tourist-section">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <div className="w-1.5 h-6 bg-emerald-500 rounded-sm" aria-hidden />
-              <div>
-                <div id="tourist-section" className="text-sm font-semibold text-slate-900">For Tourists</div>
-                <div className="text-xs text-slate-500">Pick a few options (fast) and we’ll tailor the itinerary around your preferences.</div>
-              </div>
+        <div className="rounded-2xl border border-sky-200 bg-white mb-4 groupstays-section shadow-sm overflow-hidden" aria-labelledby="tourist-section">
+          {/* Header band */}
+          <div className="flex items-center gap-3 px-5 py-4 bg-gradient-to-r from-sky-600 to-sky-500 text-white">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/20 border border-white/25">
+              <Plane className="w-4 h-4" aria-hidden />
+            </div>
+            <div>
+              <div id="tourist-section" className="text-sm font-bold tracking-tight">For Tourists</div>
+              <div className="text-xs text-white/75 mt-0.5">Pick a few options  we'll tailor the itinerary to your preferences.</div>
             </div>
           </div>
 
           <input type="hidden" name="touristMustHaves" value={touristMustHaves.join(', ')} />
           <input type="hidden" name="touristInterests" value={touristInterests.join(', ')} />
 
-          <div className="mt-4 rounded-2xl border border-slate-200 bg-white/70 backdrop-blur p-5 shadow-sm">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-3">
-                <div className="mt-0.5 w-1.5 h-10 bg-amber-400 rounded-sm" aria-hidden />
-                <div>
-                  <div className="text-sm font-semibold text-slate-900">Must-have activities</div>
-                  <div className="mt-0.5 text-xs text-slate-500">
-                    We suggest experiences based on your destination(s) in East Africa.
+          <div className="divide-y divide-slate-100">
+
+            {/* Must-have activities */}
+            <div className="p-5">
+              <div className="flex items-start justify-between gap-3 mb-4">
+                <div className="flex items-start gap-2.5">
+                  <div className="mt-1 w-1 h-5 rounded-full bg-amber-400 shrink-0" aria-hidden />
+                  <div>
+                    <div className="text-sm font-semibold text-slate-900">Must-have activities</div>
+                    <div className="text-xs text-slate-500 mt-0.5">Tap to select  tap again to remove.</div>
                   </div>
                 </div>
+                {touristMustHaves.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setTouristMustHaves([])}
+                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full border border-slate-200 bg-white text-xs font-medium text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition shrink-0"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" aria-hidden />
+                    Clear ({touristMustHaves.length})
+                  </button>
+                )}
               </div>
-              {touristMustHaves.length > 0 ? (
-                <button
-                  type="button"
-                  onClick={() => setTouristMustHaves([])}
-                  className="inline-flex items-center gap-2 h-9 px-4 rounded-full border border-slate-200 bg-white text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 hover:border-slate-300 hover:shadow-md transition focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
-                >
-                  <Trash2 className="w-4 h-4 text-slate-500" aria-hidden />
-                  Clear
-                </button>
-              ) : null}
-            </div>
 
-            <div className="mt-4 rounded-2xl border border-slate-200 bg-gradient-to-b from-white to-slate-50/70 p-4">
-              <div className="flex items-center justify-between gap-2">
-                <div className="text-[11px] font-semibold text-slate-700">Selected ({touristMustHaves.length})</div>
-                <div className="text-[11px] font-semibold text-slate-500">Tap again to remove</div>
-              </div>
-              {touristMustHaves.length > 0 ? (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {touristMustHaves.map((opt) => (
-                    <button
-                      key={opt}
-                      type="button"
-                      onClick={() => setTouristMustHaves((prev) => toggleSelection(prev, opt))}
-                      className={
-                        activityChipBaseClass +
-                        ' bg-amber-100 text-amber-950 border-amber-400 ring-1 ring-amber-300/40 hover:bg-amber-100 hover:border-amber-500'
-                      }
-                      title="Remove"
-                    >
-                      <CheckCircle className="w-4 h-4 text-amber-700" aria-hidden />
-                      {opt}
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="mt-3 rounded-xl border border-dashed border-slate-200 bg-white/70 px-4 py-3 text-xs text-slate-600">
-                  No selections yet — choose a few suggestions below.
-                </div>
-              )}
-            </div>
-
-            {selectedDestinationInputs.length > 0 ? (
-              <div className="mt-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-[11px] font-semibold text-slate-600">Destinations detected</div>
-                  {destinationActivityContext.unmatched.length > 0 ? (
-                    <div className="text-[11px] font-semibold text-slate-500">Some places may show generic ideas</div>
-                  ) : null}
-                </div>
-                <div className="mt-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-                  <div className="flex gap-2 overflow-x-auto whitespace-nowrap [-webkit-overflow-scrolling:touch]">
+              {selectedDestinationInputs.length > 0 ? (
+                <div className="mb-4">
+                  <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-2">Destinations detected</div>
+                  <div className="flex flex-wrap gap-2">
                     {destinationActivityContext.matched.map((d) => {
                       const accent = getDestinationAccent(d.id);
                       return (
-                      <span
-                        key={d.id}
-                        className={
-                          "inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold " +
-                          accent.destinationPill
-                        }
-                      >
-                        <MapPin className={"w-3.5 h-3.5 " + accent.headerIcon} aria-hidden />
-                        <span className="tracking-tight">{d.label}</span>
-                        <span className={"text-[11px] font-semibold " + accent.destinationPillSubtle}>{d.countryLabel}</span>
-                      </span>
+                        <span key={d.id} className={"inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold " + accent.destinationPill}>
+                          <MapPin className={"w-3 h-3 " + accent.headerIcon} aria-hidden />
+                          {d.label}
+                          <span className={"text-[10px] " + accent.destinationPillSubtle}>{d.countryLabel}</span>
+                        </span>
                       );
                     })}
                     {destinationActivityContext.unmatched.slice(0, 3).map((u) => (
-                      <span
-                        key={u}
-                        className="inline-flex shrink-0 items-center gap-2 rounded-full bg-slate-50 text-slate-700 border border-slate-200 px-3 py-1.5 text-xs font-semibold"
-                        title="We’ll still plan for this, but suggestions may be generic."
-                      >
-                        <MapPin className="w-3.5 h-3.5 text-slate-400" aria-hidden />
+                      <span key={u} className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 text-slate-600 border border-slate-200 px-3 py-1 text-xs font-medium">
+                        <MapPin className="w-3 h-3 text-slate-400" aria-hidden />
                         {u}
                       </span>
                     ))}
-                    {destinationActivityContext.unmatched.length > 3 ? (
-                      <span className="inline-flex shrink-0 items-center rounded-full bg-white text-slate-600 border border-slate-200 px-3 py-1.5 text-xs font-semibold">
-                        +{destinationActivityContext.unmatched.length - 3} more
-                      </span>
-                    ) : null}
                   </div>
                 </div>
-              </div>
-            ) : (
-              <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                Add your destination(s) above to see activity suggestions.
-              </div>
-            )}
+              ) : (
+                <div className="mb-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-2.5 text-xs text-slate-500">
+                  Add destination(s) above to see activity suggestions.
+                </div>
+              )}
 
-            <div className="mt-5 space-y-5">
-              {destinationActivityContext.matched.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {destinationActivityContext.matched.length > 0 && (
+                <div className="space-y-4 mb-4">
                   {destinationActivityContext.matched.map((d) => {
                     const accent = getDestinationAccent(d.id);
                     return (
-                    <div
-                      key={d.id}
-                      className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm hover:shadow-md transition"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <div className={"inline-flex h-8 w-8 items-center justify-center rounded-xl border " + accent.headerIconWrap}>
-                            <MapPin className={"w-4 h-4 " + accent.headerIcon} aria-hidden />
+                      <div key={d.id}>
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className={"inline-flex h-6 w-6 items-center justify-center rounded-lg border " + accent.headerIconWrap}>
+                            <MapPin className={"w-3 h-3 " + accent.headerIcon} aria-hidden />
                           </div>
-                          <div className="min-w-0">
-                            <div className="text-sm font-semibold text-slate-900 truncate">{d.label}</div>
-                            <div className="text-[11px] font-semibold text-slate-500">{d.countryLabel}</div>
-                          </div>
+                          <span className="text-xs font-semibold text-slate-700">{d.label}</span>
+                          <span className="text-[10px] text-slate-400">{d.countryLabel}</span>
+                          <span className="ml-auto text-[10px] font-semibold text-slate-400">Top picks</span>
                         </div>
-                        <div className="text-[11px] font-semibold text-slate-500">Top picks</div>
+                        <div className="flex flex-wrap gap-2">
+                          {d.activities.map((opt) => {
+                            const active = touristMustHaves.includes(opt);
+                            return (
+                              <button
+                                key={opt}
+                                type="button"
+                                onClick={() => setTouristMustHaves((prev) => toggleSelection(prev, opt))}
+                                className={activityChipBaseClass + (active ? accent.chipActive : accent.chipInactive)}
+                              >
+                                {active && <CheckCircle className={"w-3.5 h-3.5 " + accent.iconActive} aria-hidden />}
+                                {opt}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {d.activities.map((opt) => {
-                          const active = touristMustHaves.includes(opt);
-                          return (
-                            <button
-                              key={opt}
-                              type="button"
-                              onClick={() => setTouristMustHaves((prev) => toggleSelection(prev, opt))}
-                              className={
-                                activityChipBaseClass +
-                                (active
-                                  ? accent.chipActive
-                                  : accent.chipInactive)
-                              }
-                            >
-                              {active ? <CheckCircle className={"w-4 h-4 " + accent.iconActive} aria-hidden /> : null}
-                              {opt}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
                     );
                   })}
                 </div>
-              ) : null}
+              )}
 
-              {popularMustHavesFiltered.length > 0 ? (
-                <details className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <summary className="cursor-pointer list-none select-none">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <div className="text-sm font-semibold text-slate-900">More ideas</div>
-                        <div className="mt-0.5 text-[11px] text-slate-500">Popular in East Africa</div>
-                      </div>
-                      <div className="text-[11px] font-semibold text-slate-600">{popularMustHavesFiltered.length} options</div>
-                    </div>
+              {popularMustHavesFiltered.length > 0 && (
+                <details className="rounded-xl border border-slate-100 bg-slate-50">
+                  <summary className="flex items-center justify-between gap-3 cursor-pointer list-none select-none px-4 py-2.5">
+                    <span className="text-xs font-semibold text-slate-700">More ideas <span className="text-slate-400 font-normal"> Popular in East Africa</span></span>
+                    <span className="text-[11px] text-slate-500">{popularMustHavesFiltered.length} options</span>
                   </summary>
-                  <div className="mt-3 flex flex-wrap gap-2">
+                  <div className="px-4 pb-4 pt-1 flex flex-wrap gap-2">
                     {popularMustHavesFiltered.map((opt) => {
                       const active = touristMustHaves.includes(opt);
                       return (
@@ -2344,160 +2317,72 @@ export default function PlanRequestForm({ selectedRole }: Props) {
                           key={opt}
                           type="button"
                           onClick={() => setTouristMustHaves((prev) => toggleSelection(prev, opt))}
-                          className={
-                            activityChipBaseClass +
-                            (active
-                              ? ' bg-amber-100 text-amber-950 border-amber-400 ring-1 ring-amber-300/40 hover:bg-amber-100 hover:border-amber-500'
-                              : ' bg-white text-slate-900 border-slate-200 hover:bg-slate-50 hover:border-slate-300')
-                          }
+                          className={activityChipBaseClass + (active ? ' bg-amber-100 text-amber-950 border-amber-400 ring-1 ring-amber-300/40' : ' bg-white text-slate-800 border-slate-200 hover:bg-slate-50 hover:border-slate-300')}
                         >
-                          {active ? <CheckCircle className="w-4 h-4 text-amber-700" aria-hidden /> : null}
+                          {active && <CheckCircle className="w-3.5 h-3.5 text-amber-700" aria-hidden />}
                           {opt}
                         </button>
                       );
                     })}
                   </div>
                 </details>
-              ) : null}
+              )}
             </div>
-          </div>
 
-          <div className="mt-4 rounded-2xl border border-slate-200 bg-white/70 backdrop-blur p-5 shadow-sm">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-3">
-                <div className="mt-0.5 w-1.5 h-10 bg-sky-400 rounded-sm" aria-hidden />
-                <div>
-                  <div className="text-sm font-semibold text-slate-900">Interests</div>
-                  <div className="mt-0.5 text-xs text-slate-500">Choose a few themes so we match the vibe.</div>
+            {/* Interests */}
+            <div className="p-5">
+              <div className="flex items-start justify-between gap-3 mb-4">
+                <div className="flex items-start gap-2.5">
+                  <div className="mt-1 w-1 h-5 rounded-full bg-sky-400 shrink-0" aria-hidden />
+                  <div>
+                    <div className="text-sm font-semibold text-slate-900">Interests</div>
+                    <div className="text-xs text-slate-500 mt-0.5">Choose themes so we match the vibe of your trip.</div>
+                  </div>
                 </div>
+                {touristInterests.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setTouristInterests([])}
+                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full border border-slate-200 bg-white text-xs font-medium text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition shrink-0"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" aria-hidden />
+                    Clear ({touristInterests.length})
+                  </button>
+                )}
               </div>
-              {touristInterests.length > 0 ? (
-                <button
-                  type="button"
-                  onClick={() => setTouristInterests([])}
-                  className="inline-flex items-center gap-2 h-9 px-4 rounded-full border border-slate-200 bg-white text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 hover:border-slate-300 hover:shadow-md transition focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
-                >
-                  <Trash2 className="w-4 h-4 text-slate-500" aria-hidden />
-                  Clear
-                </button>
-              ) : null}
-            </div>
-
-            <div className="mt-4 rounded-2xl border border-slate-200 bg-gradient-to-b from-white to-slate-50/70 p-4">
-              <div className="flex items-center justify-between gap-2">
-                <div className="text-[11px] font-semibold text-slate-700">Selected ({touristInterests.length})</div>
-                <div className="text-[11px] font-semibold text-slate-500">Tap again to remove</div>
-              </div>
-              {touristInterests.length > 0 ? (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {touristInterests.map((opt) => (
+              <div className="flex flex-wrap gap-2">
+                {touristInterestOptions.map((opt) => {
+                  const active = touristInterests.includes(opt);
+                  return (
                     <button
                       key={opt}
                       type="button"
                       onClick={() => setTouristInterests((prev) => toggleSelection(prev, opt))}
-                      className={
-                        activityChipBaseClass +
-                        touristPrimaryAccent.chipActive
-                      }
-                      title="Remove"
+                      className={activityChipBaseClass + (active ? touristPrimaryAccent.chipActive : touristPrimaryAccent.chipInactive)}
                     >
-                      <CheckCircle className={"w-4 h-4 " + touristPrimaryAccent.iconActive} aria-hidden />
+                      {active && <CheckCircle className={"w-3.5 h-3.5 " + touristPrimaryAccent.iconActive} aria-hidden />}
                       {opt}
                     </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="mt-3 rounded-xl border border-dashed border-slate-200 bg-white/70 px-4 py-3 text-xs text-slate-600">
-                  No interests selected yet — pick a couple below.
-                </div>
-              )}
-            </div>
-
-            <div className="mt-4 flex flex-wrap gap-2">
-              {touristInterestOptions.map((opt) => {
-                const active = touristInterests.includes(opt);
-                return (
-                  <button
-                    key={opt}
-                    type="button"
-                    onClick={() => setTouristInterests((prev) => toggleSelection(prev, opt))}
-                    className={
-                      activityChipBaseClass +
-                      (active
-                        ? touristPrimaryAccent.chipActive
-                        : touristPrimaryAccent.chipInactive)
-                    }
-                  >
-                    {active ? <CheckCircle className={"w-4 h-4 " + touristPrimaryAccent.iconActive} aria-hidden /> : null}
-                    {opt}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-sm font-semibold text-slate-900">Quick summary</div>
-                <div className="mt-0.5 text-xs text-slate-500">Your selected must-haves (tap to remove).</div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold text-slate-700">
-                  {touristMustHaves.length} selected
-                </span>
-                {touristMustHaves.length > 0 ? (
-                  <button
-                    type="button"
-                    onClick={() => setTouristMustHaves([])}
-                    className="inline-flex items-center gap-2 h-8 px-3 rounded-full border border-slate-200 bg-white text-[11px] font-semibold text-slate-700 shadow-sm hover:bg-slate-50 hover:border-slate-300 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
-                  >
-                    <Trash2 className="w-4 h-4 text-slate-500" aria-hidden />
-                    Clear
-                  </button>
-                ) : null}
+                  );
+                })}
               </div>
             </div>
 
-            {touristMustHaves.length > 0 ? (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {touristMustHaves.map((opt) => (
-                  <button
-                    key={opt}
-                    type="button"
-                    onClick={() => setTouristMustHaves((prev) => toggleSelection(prev, opt))}
-                    className={
-                      activityChipBaseClass +
-                      ' bg-slate-50 text-slate-900 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
-                    }
-                    title="Remove"
-                  >
-                    <CheckCircle className="w-4 h-4 text-slate-500" aria-hidden />
-                    {opt}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <div className="mt-3 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
-                No must-haves selected yet.
-              </div>
-            )}
-          </div>
+            {/* Extra notes */}
+            <div className="p-5">
+              <label htmlFor="tourist-details" className="block text-sm font-semibold text-slate-900 mb-1">
+                Extra notes <span className="text-slate-400 font-normal text-xs">(optional)</span>
+              </label>
+              <p className="text-xs text-slate-500 mb-3">Dietary needs, accessibility, hotel preferences, or any other requirements.</p>
+              <textarea
+                id="tourist-details"
+                name="otherDetails"
+                placeholder="e.g. vegetarian meals, wheelchair access, budget hotels only"
+                rows={3}
+                className="groupstays-select w-full rounded-xl px-4 py-3 border border-slate-200 bg-white text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-300 transition"
+              />
+            </div>
 
-          <div className="mt-3">
-            <details className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <summary className="cursor-pointer text-xs font-semibold text-slate-800">Add extra notes (optional)</summary>
-              <div className="mt-3">
-                <label htmlFor="tourist-details" className="block text-xs text-slate-600">Anything else we should know?</label>
-                <textarea
-                  id="tourist-details"
-                  name="otherDetails"
-                  placeholder="Optional: dietary needs, accessibility, hotel preferences, any constraints, or study details."
-                  rows={3}
-                  className="groupstays-select mt-2 w-full rounded-xl px-4 py-3 border border-slate-200 bg-white text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-300 transition"
-                />
-              </div>
-            </details>
           </div>
         </div>
       )}
@@ -2755,289 +2640,243 @@ export default function PlanRequestForm({ selectedRole }: Props) {
         const otherKeys = orderedKeys.filter(k => !tripDetails.includes(k) && !contactDetails.includes(k) && !transportDetails.includes(k) && !roleSpecificKeys.includes(k));
         
         return (
-          <section aria-labelledby="review-heading" className="space-y-4">
-            <div className="rounded-3xl border border-slate-200 bg-gradient-to-b from-white to-slate-50 p-6 shadow-sm">
-              <h3 id="review-heading" className="text-xl font-semibold text-slate-900">Review your request</h3>
-              <p className="text-sm text-slate-600 mt-1">Review all information below before sending. Use Back to edit any section.</p>
-            </div>
+          <section aria-labelledby="review-heading" className="space-y-5">
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div className="rounded-3xl border border-slate-200 bg-white/80 p-5 shadow-sm backdrop-blur">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-semibold text-slate-900">Before you send</div>
-                    <div className="mt-1 text-xs text-slate-600">Quick checklist to avoid surprises.</div>
-                  </div>
+            {/*  Hero header  */}
+            <div className="rounded-2xl overflow-hidden shadow-sm border border-emerald-200">
+              <div className="flex items-center gap-3 px-5 py-4 bg-gradient-to-r from-emerald-700 to-emerald-600 text-white">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/20 border border-white/25">
+                  <CheckCircle className="w-4 h-4 text-white" aria-hidden />
                 </div>
-                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {reviewChecklist.map((item) => (
-                    <div key={item.label} className="flex items-center gap-2 rounded-2xl border border-slate-100 bg-white px-3 py-2 shadow-sm">
-                      <CheckCircle className={item.ok ? 'w-4 h-4 text-emerald-600' : 'w-4 h-4 text-slate-300'} aria-hidden />
-                      <div className={item.ok ? 'text-xs font-semibold text-slate-800' : 'text-xs font-semibold text-slate-500'}>
-                        {item.label}
+                <div>
+                  <div id="review-heading" className="text-sm font-bold tracking-tight">Review your request</div>
+                  <div className="text-xs text-white/75 mt-0.5">Check everything below, then hit Send. Use Edit to go back to any section.</div>
+                </div>
+              </div>
+
+              {/* Checklist + What happens next */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-slate-100 bg-white">
+                {/* Checklist */}
+                <div className="p-5">
+                  <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Before you send</div>
+                  <div className="space-y-2">
+                    {reviewChecklist.map((item) => (
+                      <div key={item.label} className="flex items-center gap-2.5">
+                        <div className={[
+                          'flex h-5 w-5 shrink-0 items-center justify-center rounded-full',
+                          item.ok ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-300'
+                        ].join(' ')}>
+                          <CheckCircle className="w-3 h-3" aria-hidden />
+                        </div>
+                        <span className={['text-sm', item.ok ? 'text-slate-800 font-medium' : 'text-slate-400'].join(' ')}>
+                          {item.label}
+                        </span>
+                        {!item.ok && <span className="ml-auto text-[10px] font-semibold text-amber-500 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">Missing</span>}
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+                  <p className="mt-3 text-[11px] text-slate-400">Your contact details are only used to respond to this request.</p>
                 </div>
-                <div className="mt-3 text-[11px] text-slate-500">
-                  Your contact details are only used to respond to this request.
+                {/* What happens next */}
+                <div className="p-5">
+                  <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">What happens next</div>
+                  <ol className="space-y-3">
+                    {[
+                      { n: 1, strong: 'We review', rest: 'your details and confirm availability.' },
+                      { n: 2, strong: 'We tailor', rest: 'the itinerary around your preferences.' },
+                      { n: 3, strong: 'We reply', rest: 'with next steps and a quote.' },
+                    ].map(({ n, strong, rest }) => (
+                      <li key={n} className="flex items-start gap-3">
+                        <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-700 text-white text-[11px] font-bold">{n}</span>
+                        <span className="text-sm text-slate-700"><span className="font-semibold text-slate-900">{strong}</span> {rest}</span>
+                      </li>
+                    ))}
+                  </ol>
                 </div>
-              </div>
-
-              <div className="rounded-3xl border border-slate-200 bg-gradient-to-b from-white to-slate-50 p-5 shadow-sm">
-                <div className="text-sm font-semibold text-slate-900">What happens next</div>
-                <div className="mt-1 text-xs text-slate-600">Here’s what to expect after you send.</div>
-                <ol className="mt-4 space-y-2">
-                  <li className="flex items-start gap-3 rounded-2xl border border-slate-100 bg-white px-3 py-2 shadow-sm">
-                    <span className="mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-white text-[11px] font-semibold">1</span>
-                    <div className="text-xs text-slate-700"><span className="font-semibold text-slate-900">We review</span> your details and confirm availability.</div>
-                  </li>
-                  <li className="flex items-start gap-3 rounded-2xl border border-slate-100 bg-white px-3 py-2 shadow-sm">
-                    <span className="mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-white text-[11px] font-semibold">2</span>
-                    <div className="text-xs text-slate-700"><span className="font-semibold text-slate-900">We tailor</span> the itinerary around your preferences.</div>
-                  </li>
-                  <li className="flex items-start gap-3 rounded-2xl border border-slate-100 bg-white px-3 py-2 shadow-sm">
-                    <span className="mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-white text-[11px] font-semibold">3</span>
-                    <div className="text-xs text-slate-700"><span className="font-semibold text-slate-900">We reply</span> with next steps and a quote.</div>
-                  </li>
-                </ol>
               </div>
             </div>
-            
+
+            {/*  Review data sections  */}
             {orderedKeys.length === 0 ? (
               <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm">
                 <p className="text-sm text-slate-500">No details to show. Please fill out the form.</p>
               </div>
             ) : (
-              <div className="space-y-4">
-                {/* Trip Details Section */}
+              <div className="space-y-3">
+
+                {/* Trip Details */}
                 {tripKeys.length > 0 && (
-                  <div
-                    className={
-                      "group relative overflow-hidden rounded-3xl border bg-gradient-to-b to-white p-5 shadow-sm backdrop-blur transition-all duration-200 ease-out hover:-translate-y-px hover:shadow-md " +
-                      tripReviewAccent.reviewSectionBorder +
-                      " " +
-                      tripReviewAccent.reviewSectionFrom +
-                      " before:content-[''] before:absolute before:inset-x-0 before:top-0 before:h-1 " +
-                      tripReviewAccent.reviewSectionBar
-                    }
-                  >
-                    <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-200">
-                      <h4 className="text-sm font-semibold text-slate-900">Trip Details</h4>
-                      <button
-                        type="button"
-                        onClick={() => goToStep(1)}
-                        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50"
-                      >
-                        Edit
-                        <ArrowRight className="w-4 h-4 text-slate-500" aria-hidden />
+                  <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                    <div className={"flex items-center justify-between gap-3 px-5 py-3 border-b border-slate-100 " + tripReviewAccent.reviewSectionFrom}>
+                      <div className="flex items-center gap-2">
+                        <div className={"w-1 h-4 rounded-full " + tripReviewAccent.reviewSectionBar.replace("before:bg-", "bg-").split(" ").find((c: string) => c.startsWith("before:bg-"))?.replace("before:", "") || "bg-emerald-500"} aria-hidden />
+                        <span className="text-sm font-semibold text-slate-900">Trip Details</span>
+                      </div>
+                      <button type="button" onClick={() => goToStep(1)} className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-emerald-700 transition">
+                        Edit <ArrowRight className="w-3.5 h-3.5" aria-hidden />
                       </button>
                     </div>
-                    <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="divide-y divide-slate-50">
                       {tripKeys.map((k) => (
-                        <div
-                          key={k}
-                          className="rounded-2xl border border-slate-100 bg-white px-4 py-3 shadow-sm transition-all duration-200 ease-out hover:-translate-y-px hover:shadow-md group-hover:border-slate-200"
-                        >
-                          <div
-                            className={
-                              'text-[11px] font-semibold uppercase tracking-wide ' +
-                              (k === 'destinations' || k === 'tripType' ? tripReviewAccent.reviewLabel : 'text-slate-500')
-                            }
-                          >
+                        <div key={k} className="flex items-start gap-4 px-5 py-3">
+                          <div className={"w-28 shrink-0 text-[11px] font-semibold uppercase tracking-wide pt-0.5 " + (k === 'destinations' || k === 'tripType' ? tripReviewAccent.reviewLabel : 'text-slate-400')}>
                             {formatLabel(k)}
                           </div>
-                          {k === 'destinations' ? (
-                            (() => {
-                              const raw = currentReviewData[k];
-                              const stops = parseSerializedRouteStopsForReview(raw);
-                              if (stops.length > 0) {
-                                return (
-                                  <div className="mt-2 space-y-2">
-                                    {stops.map((s, index) => (
-                                      <div
-                                        key={`${s.idx || index}_${s.place}`}
-                                        className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50/60 px-3 py-2"
-                                      >
-                                        <span
-                                          className={
-                                            'mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ring-2 ring-white ' +
-                                            tripReviewAccent.destinationPill.replace('bg-', 'bg-')
-                                          }
-                                        >
-                                          {s.idx || index + 1}
+                          <div className="flex-1 min-w-0">
+                            {k === 'destinations' ? (
+                              (() => {
+                                const raw = currentReviewData[k];
+                                const stops = parseSerializedRouteStopsForReview(raw);
+                                if (stops.length > 0) {
+                                  return (
+                                    <div className="flex flex-wrap gap-2">
+                                      {stops.map((s, index) => (
+                                        <span key={`${s.idx || index}_${s.place}`} className={"inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold " + tripReviewAccent.destinationPill}>
+                                          <span className="font-bold">{s.idx || index + 1}.</span>
+                                          {s.place}
+                                          {typeof s.nights === 'number' && <span className="opacity-70"> {s.nights}n</span>}
                                         </span>
-                                        <div className="min-w-0 flex-1">
-                                          <div className="text-sm font-semibold text-slate-900 break-words">{s.place}</div>
-                                          {typeof s.nights === 'number' ? (
-                                            <div className="mt-1">
-                                              <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-700 shadow-sm">
-                                                {s.nights} night{s.nights === 1 ? '' : 's'}
-                                              </span>
-                                            </div>
-                                          ) : null}
-                                        </div>
-                                      </div>
+                                      ))}
+                                    </div>
+                                  );
+                                }
+                                const formatted = formatValue(raw);
+                                return <div className="text-sm text-slate-900 break-words">{formatted}</div>;
+                              })()
+                            ) : (
+                              <div className="text-sm text-slate-900 break-words">{formatValue(currentReviewData[k])}</div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Role-Specific Details */}
+                {roleKeys.length > 0 && (
+                  <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                    <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-slate-100 bg-violet-50/50">
+                      <div className="flex items-center gap-2">
+                        <div className="w-1 h-4 rounded-full bg-violet-500" aria-hidden />
+                        <span className="text-sm font-semibold text-slate-900">{selectedRole} Details</span>
+                      </div>
+                      <button type="button" onClick={() => goToStep(2)} className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-violet-700 transition">
+                        Edit <ArrowRight className="w-3.5 h-3.5" aria-hidden />
+                      </button>
+                    </div>
+                    <div className="divide-y divide-slate-50">
+                      {roleKeys.map((k) => (
+                        <div key={k} className="flex items-start gap-4 px-5 py-3">
+                          <div className="w-28 shrink-0 text-[11px] font-semibold uppercase tracking-wide text-slate-400 pt-0.5">{formatLabel(k)}</div>
+                          <div className="flex-1 min-w-0">
+                            {k === 'touristMustHaves' || k === 'touristInterests' ? (
+                              (() => {
+                                const items = splitCommaList(currentReviewData[k]);
+                                return items.length > 0 ? (
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {items.map((item) => (
+                                      <span key={item} className={"inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium border " + tripReviewAccent.chipActive}>{item}</span>
                                     ))}
                                   </div>
-                                );
-                              }
+                                ) : <div className="text-sm text-slate-400"></div>;
+                              })()
+                            ) : (
+                              <div className="text-sm text-slate-900 break-words">{formatValue(currentReviewData[k])}</div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
-                              const formatted = formatValue(raw);
-                              return <div className="mt-1 text-sm text-slate-900 break-words whitespace-pre-wrap">{formatted}</div>;
-                            })()
-                          ) : (
-                            <div className="mt-1 text-sm text-slate-900 break-words">{formatValue(currentReviewData[k])}</div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                
-                {/* Role-Specific Details Section */}
-                {roleKeys.length > 0 && (
-                  <div className="group rounded-3xl border border-slate-200 bg-white/80 p-5 shadow-sm backdrop-blur transition-shadow hover:shadow-md">
-                    <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-200">
-                      <h4 className="text-sm font-semibold text-slate-900">{selectedRole} Details</h4>
-                      <button
-                        type="button"
-                        onClick={() => goToStep(2)}
-                        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50"
-                      >
-                        Edit
-                        <ArrowRight className="w-4 h-4 text-slate-500" aria-hidden />
-                      </button>
-                    </div>
-                    <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {roleKeys.map((k) => (
-                        <div
-                          key={k}
-                          className="rounded-2xl border border-slate-100 bg-white px-4 py-3 shadow-sm transition-all duration-200 ease-out hover:-translate-y-px hover:shadow-md group-hover:border-slate-200"
-                        >
-                          <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{formatLabel(k)}</div>
-                          <div className="mt-1 text-sm text-slate-900 break-words">{formatValue(currentReviewData[k])}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                
-                {/* Contact Details Section */}
+                {/* Contact Information */}
                 {contactKeys.length > 0 && (
-                  <div className="group rounded-3xl border border-slate-200 bg-white/80 p-5 shadow-sm backdrop-blur transition-shadow hover:shadow-md">
-                    <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-200">
-                      <h4 className="text-sm font-semibold text-slate-900">Contact Information</h4>
-                      <button
-                        type="button"
-                        onClick={() => goToStep(3)}
-                        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50"
-                      >
-                        Edit
-                        <ArrowRight className="w-4 h-4 text-slate-500" aria-hidden />
-                      </button>
-                    </div>
-                    <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {contactKeys.map((k) => (
-                        <div
-                          key={k}
-                          className="rounded-2xl border border-slate-100 bg-white px-4 py-3 shadow-sm transition-all duration-200 ease-out hover:-translate-y-px hover:shadow-md group-hover:border-slate-200"
-                        >
-                          <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{formatLabel(k)}</div>
-                          <div className="mt-1 text-sm text-slate-900 break-words">{formatValue(currentReviewData[k])}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                
-                {/* Transport Details Section */}
-                {transportKeys.length > 0 && (
-                  <div className="group rounded-3xl border border-slate-200 bg-white/80 p-5 shadow-sm backdrop-blur transition-shadow hover:shadow-md">
-                    <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-200">
-                      <h4 className="text-sm font-semibold text-slate-900">Transport & Vehicle Details</h4>
-                      <button
-                        type="button"
-                        onClick={() => goToStep(3)}
-                        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50"
-                      >
-                        Edit
-                        <ArrowRight className="w-4 h-4 text-slate-500" aria-hidden />
-                      </button>
-                    </div>
-                    <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {transportKeys.map((k) => (
-                        <div
-                          key={k}
-                          className="rounded-2xl border border-slate-100 bg-white px-4 py-3 shadow-sm transition-all duration-200 ease-out hover:-translate-y-px hover:shadow-md group-hover:border-slate-200"
-                        >
-                          <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{formatLabel(k)}</div>
-                          <div className="mt-1 text-sm text-slate-900 break-words">{formatValue(currentReviewData[k])}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                
-                {/* Other Details Section */}
-                {otherKeys.length > 0 && (
-                  <div className="group rounded-3xl border border-slate-200 bg-white/80 p-5 shadow-sm backdrop-blur transition-shadow hover:shadow-md">
-                    <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-200">
-                      <div>
-                        <h4 className="text-sm font-semibold text-slate-900">
-                          {selectedRole === 'Tourist' && (otherKeys.includes('touristMustHaves') || otherKeys.includes('touristInterests'))
-                            ? 'For Tourists'
-                            : 'Additional Details'}
-                        </h4>
-                        {selectedRole === 'Tourist' && (otherKeys.includes('touristMustHaves') || otherKeys.includes('touristInterests')) ? (
-                          <div className="mt-1 text-xs text-slate-600">Pick a few options (fast) and we’ll tailor the itinerary around your preferences.</div>
-                        ) : null}
+                  <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                    <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-slate-100 bg-sky-50/50">
+                      <div className="flex items-center gap-2">
+                        <div className="w-1 h-4 rounded-full bg-sky-500" aria-hidden />
+                        <span className="text-sm font-semibold text-slate-900">Contact Information</span>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => goToStep(2)}
-                        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50"
-                      >
-                        Edit
-                        <ArrowRight className="w-4 h-4 text-slate-500" aria-hidden />
+                      <button type="button" onClick={() => goToStep(3)} className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-sky-700 transition">
+                        Edit <ArrowRight className="w-3.5 h-3.5" aria-hidden />
                       </button>
                     </div>
-                    <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {otherKeys.map((k) => (
-                        <div
-                          key={k}
-                          className="rounded-2xl border border-slate-100 bg-white px-4 py-3 shadow-sm transition-all duration-200 ease-out hover:-translate-y-px hover:shadow-md group-hover:border-slate-200"
-                        >
-                          <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{formatLabel(k)}</div>
-                          {k === 'touristMustHaves' || k === 'touristInterests' ? (
-                            (() => {
-                              const items = splitCommaList(currentReviewData[k]);
-                              return items.length > 0 ? (
-                                <div className="mt-2 flex flex-wrap gap-2">
-                                  {items.map((item) => (
-                                    <span
-                                      key={item}
-                                      className={
-                                        'inline-flex items-center rounded-xl px-3 py-1.5 text-xs font-semibold border shadow-sm select-none ' +
-                                        tripReviewAccent.chipActive
-                                      }
-                                    >
-                                      {item}
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : (
-                                <div className="mt-1 text-sm text-slate-900 break-words">-</div>
-                              );
-                            })()
-                          ) : (
-                            <div className="mt-1 text-sm text-slate-900 break-words">{formatValue(currentReviewData[k])}</div>
-                          )}
+                    <div className="divide-y divide-slate-50">
+                      {contactKeys.map((k) => (
+                        <div key={k} className="flex items-start gap-4 px-5 py-3">
+                          <div className="w-28 shrink-0 text-[11px] font-semibold uppercase tracking-wide text-slate-400 pt-0.5">{formatLabel(k)}</div>
+                          <div className="text-sm text-slate-900 break-words flex-1">{formatValue(currentReviewData[k])}</div>
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
+
+                {/* Transport Details */}
+                {transportKeys.length > 0 && (
+                  <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                    <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-slate-100 bg-amber-50/50">
+                      <div className="flex items-center gap-2">
+                        <div className="w-1 h-4 rounded-full bg-amber-400" aria-hidden />
+                        <span className="text-sm font-semibold text-slate-900">Transport & Vehicle</span>
+                      </div>
+                      <button type="button" onClick={() => goToStep(3)} className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-amber-700 transition">
+                        Edit <ArrowRight className="w-3.5 h-3.5" aria-hidden />
+                      </button>
+                    </div>
+                    <div className="divide-y divide-slate-50">
+                      {transportKeys.map((k) => (
+                        <div key={k} className="flex items-start gap-4 px-5 py-3">
+                          <div className="w-28 shrink-0 text-[11px] font-semibold uppercase tracking-wide text-slate-400 pt-0.5">{formatLabel(k)}</div>
+                          <div className="text-sm text-slate-900 break-words flex-1">{formatValue(currentReviewData[k])}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Additional / Other */}
+                {otherKeys.length > 0 && (
+                  <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                    <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-slate-100 bg-slate-50">
+                      <div className="flex items-center gap-2">
+                        <div className="w-1 h-4 rounded-full bg-slate-400" aria-hidden />
+                        <span className="text-sm font-semibold text-slate-900">
+                          {selectedRole === 'Tourist' && (otherKeys.includes('touristMustHaves') || otherKeys.includes('touristInterests')) ? 'Tourist Preferences' : 'Additional Details'}
+                        </span>
+                      </div>
+                      <button type="button" onClick={() => goToStep(2)} className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 transition">
+                        Edit <ArrowRight className="w-3.5 h-3.5" aria-hidden />
+                      </button>
+                    </div>
+                    <div className="divide-y divide-slate-50">
+                      {otherKeys.map((k) => (
+                        <div key={k} className="flex items-start gap-4 px-5 py-3">
+                          <div className="w-28 shrink-0 text-[11px] font-semibold uppercase tracking-wide text-slate-400 pt-0.5">{formatLabel(k)}</div>
+                          <div className="flex-1 min-w-0">
+                            {k === 'touristMustHaves' || k === 'touristInterests' ? (
+                              (() => {
+                                const items = splitCommaList(currentReviewData[k]);
+                                return items.length > 0 ? (
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {items.map((item) => (
+                                      <span key={item} className={"inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium border " + tripReviewAccent.chipActive}>{item}</span>
+                                    ))}
+                                  </div>
+                                ) : <div className="text-sm text-slate-400"></div>;
+                              })()
+                            ) : (
+                              <div className="text-sm text-slate-900 break-words">{formatValue(currentReviewData[k])}</div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
               </div>
             )}
           </section>
@@ -3047,7 +2886,13 @@ export default function PlanRequestForm({ selectedRole }: Props) {
       </div></>) : null}</div>
 
       {selectedRole && (
-        <div className="pt-3 flex gap-3">
+        <div className="pt-3 space-y-2">
+          {step === totalSteps && !redirectingToAuth && (
+            <p className="text-[11px] text-slate-400 text-center">
+              You&apos;ll be asked to sign in or create a free account before we receive your request.
+            </p>
+          )}
+          <div className="flex gap-3">
           {step > 1 && (
             <button type="button" onClick={goBack} className="inline-flex items-center justify-center gap-2 border border-slate-200 text-slate-700 bg-white px-4 py-2 rounded-lg">Back</button>
           )}
@@ -3057,10 +2902,11 @@ export default function PlanRequestForm({ selectedRole }: Props) {
           )}
 
           {step === totalSteps && (
-            <button type="submit" disabled={submitting} className="ml-auto inline-flex items-center justify-center gap-2 bg-emerald-600 text-white font-semibold px-4 py-2 rounded-lg">
-              {submitting ? 'Sending…' : 'Send request'}
+            <button type="submit" disabled={submitting || redirectingToAuth} className="ml-auto inline-flex items-center justify-center gap-2 bg-emerald-600 text-white font-semibold px-4 py-2 rounded-lg disabled:opacity-70 disabled:cursor-not-allowed">
+              {redirectingToAuth ? 'Taking you to sign up…' : submitting ? 'Sending…' : 'Send request'}
             </button>
           )}
+          </div>
         </div>
       )}
     </form>
