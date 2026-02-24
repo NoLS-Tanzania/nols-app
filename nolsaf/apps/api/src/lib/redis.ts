@@ -60,8 +60,10 @@ export function getRedis(): Redis | null {
         connectionAttempts = 0; // Reset on successful connection
       });
       
-      // With lazyConnect: true, connection will happen automatically on first command
-      // No need to call connect() explicitly - this avoids race conditions
+      // Eagerly connect so status reaches 'ready' before the first cache check
+      client.connect().catch(() => {
+        // Errors are handled by the 'error' event handler above
+      });
     } catch (err: any) {
       console.error('[REDIS] Failed to create client:', err?.message || 'Unknown error');
       client = null;

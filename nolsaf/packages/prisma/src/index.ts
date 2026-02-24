@@ -11,12 +11,11 @@ function createMariaDbAdapterFromDatabaseUrl(databaseUrl: string) {
   const database = url.pathname.replace(/^\/+/, '')
 
   const allowPublicKeyRetrievalParam = url.searchParams.get('allowPublicKeyRetrieval')
+  // Default true — Railway (and most remote MySQL 8/MariaDB) require public-key
+  // retrieval for caching_sha2_password auth. Only disable if explicitly set to false.
   const allowPublicKeyRetrieval =
-    allowPublicKeyRetrievalParam === 'true' ||
-    allowPublicKeyRetrievalParam === '1' ||
-    (!allowPublicKeyRetrievalParam &&
-      process.env.NODE_ENV !== 'production' &&
-      (url.hostname === 'localhost' || url.hostname === '127.0.0.1'))
+    allowPublicKeyRetrievalParam !== 'false' &&
+    allowPublicKeyRetrievalParam !== '0'
 
   return new PrismaMariaDb({
     host: url.hostname,
@@ -25,6 +24,10 @@ function createMariaDbAdapterFromDatabaseUrl(databaseUrl: string) {
     password: url.password ? decodeURIComponent(url.password) : undefined,
     database: database || undefined,
     allowPublicKeyRetrieval,
+    connectTimeout: 10000,   // 10s — Railway remote host needs more than 1s default
+    socketTimeout:  60000,   // 60s — keep long-running queries alive
+    connectionLimit: 10,
+    idleTimeout:    60000,   // release idle connections after 60s
   } as any)
 }
 

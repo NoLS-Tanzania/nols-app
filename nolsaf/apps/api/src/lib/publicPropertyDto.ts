@@ -140,8 +140,15 @@ export function formatLocation(p: {
 export function toPublicCard(p: any): PublicPropertyCard {
   const id = Number(p.id);
   const slug = buildPropertySlug(String(p.title || ""), id);
-  const images = pickImages({ images: p.images, photos: p.photos, limit: 1 });
-  const primaryImage = images[0] ?? null;
+  // If primaryImage is pre-extracted (e.g. from a raw SQL query using JSON_EXTRACT),
+  // use it directly to avoid fetching the full photos JSON blob.
+  let primaryImage: string | null;
+  if (Object.prototype.hasOwnProperty.call(p, 'primaryImage')) {
+    primaryImage = typeof p.primaryImage === 'string' && p.primaryImage ? p.primaryImage : null;
+  } else {
+    const images = pickImages({ images: p.images, photos: p.photos, limit: 1 });
+    primaryImage = images[0] ?? null;
+  }
 
   return {
     id,

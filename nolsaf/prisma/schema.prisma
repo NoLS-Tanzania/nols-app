@@ -256,7 +256,7 @@ model User {
   @@index([suspendedAt])
   @@index([kycStatus])
   @@index([referredBy])
-  @@map("User")
+  @@map("user")
 }
 
 // =========================================================
@@ -278,7 +278,7 @@ model TourismSite {
 
   @@index([country])
   @@index([slug])
-  @@map("TourismSite")
+  @@map("tourismsite")
 }
 
 model Property {
@@ -363,7 +363,7 @@ model Property {
   @@index([longitude])
   @@index([latitude, longitude]) // Composite index for location-based queries
   @@index([status, latitude, longitude]) // For filtering approved properties with locations
-  @@map("Property")
+  @@map("property")
 }
 
 // =========================================================
@@ -420,7 +420,7 @@ model Booking {
   @@index([status, createdAt]) // For filtering by status and creation time
   @@index([includeTransport])
   @@index([includeTransport, transportScheduledDate])
-  @@map("Booking")
+  @@map("booking")
 }
 
 // =========================================================
@@ -449,7 +449,7 @@ model CheckinCode {
   @@index([status])
   @@index([generatedAt])
   @@index([code])
-  @@map("CheckinCode")
+  @@map("checkincode")
 }
 
 // =========================================================
@@ -504,7 +504,7 @@ model Invoice {
   @@index([issuedAt])
   @@index([paidAt])
   @@index([status, issuedAt])
-  @@map("Invoice")
+  @@map("invoice")
 }
 
 // =========================================================
@@ -516,7 +516,7 @@ model AdminIpAllow {
   note      String?  @db.VarChar(200)
   createdAt DateTime @default(now())
 
-  @@map("AdminIpAllow")
+  @@map("adminipallow")
 }
 
 // =========================================================
@@ -542,7 +542,7 @@ model AuditLog {
   @@index([entity, entityId])
   @@index([entity, entityId, id], map: "idx_AuditLog_entity_entityId_id")
   @@index([createdAt])
-  @@map("AuditLog")
+  @@map("auditlog")
 }
 
 // =========================================================
@@ -564,7 +564,7 @@ model AdminAudit {
   @@index([targetUserId])
   @@index([action])
   @@index([createdAt])
-  @@map("AdminAudit")
+  @@map("adminaudit")
 }
 
 // =========================================================
@@ -584,7 +584,7 @@ model Session {
   @@index([userId])
   @@index([revokedAt])
   @@index([lastSeenAt])
-  @@map("Session")
+  @@map("session")
 }
 
 // =========================================================
@@ -605,7 +605,7 @@ model AdminOtp {
   @@index([adminId, purpose])
   @@index([expiresAt])
   @@index([usedAt])
-  @@map("AdminOtp")
+  @@map("adminotp")
 }
 
 // =========================================================
@@ -624,7 +624,7 @@ model EmailVerificationToken {
 
   @@index([userId])
   @@index([expiresAt])
-  @@map("EmailVerificationToken")
+  @@map("emailverificationtoken")
 }
 
 // =========================================================
@@ -646,7 +646,7 @@ model PhoneOtp {
   @@index([phone])
   @@index([expiresAt])
   @@index([usedAt])
-  @@map("PhoneOtp")
+  @@map("phoneotp")
 }
 
 // =========================================================
@@ -665,7 +665,7 @@ model AdminNote {
 
   @@index([ownerId])
   @@index([adminId])
-  @@map("AdminNote")
+  @@map("adminnote")
 }
 
 // =========================================================
@@ -687,7 +687,7 @@ model UserDocument {
 
   @@index([userId])
   @@index([status])
-  @@map("UserDocument")
+  @@map("userdocument")
 }
 
 // =========================================================
@@ -708,7 +708,7 @@ model Passkey {
 
   @@index([userId])
   @@index([credentialId])
-  @@map("Passkey")
+  @@map("passkey")
 }
 
 // =========================================================
@@ -888,7 +888,7 @@ model GroupBookingAudit {
   @@index([adminId])
   @@index([action])
   @@index([createdAt])
-  @@map("GroupBookingAudit")
+  @@map("groupbookingaudit")
 }
 
 // =========================================================
@@ -1157,7 +1157,7 @@ model TransportBooking {
   @@index([vehicleType])
   @@index([tripCode])
   @@index([tripCodeHash])
-  @@map("TransportBooking")
+  @@map("transportbooking")
 }
 
 // =========================================================
@@ -1355,7 +1355,7 @@ model TransportMessage {
   @@index([transportBookingId, createdAt])
   @@index([senderId])
   @@index([readAt])
-  @@map("TransportMessage")
+  @@map("transportmessage")
 }
 
 // =========================================================
@@ -1642,7 +1642,7 @@ model SystemSetting {
   /// Record last update timestamp
   updatedAt DateTime @updatedAt
 
-  @@map("SystemSetting")
+  @@map("systemsetting")
 }
 
 // =========================================================
@@ -1849,7 +1849,7 @@ model Notification {
   @@index([createdAt])
   @@index([userId, unread])
   @@index([ownerId, unread])
-  @@map("Notification")
+  @@map("notification")
 }
 
 // =========================================================
@@ -2035,7 +2035,7 @@ model Agent {
   @@index([isAvailable])
   @@index([userId])
   @@index([status, isAvailable])
-  @@map("Agent")
+  @@map("agent")
 }
 
 // =========================================================
@@ -2171,7 +2171,7 @@ model Job {
   @@index([applicationDeadline])
   @@index([status, applicationDeadline])
   @@index([createdBy])
-  @@map("Job")
+  @@map("job")
 }
 
 // =========================================================
@@ -2255,7 +2255,7 @@ model JobApplication {
   @@index([submittedAt])
   @@index([status, submittedAt])
   @@index([reviewedBy])
-  @@map("JobApplication")
+  @@map("jobapplication")
 }
 
 // =========================================================
@@ -2417,7 +2417,7 @@ model SavedProperty {
   @@index([propertyId])
   @@index([savedAt])
   @@index([sharedAt])
-  @@map("SavedProperty")
+  @@map("savedproperty")
 }
 
 // =========================================================
@@ -2459,5 +2459,5 @@ model PropertyAvailabilityBlock {
   @@index([startDate, endDate])
   @@index([propertyId, startDate, endDate])
   @@index([roomCode])
-  @@map("PropertyAvailabilityBlock")
+  @@map("propertyavailabilityblock")
 }

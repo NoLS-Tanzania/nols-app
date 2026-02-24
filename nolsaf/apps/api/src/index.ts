@@ -118,6 +118,7 @@ import { errorHandler } from './middleware/errorHandler.js';
 import { adminOriginGuard } from "./middleware/adminOriginGuard.js";
 import { performanceMiddleware } from './middleware/performance.js';
 import { prisma } from "@nolsaf/prisma";
+import { getRedis } from "./lib/redis.js";
 import { startTransportAutoDispatch } from "./workers/transportAutoDispatch.js";
 import { startOwnerBusinessLicenceExpiryReminders } from "./workers/ownerBusinessLicenceExpiryReminders.js";
 
@@ -758,6 +759,11 @@ export { app, server };
 
 // Start server (skip during tests so Vitest can import this module safely)
 if (process.env.NODE_ENV !== "test") {
+  // Eagerly initialize Redis so the client reaches 'ready' before the first
+  // request — otherwise lazyConnect keeps it at 'wait' and all cache checks
+  // are bypassed (falling through to slow DB queries every time).
+  getRedis();
+
   const PORT = Number(process.env.PORT) || 4000;
   const HOST = process.env.HOST; // if unset, let Node bind appropriately (supports IPv6 localhost on many systems)
 

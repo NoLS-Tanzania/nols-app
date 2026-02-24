@@ -177,7 +177,7 @@ const listPublicProperties: RequestHandler = async (req, res) => {
 
       const servicesWhere = Prisma.join(clauses, " AND ");
       const idsRows = (await prisma.$queryRaw(
-        Prisma.sql`SELECT id FROM \`Property\` WHERE ${servicesWhere}`
+        Prisma.sql`SELECT id FROM \`property\` WHERE ${servicesWhere}`
       )) as Array<{ id: number }>;
       const ids = (idsRows || []).map((r: { id: number }) => Number(r.id)).filter((n: number) => Number.isFinite(n));
       // If no ids match, we can return early.
@@ -292,7 +292,7 @@ const listPublicProperties: RequestHandler = async (req, res) => {
               const idsRows = (await prisma.$queryRaw(
                 Prisma.sql`
                   SELECT id
-                  FROM \`Property\`
+                  FROM \`property\`
                   FORCE INDEX (PRIMARY)
                   WHERE status = 'APPROVED'
                     AND tourismSiteId = ${tourismSiteId}
@@ -304,39 +304,41 @@ const listPublicProperties: RequestHandler = async (req, res) => {
               )) as Array<{ id: number }>;
               const ids = (idsRows || []).map((r) => Number(r.id)).filter((n) => Number.isFinite(n));
 
+              // Use a single raw query instead of findMany to avoid fetching the
+              // large photos JSON blob. JSON_EXTRACT pulls only the first photo URL.
+              // We only return a non-base64 fallback to keep card responses lightweight.
               const [rows, cnt] = await Promise.all([
                 ids.length
-                  ? prisma.property.findMany({
-                      where: { id: { in: ids } },
-                      select: {
-                        id: true,
-                        title: true,
-                        type: true,
-                        parkPlacement: true,
-                        regionName: true,
-                        district: true,
-                        ward: true,
-                        street: true,
-                        city: true,
-                        country: true,
-                        services: true,
-                        basePrice: true,
-                        currency: true,
-                        maxGuests: true,
-                        totalBedrooms: true,
-                        totalBathrooms: true,
-                        photos: true,
-                        images: {
-                          where: {
-                            status: { in: ["READY", "PROCESSING"] },
-                            url: { not: null },
-                          },
-                          select: { url: true, thumbnailUrl: true, status: true },
-                          orderBy: { id: "asc" },
-                          take: 1,
-                        },
-                      },
-                    })
+                  ? (prisma.$queryRaw(
+                      Prisma.sql`
+                        SELECT
+                          p.id, p.title, p.type, p.parkPlacement, p.regionName,
+                          p.district, p.ward, p.street, p.city, p.country,
+                          p.services, p.basePrice, p.currency,
+                          p.maxGuests, p.totalBedrooms, p.totalBathrooms,
+                          COALESCE(
+                            (SELECT pi.thumbnailUrl FROM \`property_images\` pi
+                              WHERE pi.propertyId = p.id
+                                AND pi.status IN ('READY','PROCESSING')
+                                AND pi.url IS NOT NULL
+                              ORDER BY pi.id ASC LIMIT 1),
+                            (SELECT pi2.url FROM \`property_images\` pi2
+                              WHERE pi2.propertyId = p.id
+                              ORDER BY pi2.id ASC LIMIT 1),
+                            -- Only use photos[0] if it looks like a URL (not base64)
+                            NULLIF(
+                              CASE WHEN JSON_UNQUOTE(JSON_EXTRACT(p.photos, '$[0]')) LIKE 'http%'
+                                     OR JSON_UNQUOTE(JSON_EXTRACT(p.photos, '$[0]')) LIKE '/%'
+                                   THEN JSON_UNQUOTE(JSON_EXTRACT(p.photos, '$[0]'))
+                                   ELSE NULL
+                              END,
+                              ''
+                            )
+                          ) AS primaryImage
+                        FROM \`property\` p
+                        WHERE p.id IN (${Prisma.join(ids)})
+                      `
+                    ) as Promise<any[]>)
                   : Promise.resolve([] as any[]),
                 prisma.property.count({ where }),
               ]);
@@ -355,7 +357,7 @@ const listPublicProperties: RequestHandler = async (req, res) => {
               const idsRows = (await prisma.$queryRaw(
                 Prisma.sql`
                   SELECT id
-                  FROM \`Property\`
+                  FROM \`property\`
                   FORCE INDEX (PRIMARY)
                   WHERE status = 'APPROVED'
                   ${typeClause}
@@ -365,39 +367,41 @@ const listPublicProperties: RequestHandler = async (req, res) => {
               )) as Array<{ id: number }>;
               const ids = (idsRows || []).map((r) => Number(r.id)).filter((n) => Number.isFinite(n));
 
+              // Use raw SQL to avoid fetching the large photos blob — JSON_EXTRACT(photos, '$[0]')
+              // returns only the first photo URL without transferring all base64 image data.
+              // Only non-base64 fallbacks are used so card responses stay lightweight.
               const [rows, cnt] = await Promise.all([
                 ids.length
-                  ? prisma.property.findMany({
-                      where: { id: { in: ids } },
-                      select: {
-                        id: true,
-                        title: true,
-                        type: true,
-                        parkPlacement: true,
-                        regionName: true,
-                        district: true,
-                        ward: true,
-                        street: true,
-                        city: true,
-                        country: true,
-                        services: true,
-                        basePrice: true,
-                        currency: true,
-                        maxGuests: true,
-                        totalBedrooms: true,
-                        totalBathrooms: true,
-                        photos: true,
-                        images: {
-                          where: {
-                            status: { in: ["READY", "PROCESSING"] },
-                            url: { not: null },
-                          },
-                          select: { url: true, thumbnailUrl: true, status: true },
-                          orderBy: { id: "asc" },
-                          take: 1,
-                        },
-                      },
-                    })
+                  ? (prisma.$queryRaw(
+                      Prisma.sql`
+                        SELECT
+                          p.id, p.title, p.type, p.parkPlacement, p.regionName,
+                          p.district, p.ward, p.street, p.city, p.country,
+                          p.services, p.basePrice, p.currency,
+                          p.maxGuests, p.totalBedrooms, p.totalBathrooms,
+                          COALESCE(
+                            (SELECT pi.thumbnailUrl FROM \`property_images\` pi
+                              WHERE pi.propertyId = p.id
+                                AND pi.status IN ('READY','PROCESSING')
+                                AND pi.url IS NOT NULL
+                              ORDER BY pi.id ASC LIMIT 1),
+                            (SELECT pi2.url FROM \`property_images\` pi2
+                              WHERE pi2.propertyId = p.id
+                              ORDER BY pi2.id ASC LIMIT 1),
+                            -- Only use photos[0] if it looks like a real URL (not base64)
+                            NULLIF(
+                              CASE WHEN JSON_UNQUOTE(JSON_EXTRACT(p.photos, '$[0]')) LIKE 'http%'
+                                     OR JSON_UNQUOTE(JSON_EXTRACT(p.photos, '$[0]')) LIKE '/%'
+                                   THEN JSON_UNQUOTE(JSON_EXTRACT(p.photos, '$[0]'))
+                                   ELSE NULL
+                              END,
+                              ''
+                            )
+                          ) AS primaryImage
+                        FROM \`property\` p
+                        WHERE p.id IN (${Prisma.join(ids)})
+                      `
+                    ) as Promise<any[]>)
                   : Promise.resolve([] as any[]),
                 prisma.property.count({ where }),
               ]);
@@ -429,7 +433,8 @@ const listPublicProperties: RequestHandler = async (req, res) => {
                     maxGuests: true,
                     totalBedrooms: true,
                     totalBathrooms: true,
-                    photos: true,
+                    // photos omitted — contains large base64 blobs (12MB+) that would
+                    // make each request take 20-37s. Use images relation instead.
                     images: {
                       where: {
                         status: { in: ["READY", "PROCESSING"] },
@@ -475,7 +480,7 @@ const listPublicProperties: RequestHandler = async (req, res) => {
                     maxGuests: true,
                     totalBedrooms: true,
                     totalBathrooms: true,
-                    photos: true,
+                    // photos omitted — large base64 blobs, use images relation instead
                     images: {
                       where: {
                         status: { in: ["READY", "PROCESSING"] },
@@ -526,7 +531,7 @@ const listPublicProperties: RequestHandler = async (req, res) => {
                   maxGuests: true,
                   totalBedrooms: true,
                   totalBathrooms: true,
-                  photos: true,
+                  // photos omitted — large base64 blobs, primaryImage will be null for legacy properties
                 },
               }),
               prisma.property.count({ where }),
@@ -689,7 +694,7 @@ const topCities: RequestHandler = async (req, res) => {
             maxGuests: true,
             totalBedrooms: true,
             totalBathrooms: true,
-            photos: true,
+            // photos omitted — large base64 blobs; use images relation instead
             images: {
               select: { url: true, thumbnailUrl: true, status: true },
               orderBy: { createdAt: "asc" },
