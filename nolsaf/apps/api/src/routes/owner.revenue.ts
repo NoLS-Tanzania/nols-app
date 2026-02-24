@@ -104,7 +104,7 @@ router.get("/stats", (async (req: AuthedRequest, res) => {
       : [];
 
     const joinBooking = propertyId
-      ? Prisma.sql` JOIN Booking b ON b.id = i.bookingId `
+      ? Prisma.sql` JOIN \`booking\` b ON b.id = i.bookingId `
       : Prisma.empty;
 
     const clauses: Prisma.Sql[] = [Prisma.sql`i.ownerId = ${ownerId}`];
