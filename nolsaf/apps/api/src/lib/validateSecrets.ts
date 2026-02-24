@@ -40,6 +40,12 @@ const REQUIRED_SECRETS: SecretConfig[] = [
     validate: (v) => v.length >= 20,
   },
   {
+    key: "AZAMPAY_APP_NAME",
+    required: true,
+    description: "AzamPay app name (used in token requests)",
+    validate: (v) => v.length >= 2,
+  },
+  {
     key: "DATABASE_URL",
     required: true,
     description: "Database connection string",
@@ -54,6 +60,19 @@ const REQUIRED_SECRETS: SecretConfig[] = [
 ];
 
 const OPTIONAL_SECRETS: SecretConfig[] = [
+  // AzamPay optional overrides
+  {
+    key: "AZAMPAY_AUTH_URL",
+    required: false,
+    description: "AzamPay authenticator base URL (default: https://authenticator.azampay.co.tz)",
+    validate: (v) => v.startsWith("https://"),
+  },
+  {
+    key: "AZAMPAY_API_URL",
+    required: false,
+    description: "AzamPay API base URL (default: https://api.azampay.co.tz)",
+    validate: (v) => v.startsWith("https://"),
+  },
   // Email providers
   {
     key: "RESEND_API_KEY",

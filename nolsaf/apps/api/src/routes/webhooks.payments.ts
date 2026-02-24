@@ -404,6 +404,12 @@ function near(a: number, b: number, eps = 1) {
  */
 router.post("/azampay", webhookLimiter, async (req: any, res) => {
   try {
+    // Reject non-JSON content types immediately (before touching body)
+    const ct = req.header("content-type") || "";
+    if (!ct.includes("application/json") && !ct.includes("text/plain")) {
+      return res.status(415).json({ ok: false, error: "Unsupported content type" });
+    }
+
     const rawBody =
       Buffer.isBuffer(req.body)
         ? req.body.toString("utf8")
@@ -450,16 +456,24 @@ router.post("/azampay", webhookLimiter, async (req: any, res) => {
       return res.status(400).json({ ok: false, error: "Missing eventId/transactionId" });
     }
 
-    // Idempotency: check if we've already processed this event
+    // Idempotency: if same event+status already recorded, skip
     const existing = await prisma.paymentEvent.findFirst({
-      where: {
-        provider: "AZAMPAY",
-        eventId: eventId.toString(),
-      },
+      where: { provider: "AZAMPAY", eventId: eventId.toString() },
     });
 
-    if (existing && existing.status === normalizedStatus) {
-      return res.json({ ok: true, id: existing.id, message: "Event already processed" });
+    if (existing) {
+      if (existing.status === normalizedStatus) {
+        // Already processed with same outcome — safe to ack
+        return res.json({ ok: true, id: existing.id, message: "Event already processed" });
+      }
+      // Status changed (e.g. PENDING → SUCCESS): update in place
+      const updated = await prisma.paymentEvent.update({
+        where: { id: existing.id },
+        data: { status: normalizedStatus },
+      });
+      // Still run the paid-invoice logic below using the updated record id
+      // by falling through with `recorded = updated`
+      Object.assign(existing, updated);
     }
 
     // Find invoice by paymentRef
@@ -471,8 +485,8 @@ router.post("/azampay", webhookLimiter, async (req: any, res) => {
       });
     }
 
-    // Record the payment event
-    const recorded = await prisma.paymentEvent.create({
+    // Record the payment event (only if not already existing)
+    const recorded = existing ?? await prisma.paymentEvent.create({
       data: {
         provider: "AZAMPAY",
         eventId: eventId.toString(),
@@ -480,7 +494,13 @@ router.post("/azampay", webhookLimiter, async (req: any, res) => {
         amount: amount,
         currency: payload.currency || "TZS",
         status: normalizedStatus,
-        payload: payload,
+        // Store only reconciliation fields — not full raw payload (PII)
+        payload: {
+          transactionId: eventId,
+          paymentRef: paymentRef ?? null,
+          status: payload.status ?? null,
+          provider: payload.provider ?? null,
+        },
       },
     });
 
@@ -545,8 +565,12 @@ router.post("/azampay", webhookLimiter, async (req: any, res) => {
 
     res.json({ ok: true, id: recorded.id });
   } catch (e: any) {
-    console.error("AzamPay webhook error:", e);
-    return res.status(400).json({ ok: false, error: e.message || "bad request" });
+    if (process.env.NODE_ENV !== "production") {
+      console.error("AzamPay webhook error:", e);
+    } else {
+      console.error("AzamPay webhook error:", e?.message ?? "unknown");
+    }
+    return res.status(400).json({ ok: false, error: "bad request" });
   }
 });
 

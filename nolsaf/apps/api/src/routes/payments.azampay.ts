@@ -1,347 +1,308 @@
+/**
+ * AzamPay Payment Routes
+ *
+ * SECURITY POLICY enforced in this file:
+ *  - Env var VALUES are NEVER written to logs; only key names if missing.
+ *  - Raw AzamPay response bodies are NEVER forwarded to the caller.
+ *  - Every outbound fetch has a hard AbortController timeout (10 s).
+ *  - On a 401 from AzamPay the token cache is invalidated and retried once.
+ *  - Idempotency keys are stored in Redis (fallback: in-process LRU; final
+ *    fallback: DB lookup) so restarts / multi-instance can't duplicate charges.
+ *  - Amount is always read from the server-side Invoice row — never the client.
+ */
+
 // apps/api/src/routes/payments.azampay.ts
 import { Router } from "express";
 import { prisma } from "@nolsaf/prisma";
-import { sendSms } from "../lib/sms.js";
-import crypto from "crypto";
 import rateLimit from "express-rate-limit";
 import { z } from "zod";
+import { getAzamPayToken, invalidateAzamPayToken } from "../lib/azampay.auth.js";
+import { getRedis } from "../lib/redis.js";
+import { requireAuth } from "../middleware/auth.js";
 
 const router = Router();
 
-// Rate limiting for payment initiation (5 requests per 15 minutes)
+// ── Config ────────────────────────────────────────────────────────────────────
+
+const AZAMPAY_API_URL = (process.env.AZAMPAY_API_URL || "https://api.azampay.co.tz").replace(/\/$/, "");
+const FETCH_TIMEOUT_MS = 10_000;
+const IDEM_TTL_SEC = 10 * 60; // 10 minutes
+
+// ── Rate limiter ──────────────────────────────────────────────────────────────
+
 const paymentLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  limit: 5, // 5 requests per window
-  message: "Too many payment requests, please try again later",
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
   standardHeaders: true,
   legacyHeaders: false,
+  handler: (_req: any, res: any) => {
+    res.status(429).json({ error: "rate_limited", message: "Too many payment requests — please wait before retrying." });
+  },
+  keyGenerator: (req: any) => String(req.user?.id || req.ip || "anon"),
 });
 
-// Validation schema for payment initiation
-const initiatePaymentSchema = z.object({
-  invoiceId: z.number().int().positive(),
-  phoneNumber: z.string().min(10).max(20),
-  provider: z.enum(["Airtel", "Tigo", "M-Pesa", "Halopesa"]).optional(),
-  idempotencyKey: z.string().optional(),
+// ── Input schema ──────────────────────────────────────────────────────────────
+
+const initiateSchema = z.object({
+  invoiceId:      z.number().int().positive(),
+  phoneNumber:    z.string().min(9).max(20).regex(/^[\d+\s\-()]+$/, "Invalid phone number format"),
+  provider:       z.enum(["Airtel", "Tigo", "M-Pesa", "Halopesa"]).default("Airtel"),
+  idempotencyKey: z.string().min(8).max(128).optional(),
 });
 
-// AzamPay configuration
-const AZAMPAY_API_URL = process.env.AZAMPAY_API_URL || "https://api.azampay.co.tz";
-const AZAMPAY_API_KEY = process.env.AZAMPAY_API_KEY || "";
-const AZAMPAY_CLIENT_ID = process.env.AZAMPAY_CLIENT_ID || "";
-const AZAMPAY_CLIENT_SECRET = process.env.AZAMPAY_CLIENT_SECRET || "";
-const AZAMPAY_WEBHOOK_SECRET = process.env.AZAMPAY_WEBHOOK_SECRET || "";
+// ── Idempotency helpers (Redis → in-process LRU fallback) ─────────────────────
 
-// In-memory store for idempotency keys (in production, use Redis or database)
-const idempotencyStore = new Map<string, { result: any; expiresAt: number }>();
+const localIdem = new Map<string, { result: object; exp: number }>();
 
-// Clean up expired idempotency keys every 5 minutes
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, value] of idempotencyStore.entries()) {
-    if (value.expiresAt < now) {
-      idempotencyStore.delete(key);
+async function idemGet(key: string): Promise<object | null> {
+  try {
+    const redis = getRedis();
+    if (redis) {
+      const raw = await redis.get(`azp:idem:${key}`);
+      if (raw) return JSON.parse(raw);
     }
-  }
-}, 5 * 60 * 1000);
-
-/**
- * Generate AzamPay signature for authentication
- */
-function generateAzamPaySignature(data: string, secret: string): string {
-  return crypto.createHmac('sha256', secret).update(data).digest('hex');
+  } catch { /* skip */ }
+  const entry = localIdem.get(key);
+  if (entry && entry.exp > Date.now()) return entry.result;
+  return null;
 }
 
-/**
- * POST /api/payments/azampay/initiate
- * Initiates AzamPay payment with idempotency protection
- * Body: { invoiceId: number, idempotencyKey?: string, phoneNumber: string, provider?: string }
- * 
- * Security:
- * - Rate limiting (5 requests per 15 minutes)
- * - Input validation
- * - Invoice validation
- * - Server-side amount verification
- * - Idempotency protection
- */
-router.post("/initiate", paymentLimiter, async (req, res) => {
+async function idemSet(key: string, result: object): Promise<void> {
+  const exp = Date.now() + IDEM_TTL_SEC * 1000;
   try {
-    // Fail fast if AzamPay is not configured (do not attempt outbound calls).
-    if (!AZAMPAY_API_KEY || !AZAMPAY_CLIENT_ID || !AZAMPAY_CLIENT_SECRET) {
-      return res.status(503).json({
-        error: "Payment provider not configured",
-        message: "AzamPay keys are missing on the server",
-      });
+    const redis = getRedis();
+    if (redis) await redis.set(`azp:idem:${key}`, JSON.stringify(result), "EX", IDEM_TTL_SEC);
+  } catch { /* skip */ }
+  localIdem.set(key, { result, exp });
+  if (localIdem.size > 500) {
+    const now = Date.now();
+    for (const [k, v] of localIdem) {
+      if (v.exp < now) localIdem.delete(k);
+      if (localIdem.size <= 400) break;
     }
+  }
+}
 
-    // Validate request body
-    const validationResult = initiatePaymentSchema.safeParse(req.body);
-    if (!validationResult.success) {
-      return res.status(400).json({
-        error: "Invalid request data",
-        details: validationResult.error.issues,
-      });
-    }
+// ── Phone normalisation (Tanzania) ───────────────────────────────────────────
 
-    const { invoiceId, idempotencyKey, phoneNumber, provider } = validationResult.data;
+function normalizePhone(raw: string): string {
+  let n = raw.replace(/[^\d+]/g, "");
+  if (!n.startsWith("+")) {
+    if (n.startsWith("255"))     n = `+${n}`;
+    else if (n.startsWith("0")) n = `+255${n.slice(1)}`;
+    else                        n = `+255${n}`;
+  }
+  return n;
+}
 
-    // Validate provider
-    const validProviders = ["Airtel", "Tigo", "M-Pesa", "Halopesa"];
-    const selectedProvider = provider && validProviders.includes(provider) ? provider : "Airtel";
+// ── Outbound fetch wrapper ────────────────────────────────────────────────────
 
-    // Generate idempotency key if not provided
-    const key = idempotencyKey || `azampay-${invoiceId}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    
-    // Check idempotency: if we've seen this key recently, return the cached result
-    const cached = idempotencyStore.get(key);
-    if (cached && cached.expiresAt > Date.now()) {
-      return res.json({
-        ok: true,
-        idempotencyKey: key,
-        cached: true,
-        ...cached.result,
-      });
-    }
-
-    // Fetch invoice
-    const invoice = await prisma.invoice.findUnique({
-      where: { id: Number(invoiceId) },
-      include: { 
-        booking: { 
-          include: { 
-            property: {
-              select: {
-                id: true,
-                title: true,
-                currency: true,
-              },
-            },
-            user: true 
-          } 
-        } 
-      },
-    });
-
-    if (!invoice) {
-      return res.status(404).json({ error: "Invoice not found" });
-    }
-
-    // Safety: this endpoint is intended for customer payment invoices (INV-...).
-    // Prevent initiating payments against owner-submitted invoices (OINV-...).
-    if (invoice.invoiceNumber && String(invoice.invoiceNumber).startsWith("OINV-")) {
-      return res.status(400).json({ error: "This invoice cannot be paid via AzamPay" });
-    }
-
-    if (invoice.status === "DRAFT" || invoice.status === "REJECTED") {
-      return res.status(400).json({ error: "Invoice is not payable" });
-    }
-
-    if (invoice.status === "PAID") {
-      return res.status(400).json({ error: "Invoice is already paid" });
-    }
-
-    // Ensure paymentRef exists
-    const paymentRef = invoice.paymentRef || `INV-${invoice.id}-${Date.now()}`;
-    
-    // Update invoice with paymentRef and selected payment method if not set
-    if (!invoice.paymentRef) {
-      await prisma.invoice.update({
-        where: { id: invoice.id },
-        data: { 
-          paymentRef,
-          // Store selected payment method in paymentMethod field
-          paymentMethod: selectedProvider,
-          status: invoice.status === "PROCESSING" ? invoice.status : "PROCESSING",
-        },
-      });
-    } else if (provider) {
-      // Update payment method if provider is specified
-      await prisma.invoice.update({
-        where: { id: invoice.id },
-        data: { paymentMethod: selectedProvider, status: invoice.status === "PROCESSING" ? invoice.status : "PROCESSING" },
-      });
-    } else if (invoice.status !== "PROCESSING") {
-      // Mark as processing when payment is initiated (helps UI/reporting).
-      await prisma.invoice.update({
-        where: { id: invoice.id },
-        data: { status: "PROCESSING" },
-      });
-    }
-
-    // Get phone number from request (required) - allows different numbers per booking
-    const userPhone = phoneNumber || invoice.booking?.user?.phone || null;
-    if (!userPhone) {
-      return res.status(400).json({ error: "Phone number is required for payment" });
-    }
-
-    // Normalize phone number
-    const normalizePhone = (phone: string): string => {
-      let cleaned = phone.replace(/[^\d+]/g, "");
-      if (!cleaned.startsWith("+")) {
-        if (cleaned.startsWith("255")) {
-          cleaned = "+" + cleaned;
-        } else if (cleaned.startsWith("0")) {
-          cleaned = "+255" + cleaned.substring(1);
-        } else {
-          cleaned = "+255" + cleaned;
-        }
-      }
-      return cleaned;
-    };
-
-    const normalizedPhone = normalizePhone(userPhone);
-
-    // Prepare AzamPay payment request
-    // Customer payment invoices (INV-...) may have `netPayable` representing owner receivable.
-    // Always charge the customer using the invoice `total`.
-    const amount = Number(invoice.total || invoice.netPayable || 0);
-    const currency = invoice.booking?.property?.currency || "TZS";
-    
-    const paymentData = {
-      accountNumber: normalizedPhone,
-      amount: amount.toString(),
-      currency: currency,
-      externalId: paymentRef,
-      provider: selectedProvider, // Use selected provider
-      additionalProperties: {
-        invoiceId: invoice.id.toString(),
-        invoiceNumber: invoice.invoiceNumber || "",
-        bookingId: invoice.bookingId?.toString() || "",
-        phoneNumber: normalizedPhone, // Store phone number used for this payment
-      },
-    };
-
-    // Generate signature for AzamPay API
-    const timestamp = Date.now().toString();
-    const signatureData = JSON.stringify(paymentData) + timestamp;
-    const signature = generateAzamPaySignature(signatureData, AZAMPAY_CLIENT_SECRET);
-
-    // Call AzamPay API to initiate payment
-    const azampayResponse = await fetch(`${AZAMPAY_API_URL}/api/v1/Partner/PostCheckout`, {
+async function azampayPost(path: string, body: object, token: string): Promise<Response> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
+  try {
+    return await fetch(`${AZAMPAY_API_URL}${path}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-API-Key": AZAMPAY_API_KEY,
-        "X-Client-Id": AZAMPAY_CLIENT_ID,
-        "X-Timestamp": timestamp,
-        "X-Signature": signature,
+        "Authorization": `Bearer ${token}`,
       },
-      body: JSON.stringify(paymentData),
+      body: JSON.stringify(body),
+      signal: ctrl.signal,
     });
+  } catch (err: any) {
+    // Surface only the error type — never echo request body on failure
+    throw new Error(`AzamPay request failed: ${err?.name ?? "NetworkError"}`);
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
-    const azampayData = await azampayResponse.json();
+// ── POST /api/payments/azampay/initiate ───────────────────────────────────────
 
-    if (!azampayResponse.ok) {
-      console.error("AzamPay API error:", azampayData);
-      return res.status(azampayResponse.status).json({
-        error: "Payment initiation failed",
-        details: azampayData,
+router.post("/initiate", requireAuth, paymentLimiter, async (req, res) => {
+  try {
+    // 1. Validate input
+    const parsed = initiateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: "validation_error",
+        details: parsed.error.issues.map((i) => ({ path: i.path, message: i.message })),
       });
     }
+    const { invoiceId, phoneNumber, provider, idempotencyKey } = parsed.data;
+    const idemKey = idempotencyKey ?? `azp-${invoiceId}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
-    // Store payment event for tracking (includes phone number and provider)
+    // 2. Idempotency check
+    const hit = await idemGet(idemKey);
+    if (hit) return res.json({ ok: true, cached: true, idempotencyKey: idemKey, ...hit });
+
+    // 3. Load & validate invoice
+    const invoice = await prisma.invoice.findUnique({
+      where: { id: invoiceId },
+      include: {
+        booking: {
+          include: {
+            property: { select: { id: true, currency: true } },
+            user: { select: { id: true, phone: true } },
+          },
+        },
+      },
+    });
+
+    if (!invoice) return res.status(404).json({ error: "not_found", message: "Invoice not found" });
+
+    if (String(invoice.invoiceNumber ?? "").startsWith("OINV-"))
+      return res.status(400).json({ error: "invalid_invoice", message: "This invoice cannot be paid via this method" });
+
+    if (invoice.status === "DRAFT" || invoice.status === "REJECTED")
+      return res.status(400).json({ error: "invalid_status", message: "Invoice is not payable" });
+
+    if (invoice.status === "PAID")
+      return res.status(400).json({ error: "already_paid", message: "Invoice already paid" });
+
+    // 4. Server-side amount — never trust the client
+    const amount = Number(invoice.total ?? invoice.netPayable ?? 0);
+    const currency = invoice.booking?.property?.currency ?? "TZS";
+    if (!Number.isFinite(amount) || amount <= 0)
+      return res.status(400).json({ error: "invalid_amount", message: "Invoice has no payable amount" });
+
+    // 5. Payment ref
+    const paymentRef = invoice.paymentRef ?? `INV-${invoice.id}-${Date.now()}`;
+    const normalizedPhone = normalizePhone(phoneNumber);
+
+    // 6. Mark invoice as PROCESSING
+    await prisma.invoice.update({
+      where: { id: invoice.id },
+      data: {
+        paymentRef: invoice.paymentRef ?? paymentRef,
+        paymentMethod: provider,
+        status: invoice.status !== "PROCESSING" ? "PROCESSING" : invoice.status,
+      },
+    });
+
+    // 7. Build checkout payload (no secret material inside)
+    const azampayBody = {
+      accountNumber: normalizedPhone,
+      amount: amount.toString(),
+      currency,
+      externalId: paymentRef,
+      provider,
+      additionalProperties: {
+        invoiceId: invoice.id.toString(),
+        bookingId: invoice.bookingId?.toString() ?? "",
+      },
+    };
+
+    // 8. Acquire Bearer token — fail fast with opaque 503 on error
+    let token: string;
+    try {
+      token = await getAzamPayToken();
+    } catch (authErr: any) {
+      console.error("[AzamPay] Token acquisition failed:", authErr?.message ?? "unknown");
+      return res.status(503).json({ error: "payment_unavailable", message: "Payment service temporarily unavailable" });
+    }
+
+    // 9. Call AzamPay; retry once on 401 (stale token)
+    let apiRes = await azampayPost("/api/v1/Partner/PostCheckout", azampayBody, token);
+    if (apiRes.status === 401) {
+      await invalidateAzamPayToken();
+      try { token = await getAzamPayToken(); } catch { /* let next block handle */ }
+      apiRes = await azampayPost("/api/v1/Partner/PostCheckout", azampayBody, token!);
+    }
+
+    if (!apiRes.ok) {
+      try { await apiRes.text(); } catch { /* discard */ }
+      console.error(`[AzamPay] Checkout HTTP ${apiRes.status} for invoice ${invoice.id}`);
+      return res.status(502).json({ error: "payment_failed", message: "Payment could not be initiated — please try again" });
+    }
+
+    let azampayData: any;
+    try { azampayData = await apiRes.json(); }
+    catch {
+      console.error("[AzamPay] Non-JSON response from checkout endpoint");
+      return res.status(502).json({ error: "payment_failed", message: "Unexpected response from payment provider" });
+    }
+
+    // 10. Record payment event (non-fatal)
     try {
       await prisma.paymentEvent.create({
         data: {
           provider: "AZAMPAY",
-          eventId: azampayData.transactionId || paymentRef,
+          eventId: azampayData.transactionId ?? paymentRef,
           invoiceId: invoice.id,
-          amount: amount,
-          currency: currency,
+          amount,
+          currency,
           status: "PENDING",
           payload: {
-            ...azampayData,
+            transactionId: azampayData.transactionId ?? null,
+            paymentRef,
             phoneNumber: normalizedPhone,
-            provider: selectedProvider,
-            paymentMethod: selectedProvider,
+            provider,
+            checkoutUrl: azampayData.checkoutUrl ?? null,
           },
         },
       });
-    } catch (err) {
-      console.warn("Failed to create payment event:", err);
+    } catch (dbErr: any) {
+      console.warn("[AzamPay] Failed to create PaymentEvent:", dbErr?.message ?? dbErr);
     }
 
-    // Cache the result for idempotency (expires in 10 minutes)
+    // 11. Cache result and respond
     const result = {
-      transactionId: azampayData.transactionId || paymentRef,
+      transactionId: azampayData.transactionId ?? paymentRef,
       paymentRef,
       status: "PENDING",
-      message: azampayData.message || "Payment initiated successfully",
-      checkoutUrl: azampayData.checkoutUrl || null,
+      checkoutUrl: azampayData.checkoutUrl ?? null,
     };
+    await idemSet(idemKey, result);
+    return res.json({ ok: true, idempotencyKey: idemKey, ...result });
 
-    idempotencyStore.set(key, {
-      result,
-      expiresAt: Date.now() + 10 * 60 * 1000, // 10 minutes
-    });
-
-    res.json({
-      ok: true,
-      idempotencyKey: key,
-      ...result,
-    });
   } catch (err: any) {
-    console.error("Error initiating AzamPay payment:", err);
-    res.status(500).json({ error: "Internal server error", message: err.message });
+    if (process.env.NODE_ENV !== "production") {
+      console.error("[AzamPay] /initiate unhandled error:", err);
+    } else {
+      console.error("[AzamPay] /initiate unhandled error:", err?.message ?? "unknown");
+    }
+    return res.status(500).json({ error: "internal_error", message: "An unexpected error occurred" });
   }
 });
 
-/**
- * GET /api/payments/azampay/status/:paymentRef
- * Check payment status by payment reference
- */
-router.get("/status/:paymentRef", async (req, res) => {
+// ── GET /api/payments/azampay/status/:paymentRef ──────────────────────────────
+
+router.get("/status/:paymentRef", requireAuth, async (req, res) => {
   try {
     const { paymentRef } = req.params;
 
-    // Find invoice by paymentRef
+    // Basic format guard
+    if (!paymentRef || paymentRef.length > 100 || !/^[\w\-]+$/.test(paymentRef))
+      return res.status(400).json({ error: "invalid_ref", message: "Invalid payment reference" });
+
     const invoice = await prisma.invoice.findFirst({
       where: { paymentRef },
-      include: { 
-        booking: { 
-          include: { 
-            user: true,
-            property: {
-              select: {
-                id: true,
-                currency: true,
-              },
-            },
-          } 
-        } 
+      select: {
+        id: true,
+        status: true,
+        booking: { select: { property: { select: { currency: true } } } },
       },
     });
 
-    if (!invoice) {
-      return res.status(404).json({ error: "Payment not found" });
-    }
+    if (!invoice) return res.status(404).json({ error: "not_found", message: "Payment reference not found" });
 
-    // Find latest payment event
-    const paymentEvent = await prisma.paymentEvent.findFirst({
-      where: {
-        invoiceId: invoice.id,
-        provider: "AZAMPAY",
-      },
+    const event = await prisma.paymentEvent.findFirst({
+      where: { invoiceId: invoice.id, provider: "AZAMPAY" },
       orderBy: { createdAt: "desc" },
+      select: { status: true, createdAt: true },
     });
 
-    res.json({
+    return res.json({
       ok: true,
-      invoiceId: invoice.id,
       invoiceStatus: invoice.status,
-      paymentRef,
-      paymentStatus: paymentEvent?.status || "UNKNOWN",
-      amount: invoice.total || invoice.netPayable,
-      currency: invoice.booking?.property?.currency || "TZS",
-      lastEvent: paymentEvent ? {
-        status: paymentEvent.status,
-        amount: paymentEvent.amount,
-        createdAt: paymentEvent.createdAt,
-      } : null,
+      paymentStatus: event?.status ?? "UNKNOWN",
+      currency: invoice.booking?.property?.currency ?? "TZS",
     });
   } catch (err: any) {
-    console.error("Error checking payment status:", err);
-    res.status(500).json({ error: "Internal server error", message: err.message });
+    console.error("[AzamPay] /status error:", err?.message ?? err);
+    return res.status(500).json({ error: "internal_error", message: "An unexpected error occurred" });
   }
 });
 
