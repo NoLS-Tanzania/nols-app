@@ -191,11 +191,11 @@ export default function PlanRequestForm({ selectedRole }: Props) {
     }
   }, [selectedRole]);
 
-  // Set a reasonable default trip type per role (without breaking restored state)
+  // Reset trip type when role changes (user must pick explicitly)
   React.useEffect(() => {
     if (!selectedRole) return;
-    setTripTypeValue((prev) => prev || tripTypeOptions[0] || '');
-  }, [selectedRole, tripTypeOptions]);
+    setTripTypeValue('');
+  }, [selectedRole]);
 
   const isTourist = selectedRole === 'Tourist';
   const isMultiDestination = isTourist && tripTypeValue === 'Multi-destination tour';
