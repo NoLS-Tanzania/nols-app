@@ -504,8 +504,8 @@ router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res,
     if (lockoutStatus.locked) {
       const timeRemaining = Math.ceil((lockoutStatus.lockedUntil! - Date.now()) / 1000 / 60); // minutes
       return res.status(423).json({ 
-        error: "Account temporarily locked due to too many failed login attempts.",
-        message: `Please try again in ${timeRemaining} minute${timeRemaining !== 1 ? 's' : ''}.`,
+        error: "account_locked",
+        message: `Too many failed attempts. Please try again in ${timeRemaining} minute${timeRemaining !== 1 ? 's' : ''}.`,
         code: "ACCOUNT_LOCKED",
         lockedUntil: lockoutStatus.lockedUntil
       });
@@ -547,7 +547,8 @@ router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res,
       
       if (isConnectionError) {
         return res.status(503).json({ 
-          error: "Database connection unavailable. Please contact support or try again later.",
+          error: "database_unavailable",
+          message: "Service temporarily unavailable. Please try again in a moment.",
           code: "DATABASE_UNAVAILABLE"
         });
       }
@@ -571,6 +572,7 @@ router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res,
       }
       return res.status(401).json({ 
         error: "invalid_credentials",
+        message: "Incorrect email or password.",
         remainingAttempts: remaining
       });
     }
@@ -610,6 +612,7 @@ router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res,
       }
       return res.status(401).json({ 
         error: "invalid_credentials",
+        message: "Incorrect email or password.",
         remainingAttempts: remaining
       });
     }
@@ -655,8 +658,8 @@ router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res,
       if (newLockoutStatus.locked) {
         const timeRemaining = Math.ceil((newLockoutStatus.lockedUntil! - Date.now()) / 1000 / 60);
         return res.status(423).json({ 
-          error: "Account temporarily locked due to too many failed login attempts.",
-          message: `Please try again in ${timeRemaining} minute${timeRemaining !== 1 ? 's' : ''}.`,
+          error: "account_locked",
+          message: `Too many failed attempts. Please try again in ${timeRemaining} minute${timeRemaining !== 1 ? 's' : ''}.`,
           code: "ACCOUNT_LOCKED",
           lockedUntil: newLockoutStatus.lockedUntil
         });
@@ -664,6 +667,7 @@ router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res,
       
       return res.status(401).json({ 
         error: "invalid_credentials",
+        message: "Incorrect email or password.",
         remainingAttempts: remaining
       });
     }
@@ -728,17 +732,20 @@ router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res,
     
     if (isConnectionError) {
       return res.status(503).json({ 
-        error: "Database connection unavailable. Please contact support or try again later.",
+        error: "database_unavailable",
+        message: "Service temporarily unavailable. Please try again in a moment.",
         code: "DATABASE_UNAVAILABLE"
       });
     }
     
-    const errorMessage = process.env.NODE_ENV === 'production' 
-      ? "Login failed. Please try again." 
-      : (e?.message || String(e) || "Login failed");
-    
     // Return detailed error in development
-    const errorResponse: any = { error: errorMessage };
+    const errorResponse: any = {
+      error: "service_error",
+      message: process.env.NODE_ENV === 'production'
+        ? "Login failed. Please try again."
+        : (e?.message || String(e) || "Login failed"),
+      code: "SERVICE_ERROR",
+    };
     if (process.env.NODE_ENV !== 'production') {
       errorResponse.details = {
         message: e?.message,

@@ -642,7 +642,7 @@ export default function RegisterPage() {
                             setLoginSent(true);
                           }
                         } catch (err: any) {
-                          setError(err?.response?.data?.error || 'Failed to send OTP. Please try again.');
+                          setError(err?.response?.data?.message || err?.response?.data?.error || 'Failed to send OTP. Please try again.');
                         } finally {
                           setLoginLoading(false);
                         }
@@ -727,14 +727,27 @@ export default function RegisterPage() {
                               return;
                             }
 
-                            const remainingAttempts = (data as any)?.remainingAttempts;
-                            if (r.status === 401 && typeof remainingAttempts === 'number') {
-                              setError(`Incorrect email or password. ${remainingAttempts} attempt(s) remaining before temporary lock.`);
+                            const errorCode = String((data as any)?.error || '');
+                            const errorMsg = String((data as any)?.message || '');
+
+                            // DB / service unavailable
+                            if (r.status === 503 || errorCode === 'database_unavailable' || (data as any)?.code === 'DATABASE_UNAVAILABLE') {
+                              setError('Service temporarily unavailable. Please try again in a moment.');
                               return;
                             }
 
-                            const msg = data?.error || data?.message || `Login failed (${r.status})`;
-                            setError(String(msg));
+                            const remainingAttempts = (data as any)?.remainingAttempts;
+                            if (r.status === 401 && typeof remainingAttempts === 'number') {
+                              const attemptsText = remainingAttempts > 0
+                                ? ` ${remainingAttempts} attempt${remainingAttempts !== 1 ? 's' : ''} remaining before temporary lock.`
+                                : '';
+                              setError(`Incorrect email or password.${attemptsText}`);
+                              return;
+                            }
+
+                            // Always prefer human message over error code
+                            const msg = errorMsg || (errorCode.includes(' ') ? errorCode : null) || `Login failed. Please try again.`;
+                            setError(msg);
                             return;
                           }
                           setLockoutUntil(null);
