@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import React from "react";
-import { ChevronDown, CheckCircle, ArrowRight, Plus, Trash2, ArrowUp, ArrowDown, MapPin, Calendar, Plane } from 'lucide-react';
+import { ChevronDown, CheckCircle, ArrowRight, Plus, Trash2, ArrowUp, ArrowDown, MapPin, Calendar, Plane, FileText, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import DatePicker from "@/components/ui/DatePicker";
@@ -38,7 +38,7 @@ export default function PlanRequestForm({ selectedRole }: Props) {
   const [touristMustHaves, setTouristMustHaves] = React.useState<string[]>([]);
   const [touristInterests, setTouristInterests] = React.useState<string[]>([]);
 
-  const formatDateDisplay = React.useCallback((iso: string) => {
+  const _formatDateDisplay = React.useCallback((iso: string) => {
     try {
       const d = new Date(`${iso}T00:00:00`);
       if (Number.isNaN(d.getTime())) return iso;
@@ -100,17 +100,21 @@ export default function PlanRequestForm({ selectedRole }: Props) {
     return budgetCurrency;
   }, [budgetCurrency, budgetCurrencyOther]);
 
+  // Keep group size and passenger count in state so we can auto-fill passengers
+  const [groupSizeState, setGroupSizeState] = React.useState<string>('');
+  const [passengerCount, setPassengerCount] = React.useState<string>('');
+
   const budgetValue = React.useMemo(() => {
     const amt = (budgetAmount || '').trim();
     const cur = (budgetCurrencyEffective || '').trim();
     if (!amt) return '';
-    if (!cur) return amt;
-    return `${cur} ${amt}`;
-  }, [budgetAmount, budgetCurrencyEffective]);
-
-  // Keep group size and passenger count in state so we can auto-fill passengers
-  const [groupSizeState, setGroupSizeState] = React.useState<string>('');
-  const [passengerCount, setPassengerCount] = React.useState<string>('');
+    const perNum = parseFloat(amt.replace(/,/g, ''));
+    const gs = parseInt((groupSizeState || '').trim(), 10);
+    const hasTotal = Number.isFinite(perNum) && Number.isFinite(gs) && gs > 0;
+    const totalNum = hasTotal ? perNum * gs : null;
+    const base = cur ? `${cur} ${amt} per person` : `${amt} per person`;
+    return totalNum !== null ? `${base} (total: ${cur ? cur + ' ' : ''}${totalNum.toLocaleString()})` : base;
+  }, [budgetAmount, budgetCurrencyEffective, groupSizeState]);
 
   // Minimal form state (expand as needed)
   const formRef = React.useRef<HTMLFormElement | null>(null);
@@ -1464,108 +1468,97 @@ export default function PlanRequestForm({ selectedRole }: Props) {
             <div className="flex-1">
 
           {step === 1 && (
-        <div className="rounded-2xl border border-slate-200 bg-gradient-to-b from-white to-slate-50/40 p-5 mb-4 groupstays-section shadow-sm">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <div className="w-1.5 h-6 bg-emerald-500 rounded-sm" aria-hidden />
-              <div>
-                <div className="text-sm font-semibold text-slate-900">Trip details</div>
-                <div className="text-xs text-slate-500">Tell us the basics so we can plan</div>
-              </div>
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm mb-4 groupstays-section overflow-hidden">
+
+          {/* Premium header band */}
+          <div className="flex items-center gap-3 px-5 py-4 bg-gradient-to-r from-slate-900 to-emerald-950 text-white">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/15 border border-white/20 text-xs font-bold">1</div>
+            <div>
+              <div className="text-sm font-bold tracking-tight">Trip details</div>
+              <div className="text-xs text-white/65 mt-0.5">Tell us the basics so we can plan</div>
             </div>
           </div>
 
-          <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="trip-type" className="block text-sm font-medium text-slate-700">Trip type</label>
-              <div className="mt-2 relative">
-                <select
-                  id="trip-type"
-                  name="tripType"
-                  value={tripTypeValue}
-                  onChange={(e) => setTripTypeValue(e.target.value)}
-                  className="groupstays-select w-full h-12 rounded-xl px-4 pr-10 border border-slate-200 bg-white text-sm font-medium text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-300 appearance-none transition"
-                >
-                  {tripTypeOptions.map((t) => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
-                <ChevronDown className="groupstays-chevron pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden />
-              </div>
+          <div className="divide-y divide-slate-100">
+
+          {/* ── Trip type ── */}
+          <div className="px-5 py-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Plane className="w-3.5 h-3.5 text-emerald-600 shrink-0" aria-hidden />
+              <span className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Trip type</span>
             </div>
+            <input type="hidden" id="trip-type" name="tripType" value={tripTypeValue} />
+            {tripTypeValue ? (
+              /* Collapsed — single selected banner */
+              <div className="flex items-center gap-3 rounded-xl border border-emerald-300 bg-emerald-50/60 px-4 py-3">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-600">
+                  <span className="h-2 w-2 rounded-full bg-white" />
+                </span>
+                <span className="flex-1 text-sm font-semibold text-emerald-900">{tripTypeValue}</span>
+                <button
+                  type="button"
+                  onClick={() => setTripTypeValue('')}
+                  className="text-[11px] font-semibold text-slate-500 hover:text-emerald-700 transition border border-slate-200 hover:border-emerald-300 bg-white rounded-lg px-2.5 py-1"
+                >
+                  Change
+                </button>
+              </div>
+            ) : (
+              /* Expanded — full grid */
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {tripTypeOptions.map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setTripTypeValue(t)}
+                    className="group flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3 py-3 min-h-[52px] text-left text-sm font-medium text-slate-600 hover:border-emerald-300 hover:bg-emerald-50/50 hover:text-emerald-900 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                  >
+                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 border-slate-300 group-hover:border-emerald-400 transition-colors" />
+                    <span className="leading-tight">{t}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
-            <div>
-              <label htmlFor="destinations" className="block text-sm font-medium text-slate-700">Destination(s)</label>
+          {/* ── Destination(s) ── */}
+          <div className="px-5 py-5">
+            <div className="flex items-center gap-2 mb-3">
+              <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" aria-hidden />
+              <span className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Destination(s)</span>
+            </div>
               {isMultiDestination ? (
-                <div className="mt-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-100">
-                          <MapPin className="w-4 h-4" />
-                        </span>
-                        <div>
-                          <div className="text-sm font-semibold text-slate-900">Route builder</div>
-                          <div className="text-xs text-slate-600">Add destinations in travel order (Serengeti → Zanzibar). Nights are required per stop.</div>
-                        </div>
-                      </div>
+                <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+                  {/* Route builder header */}
+                  <div className="flex items-center justify-between gap-3 px-4 py-3 bg-slate-50 border-b border-slate-200">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="w-4 h-4 text-emerald-600 shrink-0" aria-hidden />
+                      <span className="text-xs font-semibold text-slate-700">Route builder</span>
+                      <span className="hidden sm:inline text-[11px] text-slate-400">— add in travel order, nights required per stop</span>
                     </div>
-
-                    <div className="flex items-center gap-2 justify-end">
+                    <div className="flex items-center gap-2">
                       {routeSaved ? (
                         <>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setRouteStops([]);
-                              setRouteSaved(false);
-                            }}
-                            className="inline-flex items-center gap-2 h-9 px-3 rounded-lg bg-white border border-slate-200 text-slate-700 text-xs font-semibold hover:border-red-200 hover:bg-red-50 hover:text-red-700 transition"
-                            title="Clear route"
-                          >
-                            <Trash2 className="w-4 h-4" />
+                          <button type="button" onClick={() => { setRouteStops([]); setRouteSaved(false); }}
+                            className="h-8 px-3 rounded-lg border border-slate-200 bg-white text-slate-600 text-xs font-semibold hover:border-red-200 hover:bg-red-50 hover:text-red-600 transition">
                             Clear
                           </button>
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setRouteSaved(false);
-                              if (routeStops.length === 0) addRouteStop();
-                            }}
-                            className="inline-flex items-center gap-2 h-9 px-3 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 transition shadow-sm"
-                          >
+                          <button type="button" onClick={() => { setRouteSaved(false); if (routeStops.length === 0) addRouteStop(); }}
+                            className="h-8 px-3 rounded-lg bg-emerald-700 text-white text-xs font-semibold hover:bg-emerald-800 transition shadow-sm">
                             Edit route
                           </button>
                         </>
                       ) : (
                         <>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setRouteSaveAttempted(true);
-                              if (!routeValidation.canSave) return;
-                              setRouteSaved(true);
-                              setRouteSaveAttempted(false);
-                            }}
-                            disabled={!routeValidation.canSave}
-                            className="inline-flex items-center gap-2 h-9 px-3 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm"
-                            title="Save route and collapse"
-                          >
-                            <CheckCircle className="w-4 h-4" />
-                            Save route
+                          <button type="button" onClick={() => { setRouteSaved(false); addRouteStop(); }}
+                            className="h-8 px-3 rounded-lg border border-slate-200 bg-white text-slate-700 text-xs font-semibold hover:bg-slate-50 transition flex items-center gap-1.5">
+                            <Plus className="w-3.5 h-3.5 text-emerald-600" /> Add stop
                           </button>
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setRouteSaved(false);
-                              addRouteStop();
-                            }}
-                            className="inline-flex items-center gap-2 h-9 px-3 rounded-lg bg-white border border-slate-200 text-slate-800 text-xs font-semibold hover:bg-slate-50 transition"
-                          >
-                            <Plus className="w-4 h-4 text-emerald-600" />
-                            Add stop
+                          <button type="button"
+                            onClick={() => { setRouteSaveAttempted(true); if (!routeValidation.canSave) return; setRouteSaved(true); setRouteSaveAttempted(false); }}
+                            disabled={!routeValidation.canSave}
+                            className="h-8 px-3 rounded-lg bg-emerald-700 text-white text-xs font-semibold hover:bg-emerald-800 disabled:opacity-40 disabled:cursor-not-allowed transition shadow-sm flex items-center gap-1.5">
+                            <CheckCircle className="w-3.5 h-3.5" /> Save route
                           </button>
                         </>
                       )}
@@ -1573,17 +1566,15 @@ export default function PlanRequestForm({ selectedRole }: Props) {
                   </div>
 
                   {!routeSaved && (routeSaveAttempted || routeValidation.duplicates.length > 0) ? (
-                    <div className="mt-3">
+                    <div className="px-4 py-2 space-y-1.5">
                       {routeValidation.duplicates.length > 0 ? (
-                        <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
                           <span className="font-semibold">Duplicate destinations:</span>{' '}
-                          {routeValidation.duplicates.slice(0, 3).join(', ')}
-                          {routeValidation.duplicates.length > 3 ? '…' : ''}. Please make each stop unique.
+                          {routeValidation.duplicates.slice(0, 3).join(', ')}{routeValidation.duplicates.length > 3 ? '…' : ''}. Make each stop unique.
                         </div>
                       ) : null}
-
                       {routeSaveAttempted && !routeValidation.canSave ? (
-                        <div className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+                        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
                           Fill in a destination and nights (minimum 1) for every stop.
                         </div>
                       ) : null}
@@ -1594,200 +1585,94 @@ export default function PlanRequestForm({ selectedRole }: Props) {
                   <input type="hidden" id="destinations" name="destinations" value={destinationsValue} />
 
                   {routeSaved ? (
-                    <div className="mt-3">
-                      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <div className="text-sm font-semibold text-slate-900">Route summary</div>
-                              <span className="inline-flex items-center rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold px-2 py-0.5 border border-emerald-100">
-                                Saved
-                              </span>
-                            </div>
-                            {routeValidation.routePath ? (
-                              <div className="mt-1 text-xs font-semibold text-slate-700">{routeValidation.routePath}</div>
-                            ) : null}
-                            <div className="mt-1 text-xs text-slate-600">
-                              {cleanedRouteStops.length} stop{cleanedRouteStops.length === 1 ? '' : 's'} • {totalRouteNights} night{totalRouteNights === 1 ? '' : 's'}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="mt-4">
-                          <ol className="m-0 list-none space-y-3 p-0">
-                            {cleanedRouteStops.map((s, idx) => (
-                              <li key={s.id} className="relative pl-9 sm:pl-10">
-                                {idx < cleanedRouteStops.length - 1 && (
-                                  <span className="absolute left-2.5 sm:left-3 top-8 bottom-0 w-px bg-slate-200" aria-hidden />
-                                )}
-                                <span
-                                  className={
-                                    "absolute left-0 top-0 inline-flex h-7 w-7 sm:h-6 sm:w-6 items-center justify-center rounded-full text-white text-xs font-semibold ring-2 ring-white " +
-                                    (idx % 2 === 0 ? "bg-emerald-600" : "bg-indigo-600")
-                                  }
-                                >
-                                  {idx + 1}
-                                </span>
-
-                                <div className="rounded-xl border border-slate-200 bg-slate-50/60 px-3 sm:px-4 py-3">
-                                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
-                                    <div className="min-w-0">
-                                      <div className="text-[11px] font-semibold text-slate-600">Destination</div>
-                                      <div className="mt-0.5 text-sm font-semibold text-slate-900 break-words">
-                                        {(s.place || '').trim()}
-                                      </div>
-                                    </div>
-
-                                    <div className="flex items-center justify-between sm:block sm:shrink-0 sm:text-right">
-                                      <div className="text-[11px] font-semibold text-slate-600">Nights</div>
-                                      <div className="mt-0.5 inline-flex items-center rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold px-2 py-1 border border-emerald-100">
-                                        {s.nights}
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              </li>
-                            ))}
-                          </ol>
-                        </div>
-
-                        <div className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-500">Use Edit route to make changes.</div>
+                    <div>
+                      {/* Saved route summary — clean timeline list */}
+                      <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-3">
+                        <span className="text-xs font-semibold text-slate-700">{routeValidation.routePath || 'Route saved'}</span>
+                        <span className="ml-auto text-[11px] text-emerald-700 font-semibold bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">{cleanedRouteStops.length} stop{cleanedRouteStops.length !== 1 ? 's' : ''} · {totalRouteNights} night{totalRouteNights !== 1 ? 's' : ''}</span>
                       </div>
+                      <ol className="divide-y divide-slate-100">
+                        {cleanedRouteStops.map((s, idx) => (
+                          <li key={s.id} className="flex items-center gap-3 px-4 py-3">
+                            <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-700 text-white text-[11px] font-bold">{idx + 1}</span>
+                            <span className="flex-1 text-sm font-medium text-slate-900 truncate">{(s.place || '').trim()}</span>
+                            <span className="shrink-0 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-full px-2.5 py-0.5">{s.nights}n</span>
+                          </li>
+                        ))}
+                      </ol>
+                      <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-100 text-[11px] text-slate-400">Tap <span className="font-semibold text-slate-600">Edit route</span> to make changes.</div>
                     </div>
                   ) : (
                     <>
                       {routeStops.length === 0 ? (
-                        <div className="mt-3 text-xs text-slate-500">
-                          No stops added yet. Click <span className="font-semibold">Add stop</span> to begin.
+                        <div className="px-4 py-6 text-center text-xs text-slate-400">
+                          No stops yet — tap <span className="font-semibold text-slate-600">Add stop</span> to begin.
                         </div>
                       ) : (
-                        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <ol className="divide-y divide-slate-100">
                           {routeStops.map((stop, index) => (
-                            <div key={stop.id} className="rounded-xl bg-white border border-slate-200 p-4 shadow-sm hover:shadow-md transition-shadow">
-                              <div className="flex items-center justify-between gap-2">
-                                <div className="flex items-center gap-2">
-                                  <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 text-xs font-bold">
-                                    {index + 1}
-                                  </span>
-                                  <div className="text-xs font-semibold text-slate-700">Stop</div>
+                            <li key={stop.id} className="px-4 py-3">
+                              {/* Single row on lg, stacked on smaller screens */}
+                              <div className="flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-3">
+                                {/* Badge + label */}
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-700 text-white text-[11px] font-bold">{index + 1}</span>
+                                  <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide lg:w-12">Stop {index + 1}</span>
                                 </div>
-                                <div className="flex items-center gap-1">
-                                  <button
-                                    type="button"
-                                    onClick={() => moveRouteStop(stop.id, -1)}
-                                    disabled={index === 0}
-                                    className="h-9 w-9 inline-flex items-center justify-center rounded-full border-0 bg-transparent text-slate-700 transition-colors active:bg-slate-100 hover:bg-slate-100 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
-                                    title="Move up"
-                                  >
-                                    <ArrowUp className="w-4 h-4 text-slate-500" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => moveRouteStop(stop.id, 1)}
-                                    disabled={index === routeStops.length - 1}
-                                    className="h-9 w-9 inline-flex items-center justify-center rounded-full border-0 bg-transparent text-slate-700 transition-colors active:bg-slate-100 hover:bg-slate-100 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
-                                    title="Move down"
-                                  >
-                                    <ArrowDown className="w-4 h-4 text-slate-500" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => removeRouteStop(stop.id)}
-                                    className="h-9 w-9 inline-flex items-center justify-center rounded-full border-0 bg-transparent text-red-700 transition-colors active:bg-red-50 hover:bg-red-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-200 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
-                                    title="Remove stop"
-                                  >
-                                    <Trash2 className="w-4 h-4 text-red-600" />
-                                  </button>
-                                </div>
-                              </div>
 
-                              <div className="mt-3 grid grid-cols-1 gap-3">
-                                <div>
-                                  <label className="block text-[11px] font-medium text-slate-600">Destination / place</label>
+                                {/* Destination input — flex-1 */}
+                                <div className="flex-1 min-w-0">
                                   <input
                                     value={stop.place}
-                                    onChange={(e) => {
-                                      const v = e.target.value;
-                                      setRouteStops((prev) => prev.map((s) => (s.id === stop.id ? { ...s, place: v } : s)));
-                                      setRouteSaved(false);
-                                    }}
-                                    onBlur={() => {
-                                      setRouteTouchedById((prev) => ({ ...prev, [stop.id]: { ...(prev[stop.id] || {}), place: true } }));
-                                      setRouteStops((prev) =>
-                                        prev.map((s) => (s.id === stop.id ? { ...s, place: (s.place || '').trim() } : s))
-                                      );
-                                    }}
+                                    onChange={(e) => { const v = e.target.value; setRouteStops((prev) => prev.map((s) => (s.id === stop.id ? { ...s, place: v } : s))); setRouteSaved(false); }}
+                                    onBlur={() => { setRouteTouchedById((prev) => ({ ...prev, [stop.id]: { ...(prev[stop.id] || {}), place: true } })); setRouteStops((prev) => prev.map((s) => (s.id === stop.id ? { ...s, place: (s.place || '').trim() } : s))); }}
                                     data-route-stop-place={stop.id}
-                                    className={
-                                      "groupstays-select mt-1 w-full rounded-lg px-3 py-2 border bg-white text-sm focus:outline-none focus:ring-2 " +
-                                      (routeSaveAttempted || routeTouchedById[stop.id]?.place
-                                        ? !routeValidation.byId[stop.id]?.placeOk
-                                          ? "border-red-300 focus:ring-red-200"
-                                          : routeValidation.byId[stop.id]?.duplicate
-                                            ? "border-amber-300 focus:ring-amber-200"
-                                            : "border-slate-200 focus:ring-emerald-200"
-                                        : "border-slate-200 focus:ring-emerald-200")
-                                    }
+                                    className={"groupstays-select w-full h-10 rounded-lg px-3 border bg-white text-sm focus:outline-none focus:ring-2 " + (routeSaveAttempted || routeTouchedById[stop.id]?.place ? (!routeValidation.byId[stop.id]?.placeOk ? "border-red-300 focus:ring-red-200" : routeValidation.byId[stop.id]?.duplicate ? "border-amber-300 focus:ring-amber-200" : "border-slate-200 focus:ring-emerald-200") : "border-slate-200 focus:ring-emerald-200")}
                                     placeholder="e.g. Serengeti National Park"
                                   />
-                                  {(routeSaveAttempted || routeTouchedById[stop.id]?.place) && !routeValidation.byId[stop.id]?.placeOk ? (
-                                    <div className="mt-1 text-[11px] font-medium text-red-600">Destination is required.</div>
-                                  ) : null}
-                                  {(routeSaveAttempted || routeTouchedById[stop.id]?.place) && routeValidation.byId[stop.id]?.duplicate ? (
-                                    <div className="mt-1 text-[11px] font-medium text-amber-700">Duplicate destination. Please make it unique.</div>
-                                  ) : null}
+                                  {(routeSaveAttempted || routeTouchedById[stop.id]?.place) && !routeValidation.byId[stop.id]?.placeOk && <div className="mt-1 text-[11px] text-red-600 font-medium">Required.</div>}
+                                  {(routeSaveAttempted || routeTouchedById[stop.id]?.place) && routeValidation.byId[stop.id]?.duplicate && <div className="mt-1 text-[11px] text-amber-700 font-medium">Duplicate — make unique.</div>}
                                 </div>
 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                  <div className="sm:col-span-2">
-                                    <label className="block text-[11px] font-medium text-slate-600">Nights <span className="text-red-600">*</span></label>
+                                {/* Nights input + action buttons on same line */}
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <div className="w-20">
                                     <input
                                       value={stop.nights}
-                                      onChange={(e) => {
-                                        const v = e.target.value;
-                                        setRouteStops((prev) => prev.map((s) => (s.id === stop.id ? { ...s, nights: v } : s)));
-                                        setRouteSaved(false);
-                                      }}
-                                      onBlur={() => {
-                                        setRouteTouchedById((prev) => ({ ...prev, [stop.id]: { ...(prev[stop.id] || {}), nights: true } }));
-                                        setRouteStops((prev) =>
-                                          prev.map((s) => {
-                                            if (s.id !== stop.id) return s;
-                                            const n = parseInt((s.nights || '').trim(), 10);
-                                            if (!Number.isFinite(n) || n < 1) return { ...s, nights: '' };
-                                            return { ...s, nights: String(n) };
-                                          })
-                                        );
-                                      }}
-                                      type="number"
-                                      min={1}
-                                      required
-                                      className={
-                                        "groupstays-select mt-1 w-full rounded-lg px-3 py-2 border bg-white text-sm focus:outline-none focus:ring-2 " +
-                                        (routeSaveAttempted || routeTouchedById[stop.id]?.nights
-                                          ? !routeValidation.byId[stop.id]?.nightsOk
-                                            ? "border-red-300 focus:ring-red-200"
-                                            : "border-slate-200 focus:ring-emerald-200"
-                                          : "border-slate-200 focus:ring-emerald-200")
-                                      }
-                                      placeholder="e.g. 3"
+                                      onChange={(e) => { const v = e.target.value; setRouteStops((prev) => prev.map((s) => (s.id === stop.id ? { ...s, nights: v } : s))); setRouteSaved(false); }}
+                                      onBlur={() => { setRouteTouchedById((prev) => ({ ...prev, [stop.id]: { ...(prev[stop.id] || {}), nights: true } })); setRouteStops((prev) => prev.map((s) => { if (s.id !== stop.id) return s; const n = parseInt((s.nights || '').trim(), 10); if (!Number.isFinite(n) || n < 1) return { ...s, nights: '' }; return { ...s, nights: String(n) }; })); }}
+                                      type="number" min={1} required
+                                      className={"groupstays-select w-full h-10 rounded-lg px-3 border bg-white text-sm text-center focus:outline-none focus:ring-2 " + (routeSaveAttempted || routeTouchedById[stop.id]?.nights ? (!routeValidation.byId[stop.id]?.nightsOk ? "border-red-300 focus:ring-red-200" : "border-slate-200 focus:ring-emerald-200") : "border-slate-200 focus:ring-emerald-200")}
+                                      placeholder="Nights"
                                     />
-                                    {(routeSaveAttempted || routeTouchedById[stop.id]?.nights) && !routeValidation.byId[stop.id]?.nightsOk ? (
-                                      <div className="mt-1 text-[11px] font-medium text-red-600">Nights must be at least 1.</div>
-                                    ) : null}
+                                    {(routeSaveAttempted || routeTouchedById[stop.id]?.nights) && !routeValidation.byId[stop.id]?.nightsOk && <div className="mt-1 text-[11px] text-red-600 font-medium">≥ 1</div>}
+                                  </div>
+                                  <div className="flex items-center gap-0.5">
+                                    <button type="button" onClick={() => moveRouteStop(stop.id, -1)} disabled={index === 0}
+                                      className="h-7 w-7 inline-flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30 transition focus:outline-none" title="Move up">
+                                      <ArrowUp className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button type="button" onClick={() => moveRouteStop(stop.id, 1)} disabled={index === routeStops.length - 1}
+                                      className="h-7 w-7 inline-flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30 transition focus:outline-none" title="Move down">
+                                      <ArrowDown className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button type="button" onClick={() => removeRouteStop(stop.id)}
+                                      className="h-7 w-7 inline-flex items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-500 transition focus:outline-none" title="Remove stop">
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
                                   </div>
                                 </div>
                               </div>
-                            </div>
+                            </li>
                           ))}
-                        </div>
+                        </ol>
                       )}
 
                       {destinationsValue ? (
-                        <div className="mt-3">
-                          <details className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                            <summary className="cursor-pointer text-xs font-semibold text-slate-700">Generated format (what will be submitted)</summary>
-                            <pre className="mt-2 whitespace-pre-wrap text-xs text-slate-700">{destinationsValue}</pre>
+                        <div className="border-t border-slate-100">
+                          <details className="px-4 py-2 bg-slate-50">
+                            <summary className="cursor-pointer text-[11px] font-semibold text-slate-500 select-none">Generated format (what will be submitted)</summary>
+                            <pre className="mt-2 whitespace-pre-wrap text-[11px] text-slate-600">{destinationsValue}</pre>
                           </details>
                         </div>
                       ) : null}
@@ -1801,111 +1686,182 @@ export default function PlanRequestForm({ selectedRole }: Props) {
                   value={destinationsText}
                   onChange={(e) => setDestinationsText(e.target.value)}
                   onBlur={() => setDestinationsText((v) => v.trim())}
-                  className="groupstays-select mt-2 w-full h-12 rounded-xl px-4 border border-slate-200 bg-white text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-300 transition"
+                  className="groupstays-select w-full h-12 rounded-xl px-4 border border-slate-200 bg-white text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-300 transition"
                   placeholder="City, national park, region, or 'Any'"
                 />
               )}
-            </div>
-          </div>
+          </div>{/* end destination section */}
 
-          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-            <div>
-              <label htmlFor="date-from" className="block text-sm font-medium text-slate-700">From</label>
+          {/* ── Travel dates · Group size · Budget ── */}
+          <div className="px-5 py-5 bg-gradient-to-br from-slate-50 via-white to-emerald-50/60">
+            <div className="flex items-center gap-2 mb-4">
+              <Calendar className="w-3.5 h-3.5 text-emerald-600 shrink-0" aria-hidden />
+              <span className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Logistics</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+
+            {/* Travel dates — two compact cards */}
+            <div className="col-span-1 sm:col-span-2 lg:col-span-2">
+              <div className="text-[11px] font-medium text-slate-400 tracking-wide mb-2">Travel dates</div>
               <input type="hidden" id="date-from" name="dateFrom" value={dateFrom} />
-              <button
-                type="button"
-                onClick={() => setDatePickerOpen(true)}
-                className="relative mt-2 w-full h-12 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 shadow-sm px-4 pl-11 text-left focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-300 hover:bg-emerald-50/30 transition"
-                aria-label="Select start date"
-                title="Select start date"
-              >
-                <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" aria-hidden />
-                <span className={dateFrom ? "text-slate-900" : "text-slate-400"}>
-                  {dateFrom ? formatDateDisplay(dateFrom) : "dd / mm / yyyy"}
-                </span>
-              </button>
-            </div>
-            <div>
-              <label htmlFor="date-to" className="block text-sm font-medium text-slate-700">To</label>
               <input type="hidden" id="date-to" name="dateTo" value={dateTo} />
-              <button
-                type="button"
-                onClick={() => setDatePickerOpen(true)}
-                className="relative mt-2 w-full h-12 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 shadow-sm px-4 pl-11 text-left focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-300 hover:bg-emerald-50/30 transition"
-                aria-label="Select end date"
-                title="Select end date"
-              >
-                <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" aria-hidden />
-                <span className={dateTo ? "text-slate-900" : "text-slate-400"}>
-                  {dateTo ? formatDateDisplay(dateTo) : "dd / mm / yyyy"}
-                </span>
-              </button>
-            </div>
-            <div>
-              <label htmlFor="group-size" className="block text-sm font-medium text-slate-700">Group size</label>
-              <input id="group-size" name="groupSize" value={groupSizeState} onChange={(e) => { const v = e.target.value; setGroupSizeState(v); setPassengerCount(v); }} className="groupstays-select mt-2 w-full h-12 rounded-xl px-4 border border-slate-200 bg-white text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-300 transition" placeholder="Number of people" type="number" min={1} inputMode="numeric" />
-            </div>
-            <div>
-              <label htmlFor="budget" className="block text-sm font-medium text-slate-700">Budget (approx.)</label>
-              <input id="budget" name="budget" type="hidden" value={budgetValue} />
-
-              <div className="mt-2">
-                <div className="h-12 w-full rounded-xl border border-slate-200 bg-white shadow-sm flex items-stretch overflow-hidden focus-within:ring-2 focus-within:ring-emerald-200 focus-within:border-emerald-300 transition">
-                  <div className="relative w-[96px] shrink-0">
-                    <select
-                      id="budget-currency"
-                      value={budgetCurrency}
-                      onChange={(e) => {
-                        setBudgetCurrency(e.target.value);
-                        if (e.target.value !== 'OTHER') setBudgetCurrencyOther('');
-                      }}
-                      className="groupstays-select h-full w-full bg-transparent border-0 px-3 pr-7 text-sm font-semibold text-slate-900 text-center focus:outline-none appearance-none"
-                      aria-label="Budget currency"
-                      title="Budget currency"
-                    >
-                      {budgetCurrencyOptions.map((c) => (
-                        <option key={c} value={c}>
-                          {c === 'OTHER' ? 'Other' : c}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden />
+              <div className="grid grid-cols-2 gap-2">
+                {/* FROM — mini calendar tile */}
+                <button
+                  type="button"
+                  onClick={() => setDatePickerOpen(true)}
+                  className={['group flex items-center gap-2.5 rounded-xl border px-3 py-3 text-left w-full transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400',
+                    dateFrom ? 'border-emerald-300 bg-emerald-50/50' : 'bg-white border-slate-200 hover:border-emerald-200 hover:bg-slate-50'].join(' ')}
+                  aria-label="Select start date"
+                >
+                  <div className={['flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors', dateFrom ? 'bg-emerald-100' : 'bg-slate-100 group-hover:bg-slate-200'].join(' ')}>
+                    <Calendar className={['h-4 w-4', dateFrom ? 'text-emerald-600' : 'text-slate-400'].join(' ')} aria-hidden />
                   </div>
+                  <div>
+                    <div className="text-[9px] font-bold uppercase tracking-widest text-slate-400 leading-none mb-1">From</div>
+                    {dateFrom ? (
+                      <div className="leading-none">
+                        <span className="block text-sm font-bold text-slate-900 leading-tight">
+                          {new Date(dateFrom + 'T00:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short' })}
+                        </span>
+                        <span className="block text-[10px] text-slate-400 font-medium mt-0.5">
+                          {new Date(dateFrom + 'T00:00:00').getFullYear()}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-slate-400 font-medium">Start date</span>
+                    )}
+                  </div>
+                </button>
+                {/* TO — mini calendar tile */}
+                <button
+                  type="button"
+                  onClick={() => setDatePickerOpen(true)}
+                  className={['group flex items-center gap-2.5 rounded-xl border px-3 py-3 text-left w-full transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400',
+                    dateTo ? 'border-emerald-300 bg-emerald-50/50' : 'bg-white border-slate-200 hover:border-emerald-200 hover:bg-slate-50'].join(' ')}
+                  aria-label="Select end date"
+                >
+                  <div className={['flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors', dateTo ? 'bg-emerald-100' : 'bg-slate-100 group-hover:bg-slate-200'].join(' ')}>
+                    <Calendar className={['h-4 w-4', dateTo ? 'text-emerald-600' : 'text-slate-400'].join(' ')} aria-hidden />
+                  </div>
+                  <div>
+                    <div className="text-[9px] font-bold uppercase tracking-widest text-slate-400 leading-none mb-1">To</div>
+                    {dateTo ? (
+                      <div className="leading-none">
+                        <span className="block text-sm font-bold text-slate-900 leading-tight">
+                          {new Date(dateTo + 'T00:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short' })}
+                        </span>
+                        <span className="block text-[10px] text-slate-400 font-medium mt-0.5">
+                          {new Date(dateTo + 'T00:00:00').getFullYear()}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-slate-400 font-medium">End date</span>
+                    )}
+                  </div>
+                </button>
+              </div>
+              {dateFrom && dateTo && (() => {
+                const nights = Math.max(0, Math.round((new Date(dateTo).getTime() - new Date(dateFrom).getTime()) / 86400000));
+                return nights > 0 ? (
+                  <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    <span className="text-[11px] font-semibold text-emerald-700">{nights} night{nights !== 1 ? 's' : ''}</span>
+                  </div>
+                ) : null;
+              })()}
+            </div>
 
-                  <div className="w-px bg-slate-200 my-2" aria-hidden />
-
-                  <input
-                    id="budget-amount"
-                    value={budgetAmount}
-                    onChange={(e) => setBudgetAmount(e.target.value)}
-                    onBlur={() => setBudgetAmount((v) => v.trim())}
-                    inputMode="decimal"
-                    className="h-full flex-1 min-w-0 bg-transparent border-0 px-4 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none"
-                    placeholder="Amount (e.g. 1,500 or 500-800)"
-                    aria-label="Budget amount"
-                  />
+            {/* Group size */}
+            <div className="col-span-1 sm:col-span-1 lg:col-span-1">
+              <div className="text-[11px] font-medium text-slate-400 tracking-wide mb-2">Group size</div>
+              <div className={['flex items-center gap-2 rounded-xl border px-2.5 sm:px-3 py-2.5 transition-all duration-150 focus-within:ring-2 focus-within:ring-emerald-300 focus-within:border-emerald-300',
+                groupSizeState ? 'border-emerald-300 bg-emerald-50/50' : 'bg-white border-slate-200'].join(' ')}>
+                <div className={['flex h-7 w-7 shrink-0 items-center justify-center rounded-lg', groupSizeState ? 'bg-emerald-100' : 'bg-slate-100'].join(' ')}>
+                  <Users className={['h-3.5 w-3.5', groupSizeState ? 'text-emerald-600' : 'text-slate-400'].join(' ')} aria-hidden />
                 </div>
-
-                {budgetCurrency === 'OTHER' ? (
-                  <div className="mt-2">
-                    <input
-                      id="budget-currency-other"
-                      value={budgetCurrencyOther}
-                      onChange={(e) => setBudgetCurrencyOther(e.target.value.toUpperCase())}
-                      onBlur={() => setBudgetCurrencyOther((v) => v.trim().toUpperCase())}
-                      className="groupstays-select w-full h-11 rounded-xl px-4 border border-slate-200 bg-white text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-300 transition"
-                      placeholder="Currency code (e.g. NGN)"
-                      aria-label="Other currency"
-                    />
-                  </div>
-                ) : null}
+                <input
+                  id="group-size"
+                  name="groupSize"
+                  value={groupSizeState}
+                  onChange={(e) => { const v = e.target.value; setGroupSizeState(v); setPassengerCount(v); }}
+                  type="number"
+                  min={1}
+                  inputMode="numeric"
+                  placeholder="e.g. 12"
+                  className="w-full bg-transparent border-0 text-xs sm:text-sm font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                />
               </div>
-
-              <div className="mt-1 text-[11px] text-slate-500">
-                Example: {budgetCurrencyEffective || 'USD'} 1500
-              </div>
+              <div className="mt-1.5 text-[11px] text-slate-400">Incl. guides</div>
             </div>
-          </div>
+
+            {/* Budget */}
+            <div className="col-span-1 sm:col-span-2 lg:col-span-2">
+              <div className="text-[11px] font-medium text-slate-400 tracking-wide mb-2">Per person <span className="text-slate-300">(approx.)</span></div>
+              <input id="budget" name="budget" type="hidden" value={budgetValue} />
+              <div className={['flex items-center rounded-xl border overflow-hidden transition-all duration-150 focus-within:ring-2 focus-within:ring-emerald-300 focus-within:border-emerald-300',
+                budgetAmount ? 'border-emerald-300 bg-emerald-50/50' : 'bg-white border-slate-200'].join(' ')}>
+                {/* Currency selector */}
+                <div className="relative shrink-0">
+                  <select
+                    id="budget-currency"
+                    value={budgetCurrency}
+                    onChange={(e) => { setBudgetCurrency(e.target.value); if (e.target.value !== 'OTHER') setBudgetCurrencyOther(''); }}
+                    className="h-full appearance-none bg-transparent border-0 pl-3 pr-6 py-2.5 text-xs sm:text-sm font-semibold text-slate-700 focus:outline-none cursor-pointer"
+                    aria-label="Budget currency"
+                  >
+                    {budgetCurrencyOptions.map((c) => (
+                      <option key={c} value={c}>{c === 'OTHER' ? 'Other' : c}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400" aria-hidden />
+                </div>
+                <div className="w-px self-stretch bg-slate-200 my-2" aria-hidden />
+                {/* Amount per person */}
+                <input
+                  id="budget-amount"
+                  value={budgetAmount}
+                  onChange={(e) => setBudgetAmount(e.target.value)}
+                  onBlur={() => setBudgetAmount((v) => v.trim())}
+                  inputMode="decimal"
+                  className="flex-1 min-w-0 bg-transparent border-0 px-3 py-2.5 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none"
+                  placeholder="e.g. 500"
+                  aria-label="Budget per person"
+                />
+              </div>
+              {budgetCurrency === 'OTHER' && (
+                <input
+                  id="budget-currency-other"
+                  value={budgetCurrencyOther}
+                  onChange={(e) => setBudgetCurrencyOther(e.target.value.toUpperCase())}
+                  onBlur={() => setBudgetCurrencyOther((v) => v.trim().toUpperCase())}
+                  className="groupstays-select mt-2 w-full h-11 rounded-xl px-3 border border-slate-200 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-300 transition"
+                  placeholder="Currency code (e.g. NGN)"
+                  aria-label="Other currency"
+                />
+              )}
+              {/* Live total calculation */}
+              {(() => {
+                const perNum = parseFloat((budgetAmount || '').replace(/,/g, ''));
+                const gs = parseInt((groupSizeState || '').trim(), 10);
+                const cur = budgetCurrencyEffective || 'USD';
+                if (Number.isFinite(perNum) && perNum > 0 && Number.isFinite(gs) && gs > 0) {
+                  const total = perNum * gs;
+                  return (
+                    <div className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-slate-500">
+                      <span className="text-slate-400 whitespace-nowrap">{cur} {budgetAmount} × {gs} people</span>
+                      <span className="text-slate-300">=</span>
+                      <span className="font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5 whitespace-nowrap">
+                        {cur} {total.toLocaleString()} total
+                      </span>
+                    </div>
+                  );
+                }
+                return <div className="mt-1.5 text-[11px] text-slate-400">Enter amount per person — total auto-calculates</div>;
+              })()}
+            </div>
+          </div>{/* end travel dates + group + budget grid */}
+          </div>{/* end logistics band */}
 
           {datePickerOpen && (
             <>
@@ -1924,7 +1880,6 @@ export default function PlanRequestForm({ selectedRole }: Props) {
                     if (d) {
                       setDateFrom(d);
                       setDateTo(d);
-                      // keep open until user selects end date
                     }
                   }}
                   onCloseAction={() => setDatePickerOpen(false)}
@@ -1934,10 +1889,24 @@ export default function PlanRequestForm({ selectedRole }: Props) {
             </>
           )}
 
-          <div className="mt-3">
-            <label htmlFor="notes" className="block text-sm font-medium text-slate-700">Special requirements / notes</label>
-            <textarea id="notes" name="notes" className="groupstays-select mt-2 w-full rounded-md px-3 py-2 pr-9 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200" rows={4} placeholder="Dietary requirements, accessibility needs, permits, transport or vehicle requests, etc."></textarea>
+          {/* ── Notes ── */}
+          <div className="px-5 py-5 bg-slate-50/60">
+            <div className="flex items-center gap-2 mb-3">
+              <FileText className="w-3.5 h-3.5 text-emerald-600 shrink-0" aria-hidden />
+              <span className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Special requirements / notes</span>
+              <span className="ml-auto text-[11px] text-slate-400 font-normal normal-case tracking-normal">Optional</span>
+            </div>
+            <textarea
+              id="notes"
+              name="notes"
+              className="groupstays-select w-full rounded-xl px-4 py-3 border border-slate-200 bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-300 transition resize-none"
+              rows={4}
+              placeholder="Dietary needs, accessibility, permits, transport preferences, special activities…"
+            />
+            <div className="mt-1.5 text-[11px] text-slate-400 pl-0.5">Anything that helps us plan better for your group</div>
           </div>
+
+          </div>{/* end divide-y bands */}
         </div>
       )}
 
