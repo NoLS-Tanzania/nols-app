@@ -185,14 +185,52 @@ router.get("/:id", (async (req: AuthedRequest, res) => {
 }) as RequestHandler);
 
 /**
+ * Determine which owner notification template to send and whether to
+ * void the check-in code / cancel the booking for a given status transition.
+ *
+ * Progressive stages:
+ *  REVIEWING  → notify owner the request is under review; no booking changes
+ *  PROCESSING → notify owner it is approved; void code + cancel booking
+ *  REFUNDED   → notify owner refund is complete; also void/cancel as safety
+ *               fallback if admin skipped PROCESSING
+ *  REJECTED   → notify owner request was denied; booking stays active
+ */
+function getOwnerSideEffects(nextStatus: CancellationStatus | null, prevStatus: CancellationStatus): {
+  ownerTemplate: string | null;
+  shouldVoidAndCancel: boolean;
+} {
+  if (!nextStatus || nextStatus === prevStatus) return { ownerTemplate: null, shouldVoidAndCancel: false };
+
+  switch (nextStatus) {
+    case "REVIEWING":
+      return { ownerTemplate: "cancellation_reviewing", shouldVoidAndCancel: false };
+
+    case "PROCESSING":
+      // Admin just approved — THIS is the moment the owner loses the booking.
+      return { ownerTemplate: "cancellation_processing", shouldVoidAndCancel: true };
+
+    case "REFUNDED":
+      // Admin confirmed refund sent. Void/cancel only if not already done at PROCESSING.
+      return { ownerTemplate: "cancellation_refunded", shouldVoidAndCancel: prevStatus !== "PROCESSING" };
+
+    case "REJECTED":
+      return { ownerTemplate: "cancellation_rejected", shouldVoidAndCancel: false };
+
+    default:
+      // SUBMITTED, NEED_INFO — no owner action required
+      return { ownerTemplate: null, shouldVoidAndCancel: false };
+  }
+}
+
+/**
  * PATCH /api/admin/cancellations/:id
  * Body: { status?: string, decisionNote?: string }
  *
- * Side-effects when status transitions to REFUNDED (cancellation approved):
- *  1. Cancel the booking (status → CANCELED)
- *  2. Void the check-in code (status → VOID) so the owner can no longer use it
- *  3. Notify the owner that the booking has been cancelled
- *  4. Emit real-time socket events to update admin UI and owner dashboard
+ * Progressive side-effects by status:
+ *  REVIEWING  → owner notified: "request is under review"
+ *  PROCESSING → booking → CANCELED, code → VOID, owner notified: "approved"
+ *  REFUNDED   → owner notified: "refund complete" (void/cancel as safety fallback)
+ *  REJECTED   → owner notified: "request rejected, booking stays active"
  */
 router.patch("/:id", (async (req: AuthedRequest, res) => {
   try {
@@ -205,7 +243,7 @@ router.patch("/:id", (async (req: AuthedRequest, res) => {
       return res.status(400).json({ error: "Invalid status" });
     }
 
-    // Fetch current state so we can apply side-effects when moving to REFUNDED.
+    // Always fetch current state — we need it for side-effect logic and owner notify.
     const current = await prisma.cancellationRequest.findUnique({
       where: { id },
       select: {
@@ -225,8 +263,10 @@ router.patch("/:id", (async (req: AuthedRequest, res) => {
     });
     if (!current) return res.status(404).json({ error: "Cancellation request not found" });
 
-    // Flag: cancellation is being approved for the first time.
-    const isBecomingRefunded = nextStatus === "REFUNDED" && current.status !== "REFUNDED";
+    const { ownerTemplate, shouldVoidAndCancel } = getOwnerSideEffects(
+      nextStatus,
+      current.status as CancellationStatus,
+    );
 
     // Run all DB mutations atomically.
     const updated = await prisma.$transaction(async (tx) => {
@@ -247,22 +287,21 @@ router.patch("/:id", (async (req: AuthedRequest, res) => {
         },
       });
 
-      if (isBecomingRefunded && current.booking) {
-        // 1. Cancel the booking so it no longer appears as active.
+      if (shouldVoidAndCancel && current.booking) {
+        // Cancel the booking so it no longer appears as active.
         if (current.booking.status !== "CANCELED") {
           await tx.booking.update({
             where: { id: current.booking.id },
             data: { status: "CANCELED" },
           });
         }
-
-        // 2. Void the check-in code so the owner cannot use it to check in.
+        // Void the check-in code so the owner cannot use it.
         if (current.booking.code && current.booking.code.status === "ACTIVE") {
           await tx.checkinCode.update({
             where: { id: current.booking.code.id },
             data: {
               status: "VOID",
-              voidReason: "Booking cancelled — cancellation request approved by admin",
+              voidReason: `Booking cancelled — cancellation request moved to ${nextStatus} by admin`,
               voidedAt: new Date(),
             },
           });
@@ -272,20 +311,20 @@ router.patch("/:id", (async (req: AuthedRequest, res) => {
       return request;
     });
 
-    // Post-transaction side-effects (notifications + real-time events).
-    if (isBecomingRefunded && current.booking) {
+    // Post-transaction side-effects: notify owner + real-time events.
+    if (ownerTemplate && current.booking) {
       const ownerId = current.booking.property?.ownerId;
       const propertyTitle = current.booking.property?.title;
       const code = current.booking.code;
 
-      // 3. Notify the property owner (best-effort).
       if (ownerId) {
         try {
-          await notifyOwner(ownerId, "booking_cancelled_by_guest", {
+          await notifyOwner(ownerId, ownerTemplate, {
             bookingId: current.bookingId,
             bookingCode: current.bookingCode,
             propertyTitle,
             requestId: id,
+            newStatus: nextStatus,
             decisionNote: updated.decisionNote,
           });
         } catch {
@@ -293,25 +332,23 @@ router.patch("/:id", (async (req: AuthedRequest, res) => {
         }
       }
 
-      // 4. Emit real-time socket events.
       const io = req.app.get("io");
       if (io) {
-        // Update admin code management UI.
-        if (code) {
+        if (shouldVoidAndCancel && code) {
           io.emit("admin:code:voided", { bookingId: current.bookingId, code: code.codeVisible });
         }
-        // Push cancellation event to the owner's room so their dashboard refreshes.
         if (ownerId) {
-          io.to(`owner:${ownerId}`).emit("booking:cancelled", {
+          io.to(`owner:${ownerId}`).emit("booking:cancellation_update", {
             bookingId: current.bookingId,
             bookingCode: current.bookingCode,
-            reason: "Cancellation approved by admin",
+            status: nextStatus,
+            cancelled: shouldVoidAndCancel,
           });
         }
       }
     }
 
-    // Notify customer (best-effort).
+    // Notify the customer of the status change (best-effort).
     try {
       await notifyUser(updated.userId, "cancellation_status_update" as any, {
         requestId: updated.id,
@@ -334,8 +371,11 @@ router.patch("/:id", (async (req: AuthedRequest, res) => {
  * POST /api/admin/cancellations/:id/messages
  * Body: { body: string, setStatus?: string }
  *
- * When setStatus is REFUNDED, applies the same side-effects as the PATCH endpoint:
- * void the check-in code, cancel the booking, and notify the owner.
+ * When setStatus is provided, applies the same progressive side-effects as PATCH:
+ *  REVIEWING  → notify owner "under review"
+ *  PROCESSING → void code + cancel booking + notify owner "approved"
+ *  REFUNDED   → notify owner "refund complete" (void/cancel as fallback if needed)
+ *  REJECTED   → notify owner "request rejected, booking stays active"
  */
 router.post("/:id/messages", limitCancellationMessages, (async (req: AuthedRequest, res) => {
   try {
@@ -352,8 +392,8 @@ router.post("/:id/messages", limitCancellationMessages, (async (req: AuthedReque
     const setStatus = req.body?.setStatus ? normalizeStatus(req.body.setStatus) : null;
     if (req.body?.setStatus && !setStatus) return res.status(400).json({ error: "Invalid setStatus" });
 
-    // Pre-fetch state for side-effects (only when approving / refunding).
-    const current = setStatus === "REFUNDED"
+    // Pre-fetch state — needed for side-effect logic at every stage.
+    const current = setStatus
       ? await prisma.cancellationRequest.findUnique({
           where: { id },
           select: {
@@ -372,7 +412,10 @@ router.post("/:id/messages", limitCancellationMessages, (async (req: AuthedReque
         })
       : null;
 
-    const isBecomingRefunded = setStatus === "REFUNDED" && current?.status !== "REFUNDED";
+    const { ownerTemplate, shouldVoidAndCancel } = getOwnerSideEffects(
+      setStatus,
+      (current?.status ?? "SUBMITTED") as CancellationStatus,
+    );
 
     const updated = await prisma.$transaction(async (tx) => {
       const msg = await tx.cancellationMessage.create({
@@ -391,7 +434,7 @@ router.post("/:id/messages", limitCancellationMessages, (async (req: AuthedReque
         select: { id: true, userId: true, bookingCode: true, status: true, decisionNote: true },
       });
 
-      if (isBecomingRefunded && current?.booking) {
+      if (shouldVoidAndCancel && current?.booking) {
         // Cancel the booking.
         if (current.booking.status !== "CANCELED") {
           await tx.booking.update({
@@ -405,7 +448,7 @@ router.post("/:id/messages", limitCancellationMessages, (async (req: AuthedReque
             where: { id: current.booking.code.id },
             data: {
               status: "VOID",
-              voidReason: "Booking cancelled — cancellation request approved by admin",
+              voidReason: `Booking cancelled — cancellation request moved to ${setStatus} by admin`,
               voidedAt: new Date(),
             },
           });
@@ -415,20 +458,20 @@ router.post("/:id/messages", limitCancellationMessages, (async (req: AuthedReque
       return { msg, reqRow };
     });
 
-    // Post-transaction side-effects.
-    if (isBecomingRefunded && current?.booking) {
+    // Post-transaction side-effects (owner notification + socket events).
+    if (ownerTemplate && current?.booking) {
       const ownerId = current.booking.property?.ownerId;
       const propertyTitle = current.booking.property?.title;
       const code = current.booking.code;
 
-      // Notify the property owner (best-effort).
       if (ownerId) {
         try {
-          await notifyOwner(ownerId, "booking_cancelled_by_guest", {
+          await notifyOwner(ownerId, ownerTemplate, {
             bookingId: current.bookingId,
             bookingCode: current.bookingCode,
             propertyTitle,
             requestId: id,
+            newStatus: setStatus,
             decisionNote: updated.reqRow.decisionNote,
           });
         } catch {
@@ -436,17 +479,17 @@ router.post("/:id/messages", limitCancellationMessages, (async (req: AuthedReque
         }
       }
 
-      // Emit real-time socket events.
       const io = req.app.get("io");
       if (io) {
-        if (code) {
+        if (shouldVoidAndCancel && code) {
           io.emit("admin:code:voided", { bookingId: current.bookingId, code: code.codeVisible });
         }
         if (ownerId) {
-          io.to(`owner:${ownerId}`).emit("booking:cancelled", {
+          io.to(`owner:${ownerId}`).emit("booking:cancellation_update", {
             bookingId: current.bookingId,
             bookingCode: current.bookingCode,
-            reason: "Cancellation approved by admin",
+            status: setStatus,
+            cancelled: shouldVoidAndCancel,
           });
         }
       }

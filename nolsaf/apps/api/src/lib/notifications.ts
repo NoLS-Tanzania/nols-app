@@ -124,9 +124,27 @@ export async function notifyOwner(ownerId: number, template: string, data: any) 
         title: "New Booking Received",
         body: `You have a new booking${data.bookingId ? ` #${data.bookingId}` : ""}${data.propertyTitle ? ` for "${data.propertyTitle}"` : ""}${data.checkIn ? ` (check-in: ${data.checkIn})` : ""}. Open your bookings to view details and prepare for check-in.`
       },
+      // Progressive cancellation stages — one template per admin step
+      cancellation_reviewing: {
+        title: "Cancellation Request Under Review",
+        body: `A guest has requested to cancel their booking${data.bookingId ? ` #${data.bookingId}` : ""}${data.propertyTitle ? ` at "${data.propertyTitle}"` : ""}${data.bookingCode ? ` (code: ${data.bookingCode})` : ""}. The admin team is reviewing this request. No changes to your booking yet.`
+      },
+      cancellation_processing: {
+        title: "Booking Cancelled — Refund Processing",
+        body: `The cancellation request for booking${data.bookingId ? ` #${data.bookingId}` : ""}${data.propertyTitle ? ` at "${data.propertyTitle}"` : ""}${data.bookingCode ? ` (code: ${data.bookingCode})` : ""} has been approved. The booking is now cancelled and the check-in code has been voided. The guest's refund is being processed.`
+      },
+      cancellation_refunded: {
+        title: "Guest Refund Completed",
+        body: `The refund for the cancelled booking${data.bookingId ? ` #${data.bookingId}` : ""}${data.propertyTitle ? ` at "${data.propertyTitle}"` : ""}${data.bookingCode ? ` (code: ${data.bookingCode})` : ""} has been completed. The guest has received their payment.`
+      },
+      cancellation_rejected: {
+        title: "Cancellation Request Rejected",
+        body: `The cancellation request for booking${data.bookingId ? ` #${data.bookingId}` : ""}${data.propertyTitle ? ` at "${data.propertyTitle}"` : ""}${data.bookingCode ? ` (code: ${data.bookingCode})` : ""} has been rejected. The booking remains active and the check-in code is still valid.`
+      },
+      // Legacy alias kept for backward compatibility
       booking_cancelled_by_guest: {
-        title: "Booking Cancelled",
-        body: `A guest's cancellation request for booking${data.bookingId ? ` #${data.bookingId}` : ""}${data.propertyTitle ? ` at "${data.propertyTitle}"` : ""}${data.bookingCode ? ` (code: ${data.bookingCode})` : ""} has been approved by admin. The check-in code has been voided and the booking is now cancelled.`
+        title: "Booking Cancelled — Refund Processing",
+        body: `A guest's cancellation request for booking${data.bookingId ? ` #${data.bookingId}` : ""}${data.propertyTitle ? ` at "${data.propertyTitle}"` : ""}${data.bookingCode ? ` (code: ${data.bookingCode})` : ""} has been approved. The check-in code has been voided and the booking is now cancelled.`
       },
     };
 
