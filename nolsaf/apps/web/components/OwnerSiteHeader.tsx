@@ -8,7 +8,6 @@ import {
   Bell,
   CheckCircle,
   ChevronDown,
-  Download,
   Home,
   LifeBuoy,
   LogOut,
@@ -65,7 +64,6 @@ if (typeof document !== "undefined") {
 }
 
 export default function OwnerSiteHeader({ unreadMessages = 0 }: { unreadMessages?: number }) {
-  const [open, setOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
 
@@ -163,34 +161,6 @@ export default function OwnerSiteHeader({ unreadMessages = 0 }: { unreadMessages
     }
   };
 
-  const handleExportInvoices = () => {
-    (async () => {
-      try {
-        const defaultUrl = "/admin/invoices.csv";
-        const endpoint = process.env.NEXT_PUBLIC_EXPORT_INVOICES_ENDPOINT || defaultUrl;
-
-        const filenameTemplate = process.env.NEXT_PUBLIC_EXPORT_INVOICES_FILENAME || "invoices.csv";
-        const date = new Date().toISOString().split("T")[0];
-        const filename = filenameTemplate.replace("{date}", date);
-
-        const resp = await fetch(endpoint, { credentials: "include" });
-        if (!resp.ok) throw new Error(`Export failed (${resp.status})`);
-        const blob = await resp.blob();
-        const a = document.createElement("a");
-        const downloadUrl = window.URL.createObjectURL(blob);
-        a.href = downloadUrl;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        window.URL.revokeObjectURL(downloadUrl);
-      } catch (err) {
-        console.error("Export failed", err);
-        alert("Export failed. Check console for details.");
-      }
-    })();
-  };
-
   return (
     <header
       className="fixed top-0 left-0 right-0 z-50 text-white transition-all duration-300 bg-transparent"
@@ -250,16 +220,6 @@ export default function OwnerSiteHeader({ unreadMessages = 0 }: { unreadMessages
                 onTouchStart={() => handleTouch("refresh")}
               >
                 <RefreshCw className={`h-5 w-5 text-white ${isRefreshing ? "animate-spin" : ""}`} />
-              </button>
-
-              <button
-                onClick={handleExportInvoices}
-                className={`inline-flex items-center justify-center rounded-md p-1.5 hover:bg-white/10 ${touchedIcon === "export" ? "bg-white/10" : ""}`}
-                aria-label="Export Invoices CSV"
-                title="Export Invoices CSV"
-                onTouchStart={() => handleTouch("export")}
-              >
-                <Download className="h-5 w-5 text-white" />
               </button>
 
               <Link
@@ -404,181 +364,23 @@ export default function OwnerSiteHeader({ unreadMessages = 0 }: { unreadMessages
                 </div>
               )}
             </div>
-            {/* Mobile burger (kept for the drawer links) */}
+            {/* Mobile burger — fires same sidebar toggle as desktop */}
             <button
-              className={`md:hidden inline-flex items-center justify-center h-10 w-10 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/15 hover:border-white/20 active:scale-95 transition-all duration-300 ease-out ${open ? "bg-white/15 border-white/25" : ""}`}
-              onClick={() => setOpen((v) => !v)}
-              aria-label="Toggle menu"
-              aria-expanded={open}
+              className="md:hidden inline-flex items-center justify-center h-10 w-10 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/15 hover:border-white/20 active:scale-95 transition-all duration-300 ease-out"
+              onClick={() => {
+                try {
+                  window.dispatchEvent(new CustomEvent("toggle-owner-sidebar", { detail: { source: "mobile-burger" } }));
+                } catch { /* ignore */ }
+              }}
+              aria-label="Toggle sidebar"
             >
-              <svg
-                className={`w-5 h-5 text-white transition-all duration-300 ease-out ${open ? "rotate-90" : ""}`}
-                viewBox="0 0 24 24"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-                aria-hidden
-              >
-                {open ? (
-                  <path d="M6 18L18 6M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                ) : (
-                  <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                )}
+              <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </button>
           </div>
         </div>
       </div>
-
-      {/* Mobile slide-in side drawer */}
-      {open && (
-        <>
-          {/* Backdrop */}
-          <div
-            className="md:hidden fixed inset-0 z-[60] bg-black/50 backdrop-blur-[2px] animate-fade-in-overlay"
-            onClick={() => setOpen(false)}
-            aria-hidden="true"
-          />
-
-          {/* Side sheet */}
-          <div
-            className="md:hidden fixed left-0 top-0 bottom-0 z-[70] w-[280px] bg-white shadow-[8px_0_40px_rgba(0,0,0,0.18)] flex flex-col animate-slide-in-left overflow-hidden"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Navigation menu"
-          >
-            {/* Header — teal gradient matching the top bar */}
-            <div className="relative flex-shrink-0 bg-[#02665e] px-5 pt-10 pb-6 overflow-hidden">
-              {/* subtle dot grid */}
-              <div
-                className="pointer-events-none absolute inset-0 opacity-[0.06]"
-                style={{ backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.9) 1px, transparent 1px)", backgroundSize: "16px 16px" }}
-                aria-hidden
-              />
-              {/* close button */}
-              <button
-                onClick={() => setOpen(false)}
-                className="absolute top-3 right-3 h-8 w-8 flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 transition-colors"
-                aria-label="Close menu"
-              >
-                <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" aria-hidden>
-                  <path d="M6 18L18 6M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </button>
-
-              {/* Avatar + user info */}
-              <div className="flex items-center gap-3">
-                {avatarUrl ? (
-                  <div className="h-12 w-12 rounded-full overflow-hidden ring-2 ring-white/40 flex-shrink-0">
-                    <Image src={avatarUrl} alt="Profile" width={48} height={48} className="object-cover w-full h-full" />
-                  </div>
-                ) : (
-                  <div className="h-12 w-12 rounded-full bg-white/15 ring-2 ring-white/30 flex items-center justify-center flex-shrink-0">
-                    <User className="h-6 w-6 text-white" />
-                  </div>
-                )}
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-bold text-sm text-white truncate">{userName || "Owner"}</span>
-                    <CheckCircle className="h-3.5 w-3.5 text-emerald-300 flex-shrink-0" />
-                  </div>
-                  <p className="text-[11px] text-white/60 truncate mt-0.5">{userEmail || ""}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Nav items */}
-            <nav className="flex-1 overflow-y-auto py-3">
-              {([
-                { href: "/owner", icon: Home, label: "Dashboard" },
-                { href: "/owner/profile", icon: User, label: "My Profile" },
-                { href: "/owner/properties/approved", icon: Building2, label: "My Properties" },
-                { href: "/owner/bookings", icon: Calendar, label: "My Bookings" },
-                { href: "/owner/revenue", icon: DollarSign, label: "My Revenues" },
-              ] as const).map(({ href, icon: Icon, label }) => (
-                <Link
-                  key={href}
-                  href={href}
-                  onClick={() => setOpen(false)}
-                  className="group flex items-center gap-3.5 px-5 py-3 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 transition-colors no-underline"
-                >
-                  <div className="flex-shrink-0 h-8 w-8 rounded-lg bg-slate-100 group-hover:bg-emerald-100 flex items-center justify-center transition-colors">
-                    <Icon className="h-4 w-4 text-slate-500 group-hover:text-emerald-600 transition-colors" />
-                  </div>
-                  <span className="font-semibold">{label}</span>
-                </Link>
-              ))}
-
-              <div className="my-2 mx-4 h-px bg-slate-100" />
-
-              <Link
-                href="/owner/notifications"
-                onClick={() => setOpen(false)}
-                className="group flex items-center gap-3.5 px-5 py-3 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 transition-colors no-underline"
-              >
-                <div className="relative flex-shrink-0 h-8 w-8 rounded-lg bg-slate-100 group-hover:bg-emerald-100 flex items-center justify-center transition-colors">
-                  <Bell className="h-4 w-4 text-slate-500 group-hover:text-emerald-600 transition-colors" />
-                  {unreadMessages > 0 && (
-                    <span className="absolute -top-1 -right-1 h-4 min-w-4 px-0.5 rounded-full bg-rose-500 text-[9px] leading-4 text-white font-bold flex items-center justify-center">
-                      {unreadMessages > 9 ? "9+" : unreadMessages}
-                    </span>
-                  )}
-                </div>
-                <span className="font-semibold flex-1">Notifications</span>
-                {unreadMessages > 0 && (
-                  <span className="ml-auto text-[10px] font-bold text-rose-500 bg-rose-50 rounded-full px-2 py-0.5">
-                    {unreadMessages} new
-                  </span>
-                )}
-              </Link>
-
-              <Link
-                href="/owner/settings"
-                onClick={() => setOpen(false)}
-                className="group flex items-center gap-3.5 px-5 py-3 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 transition-colors no-underline"
-              >
-                <div className="flex-shrink-0 h-8 w-8 rounded-lg bg-slate-100 group-hover:bg-emerald-100 flex items-center justify-center transition-colors">
-                  <SettingsIcon className="h-4 w-4 text-slate-500 group-hover:text-emerald-600 transition-colors" />
-                </div>
-                <span className="font-semibold">Settings</span>
-              </Link>
-
-              <Link
-                href="/owner/support"
-                onClick={() => setOpen(false)}
-                className="group flex items-center gap-3.5 px-5 py-3 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 transition-colors no-underline"
-              >
-                <div className="flex-shrink-0 h-8 w-8 rounded-lg bg-slate-100 group-hover:bg-emerald-100 flex items-center justify-center transition-colors">
-                  <LifeBuoy className="h-4 w-4 text-slate-500 group-hover:text-emerald-600 transition-colors" />
-                </div>
-                <span className="font-semibold">Support</span>
-              </Link>
-            </nav>
-
-            {/* Footer actions */}
-            <div className="flex-shrink-0 border-t border-slate-100 p-3 space-y-1">
-              <button
-                onClick={() => { handleRefresh(); setOpen(false); }}
-                disabled={isRefreshing}
-                className="group w-full flex items-center gap-3.5 px-4 py-2.5 rounded-xl text-sm text-slate-600 hover:bg-slate-50 transition-colors"
-              >
-                <RefreshCw className={`h-4 w-4 text-slate-400 group-hover:text-slate-600 transition-colors ${isRefreshing ? "animate-spin" : ""}`} />
-                <span className="font-medium">Refresh page</span>
-              </button>
-              <button
-                onClick={async () => {
-                  setOpen(false);
-                  try { await fetch("/api/auth/logout", { method: "POST", credentials: "include" }); } catch {}
-                  window.location.href = logoutRedirect;
-                }}
-                className="group w-full flex items-center gap-3.5 px-4 py-2.5 rounded-xl text-sm text-red-600 hover:bg-red-50 transition-colors"
-              >
-                <LogOut className="h-4 w-4 group-hover:scale-110 transition-transform" />
-                <span className="font-bold">Logout</span>
-              </button>
-            </div>
-          </div>
-        </>
-      )}
 
       <ClientErrorBoundary>
         <LegalModal />
