@@ -391,12 +391,14 @@ export default function Receipt() {
               <div className="text-center flex-shrink-0">
                 <p className="text-[7px] font-bold uppercase tracking-[0.12em] mb-1" style={{ color: "#8aaca9" }}>QR · Verify</p>
                 <div className="inline-block p-1.5 bg-white rounded-lg" style={{ border: "1px solid #d0e8e5" }}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   {qrDataUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={qrDataUrl}
                       alt="Receipt QR"
-                      className="w-[66px] h-[66px] block"
+                      width={66}
+                      height={66}
+                      className="block"
                     />
                   ) : (
                     <div className="w-[66px] h-[66px] flex items-center justify-center text-[8px]" style={{ color: "#9ab8b6" }}>loading…</div>
