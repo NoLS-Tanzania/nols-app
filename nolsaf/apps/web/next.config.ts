@@ -100,13 +100,9 @@ const nextConfig: NextConfig = {
             '/admin/:path((?!cancellations/\\d+$|bookings/\\d+$|owners/\\d+$|properties/\\d+$|revenue/\\d+$|users/\\d+$|management/.*|drivers/audit/.*|profile$|profile/).*)',
           destination: `${apiOrigin}/admin/:path*`,
         },
-        {
-          // Proxy legacy /owner/* routes to the API backend.
-          // IMPORTANT: This runs AFTER Next.js pages, so Next.js owner pages always win.
-          source:
-            '/owner/:path((?!bookings$|bookings/recent$|bookings/recents$|bookings/validate$|bookings/checked-in$|bookings/checked-in/\\d+$|bookings/check-out$|invoices$|invoices/new$|invoices/\\d+$|revenue$|revenue/.*|group-stays$|group-stays/\\d+$|group-stays/claims$|group-stays/claims/my-claims$|properties/availability$|properties/\\d+/availability$|properties/\\d+/availability/.*|properties/\\d+/layout$).*)',
-          destination: `${apiOrigin}/owner/:path*`,
-        },
+        // NOTE: /owner/* proxy removed — all owner API calls use /api/owner/...
+        // (proxied via the beforeFiles /api/:path* rule). The /owner/* URL namespace
+        // is reserved entirely for Next.js pages so no catch-all proxy is needed here.
       ],
 
       fallback: [],
