@@ -260,7 +260,11 @@ export default function OwnerBookingsPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#f6f8fa]">
+    <div className="relative min-h-screen overflow-x-hidden" style={{ background: 'linear-gradient(160deg, #edf8f7 0%, #f9fffe 20%, #ffffff 55%, #f7fafc 100%)' }}>
+      {/* ── ambient decorative blobs ────────────────────────────────── */}
+      <div className="pointer-events-none absolute top-[55vh] -left-40 h-[500px] w-[500px] rounded-full opacity-[0.06] blur-[100px]" style={{ background: '#02665e' }} />
+      <div className="pointer-events-none absolute top-[30vh] -right-40 h-[420px] w-[420px] rounded-full opacity-[0.04] blur-[90px]" style={{ background: '#038076' }} />
+      <div className="pointer-events-none absolute bottom-0 left-1/2 -translate-x-1/2 h-[300px] w-[700px] rounded-full opacity-[0.03] blur-[80px]" style={{ background: '#02665e' }} />
 
       {/* ══ HERO BAND ════════════════════════════════════════════════════ */}
       <div className="relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #024d47 0%, #02665e 60%, #038076 100%)' }}>
@@ -317,7 +321,7 @@ export default function OwnerBookingsPage() {
 
       {/* ══ FILTER TABS — underline style ═════════════════════════════ */}
       <div className="px-4 sm:px-8 pt-6">
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200/70 overflow-x-auto">
+        <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-sm border border-slate-200/70 overflow-x-auto">
           <div className="flex items-center min-w-max border-b border-slate-100">
             {filterTabs.map((tab) => {
               const Icon = tab.icon;
@@ -397,7 +401,7 @@ export default function OwnerBookingsPage() {
               return (
                 <div
                   key={group.key}
-                  className={`bg-white rounded-2xl border border-slate-200/80 border-l-4 ${accentBorder} shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden`}
+                  className={`bg-white/95 backdrop-blur-sm rounded-2xl border border-slate-200/80 border-l-4 ${accentBorder} shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden`}
                 >
                   {/* ── Card header ── */}
                   <button
