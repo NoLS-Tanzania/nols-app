@@ -29,7 +29,7 @@ export default function Receipt() {
   if (!idParam) return <div>Missing receipt id</div>;
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
+      <div className="flex items-center justify-center py-20 px-6">
         <div className="max-w-md w-full bg-white rounded-xl shadow-sm border border-slate-200 p-6 text-center">
           <h2 className="text-xl font-semibold text-slate-900 mb-2">Error</h2>
           <p className="text-slate-600 mb-6">{error}</p>
@@ -46,7 +46,7 @@ export default function Receipt() {
 
   if (!data) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="flex items-center justify-center py-20">
         <div className="text-slate-600">Loading receipt...</div>
       </div>
     );

@@ -294,7 +294,7 @@ export default function PropertyAvailabilitySelectionPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-white via-slate-50 to-white">
+      <div className="bg-gradient-to-b from-white via-slate-50 to-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
           <div className="flex items-center justify-between mb-10">
             <div>
@@ -332,7 +332,7 @@ export default function PropertyAvailabilitySelectionPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-white via-slate-50 to-white">
+      <div className="bg-gradient-to-b from-white via-slate-50 to-white">
         <div className="max-w-xl mx-auto px-4 py-16">
           <div className="rounded-3xl border border-slate-200 bg-white shadow-sm p-8">
             <div className="w-12 h-12 rounded-2xl bg-rose-50 flex items-center justify-center mb-5">
@@ -364,7 +364,7 @@ export default function PropertyAvailabilitySelectionPage() {
 
   if (properties.length === 0) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-white via-slate-50 to-white">
+      <div className="bg-gradient-to-b from-white via-slate-50 to-white">
         <div className="max-w-xl mx-auto px-4 py-16">
           <div className="rounded-3xl border border-slate-200 bg-white shadow-sm p-8">
             <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center mb-5">
@@ -390,8 +390,8 @@ export default function PropertyAvailabilitySelectionPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white via-slate-50/60 to-white">
-      <div className="pointer-events-none fixed inset-0 -z-10">
+    <div className="bg-gradient-to-b from-white via-slate-50/60 to-white">
+      <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
         <div className="absolute -top-24 left-1/2 h-72 w-[900px] -translate-x-1/2 rounded-full bg-gradient-to-r from-emerald-200/25 via-sky-200/20 to-purple-200/20 blur-3xl" />
       </div>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">

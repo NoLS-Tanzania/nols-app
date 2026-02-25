@@ -232,13 +232,13 @@ export default function OwnerBookingsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#02665e] flex flex-col items-center justify-center gap-5">
-        <div className="h-16 w-16 rounded-3xl bg-white/10 border border-white/20 flex items-center justify-center">
+      <div className="flex flex-col items-center justify-center gap-4 py-24">
+        <div className="h-14 w-14 rounded-2xl bg-[#02665e]/10 border border-[#02665e]/20 flex items-center justify-center">
           <LogoSpinner size="md" ariaLabel="Loading bookings" />
         </div>
         <div className="text-center">
-          <div className="text-xl font-bold text-white">Loading your bookings…</div>
-          <div className="text-sm text-white/60 mt-1">Fetching activity across all properties</div>
+          <div className="text-base font-bold text-slate-800">Loading your bookings…</div>
+          <div className="text-sm text-slate-400 mt-1">Fetching activity across all properties</div>
         </div>
       </div>
     );
@@ -260,7 +260,7 @@ export default function OwnerBookingsPage() {
   ];
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden" style={{ background: 'linear-gradient(160deg, #edf8f7 0%, #f9fffe 20%, #ffffff 55%, #f7fafc 100%)' }}>
+    <div className="relative overflow-x-hidden" style={{ background: 'linear-gradient(160deg, #edf8f7 0%, #f9fffe 20%, #ffffff 55%, #f7fafc 100%)' }}>
       {/* ── ambient decorative blobs ────────────────────────────────── */}
       <div className="pointer-events-none absolute top-[55vh] -left-40 h-[500px] w-[500px] rounded-full opacity-[0.06] blur-[100px]" style={{ background: '#02665e' }} />
       <div className="pointer-events-none absolute top-[30vh] -right-40 h-[420px] w-[420px] rounded-full opacity-[0.04] blur-[90px]" style={{ background: '#038076' }} />

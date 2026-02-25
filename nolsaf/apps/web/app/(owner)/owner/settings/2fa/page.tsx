@@ -315,8 +315,8 @@ export default function Owner2FAPage() {
 
   if (initialLoading) {
     return (
-      <div className="w-full min-h-screen bg-gradient-to-br from-slate-50 via-emerald-50/30 to-slate-50 py-4 sm:py-6 lg:py-8 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-2xl mx-auto flex items-center justify-center min-h-[400px]">
+      <div className="w-full bg-gradient-to-br from-slate-50 via-emerald-50/30 to-slate-50 py-4 sm:py-6 lg:py-8 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-2xl mx-auto flex items-center justify-center min-h-[300px]">
           <div className="text-center">
             <div className="inline-block h-8 w-8 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
             <p className="mt-4 text-sm text-slate-600">Loading 2FA settings...</p>
@@ -327,7 +327,7 @@ export default function Owner2FAPage() {
   }
 
   return (
-    <div className="w-full min-h-screen bg-gradient-to-br from-slate-50 via-emerald-50/30 to-slate-50 py-4 sm:py-6 lg:py-8 px-4 sm:px-6 lg:px-8">
+    <div className="w-full bg-gradient-to-br from-slate-50 via-emerald-50/30 to-slate-50 py-4 sm:py-6 lg:py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-2xl mx-auto space-y-4 sm:space-y-6">
         <div className="w-full text-center">
           <div className="flex flex-col items-center mb-6">

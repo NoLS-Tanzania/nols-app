@@ -50,7 +50,7 @@ export function ResumeDraftScreen({
   const localPct = Math.round(((localStep + 1) / totalSteps) * 100);
 
   return (
-    <div className="min-h-screen w-full bg-slate-50 py-10 sm:py-12">
+    <div className="w-full bg-slate-50 py-10 sm:py-12">
       <div className="mx-auto max-w-4xl px-4">
         <div
           className="animate-in fade-in slide-in-from-bottom-4 duration-300 rounded-2xl border border-slate-200 bg-white shadow-[0_1px_0_rgba(15,23,42,0.04),0_18px_50px_rgba(15,23,42,0.10)] overflow-hidden"

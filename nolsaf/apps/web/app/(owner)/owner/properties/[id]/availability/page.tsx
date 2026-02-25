@@ -658,7 +658,7 @@ export default function PropertyAvailabilityPage() {
 
   if (loading && !calendarData) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center py-24">
         <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
       </div>
     );
@@ -666,7 +666,7 @@ export default function PropertyAvailabilityPage() {
 
   if (!property) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center py-24">
         <div className="text-center">
           <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
           <p className="text-lg font-semibold text-gray-900">Property not found</p>

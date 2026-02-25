@@ -252,7 +252,7 @@ export default function OwnerPasswordPage() {
   }
 
   return (
-    <div className="w-full min-h-screen bg-gradient-to-br from-slate-50 via-emerald-50/30 to-slate-50 py-4 sm:py-6 lg:py-8 px-4 sm:px-6 lg:px-8">
+    <div className="w-full bg-gradient-to-br from-slate-50 via-emerald-50/30 to-slate-50 py-4 sm:py-6 lg:py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-2xl mx-auto space-y-4 sm:space-y-6">
         <div className="w-full text-center">
           <div className="flex flex-col items-center mb-6">
