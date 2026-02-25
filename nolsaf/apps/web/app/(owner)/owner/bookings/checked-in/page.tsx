@@ -228,78 +228,103 @@ export default function CheckedIn() {
         </div>
 
         {/* ── Bookings table card ── */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden w-full min-w-0">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
 
-          {/* Filter toolbar */}
-          <div className="px-4 sm:px-5 py-3 border-b border-slate-100">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Filters</span>
-          </div>
-          <div className="px-4 sm:px-5 py-4 border-b border-slate-100 space-y-3 w-full min-w-0 overflow-hidden">
+          {/* ── Filter toolbar ── */}
+          <div className="relative overflow-hidden border-b border-slate-100">
+            {/* subtle dot-grid texture */}
+            <div className="pointer-events-none absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "radial-gradient(circle, #334155 1px, transparent 1px)", backgroundSize: "16px 16px" }} />
+            {/* emerald left accent */}
+            <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-gradient-to-b from-emerald-500 via-emerald-300 to-transparent" />
 
-            {/* Row 1 — full-width search */}
-            <div className="w-full min-w-0">
-              <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Search</div>
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Code, name, phone, room…"
-                  className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-4 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300/50 transition"
-                  aria-label="Search checked-in guests"
-                />
+            <div className="pl-6 pr-4 sm:pl-8 sm:pr-6 py-4">
+              {/* header row */}
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Search className="h-3.5 w-3.5 text-emerald-500" aria-hidden />
+                  <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Filters</span>
+                </div>
+                {search && (
+                  <button
+                    onClick={() => { setSearch(""); setNightsFilter(""); setSortKey("checkIn_desc"); }}
+                    className="text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-rose-500 transition-colors"
+                  >
+                    Clear all
+                  </button>
+                )}
+              </div>
+
+              {/* controls — stacks on mobile, row on sm+ */}
+              <div className="flex flex-col sm:flex-row gap-3">
+
+                {/* Search — grows to fill */}
+                <div className="flex-1 min-w-0">
+                  <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-400 mb-1">Search</div>
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden />
+                    <input
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="Code, name, phone, room…"
+                      className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50/60 pl-8.5 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100 transition"
+                      style={{ paddingLeft: "2.1rem" }}
+                      aria-label="Search checked-in guests"
+                    />
+                  </div>
+                </div>
+
+                {/* Nights — fixed width */}
+                <div className="w-full sm:w-[170px] flex-shrink-0">
+                  <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-400 mb-1">Nights</div>
+                  <div className="relative">
+                    <CalendarRange className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden />
+                    <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden />
+                    <select
+                      value={nightsFilter}
+                      onChange={(e) => setNightsFilter(e.target.value)}
+                      className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50/60 pl-8.5 pr-7 text-sm text-slate-900 focus:outline-none focus:bg-white focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100 appearance-none transition"
+                      style={{ paddingLeft: "2.1rem" }}
+                      aria-label="Filter by nights"
+                    >
+                      <option value="">All nights</option>
+                      {nightsOptions.map((n) => (
+                        <option key={n} value={String(n)}>{n} night{n !== 1 ? "s" : ""}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Sort — fixed width */}
+                <div className="w-full sm:w-[200px] flex-shrink-0">
+                  <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-400 mb-1">Sort</div>
+                  <div className="relative">
+                    <ArrowUpDown className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden />
+                    <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden />
+                    <select
+                      value={sortKey}
+                      onChange={(e) => setSortKey(e.target.value)}
+                      className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50/60 pl-8.5 pr-7 text-sm text-slate-900 focus:outline-none focus:bg-white focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100 appearance-none transition"
+                      style={{ paddingLeft: "2.1rem" }}
+                      aria-label="Sort checked-in guests"
+                    >
+                      <option value="checkIn_desc">Latest check-in</option>
+                      <option value="checkIn_asc">Earliest check-in</option>
+                      <option value="checkOut_asc">Earliest check-out</option>
+                      <option value="checkOut_desc">Latest check-out</option>
+                      <option value="validatedAt_desc">Validated (latest)</option>
+                      <option value="validatedAt_asc">Validated (earliest)</option>
+                      <option value="nights_desc">Nights (high → low)</option>
+                      <option value="nights_asc">Nights (low → high)</option>
+                      <option value="name_asc">Name (A → Z)</option>
+                      <option value="name_desc">Name (Z → A)</option>
+                      <option value="amount_desc">Amount (high → low)</option>
+                      <option value="amount_asc">Amount (low → high)</option>
+                    </select>
+                  </div>
+                </div>
+
               </div>
             </div>
-
-            {/* Row 2 — Nights + Sort side by side */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="min-w-0">
-                <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Nights</div>
-                <div className="relative">
-                  <CalendarRange className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
-                  <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
-                  <select
-                    value={nightsFilter}
-                    onChange={(e) => setNightsFilter(e.target.value)}
-                    className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-8 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300/50 appearance-none transition"
-                    aria-label="Filter by nights"
-                  >
-                    <option value="">All nights</option>
-                    {nightsOptions.map((n) => (
-                      <option key={n} value={String(n)}>{n}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="min-w-0">
-                <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Sort</div>
-                <div className="relative">
-                  <ArrowUpDown className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
-                  <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
-                  <select
-                    value={sortKey}
-                    onChange={(e) => setSortKey(e.target.value)}
-                    className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-8 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300/50 appearance-none transition"
-                    aria-label="Sort checked-in guests"
-                  >
-                    <option value="checkIn_desc">Latest check-in</option>
-                    <option value="checkIn_asc">Earliest check-in</option>
-                    <option value="checkOut_asc">Earliest check-out</option>
-                    <option value="checkOut_desc">Latest check-out</option>
-                    <option value="validatedAt_desc">Validated (latest)</option>
-                    <option value="validatedAt_asc">Validated (earliest)</option>
-                    <option value="nights_desc">Nights (high)</option>
-                    <option value="nights_asc">Nights (low)</option>
-                    <option value="name_asc">Name (A→Z)</option>
-                    <option value="name_desc">Name (Z→A)</option>
-                    <option value="amount_desc">Amount (high)</option>
-                    <option value="amount_asc">Amount (low)</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
           </div>
 
           {filteredSorted.length === 0 ? (
