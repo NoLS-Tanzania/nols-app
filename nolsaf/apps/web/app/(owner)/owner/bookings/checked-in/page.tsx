@@ -228,16 +228,16 @@ export default function CheckedIn() {
         </div>
 
         {/* ── Bookings table card ── */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden w-full min-w-0">
 
           {/* Filter toolbar */}
           <div className="px-4 sm:px-5 py-3 border-b border-slate-100">
             <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Filters</span>
           </div>
-          <div className="px-4 sm:px-5 py-4 border-b border-slate-100 space-y-3">
+          <div className="px-4 sm:px-5 py-4 border-b border-slate-100 space-y-3 w-full min-w-0 overflow-hidden">
 
             {/* Row 1 — full-width search */}
-            <div>
+            <div className="w-full min-w-0">
               <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Search</div>
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
