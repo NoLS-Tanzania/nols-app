@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
-import { Calendar, Loader2, CheckCircle, User, Phone, FileText, Search, CalendarRange, ArrowUpDown, ChevronDown } from "lucide-react";
+import { Calendar, Loader2, CheckCircle, User, Phone, FileText, CalendarRange, ArrowUpDown, ChevronDown } from "lucide-react";
 import Link from "next/link";
 
 // Use same-origin calls + secure httpOnly cookie session.
@@ -38,7 +38,6 @@ export default function CheckedIn() {
   const [loading, setLoading] = useState(true);
 
   // Filters / sorting
-  const [search, setSearch] = useState("");
   const [nightsFilter, setNightsFilter] = useState<string>("");
   const [sortKey, setSortKey] = useState<string>("checkIn_desc");
 
@@ -130,23 +129,12 @@ export default function CheckedIn() {
   }, [list]);
 
   const filteredSorted = useMemo(() => {
-    const q = search.trim().toLowerCase();
     let arr = list.slice();
 
     if (nightsFilter) {
       arr = arr.filter((b) => {
         const n = nightsFor(b);
         return n != null && String(n) === nightsFilter;
-      });
-    }
-
-    if (q) {
-      arr = arr.filter((b) => {
-        const bookingCode = String(b?.code?.codeVisible ?? b?.codeVisible ?? b?.roomCode ?? b?.id ?? "").toLowerCase();
-        const name = String(b?.guestName ?? b?.customerName ?? "").toLowerCase();
-        const phone = String(b?.guestPhone ?? b?.phone ?? "").toLowerCase();
-        const nights = String(nightsFor(b) ?? "").toLowerCase();
-        return bookingCode.includes(q) || name.includes(q) || phone.includes(q) || nights.includes(q);
       });
     }
 
@@ -179,7 +167,7 @@ export default function CheckedIn() {
     });
 
     return arr;
-  }, [list, search, nightsFilter, sortKey]);
+  }, [list, nightsFilter, sortKey]);
 
   if (loading) {
     return (
@@ -241,37 +229,12 @@ export default function CheckedIn() {
               {/* header row */}
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
-                  <Search className="h-3.5 w-3.5 text-emerald-500" aria-hidden />
                   <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Filters</span>
                 </div>
-                {search && (
-                  <button
-                    onClick={() => { setSearch(""); setNightsFilter(""); setSortKey("checkIn_desc"); }}
-                    className="text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-rose-500 transition-colors"
-                  >
-                    Clear all
-                  </button>
-                )}
               </div>
 
               {/* controls — stacks on mobile, row on sm+ */}
               <div className="flex flex-col sm:flex-row gap-3">
-
-                {/* Search — grows to fill */}
-                <div className="flex-1 min-w-0">
-                  <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-400 mb-1">Search</div>
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden />
-                    <input
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      placeholder="Code, name, phone, room…"
-                      className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50/60 pl-8.5 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100 transition"
-                      style={{ paddingLeft: "2.1rem" }}
-                      aria-label="Search checked-in guests"
-                    />
-                  </div>
-                </div>
 
                 {/* Nights — fixed width */}
                 <div className="w-full sm:w-[170px] flex-shrink-0">
