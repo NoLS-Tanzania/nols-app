@@ -258,7 +258,7 @@ export default function OwnerBookingsPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-100">
+    <div className="min-h-screen bg-white">
 
       {/* ══ HERO BAND ═══════════════════════════════════════════════ */}
       <div className="relative overflow-hidden bg-[#02665e]">
