@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
@@ -11,208 +11,131 @@ import {
 
 const api = axios.create({ baseURL: "", withCredentials: true });
 
-/* ═══════════════════════════════════════════════════════
-   NAV ITEM CARD
-═══════════════════════════════════════════════════════ */
-function Item({
-  href, label, Icon, isSubItem = false, count, collapsed = false,
-}: {
-  href: string; label: string;
-  Icon?: React.ComponentType<React.SVGProps<SVGSVGElement>>;
-  isSubItem?: boolean; count?: number; collapsed?: boolean;
-}) {
+/* 
+   COLLAPSED ICON BUTTON
+ */
+function CollapseBtn({
+  href, label, Icon, count, active,
+}: { href?: string; label: string; Icon: React.ComponentType<React.SVGProps<SVGSVGElement>>; count?: number; active?: boolean }) {
+  const sty = active
+    ? { background: "rgba(255,255,255,0.18)", boxShadow: "0 2px 8px rgba(0,0,0,0.25)" }
+    : { background: "rgba(255,255,255,0.06)" };
+  const cls = "group relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200 no-underline";
+  const inner = (
+    <>
+      <Icon className="w-5 h-5" style={{ color: active ? "#ffffff" : "rgba(255,255,255,0.65)" }} aria-hidden />
+      {count !== undefined && count > 0 && (
+        <span className="absolute -top-1 -right-1 w-[18px] h-[18px] flex items-center justify-center rounded-full text-[9px] font-black text-white"
+          style={{ background: "#e11d48" }}>
+          {count > 9 ? "9+" : count}
+        </span>
+      )}
+      <span className="absolute left-full ml-3 px-2.5 py-1.5 text-[12px] font-semibold text-white rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 transition-opacity duration-150 shadow-lg"
+        style={{ background: "#0a1f1e" }}>
+        {label}{count !== undefined && count > 0 ? ` · ${count}` : ""}
+      </span>
+    </>
+  );
+  if (href) return <Link href={href} title={label} className={cls} style={sty}>{inner}</Link>;
+  return <button title={label} className={cls} style={sty}>{inner}</button>;
+}
+
+/* 
+   SUB-ITEM LINK
+ */
+function SubItem({
+  href, label, Icon, count,
+}: { href: string; label: string; Icon?: React.ComponentType<React.SVGProps<SVGSVGElement>>; count?: number }) {
   const path = usePathname();
   const active = path === href || (href !== "/owner" && path?.startsWith(href + "/"));
 
-  if (collapsed) {
-    return (
-      <Link
-        href={href}
-        title={label}
-        className="group relative no-underline flex items-center justify-center rounded-xl p-2.5 transition-all duration-200"
-        style={active
-          ? { background: "linear-gradient(135deg,#024d47,#02665e)", boxShadow: "0 2px 8px rgba(2,102,94,0.35)" }
-          : { background: "transparent" }
-        }
-      >
-        {Icon && (
-          <Icon
-            className="h-5 w-5 flex-shrink-0 transition-transform duration-200 group-hover:scale-110"
-            style={{ color: active ? "#ffffff" : "#02665e" }}
-            aria-hidden
-          />
-        )}
-        {/* Badge */}
-        {count !== undefined && count > 0 && (
-          <span className="absolute -top-1 -right-1 w-4 h-4 flex items-center justify-center rounded-full text-[9px] font-black text-white"
-            style={{ background: "#e11d48" }}>
-            {count > 9 ? "9+" : count}
-          </span>
-        )}
-        {/* Tooltip */}
-        <span className="absolute left-full ml-2.5 px-2.5 py-1.5 text-xs font-semibold text-white rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 transition-opacity duration-150 shadow-lg"
-          style={{ background: "#0f172a" }}>
-          {label}{count !== undefined && count > 0 && ` · ${count}`}
-        </span>
-      </Link>
-    );
-  }
-
-  if (isSubItem) {
-    return (
-      <Link
-        href={href}
-        className="group no-underline flex items-center justify-between rounded-xl px-3 py-2 ml-3 transition-all duration-200"
-        style={active
-          ? { background: "linear-gradient(135deg,#024d47,#02665e)", boxShadow: "0 2px 8px rgba(2,102,94,0.28)" }
-          : { background: "rgba(2,102,94,0.04)" }
-        }
-      >
-        <div className="flex items-center gap-2.5 min-w-0">
-          {/* icon chip */}
-          <span className="flex-shrink-0 w-5 h-5 rounded-md flex items-center justify-center transition-all duration-200"
-            style={active
-              ? { background: "rgba(255,255,255,0.18)" }
-              : { background: "rgba(2,102,94,0.10)" }
-            }>
-            {Icon && <Icon className="w-3 h-3" style={{ color: active ? "#ffffff" : "#02665e" }} aria-hidden />}
-          </span>
-          <span className="text-[12.5px] font-semibold truncate"
-            style={{ color: active ? "#ffffff" : "#1e3a38" }}>
-            {label}
-          </span>
-          {count !== undefined && count > 0 && (
-            <span className="ml-1 px-2 py-px rounded-full text-[10px] font-black leading-none"
-              style={active
-                ? { background: "rgba(255,255,255,0.22)", color: "#ffffff" }
-                : { background: "#dcfce7", color: "#02665e", border: "1px solid #bbf7d0" }
-              }>
-              {count}
-            </span>
-          )}
-        </div>
-        <ChevronRight className="h-3 w-3 flex-shrink-0 opacity-40 group-hover:opacity-70 transition-opacity"
-          style={{ color: active ? "#ffffff" : "#02665e" }} aria-hidden />
-      </Link>
-    );
-  }
-
-  /* Top-level link */
   return (
     <Link
       href={href}
-      className="group no-underline flex items-center justify-between rounded-2xl px-3.5 py-3 transition-all duration-200"
+      className="group no-underline flex items-center justify-between rounded-xl px-3 py-[9px] transition-all duration-200"
       style={active
-        ? { background: "linear-gradient(135deg,#024d47,#02665e)", boxShadow: "0 4px 14px rgba(2,102,94,0.3)" }
-        : { background: "rgba(2,102,94,0.04)" }
+        ? { background: "rgba(255,255,255,0.14)", boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.10)" }
+        : { background: "transparent" }
       }
     >
-      <div className="flex items-center gap-3 min-w-0">
-        {/* icon badge */}
-        <span className="flex-shrink-0 w-7 h-7 rounded-xl flex items-center justify-center transition-all duration-200"
-          style={active
-            ? { background: "rgba(255,255,255,0.18)" }
-            : { background: "rgba(2,102,94,0.08)" }
-          }>
-          {Icon && (
-            <Icon className="w-4 h-4 transition-transform duration-200 group-hover:scale-110"
-              style={{ color: active ? "#ffffff" : "#02665e" }} aria-hidden />
-          )}
-        </span>
-        <span className="text-[13.5px] font-bold truncate"
-          style={{ color: active ? "#ffffff" : "#1e3a38" }}>
+      <div className="flex items-center gap-2.5 min-w-0">
+        {Icon && (
+          <span className="flex-shrink-0 w-[22px] h-[22px] rounded-lg flex items-center justify-center transition-all duration-200"
+            style={active
+              ? { background: "rgba(255,255,255,0.18)" }
+              : { background: "rgba(255,255,255,0.08)" }
+            }>
+            <Icon className="w-3 h-3" style={{ color: active ? "#ffffff" : "rgba(255,255,255,0.55)" }} aria-hidden />
+          </span>
+        )}
+        <span className="text-[12.5px] font-medium truncate"
+          style={{ color: active ? "#ffffff" : "rgba(255,255,255,0.65)" }}>
           {label}
         </span>
         {count !== undefined && count > 0 && (
-          <span className="px-2 py-0.5 rounded-full text-[10px] font-black leading-none flex-shrink-0"
+          <span className="ml-1 px-[7px] py-px rounded-full text-[9.5px] font-black leading-none flex-shrink-0"
             style={active
               ? { background: "rgba(255,255,255,0.22)", color: "#ffffff" }
-              : { background: "#dcfce7", color: "#02665e", border: "1px solid #bbf7d0" }
+              : { background: "rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.85)" }
             }>
             {count}
           </span>
         )}
       </div>
-      <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 opacity-35 group-hover:opacity-60 transition-opacity"
-        style={{ color: active ? "#ffffff" : "#02665e" }} aria-hidden />
+      <ChevronRight className="w-3 h-3 flex-shrink-0 opacity-0 group-hover:opacity-50 transition-opacity duration-200"
+        style={{ color: "#ffffff" }} aria-hidden />
     </Link>
   );
 }
 
-/* ═══════════════════════════════════════════════════════
-   SECTION GROUP — wraps a collapsible group in a card
-═══════════════════════════════════════════════════════ */
-function SectionGroup({
-  label, Icon, isOpen, active, onClick, collapsed, children,
+/* 
+   SECTION HEADER (collapsible)
+ */
+function Section({
+  label, Icon, isOpen, active, onClick, children,
 }: {
   label: string;
   Icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
   isOpen: boolean;
   active?: boolean;
   onClick: () => void;
-  collapsed: boolean;
   children: React.ReactNode;
 }) {
-  if (collapsed) {
-    return (
-      <button
-        onClick={onClick}
-        title={label}
-        className="group relative w-full flex items-center justify-center rounded-xl p-2.5 transition-all duration-200"
-        style={active
-          ? { background: "rgba(2,102,94,0.12)" }
-          : { background: "transparent" }
-        }
-      >
-        <Icon className="h-5 w-5 flex-shrink-0" style={{ color: "#02665e" }} aria-hidden />
-        <span className="absolute left-full ml-2.5 px-2.5 py-1.5 text-xs font-semibold text-white rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 transition-opacity duration-150 shadow-lg"
-          style={{ background: "#0f172a" }}>
-          {label}
-        </span>
-      </button>
-    );
-  }
-
   return (
-    <div className="rounded-2xl overflow-hidden transition-all duration-200"
-      style={{ background: "rgba(255,255,255,0.75)" }}>
-      {/* section header button */}
+    <div>
       <button
         onClick={onClick}
         aria-expanded={isOpen}
-        className="w-full flex items-center justify-between px-3.5 py-3 transition-all duration-200 group"
-        style={isOpen || active
-          ? { background: "rgba(2,102,94,0.06)" }
+        className="w-full group flex items-center gap-3 px-2 py-2.5 rounded-2xl transition-all duration-200"
+        style={isOpen
+          ? { background: "rgba(255,255,255,0.06)" }
+          : active
+          ? { background: "rgba(255,255,255,0.08)" }
           : { background: "transparent" }
         }
       >
-        <div className="flex items-center gap-3">
-          <span className="w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-200"
-            style={isOpen || active
-              ? { background: "linear-gradient(135deg,#024d47,#02665e)", boxShadow: "0 2px 6px rgba(2,102,94,0.3)" }
-              : { background: "rgba(2,102,94,0.08)" }
-            }>
-            <Icon className="w-4 h-4 transition-transform duration-200 group-hover:scale-110"
-              style={{ color: isOpen || active ? "#ffffff" : "#02665e" }} aria-hidden />
-          </span>
-          <span className="text-[13.5px] font-bold"
-            style={{ color: "#1e3a38" }}>
-            {label}
-          </span>
-        </div>
+        <span
+          className="flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-200"
+          style={isOpen || active
+            ? { background: "rgba(255,255,255,0.18)", boxShadow: "0 2px 8px rgba(0,0,0,0.18)" }
+            : { background: "rgba(255,255,255,0.07)" }
+          }
+        >
+          <Icon className="w-[17px] h-[17px]" style={{ color: isOpen || active ? "#ffffff" : "rgba(255,255,255,0.55)" }} aria-hidden />
+        </span>
+        <span className="flex-1 text-left text-[13px] font-semibold tracking-[-0.01em]"
+          style={{ color: isOpen || active ? "#ffffff" : "rgba(255,255,255,0.75)" }}>
+          {label}
+        </span>
         <ChevronDown
-          className="h-4 w-4 flex-shrink-0 transition-transform duration-300"
-          style={{ color: "#02665e", opacity: 0.6, transform: isOpen ? "rotate(0deg)" : "rotate(-90deg)" }}
+          className="w-3.5 h-3.5 flex-shrink-0 transition-transform duration-300"
+          style={{ color: "rgba(255,255,255,0.35)", transform: isOpen ? "rotate(0deg)" : "rotate(-90deg)" }}
           aria-hidden
         />
       </button>
-
-      {/* accordion body */}
-      <div className={`grid transition-[grid-template-rows] duration-300 ease-out ${isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
+      <div className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
         <div className="min-h-0 overflow-hidden">
-          {/* subtle top divider */}
-          <div className="mx-3 h-px" style={{ background: "rgba(2,102,94,0.08)" }} />
-          <div className="px-2 pt-2 pb-2.5 space-y-1">
+          <div className="pl-2 pr-1 pt-0.5 pb-1 space-y-0.5">
             {children}
           </div>
         </div>
@@ -221,9 +144,48 @@ function SectionGroup({
   );
 }
 
-/* ═══════════════════════════════════════════════════════
+/* 
+   DASHBOARD DIRECT LINK
+ */
+function TopItem({
+  href, label, Icon,
+}: { href: string; label: string; Icon: React.ComponentType<React.SVGProps<SVGSVGElement>> }) {
+  const path = usePathname();
+  const active = path === href;
+  return (
+    <Link
+      href={href}
+      className="group no-underline flex items-center gap-3 px-2 py-2.5 rounded-2xl transition-all duration-200"
+      style={active
+        ? { background: "rgba(255,255,255,0.16)", boxShadow: "0 2px 12px rgba(0,0,0,0.18)" }
+        : { background: "transparent" }
+      }
+    >
+      <span
+        className="flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-200"
+        style={active
+          ? { background: "rgba(255,255,255,0.22)", boxShadow: "0 2px 8px rgba(0,0,0,0.18)" }
+          : { background: "rgba(255,255,255,0.07)" }
+        }
+      >
+        <Icon className="w-[17px] h-[17px]" style={{ color: active ? "#ffffff" : "rgba(255,255,255,0.55)" }} aria-hidden />
+      </span>
+      <span className="text-[13px] font-semibold tracking-[-0.01em]"
+        style={{ color: active ? "#ffffff" : "rgba(255,255,255,0.75)" }}>
+        {label}
+      </span>
+      {active && <span className="ml-auto w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: "rgba(255,255,255,0.60)" }} />}
+    </Link>
+  );
+}
+
+function Divider() {
+  return <div className="h-px mx-2 my-1" style={{ background: "rgba(255,255,255,0.07)" }} />;
+}
+
+/* 
    MAIN EXPORT
-═══════════════════════════════════════════════════════ */
+ */
 export default function OwnerSidebar({ collapsed = false }: { collapsed?: boolean }) {
   const [propOpen, setPropOpen] = useState(true);
   const [bookOpen, setBookOpen] = useState(true);
@@ -258,11 +220,9 @@ export default function OwnerSidebar({ collapsed = false }: { collapsed?: boolea
 
     fetchCounts();
     intervalId = setInterval(() => { if (mounted) fetchCounts(); }, 30000);
-
     const onChanged = () => { if (mounted) fetchCounts(); };
     window.addEventListener("nols:checkedin-changed", onChanged);
     window.addEventListener("nols:checkout-changed", onChanged);
-
     return () => {
       mounted = false;
       abortController.abort();
@@ -280,91 +240,82 @@ export default function OwnerSidebar({ collapsed = false }: { collapsed?: boolea
     revenue: path === "/owner/revenue" || path.startsWith("/owner/revenue/") || path === "/owner/reports" || path.startsWith("/owner/reports/"),
   };
 
+  /*  COLLAPSED  */
+  if (collapsed) {
+    return (
+      <div
+        className="flex flex-col items-center gap-1.5 p-2 rounded-2xl"
+        style={{
+          background: "linear-gradient(180deg,#022a26 0%,#024d47 60%,#02584f 100%)",
+          boxShadow: "0 4px 24px rgba(2,60,54,0.40)",
+        }}
+      >
+        <CollapseBtn href="/owner" label="Dashboard" Icon={LayoutDashboard} active={path === "/owner"} />
+        <div className="w-6 h-px my-0.5" style={{ background: "rgba(255,255,255,0.09)" }} />
+        <CollapseBtn href="/owner/properties/approved" label="My Properties" Icon={Building2} active={sectionActive.properties} />
+        <CollapseBtn href="/owner/bookings" label="Bookings" Icon={Calendar} active={sectionActive.bookings} count={checkedInCount + checkoutDueCount || undefined} />
+        <CollapseBtn href="/owner/group-stays" label="Group Stays" Icon={Users} active={sectionActive.groupStays} />
+        <CollapseBtn href="/owner/revenue/requested" label="My Revenue" Icon={Wallet} active={sectionActive.revenue} />
+      </div>
+    );
+  }
+
+  /*  EXPANDED  */
   return (
     <div
-      className={`rounded-3xl overflow-hidden ${collapsed ? "p-1.5" : "p-3"}`}
+      className="rounded-3xl overflow-hidden select-none"
       style={{
-        background: "linear-gradient(160deg,#f7fbfa 0%,#ffffff 50%,#f2f9f8 100%)",
-        boxShadow: "0 2px 16px rgba(2,102,94,0.08), 0 1px 4px rgba(0,0,0,0.04)",
+        background: "linear-gradient(175deg,#021e1b 0%,#023530 30%,#024d47 65%,#025248 100%)",
+        boxShadow: "0 8px 40px rgba(2,40,36,0.55), inset 0 1px 0 rgba(255,255,255,0.06)",
       }}
     >
-      <div className={`space-y-2 ${collapsed ? "space-y-1.5" : ""}`}>
+      {/* Logo strip */}
+      <div className="px-4 pt-4 pb-3.5 flex items-center gap-2.5 border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/assets/nolsnewlog.png" alt="NolSAF" className="w-7 h-7 rounded-xl object-contain flex-shrink-0" />
+        <div className="min-w-0">
+          <p className="text-[13px] font-black tracking-wide text-white leading-none">NolSAF</p>
+          <p className="text-[9.5px] font-medium mt-[3px] leading-none" style={{ color: "rgba(255,255,255,0.38)" }}>Owner Portal</p>
+        </div>
+      </div>
 
-        {/* ── Dashboard ── */}
-        <Item href="/owner" label="Dashboard" Icon={LayoutDashboard} collapsed={collapsed} />
+      {/* Nav */}
+      <div className="px-2.5 py-2.5 space-y-0.5">
 
-        {!collapsed && (
-          <div className="h-px mx-1" style={{ background: "rgba(2,102,94,0.07)" }} />
-        )}
+        <TopItem href="/owner" label="Dashboard" Icon={LayoutDashboard} />
+        <Divider />
 
-        {/* ── My Properties ── */}
-        {collapsed ? (
-          <Item href="/owner/properties/approved" label="My Properties" Icon={Building2} collapsed={collapsed} />
-        ) : (
-          <SectionGroup
-            label="My Properties" Icon={Building2}
-            isOpen={propOpen} active={sectionActive.properties}
-            onClick={() => setPropOpen(v => !v)}
-            collapsed={collapsed}
-          >
-            <Item href="/owner/properties/approved" label="Approved" Icon={BadgeCheck} isSubItem collapsed={false} />
-            <Item href="/owner/properties/pending" label="Pending" Icon={FileText} isSubItem collapsed={false} />
-            <Item href="/owner/properties/availability" label="Room Availability" Icon={CalendarDays} isSubItem collapsed={false} />
-            <Item href="/owner/properties/add" label="Add New" Icon={PlusSquare} isSubItem collapsed={false} />
-          </SectionGroup>
-        )}
+        <Section label="My Properties" Icon={Building2} isOpen={propOpen} active={sectionActive.properties} onClick={() => setPropOpen(v => !v)}>
+          <SubItem href="/owner/properties/approved" label="Approved" Icon={BadgeCheck} />
+          <SubItem href="/owner/properties/pending" label="Pending" Icon={FileText} />
+          <SubItem href="/owner/properties/availability" label="Room Availability" Icon={CalendarDays} />
+          <SubItem href="/owner/properties/add" label="Add New" Icon={PlusSquare} />
+        </Section>
 
-        {/* ── Bookings ── */}
-        {collapsed ? (
-          <Item href="/owner/bookings" label="Bookings" Icon={Calendar} collapsed={collapsed} />
-        ) : (
-          <SectionGroup
-            label="Bookings" Icon={Calendar}
-            isOpen={bookOpen} active={sectionActive.bookings}
-            onClick={() => setBookOpen(v => !v)}
-            collapsed={collapsed}
-          >
-            <Item href="/owner/bookings/validate" label="Check-in" Icon={LogIn} isSubItem collapsed={false} />
-            <Item href="/owner/bookings/checked-in" label="Checked-In" Icon={CheckCircle2} isSubItem count={checkedInCount} collapsed={false} />
-            <Item href="/owner/bookings/check-out" label="Check-out" Icon={LogOut} isSubItem count={checkoutDueCount} collapsed={false} />
-            <Item href="/owner/bookings/checked-out" label="Checked-Out" Icon={CheckCircle2} isSubItem collapsed={false} />
-          </SectionGroup>
-        )}
+        <Section label="Bookings" Icon={Calendar} isOpen={bookOpen} active={sectionActive.bookings} onClick={() => setBookOpen(v => !v)}>
+          <SubItem href="/owner/bookings/validate" label="Check-in" Icon={LogIn} />
+          <SubItem href="/owner/bookings/checked-in" label="Checked-In" Icon={CheckCircle2} count={checkedInCount} />
+          <SubItem href="/owner/bookings/check-out" label="Check-out" Icon={LogOut} count={checkoutDueCount} />
+          <SubItem href="/owner/bookings/checked-out" label="Checked-Out" Icon={CheckCircle2} />
+        </Section>
 
-        {/* ── Group Stays ── */}
-        {collapsed ? (
-          <Item href="/owner/group-stays" label="Group Stays" Icon={Users} collapsed={collapsed} />
-        ) : (
-          <SectionGroup
-            label="Group Stays" Icon={Users}
-            isOpen={groupStaysOpen} active={sectionActive.groupStays}
-            onClick={() => setGroupStaysOpen(v => !v)}
-            collapsed={collapsed}
-          >
-            <Item href="/owner/group-stays" label="Assigned to Me" Icon={Users} isSubItem collapsed={false} />
-            <Item href="/owner/group-stays/claims" label="Available to Claim" Icon={HandHeart} isSubItem collapsed={false} />
-            <Item href="/owner/group-stays/claims/my-claims" label="My Claims" Icon={FileText} isSubItem collapsed={false} />
-          </SectionGroup>
-        )}
+        <Section label="Group Stays" Icon={Users} isOpen={groupStaysOpen} active={sectionActive.groupStays} onClick={() => setGroupStaysOpen(v => !v)}>
+          <SubItem href="/owner/group-stays" label="Assigned to Me" Icon={Users} />
+          <SubItem href="/owner/group-stays/claims" label="Available to Claim" Icon={HandHeart} />
+          <SubItem href="/owner/group-stays/claims/my-claims" label="My Claims" Icon={FileText} />
+        </Section>
 
-        {/* ── My Revenue ── */}
-        {collapsed ? (
-          <Item href="/owner/revenue/requested" label="My Revenue" Icon={Wallet} collapsed={collapsed} />
-        ) : (
-          <SectionGroup
-            label="My Revenue" Icon={Wallet}
-            isOpen={revenueOpen} active={sectionActive.revenue}
-            onClick={() => setRevenueOpen(v => !v)}
-            collapsed={collapsed}
-          >
-            <Item href="/owner/revenue/requested" label="Requested" Icon={TrendingUp} isSubItem collapsed={false} />
-            <Item href="/owner/revenue/paid" label="Paid Invoices" Icon={BadgeCheck} isSubItem collapsed={false} />
-            <Item href="/owner/revenue/rejected" label="Rejected" Icon={FileText} isSubItem collapsed={false} />
-            <Item href="/owner/reports/overview" label="Reports" Icon={BarChart3} isSubItem collapsed={false} />
-          </SectionGroup>
-        )}
+        <Section label="My Revenue" Icon={Wallet} isOpen={revenueOpen} active={sectionActive.revenue} onClick={() => setRevenueOpen(v => !v)}>
+          <SubItem href="/owner/revenue/requested" label="Requested" Icon={TrendingUp} />
+          <SubItem href="/owner/revenue/paid" label="Paid Invoices" Icon={BadgeCheck} />
+          <SubItem href="/owner/revenue/rejected" label="Rejected" Icon={FileText} />
+          <SubItem href="/owner/reports/overview" label="Reports" Icon={BarChart3} />
+        </Section>
 
       </div>
+
+      {/* Bottom shimmer */}
+      <div className="h-[3px]" style={{ background: "linear-gradient(90deg,transparent,rgba(255,255,255,0.08),transparent)" }} />
     </div>
   );
 }
