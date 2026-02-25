@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Building2, MessageCircle, CalendarCheck, Eye, TrendingUp, Wallet, LayoutDashboard, Star, ChevronRight } from "lucide-react";
+import { Building2, MessageCircle, CalendarCheck, Eye, TrendingUp, Wallet, ChevronRight } from "lucide-react";
 import axios from "axios";
 import { io } from "socket.io-client";
 import {
@@ -184,104 +184,176 @@ export default function OwnerPage() {
     <div className="w-full pb-6 space-y-4">
 
       {/* ══════════════════════════════════════════════════════════════
-          HERO — full-bleed prestige bar
+          HERO
       ══════════════════════════════════════════════════════════════ */}
       <section
         className={`relative overflow-hidden rounded-3xl transition-all duration-700 ease-out ${mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
-        style={{ background: "linear-gradient(135deg,#010e0d 0%,#011a17 20%,#013630 45%,#025549 70%,#026b5e 88%,#028576 100%)" }}
+        style={{ background: "linear-gradient(135deg,#020f0d 0%,#011c18 22%,#023a32 48%,#025549 72%,#02705f 90%,#048070 100%)" }}
       >
-        {/* ── layered textures ── */}
-        <div className="pointer-events-none absolute inset-0" style={{ backgroundImage: "radial-gradient(circle,rgba(255,255,255,0.055) 1px,transparent 1px)", backgroundSize: "22px 22px" }} />
-        <div className="pointer-events-none absolute inset-0" style={{ background: "linear-gradient(to bottom,rgba(0,0,0,0.18) 0%,transparent 40%,rgba(0,0,0,0.28) 100%)" }} />
+        {/* ── dot grid ── */}
+        <div className="pointer-events-none absolute inset-0" style={{ backgroundImage: "radial-gradient(circle,rgba(255,255,255,0.06) 1px,transparent 1px)", backgroundSize: "24px 24px" }} />
 
-        {/* ── ambient light blobs ── */}
-        <div className="pointer-events-none absolute -top-24 -right-24 h-80 w-80 rounded-full" style={{ background: "radial-gradient(circle,rgba(20,210,170,0.18) 0%,transparent 70%)" }} />
-        <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full" style={{ background: "radial-gradient(circle,rgba(0,255,190,0.10) 0%,transparent 70%)" }} />
-        <div className="pointer-events-none absolute top-1/2 right-1/4 h-96 w-96 rounded-full" style={{ background: "radial-gradient(circle,rgba(2,150,130,0.10) 0%,transparent 65%)", transform: "translateY(-50%)" }} />
+        {/* ── horizontal line grid (depth) ── */}
+        <div className="pointer-events-none absolute inset-0 opacity-[0.04]" style={{ backgroundImage: "repeating-linear-gradient(0deg,transparent,transparent 39px,rgba(255,255,255,1) 39px,rgba(255,255,255,1) 40px)" }} />
 
-        {/* ── decorative watermark ── */}
-        <div className="pointer-events-none absolute right-0 bottom-0 flex items-end justify-end overflow-hidden" style={{ width: 220, height: 220 }}>
-          <LayoutDashboard style={{ width: 200, height: 200, color: "rgba(255,255,255,0.028)", transform: "translate(30%,30%)" }} />
-        </div>
+        {/* ── vignette ── */}
+        <div className="pointer-events-none absolute inset-0" style={{ background: "radial-gradient(ellipse 80% 60% at 50% 0%,rgba(0,0,0,0) 0%,rgba(0,0,0,0.45) 100%)" }} />
 
-        {/* ── CONTENT ── */}
-        <div className="relative px-5 sm:px-8 lg:px-10 pt-7 pb-0">
+        {/* ── ambient glows ── */}
+        <div className="pointer-events-none absolute -top-20 left-1/3 h-72 w-72 rounded-full" style={{ background: "radial-gradient(circle,rgba(4,180,150,0.22) 0%,transparent 70%)" }} />
+        <div className="pointer-events-none absolute -bottom-16 -left-10 h-56 w-56 rounded-full" style={{ background: "radial-gradient(circle,rgba(0,240,190,0.10) 0%,transparent 70%)" }} />
 
-          {/* top chrome row */}
-          <div className="flex items-center justify-between mb-5">
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.14)" }}>
-                <Star className="h-3.5 w-3.5 text-white/70" />
-              </div>
-              <span className="text-[10px] font-black uppercase tracking-[0.22em] text-white/30">Owner Portal</span>
-            </div>
-            {liveAgeLabel && (
-              <div className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-bold text-white/55" style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)" }}>
-                <span className={`h-1.5 w-1.5 rounded-full ${isFreshLiveUpdate ? "bg-emerald-400 animate-pulse" : "bg-white/30"}`} />
-                {isFreshLiveUpdate ? "Just updated" : `Updated ${liveAgeLabel} ago`}
-              </div>
-            )}
-          </div>
-
-          {/* greeting & title */}
-          <div className="mb-7">
-            {ownerName && (
-              <p className="text-[12px] font-semibold text-white/35 mb-1.5 tracking-wide">Welcome back,</p>
-            )}
-            <h1 className="font-black text-white leading-[1.02] tracking-tight" style={{ fontSize: "clamp(2rem,5vw,3rem)" }}>
-              {ownerName ?? "Your workspace"}
-            </h1>
-            <p className="mt-2.5 text-[13px] font-medium text-white/35 max-w-sm">
-              Bookings, revenue & insights — all in one place.
-            </p>
-          </div>
-
-          {/* KPI panels */}
-          <div className="grid grid-cols-2 gap-2.5 sm:gap-3 mb-0">
-
-            {/* Bookings KPI */}
-            <div className="relative overflow-hidden rounded-t-2xl px-4 pt-4 pb-5" style={{ background: "rgba(255,255,255,0.07)", borderTop: "1px solid rgba(255,255,255,0.12)", borderLeft: "1px solid rgba(255,255,255,0.08)", borderRight: "1px solid rgba(255,255,255,0.08)" }}>
-              <div className="absolute inset-x-0 top-0 h-px" style={{ background: "linear-gradient(90deg,transparent,rgba(255,255,255,0.35),transparent)" }} />
-              <div className="flex items-start justify-between gap-2 mb-3">
-                <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white/30">Bookings · 14 d</span>
-                <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg" style={{ background: "rgba(56,189,248,0.18)", border: "1px solid rgba(56,189,248,0.25)" }}>
-                  <CalendarCheck className="h-3 w-3 text-sky-300" />
-                </div>
-              </div>
-              <div className="text-[2.6rem] font-black text-white leading-none tabular-nums">
-                {loadingOverview ? <span className="text-white/20 text-[2rem]">—·—</span> : kpis.bookings}
-              </div>
-              <div className="mt-2 flex items-center gap-1">
-                <TrendingUp className="h-3 w-3 text-emerald-400/70" />
-                <span className="text-[10px] text-white/30 font-medium">active window</span>
-              </div>
-            </div>
-
-            {/* Revenue KPI */}
-            <div className="relative overflow-hidden rounded-t-2xl px-4 pt-4 pb-5" style={{ background: "rgba(255,255,255,0.07)", borderTop: "1px solid rgba(255,255,255,0.12)", borderLeft: "1px solid rgba(255,255,255,0.08)", borderRight: "1px solid rgba(255,255,255,0.08)" }}>
-              <div className="absolute inset-x-0 top-0 h-px" style={{ background: "linear-gradient(90deg,transparent,rgba(255,255,255,0.35),transparent)" }} />
-              <div className="flex items-start justify-between gap-2 mb-3">
-                <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white/30">Net Revenue · 14 d</span>
-                <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg" style={{ background: "rgba(52,211,153,0.18)", border: "1px solid rgba(52,211,153,0.25)" }}>
-                  <Wallet className="h-3 w-3 text-emerald-300" />
-                </div>
-              </div>
-              <div className="min-w-0">
-                <div className="text-[10px] font-black text-white/40 mb-0.5">TZS</div>
-                <div className="text-[1.8rem] sm:text-[2rem] font-black text-white leading-none tabular-nums truncate">
-                  {loadingOverview ? <span className="text-white/20">—·—</span> : fmtTZS(kpis.net)}
-                </div>
-              </div>
-              <div className="mt-2 flex items-center gap-1">
-                <TrendingUp className="h-3 w-3 text-emerald-400/70" />
-                <span className="text-[10px] text-white/30 font-medium">active window</span>
-              </div>
-            </div>
+        {/* ═══════════════════════ BACKGROUND VISUALIZATION ═══════════════════════ */}
+        {/* Decorative bar chart — rendered from live series data */}
+        <div className="pointer-events-none absolute inset-0 flex items-end justify-end pr-6 pb-0" aria-hidden>
+          <div className="flex items-end gap-[5px] h-full" style={{ paddingBottom: 0, paddingTop: 24, opacity: 0.13 }}>
+            {(series.length > 0 ? series : Array.from({ length: 14 }, (_, i) => ({ key: i, bookings: Math.floor(Math.sin(i * 0.7 + 1) * 3 + 4) }))).map((s: any, i: number) => {
+              const maxVal = Math.max(...(series.length > 0 ? series : Array.from({ length: 14 }, (_: any, j: number) => ({ bookings: Math.floor(Math.sin(j * 0.7 + 1) * 3 + 4) }))).map((x: any) => Number(x.bookings || 0)), 1);
+              const pct = Math.max(0.08, Number(s.bookings || 0) / maxVal);
+              return (
+                <div key={i} className="rounded-t-sm flex-shrink-0" style={{ width: 14, height: `${pct * 100}%`, background: "linear-gradient(to top,rgba(0,255,200,0.9),rgba(0,255,200,0.3))" }} />
+              );
+            })}
           </div>
         </div>
 
-        {/* bottom edge fade so KPI panels bleed into page */}
-        <div className="h-5 w-full" />
+        {/* Decorative SVG area curve in background */}
+        <svg className="pointer-events-none absolute inset-0 w-full h-full" preserveAspectRatio="none" viewBox="0 0 400 180" style={{ opacity: 0.07 }}>
+          <defs>
+            <linearGradient id="heroWave" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#00ffcc" stopOpacity="0.9" />
+              <stop offset="100%" stopColor="#00ffcc" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          {series.length > 2 && (() => {
+            const pts = series.map((s: any, i: number) => ({ x: (i / (series.length - 1)) * 400, y: 160 - (Number(s.net || 0) / Math.max(...series.map((x: any) => Number(x.net || 1)))) * 140 }));
+            const d = pts.map((p: any, i: number) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+            const area = `${d} L400,180 L0,180 Z`;
+            return (
+              <>
+                <path d={area} fill="url(#heroWave)" />
+                <path d={d} fill="none" stroke="#00ffcc" strokeWidth="2" />
+              </>
+            );
+          })()}
+          {/* fallback static wave when no data */}
+          {series.length <= 2 && (
+            <>
+              <path d="M0,140 C60,100 100,160 160,90 C220,30 260,120 320,70 C360,30 380,60 400,50 L400,180 L0,180 Z" fill="url(#heroWave)" />
+              <path d="M0,140 C60,100 100,160 160,90 C220,30 260,120 320,70 C360,30 380,60 400,50" fill="none" stroke="#00ffcc" strokeWidth="2" />
+            </>
+          )}
+        </svg>
+
+        {/* ════════════════════════ CONTENT ════════════════════════ */}
+        <div className="relative flex flex-col lg:flex-row lg:items-stretch gap-0">
+
+          {/* ── LEFT: greeting + KPI tiles ── */}
+          <div className="flex-1 px-5 sm:px-8 lg:px-10 pt-7 pb-6 lg:pb-7">
+
+            {/* chrome row */}
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-2">
+                <div className="h-[3px] w-5 rounded-full" style={{ background: "rgba(0,255,190,0.5)" }} />
+                <span className="text-[9px] font-black uppercase tracking-[0.26em]" style={{ color: "rgba(255,255,255,0.28)" }}>Owner Portal</span>
+              </div>
+              {liveAgeLabel && (
+                <div className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[9px] font-bold" style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.4)" }}>
+                  <span className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${isFreshLiveUpdate ? "bg-emerald-400 animate-pulse" : "bg-white/25"}`} />
+                  {isFreshLiveUpdate ? "Live" : `${liveAgeLabel} ago`}
+                </div>
+              )}
+            </div>
+
+            {/* greeting + title */}
+            <div className="mb-7">
+              {ownerName && (
+                <p className="text-[11px] font-semibold mb-2 tracking-widest uppercase" style={{ color: "rgba(0,255,190,0.5)" }}>
+                  Welcome back
+                </p>
+              )}
+              <h1 className="font-black text-white leading-[1.0] tracking-tight" style={{ fontSize: "clamp(2.1rem,5.5vw,3.2rem)", textShadow: "0 2px 30px rgba(0,0,0,0.5)" }}>
+                {ownerName ?? "Your workspace"}
+              </h1>
+              <p className="mt-3 text-[12px] font-medium" style={{ color: "rgba(255,255,255,0.32)", maxWidth: 280 }}>
+                Bookings, revenue & live insights — all in one place.
+              </p>
+            </div>
+
+            {/* KPI tiles — stacked horizontally */}
+            <div className="grid grid-cols-2 gap-2.5">
+              {/* Bookings */}
+              <div className="relative overflow-hidden rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.065)", border: "1px solid rgba(255,255,255,0.10)" }}>
+                {/* shimmer top line */}
+                <div className="absolute inset-x-0 top-0 h-px" style={{ background: "linear-gradient(90deg,transparent 0%,rgba(255,255,255,0.4) 50%,transparent 100%)" }} />
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-[8.5px] font-black uppercase tracking-[0.22em]" style={{ color: "rgba(56,189,248,0.7)" }}>Bookings</span>
+                  <div className="h-5 w-5 rounded-md flex items-center justify-center" style={{ background: "rgba(56,189,248,0.15)", border: "1px solid rgba(56,189,248,0.2)" }}>
+                    <CalendarCheck className="h-2.5 w-2.5 text-sky-300" />
+                  </div>
+                </div>
+                <div className="text-[2.8rem] font-black text-white leading-none tabular-nums" style={{ textShadow: "0 0 30px rgba(56,189,248,0.3)" }}>
+                  {loadingOverview ? <span style={{ color: "rgba(255,255,255,0.15)", fontSize: "2rem" }}>—</span> : kpis.bookings}
+                </div>
+                <div className="mt-2 flex items-center gap-1">
+                  <TrendingUp className="h-2.5 w-2.5" style={{ color: "rgba(52,211,153,0.6)" }} />
+                  <span className="text-[9px] font-semibold" style={{ color: "rgba(255,255,255,0.25)" }}>Last 14 days</span>
+                </div>
+              </div>
+
+              {/* Revenue */}
+              <div className="relative overflow-hidden rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.065)", border: "1px solid rgba(255,255,255,0.10)" }}>
+                <div className="absolute inset-x-0 top-0 h-px" style={{ background: "linear-gradient(90deg,transparent 0%,rgba(255,255,255,0.4) 50%,transparent 100%)" }} />
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-[8.5px] font-black uppercase tracking-[0.22em]" style={{ color: "rgba(52,211,153,0.7)" }}>Net Revenue</span>
+                  <div className="h-5 w-5 rounded-md flex items-center justify-center" style={{ background: "rgba(52,211,153,0.15)", border: "1px solid rgba(52,211,153,0.2)" }}>
+                    <Wallet className="h-2.5 w-2.5 text-emerald-300" />
+                  </div>
+                </div>
+                <div className="text-[9.5px] font-black mb-0.5" style={{ color: "rgba(255,255,255,0.28)" }}>TZS</div>
+                <div className="text-[1.7rem] sm:text-[2rem] font-black text-white leading-none tabular-nums truncate" style={{ textShadow: "0 0 30px rgba(52,211,153,0.3)" }}>
+                  {loadingOverview ? <span style={{ color: "rgba(255,255,255,0.15)" }}>—</span> : fmtTZS(kpis.net)}
+                </div>
+                <div className="mt-2 flex items-center gap-1">
+                  <TrendingUp className="h-2.5 w-2.5" style={{ color: "rgba(52,211,153,0.6)" }} />
+                  <span className="text-[9px] font-semibold" style={{ color: "rgba(255,255,255,0.25)" }}>Last 14 days</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ── RIGHT: decorative live bar visualization ── */}
+          <div className="hidden lg:flex items-end justify-center w-[260px] xl:w-[300px] flex-shrink-0 pr-8 pb-0 pt-8 relative">
+            {/* label */}
+            <div className="absolute top-7 right-8 flex items-center gap-1.5">
+              <span className="text-[9px] font-black uppercase tracking-[0.18em]" style={{ color: "rgba(255,255,255,0.2)" }}>14-day bookings</span>
+              <div className="h-1.5 w-1.5 rounded-full" style={{ background: isFreshLiveUpdate ? "#34d399" : "rgba(255,255,255,0.2)", animation: isFreshLiveUpdate ? "pulse 2s infinite" : "none" }} />
+            </div>
+            {/* bar chart */}
+            <div className="flex items-end gap-[5px] w-full" style={{ height: 120 }}>
+              {(series.length > 0 ? series : Array.from({ length: 14 }, (_: any, i: number) => ({ bookings: Math.floor(Math.sin(i * 0.8 + 1) * 3 + 5) }))).map((s: any, i: number) => {
+                const all = series.length > 0 ? series : Array.from({ length: 14 }, (_: any, j: number) => ({ bookings: Math.floor(Math.sin(j * 0.8 + 1) * 3 + 5) }));
+                const maxB = Math.max(...all.map((x: any) => Number(x.bookings || 0)), 1);
+                const pct = Math.max(0.06, Number(s.bookings || 0) / maxB);
+                const isLast = i === all.length - 1;
+                return (
+                  <div key={i} className="flex-1 rounded-t-md" style={{
+                    height: `${pct * 100}%`,
+                    background: isLast
+                      ? "linear-gradient(to top,rgba(52,211,153,1),rgba(52,211,153,0.5))"
+                      : `linear-gradient(to top,rgba(255,255,255,${0.18 + pct * 0.22}),rgba(255,255,255,${0.05 + pct * 0.08}))`,
+                    boxShadow: isLast ? "0 0 12px rgba(52,211,153,0.5)" : "none",
+                  }} />
+                );
+              })}
+            </div>
+            {/* x-axis line */}
+            <div className="absolute bottom-0 left-0 right-8 h-px" style={{ background: "rgba(255,255,255,0.08)" }} />
+          </div>
+        </div>
+
+        {/* bottom breathing space */}
+        <div className="h-1" />
       </section>
 
       {/* ══════════════════════════════════════════════════════════════
@@ -291,10 +363,10 @@ export default function OwnerPage() {
         className={`grid grid-cols-2 md:grid-cols-4 gap-3 transition-all duration-700 ease-out delay-100 ${mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
       >
         {[
-          { href: "/owner/properties/approved", icon: Building2,     label: "Manage listings",    sub: "Properties", topColor: "#0ea5e9", glowBg: "rgba(14,165,233,0.08)",  iconBg: "rgba(14,165,233,0.1)",  iconColor: "#0ea5e9" },
-          { href: "/owner/reports/overview",    icon: TrendingUp,    label: "Trends & insights",  sub: "Reports",    topColor: "#10b981", glowBg: "rgba(16,185,129,0.08)",  iconBg: "rgba(16,185,129,0.1)",  iconColor: "#10b981" },
-          { href: "/owner/revenue/paid",        icon: Wallet,        label: "Payments & receipts",sub: "Revenue",    topColor: "#f59e0b", glowBw: "rgba(245,158,11,0.08)",   iconBg: "rgba(245,158,11,0.1)",  iconColor: "#f59e0b" },
-          { href: "/owner/messages",            icon: MessageCircle, label: "Guest support",      sub: "Messages",   topColor: "#8b5cf6", glowBg: "rgba(139,92,246,0.08)",   iconBg: "rgba(139,92,246,0.1)",  iconColor: "#8b5cf6" },
+          { href: "/owner/properties/approved", icon: Building2,     label: "Manage listings",    sub: "Properties", topColor: "#0ea5e9", iconBg: "rgba(14,165,233,0.1)",  iconColor: "#0ea5e9" },
+          { href: "/owner/reports/overview",    icon: TrendingUp,    label: "Trends & insights",  sub: "Reports",    topColor: "#10b981", iconBg: "rgba(16,185,129,0.1)",  iconColor: "#10b981" },
+          { href: "/owner/revenue/paid",        icon: Wallet,        label: "Payments & receipts",sub: "Revenue",    topColor: "#f59e0b", iconBg: "rgba(245,158,11,0.1)",  iconColor: "#f59e0b" },
+          { href: "/owner/messages",            icon: MessageCircle, label: "Guest support",      sub: "Messages",   topColor: "#8b5cf6", iconBg: "rgba(139,92,246,0.1)",  iconColor: "#8b5cf6" },
         ].map(({ href, icon: Icon, label, sub, topColor, iconBg, iconColor }) => (
           <Link
             key={href}
@@ -302,20 +374,17 @@ export default function OwnerPage() {
             className="group relative overflow-hidden rounded-2xl bg-white no-underline block transition-all duration-200 hover:-translate-y-0.5"
             style={{ border: "1px solid rgba(0,0,0,0.07)", boxShadow: "0 1px 3px rgba(0,0,0,0.05),0 4px 12px rgba(0,0,0,0.04)" }}
           >
-            {/* colored top bar */}
-            <div className="absolute inset-x-0 top-0 h-[3px] rounded-t-2xl transition-all duration-200" style={{ background: topColor, opacity: 0.7 }} />
-            {/* hover glow overlay */}
-            <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-200" style={{ background: `linear-gradient(135deg,${topColor}08 0%,transparent 60%)` }} />
-
+            <div className="absolute inset-x-0 top-0 h-[3px] rounded-t-2xl" style={{ background: topColor, opacity: 0.75 }} />
+            <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-200" style={{ background: `linear-gradient(135deg,${topColor}10 0%,transparent 60%)` }} />
             <div className="relative px-4 py-4 flex flex-col gap-3">
               <div className="flex items-start justify-between">
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: iconBg }}>
                   <Icon className="h-[18px] w-[18px]" style={{ color: iconColor }} />
                 </div>
-                <ChevronRight className="h-3.5 w-3.5 text-slate-300 group-hover:text-slate-500 group-hover:translate-x-0.5 transition-all duration-150" />
+                <ChevronRight className="h-3.5 w-3.5 text-slate-300 group-hover:text-slate-500 group-hover:translate-x-0.5 transition-all duration-150 mt-0.5" />
               </div>
               <div>
-                <p className="text-[9px] font-black uppercase tracking-[0.18em]" style={{ color: topColor, opacity: 0.8 }}>{sub}</p>
+                <p className="text-[9px] font-black uppercase tracking-[0.18em]" style={{ color: topColor, opacity: 0.85 }}>{sub}</p>
                 <p className="text-[13px] font-bold text-slate-800 mt-0.5 leading-snug">{label}</p>
               </div>
             </div>
@@ -394,7 +463,7 @@ export default function OwnerPage() {
                 <defs>
                   <linearGradient id="bookFill" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%"  stopColor="#8b5cf6" stopOpacity={1} />
-                    <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0.6} />
+                    <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0.55} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid stroke="#f1f5f9" strokeDasharray="3 3" vertical={false} />
