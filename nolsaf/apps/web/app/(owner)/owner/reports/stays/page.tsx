@@ -517,213 +517,485 @@ export default function StaysReportPage() {
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Stays Report</title>
+  <title>${escapeHtml(propertyTitle)} — Stays Report</title>
   <style>
-    :root { --ink:#0b1220; --muted:#5b6472; --line:#e5e7eb; --brand:#02665e; --ext:#f59e0b; --group:#6366f1; }
-    * { box-sizing: border-box; }
-    body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; color:var(--ink); background:#fff; }
-    .page { padding: 28px; }
-    .watermark { position: fixed; inset: 0; pointer-events:none; opacity: 0.07; display:flex; align-items:center; justify-content:center; }
-    .watermark span { transform: rotate(-24deg); font-size: 72px; font-weight: 800; letter-spacing: 1px; color: #0b1220; }
+    /* ── Variables ─────────────────────────────────────────── */
+    :root {
+      --ink: #0b1220;
+      --muted: #64748b;
+      --faint: #94a3b8;
+      --line: #e2e8f0;
+      --surface: #f8fafc;
+      --brand: #02665e;
+      --brand-light: rgba(2,102,94,0.08);
+      --brand-mid: rgba(2,102,94,0.18);
+      --ext: #d97706;
+      --group: #4f46e5;
+      --accent: #02665e;
+    }
 
-    .top { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; }
-    .badge { display:inline-flex; align-items:center; gap:8px; font-weight:700; font-size:12px; padding:6px 10px; border:1px solid rgba(2,102,94,0.25); border-radius:999px; color: var(--brand); background: rgba(2,102,94,0.06); }
-    h1 { margin:10px 0 0; font-size:24px; letter-spacing:-0.02em; }
-    .sub { margin-top:6px; color: var(--muted); font-size: 12px; }
+    /* ── Reset ─────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, Roboto, 'Helvetica Neue', Arial, sans-serif;
+      color: var(--ink);
+      background: #fff;
+      font-size: 12px;
+      line-height: 1.45;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
 
-    .meta { margin-top: 14px; display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .card { border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; }
-    .kv { display:grid; grid-template-columns: 130px 1fr; gap: 6px 10px; font-size: 12px; }
+    /* ── Page wrapper ──────────────────────────────────────── */
+    .page { padding: 0; }
+
+    /* ── Diagonal watermark ────────────────────────────────── */
+    .watermark {
+      position: fixed; inset: 0; pointer-events: none;
+      opacity: 0.04; display: flex; align-items: center; justify-content: center;
+    }
+    .watermark span {
+      transform: rotate(-28deg); font-size: 88px; font-weight: 900;
+      letter-spacing: 2px; color: #0b1220; white-space: nowrap;
+    }
+
+    /* ══════════════════════════════════════════════════════════
+       HEADER — premium brand band
+    ══════════════════════════════════════════════════════════ */
+    .doc-header {
+      background: var(--brand);
+      padding: 14px 20px 13px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .doc-header .brand-mark {
+      display: flex; align-items: center; gap: 10px;
+    }
+    .doc-header .brand-icon {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: rgba(255,255,255,0.18);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .doc-header .brand-icon svg { width: 18px; height: 18px; fill: #fff; }
+    .doc-header .brand-name {
+      font-size: 15px; font-weight: 800; letter-spacing: 0.04em;
+      color: #fff; line-height: 1.1;
+    }
+    .doc-header .brand-tagline {
+      font-size: 9.5px; color: rgba(255,255,255,0.65); letter-spacing: 0.06em;
+      text-transform: uppercase; margin-top: 1px;
+    }
+    .doc-header .doc-type {
+      display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
+    }
+    .doc-header .doc-type-label {
+      font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase;
+      color: rgba(255,255,255,0.55); font-weight: 600;
+    }
+    .doc-header .doc-type-name {
+      font-size: 13px; font-weight: 700; color: #fff; letter-spacing: 0.01em;
+    }
+
+    /* ── Accent rule below header ──────────────────────────── */
+    .header-rule {
+      height: 3px;
+      background: linear-gradient(90deg, var(--brand) 0%, #06b6d4 60%, transparent 100%);
+    }
+
+    /* ── Document title block ──────────────────────────────── */
+    .title-block {
+      padding: 16px 20px 14px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .title-block .left { min-width: 0; flex: 1; }
+    .title-block .doc-label {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 9.5px; font-weight: 700; letter-spacing: 0.1em;
+      text-transform: uppercase; color: var(--brand);
+      padding: 3px 8px; border: 1px solid var(--brand-mid);
+      border-radius: 4px; background: var(--brand-light);
+      margin-bottom: 8px;
+    }
+    .title-block h1 {
+      font-size: 22px; font-weight: 800; letter-spacing: -0.03em;
+      color: var(--ink); line-height: 1.15;
+    }
+    .title-block .doc-sub {
+      margin-top: 5px; font-size: 11px; color: var(--muted);
+    }
+    .title-block .doc-sub strong { color: var(--ink); font-weight: 600; }
+
+    .title-block .right {
+      flex-shrink: 0; text-align: right; font-size: 11px; color: var(--muted);
+      padding-top: 2px;
+    }
+    .title-block .right .owner-name {
+      font-size: 13px; font-weight: 700; color: var(--ink);
+      line-height: 1.2; margin-bottom: 3px;
+    }
+    .title-block .right .owner-detail {
+      line-height: 1.65; color: var(--muted);
+    }
+
+    /* ── Meta block ────────────────────────────────────────── */
+    .meta-body { padding: 12px 20px; border-bottom: 1px solid var(--line); }
+    .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .card {
+      border: 1px solid var(--line); border-radius: 6px;
+      padding: 10px 13px;
+      border-left: 3px solid var(--brand);
+      background: var(--surface);
+    }
+    .kv { display: grid; grid-template-columns: 120px 1fr; gap: 5px 8px; font-size: 11px; }
     .k { color: var(--muted); }
-    .v { font-weight: 600; }
+    .v { font-weight: 600; color: var(--ink); }
 
-    .kpis { margin-top: 14px; display:grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
-    .kpi { border:1px solid var(--line); border-radius: 14px; padding: 10px 12px; }
-    .kpi .t { color: var(--muted); font-size: 11px; }
-    .kpi .n { margin-top: 2px; font-size: 16px; font-weight: 800; }
+    /* ── KPI strip ─────────────────────────────────────────── */
+    .kpis-body { padding: 12px 20px; border-bottom: 1px solid var(--line); }
+    .kpis { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+    .kpi {
+      border: 1px solid var(--line); border-radius: 6px;
+      padding: 9px 10px;
+      border-top: 3px solid var(--brand);
+      background: #fff;
+    }
+    .kpi.revenue { border-top-color: #0891b2; }
+    .kpi.nights  { border-top-color: #7c3aed; }
+    .kpi.blocked { border-top-color: var(--muted); }
+    .kpi .t { color: var(--faint); font-size: 9.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; line-height: 1.2; }
+    .kpi .n { margin-top: 4px; font-size: 17px; font-weight: 800; color: var(--ink); letter-spacing: -0.02em; }
 
-    .section { margin-top: 18px; }
-    .section h2 { margin: 0 0 10px; font-size: 14px; letter-spacing: -0.01em; }
+    /* ── Section headings ──────────────────────────────────── */
+    .content-body { padding: 0 20px 16px; }
+    .section { margin-top: 16px; }
+    .section-head {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 8px;
+    }
+    .section-head .sh-label {
+      font-size: 9px; font-weight: 800; letter-spacing: 0.13em;
+      text-transform: uppercase; color: var(--brand);
+      white-space: nowrap;
+    }
+    .section-head .sh-rule {
+      flex: 1; height: 1px; background: var(--line);
+    }
+    .section-head .sh-count {
+      font-size: 9px; color: var(--faint); font-weight: 600;
+    }
 
-    .series { border:1px solid var(--line); border-radius: 14px; padding: 12px 14px; }
-    .series-row { display:grid; grid-template-columns: 110px 1fr 40px; gap:10px; align-items:center; padding: 6px 0; border-bottom: 1px dashed rgba(229,231,235,0.8); }
+    /* ── Activity chart ────────────────────────────────────── */
+    .series {
+      border: 1px solid var(--line); border-radius: 6px;
+      padding: 10px 13px; background: var(--surface);
+    }
+    .series-row {
+      display: grid; grid-template-columns: 96px 1fr 36px;
+      gap: 8px; align-items: center;
+      padding: 5px 0;
+      border-bottom: 1px solid rgba(226,232,240,0.7);
+    }
     .series-row:last-child { border-bottom: none; }
-    .series-key { font-size: 12px; color: var(--muted); white-space: nowrap; overflow:hidden; text-overflow: ellipsis; }
-    .series-val { font-size: 12px; font-weight: 800; text-align:right; }
-    .series-bar { height: 10px; background: #f3f4f6; border-radius: 999px; overflow:hidden; display:flex; }
+    .series-key { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .series-val { font-size: 11px; font-weight: 800; text-align: right; color: var(--ink); }
+    .series-bar { height: 8px; background: #e2e8f0; border-radius: 999px; overflow: hidden; display: flex; }
     .seg { height: 100%; }
     .seg.nolsaf { background: var(--brand); }
-    .seg.ext { background: var(--ext); }
-    .seg.group { background: var(--group); }
+    .seg.ext     { background: var(--ext); }
+    .seg.group   { background: var(--group); }
+    .legend {
+      display: flex; gap: 14px; align-items: center;
+      margin-top: 8px; padding-top: 8px;
+      border-top: 1px solid var(--line);
+      font-size: 10px; color: var(--muted);
+    }
+    .legend-dot {
+      width: 8px; height: 8px; border-radius: 2px;
+      display: inline-block; margin-right: 4px; vertical-align: middle;
+    }
 
-    table { width:100%; border-collapse: collapse; border:1px solid var(--line); border-radius: 14px; overflow:hidden; }
-    thead th { font-size: 11px; text-align:left; color: var(--muted); background:#f8fafc; padding: 10px 10px; border-bottom:1px solid var(--line); }
-    tbody td { font-size: 12px; padding: 9px 10px; border-bottom: 1px solid rgba(229,231,235,0.8); }
+    /* ── Tables ────────────────────────────────────────────── */
+    table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    thead th {
+      text-align: left; color: var(--faint);
+      background: var(--surface);
+      padding: 7px 9px;
+      border-bottom: 2px solid var(--line);
+      font-size: 9.5px; font-weight: 700;
+      letter-spacing: 0.06em; text-transform: uppercase;
+    }
+    tbody td { padding: 7px 9px; border-bottom: 1px solid rgba(226,232,240,0.6); vertical-align: top; }
+    tbody tr:nth-child(even) td { background: #fafbfc; }
     tbody tr:last-child td { border-bottom: none; }
+    .tbl-wrap {
+      border: 1px solid var(--line); border-radius: 6px; overflow: hidden;
+    }
 
-    .footer { margin-top: 20px; display:flex; justify-content:space-between; gap: 16px; align-items:flex-end; }
-    .sig { border-top: 1px solid #111827; width: 220px; padding-top: 6px; font-size: 11px; color: var(--muted); text-align:center; }
+    /* ── Footer ────────────────────────────────────────────── */
+    .doc-footer {
+      margin-top: 20px; padding: 14px 20px 16px;
+      border-top: 1px solid var(--line);
+      display: flex; justify-content: space-between;
+      align-items: flex-end; gap: 20px;
+    }
+    .doc-footer .footer-left { font-size: 10px; color: var(--muted); line-height: 1.55; }
+    .doc-footer .footer-left .report-id { font-family: monospace; font-size: 9.5px; color: var(--faint); }
+    .doc-footer .footer-left .legal { margin-top: 4px; font-size: 9.5px; color: var(--faint); max-width: 340px; }
+    .doc-footer .footer-right { display: flex; align-items: flex-end; gap: 20px; flex-shrink: 0; }
+    .qr img { width: 86px; height: 86px; border-radius: 6px; border: 1px solid var(--line); background: #fff; display: block; }
+    .qr-note { font-size: 9px; color: var(--faint); margin-top: 3px; text-align: center; max-width: 86px; line-height: 1.25; }
+    .sig-block { text-align: center; }
+    .sig-line { border-top: 1px solid #0b1220; width: 180px; padding-top: 5px; font-size: 10px; color: var(--muted); }
+    .sig-name { font-size: 10px; font-weight: 600; color: var(--ink); }
 
-    .qr { margin-top: 10px; display:flex; gap: 10px; align-items:center; }
-    .qr img { width: 92px; height: 92px; border-radius: 10px; border: 1px solid var(--line); background: #fff; }
-    .qr .qrText { min-width: 0; }
-    .qr .qrTitle { font-weight: 800; color: var(--ink); }
-    .qr .qrNote { margin-top: 2px; color: var(--muted); max-width: 260px; line-height: 1.25; }
+    /* ── Power strip at very bottom ────────────────────────── */
+    .doc-power {
+      background: var(--brand); height: 3px;
+    }
 
+    /* ── Print ─────────────────────────────────────────────── */
     @media print {
-      .page { padding: 18mm; }
-      @page { size: A4; margin: 12mm; }
+      @page { size: A4; margin: 12.7mm; }
+      .doc-header, .header-rule, .doc-power { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .kpi, .card { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     }
   </style>
 </head>
 <body>
-  <div class="watermark"><span>Powered by NoLSAF</span></div>
-  <div class="page">
-    <div class="top">
-      <div>
-        <div class="badge">Operational Report • NoLSAF</div>
-        <h1>${escapeHtml(propertyTitle)} — Stays Report</h1>
-        <div class="sub">Range: ${escapeHtml(fmtDate(data.header.from))} → ${escapeHtml(fmtDate(data.header.to))} • Generated: ${escapeHtml(fmtDateTime(data.generatedAt))}</div>
+
+  <!-- diagonal watermark -->
+  <div class="watermark"><span>NoLSAF</span></div>
+
+  <!-- ══ BRAND HEADER BAR ══════════════════════════════════ -->
+  <div class="doc-header">
+    <div class="brand-mark">
+      <div class="brand-icon">
+        <!-- N mark -->
+        <svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+          <path d="M3 3h3l8 10.5V3h3v14h-3L6 6.5V17H3z"/>
+        </svg>
       </div>
-      <div style="text-align:right; font-size:12px; color:var(--muted)">
-        <div><strong style="color:var(--ink)">${escapeHtml(ownerName)}</strong></div>
-        <div>${escapeHtml(owner?.email || "")}</div>
-        <div>${escapeHtml(owner?.phone || "")}</div>
+      <div>
+        <div class="brand-name">NoLSAF</div>
+        <div class="brand-tagline">Property Management Platform</div>
       </div>
     </div>
+    <div class="doc-type">
+      <div class="doc-type-label">Official Document</div>
+      <div class="doc-type-name">Operational Report</div>
+    </div>
+  </div>
+  <div class="header-rule"></div>
 
+  <!-- ══ DOCUMENT TITLE ════════════════════════════════════ -->
+  <div class="title-block">
+    <div class="left">
+      <div class="doc-label">Stays Report &nbsp;·&nbsp; ${escapeHtml(data.header.groupBy.charAt(0).toUpperCase() + data.header.groupBy.slice(1))} view</div>
+      <h1>${escapeHtml(propertyTitle)}</h1>
+      <div class="doc-sub">
+        <strong>Period:</strong> ${escapeHtml(fmtDate(data.header.from))} — ${escapeHtml(fmtDate(data.header.to))}
+        &nbsp;&nbsp;·&nbsp;&nbsp;
+        Generated ${escapeHtml(fmtDateTime(data.generatedAt))}
+      </div>
+    </div>
+    <div class="right">
+      <div class="owner-name">${escapeHtml(ownerName)}</div>
+      <div class="owner-detail">
+        ${escapeHtml(owner?.email || "")}<br/>
+        ${escapeHtml(owner?.phone || "")}
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ META CARDS ════════════════════════════════════════ -->
+  <div class="meta-body">
     <div class="meta">
       <div class="card">
         <div class="kv">
           <div class="k">Property</div><div class="v">${escapeHtml(propertyTitle)}</div>
           <div class="k">Address</div><div class="v">${escapeHtml(address)}</div>
-          <div class="k">Group by</div><div class="v">${escapeHtml(data.header.groupBy)}</div>
+          <div class="k">Group by</div><div class="v">${escapeHtml(data.header.groupBy.charAt(0).toUpperCase() + data.header.groupBy.slice(1))}</div>
         </div>
       </div>
       <div class="card">
         <div class="kv">
           <div class="k">Printed by</div><div class="v">${escapeHtml(ownerName)}</div>
           <div class="k">Printed at</div><div class="v">${escapeHtml(fmtDateTime(new Date().toISOString()))}</div>
-          <div class="k">Branding</div><div class="v">Powered by NoLSAF</div>
+          <div class="k">Certified by</div><div class="v">NoLSAF Platform</div>
         </div>
-      </div>
-    </div>
-
-    <div class="kpis">
-      <div class="kpi"><div class="t">NoLSAF bookings</div><div class="n">${escapeHtml(String(data.stats.nolsafBookings || 0))}</div></div>
-      <div class="kpi"><div class="t">External reservations</div><div class="n">${escapeHtml(String(data.stats.externalReservations || 0))}</div></div>
-      <div class="kpi"><div class="t">Group stays received</div><div class="n">${escapeHtml(String(data.stats.groupStaysReceived || 0))}</div></div>
-      <div class="kpi"><div class="t">Revenue (TZS)</div><div class="n">${escapeHtml(fmtMoneyTZS(Number(data.stats.revenueTzs || 0)))}</div></div>
-      <div class="kpi"><div class="t">Nights booked</div><div class="n">${escapeHtml(String(data.stats.nightsBooked || 0))}</div></div>
-      <div class="kpi"><div class="t">Nights blocked</div><div class="n">${escapeHtml(String(data.stats.nightsBlocked || 0))}</div></div>
-    </div>
-
-    <div class="section">
-      <h2>Activity mix (by ${escapeHtml(data.header.groupBy)})</h2>
-      <div class="series">
-        ${seriesHtml || '<div style="color:var(--muted);font-size:12px;">No chart data in this range.</div>'}
-        <div style="display:flex; gap:12px; align-items:center; margin-top:10px; font-size:11px; color:var(--muted)">
-          <div style="display:flex; align-items:center; gap:8px;"><span style="width:10px;height:10px;border-radius:3px;background:var(--brand);display:inline-block;"></span>NoLSAF</div>
-          <div style="display:flex; align-items:center; gap:8px;"><span style="width:10px;height:10px;border-radius:3px;background:var(--ext);display:inline-block;"></span>External</div>
-          <div style="display:flex; align-items:center; gap:8px;"><span style="width:10px;height:10px;border-radius:3px;background:var(--group);display:inline-block;"></span>Group stays</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="section">
-      <h2>NoLSAF bookings</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Guest</th>
-            <th>Check-in</th>
-            <th>Check-out</th>
-            <th>Nationality</th>
-            <th>Gender</th>
-            <th style="text-align:right;">Amount</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rowsBookings || '<tr><td colspan="7" style="color:var(--muted);">No NoLSAF bookings in this range.</td></tr>'}
-        </tbody>
-      </table>
-    </div>
-
-    <div class="section">
-      <h2>External reservations (blocks)</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Source</th>
-            <th>Start</th>
-            <th>End</th>
-            <th>Room</th>
-            <th style="text-align:right;">Beds</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rowsExternal || '<tr><td colspan="5" style="color:var(--muted);">No external reservations in this range.</td></tr>'}
-        </tbody>
-      </table>
-    </div>
-
-    <div class="section">
-      <h2>Group stays received</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Type</th>
-            <th>Destination</th>
-            <th>Check-in</th>
-            <th>Check-out</th>
-            <th style="text-align:right;">Headcount</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rowsGroupStays || '<tr><td colspan="6" style="color:var(--muted);">No group stays received in this range.</td></tr>'}
-        </tbody>
-      </table>
-    </div>
-
-    <div class="section">
-      <h2>Auction participation (claims)</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Group stay</th>
-            <th>Property</th>
-            <th style="text-align:right;">Offer / night</th>
-            <th style="text-align:right;">Discount</th>
-            <th>Status</th>
-            <th>Created</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rowsAuctionClaims || '<tr><td colspan="6" style="color:var(--muted);">No auction claims in this range.</td></tr>'}
-        </tbody>
-      </table>
-    </div>
-
-    <div class="footer">
-      <div style="font-size:11px;color:var(--muted)">
-        <div>Report ID: ${escapeHtml(data.generatedAt)}</div>
-        <div>Prepared for operations and compliance.</div>
-        ${qrDataUrl ? `
-        <div class="qr">
-          <img src="${qrDataUrl}" alt="Verify report QR" />
-          <div class="qrText">
-            <div class="qrTitle">Verify this report</div>
-            <div class="qrNote">Scan to open the official NoLSAF report link (login may be required).</div>
-          </div>
-        </div>` : ""}
-      </div>
-      <div>
-        <div class="sig">Signature</div>
       </div>
     </div>
   </div>
+
+  <!-- ══ KPI STRIP ═════════════════════════════════════════ -->
+  <div class="kpis-body">
+    <div class="kpis">
+      <div class="kpi"><div class="t">NoLSAF Bookings</div><div class="n">${escapeHtml(String(data.stats.nolsafBookings || 0))}</div></div>
+      <div class="kpi"><div class="t">External Reservations</div><div class="n">${escapeHtml(String(data.stats.externalReservations || 0))}</div></div>
+      <div class="kpi"><div class="t">Group Stays</div><div class="n">${escapeHtml(String(data.stats.groupStaysReceived || 0))}</div></div>
+      <div class="kpi revenue"><div class="t">Revenue (TZS)</div><div class="n">${escapeHtml(fmtMoneyTZS(Number(data.stats.revenueTzs || 0)))}</div></div>
+      <div class="kpi nights"><div class="t">Nights Booked</div><div class="n">${escapeHtml(String(data.stats.nightsBooked || 0))}</div></div>
+      <div class="kpi blocked"><div class="t">Nights Blocked</div><div class="n">${escapeHtml(String(data.stats.nightsBlocked || 0))}</div></div>
+    </div>
+  </div>
+
+  <!-- ══ CONTENT SECTIONS ═══════════════════════════════════ -->
+  <div class="content-body">
+
+    <!-- Activity Mix -->
+    <div class="section">
+      <div class="section-head">
+        <span class="sh-label">Activity Mix &mdash; by ${escapeHtml(data.header.groupBy)}</span>
+        <div class="sh-rule"></div>
+        <span class="sh-count">${escapeHtml(String((data.series || []).length))} periods</span>
+      </div>
+      <div class="series">
+        ${seriesHtml || '<div style="color:var(--muted);font-size:11px;padding:4px 0;">No chart data in this range.</div>'}
+        <div class="legend">
+          <span><span class="legend-dot" style="background:var(--brand);"></span>NoLSAF</span>
+          <span><span class="legend-dot" style="background:var(--ext);"></span>External</span>
+          <span><span class="legend-dot" style="background:var(--group);"></span>Group stays</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- NoLSAF Bookings -->
+    <div class="section">
+      <div class="section-head">
+        <span class="sh-label">NoLSAF Bookings</span>
+        <div class="sh-rule"></div>
+        <span class="sh-count">${escapeHtml(String((data.bookings || []).length))}</span>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Guest</th>
+              <th>Check-in</th>
+              <th>Check-out</th>
+              <th>Nationality</th>
+              <th>Gender</th>
+              <th style="text-align:right;">Amount (TZS)</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsBookings || '<tr><td colspan="7" style="color:var(--faint);font-style:italic;">No NoLSAF bookings in this range.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- External Reservations -->
+    <div class="section">
+      <div class="section-head">
+        <span class="sh-label">External Reservations</span>
+        <div class="sh-rule"></div>
+        <span class="sh-count">${escapeHtml(String((data.external || []).length))}</span>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Source</th>
+              <th>Start</th>
+              <th>End</th>
+              <th>Room</th>
+              <th style="text-align:right;">Beds</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsExternal || '<tr><td colspan="5" style="color:var(--faint);font-style:italic;">No external reservations in this range.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Group Stays -->
+    <div class="section">
+      <div class="section-head">
+        <span class="sh-label">Group Stays Received</span>
+        <div class="sh-rule"></div>
+        <span class="sh-count">${escapeHtml(String((data.groupStays || []).length))}</span>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Destination</th>
+              <th>Check-in</th>
+              <th>Check-out</th>
+              <th style="text-align:right;">Headcount</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsGroupStays || '<tr><td colspan="6" style="color:var(--faint);font-style:italic;">No group stays in this range.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Auction Claims -->
+    <div class="section">
+      <div class="section-head">
+        <span class="sh-label">Auction Participation</span>
+        <div class="sh-rule"></div>
+        <span class="sh-count">${escapeHtml(String((data.auctionClaims || []).length))}</span>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Group Stay</th>
+              <th>Property</th>
+              <th style="text-align:right;">Offer / Night</th>
+              <th style="text-align:right;">Discount</th>
+              <th>Status</th>
+              <th>Created</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsAuctionClaims || '<tr><td colspan="6" style="color:var(--faint);font-style:italic;">No auction claims in this range.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /content-body -->
+
+  <!-- ══ FOOTER ════════════════════════════════════════════ -->
+  <div class="doc-footer">
+    <div class="footer-left">
+      <div>Prepared for operational use and compliance purposes.</div>
+      <div class="report-id">Report ID: ${escapeHtml(data.generatedAt)}</div>
+      <div class="legal">This document is generated automatically by the NoLSAF Property Management Platform. All figures reflect data recorded in the system at time of generation. This report may be used for management, tax, or compliance filings.</div>
+    </div>
+    <div class="footer-right">
+      ${qrDataUrl ? `
+      <div style="text-align:center;">
+        <div class="qr"><img src="${qrDataUrl}" alt="Verify report" /></div>
+        <div class="qr-note">Scan to verify<br/>this report online</div>
+      </div>` : ""}
+      <div class="sig-block">
+        <div class="sig-line">Authorised Signature</div>
+        <div class="sig-name" style="margin-top:4px;">${escapeHtml(ownerName)}</div>
+        <div style="font-size:9px;color:var(--faint);margin-top:1px;">Property Owner</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- green power stripe at bottom -->
+  <div class="doc-power"></div>
+
 </body>
 </html>`;
 
