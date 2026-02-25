@@ -42,7 +42,7 @@ export default function OwnerLayout({ children }: { children: ReactNode }) {
 
           {/* Sidebar placed inside the centered container so it is considered part of the frame */}
           {/* Sidebar inside the frame container on md+; collapsed shows icons only */}
-          <aside className={`absolute left-0 top-16 hidden md:block transition-all duration-300 ease-in-out ${sidebarOpen ? 'w-56 p-4' : 'w-16 p-2'} h-[calc(100%-4rem)] overflow-y-auto scroll-smooth`}>
+          <aside className={`absolute left-0 top-16 hidden md:block transition-all duration-300 ease-in-out ${sidebarOpen ? 'w-56 pt-4 px-4 pb-8' : 'w-16 pt-2 px-2 pb-6'} h-[calc(100%-4rem)] overflow-y-auto scroll-smooth`}>
             <div className="sidebar-scroll">
               <OwnerSidebar collapsed={!sidebarOpen} />
             </div>
