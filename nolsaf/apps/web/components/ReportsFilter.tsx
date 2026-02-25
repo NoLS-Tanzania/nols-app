@@ -260,7 +260,6 @@ export default function ReportsFilter({
                 onSelectRange={setQuickRange}
                 groupBy={filters.groupBy}
                 onSelectGroupBy={(g) => setFilters((f) => ({ ...f, groupBy: g }))}
-                clampInfo={clampInfo}
               />
             </div>
           </div>
@@ -293,14 +292,12 @@ function MoreOptionsPopover({
   onSelectRange,
   groupBy,
   onSelectGroupBy,
-  clampInfo,
 }: {
   mounted: boolean;
   moreRanges: Array<{ key: QuickRangeKey; label: string; hint: string; accent: string }>;
   onSelectRange: (k: QuickRangeKey) => void;
   groupBy: "day" | "week" | "month";
   onSelectGroupBy: (g: "day" | "week" | "month") => void;
-  clampInfo: { maxTo: string | null };
 }) {
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
@@ -441,7 +438,6 @@ function RangePill({
     <button
       type="button"
       onClick={onClick}
-      title={hint}
       aria-label={hint}
       className={
         "group relative h-10 px-3.5 rounded-xl border text-xs font-bold shadow-sm transition-all duration-150 active:scale-[0.97] focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300/50 " +
