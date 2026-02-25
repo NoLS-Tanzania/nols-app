@@ -29,10 +29,19 @@ export default function Receipt() {
             reader.onerror = reject;
             reader.readAsDataURL(blob);
           });
-          img.setAttribute("src", dataUrl);
+          // Apply and wait for the browser to finish loading the new src
+          await new Promise<void>((resolve) => {
+            img.onload = () => resolve();
+            img.onerror = () => resolve();
+            img.src = dataUrl;
+            // If image already loaded (cached data URL), resolve immediately
+            if (img.complete) resolve();
+          });
         } catch { /* leave as-is */ }
       }
     }
+    // Extra paint tick to ensure layout is settled
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
     try {
       await cb();
     } finally {
