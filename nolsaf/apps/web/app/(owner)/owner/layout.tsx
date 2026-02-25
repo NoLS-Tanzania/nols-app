@@ -12,6 +12,21 @@ import LayoutFrame from "@/components/LayoutFrame";
 export default function OwnerLayout({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Fetch unread notification count for bell badge
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const r = await fetch("/api/owner/notifications?tab=unread&page=1&pageSize=1", { credentials: "include" });
+        if (!r.ok || !mounted) return;
+        const j = await r.json();
+        setUnreadCount(Number(j?.totalUnread ?? j?.total ?? 0));
+      } catch { /* ignore */ }
+    })();
+    return () => { mounted = false; };
+  }, []);
   // Listen for global toggle events dispatched from the header so the header
   // can control the sidebar without prop drilling. Use useEffect to ensure
   // listener is registered once and properly cleaned up.
@@ -31,7 +46,7 @@ export default function OwnerLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="h-screen overflow-hidden flex flex-col bg-neutral-50">
-      <OwnerSiteHeader />
+      <OwnerSiteHeader unreadMessages={unreadCount} />
 
       {/* Centered container so the LayoutFrame can span both sidebar and content */}
       <div className="flex-1 w-full min-h-0">
