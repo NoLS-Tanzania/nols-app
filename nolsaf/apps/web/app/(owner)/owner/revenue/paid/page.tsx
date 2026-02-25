@@ -131,46 +131,51 @@ export default function Paid() {
     <div className="space-y-5 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
 
       {/* ─── Hero Header ─────────────────────────────────────── */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-900 via-emerald-800 to-teal-700 shadow-xl shadow-emerald-900/20">
-        {/* Decorative blobs */}
-        <div className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full bg-white/5 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-20 -left-20 h-56 w-56 rounded-full bg-teal-400/10 blur-3xl" />
-        {/* Subtle dot-grid overlay */}
-        <div className="pointer-events-none absolute inset-0 opacity-[0.06]" style={{ backgroundImage: "radial-gradient(circle, white 1px, transparent 1px)", backgroundSize: "22px 22px" }} />
+      <div className="relative overflow-hidden rounded-2xl bg-white border border-slate-200/80 shadow-lg shadow-slate-200/60 flex flex-col sm:flex-row min-h-[180px]">
 
-        <div className="relative p-6 sm:p-8 lg:p-10">
-          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] items-center gap-6">
-            {/* Left decorative rule */}
-            <div className="hidden sm:flex items-center gap-2">
-              <div className="h-px flex-1 bg-white/10" />
-              <div className="flex items-center gap-1">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                <span className="h-1 w-1 rounded-full bg-emerald-400/50" />
-              </div>
+        {/* ── Left illustrated pane ── */}
+        <div className="relative flex-shrink-0 sm:w-56 lg:w-64 flex items-center justify-center overflow-hidden bg-gradient-to-b from-emerald-800 to-teal-700 p-8 sm:rounded-l-2xl">
+          {/* Concentric ring decorations */}
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <div className="h-48 w-48 rounded-full border border-white/10" />
+          </div>
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <div className="h-32 w-32 rounded-full border border-white/15" />
+          </div>
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <div className="h-20 w-20 rounded-full bg-white/5" />
+          </div>
+          {/* Diagonal shine streak */}
+          <div className="pointer-events-none absolute -top-6 -left-6 h-28 w-6 rotate-[30deg] bg-white/10 blur-sm" />
+          {/* Big icon */}
+          <div className="relative z-10 flex flex-col items-center gap-3">
+            <div className="flex items-center justify-center h-16 w-16 rounded-2xl bg-white/15 border border-white/25 shadow-lg backdrop-blur-sm">
+              <CheckCircle2 className="h-8 w-8 text-white drop-shadow" aria-hidden />
             </div>
+            <span className="text-[11px] font-bold tracking-[0.18em] uppercase text-emerald-200/90">Verified</span>
+          </div>
+        </div>
 
-            {/* Centre content */}
-            <div className="flex flex-col items-center text-center">
-              <div className="inline-flex items-center gap-2 rounded-full bg-white/10 border border-white/20 backdrop-blur-sm px-4 py-1.5 text-xs font-semibold text-emerald-100 shadow-inner">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-300" />
-                </span>
-                Processed
-              </div>
-              <h1 className="mt-4 text-3xl sm:text-4xl font-extrabold text-white tracking-tight drop-shadow-sm">
-                Paid Invoices
-              </h1>
-              <p className="mt-2 text-sm sm:text-base text-emerald-200/80 max-w-sm leading-relaxed">
-                View all invoices that have been paid and processed by NoLSAF.
-              </p>
+        {/* ── Right content pane ── */}
+        <div className="relative flex-1 flex flex-col justify-between p-6 sm:p-7 lg:p-8">
+          {/* Watermark */}
+          <div className="pointer-events-none select-none absolute right-4 bottom-2 text-[72px] font-black text-emerald-50 leading-none tracking-tight">
+            PAID
+          </div>
+
+          {/* Top row: badge + actions */}
+          <div className="relative flex items-start justify-between gap-4">
+            <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-xs font-bold text-emerald-700 shadow-sm">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-60" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+              </span>
+              Processed
             </div>
-
-            {/* Right actions */}
-            <div className="flex items-center justify-center sm:justify-end gap-2">
+            <div className="flex items-center gap-2">
               <Link
                 href="/owner/revenue/requested"
-                className="no-underline inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-white/10 hover:bg-white/20 border border-white/20 hover:border-white/40 text-white text-sm font-semibold backdrop-blur-sm transition-all duration-200 active:scale-[0.98] shadow-sm"
+                className="no-underline inline-flex items-center gap-1.5 h-8 px-3.5 rounded-lg bg-slate-900 hover:bg-slate-700 text-white text-xs font-bold transition-all duration-200 active:scale-[0.97] shadow-sm"
                 aria-label="Go to requested invoices"
                 title="Requested"
               >
@@ -181,13 +186,29 @@ export default function Paid() {
                 type="button"
                 onClick={() => load({ silent: true })}
                 disabled={refreshing}
-                className="inline-flex items-center justify-center h-9 w-9 rounded-lg bg-white/10 hover:bg-white/20 border border-white/20 hover:border-white/40 text-white backdrop-blur-sm transition-all duration-200 active:scale-95 disabled:opacity-50 shadow-sm"
+                className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 transition-all duration-200 active:scale-95 disabled:opacity-50 shadow-sm"
                 aria-label="Refresh"
                 title="Refresh"
               >
-                <RotateCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} aria-hidden />
+                <RotateCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} aria-hidden />
               </button>
             </div>
+          </div>
+
+          {/* Title + subtitle */}
+          <div className="relative mt-4">
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-slate-900 tracking-tight leading-none">
+              Paid Invoices
+            </h1>
+            <p className="mt-2 text-sm text-slate-500 max-w-md leading-relaxed">
+              View all invoices that have been paid and processed by NoLSAF.
+            </p>
+          </div>
+
+          {/* Bottom decorative rule */}
+          <div className="relative mt-5 flex items-center gap-3">
+            <div className="h-px flex-1 bg-gradient-to-r from-emerald-200 via-teal-100 to-transparent" />
+            <Receipt className="h-3.5 w-3.5 text-emerald-300 flex-shrink-0" aria-hidden />
           </div>
         </div>
       </div>
