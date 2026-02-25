@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Loader2, FileText, Receipt, RotateCw, Search, X, ArrowUpRight } from "lucide-react";
+import { CheckCircle2, Loader2, FileText, Receipt, RotateCw, Search, X, ArrowUpRight, TrendingUp, Hash } from "lucide-react";
 import axios from "axios";
 import Link from "next/link";
 import TableRow from "@/components/TableRow";
@@ -115,49 +115,73 @@ export default function Paid() {
   if (loading) {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center text-center px-4">
-        <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4">
-          <Loader2 className="h-8 w-8 animate-spin text-green-600" />
+        <div className="relative mb-6">
+          <span className="absolute inset-0 rounded-full bg-emerald-400/20 animate-ping" />
+          <div className="relative inline-flex items-center justify-center h-16 w-16 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/30">
+            <Loader2 className="h-7 w-7 animate-spin text-white" />
+          </div>
         </div>
-        <h1 className="text-3xl font-bold text-slate-900">Paid Invoices</h1>
-        <p className="text-sm text-slate-600 mt-2 max-w-2xl">Loading your paid invoices…</p>
+        <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Paid Invoices</h1>
+        <p className="text-sm text-slate-500 mt-2 max-w-sm">Loading your payment history…</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-10">
-      {/* Header */}
-      <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-        <div className="p-6 sm:p-8">
-          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] items-start gap-4">
-            <div className="hidden sm:block" />
+    <div className="space-y-5 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
 
-            <div className="min-w-0 flex flex-col items-center text-center">
-              <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-xs font-semibold text-emerald-700">
-                <CheckCircle2 className="h-4 w-4" aria-hidden />
+      {/* ─── Hero Header ─────────────────────────────────────── */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-900 via-emerald-800 to-teal-700 shadow-xl shadow-emerald-900/20">
+        {/* Decorative blobs */}
+        <div className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full bg-white/5 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-20 -left-20 h-56 w-56 rounded-full bg-teal-400/10 blur-3xl" />
+        {/* Subtle dot-grid overlay */}
+        <div className="pointer-events-none absolute inset-0 opacity-[0.06]" style={{ backgroundImage: "radial-gradient(circle, white 1px, transparent 1px)", backgroundSize: "22px 22px" }} />
+
+        <div className="relative p-6 sm:p-8 lg:p-10">
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] items-center gap-6">
+            {/* Left decorative rule */}
+            <div className="hidden sm:flex items-center gap-2">
+              <div className="h-px flex-1 bg-white/10" />
+              <div className="flex items-center gap-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                <span className="h-1 w-1 rounded-full bg-emerald-400/50" />
+              </div>
+            </div>
+
+            {/* Centre content */}
+            <div className="flex flex-col items-center text-center">
+              <div className="inline-flex items-center gap-2 rounded-full bg-white/10 border border-white/20 backdrop-blur-sm px-4 py-1.5 text-xs font-semibold text-emerald-100 shadow-inner">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-300" />
+                </span>
                 Processed
               </div>
-              <h1 className="mt-3 text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">Paid Invoices</h1>
-              <p className="mt-1 text-sm text-gray-600 max-w-2xl">
+              <h1 className="mt-4 text-3xl sm:text-4xl font-extrabold text-white tracking-tight drop-shadow-sm">
+                Paid Invoices
+              </h1>
+              <p className="mt-2 text-sm sm:text-base text-emerald-200/80 max-w-sm leading-relaxed">
                 View all invoices that have been paid and processed by NoLSAF.
               </p>
             </div>
 
-            <div className="flex items-center justify-start sm:justify-end gap-2">
+            {/* Right actions */}
+            <div className="flex items-center justify-center sm:justify-end gap-2">
               <Link
                 href="/owner/revenue/requested"
-                className="no-underline inline-flex items-center justify-center h-10 px-3 rounded-md border border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 active:scale-[0.99] transition"
+                className="no-underline inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-white/10 hover:bg-white/20 border border-white/20 hover:border-white/40 text-white text-sm font-semibold backdrop-blur-sm transition-all duration-200 active:scale-[0.98] shadow-sm"
                 aria-label="Go to requested invoices"
                 title="Requested"
               >
-                <span className="text-sm font-semibold">Requested</span>
-                <ArrowUpRight className="ml-2 h-4 w-4" aria-hidden />
+                Requested
+                <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
               </Link>
               <button
                 type="button"
                 onClick={() => load({ silent: true })}
                 disabled={refreshing}
-                className="inline-flex items-center justify-center h-10 w-10 rounded-md border border-slate-900 bg-slate-900 text-white shadow-sm hover:bg-slate-800 active:scale-[0.99] transition disabled:opacity-60"
+                className="inline-flex items-center justify-center h-9 w-9 rounded-lg bg-white/10 hover:bg-white/20 border border-white/20 hover:border-white/40 text-white backdrop-blur-sm transition-all duration-200 active:scale-95 disabled:opacity-50 shadow-sm"
                 aria-label="Refresh"
                 title="Refresh"
               >
@@ -168,53 +192,78 @@ export default function Paid() {
         </div>
       </div>
 
-      {/* Summary */}
+      {/* ─── Stats Row ────────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
-          <div className="text-center text-xs font-medium text-gray-500">Invoices</div>
-          <div className="mt-1 text-center text-2xl font-bold text-gray-900">{stats.totalCount.toLocaleString()}</div>
+        <div className="relative overflow-hidden rounded-2xl bg-white border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow duration-300 p-5">
+          <div className="absolute top-0 left-0 h-1 w-full bg-gradient-to-r from-emerald-400 to-teal-400 rounded-t-2xl" />
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Invoices</p>
+              <p className="mt-2 text-4xl font-extrabold text-slate-900 tabular-nums leading-none">{stats.totalCount.toLocaleString()}</p>
+              <p className="mt-1.5 text-xs text-slate-400">Total paid &amp; processed</p>
+            </div>
+            <div className="flex-shrink-0 flex items-center justify-center h-14 w-14 rounded-2xl bg-emerald-50 border border-emerald-100 shadow-inner">
+              <Hash className="h-6 w-6 text-emerald-600" aria-hidden />
+            </div>
+          </div>
         </div>
-        <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
-          <div className="text-center text-xs font-medium text-gray-500">Total amount</div>
-          <div className="mt-1 text-center text-2xl font-bold text-emerald-700">{formatCurrency(stats.totalAmount)}</div>
+
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-50 via-white to-teal-50 border border-emerald-200/60 shadow-sm hover:shadow-md transition-shadow duration-300 p-5">
+          <div className="absolute top-0 left-0 h-1 w-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-t-2xl" />
+          <div className="flex items-center justify-between">
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Total amount</p>
+              <p className="mt-2 text-3xl sm:text-4xl font-extrabold text-emerald-700 tabular-nums leading-none truncate">{formatCurrency(stats.totalAmount)}</p>
+              <p className="mt-1.5 text-xs text-emerald-600/70">Net payable to you</p>
+            </div>
+            <div className="flex-shrink-0 flex items-center justify-center h-14 w-14 rounded-2xl bg-emerald-100 border border-emerald-200 shadow-inner">
+              <TrendingUp className="h-6 w-6 text-emerald-700" aria-hidden />
+            </div>
+          </div>
         </div>
       </div>
 
       {error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+        <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <span className="mt-0.5 h-4 w-4 flex-shrink-0 rounded-full bg-red-200 inline-flex items-center justify-center text-[10px] font-black text-red-600">!</span>
           {error}
         </div>
       ) : null}
 
-      {/* Invoices List */}
-      <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-        <div className="sticky top-0 z-10 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200 px-4 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="min-w-0">
-            <div className="text-sm font-semibold text-gray-900">Invoices</div>
-            <div className="text-xs text-gray-500 mt-0.5">{filtered.length} {filtered.length === 1 ? 'invoice' : 'invoices'} showing</div>
+      {/* ─── Invoices Table ───────────────────────────────────── */}
+      <div className="rounded-2xl border border-slate-200/80 bg-white shadow-sm overflow-hidden">
+        {/* Toolbar */}
+        <div className="sticky top-0 z-10 bg-white/95 backdrop-blur border-b border-slate-100 px-5 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="min-w-0 flex items-center gap-3">
+            <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-emerald-50 border border-emerald-100">
+              <FileText className="h-4 w-4 text-emerald-600" aria-hidden />
+            </div>
+            <div>
+              <div className="text-sm font-bold text-slate-900 leading-none">Invoices</div>
+              <div className="text-xs text-slate-400 mt-0.5">{filtered.length} {filtered.length === 1 ? 'invoice' : 'invoices'} showing</div>
+            </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+          <div className="flex gap-2 items-center">
             <div className="relative">
               <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                <Search className="h-4 w-4 text-gray-400" aria-hidden />
+                <Search className="h-3.5 w-3.5 text-slate-400" aria-hidden />
               </div>
               {search ? (
                 <button
                   type="button"
                   onClick={() => setSearch("")}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center justify-center h-7 w-7 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-200/50 active:scale-95 transition"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 h-5 w-5 rounded-full inline-flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
                   aria-label="Clear search"
-                  title="Clear"
                 >
-                  <X className="h-4 w-4" aria-hidden />
+                  <X className="h-3.5 w-3.5" aria-hidden />
                 </button>
               ) : null}
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search invoice, receipt, property…"
-                className="h-10 w-full sm:w-72 pl-10 pr-10 rounded-md border border-gray-200 bg-white text-sm text-gray-900 placeholder:text-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                className="h-9 w-full sm:w-72 pl-9 pr-9 rounded-lg border border-slate-200 bg-slate-50 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-400 focus:bg-white transition-all duration-200"
                 aria-label="Search paid invoices"
               />
             </div>
@@ -223,60 +272,49 @@ export default function Paid() {
               type="button"
               onClick={() => load({ silent: true })}
               disabled={refreshing}
-              className="inline-flex items-center justify-center h-10 w-10 rounded-md border border-slate-900 bg-slate-900 text-white shadow-sm hover:bg-slate-800 active:scale-[0.99] transition disabled:opacity-60"
+              className="inline-flex items-center justify-center h-9 w-9 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 transition-all active:scale-95 disabled:opacity-50 shadow-sm"
               aria-label="Refresh list"
               title="Refresh"
             >
-              <RotateCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} aria-hidden />
+              <RotateCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} aria-hidden />
             </button>
           </div>
         </div>
 
         {filtered.length === 0 ? (
-          <div className="p-12 sm:p-16 text-center">
-            {/* Removed duplicate check icon; keep header icon only */}
-            <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-slate-100 mb-4">
-              <Receipt className="h-8 w-8 text-slate-600" aria-hidden />
+          <div className="py-16 px-6 text-center">
+            <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-slate-100 border border-slate-200 mb-5">
+              <Receipt className="h-8 w-8 text-slate-400" aria-hidden />
             </div>
-            <h2 className="text-xl sm:text-2xl font-bold text-slate-900 mb-2">No paid invoices yet</h2>
-            <p className="text-sm sm:text-base text-slate-600 font-medium">Once payments are processed, they’ll show up here.</p>
-            <p className="text-xs sm:text-sm text-slate-500 mt-2">You can also check invoices that are still pending.</p>
-            <div className="mt-5 flex items-center justify-center gap-2">
+            <h2 className="text-lg font-bold text-slate-900 mb-1.5">No paid invoices yet</h2>
+            <p className="text-sm text-slate-500">Once payments are processed, they&apos;ll appear here.</p>
+            <div className="mt-6 flex justify-center gap-2">
               <Link
                 href="/owner/revenue/requested"
-                className="no-underline inline-flex items-center justify-center h-10 px-4 rounded-md bg-emerald-700 text-white shadow-sm hover:bg-emerald-800 active:scale-[0.99] transition"
+                className="no-underline inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-semibold transition active:scale-[0.98] shadow-sm"
               >
                 View Requested
-                <ArrowUpRight className="ml-2 h-4 w-4" aria-hidden />
+                <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
               </Link>
-              <button
-                type="button"
-                onClick={() => load({ silent: true })}
-                disabled={refreshing}
-                className="inline-flex items-center justify-center h-10 w-10 rounded-md border border-slate-900 bg-slate-900 text-white shadow-sm hover:bg-slate-800 active:scale-[0.99] transition disabled:opacity-60"
-                aria-label="Refresh"
-                title="Refresh"
-              >
-                <RotateCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} aria-hidden />
-              </button>
             </div>
           </div>
+
         ) : (
           <div className="w-full overflow-x-auto">
-            <table className="min-w-[820px] w-full text-sm">
-              <thead className="bg-slate-50 border-b border-slate-200">
-                <tr className="text-left">
-                  <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">Invoice</th>
-                  <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">Property</th>
-                  <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">Issued</th>
-                  <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">Paid</th>
-                  <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">Status</th>
-                  <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">Receipt</th>
-                  <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600 text-right">Amount</th>
-                  <th className="px-4 sm:px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-600 text-right">Action</th>
+            <table className="min-w-[820px] w-full text-sm border-collapse">
+              <thead>
+                <tr className="bg-slate-50/80 border-b border-slate-200">
+                  <th className="px-5 sm:px-6 py-3 text-left text-[11px] font-bold uppercase tracking-widest text-slate-500">Invoice</th>
+                  <th className="px-5 sm:px-6 py-3 text-left text-[11px] font-bold uppercase tracking-widest text-slate-500">Property</th>
+                  <th className="px-5 sm:px-6 py-3 text-left text-[11px] font-bold uppercase tracking-widest text-slate-500">Issued</th>
+                  <th className="px-5 sm:px-6 py-3 text-left text-[11px] font-bold uppercase tracking-widest text-slate-500">Paid</th>
+                  <th className="px-5 sm:px-6 py-3 text-left text-[11px] font-bold uppercase tracking-widest text-slate-500">Status</th>
+                  <th className="px-5 sm:px-6 py-3 text-left text-[11px] font-bold uppercase tracking-widest text-slate-500">Receipt</th>
+                  <th className="px-5 sm:px-6 py-3 text-right text-[11px] font-bold uppercase tracking-widest text-slate-500">Amount</th>
+                  <th className="px-5 sm:px-6 py-3 text-right text-[11px] font-bold uppercase tracking-widest text-slate-500">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 bg-white">
+              <tbody className="divide-y divide-slate-100 bg-white">
                 {filtered.map((invoice) => {
                   const propertyTitle = invoice.booking?.property?.title || "Property";
                   const payout = (() => {
@@ -289,46 +327,50 @@ export default function Paid() {
                   const isOwnerSubmittedInvoice = invoiceNumber.startsWith("OINV-");
                   const invoiceHref = isOwnerSubmittedInvoice ? `/owner/invoices/${invoice.id}` : `/owner/revenue/invoices/${invoice.id}`;
                   return (
-                    <TableRow key={invoice.id} className="hover:bg-slate-50/60 transition-colors duration-150">
-                      <td className="px-4 sm:px-6 py-3 sm:py-4">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <FileText className="h-4 w-4 text-slate-400 flex-shrink-0" aria-hidden />
-                          <div className="font-semibold text-slate-900 truncate">{invoice.invoiceNumber}</div>
+                    <TableRow key={invoice.id} className="group hover:bg-emerald-50/40 transition-colors duration-150">
+                      <td className="px-5 sm:px-6 py-3.5">
+                        <div className="flex items-center gap-2.5">
+                          <div className="flex-shrink-0 h-7 w-7 rounded-lg bg-slate-100 flex items-center justify-center">
+                            <FileText className="h-3.5 w-3.5 text-slate-500" aria-hidden />
+                          </div>
+                          <span className="font-semibold text-slate-900">{invoice.invoiceNumber}</span>
                         </div>
                       </td>
-                      <td className="px-4 sm:px-6 py-3 sm:py-4 text-slate-700 truncate max-w-[260px]">{propertyTitle}</td>
-                      <td className="px-4 sm:px-6 py-3 sm:py-4 text-slate-700 whitespace-nowrap">{formatDate(invoice.issuedAt)}</td>
-                      <td className="px-4 sm:px-6 py-3 sm:py-4 text-slate-700 whitespace-nowrap">
-                        {invoice.paidAt ? formatDate(invoice.paidAt) : "—"}
+                      <td className="px-5 sm:px-6 py-3.5 text-slate-600 truncate max-w-[200px]">{propertyTitle}</td>
+                      <td className="px-5 sm:px-6 py-3.5 text-slate-500 whitespace-nowrap tabular-nums text-xs">{formatDate(invoice.issuedAt)}</td>
+                      <td className="px-5 sm:px-6 py-3.5 text-slate-500 whitespace-nowrap tabular-nums text-xs">
+                        {invoice.paidAt ? formatDate(invoice.paidAt) : <span className="text-slate-300">—</span>}
                       </td>
-                      <td className="px-4 sm:px-6 py-3 sm:py-4">
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-50 text-green-700 border border-green-200">
+                      <td className="px-5 sm:px-6 py-3.5">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold tracking-wide bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm">
                           <CheckCircle2 className="h-3 w-3" aria-hidden />
                           PAID
                         </span>
                       </td>
-                      <td className="px-4 sm:px-6 py-3 sm:py-4 text-slate-700">
+                      <td className="px-5 sm:px-6 py-3.5">
                         {invoice.receiptNumber ? (
-                          <span className="font-medium">{invoice.receiptNumber}</span>
+                          <span className="font-mono text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded">{invoice.receiptNumber}</span>
                         ) : (
-                          <span className="text-slate-400">—</span>
+                          <span className="text-slate-300 text-base">—</span>
                         )}
                       </td>
-                      <td className="px-4 sm:px-6 py-3 sm:py-4 text-right font-bold text-emerald-600 whitespace-nowrap">{formatCurrency(payout)}</td>
-                      <td className="px-4 sm:px-6 py-3 sm:py-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
+                      <td className="px-5 sm:px-6 py-3.5 text-right">
+                        <span className="font-bold text-emerald-700 tabular-nums">{formatCurrency(payout)}</span>
+                      </td>
+                      <td className="px-5 sm:px-6 py-3.5 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
                           <Link
                             href={`/owner/revenue/receipts/${invoice.id}`}
-                            className="inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-semibold text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 rounded-lg border border-emerald-200 hover:border-emerald-300 transition-all duration-200 no-underline active:scale-95"
+                            className="no-underline inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 hover:border-emerald-300 transition-all duration-150 active:scale-95"
                           >
-                            <Receipt className="h-4 w-4" aria-hidden />
+                            <Receipt className="h-3.5 w-3.5" aria-hidden />
                             <span className="hidden sm:inline">Receipt</span>
                           </Link>
                           <Link
                             href={invoiceHref}
-                            className="inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-semibold text-blue-700 hover:text-blue-800 hover:bg-blue-50 rounded-lg border border-blue-200 hover:border-blue-300 transition-all duration-200 no-underline active:scale-95"
+                            className="no-underline inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-blue-700 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 hover:border-blue-300 transition-all duration-150 active:scale-95"
                           >
-                            <FileText className="h-4 w-4" aria-hidden />
+                            <FileText className="h-3.5 w-3.5" aria-hidden />
                             <span className="hidden sm:inline">Invoice</span>
                           </Link>
                         </div>
