@@ -298,7 +298,7 @@ export default function InvoiceView() {
         </div>
 
         {/* Sender / Receiver */}
-        <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-100">
+        <div className="grid grid-cols-2 divide-x divide-slate-100">
           <div className="p-5 sm:p-6">
             <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Sender (Owner)</div>
             <div className="font-black text-slate-900 text-base leading-snug">{inv.senderName}</div>
