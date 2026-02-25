@@ -436,7 +436,7 @@ export default function StaysReportPage() {
     // Embed the NoLSAF logo as a base64 data URL so the print popup can render it
     let logoDataUrl: string | null = null;
     try {
-      const logoRes = await fetch("/assets/nolsnewlog.png");
+      const logoRes = await fetch("/assets/NoLS2025-04.png");
       if (logoRes.ok) {
         const blob = await logoRes.blob();
         logoDataUrl = await new Promise<string>((resolve, reject) => {
@@ -586,16 +586,18 @@ export default function StaysReportPage() {
       align-items: center;
       justify-content: space-between;
       gap: 16px;
+      border-radius: 10px 10px 0 0;
     }
     .doc-header .brand-mark {
       display: flex; align-items: center; gap: 10px;
     }
     .doc-header .brand-icon {
-      width: 120px; height: 36px; border-radius: 6px;
-      background: rgba(255,255,255,0.12);
+      width: 40px; height: 40px; border-radius: 8px;
+      background: rgba(255,255,255,0.92);
       display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0; overflow: hidden; padding: 3px 6px;
+      flex-shrink: 0; overflow: hidden; padding: 3px;
     }
+    .doc-header .brand-icon img { width: 100%; height: 100%; object-fit: contain; }
     .doc-header .brand-icon svg { width: 20px; height: 20px; fill: #fff; }
     .doc-header .brand-name {
       font-size: 15px; font-weight: 800; letter-spacing: 0.04em;
@@ -795,12 +797,12 @@ export default function StaysReportPage() {
     <div class="brand-mark">
       <div class="brand-icon">
         ${logoDataUrl
-          ? `<img src="${logoDataUrl}" alt="NoLSAF" style="width:100%;height:100%;object-fit:contain;border-radius:6px;" />`
+          ? `<img src="${logoDataUrl}" alt="NoLSAF" />`
           : `<svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M3 3h3l8 10.5V3h3v14h-3L6 6.5V17H3z" fill="#fff"/></svg>`
         }
       </div>
       <div>
-        ${logoDataUrl ? "" : `<div class="brand-name">NoLSAF</div>`}
+        <div class="brand-name">NoLSAF</div>
         <div class="brand-tagline">Property Management Platform</div>
       </div>
     </div>
