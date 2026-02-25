@@ -128,7 +128,7 @@ export default function ReportsFilter({
   useEffect(() => setMounted(true), []);
 
   useEffect(() => {
-    api.get<{ items: any[] }>("/owner/properties/mine", { params: { status: "APPROVED", pageSize: 100 } })
+    api.get<{ items: any[] }>("/api/owner/properties/mine", { params: { status: "APPROVED", pageSize: 100 } })
       .then(r => setProps(Array.isArray((r.data as any)?.items) ? (r.data as any).items : []))
       .catch(() => setProps([]));
   }, []);

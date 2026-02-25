@@ -226,7 +226,7 @@ export default function PropertyAvailabilityPage() {
       return;
     }
 
-    api.get(`/owner/properties/${propertyId}`)
+    api.get(`/api/owner/properties/${propertyId}`)
       .then((res) => {
         setProperty(res.data);
       })
