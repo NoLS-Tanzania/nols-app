@@ -272,7 +272,7 @@ export default function OwnerSidebar({ collapsed = false }: { collapsed?: boolea
       {/* Logo strip */}
       <div className="px-4 pt-4 pb-3.5 flex items-center gap-2.5 border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/assets/nolsnewlog.png" alt="NolSAF" className="w-7 h-7 rounded-xl object-contain flex-shrink-0" />
+        <img src="/assets/NoLS2025-04.png" alt="NolSAF" className="w-7 h-7 rounded-xl object-contain flex-shrink-0" />
         <div className="min-w-0">
           <p className="text-[13px] font-black tracking-wide text-white leading-none">NolSAF</p>
           <p className="text-[9.5px] font-medium mt-[3px] leading-none" style={{ color: "rgba(255,255,255,0.38)" }}>Owner Portal</p>

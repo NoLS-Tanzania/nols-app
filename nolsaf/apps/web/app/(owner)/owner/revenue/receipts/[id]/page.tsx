@@ -12,24 +12,33 @@ export default function Receipt() {
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
-  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
 
-  useEffect(() => {
-    const invId = (data as any)?.invoice?.id;
-    if (!invId) return;
-    let cancelled = false;
-    fetch(`/api/owner/revenue/invoices/${invId}/receipt/qr.png`)
-      .then(r => r.blob())
-      .then(blob => new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      }))
-      .then(dataUrl => { if (!cancelled) setQrDataUrl(dataUrl); })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [data]);
+  // Pre-fetch all <img> srcs in an element as data: URLs, call cb, then restore
+  async function withPatchedImages(el: HTMLElement, cb: () => Promise<void>) {
+    const imgs = Array.from(el.querySelectorAll("img")) as HTMLImageElement[];
+    const saved: [HTMLImageElement, string][] = [];
+    for (const img of imgs) {
+      const src = img.getAttribute("src") || "";
+      if (src && !src.startsWith("data:")) {
+        saved.push([img, src]);
+        try {
+          const blob = await fetch(src, { credentials: "include" }).then(r => r.blob());
+          const dataUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+          img.setAttribute("src", dataUrl);
+        } catch { /* leave as-is */ }
+      }
+    }
+    try {
+      await cb();
+    } finally {
+      for (const [img, src] of saved) img.setAttribute("src", src);
+    }
+  }
 
   useEffect(() => {
     if (!idParam) return;
@@ -45,24 +54,6 @@ export default function Receipt() {
     if (pdfBusy) return;
     setPdfBusy(true);
     try {
-      // Ensure QR is pre-loaded as data URL so html2canvas captures it
-      if (!qrDataUrl) {
-        const invId = (data as any)?.invoice?.id;
-        if (invId) {
-          try {
-            const blob = await fetch(`/api/owner/revenue/invoices/${invId}/receipt/qr.png`).then(r => r.blob());
-            const dataUrl = await new Promise<string>((resolve, reject) => {
-              const reader = new FileReader();
-              reader.onload = () => resolve(reader.result as string);
-              reader.onerror = reject;
-              reader.readAsDataURL(blob);
-            });
-            setQrDataUrl(dataUrl);
-            // Give React one tick to re-render with the new src
-            await new Promise(r => setTimeout(r, 80));
-          } catch { /* proceed without QR */ }
-        }
-      }
       const el = document.getElementById("receipt-card");
       if (!el) throw new Error("Receipt card not found");
       const html2pdfModule: any = await import("html2pdf.js");
@@ -71,17 +62,20 @@ export default function Receipt() {
       const inv = (data as any)?.invoice;
       const receiptNum = inv?.receiptNumber || inv?.invoiceNumber || `receipt-${String(inv?.id ?? "")}`;
       const filename = `${String(receiptNum).replace(/[^a-zA-Z0-9._-]+/g, "-")}.pdf`;
-      await h2p()
-        .from(el)
-        .set({
-          filename,
-          margin: 0,
-          image: { type: "jpeg", quality: 0.98 },
-          jsPDF: { unit: "mm", format: [148, 210], orientation: "portrait" },
-          html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff" },
-          pagebreak: { mode: ["avoid-all", "css", "legacy"] },
-        })
-        .save();
+      // Patch all images to base64 data URLs so html2canvas captures them
+      await withPatchedImages(el, async () => {
+        await h2p()
+          .from(el)
+          .set({
+            filename,
+            margin: 0,
+            image: { type: "jpeg", quality: 0.98 },
+            jsPDF: { unit: "mm", format: [148, 210], orientation: "portrait" },
+            html2canvas: { scale: 2, useCORS: true, allowTaint: true, backgroundColor: "#ffffff", logging: false },
+            pagebreak: { mode: ["avoid-all", "css", "legacy"] },
+          })
+          .save();
+      });
     } catch (e: any) {
       console.error("PDF download failed", e);
       window.alert("Unable to generate PDF. Please try again.");
@@ -200,9 +194,10 @@ export default function Receipt() {
           <div className="px-5 pt-4 pb-4 border-b" style={{ borderColor: "#edf4f3" }}>
             {/* Brand row */}
             <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2.5">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/assets/nolsnewlog.png" alt="NolSAF" className="w-9 h-9 rounded-xl object-contain" style={{ background: "#f7fbfa" }} />
+                <img src="/assets/NoLS2025-04.png" alt="NolSAF" className="w-8 h-8 rounded-xl object-contain flex-shrink-0" style={{ background: "#edf7f6" }} />
+                <span className="text-[13px] font-black tracking-wide" style={{ color: "#024d47" }}>NolSAF</span>
               </div>
               <div className="flex items-center gap-1.5 rounded-full px-2.5 py-1" style={{ background: "#edf7f6", border: "1px solid #c0dedd" }}>
                 <BadgeCheck className="w-3 h-3" style={{ color: "#02665e" }} />
@@ -363,10 +358,9 @@ export default function Receipt() {
                 <div className="inline-block p-1.5 bg-white rounded-lg" style={{ border: "1px solid #d0e8e5" }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={qrDataUrl || `/api/owner/revenue/invoices/${inv.id}/receipt/qr.png`}
+                    src={`/api/owner/revenue/invoices/${inv.id}/receipt/qr.png`}
                     alt="Receipt QR"
                     className="w-[66px] h-[66px] block"
-                    crossOrigin="anonymous"
                   />
                 </div>
               </div>
