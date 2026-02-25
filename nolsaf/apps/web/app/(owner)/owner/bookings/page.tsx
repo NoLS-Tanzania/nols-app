@@ -250,11 +250,11 @@ export default function OwnerBookingsPage() {
   const totalCancelled   = list.filter(b => b.status.toUpperCase() === 'CANCELLED' || b.status.toUpperCase() === 'CANCELED').length;
 
   const heroKpis = [
-    { label: 'Total bookings',    value: filterCounts.all,  color: 'text-white',          dot: 'bg-white/40' },
-    { label: 'Checked in',        value: totalCheckedIn,    color: 'text-emerald-300',    dot: 'bg-emerald-400' },
-    { label: 'Awaiting arrival',  value: totalWaiting,      color: 'text-amber-300',      dot: 'bg-amber-400'  },
-    { label: 'Checked out',       value: totalCheckedOut,   color: 'text-sky-300',        dot: 'bg-sky-400'    },
-    { label: 'Cancelled',         value: totalCancelled,    color: 'text-red-300',        dot: 'bg-red-400'    },
+    { label: 'Total',       sub: 'Bookings',   value: filterCounts.all,  dot: 'bg-white/50',     num: 'text-slate-900'  },
+    { label: 'Checked',    sub: 'In',         value: totalCheckedIn,    dot: 'bg-emerald-400',  num: 'text-emerald-700'},
+    { label: 'Awaiting',   sub: 'Arrival',    value: totalWaiting,      dot: 'bg-amber-400',    num: 'text-amber-700'  },
+    { label: 'Checked',    sub: 'Out',        value: totalCheckedOut,   dot: 'bg-sky-400',      num: 'text-sky-700'    },
+    { label: 'Cancelled',  sub: '',           value: totalCancelled,    dot: 'bg-red-400',      num: 'text-red-700'    },
   ];
 
   return (
@@ -286,17 +286,19 @@ export default function OwnerBookingsPage() {
           </div>
 
           {/* KPI strip — sits at the bottom of the hero, overlaps content below */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 pb-0 translate-y-6">
+          <div className="grid grid-cols-5 gap-2 sm:gap-3 pb-0 translate-y-7">
             {heroKpis.map((kpi) => (
               <div
-                key={kpi.label}
-                className="bg-white rounded-2xl shadow-lg border border-slate-100 px-4 py-4 flex flex-col gap-1"
+                key={kpi.label + kpi.sub}
+                className="bg-white rounded-2xl shadow-xl border border-slate-100 px-3 py-3.5 sm:px-4 sm:py-4 flex flex-col gap-1"
               >
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   <span className={`h-2 w-2 rounded-full flex-shrink-0 ${kpi.dot}`} />
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 leading-none">{kpi.label}</span>
+                  <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wide text-slate-400 leading-tight">
+                    {kpi.label}{kpi.sub ? <><br />{kpi.sub}</> : null}
+                  </span>
                 </div>
-                <div className="text-3xl font-extrabold text-slate-900 leading-none mt-1">{kpi.value}</div>
+                <div className={`text-2xl sm:text-3xl font-extrabold leading-none mt-1 ${kpi.num}`}>{kpi.value}</div>
               </div>
             ))}
           </div>
@@ -304,8 +306,8 @@ export default function OwnerBookingsPage() {
       </div>
 
       {/* ══ FILTER TABS ═════════════════════════════════════════════ */}
-      <div className="px-4 sm:px-6 pt-10 pb-4">
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-1.5 overflow-x-auto">
+      <div className="px-4 sm:px-6 pt-12 pb-4">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-md p-1.5 overflow-x-auto">
           <div className="flex items-center gap-1 min-w-max">
             {filterTabs.map((tab) => {
               const Icon = tab.icon;
@@ -346,6 +348,9 @@ export default function OwnerBookingsPage() {
 
       {/* ══ PROPERTY CARDS ══════════════════════════════════════════ */}
       <div className="px-4 sm:px-6 pb-10 space-y-4">
+        <p className="text-[13px] font-semibold text-slate-400 uppercase tracking-widest pl-1">
+          {groupedBookings.length} Propert{groupedBookings.length === 1 ? 'y' : 'ies'}
+        </p>
         {groupedBookings.length === 0 ? (
           <div className="flex flex-col items-center justify-center text-center bg-white rounded-2xl border border-slate-200 py-20 px-8 shadow-sm">
             <div className="h-16 w-16 rounded-3xl bg-slate-100 flex items-center justify-center mb-5">
@@ -373,7 +378,7 @@ export default function OwnerBookingsPage() {
               return (
                 <div
                   key={group.key}
-                  className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
+                  className="bg-white rounded-3xl border border-slate-200/80 shadow-md hover:shadow-lg transition-shadow duration-300 overflow-hidden"
                 >
                   {/* ── Card header ── */}
                   <button
@@ -381,9 +386,9 @@ export default function OwnerBookingsPage() {
                     className="w-full text-left group"
                   >
                     {/* Top accent stripe */}
-                    <div className={`h-1 w-full ${accentBg}`} />
+                    <div className={`h-1.5 w-full ${accentBg}`} />
 
-                    <div className="flex items-center gap-4 px-5 py-4 hover:bg-slate-50/70 transition-colors">
+                    <div className="flex items-center gap-4 px-5 py-4 hover:bg-slate-50/80 transition-colors">
                       {/* Property icon */}
                       <div className={`h-12 w-12 rounded-2xl ring-1 flex items-center justify-center flex-shrink-0 ${accentRing}`}>
                         <Building2 className={`h-6 w-6 ${accentText}`} />
