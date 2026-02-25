@@ -207,17 +207,17 @@ export default function Paid() {
           </div>
         </div>
 
-        {/* Amount card — deep emerald */}
-        <div className="relative rounded-2xl bg-emerald-950 border border-emerald-900 shadow-sm hover:shadow-lg hover:shadow-emerald-950/30 transition-shadow duration-200 p-5 flex items-center gap-4">
+        {/* Amount card — deep yellow */}
+        <div className="relative rounded-2xl bg-yellow-950 border border-yellow-900/60 shadow-sm hover:shadow-lg hover:shadow-yellow-950/30 transition-shadow duration-200 p-5 flex items-center gap-4">
           {/* Top shimmer */}
-          <div className="absolute top-0 left-6 right-6 h-px bg-gradient-to-r from-transparent via-emerald-500/20 to-transparent" />
-          <div className="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-xl bg-emerald-900/60 border border-emerald-800">
-            <TrendingUp className="h-5 w-5 text-emerald-400" aria-hidden />
+          <div className="absolute top-0 left-6 right-6 h-px bg-gradient-to-r from-transparent via-yellow-400/20 to-transparent" />
+          <div className="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-xl bg-yellow-900/50 border border-yellow-800/60">
+            <TrendingUp className="h-5 w-5 text-yellow-400" aria-hidden />
           </div>
           <div className="min-w-0">
-            <p className="text-[11px] font-bold uppercase tracking-widest text-emerald-600">Total amount</p>
+            <p className="text-[11px] font-bold uppercase tracking-widest text-yellow-600">Total amount</p>
             <p className="mt-0.5 text-3xl font-black text-white tabular-nums leading-none truncate">{formatCurrency(stats.totalAmount)}</p>
-            <p className="mt-1 text-xs text-emerald-700">Net payable to you</p>
+            <p className="mt-1 text-xs text-yellow-700">Value under review</p>
           </div>
         </div>
       </div>
