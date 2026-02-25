@@ -43,9 +43,19 @@ if (typeof document !== "undefined") {
       from { opacity: 0; transform: scale(0.95); }
       to { opacity: 1; transform: scale(1); }
     }
+    @keyframes slide-in-left {
+      from { opacity: 0; transform: translateX(-100%); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    @keyframes fade-in-overlay {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
     .animate-fade-in-up { animation: fade-in-up 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
     .animate-slide-down { animation: slide-down 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
     .animate-scale-in { animation: scale-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+    .animate-slide-in-left { animation: slide-in-left 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+    .animate-fade-in-overlay { animation: fade-in-overlay 0.25s ease forwards; }
     .glass-effect { backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
   `;
   style.setAttribute("data-owner-header-animations", "true");
@@ -419,102 +429,153 @@ export default function OwnerSiteHeader({ unreadMessages = 0 }: { unreadMessages
         </div>
       </div>
 
-      {/* Mobile drawer */}
+      {/* Mobile slide-in side drawer */}
       {open && (
         <>
-          <div className="md:hidden fixed inset-0 bg-black/20 backdrop-blur-sm z-40 transition-opacity duration-300" onClick={() => setOpen(false)} aria-hidden="true" />
-          <div className="md:hidden relative z-50 border-t border-white/10 backdrop-blur-xl animate-slide-down overflow-hidden bg-[#02665e] text-white" style={{ willChange: "transform, opacity" }}>
-            <nav className="mx-auto w-full px-2 sm:px-3 md:px-4 xl:px-6 2xl:px-8 max-w-6xl xl:max-w-7xl 2xl:max-w-[108rem] py-4 flex flex-col gap-2.5">
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <button
-                  onClick={() => {
-                    handleRefresh();
-                    setOpen(false);
-                  }}
-                  aria-label="Refresh"
-                  title="Refresh"
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out"
-                  disabled={isRefreshing}
-                >
-                  <RefreshCw className={`h-5 w-5 text-white transition-transform duration-300 ${isRefreshing ? "animate-spin" : ""}`} />
-                </button>
+          {/* Backdrop */}
+          <div
+            className="md:hidden fixed inset-0 z-[60] bg-black/50 backdrop-blur-[2px] animate-fade-in-overlay"
+            onClick={() => setOpen(false)}
+            aria-hidden="true"
+          />
 
+          {/* Side sheet */}
+          <div
+            className="md:hidden fixed left-0 top-0 bottom-0 z-[70] w-[280px] bg-white shadow-[8px_0_40px_rgba(0,0,0,0.18)] flex flex-col animate-slide-in-left overflow-hidden"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Navigation menu"
+          >
+            {/* Header — teal gradient matching the top bar */}
+            <div className="relative flex-shrink-0 bg-[#02665e] px-5 pt-10 pb-6 overflow-hidden">
+              {/* subtle dot grid */}
+              <div
+                className="pointer-events-none absolute inset-0 opacity-[0.06]"
+                style={{ backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.9) 1px, transparent 1px)", backgroundSize: "16px 16px" }}
+                aria-hidden
+              />
+              {/* close button */}
+              <button
+                onClick={() => setOpen(false)}
+                className="absolute top-3 right-3 h-8 w-8 flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 transition-colors"
+                aria-label="Close menu"
+              >
+                <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" aria-hidden>
+                  <path d="M6 18L18 6M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+
+              {/* Avatar + user info */}
+              <div className="flex items-center gap-3">
+                {avatarUrl ? (
+                  <div className="h-12 w-12 rounded-full overflow-hidden ring-2 ring-white/40 flex-shrink-0">
+                    <Image src={avatarUrl} alt="Profile" width={48} height={48} className="object-cover w-full h-full" />
+                  </div>
+                ) : (
+                  <div className="h-12 w-12 rounded-full bg-white/15 ring-2 ring-white/30 flex items-center justify-center flex-shrink-0">
+                    <User className="h-6 w-6 text-white" />
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-sm text-white truncate">{userName || "Owner"}</span>
+                    <CheckCircle className="h-3.5 w-3.5 text-emerald-300 flex-shrink-0" />
+                  </div>
+                  <p className="text-[11px] text-white/60 truncate mt-0.5">{userEmail || ""}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Nav items */}
+            <nav className="flex-1 overflow-y-auto py-3">
+              {([
+                { href: "/owner", icon: Home, label: "Dashboard" },
+                { href: "/owner/profile", icon: User, label: "My Profile" },
+                { href: "/owner/properties/approved", icon: Building2, label: "My Properties" },
+                { href: "/owner/bookings", icon: Calendar, label: "My Bookings" },
+                { href: "/owner/revenue", icon: DollarSign, label: "My Revenues" },
+              ] as const).map(({ href, icon: Icon, label }) => (
                 <Link
-                  href="/owner/properties/add"
+                  key={href}
+                  href={href}
                   onClick={() => setOpen(false)}
-                  className="relative inline-flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out"
-                  aria-label="Add property"
+                  className="group flex items-center gap-3.5 px-5 py-3 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 transition-colors no-underline"
                 >
-                  <Plus className="h-5 w-5 text-white" />
+                  <div className="flex-shrink-0 h-8 w-8 rounded-lg bg-slate-100 group-hover:bg-emerald-100 flex items-center justify-center transition-colors">
+                    <Icon className="h-4 w-4 text-slate-500 group-hover:text-emerald-600 transition-colors" />
+                  </div>
+                  <span className="font-semibold">{label}</span>
                 </Link>
+              ))}
 
-                <Link
-                  href="/owner/notifications"
-                  onClick={() => setOpen(false)}
-                  className="relative inline-flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out"
-                  aria-label="Notifications"
-                >
-                  <Bell className="h-5 w-5 text-white" />
+              <div className="my-2 mx-4 h-px bg-slate-100" />
+
+              <Link
+                href="/owner/notifications"
+                onClick={() => setOpen(false)}
+                className="group flex items-center gap-3.5 px-5 py-3 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 transition-colors no-underline"
+              >
+                <div className="relative flex-shrink-0 h-8 w-8 rounded-lg bg-slate-100 group-hover:bg-emerald-100 flex items-center justify-center transition-colors">
+                  <Bell className="h-4 w-4 text-slate-500 group-hover:text-emerald-600 transition-colors" />
                   {unreadMessages > 0 && (
-                    <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 rounded-full bg-rose-500 text-[10px] leading-4 text-white font-bold ring-2 ring-[#02665e] text-center flex items-center justify-center">
+                    <span className="absolute -top-1 -right-1 h-4 min-w-4 px-0.5 rounded-full bg-rose-500 text-[9px] leading-4 text-white font-bold flex items-center justify-center">
                       {unreadMessages > 9 ? "9+" : unreadMessages}
                     </span>
                   )}
-                </Link>
-
-                <Link
-                  href="/owner/support"
-                  onClick={() => setOpen(false)}
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out"
-                  aria-label="Support"
-                >
-                  <LifeBuoy className="h-5 w-5 text-white" />
-                </Link>
-
-                <Link
-                  href="/owner/settings"
-                  onClick={() => setOpen(false)}
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out"
-                  aria-label="Settings"
-                >
-                  <SettingsIcon className="h-5 w-5 text-white" />
-                </Link>
-              </div>
-
-              <div className="my-2 h-px w-full bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-
-              <Link href="/owner" className="px-3 py-2 rounded-xl text-sm hover:bg-white/10 no-underline" onClick={() => setOpen(false)}>
-                Dashboard
-              </Link>
-              <Link href="/owner/properties/approved" className="px-3 py-2 rounded-xl text-sm hover:bg-white/10 no-underline" onClick={() => setOpen(false)}>
-                My Properties
-              </Link>
-              <Link href="/owner/bookings" className="px-3 py-2 rounded-xl text-sm hover:bg-white/10 no-underline" onClick={() => setOpen(false)}>
-                My Bookings
-              </Link>
-              <Link href="/owner/revenue" className="px-3 py-2 rounded-xl text-sm hover:bg-white/10 no-underline" onClick={() => setOpen(false)}>
-                My Revenues
-              </Link>
-              <Link href="/owner/profile" className="px-3 py-2 rounded-xl text-sm hover:bg-white/10 no-underline" onClick={() => setOpen(false)}>
-                My Profile
-              </Link>
-              <Link href="/account" className="px-3 py-2 rounded-xl text-sm hover:bg-white/10 no-underline" onClick={() => setOpen(false)}>
-                My Account
+                </div>
+                <span className="font-semibold flex-1">Notifications</span>
+                {unreadMessages > 0 && (
+                  <span className="ml-auto text-[10px] font-bold text-rose-500 bg-rose-50 rounded-full px-2 py-0.5">
+                    {unreadMessages} new
+                  </span>
+                )}
               </Link>
 
+              <Link
+                href="/owner/settings"
+                onClick={() => setOpen(false)}
+                className="group flex items-center gap-3.5 px-5 py-3 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 transition-colors no-underline"
+              >
+                <div className="flex-shrink-0 h-8 w-8 rounded-lg bg-slate-100 group-hover:bg-emerald-100 flex items-center justify-center transition-colors">
+                  <SettingsIcon className="h-4 w-4 text-slate-500 group-hover:text-emerald-600 transition-colors" />
+                </div>
+                <span className="font-semibold">Settings</span>
+              </Link>
+
+              <Link
+                href="/owner/support"
+                onClick={() => setOpen(false)}
+                className="group flex items-center gap-3.5 px-5 py-3 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 transition-colors no-underline"
+              >
+                <div className="flex-shrink-0 h-8 w-8 rounded-lg bg-slate-100 group-hover:bg-emerald-100 flex items-center justify-center transition-colors">
+                  <LifeBuoy className="h-4 w-4 text-slate-500 group-hover:text-emerald-600 transition-colors" />
+                </div>
+                <span className="font-semibold">Support</span>
+              </Link>
+            </nav>
+
+            {/* Footer actions */}
+            <div className="flex-shrink-0 border-t border-slate-100 p-3 space-y-1">
+              <button
+                onClick={() => { handleRefresh(); setOpen(false); }}
+                disabled={isRefreshing}
+                className="group w-full flex items-center gap-3.5 px-4 py-2.5 rounded-xl text-sm text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                <RefreshCw className={`h-4 w-4 text-slate-400 group-hover:text-slate-600 transition-colors ${isRefreshing ? "animate-spin" : ""}`} />
+                <span className="font-medium">Refresh page</span>
+              </button>
               <button
                 onClick={async () => {
                   setOpen(false);
-                  try {
-                    await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-                  } catch {}
+                  try { await fetch("/api/auth/logout", { method: "POST", credentials: "include" }); } catch {}
                   window.location.href = logoutRedirect;
                 }}
-                className="mt-2 w-full text-left px-3 py-2 rounded-xl text-sm font-semibold text-red-200 hover:text-red-50 hover:bg-white/10 transition-colors"
+                className="group w-full flex items-center gap-3.5 px-4 py-2.5 rounded-xl text-sm text-red-600 hover:bg-red-50 transition-colors"
               >
-                Logout
+                <LogOut className="h-4 w-4 group-hover:scale-110 transition-transform" />
+                <span className="font-bold">Logout</span>
               </button>
-            </nav>
+            </div>
           </div>
         </>
       )}
