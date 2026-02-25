@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
@@ -166,11 +166,14 @@ export default function OwnerCheckedOutPage() {
   if (loading) {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center text-center px-4">
-        <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-emerald-100 mb-4">
-          <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+        <div className="relative mb-6">
+          <span className="absolute inset-0 rounded-full bg-slate-400/20 animate-ping" />
+          <div className="relative inline-flex items-center justify-center h-16 w-16 rounded-full bg-gradient-to-br from-slate-700 to-slate-900 shadow-lg">
+            <Loader2 className="h-7 w-7 animate-spin text-white" />
+          </div>
         </div>
-        <h1 className="text-3xl font-bold text-slate-900">Checked-out</h1>
-        <p className="text-sm text-slate-600 mt-2 max-w-2xl">Loading check-out history…</p>
+        <h1 className="text-3xl font-black text-slate-900 tracking-tight">Checked-out</h1>
+        <p className="text-sm text-slate-500 mt-2 max-w-sm">Loading check-out history…</p>
       </div>
     );
   }
@@ -244,60 +247,68 @@ export default function OwnerCheckedOutPage() {
         </div>
       ) : null}
 
-      {/* Header */}
-      <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-        <div className="p-6 sm:p-8">
-          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] items-start gap-4">
-            <div className="hidden sm:block" />
-
-            <div className="min-w-0 flex flex-col items-center text-center">
-              <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-xs font-semibold text-emerald-700">
-                <CheckCircle2 className="h-4 w-4" aria-hidden />
+      {/* Hero */}
+      <div className="relative overflow-hidden rounded-2xl bg-white border border-slate-200 shadow-xl shadow-slate-100/70">
+        <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-gradient-to-b from-slate-800 via-slate-400 to-transparent rounded-l-2xl" />
+        <div className="pointer-events-none select-none absolute right-0 bottom-0 text-[100px] font-black text-slate-100/80 leading-none tracking-tighter pr-4 pb-1" aria-hidden>HISTORY</div>
+        <div className="pointer-events-none absolute right-0 top-0 h-full w-1/2 opacity-[0.035]" style={{ backgroundImage: "radial-gradient(circle, #334155 1px, transparent 1px)", backgroundSize: "18px 18px" }} />
+        <div className="relative pl-8 pr-6 pt-6 pb-6 sm:pt-7 sm:pb-7 sm:pr-8 lg:pt-8 lg:pb-8 lg:pr-10 lg:pl-10">
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center h-10 w-10 rounded-xl bg-slate-100 border border-slate-200">
+                <CheckCircle2 className="h-5 w-5 text-slate-700" aria-hidden />
+              </div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-600">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
                 Check-out history
               </div>
-              <h1 className="mt-3 text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">Checked-out</h1>
-              <p className="mt-1 text-sm text-gray-600 max-w-2xl">
-                View bookings you’ve already checked out. Use audit history to see ratings and notes.
-              </p>
             </div>
-
-            <div className="flex items-center justify-start sm:justify-end gap-2">
-              <Link
-                href="/owner/bookings/check-out"
-                className="no-underline inline-flex items-center justify-center h-10 w-10 rounded-md border border-gray-200 bg-white text-gray-700 shadow-sm hover:bg-gray-50 active:scale-[0.99] transition"
-                aria-label="Back to check-out queue"
-                title="Back to check-out"
-              >
-                <Calendar className="h-4 w-4" aria-hidden />
-              </Link>
+            <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => load({ silent: true })}
                 disabled={refreshing}
-                className="inline-flex items-center justify-center h-10 w-10 rounded-md border border-slate-900 bg-slate-900 text-white shadow-sm hover:bg-slate-800 active:scale-[0.99] transition disabled:opacity-60"
-                aria-label="Refresh"
-                title="Refresh"
+                className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 active:scale-[0.97] transition-all duration-150 shadow-sm disabled:opacity-50"
+                aria-label="Refresh" title="Refresh"
               >
                 <RotateCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} aria-hidden />
               </button>
+              <Link
+                href="/owner/bookings/check-out"
+                className="no-underline inline-flex items-center justify-center h-8 w-8 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 active:scale-[0.97] transition-all duration-150 shadow-sm"
+                aria-label="Back to check-out queue" title="Check-out queue"
+              >
+                <Calendar className="h-4 w-4" aria-hidden />
+              </Link>
             </div>
           </div>
+          <div className="mt-5">
+            <h1 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight leading-none">Checked-out</h1>
+            <p className="mt-2.5 text-sm text-slate-500 max-w-md leading-relaxed">View bookings you've already checked out. Use audit history to see ratings and notes.</p>
+          </div>
+          <div className="mt-6 h-px bg-gradient-to-r from-slate-200 via-slate-100 to-transparent" />
         </div>
       </div>
 
       {/* Summary */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
-          <div className="text-center text-xs font-medium text-gray-500">Total checked-out</div>
-          <div className="mt-1 text-center text-2xl font-bold text-gray-900">{stats.total.toLocaleString()}</div>
+        {/* Total */}
+        <div className="relative overflow-hidden rounded-2xl bg-white border border-slate-200 p-5 shadow-sm">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Total checked-out</div>
+          <div className="mt-2 text-3xl font-black text-slate-900 leading-none">{stats.total.toLocaleString()}</div>
+          <div className="mt-1 text-xs text-slate-400">All time records</div>
         </div>
-        <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
-          <div className="text-center text-xs font-medium text-gray-500">Last 7 days</div>
-          <div className="mt-1 text-center text-2xl font-bold text-emerald-700">{stats.last7d.toLocaleString()}</div>
+        {/* Last 7d */}
+        <div className="relative overflow-hidden rounded-2xl bg-slate-900 border border-slate-800 p-5 shadow-sm">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-400/70">Last 7 days</div>
+          <div className="mt-2 text-3xl font-black text-emerald-400 leading-none">{stats.last7d.toLocaleString()}</div>
+          <div className="mt-1 text-xs text-emerald-600">Recent check-outs</div>
         </div>
-        <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
-          <div className="text-center text-xs font-medium text-gray-500">Last 30 days</div>
-          <div className="mt-1 text-center text-2xl font-bold text-emerald-700">{stats.last30d.toLocaleString()}</div>
+        {/* Last 30d */}
+        <div className="relative overflow-hidden rounded-2xl bg-slate-800 border border-slate-700 p-5 shadow-sm">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400/70">Last 30 days</div>
+          <div className="mt-2 text-3xl font-black text-slate-300 leading-none">{stats.last30d.toLocaleString()}</div>
+          <div className="mt-1 text-xs text-slate-500">Monthly activity</div>
         </div>
       </div>
 
@@ -309,7 +320,7 @@ export default function OwnerCheckedOutPage() {
 
       {/* List */}
       {filtered.length === 0 ? (
-        <div className="bg-white rounded-lg border border-gray-200 p-10 sm:p-12 text-center shadow-sm">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-14 flex flex-col items-center justify-center text-center gap-4">
           <CheckCircle2 className="h-12 w-12 text-gray-300 mx-auto mb-4" aria-hidden />
           <p className="text-sm text-gray-700 font-semibold">No checked-out bookings found.</p>
           <p className="text-xs text-gray-500 mt-2">If you just confirmed a check-out, refresh this page.</p>
@@ -335,95 +346,57 @@ export default function OwnerCheckedOutPage() {
           </div>
         </div>
       ) : (
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-          <div className="sticky top-0 z-10 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200 px-4 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="min-w-0">
-              <div className="text-sm font-semibold text-gray-900">Checked-out bookings</div>
-              <div className="text-xs text-gray-500 mt-0.5">Search by guest, code, property, room…</div>
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-4 sm:px-5 py-3.5 border-b border-slate-100 flex items-center justify-between gap-3">
+            <div className="text-sm font-bold text-slate-900 tracking-tight">
+              Checked-out <span className="ml-1 text-xs font-medium text-slate-400">{filtered.length}</span>
             </div>
-
-            <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-              <div className="relative">
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                  <Search className="h-4 w-4 text-gray-400" aria-hidden />
-                </div>
-                {search ? (
-                  <button
-                    type="button"
-                    onClick={() => setSearch("")}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center justify-center h-7 w-7 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-200/50 active:scale-95 transition"
-                    aria-label="Clear search"
-                    title="Clear"
-                  >
-                    <X className="h-4 w-4" aria-hidden />
-                  </button>
-                ) : null}
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search guest, code, property…"
-                  className="h-10 w-full sm:w-72 pl-10 pr-10 rounded-md border border-gray-200 bg-white text-sm text-gray-900 placeholder:text-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-                  aria-label="Search checked-out history"
-                />
-              </div>
-
-              <button
-                type="button"
-                onClick={() => load({ silent: true })}
-                disabled={refreshing}
-                className="inline-flex items-center justify-center h-10 w-10 rounded-md border border-slate-900 bg-slate-900 text-white shadow-sm hover:bg-slate-800 active:scale-[0.99] transition disabled:opacity-60"
-                aria-label="Refresh checked-out list"
-                title="Refresh"
-              >
-                <RotateCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} aria-hidden />
-              </button>
-
-              <Link
-                href="/owner/bookings/check-out"
-                className="no-underline inline-flex items-center justify-center h-10 w-10 rounded-md bg-emerald-700 text-white shadow-sm hover:bg-emerald-800 active:scale-[0.99] transition"
-                aria-label="Back to check-out queue"
-                title="Back to check-out"
-              >
-                <Calendar className="h-4 w-4" aria-hidden />
-              </Link>
+            <div className="flex items-center rounded-xl border border-slate-200 bg-white shadow-sm">
+              <Search className="ml-3 h-4 w-4 text-slate-400 pointer-events-none flex-shrink-0" aria-hidden />
+              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Guest, code, property..." className="h-9 w-44 sm:w-60 bg-transparent px-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none" aria-label="Search checked-out history" />
+              {search ? (
+                <button type="button" onClick={() => setSearch("")} className="flex-shrink-0 inline-flex h-6 w-6 items-center justify-center rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition mr-1" aria-label="Clear search">
+                  <X className="h-3.5 w-3.5" aria-hidden />
+                </button>
+              ) : null}
             </div>
           </div>
 
           <div className={`overflow-x-auto ${refreshing ? "opacity-60" : ""} transition-opacity duration-200`}>
             <table className="min-w-[1250px] w-full text-sm">
-              <thead className="sticky top-0 z-10 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+              <thead className="bg-slate-50 border-b border-slate-100">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Property</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Code</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Guest</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Phone</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Check-in</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Check-out</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Overdue</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Amount</th>
-                  <th className="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
+                  <th className="px-5 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-slate-500">Property</th>
+                  <th className="px-5 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-slate-500">Code</th>
+                  <th className="px-5 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-slate-500">Guest</th>
+                  <th className="px-5 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-slate-500">Phone</th>
+                  <th className="px-5 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-slate-500">Check-in</th>
+                  <th className="px-5 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-slate-500">Check-out</th>
+                  <th className="px-5 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-slate-500">Overdue</th>
+                  <th className="px-5 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-slate-500">Amount</th>
+                  <th className="px-5 py-3 text-right text-[10px] font-bold uppercase tracking-widest text-slate-500">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className="divide-y divide-slate-100">
                 {filtered.map((b) => (
                   <TableRow key={b.id} className="align-middle">
-                    <td className="px-6 py-4">
+                    <td className="px-5 py-3.5">
                       <div className="min-w-0">
-                        <div className="font-semibold text-gray-900 truncate">{b.property?.title ?? "—"}</div>
-                        <div className="text-xs text-gray-500 mt-0.5">Booking #{b.id}</div>
+                        <div className="font-bold text-slate-900 truncate text-sm">{b.property?.title ?? "—"}</div>
+                        <div className="text-xs text-slate-400 mt-0.5">Booking #{b.id}</div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="font-mono font-semibold text-gray-900">{b.codeVisible ?? "—"}</span>
+                    <td className="px-5 py-3.5 whitespace-nowrap">
+                      <span className="font-mono font-bold text-slate-900 tracking-widest text-xs">{b.codeVisible ?? "—"}</span>
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="font-semibold text-gray-900">{b.guestName ?? "—"}</div>
-                      <div className="text-xs text-gray-500 mt-0.5">{b.roomType ?? b.roomCode ?? ""}</div>
+                    <td className="px-5 py-3.5">
+                      <div className="font-bold text-slate-900 text-sm">{b.guestName ?? "—"}</div>
+                      <div className="text-xs text-slate-400 mt-0.5">{b.roomType ?? b.roomCode ?? ""}</div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-gray-700">{b.guestPhone ?? "—"}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-gray-700">{formatDateTime(b.checkIn)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-gray-700">{formatDateTime(b.checkOut)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-5 py-3.5 whitespace-nowrap text-slate-600 text-xs">{b.guestPhone ?? "—"}</td>
+                    <td className="px-5 py-3.5 whitespace-nowrap text-slate-600 text-xs">{formatDateTime(b.checkIn)}</td>
+                    <td className="px-5 py-3.5 whitespace-nowrap text-slate-600 text-xs">{formatDateTime(b.checkOut)}</td>
+                    <td className="px-5 py-3.5 whitespace-nowrap">
                       {String(b.checkoutTiming ?? "UNKNOWN").toUpperCase() === "OVERDUE" ? (
                         <span
                           className="inline-flex items-center rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700"
@@ -450,12 +423,12 @@ export default function OwnerCheckedOutPage() {
                         </span>
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-gray-900 font-semibold">{formatCurrencyTZS(b.ownerBaseAmount ?? Math.max(0, Number(b.totalAmount ?? 0) - Number(b.transportFare ?? 0)))}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                    <td className="px-5 py-3.5 whitespace-nowrap font-black text-slate-900">{formatCurrencyTZS(b.ownerBaseAmount ?? Math.max(0, Number(b.totalAmount ?? 0) - Number(b.transportFare ?? 0)))}</td>
+                    <td className="px-5 py-3.5 whitespace-nowrap text-right">
                       <button
                         type="button"
                         onClick={() => openAudit(b)}
-                        className="inline-flex items-center justify-center h-9 w-9 rounded-md border border-gray-200 bg-white text-gray-700 shadow-sm hover:bg-gray-50 active:scale-[0.99] transition"
+                        className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 shadow-sm active:scale-[0.97] transition"
                         aria-label="View audit"
                         title="Audit"
                       >
