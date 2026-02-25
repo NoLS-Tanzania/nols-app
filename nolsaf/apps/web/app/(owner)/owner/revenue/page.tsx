@@ -648,7 +648,6 @@ export default function OwnerRevenuePage() {
               </div>
             </div>
           </div>
-        </div>
         
         {filteredSorted.length === 0 ? (
           <div className="py-16 flex flex-col items-center justify-center text-center gap-4">
