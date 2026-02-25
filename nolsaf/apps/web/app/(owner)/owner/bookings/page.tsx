@@ -267,7 +267,7 @@ export default function OwnerBookingsPage() {
       <div className="pointer-events-none absolute bottom-0 left-1/2 -translate-x-1/2 h-[300px] w-[700px] rounded-full opacity-[0.03] blur-[80px]" style={{ background: '#02665e' }} />
 
       {/* ══ HERO BAND ════════════════════════════════════════════════════ */}
-      <div className="relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #024d47 0%, #02665e 60%, #038076 100%)' }}>
+      <div className="relative overflow-hidden mx-4 sm:mx-8 mt-5 rounded-3xl" style={{ background: 'linear-gradient(135deg, #024d47 0%, #02665e 60%, #038076 100%)' }}>
         {/* decorative blobs */}
         <div className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full bg-white/5 blur-3xl" />
         <div className="pointer-events-none absolute bottom-0 left-1/3 h-48 w-96 rounded-full bg-teal-300/10 blur-3xl" />
