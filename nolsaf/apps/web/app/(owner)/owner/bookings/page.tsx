@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import axios from "axios";
-import { Calendar, Building2, DollarSign, Clock, CheckCircle, LogOut, XCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { Calendar, Building2, Clock, CheckCircle, LogOut, XCircle, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import LogoSpinner from "@/components/LogoSpinner";
@@ -263,242 +263,240 @@ export default function OwnerBookingsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-[60vh] flex flex-col items-center justify-center text-center">
-        <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-brand-100 mb-4">
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-4">
+        <div className="inline-flex items-center justify-center h-14 w-14 rounded-2xl bg-emerald-50 border border-emerald-100">
           <LogoSpinner size="md" ariaLabel="Loading bookings" />
         </div>
-        <h1 className="text-3xl font-bold text-slate-900">My Bookings</h1>
-        <p className="text-sm text-slate-600 mt-2 max-w-2xl">Loading your bookings…</p>
+        <div className="text-center">
+          <div className="text-lg font-semibold text-slate-900">Loading bookings…</div>
+          <div className="text-sm text-slate-400 mt-1">Fetching your property data</div>
+        </div>
       </div>
     );
   }
 
-  return (
-    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-[#052F2B] via-slate-950 to-[#081A2A]">
-      {/* Background accents */}
-      <div className="pointer-events-none absolute -top-40 -left-40 h-[520px] w-[520px] rounded-full bg-brand/25 blur-3xl" aria-hidden="true" />
-      <div className="pointer-events-none absolute -bottom-40 -right-40 h-[520px] w-[520px] rounded-full bg-sky-500/15 blur-3xl" aria-hidden="true" />
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(1200px_600px_at_50%_-10%,rgba(255,255,255,0.08),transparent_60%)]" aria-hidden="true" />
+  const totalCheckedIn = list.filter(b => b.status.toUpperCase() === 'CHECKED_IN').length;
+  const totalWaiting = list.filter(b => b.status.toUpperCase() === 'CONFIRMED' || b.status.toUpperCase() === 'NEW').length;
 
-      <div className="relative z-10 space-y-8 pb-10 pt-10 px-4 sm:px-6">
-        {/* Header */}
-        <div className="flex flex-col items-center justify-center text-center space-y-3">
-          <div className="inline-flex items-center justify-center h-20 w-20 rounded-2xl bg-white/10 border border-white/15 shadow-lg shadow-black/30 mb-2 transition-all duration-300 hover:scale-105 backdrop-blur-md">
-            <Calendar className="h-10 w-10 text-brand" />
-          </div>
-          <div>
-            <h1 className="text-4xl font-bold text-white tracking-tight">My Bookings</h1>
-            <p className="text-base text-slate-300 mt-3 max-w-2xl mx-auto leading-relaxed">
-              View and manage all bookings for your approved properties. Track guest information and booking status.
-            </p>
+  return (
+    <div className="min-h-screen bg-slate-50">
+      {/* ── Page Header ─────────────────────────────────────────── */}
+      <div className="bg-white border-b border-slate-200">
+        <div className="px-4 sm:px-6 py-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            {/* Left: Title + description */}
+            <div className="flex items-center gap-4">
+              <div className="h-12 w-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center flex-shrink-0">
+                <Calendar className="h-6 w-6 text-emerald-600" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-slate-900 tracking-tight">My Bookings</h1>
+                <p className="text-sm text-slate-500 mt-0.5">
+                  Track guest activity and booking status across all your properties.
+                </p>
+              </div>
+            </div>
+
+            {/* Right: quick-stat chips */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-2">
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Total</span>
+                <span className="text-sm font-extrabold text-slate-900">{filterCounts.all}</span>
+              </div>
+              <div className="inline-flex items-center gap-2 rounded-xl bg-emerald-50 border border-emerald-100 px-3 py-2">
+                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                <span className="text-xs font-semibold text-emerald-700">Checked-in</span>
+                <span className="text-sm font-extrabold text-emerald-700">{totalCheckedIn}</span>
+              </div>
+              <div className="inline-flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-100 px-3 py-2">
+                <span className="h-2 w-2 rounded-full bg-amber-500" />
+                <span className="text-xs font-semibold text-amber-700">Waiting</span>
+                <span className="text-sm font-extrabold text-amber-700">{totalWaiting}</span>
+              </div>
+            </div>
           </div>
         </div>
 
-      {/* Filter Tabs */}
-      <div className="flex flex-wrap items-center justify-center gap-3">
-        {filterTabs.map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.key;
-          return (
-            <button
-              key={tab.key}
-              onClick={() => {
-                setActiveTab(tab.key);
-                try {
-                  const next = new URLSearchParams(searchParams?.toString() ?? "");
-                  if (tab.key === 'all') next.delete('tab');
-                  else next.set('tab', tab.key);
-                  router.replace(`/owner/bookings${next.toString() ? `?${next.toString()}` : ''}`);
-                } catch {}
-              }}
-              className={`inline-flex items-center gap-2.5 px-5 py-2.5 rounded-xl border transition-all duration-300 font-semibold text-sm backdrop-blur-md ${
-                isActive
-                  ? 'bg-gradient-to-r from-brand-600 to-brand-700 text-white border-transparent shadow-lg shadow-black/30 scale-105'
-                  : 'bg-white/10 text-slate-100 border-white/15 hover:bg-white/15 hover:border-white/20 hover:shadow-md hover:scale-105'
-              }`}
-            >
-              <Icon className={`h-4 w-4 ${isActive ? 'text-white' : 'text-slate-200/80'}`} />
-              <span>{tab.label}</span>
-              {tab.count > 0 && (
-                <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
-                  isActive 
-                    ? 'bg-white/25 text-white backdrop-blur-sm' 
-                    : 'bg-white/15 text-slate-100'
-                }`}>
-                  {tab.count}
-                </span>
-              )}
-            </button>
-          );
-        })}
+        {/* ── Filter Tabs ─────────────────────────────────────────── */}
+        <div className="px-4 sm:px-6 overflow-x-auto">
+          <div className="flex items-center gap-0.5 min-w-max border-b-0 pb-0">
+            {filterTabs.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  onClick={() => {
+                    setActiveTab(tab.key);
+                    try {
+                      const next = new URLSearchParams(searchParams?.toString() ?? "");
+                      if (tab.key === 'all') next.delete('tab');
+                      else next.set('tab', tab.key);
+                      router.replace(`/owner/bookings${next.toString() ? `?${next.toString()}` : ''}`);
+                    } catch {}
+                  }}
+                  className={`relative inline-flex items-center gap-2 px-4 py-3 text-sm font-semibold transition-all whitespace-nowrap border-b-2 ${
+                    isActive
+                      ? 'text-emerald-700 border-emerald-600'
+                      : 'text-slate-500 border-transparent hover:text-slate-800 hover:border-slate-300'
+                  }`}
+                >
+                  <Icon className={`h-4 w-4 flex-shrink-0 ${isActive ? 'text-emerald-600' : 'text-slate-400'}`} />
+                  <span>{tab.label}</span>
+                  {tab.count > 0 && (
+                    <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold ${
+                      isActive
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : 'bg-slate-100 text-slate-600'
+                    }`}>
+                      {tab.count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
-      {/* Bookings by Hotel */}
-      {groupedBookings.length === 0 ? (
-        <div className="min-h-[40vh] flex flex-col items-center justify-center text-center bg-white/10 rounded-2xl border border-white/15 p-16 shadow-lg shadow-black/30 backdrop-blur-md">
-          <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-white/10 mb-6 border border-white/15">
-            <Calendar className="h-8 w-8 text-slate-200/70" />
+      {/* ── Main Content ─────────────────────────────────────────── */}
+      <div className="px-4 sm:px-6 py-6 space-y-4">
+        {groupedBookings.length === 0 ? (
+          <div className="flex flex-col items-center justify-center text-center bg-white rounded-2xl border border-slate-200 py-20 px-8">
+            <div className="h-14 w-14 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
+              <Calendar className="h-7 w-7 text-slate-400" />
+            </div>
+            <p className="text-base font-semibold text-slate-800">No bookings found</p>
+            <p className="text-sm text-slate-400 mt-1">Try selecting a different filter above.</p>
           </div>
-          <p className="text-base font-semibold text-white mb-2">No bookings found</p>
-          <p className="text-sm text-slate-300">Try selecting a different category.</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          {groupedBookings.map((group) => {
-            const isExpanded = expandedHotels.has(group.key);
-            const hasCheckedIn = group.checkedIn.length > 0;
-            const hasNotCheckedIn = group.notCheckedIn.length > 0;
-            
-            return (
-              <div
-                key={group.key}
-                className="group relative rounded-[28px] overflow-hidden border border-white/15 bg-white/10 backdrop-blur-md shadow-lg shadow-black/30 hover:bg-white/12 transition-colors"
-              >
-                {/* Left accent bar */}
-                <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-brand via-brand-500 to-brand-600" aria-hidden="true"></div>
-                
-                {/* Hotel Header */}
-                <button
-                  onClick={() => toggleHotel(group.key)}
-                  className="relative w-full p-5 sm:p-6 text-left transition-colors hover:bg-white/10"
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {groupedBookings.map((group) => {
+              const isExpanded = expandedHotels.has(group.key);
+              const hasCheckedIn = group.checkedIn.length > 0;
+              const hasNotCheckedIn = group.notCheckedIn.length > 0;
+              const otherBookings = group.bookings.filter(b => {
+                const s = b.status.toUpperCase();
+                return s !== 'CHECKED_IN' && s !== 'CONFIRMED' && s !== 'NEW';
+              });
+
+              return (
+                <div
+                  key={group.key}
+                  className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden transition-shadow hover:shadow-md"
                 >
-                  <div className="flex items-center gap-4 sm:gap-5">
-                    {/* Icon section */}
-                    <div className="flex-shrink-0">
-                      <div className="h-14 w-14 sm:h-16 sm:w-16 rounded-2xl bg-white/10 flex items-center justify-center border border-white/15 backdrop-blur-md">
-                        <Building2 className="h-7 w-7 sm:h-8 sm:w-8 text-brand" />
+                  {/* Property card header */}
+                  <button
+                    onClick={() => toggleHotel(group.key)}
+                    className="w-full px-5 py-4 text-left hover:bg-slate-50 transition-colors"
+                  >
+                    <div className="flex items-center gap-4">
+                      {/* Property icon */}
+                      <div className="h-11 w-11 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center flex-shrink-0">
+                        <Building2 className="h-5 w-5 text-emerald-600" />
                       </div>
-                    </div>
-                    
-                    {/* Content section */}
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-lg sm:text-xl font-bold text-white truncate">
-                        {group.property}
-                      </h3>
-                      
-                      <div className="mt-3 flex flex-wrap items-center gap-2">
-                        <div className="inline-flex items-center gap-2 rounded-full bg-green-500/10 text-green-100 border border-green-400/20 px-3 py-1">
-                          <CheckCircle className="h-4 w-4" />
-                          <span className="text-sm font-semibold">{group.checkedIn.length}</span>
-                          <span className="text-xs font-medium opacity-80">Checked-in</span>
-                        </div>
-                        <div className="inline-flex items-center gap-2 rounded-full bg-amber-500/10 text-amber-100 border border-amber-400/20 px-3 py-1">
-                          <Clock className="h-4 w-4" />
-                          <span className="text-sm font-semibold">{group.notCheckedIn.length}</span>
-                          <span className="text-xs font-medium opacity-80">Waiting</span>
-                        </div>
-                        <div className="inline-flex items-center gap-2 rounded-full bg-white/10 text-slate-100 border border-white/15 px-3 py-1">
-                          <span className="text-sm font-semibold">{group.bookings.length}</span>
-                          <span className="text-xs font-medium opacity-80">Total</span>
+
+                      {/* Name + badges */}
+                      <div className="flex-1 min-w-0">
+                        <div className="font-bold text-slate-900 truncate text-[15px]">{group.property}</div>
+                        <div className="mt-1.5 flex items-center flex-wrap gap-2">
+                          {group.checkedIn.length > 0 && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-100 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700">
+                              <CheckCircle className="h-3 w-3" />
+                              {group.checkedIn.length} Checked-in
+                            </span>
+                          )}
+                          {group.notCheckedIn.length > 0 && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-100 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700">
+                              <Clock className="h-3 w-3" />
+                              {group.notCheckedIn.length} Waiting
+                            </span>
+                          )}
+                          <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600">
+                            {group.bookings.length} Total
+                          </span>
                         </div>
                       </div>
-                    </div>
-                    
-                    {/* Expand button */}
-                    <div className="flex-shrink-0">
-                      <div className={`h-10 w-10 rounded-xl flex items-center justify-center transition-all duration-300 border ${
-                        isExpanded 
-                          ? 'bg-brand text-white rotate-180 border-brand' 
-                          : 'bg-white/10 text-slate-100 border-white/15 group-hover:bg-white/15'
+
+                      {/* Chevron */}
+                      <div className={`h-8 w-8 rounded-lg border flex items-center justify-center flex-shrink-0 transition-all duration-200 ${
+                        isExpanded
+                          ? 'bg-emerald-600 border-emerald-600 text-white rotate-180'
+                          : 'bg-slate-100 border-slate-200 text-slate-500'
                       }`}>
-                        {isExpanded ? (
-                          <ChevronUp className="h-5 w-5" />
-                        ) : (
-                          <ChevronDown className="h-5 w-5" />
-                        )}
+                        <ChevronDown className="h-4 w-4" />
                       </div>
                     </div>
-                  </div>
-                </button>
+                  </button>
 
-                {/* Expanded Content */}
-                {isExpanded && (
-                  <div className="bg-white/80 backdrop-blur-md">
-                    <div className="p-5 sm:p-6 space-y-6 sm:space-y-8">
-                      {/* Checked-in Guests Section */}
+                  {/* Expanded booking list */}
+                  {isExpanded && (
+                    <div className="border-t border-slate-100">
+
+                      {/* Checked-in section */}
                       {hasCheckedIn && (
-                        <div className="space-y-4">
-                          <div className="flex items-center gap-3 mb-4">
-                            <div className="h-8 w-8 rounded-lg bg-green-100 flex items-center justify-center">
-                              <CheckCircle className="h-5 w-5 text-green-600" />
-                            </div>
-                            <div>
-                              <h4 className="text-base font-bold text-slate-900">Checked-in Guests</h4>
-                              <p className="text-xs text-slate-500 mt-0.5">{group.checkedIn.length} guest{group.checkedIn.length !== 1 ? 's' : ''} currently checked in</p>
-                            </div>
+                        <div>
+                          <div className="px-5 py-2.5 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
+                            <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                              Checked-in · {group.checkedIn.length}
+                            </span>
                           </div>
-                          <div className="rounded-2xl bg-white ring-1 ring-slate-200/70 overflow-hidden">
-                            <div className="divide-y divide-slate-200/80">
-                              {group.checkedIn.map((booking) => (
-                                <BookingRow key={booking.id} booking={booking} formatDate={formatDate} formatDateTime={formatDateTime} formatCurrency={formatCurrency} getStatusBadge={getStatusBadge} />
-                              ))}
-                            </div>
+                          <div className="divide-y divide-slate-100">
+                            {group.checkedIn.map((booking) => (
+                              <BookingRow key={booking.id} booking={booking} formatDate={formatDate} formatDateTime={formatDateTime} formatCurrency={formatCurrency} getStatusBadge={getStatusBadge} />
+                            ))}
                           </div>
                         </div>
                       )}
 
-                      {/* Not Checked-in Guests Section */}
+                      {/* Waiting section */}
                       {hasNotCheckedIn && (
-                        <div className="space-y-4">
-                          <div className="flex items-center gap-3 mb-4">
-                            <div className="h-8 w-8 rounded-lg bg-amber-100 flex items-center justify-center">
-                              <Clock className="h-5 w-5 text-amber-600" />
-                            </div>
-                            <div>
-                              <h4 className="text-base font-bold text-slate-900">Waiting for Check-in</h4>
-                              <p className="text-xs text-slate-500 mt-0.5">{group.notCheckedIn.length} guest{group.notCheckedIn.length !== 1 ? 's' : ''} awaiting arrival</p>
-                            </div>
+                        <div>
+                          <div className="px-5 py-2.5 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
+                            <span className="h-2 w-2 rounded-full bg-amber-500" />
+                            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                              Waiting for check-in · {group.notCheckedIn.length}
+                            </span>
                           </div>
-                          <div className="rounded-2xl bg-white ring-1 ring-slate-200/70 overflow-hidden">
-                            <div className="divide-y divide-slate-200/80">
-                              {group.notCheckedIn.map((booking) => (
-                                <BookingRow key={booking.id} booking={booking} formatDate={formatDate} formatDateTime={formatDateTime} formatCurrency={formatCurrency} getStatusBadge={getStatusBadge} />
-                              ))}
-                            </div>
+                          <div className="divide-y divide-slate-100">
+                            {group.notCheckedIn.map((booking) => (
+                              <BookingRow key={booking.id} booking={booking} formatDate={formatDate} formatDateTime={formatDateTime} formatCurrency={formatCurrency} getStatusBadge={getStatusBadge} />
+                            ))}
                           </div>
                         </div>
                       )}
 
-                      {/* Other Status Bookings */}
-                      {group.bookings.filter(b => {
-                        const status = b.status.toUpperCase();
-                        return status !== 'CHECKED_IN' && status !== 'CONFIRMED' && status !== 'NEW';
-                      }).length > 0 && (
-                        <div className="space-y-4">
-                          <div className="flex items-center gap-3 mb-4">
-                            <div className="h-8 w-8 rounded-lg bg-slate-100 flex items-center justify-center">
-                              <Calendar className="h-5 w-5 text-slate-600" />
-                            </div>
-                            <h4 className="text-base font-bold text-slate-900">Other Bookings</h4>
+                      {/* Other bookings section */}
+                      {otherBookings.length > 0 && (
+                        <div>
+                          <div className="px-5 py-2.5 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
+                            <span className="h-2 w-2 rounded-full bg-slate-400" />
+                            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                              Other · {otherBookings.length}
+                            </span>
                           </div>
-                          <div className="rounded-2xl bg-white ring-1 ring-slate-200/70 overflow-hidden">
-                            <div className="divide-y divide-slate-200/80">
-                              {group.bookings
-                                .filter(b => {
-                                  const status = b.status.toUpperCase();
-                                  return status !== 'CHECKED_IN' && status !== 'CONFIRMED' && status !== 'NEW';
-                                })
-                                .map((booking) => (
-                                  <BookingRow key={booking.id} booking={booking} formatDate={formatDate} formatDateTime={formatDateTime} formatCurrency={formatCurrency} getStatusBadge={getStatusBadge} />
-                                ))}
-                            </div>
+                          <div className="divide-y divide-slate-100">
+                            {otherBookings.map((booking) => (
+                              <BookingRow key={booking.id} booking={booking} formatDate={formatDate} formatDateTime={formatDateTime} formatCurrency={formatCurrency} getStatusBadge={getStatusBadge} />
+                            ))}
                           </div>
                         </div>
                       )}
+
                     </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-// Booking Row (premium list model)
+// Booking Row — clean premium list row
 function BookingRow({ 
   booking, 
   formatDate, 
@@ -514,131 +512,93 @@ function BookingRow({
 }) {
   const isCheckedIn = booking.status.toUpperCase() === 'CHECKED_IN';
   const checkedInTime = formatDateTime(booking.checkedInAt);
+
   const nights = (() => {
     try {
-      const inD = new Date(booking.checkIn);
-      const outD = new Date(booking.checkOut);
-      const diff = outD.getTime() - inD.getTime();
-      if (!Number.isFinite(diff) || diff <= 0) return 1;
-      return Math.max(1, Math.ceil(diff / (1000 * 60 * 60 * 24)));
-    } catch {
-      return 1;
-    }
+      const diff = new Date(booking.checkOut).getTime() - new Date(booking.checkIn).getTime();
+      return Number.isFinite(diff) && diff > 0 ? Math.max(1, Math.ceil(diff / 86400000)) : 1;
+    } catch { return 1; }
   })();
 
   const guestInitial = String(booking.guestName || 'G').trim().charAt(0).toUpperCase() || 'G';
+
   const safeAmount = (() => {
     const raw = booking.ownerBaseAmount ?? booking.totalAmount;
-    const normalized = typeof raw === 'string' ? raw.replace(/,/g, '') : String(raw);
-    const n = Number(normalized);
+    const n = Number(typeof raw === 'string' ? raw.replace(/,/g, '') : String(raw));
     if (Number.isFinite(n)) return n;
-
-    const totalRaw = booking.totalAmount;
-    const totalNormalized = typeof totalRaw === 'string' ? totalRaw.replace(/,/g, '') : String(totalRaw);
-    const total = Number(totalNormalized);
+    const total = Number(typeof booking.totalAmount === 'string' ? booking.totalAmount.replace(/,/g, '') : String(booking.totalAmount));
     const transport = Number(booking.transportFare ?? 0);
     return Number.isFinite(total) && Number.isFinite(transport) ? Math.max(0, total - transport) : 0;
   })();
 
-  const formatCompact = (dateStr: string, includeYear: boolean) => {
+  const formatCompact = (dateStr: string) => {
     try {
-      return new Date(dateStr).toLocaleDateString('en-US', includeYear ? { month: 'short', day: 'numeric', year: 'numeric' } : { month: 'short', day: 'numeric' });
-    } catch {
-      return formatDate(dateStr);
-    }
+      return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    } catch { return formatDate(dateStr); }
   };
 
-  const showYears = (() => {
-    try {
-      const inY = new Date(booking.checkIn).getFullYear();
-      const outY = new Date(booking.checkOut).getFullYear();
-      return Number.isFinite(inY) && Number.isFinite(outY) && inY !== outY;
-    } catch {
-      return true;
-    }
+  const statusStripe = (() => {
+    const s = booking.status.toUpperCase();
+    if (s === 'CHECKED_IN') return 'bg-emerald-500';
+    if (s === 'CHECKED_OUT') return 'bg-sky-400';
+    if (s === 'CANCELLED' || s === 'CANCELED') return 'bg-red-400';
+    if (s === 'PENDING') return 'bg-amber-400';
+    return 'bg-slate-300';
   })();
 
-  const statusMeta = (() => {
-    const status = booking.status.toUpperCase();
-    if (status === 'CHECKED_IN') return { stripe: 'bg-green-600', dot: 'bg-green-600' };
-    if (status === 'CHECKED_OUT') return { stripe: 'bg-emerald-600', dot: 'bg-emerald-600' };
-    if (status === 'CANCELLED' || status === 'CANCELED') return { stripe: 'bg-red-600', dot: 'bg-red-600' };
-    if (status === 'PENDING') return { stripe: 'bg-amber-600', dot: 'bg-amber-600' };
-    // CONFIRMED / NEW / default
-    return { stripe: 'bg-brand', dot: 'bg-brand' };
+  const avatarColor = (() => {
+    const s = booking.status.toUpperCase();
+    if (s === 'CHECKED_IN') return 'bg-emerald-50 border-emerald-100 text-emerald-700';
+    if (s === 'CANCELLED' || s === 'CANCELED') return 'bg-red-50 border-red-100 text-red-700';
+    return 'bg-slate-100 border-slate-200 text-slate-700';
   })();
 
   return (
     <Link
       href={`/owner/bookings/checked-in/${booking.id}`}
-      className="block group no-underline hover:no-underline"
-      title="View booking details"
+      className="block group no-underline"
     >
-      <div className="relative">
-        <div className={`absolute left-0 top-0 bottom-0 w-1 ${statusMeta.stripe}`} aria-hidden="true" />
+      <div className="relative flex items-center gap-3 px-4 py-3.5 hover:bg-slate-50 transition-colors">
+        {/* Status stripe */}
+        <div className={`absolute left-0 top-2 bottom-2 w-0.5 rounded-full ${statusStripe}`} aria-hidden />
 
-        {/* Premium hover gradient */}
-        <div
-          className="absolute inset-0 opacity-0 group-hover:opacity-100 bg-[linear-gradient(90deg,rgba(6,182,212,0.10),rgba(255,255,255,0.0),rgba(99,102,241,0.10))] bg-[length:200%_200%] bg-[position:0%_50%] group-hover:bg-[position:100%_50%] transition-[opacity,background-position] duration-700"
-          aria-hidden="true"
-        />
+        {/* Guest avatar */}
+        <div className={`h-9 w-9 rounded-xl border flex items-center justify-center flex-shrink-0 text-[13px] font-extrabold ${avatarColor}`}>
+          {guestInitial}
+        </div>
 
-        <div className="relative px-4 py-4 sm:px-5 sm:py-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="h-10 w-10 rounded-2xl bg-slate-100 ring-1 ring-slate-200/70 flex items-center justify-center flex-shrink-0">
-                  <span className="text-sm font-extrabold text-slate-700">{guestInitial}</span>
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className={`h-2 w-2 rounded-full ${statusMeta.dot}`} aria-hidden="true" />
-                    <span className="text-sm font-bold text-slate-900 truncate">
-                      {booking.guestName ? booking.guestName : "Guest"}
-                    </span>
-                  </div>
-                  <div className="mt-0.5 text-xs text-slate-500">Booking #{booking.id}</div>
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              {getStatusBadge(booking.status)}
-            </div>
+        {/* Main info */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-[13px] font-semibold text-slate-900 truncate">
+              {booking.guestName || "Guest"}
+            </span>
+            <span className="text-[11px] text-slate-400 flex-shrink-0">#{booking.id}</span>
           </div>
+          <div className="mt-0.5 flex items-center gap-2 flex-wrap">
+            <span className="text-[11px] text-slate-500 flex items-center gap-1">
+              <Calendar className="h-3 w-3" />
+              {formatCompact(booking.checkIn)} → {formatCompact(booking.checkOut)}
+            </span>
+            <span className="text-[11px] text-slate-400">·</span>
+            <span className="text-[11px] text-slate-500">{nights}n</span>
+            {isCheckedIn && checkedInTime && (
+              <>
+                <span className="text-[11px] text-slate-400">·</span>
+                <span className="text-[11px] text-emerald-600 font-medium">In {checkedInTime}</span>
+              </>
+            )}
+          </div>
+        </div>
 
-          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 shadow-sm ring-1 ring-slate-200/70 bg-white/70 supports-[backdrop-filter]:bg-white/50 backdrop-blur-md group-hover:bg-white/75 transition-colors">
-                <Calendar className="h-4 w-4 text-brand" />
-                <span className="text-xs font-semibold text-slate-700">{formatCompact(booking.checkIn, showYears)}</span>
-                <span className="text-xs text-slate-400">→</span>
-                <span className="text-xs font-semibold text-slate-700">{formatCompact(booking.checkOut, showYears)}</span>
-              </div>
-              <div className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 shadow-sm ring-1 ring-slate-200/70 bg-white/70 supports-[backdrop-filter]:bg-white/50 backdrop-blur-md group-hover:bg-white/75 transition-colors">
-                <span className="text-xs text-slate-500">Nights</span>
-                <span className="text-xs font-extrabold text-slate-900">{nights}</span>
-              </div>
-              {isCheckedIn && checkedInTime && (
-                <div className="inline-flex items-center gap-2 rounded-full bg-green-50 text-green-800 border border-green-200 px-3 py-1.5">
-                  <CheckCircle className="h-4 w-4" />
-                  <span className="text-xs font-semibold">Checked-in</span>
-                  <span className="text-xs opacity-80 truncate">{checkedInTime}</span>
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center justify-between sm:justify-end gap-2">
-              <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
-                <DollarSign className="h-4 w-4 text-slate-400" />
-                <span>Amount</span>
-              </div>
-              <div className="text-sm font-extrabold text-slate-900">{formatCurrency(safeAmount)}</div>
-            </div>
+        {/* Right: status + amount */}
+        <div className="flex-shrink-0 flex items-center gap-3">
+          {getStatusBadge(booking.status)}
+          <div className="text-right">
+            <div className="text-[13px] font-bold text-slate-900">{formatCurrency(safeAmount)}</div>
           </div>
         </div>
       </div>
     </Link>
   );
 }
-
-
