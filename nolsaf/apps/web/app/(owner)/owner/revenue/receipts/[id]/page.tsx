@@ -11,6 +11,7 @@ export default function Receipt() {
   const idParam = Array.isArray(routeParams?.id) ? routeParams?.id?.[0] : routeParams?.id;
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [pdfBusy, setPdfBusy] = useState(false);
 
   useEffect(() => {
     if (!idParam) return;
@@ -22,8 +23,35 @@ export default function Receipt() {
       .catch((e: any) => setError(String(e?.response?.data?.error || e?.message || "Failed to load receipt")));
   }, [idParam]);
 
-  function handlePrint() {
-    window.print();
+  async function handleDownload() {
+    if (pdfBusy) return;
+    setPdfBusy(true);
+    try {
+      const el = document.getElementById("receipt-card");
+      if (!el) throw new Error("Receipt card not found");
+      const html2pdfModule: any = await import("html2pdf.js");
+      const h2p = html2pdfModule?.default || html2pdfModule;
+      if (!h2p) throw new Error("html2pdf load failed");
+      const inv = (data as any)?.invoice;
+      const receiptNum = inv?.receiptNumber || inv?.invoiceNumber || `receipt-${String(inv?.id ?? "")}`;
+      const filename = `${String(receiptNum).replace(/[^a-zA-Z0-9._-]+/g, "-")}.pdf`;
+      await h2p()
+        .from(el)
+        .set({
+          filename,
+          margin: 0,
+          image: { type: "jpeg", quality: 0.98 },
+          jsPDF: { unit: "mm", format: [148, 210], orientation: "portrait" },
+          html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff" },
+          pagebreak: { mode: ["avoid-all", "css", "legacy"] },
+        })
+        .save();
+    } catch (e: any) {
+      console.error("PDF download failed", e);
+      window.alert("Unable to generate PDF. Please try again.");
+    } finally {
+      setPdfBusy(false);
+    }
   }
 
   if (!idParam) return <div>Missing receipt id</div>;
@@ -110,12 +138,13 @@ export default function Receipt() {
             Revenue
           </Link>
           <button
-            onClick={handlePrint}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-semibold text-white transition-all"
+            onClick={handleDownload}
+            disabled={pdfBusy}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-semibold text-white transition-all disabled:opacity-60 disabled:cursor-wait"
             style={{ background: "linear-gradient(135deg,#024d47,#02665e)" }}
           >
             <Download className="w-3.5 h-3.5" />
-            Download / Print
+            {pdfBusy ? "Generating…" : "Download PDF"}
           </button>
         </div>
       </div>
@@ -136,10 +165,8 @@ export default function Receipt() {
             {/* Brand row */}
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "#02665e" }}>
-                  <Building2 className="w-3.5 h-3.5 text-white" />
-                </div>
-                <span className="text-[13px] font-black tracking-wide" style={{ color: "#02665e" }}>NolSAF</span>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/assets/nolsnewlog.png" alt="NolSAF" className="w-9 h-9 rounded-xl object-contain" style={{ background: "#f7fbfa" }} />
               </div>
               <div className="flex items-center gap-1.5 rounded-full px-2.5 py-1" style={{ background: "#edf7f6", border: "1px solid #c0dedd" }}>
                 <BadgeCheck className="w-3 h-3" style={{ color: "#02665e" }} />
