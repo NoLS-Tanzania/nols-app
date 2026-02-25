@@ -234,25 +234,25 @@ export default function CheckedIn() {
           <div className="px-4 sm:px-5 py-3 border-b border-slate-100">
             <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Filters</span>
           </div>
-          <div className="px-4 sm:px-5 py-4 border-b border-slate-100">
-            <div className="grid grid-cols-3 gap-3">
+          <div className="px-4 sm:px-5 py-4 border-b border-slate-100 space-y-3">
 
-              {/* Search */}
-              <div className="min-w-0">
-                <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Search</div>
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
-                  <input
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Code, name, phone…"
-                    className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300/50 transition"
-                    aria-label="Search checked-in guests"
-                  />
-                </div>
+            {/* Row 1 — full-width search */}
+            <div>
+              <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Search</div>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Code, name, phone, room…"
+                  className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-4 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300/50 transition"
+                  aria-label="Search checked-in guests"
+                />
               </div>
+            </div>
 
-              {/* Nights */}
+            {/* Row 2 — Nights + Sort side by side */}
+            <div className="grid grid-cols-2 gap-3">
               <div className="min-w-0">
                 <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Nights</div>
                 <div className="relative">
@@ -272,7 +272,6 @@ export default function CheckedIn() {
                 </div>
               </div>
 
-              {/* Sort */}
               <div className="min-w-0">
                 <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Sort</div>
                 <div className="relative">
@@ -299,8 +298,8 @@ export default function CheckedIn() {
                   </select>
                 </div>
               </div>
-
             </div>
+
           </div>
 
           {filteredSorted.length === 0 ? (
