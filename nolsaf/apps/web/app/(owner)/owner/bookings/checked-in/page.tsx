@@ -184,107 +184,120 @@ export default function CheckedIn() {
   if (loading) {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center text-center px-4">
-        <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4">
-          <Loader2 className="h-8 w-8 animate-spin text-green-600" />
+        <div className="relative inline-flex items-center justify-center h-14 w-14 rounded-2xl bg-emerald-50 border border-emerald-100 mb-5">
+          <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
+          <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-emerald-400 ring-2 ring-white animate-pulse" />
         </div>
-        <h1 className="text-3xl font-bold text-slate-900">Checked-In</h1>
-        <p className="text-sm text-slate-600 mt-2 max-w-2xl">Loading checked-in guests…</p>
+        <h1 className="text-3xl font-black text-slate-900 tracking-tight">Checked-In</h1>
+        <p className="text-sm text-slate-500 mt-2">Loading checked-in guests…</p>
       </div>
     );
   }
 
   return (
     <>
-      <div className="space-y-6 pb-6">
-        {/* Header */}
-        <div className="flex flex-col items-center justify-center text-center px-4">
-          <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4 transition-all duration-300 hover:bg-green-200 hover:scale-105">
-            <Calendar className="h-8 w-8 text-green-600" />
+      <div className="space-y-5 pb-6">
+
+        {/* ── Hero card ── */}
+        <div className="relative overflow-hidden rounded-2xl bg-white border border-slate-200 shadow-xl shadow-slate-100/70">
+          <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-gradient-to-b from-emerald-600 via-emerald-300 to-transparent rounded-l-2xl" />
+          <div className="pointer-events-none select-none absolute right-0 bottom-0 text-[72px] font-black text-slate-100/80 leading-none tracking-tighter pr-4 pb-1" aria-hidden>CHECKED-IN</div>
+          <div className="pointer-events-none absolute right-0 top-0 h-full w-1/2 opacity-[0.035]" style={{ backgroundImage: "radial-gradient(circle, #334155 1px, transparent 1px)", backgroundSize: "18px 18px" }} />
+
+          <div className="relative pl-8 pr-6 pt-6 pb-7 sm:pl-10 sm:pr-8 sm:pt-7 sm:pb-8">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center h-11 w-11 rounded-xl bg-emerald-50 border border-emerald-100">
+                  <Calendar className="h-5 w-5 text-emerald-600" aria-hidden />
+                </div>
+                <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
+                  Live Guests
+                </div>
+              </div>
+              <div className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-slate-200 bg-white text-slate-500 text-xs font-bold shadow-sm">
+                {filteredSorted.length} {filteredSorted.length === 1 ? "guest" : "guests"} showing
+              </div>
+            </div>
+
+            <div className="mt-5">
+              <h1 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight leading-none">Checked-In</h1>
+              <p className="mt-2 text-sm text-slate-500 max-w-md">View and manage all guests currently checked into your properties.</p>
+            </div>
           </div>
-          <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight">Checked-In</h1>
-          <p className="text-sm sm:text-base text-slate-600 mt-2 max-w-2xl leading-relaxed">
-            View and manage all guests currently checked into your properties.
-          </p>
         </div>
 
-        {/* Bookings Table */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="p-4 sm:p-5 border-b border-slate-200">
-            <div className="flex flex-col gap-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-sm sm:text-base font-semibold text-slate-900">Guests</div>
-                <div className="text-xs text-slate-500 font-medium">
-                  {filteredSorted.length} {filteredSorted.length === 1 ? 'guest' : 'guests'} showing
+        {/* ── Bookings table card ── */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+
+          {/* Filter toolbar */}
+          <div className="px-4 sm:px-5 py-3 border-b border-slate-100">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Filters</span>
+          </div>
+          <div className="px-4 sm:px-5 py-3.5 border-b border-slate-100">
+            <div className="flex items-end gap-3 overflow-x-auto flex-nowrap pb-1 -mb-1">
+
+              {/* Search */}
+              <div className="flex-1 min-w-[200px]">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Search</div>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
+                  <input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Code, name, phone, room…"
+                    className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-4 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300/50 transition"
+                    aria-label="Search checked-in guests"
+                  />
                 </div>
               </div>
 
-              <div className="relative rounded-3xl border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-emerald-50/30 p-4 sm:p-5 shadow-sm ring-1 ring-black/5 overflow-hidden">
-                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-12 gap-3 sm:gap-4">
-                  <div className="lg:col-span-6 min-w-0">
-                    <div className="group flex h-full flex-col gap-3 rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm transition-all duration-200 hover:border-emerald-300 hover:shadow-md overflow-hidden">
-                      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Search</div>
-                      <div className="relative">
-                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-500" />
-                        <input
-                          value={search}
-                          onChange={(e) => setSearch(e.target.value)}
-                          placeholder="Code, name, phone, room…"
-                          className="h-11 w-full min-w-0 rounded-xl border border-slate-200 bg-white/95 pl-10 pr-4 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 transition-all duration-200 md:w-[260px] lg:w-[280px]"
-                          aria-label="Search checked-in guests"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="md:col-span-1 lg:col-span-3 min-w-0">
-                    <div className="group flex h-full flex-col gap-3 rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm transition-all duration-200 hover:border-emerald-300 hover:shadow-md overflow-hidden">
-                      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Nights</div>
-                      <div className="relative">
-                        <CalendarRange className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-500" />
-                        <select
-                          value={nightsFilter}
-                          onChange={(e) => setNightsFilter(e.target.value)}
-                          className="h-11 w-full min-w-0 rounded-xl border border-slate-200 bg-white/95 pl-10 pr-4 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 transition-all duration-200"
-                          aria-label="Filter by nights"
-                        >
-                          <option value="">All nights</option>
-                          {nightsOptions.map((n) => (
-                            <option key={n} value={String(n)}>{n}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="md:col-span-1 lg:col-span-3 min-w-0">
-                    <div className="group flex h-full flex-col gap-3 rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm transition-all duration-200 hover:border-emerald-300 hover:shadow-md overflow-hidden">
-                      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Sort</div>
-                      <div className="relative">
-                        <ArrowUpDown className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-500" />
-                        <select
-                          value={sortKey}
-                          onChange={(e) => setSortKey(e.target.value)}
-                          className="h-11 w-full min-w-0 rounded-xl border border-slate-200 bg-white/95 pl-10 pr-4 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 transition-all duration-200"
-                          aria-label="Sort checked-in guests"
-                        >
-                          <option value="checkIn_desc">Latest check-in</option>
-                          <option value="checkIn_asc">Earliest check-in</option>
-                          <option value="checkOut_asc">Earliest check-out</option>
-                          <option value="checkOut_desc">Latest check-out</option>
-                          <option value="validatedAt_desc">Validated (latest)</option>
-                          <option value="validatedAt_asc">Validated (earliest)</option>
-                          <option value="nights_desc">Nights (high)</option>
-                          <option value="nights_asc">Nights (low)</option>
-                          <option value="name_asc">Name (A→Z)</option>
-                          <option value="name_desc">Name (Z→A)</option>
-                          <option value="amount_desc">Amount (high)</option>
-                          <option value="amount_asc">Amount (low)</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
+              {/* Nights */}
+              <div className="shrink-0 w-[180px]">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Nights</div>
+                <div className="relative">
+                  <CalendarRange className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
+                  <select
+                    value={nightsFilter}
+                    onChange={(e) => setNightsFilter(e.target.value)}
+                    className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-4 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300/50 appearance-none transition"
+                    aria-label="Filter by nights"
+                  >
+                    <option value="">All nights</option>
+                    {nightsOptions.map((n) => (
+                      <option key={n} value={String(n)}>{n}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
+
+              {/* Sort */}
+              <div className="shrink-0 w-[200px]">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Sort</div>
+                <div className="relative">
+                  <ArrowUpDown className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
+                  <select
+                    value={sortKey}
+                    onChange={(e) => setSortKey(e.target.value)}
+                    className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-4 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300/50 appearance-none transition"
+                    aria-label="Sort checked-in guests"
+                  >
+                    <option value="checkIn_desc">Latest check-in</option>
+                    <option value="checkIn_asc">Earliest check-in</option>
+                    <option value="checkOut_asc">Earliest check-out</option>
+                    <option value="checkOut_desc">Latest check-out</option>
+                    <option value="validatedAt_desc">Validated (latest)</option>
+                    <option value="validatedAt_asc">Validated (earliest)</option>
+                    <option value="nights_desc">Nights (high)</option>
+                    <option value="nights_asc">Nights (low)</option>
+                    <option value="name_asc">Name (A→Z)</option>
+                    <option value="name_desc">Name (Z→A)</option>
+                    <option value="amount_desc">Amount (high)</option>
+                    <option value="amount_asc">Amount (low)</option>
+                  </select>
+                </div>
+              </div>
+
             </div>
           </div>
 

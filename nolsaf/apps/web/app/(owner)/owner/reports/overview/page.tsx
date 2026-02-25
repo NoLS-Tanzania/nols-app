@@ -96,13 +96,13 @@ export default function Overview() {
       ) : null}
 
       {/* KPI cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-6 gap-4">
-        <Kpi icon={Coins} title="Gross Revenue" value={data ? `TZS ${fmt(data.kpis.gross)}` : "—"} loading={loading} accent="text-emerald-700" />
-        <Kpi icon={TrendingUp} title="Net Revenue" value={data ? `TZS ${fmt(data.kpis.net)}` : "—"} loading={loading} accent="text-emerald-700" />
-        <Kpi icon={BarChart3} title="Bookings" value={data ? String(data.kpis.bookings) : "—"} loading={loading} />
-        <Kpi icon={BedDouble} title="Nights" value={data ? String(data.kpis.nights) : "—"} loading={loading} />
-        <Kpi icon={CalendarDays} title="ADR" value={data ? `TZS ${fmt(data.kpis.adr)}` : "—"} loading={loading} />
-        <Kpi icon={BarChart3} title="Occupancy (est.)" value="—" loading={loading} />
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <Kpi icon={Coins}       title="Gross Revenue"    value={data ? `TZS ${fmt(data.kpis.gross)}` : "—"} loading={loading} color="emerald" />
+        <Kpi icon={TrendingUp}  title="Net Revenue"      value={data ? `TZS ${fmt(data.kpis.net)}` : "—"}   loading={loading} color="teal" />
+        <Kpi icon={BarChart3}   title="Bookings"         value={data ? String(data.kpis.bookings) : "—"}      loading={loading} color="sky" />
+        <Kpi icon={BedDouble}   title="Nights"           value={data ? String(data.kpis.nights) : "—"}        loading={loading} color="amber" />
+        <Kpi icon={CalendarDays} title="ADR"             value={data ? `TZS ${fmt(data.kpis.adr)}` : "—"}   loading={loading} color="violet" />
+        <Kpi icon={BarChart3}   title="Occupancy (est.)" value="—"                                             loading={loading} color="rose" />
       </div>
 
       {/* Charts */}
@@ -226,28 +226,78 @@ function getStatusColor(status: string): string {
   }
 }
 
+const KPI_PALETTE = {
+  emerald: {
+    top:  "from-emerald-500",
+    icon: "bg-emerald-50 border-emerald-100 text-emerald-600",
+    dot:  "bg-emerald-400",
+  },
+  teal: {
+    top:  "from-teal-500",
+    icon: "bg-teal-50 border-teal-100 text-teal-600",
+    dot:  "bg-teal-400",
+  },
+  sky: {
+    top:  "from-sky-500",
+    icon: "bg-sky-50 border-sky-100 text-sky-600",
+    dot:  "bg-sky-400",
+  },
+  amber: {
+    top:  "from-amber-500",
+    icon: "bg-amber-50 border-amber-100 text-amber-600",
+    dot:  "bg-amber-400",
+  },
+  violet: {
+    top:  "from-violet-500",
+    icon: "bg-violet-50 border-violet-100 text-violet-600",
+    dot:  "bg-violet-400",
+  },
+  rose: {
+    top:  "from-rose-500",
+    icon: "bg-rose-50 border-rose-100 text-rose-600",
+    dot:  "bg-rose-400",
+  },
+  slate: {
+    top:  "from-slate-500",
+    icon: "bg-slate-50 border-slate-200 text-slate-600",
+    dot:  "bg-slate-400",
+  },
+} as const;
+
 function Kpi({
   icon: Icon,
   title,
   value,
   loading,
-  accent,
+  color = "slate",
 }: {
   icon: any;
   title: string;
   value: string;
   loading: boolean;
-  accent?: string;
+  color?: keyof typeof KPI_PALETTE;
 }) {
+  const p = KPI_PALETTE[color];
   return (
-    <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-      <div className="flex items-center gap-2 text-xs font-medium text-gray-500">
-        <span className="inline-flex items-center justify-center h-8 w-8 rounded-md bg-gray-50 border border-gray-200">
-          <Icon className="h-4 w-4 text-gray-600" aria-hidden />
+    <div className="relative overflow-hidden bg-white rounded-2xl border border-slate-200 shadow-sm pt-5 pb-4 px-4">
+      {/* Top accent line */}
+      <div className={`absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r ${p.top} to-transparent`} />
+      {/* Dot-grid texture */}
+      <div className="pointer-events-none absolute right-0 bottom-0 h-full w-full opacity-[0.03]" style={{ backgroundImage: "radial-gradient(circle, #334155 1px, transparent 1px)", backgroundSize: "14px 14px" }} />
+
+      <div className="flex items-center gap-2 mb-3">
+        <span className={`inline-flex items-center justify-center h-8 w-8 rounded-xl border flex-shrink-0 ${p.icon}`}>
+          <Icon className="h-4 w-4" aria-hidden />
         </span>
-        {title}
+        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 leading-tight">{title}</span>
       </div>
-      <div className={"mt-2 text-xl font-bold text-gray-900 " + (accent ?? "")}>{loading ? <Skeleton widthClass="w-28" /> : value}</div>
+
+      <div className="text-xl font-black text-slate-900 leading-none">
+        {loading ? <Skeleton widthClass="w-20" /> : value}
+      </div>
+
+      {/* Bottom accent dot */}
+      <span className={`absolute bottom-3 right-3 h-1.5 w-1.5 rounded-full opacity-40 ${p.dot}`} aria-hidden />
     </div>
   );
 }
