@@ -1035,32 +1035,37 @@ export default function StaysReportPage() {
   const kpis = data?.stats;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <ReportsFilter onChangeAction={setFilters} exportHref={null} />
 
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div className="min-w-0">
           <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-xs font-semibold text-emerald-700">
-            <ShieldCheck className="h-4 w-4" aria-hidden />
+            <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
             Operational Export
           </div>
-          <h2 className="mt-2 text-xl sm:text-2xl font-bold text-gray-900 tracking-tight truncate">
+          <h2 className="mt-2 text-xl sm:text-2xl font-bold text-gray-900 tracking-tight">
             {propertyDisplay}
+            {data && (
+              <span className="ml-2 align-middle inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-500">
+                {data.stats.nolsafBookings + data.stats.externalReservations} entries
+              </span>
+            )}
           </h2>
-          <p className="text-sm text-gray-600 mt-1">Day / week / month reporting with CSV export and print-ready layout.</p>
+          <p className="text-sm text-gray-400 mt-1">Day / week / month reporting with CSV export and print-ready layout.</p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <button
             type="button"
             disabled={!canExport}
             onClick={exportCsv}
             className={
-              "inline-flex items-center justify-center h-10 px-3 rounded-xl border shadow-sm text-sm font-semibold transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 " +
-              (canExport ? "bg-white border-gray-200 text-gray-900 hover:bg-gray-50" : "bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed")
+              "inline-flex items-center justify-center h-9 px-4 rounded-xl border shadow-sm text-sm font-semibold transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 " +
+              (canExport ? "bg-white border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300" : "bg-gray-50 border-gray-200 text-gray-300 cursor-not-allowed")
             }
           >
-            <Download className="h-4 w-4 mr-2" aria-hidden />
+            <Download className="h-3.5 w-3.5 mr-1.5" aria-hidden />
             Export CSV
           </button>
           <button
@@ -1068,12 +1073,12 @@ export default function StaysReportPage() {
             disabled={!canExport}
             onClick={printReport}
             className={
-              "inline-flex items-center justify-center h-10 px-3 rounded-xl border border-brand/25 bg-brand text-white shadow-sm hover:brightness-95 transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 " +
-              (!canExport ? "opacity-50 cursor-not-allowed" : "")
+              "inline-flex items-center justify-center h-9 px-4 rounded-xl border border-brand/20 bg-brand text-white shadow-sm hover:brightness-95 transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 " +
+              (!canExport ? "opacity-40 cursor-not-allowed" : "")
             }
           >
-            <Printer className="h-4 w-4 mr-2" aria-hidden />
-            Print
+            <Printer className="h-3.5 w-3.5 mr-1.5" aria-hidden />
+            Print Report
           </button>
         </div>
       </div>
@@ -1089,90 +1094,95 @@ export default function StaysReportPage() {
       ) : null}
 
       {/* KPI cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-4">
-        <Kpi title="NoLSAF bookings" value={kpis ? String(kpis.nolsafBookings) : "—"} loading={loading} />
-        <Kpi title="External reservations" value={kpis ? String(kpis.externalReservations) : "—"} loading={loading} />
-        <Kpi title="Group stays received" value={kpis ? String(kpis.groupStaysReceived) : "—"} loading={loading} accent="text-indigo-700" />
-        <Kpi title="Revenue (TZS)" value={kpis ? `TZS ${fmtMoneyTZS(kpis.revenueTzs)}` : "—"} loading={loading} accent="text-emerald-700" />
-        <Kpi title="Nights booked" value={kpis ? String(kpis.nightsBooked) : "—"} loading={loading} />
-        <Kpi title="Nights blocked" value={kpis ? String(kpis.nightsBlocked) : "—"} loading={loading} />
-        <Kpi title="Auction claims" value={kpis ? `${String(kpis.auctionClaimsSubmitted)} (${String(kpis.auctionClaimsAccepted)} accepted)` : "—"} loading={loading} />
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-3">
+        <Kpi title="NoLSAF bookings" value={kpis ? String(kpis.nolsafBookings) : "—"} loading={loading} borderColor="bg-emerald-600" />
+        <Kpi title="External reservations" value={kpis ? String(kpis.externalReservations) : "—"} loading={loading} borderColor="bg-amber-500" />
+        <Kpi title="Group stays" value={kpis ? String(kpis.groupStaysReceived) : "—"} sub={kpis ? `${kpis.groupStayNights} nights` : undefined} loading={loading} accent="text-indigo-700" borderColor="bg-indigo-500" />
+        <Kpi title="Revenue" value={kpis ? fmtMoneyTZS(kpis.revenueTzs) : "—"} sub="TZS" loading={loading} accent="text-emerald-700" borderColor="bg-emerald-500" />
+        <Kpi title="Nights booked" value={kpis ? String(kpis.nightsBooked) : "—"} loading={loading} borderColor="bg-sky-500" />
+        <Kpi title="Nights blocked" value={kpis ? String(kpis.nightsBlocked) : "—"} loading={loading} borderColor="bg-slate-400" />
+        <Kpi title="Auction claims" value={kpis ? String(kpis.auctionClaimsSubmitted) : "—"} sub={kpis ? `${kpis.auctionClaimsAccepted} accepted` : undefined} loading={loading} borderColor="bg-violet-500" />
       </div>
 
       {/* Quick visualization */}
-      <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div>
-            <div className="text-sm font-semibold text-gray-900">Sources mix</div>
-            <div className="text-xs text-gray-500">NoLSAF vs External blocks vs Group stays (assigned)</div>
+            <div className="text-sm font-semibold text-gray-900">Booking sources</div>
+            <div className="text-xs text-gray-400 mt-0.5">NoLSAF bookings vs external blocks vs group stays</div>
           </div>
-          <div className="flex items-center gap-2 text-xs">
+          <div className="flex items-center gap-3 text-xs">
             <LegendDot label="NoLSAF" className="bg-emerald-600" />
             <LegendDot label="External" className="bg-amber-500" />
             <LegendDot label="Group stays" className="bg-indigo-500" />
           </div>
         </div>
-
-        <div className="mt-3">
+        <div className="px-5 py-4">
           <SourcesBar
             nolsaf={Number(kpis?.nolsafBookings ?? 0)}
             external={Number(kpis?.externalReservations ?? 0)}
             groupStays={Number(kpis?.groupStaysReceived ?? 0)}
           />
         </div>
-
-        <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs text-gray-600">
-          <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
-            <div className="font-semibold text-gray-900">Auction participation</div>
-            <div className="mt-1">Submitted: {loading ? "…" : String(kpis?.auctionClaimsSubmitted ?? 0)} • Accepted: {loading ? "…" : String(kpis?.auctionClaimsAccepted ?? 0)}</div>
+        <div className="px-5 pb-4 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+          <div className="rounded-lg border border-gray-100 border-l-2 border-l-violet-400 bg-gray-50/60 px-3 py-2.5">
+            <div className="font-semibold text-gray-800">Auction participation</div>
+            <div className="mt-1 text-gray-500">
+              <span className="font-medium text-gray-700">{loading ? "…" : String(kpis?.auctionClaimsSubmitted ?? 0)}</span> submitted
+              &nbsp;·&nbsp;
+              <span className="font-medium text-emerald-700">{loading ? "…" : String(kpis?.auctionClaimsAccepted ?? 0)}</span> accepted
+            </div>
           </div>
-          <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
-            <div className="font-semibold text-gray-900">Group stay nights</div>
-            <div className="mt-1">{loading ? "…" : String(kpis?.groupStayNights ?? 0)} nights overlap this range</div>
+          <div className="rounded-lg border border-gray-100 border-l-2 border-l-sky-400 bg-gray-50/60 px-3 py-2.5">
+            <div className="font-semibold text-gray-800">Group stay nights</div>
+            <div className="mt-1 text-gray-500"><span className="font-medium text-gray-700">{loading ? "…" : String(kpis?.groupStayNights ?? 0)}</span> nights overlapping this period</div>
           </div>
-          <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
-            <div className="font-semibold text-gray-900">Tip</div>
-            <div className="mt-1">Use this report to track platform activities beyond normal stays.</div>
+          <div className="rounded-lg border border-gray-100 border-l-2 border-l-amber-400 bg-gray-50/60 px-3 py-2.5">
+            <div className="font-semibold text-gray-800">Revenue (TZS)</div>
+            <div className="mt-1 text-gray-500">Total earned: <span className="font-medium text-emerald-700">{loading ? "…" : fmtMoneyTZS(kpis?.revenueTzs ?? 0)}</span></div>
           </div>
         </div>
       </div>
 
       {/* Tables */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-200">
-            <div className="text-sm font-semibold text-gray-900">NoLSAF bookings</div>
-            <div className="text-xs text-gray-500 mt-0.5">Bookings overlapping the selected range</div>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-gray-100 flex items-center gap-3">
+            <div className="h-7 w-1 rounded-full bg-emerald-500" />
+            <div>
+              <div className="text-sm font-semibold text-gray-900">NoLSAF bookings</div>
+              <div className="text-xs text-gray-400 mt-0.5">Bookings overlapping the selected range</div>
+            </div>
           </div>
           <div className="p-4 overflow-x-auto">
             <table className="min-w-[720px] w-full text-sm">
               <thead>
-                <tr className="text-xs text-gray-500 border-b">
-                  <th className="text-left py-2 pr-3">Guest</th>
-                  <th className="text-left py-2 pr-3">Check-in</th>
-                  <th className="text-left py-2 pr-3">Check-out</th>
-                  <th className="text-left py-2 pr-3">Nationality</th>
-                  <th className="text-left py-2 pr-3">Gender</th>
-                  <th className="text-right py-2 pl-3">Amount</th>
-                  <th className="text-left py-2 pl-3">Status</th>
+                <tr className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 bg-gray-50/70 border-b border-gray-100">
+                  <th className="text-left py-2.5 px-3">Guest</th>
+                  <th className="text-left py-2.5 px-3">Check-in</th>
+                  <th className="text-left py-2.5 px-3">Check-out</th>
+                  <th className="text-left py-2.5 px-3">Nationality</th>
+                  <th className="text-left py-2.5 px-3">Gender</th>
+                  <th className="text-right py-2.5 px-3">Amount</th>
+                  <th className="text-left py-2.5 px-3">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {data?.bookings?.length ? (
                   data.bookings.map((b) => (
-                    <tr key={b.id} className="border-b last:border-b-0">
-                      <td className="py-2 pr-3 font-semibold text-gray-900">{b.guestName || "Guest"}</td>
-                      <td className="py-2 pr-3 text-gray-700">{fmtDate(b.checkIn)}</td>
-                      <td className="py-2 pr-3 text-gray-700">{fmtDate(b.checkOut)}</td>
-                      <td className="py-2 pr-3 text-gray-700">{b.nationality || "—"}</td>
-                      <td className="py-2 pr-3 text-gray-700">{b.sex || "—"}</td>
-                      <td className="py-2 pl-3 text-right font-semibold text-emerald-700">TZS {fmtMoneyTZS(Number(b.totalAmount || 0))}</td>
-                      <td className="py-2 pl-3 text-gray-700">{b.status || "—"}</td>
+                    <tr key={b.id} className="border-b last:border-b-0 hover:bg-gray-50/60 transition-colors">
+                      <td className="py-2.5 px-3 font-medium text-gray-900">{b.guestName || "Guest"}</td>
+                      <td className="py-2.5 px-3 text-gray-600">{fmtDate(b.checkIn)}</td>
+                      <td className="py-2.5 px-3 text-gray-600">{fmtDate(b.checkOut)}</td>
+                      <td className="py-2.5 px-3 text-gray-600">{b.nationality || "—"}</td>
+                      <td className="py-2.5 px-3 text-gray-600">{b.sex || "—"}</td>
+                      <td className="py-2.5 px-3 text-right font-semibold text-emerald-700">TZS {fmtMoneyTZS(Number(b.totalAmount || 0))}</td>
+                      <td className="py-2.5 px-3 text-gray-600">{b.status || "—"}</td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td className="py-4 text-gray-500" colSpan={7}>
+                    <td className="py-6 px-3 text-sm text-gray-400 italic" colSpan={7}>
                       {loading ? "Loading…" : "No NoLSAF bookings in this range."}
                     </td>
                   </tr>
@@ -1182,36 +1192,39 @@ export default function StaysReportPage() {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-200">
-            <div className="text-sm font-semibold text-gray-900">External reservations (blocks)</div>
-            <div className="text-xs text-gray-500 mt-0.5">Manual blocks representing outside bookings</div>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-gray-100 flex items-center gap-3">
+            <div className="h-7 w-1 rounded-full bg-amber-500" />
+            <div>
+              <div className="text-sm font-semibold text-gray-900">External reservations</div>
+              <div className="text-xs text-gray-400 mt-0.5">Manual blocks representing outside bookings</div>
+            </div>
           </div>
           <div className="p-4 overflow-x-auto">
             <table className="min-w-[640px] w-full text-sm">
               <thead>
-                <tr className="text-xs text-gray-500 border-b">
-                  <th className="text-left py-2 pr-3">Source</th>
-                  <th className="text-left py-2 pr-3">Start</th>
-                  <th className="text-left py-2 pr-3">End</th>
-                  <th className="text-left py-2 pr-3">Room</th>
-                  <th className="text-right py-2 pl-3">Beds</th>
+                <tr className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 bg-gray-50/70 border-b border-gray-100">
+                  <th className="text-left py-2.5 px-3">Source</th>
+                  <th className="text-left py-2.5 px-3">Start</th>
+                  <th className="text-left py-2.5 px-3">End</th>
+                  <th className="text-left py-2.5 px-3">Room</th>
+                  <th className="text-right py-2.5 px-3">Beds</th>
                 </tr>
               </thead>
               <tbody>
                 {data?.external?.length ? (
                   data.external.map((x) => (
-                    <tr key={x.id} className="border-b last:border-b-0">
-                      <td className="py-2 pr-3 font-semibold text-gray-900">{x.source || "External"}</td>
-                      <td className="py-2 pr-3 text-gray-700">{fmtDate(x.startDate)}</td>
-                      <td className="py-2 pr-3 text-gray-700">{fmtDate(x.endDate)}</td>
-                      <td className="py-2 pr-3 text-gray-700">{x.roomCode || "—"}</td>
-                      <td className="py-2 pl-3 text-right font-semibold text-amber-700">{String(x.bedsBlocked ?? 1)}</td>
+                    <tr key={x.id} className="border-b last:border-b-0 hover:bg-gray-50/60 transition-colors">
+                      <td className="py-2.5 px-3 font-medium text-gray-900">{x.source || "External"}</td>
+                      <td className="py-2.5 px-3 text-gray-600">{fmtDate(x.startDate)}</td>
+                      <td className="py-2.5 px-3 text-gray-600">{fmtDate(x.endDate)}</td>
+                      <td className="py-2.5 px-3 text-gray-600">{x.roomCode || "—"}</td>
+                      <td className="py-2.5 px-3 text-right font-semibold text-amber-700">{String(x.bedsBlocked ?? 1)}</td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td className="py-4 text-gray-500" colSpan={5}>
+                    <td className="py-6 px-3 text-sm text-gray-400 italic" colSpan={5}>
                       {loading ? "Loading…" : "No external reservations in this range."}
                     </td>
                   </tr>
@@ -1224,38 +1237,41 @@ export default function StaysReportPage() {
 
       {/* Group stays + auction section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-200">
-            <div className="text-sm font-semibold text-gray-900">Group stays received</div>
-            <div className="text-xs text-gray-500 mt-0.5">Group bookings assigned to you (overlapping range or created in-range for flexible dates)</div>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-gray-100 flex items-center gap-3">
+            <div className="h-7 w-1 rounded-full bg-indigo-500" />
+            <div>
+              <div className="text-sm font-semibold text-gray-900">Group stays received</div>
+              <div className="text-xs text-gray-400 mt-0.5">Group bookings assigned to you in this range</div>
+            </div>
           </div>
           <div className="p-4 overflow-x-auto">
             <table className="min-w-[820px] w-full text-sm">
               <thead>
-                <tr className="text-xs text-gray-500 border-b">
-                  <th className="text-left py-2 pr-3">Type</th>
-                  <th className="text-left py-2 pr-3">Destination</th>
-                  <th className="text-left py-2 pr-3">Check-in</th>
-                  <th className="text-left py-2 pr-3">Check-out</th>
-                  <th className="text-right py-2 pl-3">Headcount</th>
-                  <th className="text-left py-2 pl-3">Status</th>
+                <tr className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 bg-gray-50/70 border-b border-gray-100">
+                  <th className="text-left py-2.5 px-3">Type</th>
+                  <th className="text-left py-2.5 px-3">Destination</th>
+                  <th className="text-left py-2.5 px-3">Check-in</th>
+                  <th className="text-left py-2.5 px-3">Check-out</th>
+                  <th className="text-right py-2.5 px-3">Headcount</th>
+                  <th className="text-left py-2.5 px-3">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {data?.groupStays?.length ? (
                   data.groupStays.map((g) => (
-                    <tr key={g.id} className="border-b last:border-b-0">
-                      <td className="py-2 pr-3 font-semibold text-gray-900">{g.groupType || "—"}</td>
-                      <td className="py-2 pr-3 text-gray-700">{[g.toRegion, g.toDistrict, g.toLocation].filter(Boolean).join(" • ") || "—"}</td>
-                      <td className="py-2 pr-3 text-gray-700">{g.checkIn ? fmtDate(g.checkIn) : "—"}</td>
-                      <td className="py-2 pr-3 text-gray-700">{g.checkOut ? fmtDate(g.checkOut) : "—"}</td>
-                      <td className="py-2 pl-3 text-right font-semibold text-gray-900">{String(g.headcount ?? "—")}</td>
-                      <td className="py-2 pl-3 text-gray-700">{g.status || "—"}</td>
+                    <tr key={g.id} className="border-b last:border-b-0 hover:bg-gray-50/60 transition-colors">
+                      <td className="py-2.5 px-3 font-medium text-gray-900">{g.groupType || "—"}</td>
+                      <td className="py-2.5 px-3 text-gray-600">{[g.toRegion, g.toDistrict, g.toLocation].filter(Boolean).join(" • ") || "—"}</td>
+                      <td className="py-2.5 px-3 text-gray-600">{g.checkIn ? fmtDate(g.checkIn) : "—"}</td>
+                      <td className="py-2.5 px-3 text-gray-600">{g.checkOut ? fmtDate(g.checkOut) : "—"}</td>
+                      <td className="py-2.5 px-3 text-right font-semibold text-gray-900">{String(g.headcount ?? "—")}</td>
+                      <td className="py-2.5 px-3 text-gray-600">{g.status || "—"}</td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td className="py-4 text-gray-500" colSpan={6}>
+                    <td className="py-6 px-3 text-sm text-gray-400 italic" colSpan={6}>
                       {loading ? "Loading…" : "No group stays received in this range."}
                     </td>
                   </tr>
@@ -1265,38 +1281,41 @@ export default function StaysReportPage() {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-200">
-            <div className="text-sm font-semibold text-gray-900">Auction participation (claims)</div>
-            <div className="text-xs text-gray-500 mt-0.5">Your competitive offers on open group stays (created in this range)</div>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-gray-100 flex items-center gap-3">
+            <div className="h-7 w-1 rounded-full bg-violet-500" />
+            <div>
+              <div className="text-sm font-semibold text-gray-900">Auction participation</div>
+              <div className="text-xs text-gray-400 mt-0.5">Your competitive offers on open group stays</div>
+            </div>
           </div>
           <div className="p-4 overflow-x-auto">
             <table className="min-w-[840px] w-full text-sm">
               <thead>
-                <tr className="text-xs text-gray-500 border-b">
-                  <th className="text-left py-2 pr-3">Group stay</th>
-                  <th className="text-left py-2 pr-3">Property</th>
-                  <th className="text-right py-2 pl-3">Offer / night</th>
-                  <th className="text-right py-2 pl-3">Discount</th>
-                  <th className="text-left py-2 pl-3">Status</th>
-                  <th className="text-left py-2 pl-3">Created</th>
+                <tr className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 bg-gray-50/70 border-b border-gray-100">
+                  <th className="text-left py-2.5 px-3">Group stay</th>
+                  <th className="text-left py-2.5 px-3">Property</th>
+                  <th className="text-right py-2.5 px-3">Offer / night</th>
+                  <th className="text-right py-2.5 px-3">Discount</th>
+                  <th className="text-left py-2.5 px-3">Status</th>
+                  <th className="text-left py-2.5 px-3">Created</th>
                 </tr>
               </thead>
               <tbody>
                 {data?.auctionClaims?.length ? (
                   data.auctionClaims.map((c) => (
-                    <tr key={c.id} className="border-b last:border-b-0">
-                      <td className="py-2 pr-3 font-semibold text-gray-900">#{c.groupBookingId}</td>
-                      <td className="py-2 pr-3 text-gray-700">{c.property?.title || "—"}</td>
-                      <td className="py-2 pl-3 text-right font-semibold text-indigo-700">TZS {fmtMoneyTZS(Number(c.offeredPricePerNight || 0))}</td>
-                      <td className="py-2 pl-3 text-right text-gray-700">{c.discountPercent ? `${String(c.discountPercent)}%` : "—"}</td>
-                      <td className="py-2 pl-3 text-gray-700">{c.status || "—"}</td>
-                      <td className="py-2 pl-3 text-gray-700">{fmtDateTime(c.createdAt)}</td>
+                    <tr key={c.id} className="border-b last:border-b-0 hover:bg-gray-50/60 transition-colors">
+                      <td className="py-2.5 px-3 font-medium text-gray-900">#{c.groupBookingId}</td>
+                      <td className="py-2.5 px-3 text-gray-600">{c.property?.title || "—"}</td>
+                      <td className="py-2.5 px-3 text-right font-semibold text-indigo-700">TZS {fmtMoneyTZS(Number(c.offeredPricePerNight || 0))}</td>
+                      <td className="py-2.5 px-3 text-right text-gray-600">{c.discountPercent ? `${String(c.discountPercent)}%` : "—"}</td>
+                      <td className="py-2.5 px-3 text-gray-600">{c.status || "—"}</td>
+                      <td className="py-2.5 px-3 text-gray-500 text-xs">{fmtDateTime(c.createdAt)}</td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td className="py-4 text-gray-500" colSpan={6}>
+                    <td className="py-6 px-3 text-sm text-gray-400 italic" colSpan={6}>
                       {loading ? "Loading…" : "No auction claims created in this range."}
                     </td>
                   </tr>
@@ -1314,12 +1333,23 @@ export default function StaysReportPage() {
   );
 }
 
-function Kpi({ title, value, loading, accent }: { title: string; value: string; loading: boolean; accent?: string }) {
+function Kpi({ title, value, sub, loading, accent, borderColor }: { title: string; value: string; sub?: string; loading: boolean; accent?: string; borderColor?: string }) {
   return (
-    <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-      <div className="text-xs text-gray-500 font-semibold">{title}</div>
-      <div className={("mt-1 text-xl font-extrabold tracking-tight " + (accent || "text-gray-900"))}>
-        {loading ? "…" : value}
+    <div className={"bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col " + (borderColor ? "border-t-0" : "")}>
+      <div className={"h-[3px] w-full " + (borderColor ?? "bg-emerald-600")} />
+      <div className="p-4 flex-1 flex flex-col justify-between">
+        <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 leading-tight">{title}</div>
+        {loading ? (
+          <div className="mt-2 space-y-1.5">
+            <div className="h-6 w-3/4 rounded-md bg-gray-100 animate-pulse" />
+            {sub !== undefined && <div className="h-3.5 w-1/2 rounded-md bg-gray-100 animate-pulse" />}
+          </div>
+        ) : (
+          <div>
+            <div className={("mt-1.5 text-2xl font-extrabold tracking-tight leading-none " + (accent || "text-gray-900"))}>{value}</div>
+            {sub ? <div className="mt-1 text-xs text-gray-400 font-medium">{sub}</div> : null}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1342,15 +1372,15 @@ function SourcesBar({ nolsaf, external, groupStays }: { nolsaf: number; external
 
   return (
     <div className="w-full">
-      <div className="h-3 w-full rounded-full bg-gray-100 overflow-hidden flex">
-        <div className="h-full bg-emerald-600" style={{ width: `${nPct}%` }} />
-        <div className="h-full bg-amber-500" style={{ width: `${ePct}%` }} />
-        <div className="h-full bg-indigo-500" style={{ width: `${gPct}%` }} />
+      <div className="h-4 w-full rounded-full bg-gray-100 overflow-hidden flex gap-[2px]">
+        {nPct > 0 && <div className="h-full bg-emerald-600 rounded-l-full transition-all duration-500" style={{ width: `${nPct}%` }} />}
+        {ePct > 0 && <div className="h-full bg-amber-500 transition-all duration-500" style={{ width: `${ePct}%` }} />}
+        {gPct > 0 && <div className="h-full bg-indigo-500 rounded-r-full transition-all duration-500" style={{ width: `${gPct}%` }} />}
       </div>
-      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-600">
-        <span><span className="font-semibold text-gray-900">NoLSAF</span>: {nolsaf}</span>
-        <span><span className="font-semibold text-gray-900">External</span>: {external}</span>
-        <span><span className="font-semibold text-gray-900">Group stays</span>: {groupStays}</span>
+      <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+        <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-emerald-600 inline-block" /><span className="font-semibold text-gray-700">{nolsaf}</span> NoLSAF <span className="text-gray-400">({nPct}%)</span></span>
+        <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-amber-500 inline-block" /><span className="font-semibold text-gray-700">{external}</span> External <span className="text-gray-400">({ePct}%)</span></span>
+        <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-indigo-500 inline-block" /><span className="font-semibold text-gray-700">{groupStays}</span> Group stays <span className="text-gray-400">({gPct}%)</span></span>
       </div>
     </div>
   );
