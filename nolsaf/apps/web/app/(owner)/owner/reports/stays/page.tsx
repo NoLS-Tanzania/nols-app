@@ -433,6 +433,23 @@ export default function StaysReportPage() {
       qrDataUrl = null;
     }
 
+    // Embed the NoLSAF logo as a base64 data URL so the print popup can render it
+    let logoDataUrl: string | null = null;
+    try {
+      const logoRes = await fetch("/assets/nolsnewlog.png");
+      if (logoRes.ok) {
+        const blob = await logoRes.blob();
+        logoDataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      }
+    } catch {
+      logoDataUrl = null;
+    }
+
     const maxSeries = Math.max(1, ...((data.series || []).map((s) => Math.max(s.nolsaf + s.external + (s.groupStays || 0), 1)) || [1]));
 
     const rowsBookings = (data.bookings || [])
@@ -574,12 +591,12 @@ export default function StaysReportPage() {
       display: flex; align-items: center; gap: 10px;
     }
     .doc-header .brand-icon {
-      width: 32px; height: 32px; border-radius: 8px;
-      background: rgba(255,255,255,0.18);
+      width: 120px; height: 36px; border-radius: 6px;
+      background: rgba(255,255,255,0.12);
       display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0;
+      flex-shrink: 0; overflow: hidden; padding: 3px 6px;
     }
-    .doc-header .brand-icon svg { width: 18px; height: 18px; fill: #fff; }
+    .doc-header .brand-icon svg { width: 20px; height: 20px; fill: #fff; }
     .doc-header .brand-name {
       font-size: 15px; font-weight: 800; letter-spacing: 0.04em;
       color: #fff; line-height: 1.1;
@@ -777,13 +794,13 @@ export default function StaysReportPage() {
   <div class="doc-header">
     <div class="brand-mark">
       <div class="brand-icon">
-        <!-- N mark -->
-        <svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-          <path d="M3 3h3l8 10.5V3h3v14h-3L6 6.5V17H3z"/>
-        </svg>
+        ${logoDataUrl
+          ? `<img src="${logoDataUrl}" alt="NoLSAF" style="width:100%;height:100%;object-fit:contain;border-radius:6px;" />`
+          : `<svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M3 3h3l8 10.5V3h3v14h-3L6 6.5V17H3z" fill="#fff"/></svg>`
+        }
       </div>
       <div>
-        <div class="brand-name">NoLSAF</div>
+        ${logoDataUrl ? "" : `<div class="brand-name">NoLSAF</div>`}
         <div class="brand-tagline">Property Management Platform</div>
       </div>
     </div>
