@@ -235,10 +235,10 @@ export default function CheckedIn() {
             <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Filters</span>
           </div>
           <div className="px-4 sm:px-5 py-4 border-b border-slate-100">
-            <div className="flex items-end gap-3 flex-wrap">
+            <div className="grid grid-cols-[minmax(0,1fr)_152px_172px] gap-3">
 
-              {/* Search — grows to fill available space */}
-              <div className="flex-1 min-w-[180px]">
+              {/* Search */}
+              <div className="min-w-0">
                 <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Search</div>
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
@@ -253,7 +253,7 @@ export default function CheckedIn() {
               </div>
 
               {/* Nights */}
-              <div className="shrink-0 w-[160px]">
+              <div className="min-w-0">
                 <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Nights</div>
                 <div className="relative">
                   <CalendarRange className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
@@ -273,7 +273,7 @@ export default function CheckedIn() {
               </div>
 
               {/* Sort */}
-              <div className="shrink-0 w-[180px]">
+              <div className="min-w-0">
                 <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Sort</div>
                 <div className="relative">
                   <ArrowUpDown className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
