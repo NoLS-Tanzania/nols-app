@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
-import { Calendar, Loader2, CheckCircle, User, Phone, FileText, Search, CalendarRange, ArrowUpDown } from "lucide-react";
+import { Calendar, Loader2, CheckCircle, User, Phone, FileText, Search, CalendarRange, ArrowUpDown, ChevronDown } from "lucide-react";
 import Link from "next/link";
 
 // Use same-origin calls + secure httpOnly cookie session.
@@ -234,11 +234,11 @@ export default function CheckedIn() {
           <div className="px-4 sm:px-5 py-3 border-b border-slate-100">
             <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Filters</span>
           </div>
-          <div className="px-4 sm:px-5 py-3.5 border-b border-slate-100">
-            <div className="flex items-end gap-3 overflow-x-auto flex-nowrap pb-1 -mb-1">
+          <div className="px-4 sm:px-5 py-4 border-b border-slate-100">
+            <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto] gap-3">
 
-              {/* Search */}
-              <div className="flex-1 min-w-[200px]">
+              {/* Search — intrinsic width, not stretched */}
+              <div className="max-w-sm">
                 <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Search</div>
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
@@ -253,14 +253,15 @@ export default function CheckedIn() {
               </div>
 
               {/* Nights */}
-              <div className="shrink-0 w-[180px]">
+              <div className="w-[180px]">
                 <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Nights</div>
                 <div className="relative">
                   <CalendarRange className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
+                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
                   <select
                     value={nightsFilter}
                     onChange={(e) => setNightsFilter(e.target.value)}
-                    className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-4 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300/50 appearance-none transition"
+                    className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-8 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300/50 appearance-none transition"
                     aria-label="Filter by nights"
                   >
                     <option value="">All nights</option>
@@ -272,14 +273,15 @@ export default function CheckedIn() {
               </div>
 
               {/* Sort */}
-              <div className="shrink-0 w-[200px]">
+              <div className="w-[200px]">
                 <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Sort</div>
                 <div className="relative">
                   <ArrowUpDown className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
+                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
                   <select
                     value={sortKey}
                     onChange={(e) => setSortKey(e.target.value)}
-                    className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-4 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300/50 appearance-none transition"
+                    className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-8 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300/50 appearance-none transition"
                     aria-label="Sort checked-in guests"
                   >
                     <option value="checkIn_desc">Latest check-in</option>
