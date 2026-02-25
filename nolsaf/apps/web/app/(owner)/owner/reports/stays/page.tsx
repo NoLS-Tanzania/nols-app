@@ -434,13 +434,6 @@ export default function StaysReportPage() {
     }
 
     // Embed the NoLSAF logo as a base64 data URL so the print popup can render it
-    // Generate a human-readable report ID matching the system's doc-number convention
-    // Format: SRPT-YYYYMM-HHMMSS  e.g. SRPT-202602-143022
-    const genDate = new Date(data.generatedAt);
-    const rptYM = `${genDate.getFullYear()}${String(genDate.getMonth() + 1).padStart(2, "0")}`;
-    const rptHMS = `${String(genDate.getHours()).padStart(2, "0")}${String(genDate.getMinutes()).padStart(2, "0")}${String(genDate.getSeconds()).padStart(2, "0")}`;
-    const reportId = `SRPT-${rptYM}-${rptHMS}`;
-
     let logoDataUrl: string | null = null;
     try {
       const logoRes = await fetch("/assets/NoLS2025-04.png");
@@ -541,7 +534,7 @@ export default function StaysReportPage() {
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>${escapeHtml(reportId)}</title>
+  <title>${escapeHtml(data.generatedAt)}</title>
   <style>
     /* ── Variables ─────────────────────────────────────────── */
     :root {
@@ -1002,7 +995,7 @@ export default function StaysReportPage() {
   <div class="doc-footer">
     <div class="footer-left">
       <div>Prepared for operational use and compliance purposes.</div>
-      <div class="report-id">Report ID: ${escapeHtml(reportId)}</div>
+      <div class="report-id">Report ID: ${escapeHtml(data.generatedAt)}</div>
       <div class="legal">This document is generated automatically by the NoLSAF Property Management Platform. All figures reflect data recorded in the system at time of generation. This report may be used for management, tax, or compliance filings.</div>
     </div>
     <div class="footer-right">
