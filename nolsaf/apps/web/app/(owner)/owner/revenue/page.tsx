@@ -378,7 +378,7 @@ export default function OwnerRevenuePage() {
       {/* Invoices List */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-4 sm:p-5 border-b border-slate-100">
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between gap-3">
               <div className="text-sm font-bold text-slate-900 tracking-tight">Invoices</div>
               <div className="text-xs text-slate-400 font-medium">
@@ -386,58 +386,59 @@ export default function OwnerRevenuePage() {
               </div>
             </div>
 
-            <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3.5 sm:p-4">
-              <div className="text-[10px] font-bold tracking-widest text-slate-400 uppercase mb-2">Search</div>
-              <div className="grid grid-cols-[1fr_auto] items-end gap-3">
-                <div className="relative min-w-0">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" aria-hidden />
-                  <input
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Invoice, property, receipt…"
-                    className="h-9 w-full rounded-lg border border-slate-200 bg-white pl-10 pr-10 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-400/20 focus:border-slate-300 transition-all duration-200"
-                    aria-label="Search invoices"
-                  />
-                  {search ? (
-                    <button
-                      type="button"
-                      onClick={() => setSearch("")}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex h-8 w-8 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm hover:bg-slate-50 hover:text-slate-700 transition-all duration-200"
-                      aria-label="Clear search"
-                    >
-                      <X className="h-4 w-4" aria-hidden />
-                    </button>
-                  ) : null}
-                </div>
+            {/* Search + Filter fused bar */}
+            <div className="relative flex items-center rounded-xl border border-slate-200 bg-white shadow-sm overflow-visible">
+              <Search className="absolute left-3.5 h-4 w-4 text-slate-400 pointer-events-none flex-shrink-0" aria-hidden />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Invoice, property, receipt…"
+                className="h-10 w-full bg-transparent pl-10 pr-4 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none"
+                aria-label="Search invoices"
+              />
+              {search ? (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="flex-shrink-0 inline-flex h-6 w-6 items-center justify-center rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all duration-150 mr-1"
+                  aria-label="Clear search"
+                >
+                  <X className="h-3.5 w-3.5" aria-hidden />
+                </button>
+              ) : null}
 
-                <div className="relative flex items-end justify-end flex-shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setFiltersOpen((v) => !v)}
-                    className="h-9 w-9 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50 hover:border-slate-300 active:scale-[0.99] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-slate-400/20"
-                    aria-label="Open filters"
-                    aria-expanded={filtersOpen}
-                    title="Filters"
-                  >
-                    <Filter className="h-5 w-5" aria-hidden />
-                  </button>
+              {/* Divider */}
+              <div className="h-5 w-px bg-slate-200 flex-shrink-0" />
 
-                  {activePanelFiltersCount > 0 ? (
-                    <span className="pointer-events-none absolute -top-1.5 -right-1.5 inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-slate-900 px-2 text-[11px] font-extrabold text-white shadow ring-2 ring-white">
-                      {activePanelFiltersCount}
-                    </span>
-                  ) : null}
+              {/* Filter button */}
+              <div className="relative flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setFiltersOpen((v) => !v)}
+                  className={`h-10 w-11 inline-flex items-center justify-center text-slate-600 hover:text-slate-900 hover:bg-slate-50 active:scale-[0.97] transition-all duration-150 focus:outline-none rounded-r-xl ${filtersOpen ? "bg-slate-50 text-slate-900" : ""}`}
+                  aria-label="Open filters"
+                  aria-expanded={filtersOpen}
+                  title="Filters"
+                >
+                  <Filter className="h-4 w-4" aria-hidden />
+                </button>
 
-                  {filtersOpen ? (
-                    <>
-                      <div className="fixed inset-0 z-[44] nols-soft-overlay" onClick={() => setFiltersOpen(false)} />
-                      <div className="absolute right-0 top-full mt-2 z-[45] w-[min(560px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white shadow-xl ring-1 ring-black/5 p-4 sm:p-5 nols-soft-popover">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="text-sm font-bold text-slate-900">Filters</div>
-                            <div className="text-xs text-slate-500 mt-0.5">Refine payouts by status, date range, and sorting.</div>
-                          </div>
-                          <button
+                {activePanelFiltersCount > 0 ? (
+                  <span className="pointer-events-none absolute -top-1.5 -right-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-900 px-1.5 text-[10px] font-extrabold text-white shadow ring-2 ring-white z-10">
+                    {activePanelFiltersCount}
+                  </span>
+                ) : null}
+
+                {filtersOpen ? (
+                  <>
+                    <div className="fixed inset-0 z-[44] nols-soft-overlay" onClick={() => setFiltersOpen(false)} />
+                    <div className="absolute right-0 top-full mt-2 z-[45] w-[min(560px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white shadow-xl ring-1 ring-black/5 p-4 sm:p-5 nols-soft-popover">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-sm font-bold text-slate-900">Filters</div>
+                          <div className="text-xs text-slate-500 mt-0.5">Refine payouts by status, date range, and sorting.</div>
+                        </div>
+                        <button
                             type="button"
                             onClick={() => setFiltersOpen(false)}
                             className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition"
