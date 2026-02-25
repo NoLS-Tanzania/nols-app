@@ -192,25 +192,22 @@ export default function CheckedIn() {
           <div className="pointer-events-none select-none absolute right-0 bottom-0 text-[72px] font-black text-slate-100/80 leading-none tracking-tighter pr-4 pb-1" aria-hidden>CHECKED-IN</div>
           <div className="pointer-events-none absolute right-0 top-0 h-full w-1/2 opacity-[0.035]" style={{ backgroundImage: "radial-gradient(circle, #334155 1px, transparent 1px)", backgroundSize: "18px 18px" }} />
 
-          <div className="relative pl-8 pr-6 pt-6 pb-7 sm:pl-10 sm:pr-8 sm:pt-7 sm:pb-8">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="flex items-center justify-center h-11 w-11 rounded-xl bg-emerald-50 border border-emerald-100">
-                  <Calendar className="h-5 w-5 text-emerald-600" aria-hidden />
-                </div>
-                <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
-                  Live Guests
-                </div>
+          <div className="relative px-6 pt-8 pb-9 sm:px-10 sm:pt-10 sm:pb-11 flex flex-col items-center text-center">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="flex items-center justify-center h-11 w-11 rounded-xl bg-emerald-50 border border-emerald-100">
+                <Calendar className="h-5 w-5 text-emerald-600" aria-hidden />
               </div>
-              <div className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-slate-200 bg-white text-slate-500 text-xs font-bold shadow-sm">
-                {filteredSorted.length} {filteredSorted.length === 1 ? "guest" : "guests"} showing
+              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
+                Live Guests
               </div>
             </div>
 
-            <div className="mt-5">
-              <h1 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight leading-none">Checked-In</h1>
-              <p className="mt-2 text-sm text-slate-500 max-w-md">View and manage all guests currently checked into your properties.</p>
+            <h1 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight leading-none">Checked-In</h1>
+            <p className="mt-2.5 text-sm text-slate-500 max-w-sm">View and manage all guests currently checked into your properties.</p>
+
+            <div className="mt-5 inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-slate-200 bg-white text-slate-500 text-xs font-bold shadow-sm">
+              {filteredSorted.length} {filteredSorted.length === 1 ? "guest" : "guests"} showing
             </div>
           </div>
         </div>
