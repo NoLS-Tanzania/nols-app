@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
-import { Calendar, Loader2, CheckCircle, User, Phone, FileText, CalendarRange, ArrowUpDown, ChevronDown } from "lucide-react";
+import { Calendar, Loader2, CheckCircle, User, Phone, FileText, ChevronDown } from "lucide-react";
 import Link from "next/link";
 
 // Use same-origin calls + secure httpOnly cookie session.
@@ -236,17 +236,15 @@ export default function CheckedIn() {
               {/* controls — stacks on mobile, row on sm+ */}
               <div className="flex flex-col sm:flex-row gap-3">
 
-                {/* Nights — fixed width */}
+                {/* Nights */}
                 <div className="w-full sm:w-[170px] flex-shrink-0">
-                  <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-400 mb-1">Nights</div>
-                  <div className="relative">
-                    <CalendarRange className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden />
-                    <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden />
+                  <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-400 mb-1.5">Nights</div>
+                  <div className="relative group">
+                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors" aria-hidden />
                     <select
                       value={nightsFilter}
                       onChange={(e) => setNightsFilter(e.target.value)}
-                      className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50/60 pl-8.5 pr-7 text-sm text-slate-900 focus:outline-none focus:bg-white focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100 appearance-none transition"
-                      style={{ paddingLeft: "2.1rem" }}
+                      className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-3.5 pr-8 text-sm font-medium text-slate-700 shadow-sm hover:border-slate-300 focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 appearance-none transition cursor-pointer"
                       aria-label="Filter by nights"
                     >
                       <option value="">All nights</option>
@@ -257,17 +255,15 @@ export default function CheckedIn() {
                   </div>
                 </div>
 
-                {/* Sort — fixed width */}
+                {/* Sort */}
                 <div className="w-full sm:w-[200px] flex-shrink-0">
-                  <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-400 mb-1">Sort</div>
-                  <div className="relative">
-                    <ArrowUpDown className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden />
-                    <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden />
+                  <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-400 mb-1.5">Sort</div>
+                  <div className="relative group">
+                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors" aria-hidden />
                     <select
                       value={sortKey}
                       onChange={(e) => setSortKey(e.target.value)}
-                      className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50/60 pl-8.5 pr-7 text-sm text-slate-900 focus:outline-none focus:bg-white focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100 appearance-none transition"
-                      style={{ paddingLeft: "2.1rem" }}
+                      className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-3.5 pr-8 text-sm font-medium text-slate-700 shadow-sm hover:border-slate-300 focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 appearance-none transition cursor-pointer"
                       aria-label="Sort checked-in guests"
                     >
                       <option value="checkIn_desc">Latest check-in</option>
