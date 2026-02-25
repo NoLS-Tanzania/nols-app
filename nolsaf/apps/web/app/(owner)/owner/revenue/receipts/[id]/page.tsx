@@ -12,6 +12,7 @@ export default function Receipt() {
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
 
   // Pre-fetch all <img> srcs in an element as data: URLs, call cb, then restore
   async function withPatchedImages(el: HTMLElement, cb: () => Promise<void>) {
@@ -53,11 +54,36 @@ export default function Receipt() {
     if (!idParam) return;
     setError(null);
     setData(null);
+    setQrDataUrl(null);
     api
       .get(`/api/owner/revenue/invoices/${idParam}/receipt`)
       .then((r) => setData(r.data))
       .catch((e: any) => setError(String(e?.response?.data?.error || e?.message || "Failed to load receipt")));
   }, [idParam]);
+
+  // Generate QR client-side once invoice data is available
+  useEffect(() => {
+    if (!data?.invoice) return;
+    const inv = data.invoice;
+    (async () => {
+      try {
+        const QR: any = await import("qrcode");
+        const toDataURL: any = QR?.toDataURL ?? QR?.default?.toDataURL;
+        if (typeof toDataURL !== "function") return;
+        const payload = JSON.stringify({
+          invoiceId: inv.id,
+          receiptNumber: inv.receiptNumber,
+          paidAt: inv.paidAt,
+          ownerPayout: Number(inv.netPayable ?? inv.total ?? 0),
+          paymentRef: inv.paymentRef,
+        });
+        const url = await toDataURL(payload, { margin: 1, width: 256, errorCorrectionLevel: "M" });
+        setQrDataUrl(url);
+      } catch {
+        setQrDataUrl(null);
+      }
+    })();
+  }, [data]);
 
   async function handleDownload() {
     if (pdfBusy) return;
@@ -366,11 +392,15 @@ export default function Receipt() {
                 <p className="text-[7px] font-bold uppercase tracking-[0.12em] mb-1" style={{ color: "#8aaca9" }}>QR · Verify</p>
                 <div className="inline-block p-1.5 bg-white rounded-lg" style={{ border: "1px solid #d0e8e5" }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={`/api/owner/revenue/invoices/${inv.id}/receipt/qr.png`}
-                    alt="Receipt QR"
-                    className="w-[66px] h-[66px] block"
-                  />
+                  {qrDataUrl ? (
+                    <img
+                      src={qrDataUrl}
+                      alt="Receipt QR"
+                      className="w-[66px] h-[66px] block"
+                    />
+                  ) : (
+                    <div className="w-[66px] h-[66px] flex items-center justify-center text-[8px]" style={{ color: "#9ab8b6" }}>loading…</div>
+                  )}
                 </div>
               </div>
             </div>
