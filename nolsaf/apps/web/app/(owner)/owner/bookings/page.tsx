@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import axios from "axios";
-import { Calendar, Building2, Clock, CheckCircle, LogOut, XCircle, ChevronDown } from "lucide-react";
+import { Calendar, Building2, Clock, CheckCircle, LogOut, XCircle, ChevronDown, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import LogoSpinner from "@/components/LogoSpinner";
@@ -249,66 +249,76 @@ export default function OwnerBookingsPage() {
   const totalCheckedOut  = list.filter(b => b.status.toUpperCase() === 'CHECKED_OUT').length;
   const totalCancelled   = list.filter(b => b.status.toUpperCase() === 'CANCELLED' || b.status.toUpperCase() === 'CANCELED').length;
 
+  const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+
   const heroKpis = [
-    { label: 'Total Bookings', value: filterCounts.all,  dot: 'bg-slate-400',    num: 'text-slate-900'   },
-    { label: 'Checked In',     value: totalCheckedIn,    dot: 'bg-emerald-400',  num: 'text-emerald-700' },
-    { label: 'Awaiting',       value: totalWaiting,      dot: 'bg-amber-400',    num: 'text-amber-700'   },
-    { label: 'Checked Out',    value: totalCheckedOut,   dot: 'bg-sky-400',      num: 'text-sky-700'     },
-    { label: 'Cancelled',      value: totalCancelled,    dot: 'bg-red-400',      num: 'text-red-700'     },
+    { label: 'Total',       sub: 'Bookings',   value: filterCounts.all,  bar: 'bg-slate-300',   num: 'text-slate-900',   light: 'bg-slate-50'   },
+    { label: 'Checked',     sub: 'In',         value: totalCheckedIn,    bar: 'bg-emerald-400', num: 'text-emerald-700', light: 'bg-emerald-50' },
+    { label: 'Awaiting',    sub: 'Arrival',    value: totalWaiting,      bar: 'bg-amber-400',   num: 'text-amber-700',   light: 'bg-amber-50'   },
+    { label: 'Checked',     sub: 'Out',        value: totalCheckedOut,   bar: 'bg-sky-400',     num: 'text-sky-700',     light: 'bg-sky-50'     },
+    { label: 'Cancelled',   sub: '',           value: totalCancelled,    bar: 'bg-red-400',     num: 'text-red-600',     light: 'bg-red-50'     },
   ];
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-[#f6f8fa]">
 
-      {/* ══ HERO BAND ═══════════════════════════════════════════════ */}
-      <div className="relative overflow-hidden bg-[#02665e]">
-        {/* subtle radial glow */}
-        <div className="pointer-events-none absolute -top-32 -left-32 h-[480px] w-[480px] rounded-full bg-white/5 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-20 right-0 h-[320px] w-[320px] rounded-full bg-teal-400/10 blur-3xl" />
-        {/* dot-grid texture */}
-        <div
-          className="pointer-events-none absolute inset-0 opacity-[0.07]"
-          style={{ backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)', backgroundSize: '24px 24px' }}
-        />
+      {/* ══ HERO BAND ════════════════════════════════════════════════════ */}
+      <div className="relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #024d47 0%, #02665e 60%, #038076 100%)' }}>
+        {/* decorative blobs */}
+        <div className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full bg-white/5 blur-3xl" />
+        <div className="pointer-events-none absolute bottom-0 left-1/3 h-48 w-96 rounded-full bg-teal-300/10 blur-3xl" />
+        {/* dot grid */}
+        <div className="pointer-events-none absolute inset-0 opacity-[0.06]"
+          style={{ backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)', backgroundSize: '22px 22px' }} />
+        {/* large watermark icon */}
+        <Calendar className="pointer-events-none absolute -right-6 -bottom-6 h-52 w-52 text-white/[0.04]" aria-hidden />
 
-        <div className="relative px-4 sm:px-6 pt-8 pb-8">
-          {/* Title row */}
-          <div className="flex items-center gap-4">
-            <div className="h-14 w-14 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center flex-shrink-0 shadow-lg">
-              <Calendar className="h-7 w-7 text-white" />
-            </div>
+        <div className="relative px-4 sm:px-8 pt-9 pb-14">
+          <div className="flex items-start justify-between gap-4">
             <div>
-              <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight leading-none">My Bookings</h1>
-              <p className="mt-1.5 text-sm text-white/60">Live guest activity across all your properties</p>
+              {/* breadcrumb label */}
+              <div className="flex items-center gap-2 mb-3">
+                <span className="inline-block h-[3px] w-5 rounded-full bg-white/30" />
+                <span className="text-[11px] font-bold uppercase tracking-[0.15em] text-white/40">Owner · Dashboard</span>
+              </div>
+              <h1 className="text-3xl sm:text-[2.6rem] font-black text-white tracking-tight leading-none">
+                My Bookings
+              </h1>
+              <p className="mt-2 text-[13px] text-white/50 font-medium">
+                Live guest activity across all your properties
+              </p>
+            </div>
+            {/* today's date — hidden on very small screens */}
+            <div className="hidden sm:flex flex-col items-end flex-shrink-0 pt-1">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-white/30">Today</span>
+              <span className="text-[13px] font-bold text-white/60 mt-0.5 text-right">{today}</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* ══ KPI STRIP — outside hero, clean white cards ═══════════ */}
-      <div className="px-4 sm:px-6 -mt-1 pb-2">
+      {/* ══ KPI CARDS — overlap hero bottom ═══════════════════════════ */}
+      <div className="px-4 sm:px-8 -mt-7 pb-0 relative z-10">
         <div className="grid grid-cols-5 gap-2 sm:gap-3">
           {heroKpis.map((kpi) => (
-            <div
-              key={kpi.label}
-              className="bg-white rounded-2xl shadow-lg border border-slate-200 px-3 py-3.5 sm:px-4 sm:py-4 flex flex-col gap-1"
-            >
-              <div className="flex items-center gap-1.5">
-                <span className={`h-2 w-2 rounded-full flex-shrink-0 ${kpi.dot}`} />
-                <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wide text-slate-400 leading-tight">
-                  {kpi.label}
-                </span>
+            <div key={kpi.label + kpi.sub}
+              className="bg-white rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.10)] border border-white/80 px-2.5 py-3 sm:px-3.5 sm:py-4 flex flex-col relative overflow-hidden">
+              {/* colored top bar */}
+              <div className={`absolute top-0 inset-x-0 h-[3px] rounded-t-2xl ${kpi.bar}`} />
+              <div className={`text-2xl sm:text-[2rem] font-black leading-none ${kpi.num} mt-1`}>{kpi.value}</div>
+              <div className="mt-1.5 leading-tight">
+                <div className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wide text-slate-400">{kpi.label}</div>
+                {kpi.sub && <div className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wide text-slate-400">{kpi.sub}</div>}
               </div>
-              <div className={`text-2xl sm:text-3xl font-extrabold leading-none mt-1 ${kpi.num}`}>{kpi.value}</div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* ══ FILTER TABS ═════════════════════════════════════════════ */}
-      <div className="px-4 sm:px-6 pt-4 pb-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-md p-1.5 overflow-x-auto">
-          <div className="flex items-center gap-1 min-w-max">
+      {/* ══ FILTER TABS — underline style ═════════════════════════════ */}
+      <div className="px-4 sm:px-8 pt-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200/70 overflow-x-auto">
+          <div className="flex items-center min-w-max border-b border-slate-100">
             {filterTabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.key;
@@ -324,17 +334,17 @@ export default function OwnerBookingsPage() {
                       router.replace(`/owner/bookings${next.toString() ? `?${next.toString()}` : ''}`);
                     } catch {}
                   }}
-                  className={`relative inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 whitespace-nowrap ${
+                  className={`relative flex items-center gap-2 px-4 py-3.5 text-[13px] font-semibold whitespace-nowrap transition-colors duration-150 border-b-2 -mb-px ${
                     isActive
-                      ? 'bg-[#02665e] text-white shadow-md shadow-[#02665e]/30'
-                      : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+                      ? 'text-[#02665e] border-[#02665e]'
+                      : 'text-slate-400 border-transparent hover:text-slate-700 hover:border-slate-200'
                   }`}
                 >
-                  <Icon className={`h-3.5 w-3.5 flex-shrink-0 ${isActive ? 'text-white/80' : 'text-slate-400'}`} />
+                  <Icon className={`h-3.5 w-3.5 flex-shrink-0 ${isActive ? 'text-[#02665e]' : 'text-slate-300'}`} />
                   <span>{tab.label}</span>
                   {tab.count > 0 && (
-                    <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold ${
-                      isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                    <span className={`inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[9px] font-black ${
+                      isActive ? 'bg-[#02665e] text-white' : 'bg-slate-100 text-slate-500'
                     }`}>
                       {tab.count}
                     </span>
@@ -346,60 +356,74 @@ export default function OwnerBookingsPage() {
         </div>
       </div>
 
-      {/* ══ PROPERTY CARDS ══════════════════════════════════════════ */}
-      <div className="px-4 sm:px-6 pb-10 space-y-4">
-        <p className="text-[13px] font-semibold text-slate-400 uppercase tracking-widest pl-1">
-          {groupedBookings.length} Propert{groupedBookings.length === 1 ? 'y' : 'ies'}
-        </p>
+      {/* ══ PROPERTY CARDS ════════════════════════════════════════════ */}
+      <div className="px-4 sm:px-8 pt-5 pb-12 space-y-3">
+        <div className="flex items-center gap-3 px-1 mb-1">
+          <span className="text-[11px] font-black uppercase tracking-[0.15em] text-slate-400">
+            {groupedBookings.length} Propert{groupedBookings.length === 1 ? 'y' : 'ies'}
+          </span>
+          <div className="flex-1 h-px bg-slate-200/70" />
+        </div>
+
         {groupedBookings.length === 0 ? (
-          <div className="flex flex-col items-center justify-center text-center bg-white rounded-2xl border border-slate-200 py-20 px-8 shadow-sm">
-            <div className="h-16 w-16 rounded-3xl bg-slate-100 flex items-center justify-center mb-5">
-              <Calendar className="h-8 w-8 text-slate-300" />
+          <div className="flex flex-col items-center justify-center text-center bg-white rounded-3xl border border-slate-200 py-20 px-8 shadow-sm">
+            <div className="h-16 w-16 rounded-3xl bg-slate-50 border border-slate-200 flex items-center justify-center mb-5">
+              <Calendar className="h-7 w-7 text-slate-300" />
             </div>
-            <p className="text-lg font-bold text-slate-800">No bookings found</p>
+            <p className="text-base font-bold text-slate-800">No bookings found</p>
             <p className="text-sm text-slate-400 mt-1">Try a different filter above.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
             {groupedBookings.map((group) => {
               const isExpanded = expandedHotels.has(group.key);
-              const hasCheckedIn   = group.checkedIn.length > 0;
+              const hasCheckedIn    = group.checkedIn.length > 0;
               const hasNotCheckedIn = group.notCheckedIn.length > 0;
-              const otherBookings  = group.bookings.filter(b => {
+              const otherBookings   = group.bookings.filter(b => {
                 const s = b.status.toUpperCase();
                 return s !== 'CHECKED_IN' && s !== 'CONFIRMED' && s !== 'NEW';
               });
+              const isLive = group.checkedIn.length > 0;
 
-              // Dominant status colour for card accent
-              const accentBg   = group.checkedIn.length > 0 ? 'bg-emerald-500' : group.notCheckedIn.length > 0 ? 'bg-amber-500' : 'bg-slate-400';
-              const accentText = group.checkedIn.length > 0 ? 'text-emerald-600' : group.notCheckedIn.length > 0 ? 'text-amber-600' : 'text-slate-500';
-              const accentRing = group.checkedIn.length > 0 ? 'ring-emerald-100 bg-emerald-50' : group.notCheckedIn.length > 0 ? 'ring-amber-100 bg-amber-50' : 'ring-slate-100 bg-slate-50';
+              // Compute total revenue for this property group
+              const groupRevenue = group.bookings.reduce((sum, b) => {
+                const v = Number(String(b.totalAmount ?? b.ownerBaseAmount ?? 0).replace(/,/g, ''));
+                return sum + (Number.isFinite(v) && v > 0 ? v : 0);
+              }, 0);
+
+              const accentBorder = isLive ? 'border-l-emerald-400' : hasNotCheckedIn ? 'border-l-amber-400' : 'border-l-slate-200';
+              const accentIcon   = isLive ? 'bg-emerald-50 text-emerald-600' : hasNotCheckedIn ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-400';
 
               return (
                 <div
                   key={group.key}
-                  className="bg-white rounded-3xl border border-slate-200/80 shadow-md hover:shadow-lg transition-shadow duration-300 overflow-hidden"
+                  className={`bg-white rounded-2xl border border-slate-200/80 border-l-4 ${accentBorder} shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden`}
                 >
                   {/* ── Card header ── */}
                   <button
                     onClick={() => toggleHotel(group.key)}
-                    className="w-full text-left group"
+                    className="w-full text-left"
                   >
-                    {/* Top accent stripe */}
-                    <div className={`h-1.5 w-full ${accentBg}`} />
-
-                    <div className="flex items-center gap-4 px-5 py-4 hover:bg-slate-50/80 transition-colors">
+                    <div className="flex items-center gap-3.5 px-4 sm:px-5 py-4 hover:bg-slate-50/70 transition-colors duration-150">
                       {/* Property icon */}
-                      <div className={`h-12 w-12 rounded-2xl ring-1 flex items-center justify-center flex-shrink-0 ${accentRing}`}>
-                        <Building2 className={`h-6 w-6 ${accentText}`} />
+                      <div className={`h-11 w-11 rounded-xl flex items-center justify-center flex-shrink-0 ${accentIcon}`}>
+                        <Building2 className="h-5 w-5" />
                       </div>
 
                       {/* Text block */}
                       <div className="flex-1 min-w-0">
-                        <div className="text-[15px] font-bold text-slate-900 truncate leading-tight">{group.property}</div>
-                        <div className="mt-2 flex items-center flex-wrap gap-2">
+                        <div className="flex items-center gap-2 mb-1.5">
+                          {isLive && (
+                            <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500 text-white text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 flex-shrink-0">
+                              <span className="h-1.5 w-1.5 rounded-full bg-white/70 animate-pulse" />
+                              LIVE
+                            </span>
+                          )}
+                          <span className="text-[14px] font-bold text-slate-900 truncate leading-tight">{group.property}</span>
+                        </div>
+                        <div className="flex items-center flex-wrap gap-1.5">
                           {group.checkedIn.length > 0 && (
-                            <StatusPill icon={<CheckCircle className="h-3 w-3" />} label={`${group.checkedIn.length} Checked-in`} color="emerald" />
+                            <StatusPill icon={<CheckCircle className="h-3 w-3" />} label={`${group.checkedIn.length} In`} color="emerald" />
                           )}
                           {group.notCheckedIn.length > 0 && (
                             <StatusPill icon={<Clock className="h-3 w-3" />} label={`${group.notCheckedIn.length} Waiting`} color="amber" />
@@ -407,17 +431,24 @@ export default function OwnerBookingsPage() {
                           {otherBookings.length > 0 && (
                             <StatusPill icon={<LogOut className="h-3 w-3" />} label={`${otherBookings.length} Other`} color="slate" />
                           )}
-                          <span className="text-[11px] text-slate-400 font-medium">{group.bookings.length} total</span>
                         </div>
                       </div>
 
-                      {/* Toggle button */}
-                      <div className={`h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0 border transition-all duration-300 ${
-                        isExpanded
-                          ? 'bg-[#02665e] border-[#02665e] [&>svg]:rotate-180'
-                          : 'bg-slate-100 border-slate-200 hover:bg-slate-200'
-                      }`}>
-                        <ChevronDown className={`h-4 w-4 transition-transform duration-300 ${isExpanded ? 'text-white' : 'text-slate-500'}`} />
+                      {/* Revenue + toggle */}
+                      <div className="flex items-center gap-3 flex-shrink-0">
+                        {groupRevenue > 0 && (
+                          <div className="hidden sm:block text-right">
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Revenue</div>
+                            <div className="text-[13px] font-black text-slate-800 tabular-nums">
+                              {new Intl.NumberFormat('en-TZ', { style: 'currency', currency: 'TZS', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(groupRevenue)}
+                            </div>
+                          </div>
+                        )}
+                        <div className={`h-8 w-8 rounded-full flex items-center justify-center border transition-all duration-300 ${
+                          isExpanded ? 'bg-[#02665e] border-[#02665e]' : 'bg-slate-100 border-slate-200 hover:border-slate-300'
+                        }`}>
+                          <ChevronDown className={`h-4 w-4 transition-transform duration-300 ${isExpanded ? 'text-white rotate-180' : 'text-slate-500'}`} />
+                        </div>
                       </div>
                     </div>
                   </button>
@@ -425,26 +456,24 @@ export default function OwnerBookingsPage() {
                   {/* ── Expanded content ── */}
                   {isExpanded && (
                     <div className="border-t border-slate-100">
-
                       {hasCheckedIn && (
                         <BookingSection
                           label="Checked-in"
                           count={group.checkedIn.length}
                           dotClass="bg-emerald-500"
                           labelClass="text-emerald-700"
-                          bgClass="bg-emerald-50/60"
+                          bgClass="bg-emerald-50/50"
                         >
                           {group.checkedIn.map(b => (
                             <BookingRow key={b.id} booking={b} formatDate={formatDate} formatDateTime={formatDateTime} formatCurrency={formatCurrency} />
                           ))}
                         </BookingSection>
                       )}
-
                       {hasNotCheckedIn && (
                         <BookingSection
                           label="Awaiting arrival"
                           count={group.notCheckedIn.length}
-                          dotClass="bg-amber-500"
+                          dotClass="bg-amber-400"
                           labelClass="text-amber-700"
                           bgClass="bg-amber-50/40"
                         >
@@ -453,12 +482,11 @@ export default function OwnerBookingsPage() {
                           ))}
                         </BookingSection>
                       )}
-
                       {otherBookings.length > 0 && (
                         <BookingSection
                           label="Other"
                           count={otherBookings.length}
-                          dotClass="bg-slate-400"
+                          dotClass="bg-slate-300"
                           labelClass="text-slate-500"
                           bgClass="bg-slate-50/60"
                         >
@@ -467,7 +495,6 @@ export default function OwnerBookingsPage() {
                           ))}
                         </BookingSection>
                       )}
-
                     </div>
                   )}
                 </div>
@@ -557,63 +584,58 @@ function BookingRow({
     catch { return formatDate(d); }
   };
 
-  // Status visual config
-  const statusCfg: Record<string, { stripe: string; pill: string; label: string }> = {
-    CHECKED_IN:  { stripe: 'bg-emerald-500', pill: 'bg-emerald-100 text-emerald-700 border-emerald-200',  label: 'Checked-in'  },
-    CHECKED_OUT: { stripe: 'bg-sky-400',     pill: 'bg-sky-100    text-sky-700    border-sky-200',        label: 'Checked-out' },
-    CONFIRMED:   { stripe: 'bg-[#02665e]',   pill: 'bg-teal-50    text-teal-700  border-teal-200',        label: 'Confirmed'   },
-    NEW:         { stripe: 'bg-[#02665e]',   pill: 'bg-teal-50    text-teal-700  border-teal-200',        label: 'New'         },
-    PENDING:     { stripe: 'bg-amber-400',   pill: 'bg-amber-100  text-amber-700 border-amber-200',       label: 'Pending'     },
-    CANCELLED:   { stripe: 'bg-red-400',     pill: 'bg-red-100    text-red-700   border-red-200',         label: 'Cancelled'   },
-    CANCELED:    { stripe: 'bg-red-400',     pill: 'bg-red-100    text-red-700   border-red-200',         label: 'Cancelled'   },
+  const statusCfg: Record<string, { pill: string; label: string; avatarBg: string }> = {
+    CHECKED_IN:  { pill: 'bg-emerald-50 text-emerald-700 border-emerald-200',     label: 'Checked-in',  avatarBg: 'bg-emerald-500 text-white'  },
+    CHECKED_OUT: { pill: 'bg-sky-50    text-sky-700    border-sky-200',           label: 'Checked-out', avatarBg: 'bg-sky-100     text-sky-700'   },
+    CONFIRMED:   { pill: 'bg-teal-50   text-teal-700  border-teal-200',           label: 'Confirmed',   avatarBg: 'bg-[#02665e]   text-white'     },
+    NEW:         { pill: 'bg-teal-50   text-teal-700  border-teal-200',           label: 'New',         avatarBg: 'bg-[#02665e]   text-white'     },
+    PENDING:     { pill: 'bg-amber-50  text-amber-700 border-amber-200',          label: 'Pending',     avatarBg: 'bg-amber-100   text-amber-700' },
+    CANCELLED:   { pill: 'bg-red-50    text-red-600   border-red-200',            label: 'Cancelled',   avatarBg: 'bg-red-100     text-red-600'   },
+    CANCELED:    { pill: 'bg-red-50    text-red-600   border-red-200',            label: 'Cancelled',   avatarBg: 'bg-red-100     text-red-600'   },
   };
-  const cfg = statusCfg[s] ?? { stripe: 'bg-slate-300', pill: 'bg-slate-100 text-slate-600 border-slate-200', label: booking.status };
-
-  const avatarBg = isCheckedIn ? 'bg-emerald-500 text-white'
-    : (s === 'CANCELLED' || s === 'CANCELED') ? 'bg-red-100 text-red-600'
-    : 'bg-[#02665e] text-white';
+  const cfg = statusCfg[s] ?? { pill: 'bg-slate-100 text-slate-600 border-slate-200', label: booking.status, avatarBg: 'bg-slate-200 text-slate-600' };
 
   return (
     <Link href={`/owner/bookings/checked-in/${booking.id}`} className="block group no-underline" style={{ textDecoration: 'none' }}>
-      <div className="relative flex items-center gap-3 px-5 py-3 hover:bg-slate-50/80 transition-colors duration-150">
-        {/* Left status stripe */}
-        <div className={`absolute left-0 inset-y-3 w-[3px] rounded-r-full ${cfg.stripe}`} aria-hidden />
+      <div className="flex items-center gap-3.5 px-4 sm:px-5 py-3.5 hover:bg-slate-50/80 transition-colors duration-150">
 
-        {/* Guest avatar */}
-        <div className={`h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0 text-[13px] font-black shadow-sm ${avatarBg}`}>
+        {/* Circle guest avatar */}
+        <div className={`h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 text-[14px] font-black shadow-sm ${cfg.avatarBg}`}>
           {guestInitial}
         </div>
 
-        {/* Main content: 2-line layout */}
+        {/* Content */}
         <div className="flex-1 min-w-0">
-          {/* Line 1: name · id ————————— amount */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-[13px] font-bold text-slate-900 truncate" style={{ textDecoration: 'none' }}>
+          {/* Row 1: name + amount */}
+          <div className="flex items-baseline gap-2">
+            <span className="text-[13px] font-bold text-slate-900 truncate flex-1" style={{ textDecoration: 'none' }}>
               {booking.guestName || 'Guest'}
             </span>
-            <span className="text-[11px] text-slate-400 flex-shrink-0">#{booking.id}</span>
-            <span className="ml-auto text-[13px] font-extrabold text-slate-800 tabular-nums flex-shrink-0">
+            <span className={`text-[13px] font-black tabular-nums flex-shrink-0 ${safeAmount > 0 ? 'text-[#02665e]' : 'text-slate-400'}`}>
               {formatCurrency(safeAmount)}
             </span>
           </div>
-          {/* Line 2: dates · nights · status · check-in time */}
-          <div className="mt-0.5 flex items-center gap-1.5 flex-wrap">
-            <span className="text-[11px] text-slate-500">
+          {/* Row 2: dates · nights · status */}
+          <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+            <span className="text-[11px] text-slate-400 font-medium">
               {fmtDay(booking.checkIn)} – {fmtDay(booking.checkOut)}
             </span>
-            <span className="inline-flex items-center rounded bg-slate-100 px-1.5 py-px text-[10px] font-bold text-slate-500 flex-shrink-0">
+            <span className="inline-flex items-center rounded-md bg-slate-100 px-1.5 py-px text-[10px] font-bold text-slate-500 flex-shrink-0">
               {nights}n
             </span>
-            <span className={`inline-flex items-center rounded-full border px-2 py-px text-[10px] font-bold uppercase tracking-wide flex-shrink-0 ${cfg.pill}`}>
+            <span className={`inline-flex items-center rounded-full border px-2 py-px text-[10px] font-bold tracking-wide flex-shrink-0 ${cfg.pill}`}>
               {cfg.label}
             </span>
             {isCheckedIn && checkedInTime && (
-              <span className="text-[11px] text-emerald-600 font-semibold flex-shrink-0" style={{ textDecoration: 'none' }}>
-                in {checkedInTime}
+              <span className="text-[11px] text-emerald-600 font-semibold flex-shrink-0">
+                · {checkedInTime}
               </span>
             )}
           </div>
         </div>
+
+        {/* Subtle arrow */}
+        <ArrowRight className="h-4 w-4 text-slate-200 group-hover:text-slate-400 group-hover:translate-x-0.5 transition-all duration-150 flex-shrink-0" />
       </div>
     </Link>
   );
