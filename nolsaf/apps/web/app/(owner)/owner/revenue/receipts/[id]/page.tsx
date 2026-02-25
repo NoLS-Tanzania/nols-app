@@ -12,6 +12,24 @@ export default function Receipt() {
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const invId = (data as any)?.invoice?.id;
+    if (!invId) return;
+    let cancelled = false;
+    fetch(`/api/owner/revenue/invoices/${invId}/receipt/qr.png`)
+      .then(r => r.blob())
+      .then(blob => new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      }))
+      .then(dataUrl => { if (!cancelled) setQrDataUrl(dataUrl); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [data]);
 
   useEffect(() => {
     if (!idParam) return;
@@ -27,6 +45,24 @@ export default function Receipt() {
     if (pdfBusy) return;
     setPdfBusy(true);
     try {
+      // Ensure QR is pre-loaded as data URL so html2canvas captures it
+      if (!qrDataUrl) {
+        const invId = (data as any)?.invoice?.id;
+        if (invId) {
+          try {
+            const blob = await fetch(`/api/owner/revenue/invoices/${invId}/receipt/qr.png`).then(r => r.blob());
+            const dataUrl = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result as string);
+              reader.onerror = reject;
+              reader.readAsDataURL(blob);
+            });
+            setQrDataUrl(dataUrl);
+            // Give React one tick to re-render with the new src
+            await new Promise(r => setTimeout(r, 80));
+          } catch { /* proceed without QR */ }
+        }
+      }
       const el = document.getElementById("receipt-card");
       if (!el) throw new Error("Receipt card not found");
       const html2pdfModule: any = await import("html2pdf.js");
@@ -157,8 +193,8 @@ export default function Receipt() {
           style={{ border: "1px solid #e2eae9", boxShadow: "0 2px 8px rgba(2,102,94,0.06),0 12px 40px rgba(2,102,94,0.08)" }}
         >
 
-          {/* ══ TOP ACCENT STRIPE ════════════════════════════ */}
-          <div className="h-1 w-full" style={{ background: "linear-gradient(90deg,#024d47,#02665e,#04a89a,#02665e)" }} />
+          {/* ══ TOP DOT ROW ══════════════════════════════════ */}
+          <div className="w-full" style={{ height: "5px", backgroundImage: "radial-gradient(circle, #02665e 1.5px, transparent 1.5px)", backgroundSize: "10px 5px", backgroundRepeat: "repeat-x", backgroundPosition: "center" }} />
 
           {/* ══ HEADER — white background ════════════════════ */}
           <div className="px-5 pt-4 pb-4 border-b" style={{ borderColor: "#edf4f3" }}>
@@ -307,7 +343,7 @@ export default function Receipt() {
 
           {/* ══ FOOTER SEAL ═════════════════════════════════ */}
           <div className="mx-3 mb-3 mt-1 rounded-xl overflow-hidden" style={{ border: "1px solid #edf4f3" }}>
-            <div className="h-[2.5px]" style={{ background: "linear-gradient(90deg,#024d47,#02665e,#04a89a)" }} />
+            <div className="w-full" style={{ height: "4px", backgroundImage: "radial-gradient(circle, rgba(2,102,94,0.55) 1.5px, transparent 1.5px)", backgroundSize: "9px 4px", backgroundRepeat: "repeat-x", backgroundPosition: "center" }} />
             <div className="px-3.5 py-3 grid grid-cols-[1fr,auto] gap-3 items-center" style={{ background: "#f7fbfa" }}>
               <div>
                 <div className="flex items-center gap-1.5 mb-1.5">
@@ -326,14 +362,19 @@ export default function Receipt() {
                 <p className="text-[7px] font-bold uppercase tracking-[0.12em] mb-1" style={{ color: "#8aaca9" }}>QR · Verify</p>
                 <div className="inline-block p-1.5 bg-white rounded-lg" style={{ border: "1px solid #d0e8e5" }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={`/api/owner/revenue/invoices/${inv.id}/receipt/qr.png`} alt="Receipt QR" className="w-[66px] h-[66px] block" />
+                  <img
+                    src={qrDataUrl || `/api/owner/revenue/invoices/${inv.id}/receipt/qr.png`}
+                    alt="Receipt QR"
+                    className="w-[66px] h-[66px] block"
+                    crossOrigin="anonymous"
+                  />
                 </div>
               </div>
             </div>
           </div>
 
-          {/* ══ BOTTOM STRIPE ═══════════════════════════════ */}
-          <div className="h-0.5 w-full" style={{ background: "linear-gradient(90deg,#024d47,#02665e,#04a89a,#02665e)" }} />
+          {/* ══ BOTTOM DOT ROW ══════════════════════════════ */}
+          <div className="w-full" style={{ height: "5px", backgroundImage: "radial-gradient(circle, #02665e 1.5px, transparent 1.5px)", backgroundSize: "10px 5px", backgroundRepeat: "repeat-x", backgroundPosition: "center" }} />
 
         </div>
 
