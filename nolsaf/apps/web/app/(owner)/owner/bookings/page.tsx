@@ -250,11 +250,11 @@ export default function OwnerBookingsPage() {
   const totalCancelled   = list.filter(b => b.status.toUpperCase() === 'CANCELLED' || b.status.toUpperCase() === 'CANCELED').length;
 
   const heroKpis = [
-    { label: 'Total',       sub: 'Bookings',   value: filterCounts.all,  dot: 'bg-white/50',     num: 'text-slate-900'  },
-    { label: 'Checked',    sub: 'In',         value: totalCheckedIn,    dot: 'bg-emerald-400',  num: 'text-emerald-700'},
-    { label: 'Awaiting',   sub: 'Arrival',    value: totalWaiting,      dot: 'bg-amber-400',    num: 'text-amber-700'  },
-    { label: 'Checked',    sub: 'Out',        value: totalCheckedOut,   dot: 'bg-sky-400',      num: 'text-sky-700'    },
-    { label: 'Cancelled',  sub: '',           value: totalCancelled,    dot: 'bg-red-400',      num: 'text-red-700'    },
+    { label: 'Total Bookings', value: filterCounts.all,  dot: 'bg-slate-400',    num: 'text-slate-900'   },
+    { label: 'Checked In',     value: totalCheckedIn,    dot: 'bg-emerald-400',  num: 'text-emerald-700' },
+    { label: 'Awaiting',       value: totalWaiting,      dot: 'bg-amber-400',    num: 'text-amber-700'   },
+    { label: 'Checked Out',    value: totalCheckedOut,   dot: 'bg-sky-400',      num: 'text-sky-700'     },
+    { label: 'Cancelled',      value: totalCancelled,    dot: 'bg-red-400',      num: 'text-red-700'     },
   ];
 
   return (
@@ -271,42 +271,42 @@ export default function OwnerBookingsPage() {
           style={{ backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)', backgroundSize: '24px 24px' }}
         />
 
-        <div className="relative px-4 sm:px-6 pt-8 pb-0">
+        <div className="relative px-4 sm:px-6 pt-8 pb-8">
           {/* Title row */}
-          <div className="flex items-start justify-between gap-4 mb-8">
-            <div className="flex items-center gap-4">
-              <div className="h-14 w-14 rounded-2xl bg-white/12 border border-white/20 flex items-center justify-center flex-shrink-0 shadow-lg">
-                <Calendar className="h-7 w-7 text-white" />
-              </div>
-              <div>
-                <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight leading-none">My Bookings</h1>
-                <p className="mt-1.5 text-sm text-white/60">Live guest activity across all your properties</p>
-              </div>
+          <div className="flex items-center gap-4">
+            <div className="h-14 w-14 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center flex-shrink-0 shadow-lg">
+              <Calendar className="h-7 w-7 text-white" />
             </div>
-          </div>
-
-          {/* KPI strip — sits at the bottom of the hero, overlaps content below */}
-          <div className="grid grid-cols-5 gap-2 sm:gap-3 pb-0 translate-y-7">
-            {heroKpis.map((kpi) => (
-              <div
-                key={kpi.label + kpi.sub}
-                className="bg-white rounded-2xl shadow-xl border border-slate-100 px-3 py-3.5 sm:px-4 sm:py-4 flex flex-col gap-1"
-              >
-                <div className="flex items-center gap-1.5">
-                  <span className={`h-2 w-2 rounded-full flex-shrink-0 ${kpi.dot}`} />
-                  <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wide text-slate-400 leading-tight">
-                    {kpi.label}{kpi.sub ? <><br />{kpi.sub}</> : null}
-                  </span>
-                </div>
-                <div className={`text-2xl sm:text-3xl font-extrabold leading-none mt-1 ${kpi.num}`}>{kpi.value}</div>
-              </div>
-            ))}
+            <div>
+              <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight leading-none">My Bookings</h1>
+              <p className="mt-1.5 text-sm text-white/60">Live guest activity across all your properties</p>
+            </div>
           </div>
         </div>
       </div>
 
+      {/* ══ KPI STRIP — outside hero, clean white cards ═══════════ */}
+      <div className="px-4 sm:px-6 -mt-1 pb-2">
+        <div className="grid grid-cols-5 gap-2 sm:gap-3">
+          {heroKpis.map((kpi) => (
+            <div
+              key={kpi.label}
+              className="bg-white rounded-2xl shadow-lg border border-slate-200 px-3 py-3.5 sm:px-4 sm:py-4 flex flex-col gap-1"
+            >
+              <div className="flex items-center gap-1.5">
+                <span className={`h-2 w-2 rounded-full flex-shrink-0 ${kpi.dot}`} />
+                <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wide text-slate-400 leading-tight">
+                  {kpi.label}
+                </span>
+              </div>
+              <div className={`text-2xl sm:text-3xl font-extrabold leading-none mt-1 ${kpi.num}`}>{kpi.value}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* ══ FILTER TABS ═════════════════════════════════════════════ */}
-      <div className="px-4 sm:px-6 pt-12 pb-4">
+      <div className="px-4 sm:px-6 pt-4 pb-4">
           <div className="bg-white rounded-2xl border border-slate-200 shadow-md p-1.5 overflow-x-auto">
           <div className="flex items-center gap-1 min-w-max">
             {filterTabs.map((tab) => {
