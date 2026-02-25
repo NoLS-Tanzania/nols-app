@@ -375,6 +375,7 @@ export async function validateBookingCode(
   valid: boolean;
   booking?: any;
   error?: string;
+  cancellationStatus?: string | null;
 }> {
   try {
     if (!code || typeof code !== 'string') {
@@ -448,9 +449,16 @@ export async function validateBookingCode(
           codeVisible: true,
           codeHash: true,
           usedAt: true,
+          voidReason: true,
+          voidedAt: true,
           booking: {
             select: {
               ...bookingSelectBase,
+              cancellationRequests: {
+                select: { id: true, status: true },
+                orderBy: { createdAt: 'desc' },
+                take: 1,
+              },
               property: {
                 select: {
                   ...propertySelectBase,
@@ -480,9 +488,16 @@ export async function validateBookingCode(
             codeVisible: true,
             codeHash: true,
             usedAt: true,
+            voidReason: true,
+            voidedAt: true,
             booking: {
               select: {
                 ...bookingSelectBase,
+                cancellationRequests: {
+                  select: { id: true, status: true },
+                  orderBy: { createdAt: 'desc' },
+                  take: 1,
+                },
                 property: {
                   select: {
                     id: true,
@@ -533,9 +548,37 @@ export async function validateBookingCode(
     }
 
     if (checkinCode.status === "VOID") {
+      const latestCancellation = checkinCode.booking?.cancellationRequests?.[0] ?? null;
+      let error: string;
+      if (latestCancellation) {
+        switch (latestCancellation.status) {
+          case "SUBMITTED":
+          case "REVIEWING":
+            error = "This booking has a cancellation request currently under review. The code has been suspended pending admin decision.";
+            break;
+          case "PROCESSING":
+            error = "This booking's cancellation has been approved and is being processed. The code has been voided — the guest will be refunded.";
+            break;
+          case "REFUNDED":
+            error = "This booking was cancelled and the guest has been refunded. The check-in code is no longer valid.";
+            break;
+          case "REJECTED":
+            error = "A cancellation request existed for this booking but was rejected. The code was voided by an admin — please contact support.";
+            break;
+          default:
+            error = checkinCode.voidReason
+              ? `This check-in code has been voided: ${checkinCode.voidReason}`
+              : "This check-in code has been voided.";
+        }
+      } else {
+        error = checkinCode.voidReason
+          ? `This check-in code has been voided: ${checkinCode.voidReason}`
+          : "This check-in code has been voided.";
+      }
       return {
         valid: false,
-        error: "This code has been voided",
+        error,
+        cancellationStatus: latestCancellation?.status ?? null,
       };
     }
 

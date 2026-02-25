@@ -533,9 +533,56 @@ router.post("/validate-by-code", async (req, res) => {
   const code = String(req.body?.code ?? "").trim();
   if (!code) return res.status(400).json({ error: "Code is required" });
 
-  const c = await prisma.checkinCode.findFirst({ where: { codeVisible: code }, include: { booking: true } });
+  const c = await prisma.checkinCode.findFirst({
+    where: { codeVisible: code },
+    include: {
+      booking: {
+        include: {
+          cancellationRequests: {
+            select: { id: true, status: true },
+            orderBy: { createdAt: "desc" },
+            take: 1,
+          },
+        },
+      },
+    },
+  });
   if (!c) return res.status(404).json({ error: "Code not found" });
-  if (c.status !== 'ACTIVE') return res.status(400).json({ error: `Code not active (status=${c.status})` });
+
+  if (c.status !== "ACTIVE") {
+    let error = `Code not active (status=${c.status})`;
+    let cancellationStatus: string | null = null;
+
+    if (c.status === "VOID") {
+      const latestCancellation = (c.booking as any)?.cancellationRequests?.[0] ?? null;
+      cancellationStatus = latestCancellation?.status ?? null;
+
+      if (latestCancellation) {
+        switch (latestCancellation.status) {
+          case "SUBMITTED":
+          case "REVIEWING":
+            error = "This booking has a cancellation request currently under review. The code has been suspended pending admin decision.";
+            break;
+          case "PROCESSING":
+            error = "This booking's cancellation has been approved and is being processed. The code has been voided — the guest will be refunded.";
+            break;
+          case "REFUNDED":
+            error = "This booking was cancelled and the guest has been refunded. The check-in code is no longer valid.";
+            break;
+          case "REJECTED":
+            error = "A cancellation request existed for this booking but was rejected. The code was voided by an admin — please contact support.";
+            break;
+        }
+      } else {
+        const voidReason = (c as any).voidReason;
+        error = voidReason
+          ? `This check-in code has been voided: ${voidReason}`
+          : "This check-in code has been voided.";
+      }
+    }
+
+    return res.status(400).json({ error, codeStatus: c.status, cancellationStatus });
+  }
 
   // idempotent: mark code used and set booking to CONFIRMED
   const updated = await prisma.$transaction(async (tx: any) => {

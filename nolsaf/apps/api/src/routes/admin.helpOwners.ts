@@ -27,6 +27,11 @@ router.post("/validate", async (req, res) => {
       include: {
         booking: {
           include: {
+            cancellationRequests: {
+              select: { id: true, status: true },
+              orderBy: { createdAt: "desc" },
+              take: 1,
+            },
             property: {
               include: {
                 owner: {
@@ -57,10 +62,38 @@ router.post("/validate", async (req, res) => {
     }
 
     if (checkinCode.status !== "ACTIVE") {
-      return res.status(400).json({ 
-        error: `Code is not active (status: ${checkinCode.status})`,
-        codeStatus: checkinCode.status,
-      });
+      let error = `Code is not active (status: ${checkinCode.status})`;
+      let cancellationStatus: string | null = null;
+
+      if (checkinCode.status === "VOID") {
+        const latestCancellation = (checkinCode.booking as any)?.cancellationRequests?.[0] ?? null;
+        cancellationStatus = latestCancellation?.status ?? null;
+
+        if (latestCancellation) {
+          switch (latestCancellation.status) {
+            case "SUBMITTED":
+            case "REVIEWING":
+              error = "This booking has a cancellation request currently under review. The code has been suspended pending admin decision.";
+              break;
+            case "PROCESSING":
+              error = "This booking's cancellation has been approved and is being processed. The code has been voided — the guest will be refunded.";
+              break;
+            case "REFUNDED":
+              error = "This booking was cancelled and the guest has been refunded. The check-in code is no longer valid.";
+              break;
+            case "REJECTED":
+              error = "A cancellation request existed for this booking but was rejected. The code was voided by an admin — please contact support.";
+              break;
+          }
+        } else {
+          const voidReason = (checkinCode as any).voidReason;
+          error = voidReason
+            ? `This check-in code has been voided: ${voidReason}`
+            : "This check-in code has been voided.";
+        }
+      }
+
+      return res.status(400).json({ error, codeStatus: checkinCode.status, cancellationStatus });
     }
 
     const booking = checkinCode.booking;
