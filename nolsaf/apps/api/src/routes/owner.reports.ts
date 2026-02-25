@@ -268,19 +268,17 @@ const bookingsHandler: RequestHandler = async (req, res, next) => {
       // Try to include code relation, but handle gracefully if it fails
       let bs: any[];
 
-      // Fail-soft: some environments may be missing newer Booking columns.
-      // Avoid implicit "select all columns" which can throw P2022 and make the UI show zero.
-      const bookingMeta = (prisma as any).booking?._meta ?? {};
-      const bookingHasField = (field: string) => Object.prototype.hasOwnProperty.call(bookingMeta, field);
+      // Always select the fields we need. The existing try/catch handles schema-mismatch errors.
       const bookingSelect: any = {
         id: true,
         propertyId: true,
         checkIn: true,
         checkOut: true,
         status: true,
+        totalAmount: true,
+        guestName: true,
+        transportFare: true,
       };
-      if (bookingHasField('totalAmount')) bookingSelect.totalAmount = true;
-      if (bookingHasField('guestName')) bookingSelect.guestName = true;
       try {
         bs = await prisma.booking.findMany({
           where: {
@@ -342,6 +340,8 @@ const bookingsHandler: RequestHandler = async (req, res, next) => {
           checkOut: b.checkOut,
           status: b.status,
           totalAmount: b.totalAmount,
+          transportFare: (b as any).transportFare ?? null,
+          ownerBaseAmount: Math.max(0, Number(b.totalAmount || 0) - Number((b as any).transportFare || 0)),
           guestName: (b as any).guestName ?? null,
           checkedInAt: (b.code?.usedAt ?? null),
         })),

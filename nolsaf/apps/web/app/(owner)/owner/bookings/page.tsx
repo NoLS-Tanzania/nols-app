@@ -544,12 +544,12 @@ function BookingRow({
   const guestInitial = String(booking.guestName || 'G').trim().charAt(0).toUpperCase() || 'G';
 
   const safeAmount = (() => {
-    const raw = booking.ownerBaseAmount ?? booking.totalAmount;
-    const n = Number(typeof raw === 'string' ? raw.replace(/,/g, '') : String(raw));
-    if (Number.isFinite(n) && n > 0) return n;
-    const total     = Number(typeof booking.totalAmount   === 'string' ? booking.totalAmount.replace(/,/g, '')   : String(booking.totalAmount));
-    const transport = Number(typeof booking.transportFare === 'string' ? booking.transportFare.replace(/,/g, '') : String(booking.transportFare ?? 0));
-    return Number.isFinite(total) ? Math.max(0, total - (Number.isFinite(transport) ? transport : 0)) : 0;
+    const toNum = (v: any) => Number(typeof v === 'string' ? v.replace(/,/g, '') : String(v ?? 0));
+    const total = toNum(booking.totalAmount);
+    if (Number.isFinite(total) && total > 0) return total;
+    const oba = toNum(booking.ownerBaseAmount);
+    if (Number.isFinite(oba) && oba > 0) return oba;
+    return 0;
   })();
 
   const fmtDay = (d: string) => {
@@ -574,50 +574,45 @@ function BookingRow({
     : 'bg-[#02665e] text-white';
 
   return (
-    <Link href={`/owner/bookings/checked-in/${booking.id}`} className="block group">
-      <div className="relative flex items-center gap-4 px-5 py-3.5 hover:bg-slate-50 transition-colors duration-150">
+    <Link href={`/owner/bookings/checked-in/${booking.id}`} className="block group no-underline" style={{ textDecoration: 'none' }}>
+      <div className="relative flex items-center gap-3 px-5 py-3 hover:bg-slate-50/80 transition-colors duration-150">
         {/* Left status stripe */}
         <div className={`absolute left-0 inset-y-3 w-[3px] rounded-r-full ${cfg.stripe}`} aria-hidden />
 
         {/* Guest avatar */}
-        <div className={`h-10 w-10 rounded-2xl flex items-center justify-center flex-shrink-0 text-sm font-black shadow-sm ${avatarBg}`}>
+        <div className={`h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0 text-[13px] font-black shadow-sm ${avatarBg}`}>
           {guestInitial}
         </div>
 
-        {/* Guest name + meta */}
+        {/* Main content: 2-line layout */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-baseline gap-2">
-            <span className="text-sm font-bold text-slate-900 truncate leading-tight">
+          {/* Line 1: name · id ————————— amount */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[13px] font-bold text-slate-900 truncate" style={{ textDecoration: 'none' }}>
               {booking.guestName || 'Guest'}
             </span>
-            <span className="text-[11px] text-slate-400 font-medium flex-shrink-0">#{booking.id}</span>
-          </div>
-          <div className="mt-1 flex items-center gap-2 flex-wrap">
-            {/* Date range */}
-            <span className="inline-flex items-center gap-1.5 text-[11px] text-slate-500 font-medium">
-              <Calendar className="h-3 w-3 text-slate-400 flex-shrink-0" />
-              {fmtDay(booking.checkIn)} → {fmtDay(booking.checkOut)}
+            <span className="text-[11px] text-slate-400 flex-shrink-0">#{booking.id}</span>
+            <span className="ml-auto text-[13px] font-extrabold text-slate-800 tabular-nums flex-shrink-0">
+              {formatCurrency(safeAmount)}
             </span>
-            {/* Nights badge */}
-            <span className="inline-flex items-center rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-600">
+          </div>
+          {/* Line 2: dates · nights · status · check-in time */}
+          <div className="mt-0.5 flex items-center gap-1.5 flex-wrap">
+            <span className="text-[11px] text-slate-500">
+              {fmtDay(booking.checkIn)} – {fmtDay(booking.checkOut)}
+            </span>
+            <span className="inline-flex items-center rounded bg-slate-100 px-1.5 py-px text-[10px] font-bold text-slate-500 flex-shrink-0">
               {nights}n
             </span>
-            {/* Check-in time */}
+            <span className={`inline-flex items-center rounded-full border px-2 py-px text-[10px] font-bold uppercase tracking-wide flex-shrink-0 ${cfg.pill}`}>
+              {cfg.label}
+            </span>
             {isCheckedIn && checkedInTime && (
-              <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 font-semibold">
-                <CheckCircle className="h-3 w-3" />
-                {checkedInTime}
+              <span className="text-[11px] text-emerald-600 font-semibold flex-shrink-0" style={{ textDecoration: 'none' }}>
+                in {checkedInTime}
               </span>
             )}
           </div>
-        </div>
-
-        {/* Right: status pill + amount */}
-        <div className="flex-shrink-0 flex flex-col items-end gap-1.5">
-          <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${cfg.pill}`}>
-            {cfg.label}
-          </span>
-          <span className="text-sm font-extrabold text-slate-900 tabular-nums">{formatCurrency(safeAmount)}</span>
         </div>
       </div>
     </Link>
