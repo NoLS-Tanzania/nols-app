@@ -130,46 +130,30 @@ export default function Requested() {
     <div className="space-y-5 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
 
       {/* ─── Hero Header ─────────────────────────────────────── */}
-      <div className="relative overflow-hidden rounded-2xl bg-white border border-slate-200/80 shadow-lg shadow-slate-200/60 flex flex-col sm:flex-row min-h-[180px]">
-
-        {/* Left illustrated pane */}
-        <div className="relative flex-shrink-0 sm:w-56 lg:w-64 flex items-center justify-center overflow-hidden bg-gradient-to-b from-amber-600 to-orange-500 p-8 sm:rounded-l-2xl">
-          {/* Concentric rings */}
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <div className="h-48 w-48 rounded-full border border-white/10" />
-          </div>
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <div className="h-32 w-32 rounded-full border border-white/15" />
-          </div>
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <div className="h-20 w-20 rounded-full bg-white/5" />
-          </div>
-          {/* Shine streak */}
-          <div className="pointer-events-none absolute -top-6 -left-6 h-28 w-6 rotate-[30deg] bg-white/10 blur-sm" />
-          {/* Icon */}
-          <div className="relative z-10 flex flex-col items-center gap-3">
-            <div className="flex items-center justify-center h-16 w-16 rounded-2xl bg-white/15 border border-white/25 shadow-lg backdrop-blur-sm">
-              <Hourglass className="h-8 w-8 text-white drop-shadow" aria-hidden />
-            </div>
-            <span className="text-[11px] font-bold tracking-[0.18em] uppercase text-orange-100/90">Pending</span>
-          </div>
+      <div className="relative overflow-hidden rounded-2xl bg-white border border-slate-200 shadow-xl shadow-slate-100/70">
+        {/* Left accent strip */}
+        <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-gradient-to-b from-slate-800 via-slate-400 to-transparent rounded-l-2xl" />
+        {/* Faint watermark */}
+        <div className="pointer-events-none select-none absolute right-0 bottom-0 text-[120px] font-black text-slate-100/80 leading-none tracking-tighter pr-4 pb-1" aria-hidden>
+          AWAIT
         </div>
+        {/* Subtle dot grid */}
+        <div
+          className="pointer-events-none absolute right-0 top-0 h-full w-1/2 opacity-[0.035]"
+          style={{ backgroundImage: "radial-gradient(circle, #334155 1px, transparent 1px)", backgroundSize: "18px 18px" }}
+        />
 
-        {/* Right content pane */}
-        <div className="relative flex-1 flex flex-col justify-between p-6 sm:p-7 lg:p-8">
-          {/* Watermark */}
-          <div className="pointer-events-none select-none absolute right-4 bottom-2 text-[72px] font-black text-amber-50 leading-none tracking-tight">
-            AWAIT
-          </div>
-
-          {/* Top row: badge + actions */}
-          <div className="relative flex items-start justify-between gap-4">
-            <div className="inline-flex items-center gap-2 rounded-full bg-amber-50 border border-amber-200 px-3 py-1 text-xs font-bold text-amber-700 shadow-sm">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-500 opacity-60" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500" />
-              </span>
-              Awaiting Review
+        <div className="relative pl-8 pr-6 pt-6 pb-6 sm:pt-7 sm:pb-7 sm:pr-8 lg:pt-8 lg:pb-8 lg:pr-10 lg:pl-10">
+          {/* Top row */}
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center h-10 w-10 rounded-xl bg-slate-100 border border-slate-200">
+                <Hourglass className="h-5 w-5 text-slate-700" aria-hidden />
+              </div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-600">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-400 flex-shrink-0" />
+                Awaiting Review
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <Link
@@ -201,51 +185,45 @@ export default function Requested() {
             </div>
           </div>
 
-          {/* Title + subtitle */}
-          <div className="relative mt-4">
-            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-slate-900 tracking-tight leading-none">
+          {/* Title block */}
+          <div className="mt-5">
+            <h1 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight leading-none">
               Requested Invoices
             </h1>
-            <p className="mt-2 text-sm text-slate-500 max-w-md leading-relaxed">
+            <p className="mt-2.5 text-sm text-slate-500 max-w-md leading-relaxed">
               Invoices submitted to NoLSAF awaiting verification and approval.
             </p>
           </div>
 
-          {/* Bottom decorative rule */}
-          <div className="relative mt-5 flex items-center gap-3">
-            <div className="h-px flex-1 bg-gradient-to-r from-amber-200 via-orange-100 to-transparent" />
-            <Clock className="h-3.5 w-3.5 text-amber-300 flex-shrink-0" aria-hidden />
-          </div>
+          {/* Separator */}
+          <div className="mt-6 h-px bg-gradient-to-r from-slate-200 via-slate-100 to-transparent" />
         </div>
       </div>
 
       {/* ─── Stats Row ────────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="relative overflow-hidden rounded-2xl bg-white border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow duration-300 p-5">
-          <div className="absolute top-0 left-0 h-1 w-full bg-gradient-to-r from-amber-400 to-orange-400 rounded-t-2xl" />
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Invoices</p>
-              <p className="mt-2 text-4xl font-extrabold text-slate-900 tabular-nums leading-none">{stats.totalCount.toLocaleString()}</p>
-              <p className="mt-1.5 text-xs text-slate-400">Awaiting processing</p>
-            </div>
-            <div className="flex-shrink-0 flex items-center justify-center h-14 w-14 rounded-2xl bg-amber-50 border border-amber-100 shadow-inner">
-              <Hash className="h-6 w-6 text-amber-600" aria-hidden />
-            </div>
+        {/* Count card */}
+        <div className="relative rounded-2xl bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow duration-200 p-5 flex items-center gap-4">
+          <div className="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-xl bg-slate-100 border border-slate-200">
+            <Hash className="h-5 w-5 text-slate-600" aria-hidden />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Invoices</p>
+            <p className="mt-0.5 text-3xl font-black text-slate-900 tabular-nums leading-none">{stats.totalCount.toLocaleString()}</p>
+            <p className="mt-1 text-xs text-slate-400">Awaiting processing</p>
           </div>
         </div>
 
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-50 via-white to-orange-50 border border-amber-200/60 shadow-sm hover:shadow-md transition-shadow duration-300 p-5">
-          <div className="absolute top-0 left-0 h-1 w-full bg-gradient-to-r from-amber-500 to-orange-400 rounded-t-2xl" />
-          <div className="flex items-center justify-between">
-            <div className="min-w-0">
-              <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Total amount</p>
-              <p className="mt-2 text-3xl sm:text-4xl font-extrabold text-amber-700 tabular-nums leading-none truncate">{formatCurrency(stats.totalAmount)}</p>
-              <p className="mt-1.5 text-xs text-amber-600/70">Value under review</p>
-            </div>
-            <div className="flex-shrink-0 flex items-center justify-center h-14 w-14 rounded-2xl bg-amber-100 border border-amber-200 shadow-inner">
-              <TrendingUp className="h-6 w-6 text-amber-700" aria-hidden />
-            </div>
+        {/* Amount card — dark */}
+        <div className="relative rounded-2xl bg-slate-900 border border-slate-800 shadow-sm hover:shadow-lg hover:shadow-slate-900/20 transition-shadow duration-200 p-5 flex items-center gap-4">
+          <div className="absolute top-0 left-6 right-6 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+          <div className="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-xl bg-white/10 border border-white/10">
+            <TrendingUp className="h-5 w-5 text-white/80" aria-hidden />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Total amount</p>
+            <p className="mt-0.5 text-3xl font-black text-white tabular-nums leading-none truncate">{formatCurrency(stats.totalAmount)}</p>
+            <p className="mt-1 text-xs text-slate-500">Value under review</p>
           </div>
         </div>
       </div>
