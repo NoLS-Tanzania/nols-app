@@ -104,7 +104,7 @@ function Item({
       className="group no-underline flex items-center justify-between rounded-2xl px-3.5 py-3 transition-all duration-200"
       style={active
         ? { background: "linear-gradient(135deg,#024d47,#02665e)", boxShadow: "0 4px 14px rgba(2,102,94,0.3)" }
-        : { background: "rgba(255,255,255,0.7)", border: "1px solid rgba(2,102,94,0.10)" }
+        : { background: "rgba(2,102,94,0.04)" }
       }
     >
       <div className="flex items-center gap-3 min-w-0">
@@ -175,7 +175,7 @@ function SectionGroup({
 
   return (
     <div className="rounded-2xl overflow-hidden transition-all duration-200"
-      style={{ border: "1px solid rgba(2,102,94,0.10)", background: "rgba(255,255,255,0.55)" }}>
+      style={{ background: "rgba(255,255,255,0.75)" }}>
       {/* section header button */}
       <button
         onClick={onClick}
@@ -285,8 +285,7 @@ export default function OwnerSidebar({ collapsed = false }: { collapsed?: boolea
       className={`rounded-3xl overflow-hidden ${collapsed ? "p-1.5" : "p-3"}`}
       style={{
         background: "linear-gradient(160deg,#f7fbfa 0%,#ffffff 50%,#f2f9f8 100%)",
-        border: "1px solid rgba(2,102,94,0.12)",
-        boxShadow: "0 2px 12px rgba(2,102,94,0.07), 0 1px 3px rgba(0,0,0,0.04)",
+        boxShadow: "0 2px 16px rgba(2,102,94,0.08), 0 1px 4px rgba(0,0,0,0.04)",
       }}
     >
       <div className={`space-y-2 ${collapsed ? "space-y-1.5" : ""}`}>
