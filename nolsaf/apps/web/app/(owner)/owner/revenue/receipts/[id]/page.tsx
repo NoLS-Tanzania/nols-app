@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft, Download, MapPin, BadgeCheck, Building2, User, CalendarDays, Clock } from "lucide-react";
+import { ChevronLeft, Printer, MapPin, BadgeCheck, Building2, User, CalendarDays, Clock } from "lucide-react";
 const api = axios.create({ baseURL: "", withCredentials: true });
 
 export default function Receipt() {
@@ -11,44 +11,7 @@ export default function Receipt() {
   const idParam = Array.isArray(routeParams?.id) ? routeParams?.id?.[0] : routeParams?.id;
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
-  const [pdfBusy, setPdfBusy] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
-
-  // Pre-fetch all <img> srcs in an element as data: URLs, call cb, then restore
-  async function withPatchedImages(el: HTMLElement, cb: () => Promise<void>) {
-    const imgs = Array.from(el.querySelectorAll("img")) as HTMLImageElement[];
-    const saved: [HTMLImageElement, string][] = [];
-    for (const img of imgs) {
-      const src = img.getAttribute("src") || "";
-      if (src && !src.startsWith("data:")) {
-        saved.push([img, src]);
-        try {
-          const blob = await fetch(src, { credentials: "include" }).then(r => r.blob());
-          const dataUrl = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-          });
-          // Apply and wait for the browser to finish loading the new src
-          await new Promise<void>((resolve) => {
-            img.onload = () => resolve();
-            img.onerror = () => resolve();
-            img.src = dataUrl;
-            // If image already loaded (cached data URL), resolve immediately
-            if (img.complete) resolve();
-          });
-        } catch { /* leave as-is */ }
-      }
-    }
-    // Extra paint tick to ensure layout is settled
-    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-    try {
-      await cb();
-    } finally {
-      for (const [img, src] of saved) img.setAttribute("src", src);
-    }
-  }
 
   useEffect(() => {
     if (!idParam) return;
@@ -85,38 +48,8 @@ export default function Receipt() {
     })();
   }, [data]);
 
-  async function handleDownload() {
-    if (pdfBusy) return;
-    setPdfBusy(true);
-    try {
-      const el = document.getElementById("receipt-card");
-      if (!el) throw new Error("Receipt card not found");
-      const html2pdfModule: any = await import("html2pdf.js");
-      const h2p = html2pdfModule?.default || html2pdfModule;
-      if (!h2p) throw new Error("html2pdf load failed");
-      const inv = (data as any)?.invoice;
-      const receiptNum = inv?.receiptNumber || inv?.invoiceNumber || `receipt-${String(inv?.id ?? "")}`;
-      const filename = `${String(receiptNum).replace(/[^a-zA-Z0-9._-]+/g, "-")}.pdf`;
-      // Patch all images to base64 data URLs so html2canvas captures them
-      await withPatchedImages(el, async () => {
-        await h2p()
-          .from(el)
-          .set({
-            filename,
-            margin: 0,
-            image: { type: "jpeg", quality: 0.98 },
-            jsPDF: { unit: "mm", format: [148, 210], orientation: "portrait" },
-            html2canvas: { scale: 2, useCORS: true, allowTaint: true, backgroundColor: "#ffffff", logging: false },
-            pagebreak: { mode: ["avoid-all", "css", "legacy"] },
-          })
-          .save();
-      });
-    } catch (e: any) {
-      console.error("PDF download failed", e);
-      window.alert("Unable to generate PDF. Please try again.");
-    } finally {
-      setPdfBusy(false);
-    }
+  function handlePrint() {
+    window.print();
   }
 
   if (!idParam) return <div>Missing receipt id</div>;
@@ -203,13 +136,12 @@ export default function Receipt() {
             Revenue
           </Link>
           <button
-            onClick={handleDownload}
-            disabled={pdfBusy}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-semibold text-white transition-all disabled:opacity-60 disabled:cursor-wait"
+            onClick={handlePrint}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-semibold text-white transition-all"
             style={{ background: "linear-gradient(135deg,#024d47,#02665e)" }}
           >
-            <Download className="w-3.5 h-3.5" />
-            {pdfBusy ? "Generating…" : "Download PDF"}
+            <Printer className="w-3.5 h-3.5" />
+            Print
           </button>
         </div>
       </div>
