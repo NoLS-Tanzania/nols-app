@@ -235,7 +235,7 @@ export default function CheckedIn() {
             <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Filters</span>
           </div>
           <div className="px-4 sm:px-5 py-4 border-b border-slate-100">
-            <div className="grid grid-cols-[minmax(0,1fr)_152px_172px] gap-3">
+            <div className="grid grid-cols-3 gap-3">
 
               {/* Search */}
               <div className="min-w-0">
@@ -245,8 +245,8 @@ export default function CheckedIn() {
                   <input
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Code, name, phone, room…"
-                    className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-4 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300/50 transition"
+                    placeholder="Code, name, phone…"
+                    className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300/50 transition"
                     aria-label="Search checked-in guests"
                   />
                 </div>
@@ -257,7 +257,7 @@ export default function CheckedIn() {
                 <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Nights</div>
                 <div className="relative">
                   <CalendarRange className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
-                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
+                  <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
                   <select
                     value={nightsFilter}
                     onChange={(e) => setNightsFilter(e.target.value)}
@@ -277,7 +277,7 @@ export default function CheckedIn() {
                 <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Sort</div>
                 <div className="relative">
                   <ArrowUpDown className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
-                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
+                  <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
                   <select
                     value={sortKey}
                     onChange={(e) => setSortKey(e.target.value)}
