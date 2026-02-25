@@ -29,7 +29,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body>
+      {/* suppressHydrationWarning on <body> prevents browser-extension text/attribute
+           injection (Grammarly, LastPass, etc.) from throwing React error #418. */}
+      <body suppressHydrationWarning>
         {process.env.NODE_ENV !== "production" && (
           <Script id="performance-measure-guard" strategy="beforeInteractive">
             {`

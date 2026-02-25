@@ -35,7 +35,9 @@ async function parseJsonSafely(res: Response) {
 export default function SuspendedAccessOverlay() {
   const pathname = usePathname();
   const portalLabel = useMemo(() => portalLabelFromPath(pathname || "/"), [pathname]);
-  const [active, setActive] = useState<boolean>(() => Boolean(typeof window !== "undefined" && window.__nolsafSuspendedActive));
+  // Always start with false on both server and client to avoid hydration mismatch (#418).
+  // The window flag is read in a useEffect below, which only runs on the client after hydration.
+  const [active, setActive] = useState<boolean>(false);
   const [showRestored, setShowRestored] = useState<boolean>(false);
   const activeRef = useRef(active);
   const showRestoredRef = useRef(showRestored);
