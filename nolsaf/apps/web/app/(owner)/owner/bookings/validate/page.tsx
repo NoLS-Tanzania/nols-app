@@ -665,105 +665,136 @@ export default function CheckinValidation() {
             {/* Result / Preview (shown only after a successful validation) */}
             {preview ? (
               <div className="min-w-0">
-                <div className="2xl:sticky 2xl:top-6 min-w-0">
-                  <div className="bg-white/90 backdrop-blur border border-slate-200/80 rounded-3xl shadow-sm ring-1 ring-black/5 p-4 sm:p-5 w-full transition-all duration-300 hover:shadow-md">
-                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                      <div className="flex items-start gap-3 min-w-0">
-                        <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center shadow-sm">
-                          <FileCheck2 className="h-5 w-5 text-white" aria-hidden />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="text-xs text-slate-500">Validated result</div>
-                          <div className="text-2xl font-bold text-slate-900 truncate">{preview.personal.fullName}</div>
-                          <div className="text-sm text-slate-600 truncate">
-                            {preview.property.title} • {preview.property.type}
-                          </div>
-                        </div>
+                <div className="2xl:sticky 2xl:top-6 min-w-0 space-y-3">
+
+                  {/* ── Guest hero card ── */}
+                  <div className="relative overflow-hidden rounded-3xl shadow-lg">
+                    {/* Teal gradient bg */}
+                    <div className="absolute inset-0 bg-[#02665e]" />
+                    {/* dot texture */}
+                    <div className="pointer-events-none absolute inset-0 opacity-[0.07]"
+                      style={{ backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
+                    {/* glow */}
+                    <div className="pointer-events-none absolute -top-20 -right-20 h-64 w-64 rounded-full bg-white/5 blur-3xl" />
+
+                    <div className="relative px-5 py-5 flex items-center gap-4">
+                      {/* Initials avatar */}
+                      <div className="h-16 w-16 rounded-2xl bg-white/15 border border-white/25 flex items-center justify-center flex-shrink-0 shadow-lg">
+                        <span className="text-2xl font-black text-white tracking-tight select-none">
+                          {preview.personal.fullName.trim().split(/\s+/).map((w: string) => w[0]).slice(0, 2).join('').toUpperCase()}
+                        </span>
                       </div>
-                      <span className="inline-flex w-fit items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                        {preview.booking.status}
+                      {/* Name block */}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[11px] font-semibold text-white/50 uppercase tracking-widest mb-0.5">Validated guest</div>
+                        <div className="text-xl sm:text-2xl font-extrabold text-white leading-tight truncate">{preview.personal.fullName}</div>
+                        <div className="mt-1 text-sm text-white/70 truncate">{preview.property.title} · {preview.property.type}</div>
+                      </div>
+                      {/* Status pill */}
+                      <span className={`flex-shrink-0 inline-flex items-center rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide border ${
+                        preview.booking.status === 'CHECKED_IN'
+                          ? 'bg-emerald-400/20 border-emerald-300/40 text-emerald-100'
+                          : 'bg-white/15 border-white/25 text-white'
+                      }`}>
+                        {preview.booking.status.replace('_', ' ')}
                       </span>
                     </div>
 
-                    <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <InfoTile label="Booking ID" value={String(preview.bookingId)} />
-                      <InfoTile label="Property ID" value={String(preview.property.id)} />
-                    </div>
-
-                    <div className="mt-5 grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6">
-                      <div className="rounded-2xl border border-slate-200/80 overflow-hidden bg-white shadow-sm ring-1 ring-black/5 transition-all duration-300 hover:shadow-md">
-                        <div className="px-4 py-3 bg-gradient-to-r from-slate-50 to-white border-b border-slate-200">
-                          <div className="text-xs font-bold tracking-wide text-slate-700 uppercase">Personal details</div>
-                        </div>
-                        <div className="p-3 sm:p-4">
-                          <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2 sm:gap-3">
-                            <InfoTile label="Full name" value={preview.personal.fullName} />
-                            <InfoTile label="Phone" value={preview.personal.phone} />
-                            <InfoTile label="Nationality" value={preview.personal.nationality} />
-                            <InfoTile label="Sex" value={preview.personal.sex} />
-                            <div className="min-[420px]:col-span-2">
-                              <InfoTile label="Age group" value={preview.personal.ageGroup} />
-                            </div>
-                          </div>
-                        </div>
+                    {/* ID strip */}
+                    <div className="relative border-t border-white/10 px-5 py-3 flex items-center gap-6">
+                      <div>
+                        <div className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">Booking ID</div>
+                        <div className="text-sm font-bold text-white mt-0.5">#{preview.bookingId}</div>
                       </div>
-
-                      <div className="rounded-2xl border border-slate-200/80 overflow-hidden bg-white shadow-sm ring-1 ring-black/5 transition-all duration-300 hover:shadow-md">
-                        <div className="px-4 py-3 bg-gradient-to-r from-slate-50 to-white border-b border-slate-200">
-                          <div className="text-xs font-bold tracking-wide text-slate-700 uppercase">Booking details</div>
-                        </div>
-                        <div className="p-3 sm:p-4">
-                          <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2 sm:gap-3">
-                            <InfoTile label="Room type" value={preview.booking.roomType} />
-                            <InfoTile label="Rooms" value={String(preview.booking.rooms)} />
-                            <InfoTile label="Nights" value={String(preview.booking.nights)} />
-                            <InfoTile label="Base amount" value={formatTZS(preview.booking.ownerBaseAmount ?? preview.booking.totalAmount)} />
-                            <div className="min-[420px]:col-span-2">
-                              <InfoTile variant="checkin" label="Check-in" value={formatDateTime(preview.booking.checkIn)} />
-                            </div>
-                            <div className="min-[420px]:col-span-2">
-                              <InfoTile variant="checkout" label="Check-out" value={formatDateTime(preview.booking.checkOut)} />
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mt-6 rounded-2xl border border-slate-200/80 bg-gradient-to-r from-white to-emerald-50/40 p-3 sm:p-4 shadow-sm ring-1 ring-black/5">
-                      {!eligibility?.canValidate && eligibility?.reason ? (
-                        <div className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                          {eligibility.reason}
-                        </div>
-                      ) : null}
-                      <div className="flex flex-col sm:flex-row gap-3">
-                        <button
-                          onClick={() => {
-                            setConfirmOpen(true);
-                            setAgreeTerms(false);
-                            setAgreeDisbursement(false);
-                          }}
-                          disabled={loading || (eligibility ? !eligibility.canValidate : false)}
-                          className="flex-1 px-4 py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-green-600 text-white text-sm font-semibold shadow-lg shadow-emerald-500/20 hover:shadow-xl hover:shadow-emerald-500/25 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 active:scale-[0.98]"
-                        >
-                          Confirm Check-in
-                        </button>
-                        <button
-                          onClick={() => {
-                            setPreview(null);
-                            setCode("");
-                            setResultMsg(null);
-                            setEligibility(null);
-                          }}
-                          className="px-4 py-3 rounded-2xl border border-slate-300 bg-white text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-all duration-200 active:scale-[0.98]"
-                        >
-                          Clear
-                        </button>
-                      </div>
-                      <div className="mt-3 text-[12px] text-slate-600 text-center">
-                        Confirming will mark the booking code as <strong>USED</strong> and move this guest to <strong>Checked‑In</strong>.
+                      <div className="h-6 w-px bg-white/15" />
+                      <div>
+                        <div className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">Property ID</div>
+                        <div className="text-sm font-bold text-white mt-0.5">#{preview.property.id}</div>
                       </div>
                     </div>
                   </div>
+
+                  {/* ── Details card ── */}
+                  <div className="rounded-3xl border border-slate-200/80 bg-white shadow-md overflow-hidden">
+
+                    {/* Personal details */}
+                    <div className="px-5 pt-4 pb-1">
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Personal Details</div>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                        <DataRow label="Full Name"    value={preview.personal.fullName} />
+                        <DataRow label="Phone"        value={preview.personal.phone} />
+                        <DataRow label="Nationality"  value={preview.personal.nationality} />
+                        <DataRow label="Sex"          value={preview.personal.sex} />
+                        <DataRow label="Age Group"    value={preview.personal.ageGroup} span />
+                      </div>
+                    </div>
+
+                    <div className="mx-5 my-3 h-px bg-slate-100" />
+
+                    {/* Booking details */}
+                    <div className="px-5 pb-1">
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Booking Details</div>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                        <DataRow label="Room Type"    value={preview.booking.roomType} />
+                        <DataRow label="Rooms"        value={String(preview.booking.rooms)} />
+                        <DataRow label="Nights"       value={String(preview.booking.nights)} />
+                        <DataRow label="Amount"       value={formatTZS(preview.booking.totalAmount)} highlight />
+                      </div>
+                    </div>
+
+                    <div className="mx-5 my-3 h-px bg-slate-100" />
+
+                    {/* Check-in / Check-out row */}
+                    <div className="px-5 pb-4">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="rounded-2xl bg-emerald-50 border border-emerald-100 px-3.5 py-3">
+                          <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-600 mb-1">Check-in</div>
+                          <div className="text-[13px] font-bold text-emerald-900 leading-snug">{formatDateTime(preview.booking.checkIn)}</div>
+                        </div>
+                        <div className="rounded-2xl bg-sky-50 border border-sky-100 px-3.5 py-3">
+                          <div className="text-[10px] font-bold uppercase tracking-widest text-sky-600 mb-1">Check-out</div>
+                          <div className="text-[13px] font-bold text-sky-900 leading-snug">{formatDateTime(preview.booking.checkOut)}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ── Action card ── */}
+                  <div className="rounded-3xl border border-slate-200/80 bg-white shadow-md p-4">
+                    {!eligibility?.canValidate && eligibility?.reason ? (
+                      <div className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                        {eligibility.reason}
+                      </div>
+                    ) : null}
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => {
+                          setConfirmOpen(true);
+                          setAgreeTerms(false);
+                          setAgreeDisbursement(false);
+                        }}
+                        disabled={loading || (eligibility ? !eligibility.canValidate : false)}
+                        className="flex-1 px-4 py-3 rounded-2xl bg-[#02665e] text-white text-sm font-bold shadow-lg shadow-[#02665e]/25 hover:bg-[#024d47] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 active:scale-[0.98]"
+                      >
+                        ✓ Confirm Check-in
+                      </button>
+                      <button
+                        onClick={() => {
+                          setPreview(null);
+                          setCode("");
+                          setResultMsg(null);
+                          setEligibility(null);
+                        }}
+                        className="px-4 py-3 rounded-2xl border border-slate-200 bg-slate-50 text-slate-600 text-sm font-semibold hover:bg-slate-100 transition-all duration-200 active:scale-[0.98]"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                    <div className="mt-2.5 text-[11px] text-slate-400 text-center">
+                      This will mark the code as <strong className="text-slate-500">USED</strong> and move the guest to <strong className="text-slate-500">Checked‑In</strong>.
+                    </div>
+                  </div>
+
                 </div>
               </div>
             ) : null}
@@ -925,26 +956,13 @@ export default function CheckinValidation() {
   );
 }
 
-function InfoTile({
-  label,
-  value,
-  variant = 'default',
-}: {
-  label: string;
-  value: string;
-  variant?: 'default' | 'checkin' | 'checkout';
-}) {
-  const variantClass =
-    variant === 'checkin'
-      ? 'border-emerald-200/70 bg-gradient-to-br from-emerald-50/70 via-white to-white ring-emerald-500/10'
-      : variant === 'checkout'
-        ? 'border-sky-200/70 bg-gradient-to-br from-sky-50/70 via-white to-white ring-sky-500/10'
-        : 'border-slate-200/80 bg-white ring-black/5';
-
+function DataRow({ label, value, highlight, span }: { label: string; value: string; highlight?: boolean; span?: boolean }) {
   return (
-    <div className={`min-w-0 rounded-2xl border px-3.5 py-3 shadow-sm ring-1 transition-all duration-200 hover:shadow-md ${variantClass} hover:border-slate-300`}>
-      <div className="text-[11px] font-bold tracking-wide text-slate-500 uppercase">{label}</div>
-      <div className="mt-1 text-[13px] sm:text-[14px] font-semibold text-slate-900 leading-snug break-words">{value || "—"}</div>
+    <div className={span ? 'col-span-2' : ''}>
+      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{label}</div>
+      <div className={`mt-0.5 text-[13px] font-semibold leading-snug break-words ${highlight ? 'text-[#02665e]' : 'text-slate-900'}`}>
+        {value || '—'}
+      </div>
     </div>
   );
 }
