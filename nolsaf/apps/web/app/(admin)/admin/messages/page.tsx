@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { Bell, ChevronDown, ChevronUp, ExternalLink, User, Calendar, Building2 } from "lucide-react";
+import { Bell, ChevronDown, ChevronUp, ExternalLink, User, Calendar, Building2, AlertTriangle, RefreshCw } from "lucide-react";
 import Link from "next/link";
 
 type Message = {
@@ -20,6 +20,7 @@ export default function Page() {
   const [unread, setUnread] = useState<Message[]>([]);
   const [viewed, setViewed] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const formatTime = useCallback((dateString?: string) => {
     if (!dateString) return '';
@@ -50,12 +51,18 @@ export default function Page() {
 
   const fetchTab = useCallback(async (tab: 'unread' | 'viewed') => {
     setLoading(true);
+    setFetchError(null);
     try {
       const q = new URLSearchParams({ tab, page: '1', pageSize: '50' });
       // Use relative paths in browser to leverage Next.js rewrites (avoids CORS issues)
       const url = `/api/admin/notifications?${q.toString()}`;
       const r = await fetch(url, { credentials: 'include' });
-      if (!r.ok) throw new Error(`Fetch failed ${r.status}`);
+      if (!r.ok) {
+        const is5xx = r.status >= 500;
+        throw new Error(is5xx
+          ? `SERVER_${r.status}`
+          : `Fetch failed ${r.status}`);
+      }
       const data = await r.json();
       // Format time for each notification
       const formatted = (data.items ?? []).map((item: any) => ({
@@ -64,8 +71,17 @@ export default function Page() {
       }));
       if (tab === 'unread') setUnread(formatted);
       else setViewed(formatted);
-    } catch (err) {
-      console.error('Failed to load notifications', err);
+    } catch (err: any) {
+      const msg: string = err?.message ?? '';
+      if (msg.startsWith('SERVER_502') || msg.startsWith('SERVER_503')) {
+        setFetchError('The server is temporarily unavailable (502). It may be starting up — please wait a moment and retry.');
+      } else if (msg.startsWith('SERVER_')) {
+        setFetchError(`Server error (${msg.replace('SERVER_', '')}). Please retry.`);
+      } else if (msg.toLowerCase().includes('failed to fetch') || msg.toLowerCase().includes('networkerror')) {
+        setFetchError('Network error — check your connection and retry.');
+      } else {
+        setFetchError('Failed to load notifications. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -363,6 +379,23 @@ export default function Page() {
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-2 border-gray-300 border-t-emerald-600"></div>
+            </div>
+          ) : fetchError ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-4">
+              <div className="w-14 h-14 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center">
+                <AlertTriangle className="h-7 w-7 text-amber-500" />
+              </div>
+              <div className="text-center max-w-sm">
+                <p className="text-sm font-semibold text-gray-800 mb-1">Could not load notifications</p>
+                <p className="text-sm text-gray-500 leading-relaxed">{fetchError}</p>
+              </div>
+              <button
+                onClick={() => { fetchTab('unread'); fetchTab('viewed'); }}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#02665e] text-white text-sm font-medium hover:bg-[#014e47] transition-colors"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Retry
+              </button>
             </div>
           ) : hasItems ? (
             renderList(currentItems)
