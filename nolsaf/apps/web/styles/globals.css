@@ -126,6 +126,13 @@
   50% { opacity: 0.42; }
 }
 
+/* Sequential hazard-light blink: only one dot glows at a time.
+   Use with 1.2s cycle + animationDelay 0ms / 400ms / 800ms on each dot. */
+@keyframes nols-seq-blink {
+  0%, 27%   { opacity: 1;    transform: scale(1.25); }
+  37%, 100% { opacity: 0.10; transform: scale(0.80); }
+}
+
 .nols-ai-hex-drift {
   transform-origin: center;
   animation: nols-ai-hex-drift 18s ease-in-out infinite;

@@ -861,15 +861,15 @@ export default function PropertyAvailabilityPage() {
                 <span className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-200">
                   <span
                     className="h-1.5 w-1.5 rounded-full bg-emerald-400"
-                    style={{ animation: "pulse 1.2s ease-in-out infinite", animationDelay: "0ms" }}
+                    style={{ animation: "nols-seq-blink 1.2s ease-in-out infinite", animationDelay: "0ms" }}
                   />
                   <span
                     className="h-1.5 w-1.5 rounded-full bg-sky-400"
-                    style={{ animation: "pulse 1.2s ease-in-out infinite", animationDelay: "400ms" }}
+                    style={{ animation: "nols-seq-blink 1.2s ease-in-out infinite", animationDelay: "400ms" }}
                   />
                   <span
                     className="h-1.5 w-1.5 rounded-full bg-rose-500"
-                    style={{ animation: "pulse 1.2s ease-in-out infinite", animationDelay: "800ms" }}
+                    style={{ animation: "nols-seq-blink 1.2s ease-in-out infinite", animationDelay: "800ms" }}
                   />
                   Live updates
                 </span>
@@ -1192,17 +1192,17 @@ export default function PropertyAvailabilityPage() {
                         {/* Green — fires first */}
                         <span
                           className="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_6px_2px_rgba(52,211,153,0.7)]"
-                          style={{ animation: "pulse 1.2s ease-in-out infinite", animationDelay: "0ms" }}
+                          style={{ animation: "nols-seq-blink 1.2s ease-in-out infinite", animationDelay: "0ms" }}
                         />
                         {/* Blue — fires second */}
                         <span
                           className="h-2.5 w-2.5 rounded-full bg-sky-400 shadow-[0_0_6px_2px_rgba(56,189,248,0.7)]"
-                          style={{ animation: "pulse 1.2s ease-in-out infinite", animationDelay: "400ms" }}
+                          style={{ animation: "nols-seq-blink 1.2s ease-in-out infinite", animationDelay: "400ms" }}
                         />
                         {/* Red — fires third */}
                         <span
                           className="h-2.5 w-2.5 rounded-full bg-rose-500 shadow-[0_0_6px_2px_rgba(244,63,94,0.7)]"
-                          style={{ animation: "pulse 1.2s ease-in-out infinite", animationDelay: "800ms" }}
+                          style={{ animation: "nols-seq-blink 1.2s ease-in-out infinite", animationDelay: "800ms" }}
                         />
                       </div>
                       <p className="text-xs font-bold text-emerald-300 self-start">Connected</p>
@@ -1221,6 +1221,7 @@ export default function PropertyAvailabilityPage() {
               </div>
 
               <div className="mt-4 grid grid-cols-2 gap-3">
+                {/* ── Bookings card — deep emerald gradient ── */}
                 <button
                   type="button"
                   onClick={() => {
@@ -1228,22 +1229,29 @@ export default function PropertyAvailabilityPage() {
                     setRangeInsightsTab("bookings");
                     setShowRangeInsights(true);
                   }}
-                  className={`rounded-xl border bg-white/5 p-3 text-left transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-emerald-400/60 ${
-                    calendarQuickFilter === "bookings" ? "border-emerald-400/30 ring-1 ring-emerald-400/20" : "border-white/10"
+                  style={{
+                    background: calendarQuickFilter === "bookings"
+                      ? "linear-gradient(135deg, #064e3b 0%, #065f46 100%)"
+                      : "linear-gradient(135deg, #022c22 0%, #064e3b 100%)",
+                  }}
+                  className={`rounded-xl border p-3 text-left transition focus:outline-none focus:ring-2 focus:ring-emerald-400/60 hover:brightness-125 ${
+                    calendarQuickFilter === "bookings" ? "border-emerald-400/50" : "border-emerald-900/60"
                   }`}
                   title="Filter calendar to bookings + view insights"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs text-white/60">Bookings</p>
+                    <p className="text-xs text-emerald-300/80 font-semibold">Bookings</p>
                     {calendarQuickFilter === "bookings" && (
-                      <span className="text-[10px] font-bold rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-emerald-100">
+                      <span className="text-[10px] font-bold rounded-full border border-emerald-400/40 bg-emerald-900/60 px-2 py-0.5 text-emerald-200">
                         Filtering
                       </span>
                     )}
                   </div>
-                  <p className="mt-1 text-xl font-semibold text-white">{totalBookings}</p>
-                  <p className="mt-1 text-[11px] text-white/45">Click to filter + visualize</p>
+                  <p className="mt-1 text-xl font-bold text-white">{totalBookings}</p>
+                  <p className="mt-1 text-[11px] text-emerald-300/50">Click to filter + visualize</p>
                 </button>
+
+                {/* ── Blocks card — deep amber gradient ── */}
                 <button
                   type="button"
                   onClick={() => {
@@ -1251,21 +1259,26 @@ export default function PropertyAvailabilityPage() {
                     setRangeInsightsTab("blocks");
                     setShowRangeInsights(true);
                   }}
-                  className={`rounded-xl border bg-white/5 p-3 text-left transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-emerald-400/60 ${
-                    calendarQuickFilter === "blocks" ? "border-emerald-400/30 ring-1 ring-emerald-400/20" : "border-white/10"
+                  style={{
+                    background: calendarQuickFilter === "blocks"
+                      ? "linear-gradient(135deg, #78350f 0%, #92400e 100%)"
+                      : "linear-gradient(135deg, #3a1a05 0%, #78350f 100%)",
+                  }}
+                  className={`rounded-xl border p-3 text-left transition focus:outline-none focus:ring-2 focus:ring-amber-400/60 hover:brightness-125 ${
+                    calendarQuickFilter === "blocks" ? "border-amber-400/50" : "border-amber-900/60"
                   }`}
                   title="Filter calendar to blocks + view insights"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs text-white/60">Blocks</p>
+                    <p className="text-xs text-amber-300/80 font-semibold">Blocks</p>
                     {calendarQuickFilter === "blocks" && (
-                      <span className="text-[10px] font-bold rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-emerald-100">
+                      <span className="text-[10px] font-bold rounded-full border border-amber-400/40 bg-amber-900/60 px-2 py-0.5 text-amber-200">
                         Filtering
                       </span>
                     )}
                   </div>
-                  <p className="mt-1 text-xl font-semibold text-white">{totalBlocks}</p>
-                  <p className="mt-1 text-[11px] text-white/45">Click to filter + visualize</p>
+                  <p className="mt-1 text-xl font-bold text-white">{totalBlocks}</p>
+                  <p className="mt-1 text-[11px] text-amber-300/50">Click to filter + visualize</p>
                 </button>
               </div>
             </div>
