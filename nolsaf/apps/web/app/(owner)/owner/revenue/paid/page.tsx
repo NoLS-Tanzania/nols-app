@@ -212,52 +212,51 @@ export default function Paid() {
           className="relative rounded-[22px] overflow-hidden shadow-2xl hover:-translate-y-1.5 hover:shadow-[0_28px_60px_-10px_rgba(2,102,94,0.55)] transition-all duration-500 cursor-default select-none"
           style={{
             background: "linear-gradient(135deg, #1a3a8f 0%, #0a6b82 45%, #02665e 100%)",
-            aspectRatio: "1.586 / 1",
+            minHeight: "270px",
           }}
         >
-          {/* ── Decorative large circle arcs (like a real card) ── */}
-          <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 420 265" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice" aria-hidden>
+          {/* ── Decorative SVG layer ── */}
+          <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 420 300" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice" aria-hidden>
             {/* Big arc top-right */}
-            <circle cx="380" cy="60" r="155" stroke="white" strokeOpacity="0.07" strokeWidth="1" fill="none" />
-            <circle cx="380" cy="60" r="120" stroke="white" strokeOpacity="0.06" strokeWidth="1" fill="none" />
-            {/* Inner glow circle overlap */}
-            <circle cx="340" cy="30" r="90" stroke="white" strokeOpacity="0.05" strokeWidth="1" fill="none" />
+            <circle cx="390" cy="60" r="165" stroke="white" strokeOpacity="0.07" strokeWidth="1" fill="none" />
+            <circle cx="390" cy="60" r="125" stroke="white" strokeOpacity="0.06" strokeWidth="1" fill="none" />
+            <circle cx="350" cy="30" r="95" stroke="white" strokeOpacity="0.05" strokeWidth="1" fill="none" />
             {/* Bottom-left subtle arc */}
-            <circle cx="30" cy="220" r="100" stroke="white" strokeOpacity="0.05" strokeWidth="1" fill="none" />
-            {/* Sparkline / wave graph */}
+            <circle cx="30" cy="260" r="110" stroke="white" strokeOpacity="0.05" strokeWidth="1" fill="none" />
+            {/* Sparkline wave — shifted down so it doesn't overlap amount text */}
             <polyline
-              points="20,200 55,175 90,185 125,155 160,165 195,138 230,148 265,120 300,132 335,108 370,118 410,92"
-              stroke="white" strokeOpacity="0.13" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round"
+              points="20,240 60,212 100,222 140,190 180,200 220,168 260,178 300,148 340,160 380,132 420,118"
+              stroke="white" strokeOpacity="0.14" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round"
             />
             {/* Area fill under sparkline */}
             <polygon
-              points="20,200 55,175 90,185 125,155 160,165 195,138 230,148 265,120 300,132 335,108 370,118 410,92 410,265 20,265"
+              points="20,240 60,212 100,222 140,190 180,200 220,168 260,178 300,148 340,160 380,132 420,118 420,300 20,300"
               fill="white" fillOpacity="0.03"
             />
-            {/* Dot points on sparkline */}
-            {[[55,175],[125,155],[195,138],[265,120],[335,108]].map(([cx,cy],i) => (
-              <circle key={i} cx={cx} cy={cy} r="2.5" fill="white" fillOpacity="0.22" />
+            {/* Sparkline dots */}
+            {[[60,212],[140,190],[220,168],[300,148],[380,132]].map(([cx,cy],i) => (
+              <circle key={i} cx={cx} cy={cy} r="2.5" fill="white" fillOpacity="0.25" />
             ))}
             {/* NFC arcs top-right */}
-            <path d="M388 28 Q398 38 388 48" stroke="white" strokeOpacity="0.55" strokeWidth="2" fill="none" strokeLinecap="round" />
-            <path d="M382 23 Q397 38 382 53" stroke="white" strokeOpacity="0.38" strokeWidth="2" fill="none" strokeLinecap="round" />
-            <path d="M376 18 Q396 38 376 58" stroke="white" strokeOpacity="0.22" strokeWidth="2" fill="none" strokeLinecap="round" />
+            <path d="M396 26 Q407 38 396 50" stroke="white" strokeOpacity="0.55" strokeWidth="2" fill="none" strokeLinecap="round" />
+            <path d="M389 20 Q406 38 389 56" stroke="white" strokeOpacity="0.35" strokeWidth="2" fill="none" strokeLinecap="round" />
+            <path d="M382 14 Q405 38 382 62" stroke="white" strokeOpacity="0.18" strokeWidth="2" fill="none" strokeLinecap="round" />
           </svg>
 
           {/* Top sheen */}
           <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent pointer-events-none" />
 
           {/* ── Card content ── */}
-          <div className="relative h-full flex flex-col justify-between p-6">
+          <div className="relative flex flex-col justify-between gap-5 p-6 pb-6" style={{ minHeight: "270px" }}>
 
-            {/* Row 1: brand name + NFC placeholder */}
+            {/* Row 1 — brand + chip */}
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-[11px] font-black uppercase tracking-[0.25em] text-white/50">NoLSAF</p>
                 <p className="text-base font-black text-white tracking-wide leading-tight mt-0.5">Revenue Card</p>
               </div>
               {/* EMV Chip */}
-              <svg width="38" height="30" viewBox="0 0 38 30" fill="none" className="mt-0.5 opacity-80" aria-hidden>
+              <svg width="40" height="32" viewBox="0 0 38 30" fill="none" className="opacity-80 flex-shrink-0" aria-hidden>
                 <rect x="1" y="1" width="36" height="28" rx="4" fill="#c8a84b" stroke="#a07830" strokeWidth="0.8" />
                 <rect x="1" y="10" width="36" height="10" fill="#b8983a" />
                 <rect x="13" y="1" width="12" height="28" fill="#b8983a" />
@@ -269,45 +268,45 @@ export default function Paid() {
               </svg>
             </div>
 
-            {/* Row 2: amount hero */}
-            <div className="-mt-1">
-              <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/45 mb-1">Total Revenue Received</p>
+            {/* Row 2 — amount hero */}
+            <div>
+              <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/45 mb-1.5">Total Revenue Received</p>
               <p
                 className="font-black text-white leading-none drop-shadow tabular-nums"
-                style={{ fontSize: "clamp(1.4rem, 4vw, 2rem)", letterSpacing: "-0.02em" }}
+                style={{ fontSize: "clamp(1.55rem, 3.5vw, 2.1rem)", letterSpacing: "-0.02em" }}
               >
                 {formatCurrency(stats.totalAmount)}
               </p>
             </div>
 
-            {/* Row 3: stats + logo circles */}
-            <div className="flex items-end justify-between">
-              <div className="flex items-center gap-4">
+            {/* Row 3 — stats + logo circles */}
+            <div className="flex items-center justify-between pt-2 border-t border-white/10">
+              <div className="flex items-center gap-3 flex-wrap">
                 <div>
-                  <p className="text-[8px] font-bold uppercase tracking-widest text-white/40">Invoices</p>
-                  <p className="text-sm font-black text-white tabular-nums">{stats.totalCount}</p>
+                  <p className="text-[8px] font-bold uppercase tracking-widest text-white/45">Invoices</p>
+                  <p className="text-sm font-black text-white tabular-nums mt-0.5">{stats.totalCount}</p>
                 </div>
-                <div className="w-px h-7 bg-white/15" />
+                <div className="w-px h-8 bg-white/15 flex-shrink-0" />
                 <div>
-                  <p className="text-[8px] font-bold uppercase tracking-widest text-white/40">Avg</p>
-                  <p className="text-sm font-black text-white tabular-nums">
+                  <p className="text-[8px] font-bold uppercase tracking-widest text-white/45">Avg per invoice</p>
+                  <p className="text-sm font-black text-white tabular-nums mt-0.5">
                     {stats.totalCount > 0 ? formatCurrency(Math.round(stats.totalAmount / stats.totalCount)) : "—"}
                   </p>
                 </div>
-                <div className="w-px h-7 bg-white/15" />
+                <div className="w-px h-8 bg-white/15 flex-shrink-0" />
                 <div className="inline-flex items-center gap-1.5">
-                  <span className="relative flex h-1.5 w-1.5">
+                  <span className="relative flex h-2 w-2 flex-shrink-0">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-400" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
                   </span>
-                  <p className="text-[8px] font-bold text-white/60 uppercase tracking-wide">Confirmed</p>
+                  <p className="text-[8px] font-bold text-white/70 uppercase tracking-wide">Confirmed</p>
                 </div>
               </div>
 
-              {/* Mastercard-style dual circles */}
-              <div className="flex -space-x-2.5 flex-shrink-0">
-                <div className="w-9 h-9 rounded-full opacity-90" style={{ background: "radial-gradient(circle at 40% 40%, #1a6baf, #0a3a7a)" }} />
-                <div className="w-9 h-9 rounded-full opacity-75" style={{ background: "radial-gradient(circle at 60% 40%, #02665e, #014d47)" }} />
+              {/* Dual circles (Mastercard-style) */}
+              <div className="flex -space-x-3 flex-shrink-0 ml-2">
+                <div className="w-9 h-9 rounded-full opacity-90 flex-shrink-0" style={{ background: "radial-gradient(circle at 40% 40%, #1a6baf, #0a3a7a)" }} />
+                <div className="w-9 h-9 rounded-full opacity-75 flex-shrink-0" style={{ background: "radial-gradient(circle at 60% 40%, #02665e, #014d47)" }} />
               </div>
             </div>
           </div>
