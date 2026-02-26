@@ -739,53 +739,6 @@ export default function AdminHomePage() {
   useEffect(() => {
     (async () => {
       try {
-        const now = new Date();
-        let placeholderLabels: string[] = [];
-        if (rangeType === "properties") {
-          placeholderLabels = Array.from({ length: propertiesCount }).map((_, i) =>
-            `Property ${String.fromCharCode(65 + (i % 26))}${i >= 26 ? i : ""}`
-          );
-        } else if (rangeType === "hours") {
-          placeholderLabels = Array.from({ length: hoursWindow }).map((_, i) => {
-            const d = new Date(now.getTime() - (hoursWindow - 1 - i) * 60 * 60 * 1000);
-            return `${String(d.getHours()).padStart(2, "0")}:00`;
-          });
-        } else {
-          placeholderLabels = Array.from({ length: monthsWindow }).map((_, i) => {
-            const d = new Date(now.getFullYear(), now.getMonth() - (monthsWindow - 1 - i), 1);
-            return d.toLocaleString(undefined, { month: "short", year: "numeric" });
-          });
-        }
-
-        const zeros = placeholderLabels.map(() => 0);
-        setChartData({
-          labels: placeholderLabels,
-          datasets: [
-            {
-              label: "Commission",
-              data: zeros,
-              borderColor: "rgba(56,189,248,0.95)",
-              backgroundColor: "rgba(56,189,248,0.06)",
-              tension: 0.4,
-              borderWidth: 2,
-              pointRadius: 0,
-            },
-            {
-              label: "Subscription",
-              data: zeros.slice(),
-              borderColor: "rgba(34,197,94,0.95)",
-              backgroundColor: "rgba(34,197,94,0.05)",
-              tension: 0.4,
-              borderWidth: 2,
-              pointRadius: 0,
-            },
-          ],
-        });
-      } catch {
-        // ignore placeholder failures
-      }
-
-      try {
         if (rangeType === "properties") {
           const res = await fetch(`/api/admin/revenue/properties?top=${encodeURIComponent(String(propertiesCount))}`);
           if (!res.ok) throw new Error("no properties");
@@ -932,9 +885,20 @@ export default function AdminHomePage() {
           <main className="col-span-12 rounded-[32px] border border-white/10 bg-white/[0.02] backdrop-blur-xl shadow-[0_26px_110px_-70px_rgba(0,0,0,0.95)] p-5 sm:p-6 lg:p-8">
             <div className="flex items-start justify-between gap-4 flex-wrap mb-6">
               <div>
-                <div className="text-xs text-slate-300">Welcome back • <ClientTime iso={nowIso} /></div>
-                <h1 className="mt-1 text-2xl sm:text-3xl font-extrabold tracking-tight text-white">NoLSAF Admin Dashboard</h1>
-                <div className="mt-1 text-sm text-slate-300">A modern overview of approvals, payments, bookings, and revenue.</div>
+                <div className="flex items-center gap-2 text-xs text-slate-400">
+                  <span
+                    className="inline-block h-2 w-2 rounded-full bg-emerald-400"
+                    style={{ boxShadow: "0 0 8px rgba(52,211,153,0.85)", animation: "nols-seq-blink 1.2s ease-in-out infinite" }}
+                    aria-hidden
+                  />
+                  System operational
+                  <span className="mx-1 text-white/20">·</span>
+                  <ClientTime iso={nowIso} />
+                </div>
+                <h1 className="mt-1 text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+                  {(() => { const h = new Date(nowIso).getHours(); return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening"; })()},&nbsp;Admin
+                </h1>
+                <div className="mt-1 text-sm text-slate-400">Approvals · Payments · Bookings · Revenue — all in one view</div>
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -959,25 +923,25 @@ export default function AdminHomePage() {
             <div className="grid grid-cols-12 gap-6">
               <section className="col-span-12">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                  <div className="group relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-white/8 via-white/5 to-white/2 backdrop-blur-xl p-5 shadow-[0_22px_80px_-60px_rgba(0,0,0,0.95)] motion-safe:transition hover:-translate-y-0.5 hover:shadow-[0_28px_95px_-60px_rgba(0,0,0,0.98)]">
+                  <div className="group relative overflow-hidden rounded-3xl border border-emerald-500/20 bg-gradient-to-br from-emerald-950/50 via-emerald-900/15 to-white/2 backdrop-blur-xl p-5 shadow-[0_22px_80px_-60px_rgba(0,0,0,0.95)] motion-safe:transition hover:-translate-y-0.5 hover:shadow-[0_28px_95px_-60px_rgba(0,0,0,0.98)]">
                     <div
                       className="pointer-events-none absolute inset-0 opacity-75"
                       aria-hidden
                       style={{
                         background:
-                          "radial-gradient(520px circle at 15% 20%, rgba(2,102,94,0.26), transparent 55%), radial-gradient(520px circle at 90% 30%, rgba(34,197,94,0.16), transparent 60%)",
+                          "radial-gradient(520px circle at 15% 20%, rgba(2,102,94,0.30), transparent 55%), radial-gradient(520px circle at 90% 30%, rgba(34,197,94,0.18), transparent 60%)",
                       }}
                     />
                     <div className="relative flex items-start justify-between gap-3">
                       <div className="text-sm font-medium text-slate-200">Pending approvals</div>
-                      <div className="h-9 w-9 rounded-2xl border border-white/10 bg-white/10 flex items-center justify-center">
-                        <CheckCircle2 className="h-4 w-4 text-white/90" aria-hidden />
+                      <div className="h-9 w-9 rounded-2xl border border-emerald-400/25 bg-emerald-500/15 flex items-center justify-center">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-300" aria-hidden />
                       </div>
                     </div>
                     <div className="relative mt-4 text-4xl font-extrabold tracking-tight text-white tabular-nums">
-                      {monitoring ? Math.round(pendingApprovalsAnimated).toLocaleString() : "—"}
+                      {monitoring ? Math.round(pendingApprovalsAnimated).toLocaleString() : <div className="h-10 w-16 rounded-xl bg-white/10 animate-pulse" />}
                     </div>
-                    <div className="relative mt-2 text-sm text-slate-400">Listings to review</div>
+                    <div className="relative mt-2 text-sm text-slate-400">{monitoring ? "Listings to review" : <div className="h-3 w-24 rounded bg-white/10 animate-pulse" />}</div>
                     <div className="relative mt-4 h-16 flex items-end justify-between gap-3">
                       <div className="text-xs text-slate-400">
                         Share <span className="text-slate-200 font-semibold">{opsPercent(pendingApprovalsValue).toFixed(0)}%</span>
@@ -986,27 +950,27 @@ export default function AdminHomePage() {
                     </div>
                   </div>
 
-                  <div className="group relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-white/8 via-white/5 to-white/2 backdrop-blur-xl p-5 shadow-[0_22px_80px_-60px_rgba(0,0,0,0.95)] motion-safe:transition hover:-translate-y-0.5 hover:shadow-[0_28px_95px_-60px_rgba(0,0,0,0.98)]">
+                  <div className="group relative overflow-hidden rounded-3xl border border-sky-500/20 bg-gradient-to-br from-sky-950/50 via-sky-900/15 to-white/2 backdrop-blur-xl p-5 shadow-[0_22px_80px_-60px_rgba(0,0,0,0.95)] motion-safe:transition hover:-translate-y-0.5 hover:shadow-[0_28px_95px_-60px_rgba(0,0,0,0.98)]">
                     <div
                       className="pointer-events-none absolute inset-0 opacity-75"
                       aria-hidden
                       style={{
                         background:
-                          "radial-gradient(520px circle at 15% 25%, rgba(6,182,212,0.22), transparent 56%), radial-gradient(520px circle at 90% 22%, rgba(56,189,248,0.16), transparent 60%)",
+                          "radial-gradient(520px circle at 15% 25%, rgba(6,182,212,0.26), transparent 56%), radial-gradient(520px circle at 90% 22%, rgba(56,189,248,0.18), transparent 60%)",
                       }}
                     />
                     <div className="relative flex items-start justify-between gap-3">
                       <div className="text-sm font-medium text-slate-200">Payments waiting</div>
-                      <div className="h-9 w-9 rounded-2xl border border-white/10 bg-white/10 flex items-center justify-center">
-                        <CreditCard className="h-4 w-4 text-white/90" aria-hidden />
+                      <div className="h-9 w-9 rounded-2xl border border-sky-400/25 bg-sky-500/15 flex items-center justify-center">
+                        <CreditCard className="h-4 w-4 text-sky-300" aria-hidden />
                       </div>
                     </div>
                     <div className="relative mt-4 text-4xl font-extrabold tracking-tight text-white tabular-nums">
-                      {paymentsWaiting === null || paymentsWaiting === undefined
-                        ? "—"
-                        : Math.round(paymentsWaitingAnimated).toLocaleString()}
+                      {paymentsWaiting != null
+                        ? Math.round(paymentsWaitingAnimated).toLocaleString()
+                        : <div className="h-10 w-16 rounded-xl bg-white/10 animate-pulse" />}
                     </div>
-                    <div className="relative mt-2 text-sm text-slate-400">Payouts & settlements</div>
+                    <div className="relative mt-2 text-sm text-slate-400">{paymentsWaiting != null ? "Payouts & settlements" : <div className="h-3 w-28 rounded bg-white/10 animate-pulse" />}</div>
                     <div className="relative mt-4 h-16 flex items-end justify-between gap-3">
                       <div className="text-xs text-slate-400">
                         Share <span className="text-slate-200 font-semibold">{opsPercent(paymentsWaitingValue).toFixed(0)}%</span>
@@ -1015,25 +979,25 @@ export default function AdminHomePage() {
                     </div>
                   </div>
 
-                  <div className="group relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-white/8 via-white/5 to-white/2 backdrop-blur-xl p-5 shadow-[0_22px_80px_-60px_rgba(0,0,0,0.95)] motion-safe:transition hover:-translate-y-0.5 hover:shadow-[0_28px_95px_-60px_rgba(0,0,0,0.98)]">
+                  <div className="group relative overflow-hidden rounded-3xl border border-blue-500/20 bg-gradient-to-br from-blue-950/50 via-blue-900/15 to-white/2 backdrop-blur-xl p-5 shadow-[0_22px_80px_-60px_rgba(0,0,0,0.95)] motion-safe:transition hover:-translate-y-0.5 hover:shadow-[0_28px_95px_-60px_rgba(0,0,0,0.98)]">
                     <div
                       className="pointer-events-none absolute inset-0 opacity-75"
                       aria-hidden
                       style={{
                         background:
-                          "radial-gradient(520px circle at 18% 22%, rgba(56,189,248,0.22), transparent 56%), radial-gradient(520px circle at 92% 35%, rgba(2,102,94,0.14), transparent 62%)",
+                          "radial-gradient(520px circle at 18% 22%, rgba(56,189,248,0.26), transparent 56%), radial-gradient(520px circle at 92% 35%, rgba(59,130,246,0.18), transparent 62%)",
                       }}
                     />
                     <div className="relative flex items-start justify-between gap-3">
                       <div className="text-sm font-medium text-slate-200">Bookings</div>
-                      <div className="h-9 w-9 rounded-2xl border border-white/10 bg-white/10 flex items-center justify-center">
-                        <CalendarDays className="h-4 w-4 text-white/90" aria-hidden />
+                      <div className="h-9 w-9 rounded-2xl border border-blue-400/25 bg-blue-500/15 flex items-center justify-center">
+                        <CalendarDays className="h-4 w-4 text-blue-300" aria-hidden />
                       </div>
                     </div>
                     <div className="relative mt-4 text-4xl font-extrabold tracking-tight text-white tabular-nums">
-                      {monitoring ? Math.round(bookingsAnimated).toLocaleString() : "—"}
+                      {monitoring ? Math.round(bookingsAnimated).toLocaleString() : <div className="h-10 w-16 rounded-xl bg-white/10 animate-pulse" />}
                     </div>
-                    <div className="relative mt-2 text-sm text-slate-400">In the current window</div>
+                    <div className="relative mt-2 text-sm text-slate-400">{monitoring ? "In the current window" : <div className="h-3 w-28 rounded bg-white/10 animate-pulse" />}</div>
                     <div className="relative mt-4 h-16 flex items-end justify-between gap-3">
                       <div className="text-xs text-slate-400">
                         Share <span className="text-slate-200 font-semibold">{opsPercent(bookingsValue).toFixed(0)}%</span>
@@ -1042,25 +1006,25 @@ export default function AdminHomePage() {
                     </div>
                   </div>
 
-                  <div className="group relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-white/8 via-white/5 to-white/2 backdrop-blur-xl p-5 shadow-[0_22px_80px_-60px_rgba(0,0,0,0.95)] motion-safe:transition hover:-translate-y-0.5 hover:shadow-[0_28px_95px_-60px_rgba(0,0,0,0.98)]">
+                  <div className="group relative overflow-hidden rounded-3xl border border-amber-500/20 bg-gradient-to-br from-amber-950/50 via-amber-900/15 to-white/2 backdrop-blur-xl p-5 shadow-[0_22px_80px_-60px_rgba(0,0,0,0.95)] motion-safe:transition hover:-translate-y-0.5 hover:shadow-[0_28px_95px_-60px_rgba(0,0,0,0.98)]">
                     <div
                       className="pointer-events-none absolute inset-0 opacity-75"
                       aria-hidden
                       style={{
                         background:
-                          "radial-gradient(520px circle at 18% 26%, rgba(2,102,94,0.24), transparent 56%), radial-gradient(520px circle at 92% 30%, rgba(148,163,184,0.14), transparent 62%)",
+                          "radial-gradient(520px circle at 18% 26%, rgba(245,158,11,0.22), transparent 56%), radial-gradient(520px circle at 92% 30%, rgba(251,191,36,0.14), transparent 62%)",
                       }}
                     />
                     <div className="relative flex items-start justify-between gap-3">
                       <div className="text-sm font-medium text-slate-200">Drivers pending</div>
-                      <div className="h-9 w-9 rounded-2xl border border-white/10 bg-white/10 flex items-center justify-center">
-                        <Truck className="h-4 w-4 text-white/90" aria-hidden />
+                      <div className="h-9 w-9 rounded-2xl border border-amber-400/25 bg-amber-500/15 flex items-center justify-center">
+                        <Truck className="h-4 w-4 text-amber-300" aria-hidden />
                       </div>
                     </div>
                     <div className="relative mt-4 text-4xl font-extrabold tracking-tight text-white tabular-nums">
-                      {driversPending ?? "—"}
+                      {driversPending != null ? driversPending : <div className="h-10 w-16 rounded-xl bg-white/10 animate-pulse" />}
                     </div>
-                    <div className="relative mt-2 text-sm text-slate-400">Awaiting verification</div>
+                    <div className="relative mt-2 text-sm text-slate-400">{driversPending != null ? "Awaiting verification" : <div className="h-3 w-28 rounded bg-white/10 animate-pulse" />}</div>
                     <div className="relative mt-4 h-16 flex items-end justify-between gap-3">
                       <div className="text-xs text-slate-400">
                         Share <span className="text-slate-200 font-semibold">{opsPercent(driversPendingValue).toFixed(0)}%</span>
@@ -1069,25 +1033,25 @@ export default function AdminHomePage() {
                     </div>
                   </div>
 
-                  <div className="group relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-white/8 via-white/5 to-white/2 backdrop-blur-xl p-5 shadow-[0_22px_80px_-60px_rgba(0,0,0,0.95)] motion-safe:transition hover:-translate-y-0.5 hover:shadow-[0_28px_95px_-60px_rgba(0,0,0,0.98)]">
+                  <div className="group relative overflow-hidden rounded-3xl border border-violet-500/20 bg-gradient-to-br from-violet-950/50 via-violet-900/15 to-white/2 backdrop-blur-xl p-5 shadow-[0_22px_80px_-60px_rgba(0,0,0,0.95)] motion-safe:transition hover:-translate-y-0.5 hover:shadow-[0_28px_95px_-60px_rgba(0,0,0,0.98)]">
                     <div
                       className="pointer-events-none absolute inset-0 opacity-75"
                       aria-hidden
                       style={{
                         background:
-                          "radial-gradient(520px circle at 18% 20%, rgba(16,185,129,0.20), transparent 56%), radial-gradient(520px circle at 92% 35%, rgba(2,102,94,0.18), transparent 62%)",
+                          "radial-gradient(520px circle at 18% 20%, rgba(139,92,246,0.22), transparent 56%), radial-gradient(520px circle at 92% 35%, rgba(167,139,250,0.16), transparent 62%)",
                       }}
                     />
                     <div className="relative flex items-start justify-between gap-3">
                       <div className="text-sm font-medium text-slate-200">New users</div>
-                      <div className="h-9 w-9 rounded-2xl border border-white/10 bg-white/10 flex items-center justify-center">
-                        <Users className="h-4 w-4 text-white/90" aria-hidden />
+                      <div className="h-9 w-9 rounded-2xl border border-violet-400/25 bg-violet-500/15 flex items-center justify-center">
+                        <Users className="h-4 w-4 text-violet-300" aria-hidden />
                       </div>
                     </div>
                     <div className="relative mt-4 text-4xl font-extrabold tracking-tight text-white tabular-nums">
-                      {usersNew ?? "—"}
+                      {usersNew != null ? usersNew : <div className="h-10 w-16 rounded-xl bg-white/10 animate-pulse" />}
                     </div>
-                    <div className="relative mt-2 text-sm text-slate-400">Recently joined</div>
+                    <div className="relative mt-2 text-sm text-slate-400">{usersNew != null ? "Recently joined" : <div className="h-3 w-24 rounded bg-white/10 animate-pulse" />}</div>
                     <div className="relative mt-4 h-16 flex items-end justify-between gap-3">
                       <div className="text-xs text-slate-400">
                         Share <span className="text-slate-200 font-semibold">{opsPercent(usersNewValue).toFixed(0)}%</span>
