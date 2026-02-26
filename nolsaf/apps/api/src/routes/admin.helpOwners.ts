@@ -32,9 +32,6 @@ router.post("/validate", async (req, res) => {
         ],
       },
       include: {
-        usedBy: {
-          select: { id: true, name: true, email: true, phone: true },
-        },
         booking: {
           include: {
             cancellationRequests: {
@@ -78,14 +75,14 @@ router.post("/validate", async (req, res) => {
       // Code lifecycle timestamps
       generatedAt: checkinCode.generatedAt,
       usedAt: checkinCode.usedAt ?? null,
-      voidedAt: (checkinCode as any).voidedAt ?? null,
-      voidReason: (checkinCode as any).voidReason ?? null,
-      // Who validated (for USED codes)
-      usedBy: checkinCode.usedBy ? {
-        id: checkinCode.usedBy.id,
-        name: checkinCode.usedBy.name,
-        email: checkinCode.usedBy.email,
-        phone: checkinCode.usedBy.phone,
+      voidedAt: checkinCode.voidedAt ?? null,
+      voidReason: checkinCode.voidReason ?? null,
+      // Who validated (for USED codes) — derive from property owner (only owner can validate)
+      usedBy: (checkinCode.usedByOwner && booking.property?.owner) ? {
+        id: booking.property.owner.id,
+        name: booking.property.owner.name,
+        email: booking.property.owner.email,
+        phone: booking.property.owner.phone,
       } : null,
       property: {
         id: booking.propertyId,
@@ -205,7 +202,7 @@ router.post("/confirm-checkin", async (req, res) => {
         data: {
           status: "USED",
           usedAt: new Date(),
-          usedByOwner: booking.property.ownerId, // Track which owner this was for
+          usedByOwner: true, // Mark as validated by owner
         },
       });
 

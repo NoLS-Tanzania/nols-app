@@ -156,9 +156,6 @@ model User {
   // Agent reviews written by this user
   agentReviewsWritten AgentReview[] @relation("AgentReviewsUser")
 
-  // Check-in codes used by this owner
-  checkinCodesUsed CheckinCode[]
-
   // User documents (KYC)
   documents UserDocument[]
 
@@ -436,13 +433,12 @@ model CheckinCode {
   generatedAt DateTime  @default(now())
   issuedAt    DateTime? // When code was sent to customer
   usedAt      DateTime?
-  usedByOwner Int? // Owner userId who validated
+  usedByOwner Boolean? // Whether code was validated by an owner
   voidReason  String?   @db.VarChar(255) // Reason for voiding
   voidedAt    DateTime? // When code was voided
 
   // Relations
   booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  usedBy  User?   @relation(fields: [usedByOwner], references: [id], onDelete: SetNull)
 
   @@unique([codeHash])
   @@unique([code])
