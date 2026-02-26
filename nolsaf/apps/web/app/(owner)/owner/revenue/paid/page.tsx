@@ -207,63 +207,108 @@ export default function Paid() {
           </div>
         </div>
 
-        {/* Amount card — premium data-viz */}
+        {/* Amount card — credit-card style */}
         <div
-          className="relative rounded-2xl overflow-hidden shadow-2xl hover:-translate-y-1 transition-all duration-300"
-          style={{ background: "linear-gradient(135deg, #1e40af 0%, #0e7490 55%, #02665e 100%)" }}
+          className="relative rounded-[22px] overflow-hidden shadow-2xl hover:-translate-y-1.5 hover:shadow-[0_28px_60px_-10px_rgba(2,102,94,0.55)] transition-all duration-500 cursor-default select-none"
+          style={{
+            background: "linear-gradient(135deg, #1a3a8f 0%, #0a6b82 45%, #02665e 100%)",
+            aspectRatio: "1.586 / 1",
+          }}
         >
-          {/* Top shimmer line */}
-          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
-          {/* Glow orbs */}
-          <div className="absolute -top-14 -right-14 w-52 h-52 rounded-full bg-white/5 pointer-events-none" />
-          <div className="absolute -bottom-10 -left-10 w-40 h-40 rounded-full bg-white/5 pointer-events-none" />
-          {/* Mini bar-chart decoration */}
-          <div className="absolute right-5 bottom-0 flex items-end gap-[5px] pb-0" aria-hidden>
-            {[28, 44, 32, 58, 40, 68, 52, 76, 60, 88].map((h, i) => (
-              <div
-                key={i}
-                className="w-[6px] rounded-t-full bg-white/20"
-                style={{ height: `${h}px` }}
-              />
+          {/* ── Decorative large circle arcs (like a real card) ── */}
+          <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 420 265" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice" aria-hidden>
+            {/* Big arc top-right */}
+            <circle cx="380" cy="60" r="155" stroke="white" strokeOpacity="0.07" strokeWidth="1" fill="none" />
+            <circle cx="380" cy="60" r="120" stroke="white" strokeOpacity="0.06" strokeWidth="1" fill="none" />
+            {/* Inner glow circle overlap */}
+            <circle cx="340" cy="30" r="90" stroke="white" strokeOpacity="0.05" strokeWidth="1" fill="none" />
+            {/* Bottom-left subtle arc */}
+            <circle cx="30" cy="220" r="100" stroke="white" strokeOpacity="0.05" strokeWidth="1" fill="none" />
+            {/* Sparkline / wave graph */}
+            <polyline
+              points="20,200 55,175 90,185 125,155 160,165 195,138 230,148 265,120 300,132 335,108 370,118 410,92"
+              stroke="white" strokeOpacity="0.13" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round"
+            />
+            {/* Area fill under sparkline */}
+            <polygon
+              points="20,200 55,175 90,185 125,155 160,165 195,138 230,148 265,120 300,132 335,108 370,118 410,92 410,265 20,265"
+              fill="white" fillOpacity="0.03"
+            />
+            {/* Dot points on sparkline */}
+            {[[55,175],[125,155],[195,138],[265,120],[335,108]].map(([cx,cy],i) => (
+              <circle key={i} cx={cx} cy={cy} r="2.5" fill="white" fillOpacity="0.22" />
             ))}
-          </div>
-          {/* Animated highlight sweep */}
-          <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/5 to-white/0 pointer-events-none" />
+            {/* NFC arcs top-right */}
+            <path d="M388 28 Q398 38 388 48" stroke="white" strokeOpacity="0.55" strokeWidth="2" fill="none" strokeLinecap="round" />
+            <path d="M382 23 Q397 38 382 53" stroke="white" strokeOpacity="0.38" strokeWidth="2" fill="none" strokeLinecap="round" />
+            <path d="M376 18 Q396 38 376 58" stroke="white" strokeOpacity="0.22" strokeWidth="2" fill="none" strokeLinecap="round" />
+          </svg>
 
-          <div className="relative p-6">
-            {/* Label */}
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/55">Total Revenue Received</p>
+          {/* Top sheen */}
+          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent pointer-events-none" />
 
-            {/* Big amount */}
-            <p className="mt-2 text-4xl sm:text-5xl font-black text-white tabular-nums leading-none drop-shadow-sm tracking-tight">
-              {formatCurrency(stats.totalAmount)}
-            </p>
+          {/* ── Card content ── */}
+          <div className="relative h-full flex flex-col justify-between p-6">
 
-            {/* Divider */}
-            <div className="mt-4 h-px w-full bg-gradient-to-r from-white/20 via-white/10 to-transparent" />
-
-            {/* Data row */}
-            <div className="mt-3 flex items-center gap-5">
+            {/* Row 1: brand name + NFC placeholder */}
+            <div className="flex items-start justify-between">
               <div>
-                <p className="text-[9px] font-bold uppercase tracking-widest text-white/45">Invoices</p>
-                <p className="mt-0.5 text-xl font-black text-white tabular-nums">{stats.totalCount}</p>
+                <p className="text-[11px] font-black uppercase tracking-[0.25em] text-white/50">NoLSAF</p>
+                <p className="text-base font-black text-white tracking-wide leading-tight mt-0.5">Revenue Card</p>
               </div>
-              <div className="w-px h-9 bg-white/20" />
-              <div>
-                <p className="text-[9px] font-bold uppercase tracking-widest text-white/45">Avg per invoice</p>
-                <p className="mt-0.5 text-xl font-black text-white tabular-nums">
-                  {stats.totalCount > 0 ? formatCurrency(Math.round(stats.totalAmount / stats.totalCount)) : "—"}
-                </p>
-              </div>
+              {/* EMV Chip */}
+              <svg width="38" height="30" viewBox="0 0 38 30" fill="none" className="mt-0.5 opacity-80" aria-hidden>
+                <rect x="1" y="1" width="36" height="28" rx="4" fill="#c8a84b" stroke="#a07830" strokeWidth="0.8" />
+                <rect x="1" y="10" width="36" height="10" fill="#b8983a" />
+                <rect x="13" y="1" width="12" height="28" fill="#b8983a" />
+                <rect x="13" y="10" width="12" height="10" fill="#a07830" />
+                <rect x="1" y="10" width="36" height="0.8" fill="#8a6820" />
+                <rect x="1" y="19.2" width="36" height="0.8" fill="#8a6820" />
+                <rect x="13" y="1" width="0.8" height="28" fill="#8a6820" />
+                <rect x="24.2" y="1" width="0.8" height="28" fill="#8a6820" />
+              </svg>
             </div>
 
-            {/* Confirmed badge */}
-            <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/15 border border-white/25 backdrop-blur-sm">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
-              </span>
-              <span className="text-[10px] font-bold text-white/90 tracking-wide">Paid &amp; confirmed by NoLSAF</span>
+            {/* Row 2: amount hero */}
+            <div className="-mt-1">
+              <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/45 mb-1">Total Revenue Received</p>
+              <p
+                className="font-black text-white leading-none drop-shadow tabular-nums"
+                style={{ fontSize: "clamp(1.4rem, 4vw, 2rem)", letterSpacing: "-0.02em" }}
+              >
+                {formatCurrency(stats.totalAmount)}
+              </p>
+            </div>
+
+            {/* Row 3: stats + logo circles */}
+            <div className="flex items-end justify-between">
+              <div className="flex items-center gap-4">
+                <div>
+                  <p className="text-[8px] font-bold uppercase tracking-widest text-white/40">Invoices</p>
+                  <p className="text-sm font-black text-white tabular-nums">{stats.totalCount}</p>
+                </div>
+                <div className="w-px h-7 bg-white/15" />
+                <div>
+                  <p className="text-[8px] font-bold uppercase tracking-widest text-white/40">Avg</p>
+                  <p className="text-sm font-black text-white tabular-nums">
+                    {stats.totalCount > 0 ? formatCurrency(Math.round(stats.totalAmount / stats.totalCount)) : "—"}
+                  </p>
+                </div>
+                <div className="w-px h-7 bg-white/15" />
+                <div className="inline-flex items-center gap-1.5">
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-400" />
+                  </span>
+                  <p className="text-[8px] font-bold text-white/60 uppercase tracking-wide">Confirmed</p>
+                </div>
+              </div>
+
+              {/* Mastercard-style dual circles */}
+              <div className="flex -space-x-2.5 flex-shrink-0">
+                <div className="w-9 h-9 rounded-full opacity-90" style={{ background: "radial-gradient(circle at 40% 40%, #1a6baf, #0a3a7a)" }} />
+                <div className="w-9 h-9 rounded-full opacity-75" style={{ background: "radial-gradient(circle at 60% 40%, #02665e, #014d47)" }} />
+              </div>
             </div>
           </div>
         </div>
