@@ -32,20 +32,67 @@ const api = axios.create({ baseURL: "", withCredentials: true });
 
 // Each room-type filter card gets its own accent colour so the owner can
 // instantly tell the filters apart. Cycles if there are more types than entries.
-const ROOM_PALETTE = [
+// Each room-type card gets its own dark gradient so the owner can tell them apart at a glance.
+const ROOM_PALETTE: Array<{
+  inactiveBg: string; activeBg: string;
+  border: string; activeBorder: string;
+  dot: string; badgeClass: string; activeBadgeClass: string;
+}> = [
   // amber / yellow
-  { inactive: "border-amber-400/25 bg-amber-400/8  hover:bg-amber-400/14", active: "border-amber-400/50 bg-amber-400/18", badge: "border-amber-400/20 bg-amber-400/12 text-amber-300", dot: "bg-amber-400" },
+  {
+    inactiveBg:     "linear-gradient(135deg, #451a03 0%, #78350f 100%)",
+    activeBg:       "linear-gradient(135deg, #78350f 0%, #92400e 100%)",
+    border:         "border-amber-600/50",   activeBorder: "border-amber-400/80",
+    dot:            "bg-amber-400",
+    badgeClass:     "border-amber-600/40 bg-amber-900/60 text-amber-300",
+    activeBadgeClass: "border-amber-400/60 bg-amber-800/80 text-amber-200",
+  },
   // sky / blue
-  { inactive: "border-sky-400/25   bg-sky-400/8    hover:bg-sky-400/14",   active: "border-sky-400/50   bg-sky-400/18",   badge: "border-sky-400/20   bg-sky-400/12   text-sky-300",   dot: "bg-sky-400"   },
+  {
+    inactiveBg:     "linear-gradient(135deg, #0c1a2e 0%, #0c4a6e 100%)",
+    activeBg:       "linear-gradient(135deg, #0c4a6e 0%, #075985 100%)",
+    border:         "border-sky-600/50",     activeBorder: "border-sky-400/80",
+    dot:            "bg-sky-400",
+    badgeClass:     "border-sky-600/40 bg-sky-900/60 text-sky-300",
+    activeBadgeClass: "border-sky-400/60 bg-sky-800/80 text-sky-200",
+  },
   // violet / purple
-  { inactive: "border-violet-400/25 bg-violet-400/8 hover:bg-violet-400/14", active: "border-violet-400/50 bg-violet-400/18", badge: "border-violet-400/20 bg-violet-400/12 text-violet-300", dot: "bg-violet-400" },
+  {
+    inactiveBg:     "linear-gradient(135deg, #1e0a3c 0%, #3b0764 100%)",
+    activeBg:       "linear-gradient(135deg, #3b0764 0%, #4c1d95 100%)",
+    border:         "border-violet-600/50",  activeBorder: "border-violet-400/80",
+    dot:            "bg-violet-400",
+    badgeClass:     "border-violet-600/40 bg-violet-900/60 text-violet-300",
+    activeBadgeClass: "border-violet-400/60 bg-violet-800/80 text-violet-200",
+  },
   // rose / pink
-  { inactive: "border-rose-400/25   bg-rose-400/8   hover:bg-rose-400/14",   active: "border-rose-400/50   bg-rose-400/18",   badge: "border-rose-400/20   bg-rose-400/12   text-rose-300",   dot: "bg-rose-400"   },
+  {
+    inactiveBg:     "linear-gradient(135deg, #2d0a14 0%, #881337 100%)",
+    activeBg:       "linear-gradient(135deg, #881337 0%, #9f1239 100%)",
+    border:         "border-rose-600/50",    activeBorder: "border-rose-400/80",
+    dot:            "bg-rose-400",
+    badgeClass:     "border-rose-600/40 bg-rose-900/60 text-rose-300",
+    activeBadgeClass: "border-rose-400/60 bg-rose-800/80 text-rose-200",
+  },
   // orange
-  { inactive: "border-orange-400/25 bg-orange-400/8 hover:bg-orange-400/14", active: "border-orange-400/50 bg-orange-400/18", badge: "border-orange-400/20 bg-orange-400/12 text-orange-300", dot: "bg-orange-400" },
-  // cyan
-  { inactive: "border-cyan-400/25   bg-cyan-400/8   hover:bg-cyan-400/14",   active: "border-cyan-400/50   bg-cyan-400/18",   badge: "border-cyan-400/20   bg-cyan-400/12   text-cyan-300",   dot: "bg-cyan-400"   },
-] as const;
+  {
+    inactiveBg:     "linear-gradient(135deg, #431407 0%, #7c2d12 100%)",
+    activeBg:       "linear-gradient(135deg, #7c2d12 0%, #9a3412 100%)",
+    border:         "border-orange-600/50",  activeBorder: "border-orange-400/80",
+    dot:            "bg-orange-400",
+    badgeClass:     "border-orange-600/40 bg-orange-900/60 text-orange-300",
+    activeBadgeClass: "border-orange-400/60 bg-orange-800/80 text-orange-200",
+  },
+  // cyan / teal
+  {
+    inactiveBg:     "linear-gradient(135deg, #042f2e 0%, #134e4a 100%)",
+    activeBg:       "linear-gradient(135deg, #134e4a 0%, #115e59 100%)",
+    border:         "border-cyan-600/50",    activeBorder: "border-cyan-400/80",
+    dot:            "bg-cyan-400",
+    badgeClass:     "border-cyan-600/40 bg-cyan-900/60 text-cyan-300",
+    activeBadgeClass: "border-cyan-400/60 bg-cyan-800/80 text-cyan-200",
+  },
+];
 
 function pad2(n: number) {
   return String(n).padStart(2, "0");
@@ -1194,35 +1241,37 @@ export default function PropertyAvailabilityPage() {
               </div>
 
               <div className="mt-4 space-y-2">
-                {/* ── All rooms (emerald accent) ── */}
+                {/* ── All rooms (emerald gradient) ── */}
                 <button
                   type="button"
                   onClick={() => setSelectedRoomCode(null)}
+                  style={{ background: !selectedRoomCode
+                    ? "linear-gradient(135deg, #064e3b 0%, #065f46 100%)"
+                    : "linear-gradient(135deg, #022c22 0%, #064e3b 100%)"
+                  }}
                   className={`w-full rounded-xl border px-4 py-3 text-left transition ${
-                    !selectedRoomCode
-                      ? "border-emerald-400/50 bg-emerald-400/15 text-white"
-                      : "border-emerald-400/20 bg-emerald-400/8 text-white/80 hover:bg-emerald-400/14"
-                  }`}
+                    !selectedRoomCode ? "border-emerald-400/70" : "border-emerald-700/50 hover:border-emerald-500/60"
+                  } text-white`}
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2.5">
                       <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 flex-shrink-0" />
                       <div>
                         <p className="text-sm font-semibold">All rooms</p>
-                        <p className="text-xs text-white/60">NoLSAF & non‑NoLSAF sources</p>
+                        <p className="text-xs text-white/60">NoLSAF & non&#8209;NoLSAF sources</p>
                       </div>
                     </div>
                     <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${
                       !selectedRoomCode
-                        ? "border-emerald-400/30 bg-emerald-400/15 text-emerald-200"
-                        : "border-emerald-400/20 bg-emerald-400/10 text-emerald-300"
+                        ? "border-emerald-400/50 bg-emerald-900/60 text-emerald-200"
+                        : "border-emerald-700/40 bg-emerald-900/40 text-emerald-400"
                     }`}>
                       {roomTypes.length}
                     </span>
                   </div>
                 </button>
 
-                {/* ── Per room-type — each gets a unique palette colour ── */}
+                {/* ── Per room-type — each gets its own dark gradient ── */}
                 {roomTypes.map((rt, index) => {
                   const key = (rt.roomCode && rt.roomCode.trim() !== "") ? rt.roomCode : rt.roomType;
                   const active = selectedRoomCode === key;
@@ -1232,8 +1281,9 @@ export default function PropertyAvailabilityPage() {
                       key={rt.roomCode ? `room-${rt.roomCode}` : `room-type-${rt.roomType}-${index}`}
                       type="button"
                       onClick={() => setSelectedRoomCode(key || null)}
-                      className={`w-full rounded-xl border px-4 py-3 text-left transition ${
-                        active ? `${p.active} text-white` : `${p.inactive} text-white/80`
+                      style={{ background: active ? p.activeBg : p.inactiveBg }}
+                      className={`w-full rounded-xl border px-4 py-3 text-left transition text-white ${
+                        active ? p.activeBorder : `${p.border} hover:brightness-125`
                       }`}
                     >
                       <div className="flex items-center justify-between gap-3">
@@ -1244,7 +1294,9 @@ export default function PropertyAvailabilityPage() {
                             <p className="text-xs text-white/60">{rt.roomCode ? `Code: ${rt.roomCode}` : "No code (uses type name)"}</p>
                           </div>
                         </div>
-                        <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${p.badge}`}>
+                        <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                          active ? p.activeBadgeClass : p.badgeClass
+                        }`}>
                           {rt.roomsCount}
                         </span>
                       </div>
