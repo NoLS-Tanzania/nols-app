@@ -114,6 +114,7 @@ export default function OwnerPropertyLayoutPage() {
 
   // availability map
   const [availability, setAvailability] = useState<Record<string, AvItem>>({});
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
 
   // External block (non-NoLSAF bookings)
   const [blockStart, setBlockStart] = useState<string>(todayISO);
@@ -209,6 +210,7 @@ export default function OwnerPropertyLayoutPage() {
   const fetchAvailability = useCallback(async () => {
     if (!from || !to) return;
     try {
+      setAvailabilityLoading(true);
       const r = await api.get<Availability>(`/api/owner/properties/${propertyId}/availability`, { params: { from, to }});
       const map: Record<string, AvItem> = {};
       for (const it of r.data.rooms) map[it.code] = it;
@@ -216,6 +218,8 @@ export default function OwnerPropertyLayoutPage() {
     } catch (e: any) {
       const msg = e?.response?.data?.error || e?.message || "Failed to load availability overlay";
       setError(String(msg));
+    } finally {
+      setAvailabilityLoading(false);
     }
   }, [from, to, propertyId]);
 
@@ -327,14 +331,16 @@ export default function OwnerPropertyLayoutPage() {
     if (!hoveredRoom) return null;
     const av = availability[hoveredRoom.code];
     const pct = av?.occupancyPct ?? 0;
-    const isBooked = pct > 0;
-    const isFullyBooked = pct >= 100;
-    const label = isFullyBooked ? "Fully Booked" : isBooked ? `${pct}% Booked` : "Available";
+    const isFullyBusy = pct >= 80;
+    const isPartial = pct > 0 && pct < 80;
+    const label = isFullyBusy ? "Busy" : isPartial ? `${pct}% Booked` : "Free";
     return {
       label,
       pct,
       price: new Intl.NumberFormat(undefined, { style: "currency", currency: "TZS" }).format(hoveredRoom.pricePerNight),
       bookingsCount: av?.bookings?.length ?? 0,
+      nightsBooked: av?.nightsBooked ?? 0,
+      nightsTotal: av?.nightsTotal ?? 0,
     };
   }, [hoveredRoom, availability]);
 
@@ -465,7 +471,17 @@ export default function OwnerPropertyLayoutPage() {
                   <Calendar className="h-4 w-4 text-white/70" />
                   <h2 className="text-sm font-semibold text-white">Overlay window</h2>
                 </div>
-                <span className="text-xs text-white/50">Availability</span>
+                {availabilityLoading ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/20 bg-amber-400/10 px-2.5 py-1 text-[10px] font-bold text-amber-300">
+                    <RefreshCw className="h-3 w-3 animate-spin" />
+                    Refreshing…
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[10px] font-bold text-emerald-300">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                    Live
+                  </span>
+                )}
               </div>
               <div className="mt-4 grid grid-cols-2 gap-3">
                 <div>
@@ -497,7 +513,7 @@ export default function OwnerPropertyLayoutPage() {
                   </button>
                 </div>
               </div>
-              <p className="mt-3 text-xs text-white/50">Colors show % booked per room for the selected window.</p>
+              <p className="mt-3 text-xs text-white/50">Pick a date range — room colors update instantly to show occupancy.</p>
             </div>
 
             {overlayRangePickerOpen && (
@@ -569,11 +585,21 @@ export default function OwnerPropertyLayoutPage() {
 
             <div className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-xl shadow-black/20">
               <h2 className="text-sm font-semibold text-white">Legend</h2>
-              <div className="mt-4 space-y-2 text-sm">
-                <span className="flex items-center gap-2 text-white/70"><ColorBox hex="#22c55e" /> 0% (Free)</span>
-                <span className="flex items-center gap-2 text-white/70"><ColorBox hex="#f59e0b" /> 50% (Half)</span>
-                <span className="flex items-center gap-2 text-white/70"><ColorBox hex="#ef4444" /> 100% (Busy)</span>
+              <div className="mt-4 space-y-2.5 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-2 text-white/70"><ColorBox hex="#10b981" /> Free</span>
+                  <span className="text-[10px] font-bold text-emerald-400/70 tabular-nums">0%</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-2 text-white/70"><ColorBox hex="#f59e0b" /> Partial</span>
+                  <span className="text-[10px] font-bold text-amber-400/70 tabular-nums">1–79%</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-2 text-white/70"><ColorBox hex="#ef4444" /> Busy</span>
+                  <span className="text-[10px] font-bold text-rose-400/70 tabular-nums">80–100%</span>
+                </div>
               </div>
+              <p className="mt-3 text-[11px] text-white/40 leading-relaxed">% = nights booked ÷ nights in your selected window.</p>
             </div>
           </aside>
 
@@ -661,6 +687,8 @@ export default function OwnerPropertyLayoutPage() {
           const fill = isFullyBooked ? "#2d1115" : isBooked ? "#2a1f0a" : "#0a2420";
           const stroke = isFullyBooked ? "#e11d48" : isBooked ? "#f59e0b" : "#10b981";
           const strokeWidth = isBooked ? 3 : 2;
+          // Loading pulse: if availability is being refreshed, dim all rooms slightly
+          const roomOpacity = availabilityLoading ? 0.55 : 1;
           const label = isFullyBooked ? "Fully Booked" : isBooked ? `${pct}% Booked` : "Available";
           const textColor = isFullyBooked ? "#fda4af" : isBooked ? "#fcd34d" : "#6ee7b7";
           const priceColor = "#cbd5e1";
@@ -685,6 +713,7 @@ export default function OwnerPropertyLayoutPage() {
               className="group cursor-pointer"
               role="button"
               tabIndex={0}
+              opacity={roomOpacity}
               style={{ transformBox: "fill-box", transformOrigin: "center" }}
               onClick={() => {
                 setSelectedRoom({ room: r, bookings: av?.bookings || [] });
@@ -729,6 +758,14 @@ export default function OwnerPropertyLayoutPage() {
                 filter="url(#room-shadow)"
                 className="transition-all duration-200 ease-out group-hover:opacity-95 group-hover:translate-y-[-2px] group-hover:scale-[1.01]"
               />
+              {/* Loading pulse overlay */}
+              {availabilityLoading && (
+                <rect
+                  x={r.pos.x} y={r.pos.y} width={r.size.w} height={r.size.h}
+                  fill="#0f172a" opacity="0.45" rx="14"
+                  className="animate-pulse"
+                />
+              )}
               {/* Pattern overlay for fully booked rooms */}
               {isFullyBooked && (
                 <rect 
@@ -834,16 +871,39 @@ export default function OwnerPropertyLayoutPage() {
                       {hoveredRoom.name}
                     </div>
                     <div className="mt-1 flex items-center gap-2">
-                      <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700">
+                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                        hoveredMeta.pct >= 80 ? "bg-rose-50 text-rose-700" :
+                        hoveredMeta.pct > 0 ? "bg-amber-50 text-amber-700" :
+                        "bg-emerald-50 text-emerald-700"
+                      }`}>
                         {hoveredMeta.label}
                       </span>
                       <span className="text-[11px] font-semibold text-slate-600">
                         {hoveredMeta.price}
                       </span>
                     </div>
-                    <div className="mt-1 text-[11px] font-medium text-slate-500">
-                      {hoveredMeta.bookingsCount} booking{hoveredMeta.bookingsCount === 1 ? "" : "s"} in window
-                    </div>
+                    {hoveredMeta.nightsTotal > 0 ? (
+                      <div className="mt-2">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Nights booked in window</span>
+                          <span className="text-[11px] font-extrabold text-slate-800">{hoveredMeta.nightsBooked} / {hoveredMeta.nightsTotal}</span>
+                        </div>
+                        <div className="w-full h-1.5 rounded-full bg-slate-200 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${
+                              hoveredMeta.pct >= 80 ? "bg-rose-500" :
+                              hoveredMeta.pct > 0 ? "bg-amber-400" :
+                              "bg-emerald-500"
+                            }`}
+                            style={{ width: `${hoveredMeta.pct}%` }}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-1 text-[11px] font-medium text-slate-500">
+                        {hoveredMeta.bookingsCount} booking{hoveredMeta.bookingsCount === 1 ? "" : "s"} in window
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : null}
