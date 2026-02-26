@@ -163,31 +163,39 @@ export default function SiteHeader({
     // fetch unread count when running in browser for admin
     (async () => {
       if (role !== "ADMIN") return;
+      const ac = new AbortController();
+      const t = window.setTimeout(() => ac.abort(), 8_000);
       try {
         // Use relative paths in browser to leverage Next.js rewrites (avoids CORS issues)
         const url = '/api/admin/notifications?tab=unread&page=1&pageSize=1';
-        const r = await fetch(url, { credentials: 'include' });
+        const r = await fetch(url, { credentials: 'include', signal: ac.signal });
         if (!r.ok) return;
         const data = await r.json();
         if (typeof data.totalUnread === 'number') setUnreadCount(data.totalUnread);
-      } catch (err) {
-        // ignore
+      } catch {
+        // ignore — 502 / timeout: no unread badge shown, non-critical
+      } finally {
+        window.clearTimeout(t);
       }
     })();
 
     // fetch user profile to get avatar
     (async () => {
+      const ac = new AbortController();
+      const t = window.setTimeout(() => ac.abort(), 8_000);
       try {
         // Use cookie session (httpOnly) via API-prefixed account routes.
         const url = '/api/account/me';
-        const r = await fetch(url, { credentials: 'include' });
+        const r = await fetch(url, { credentials: 'include', signal: ac.signal });
         if (!r.ok) return;
         const data = await r.json();
         if (data.avatarUrl) setAvatarUrl(data.avatarUrl);
         if (data.fullName) setUserName(data.fullName);
         if (data.email) setUserEmail(data.email);
-      } catch (err) {
-        // ignore
+      } catch {
+        // ignore — 502 / timeout: avatar/name simply stays empty, non-critical
+      } finally {
+        window.clearTimeout(t);
       }
     })();
 
@@ -253,8 +261,10 @@ export default function SiteHeader({
     let cancelled = false;
 
     async function loadSessionCountdown() {
+      const ac = new AbortController();
+      const t = window.setTimeout(() => ac.abort(), 8_000);
       try {
-        const resp = await fetch("/api/auth/session", { method: "GET", credentials: "include" });
+        const resp = await fetch("/api/auth/session", { method: "GET", credentials: "include", signal: ac.signal });
         if (!resp.ok) return;
         const json = await resp.json();
         if (cancelled) return;
@@ -263,7 +273,9 @@ export default function SiteHeader({
         setSessionExpiresAt(expiresAt);
         setSessionRemainingSec(remainingSec);
       } catch {
-        // ignore
+        // ignore — 502 / timeout: session countdown simply not shown
+      } finally {
+        window.clearTimeout(t);
       }
     }
 

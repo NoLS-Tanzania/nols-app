@@ -52,11 +52,13 @@ export default function Page() {
   const fetchTab = useCallback(async (tab: 'unread' | 'viewed') => {
     setLoading(true);
     setFetchError(null);
+    const ac = new AbortController();
+    const t = window.setTimeout(() => ac.abort(), 10_000);
     try {
       const q = new URLSearchParams({ tab, page: '1', pageSize: '50' });
       // Use relative paths in browser to leverage Next.js rewrites (avoids CORS issues)
       const url = `/api/admin/notifications?${q.toString()}`;
-      const r = await fetch(url, { credentials: 'include' });
+      const r = await fetch(url, { credentials: 'include', signal: ac.signal });
       if (!r.ok) {
         const is5xx = r.status >= 500;
         throw new Error(is5xx
@@ -73,7 +75,9 @@ export default function Page() {
       else setViewed(formatted);
     } catch (err: any) {
       const msg: string = err?.message ?? '';
-      if (msg.startsWith('SERVER_502') || msg.startsWith('SERVER_503')) {
+      if (err?.name === 'AbortError' || msg.toLowerCase().includes('aborted')) {
+        setFetchError('The server took too long to respond. It may be starting up — please wait a moment and retry.');
+      } else if (msg.startsWith('SERVER_502') || msg.startsWith('SERVER_503')) {
         setFetchError('The server is temporarily unavailable (502). It may be starting up — please wait a moment and retry.');
       } else if (msg.startsWith('SERVER_')) {
         setFetchError(`Server error (${msg.replace('SERVER_', '')}). Please retry.`);
@@ -83,6 +87,7 @@ export default function Page() {
         setFetchError('Failed to load notifications. Please try again.');
       }
     } finally {
+      window.clearTimeout(t);
       setLoading(false);
     }
   }, [formatTime]);
