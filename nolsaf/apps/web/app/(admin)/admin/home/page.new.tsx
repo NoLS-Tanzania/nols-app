@@ -1,17 +1,14 @@
-"use client";
+﻿"use client";
 
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import {
-  AlertTriangle,
   BarChart2,
-  Bell,
   Briefcase,
   Building2,
   CalendarDays,
-  CheckCheck,
   CheckCircle2,
   ChevronRight,
   CreditCard,
@@ -19,13 +16,9 @@ import {
   LineChart,
   MapPin,
   MessagesSquare,
-  RefreshCw,
-  Search,
-  ShieldCheck,
   Sparkles,
   Truck,
   Users,
-  X,
 } from "lucide-react";
 
 import { useAdminHomeKpis, useAdminMonitoring, useAdminPerformanceHighlights, useAdminRecentActivities } from "./adminHomeHooks";
@@ -270,60 +263,10 @@ export default function AdminHomePage() {
   const [chartRefreshNonce, setChartRefreshNonce] = useState(0);
   const refreshTimerRef = useRef<number | null>(null);
 
-  // ── Admin Booking Code Validation ──────────────────────────────
-  const [vCode, setVCode] = useState("");
-  const [vLoading, setVLoading] = useState(false);
-  const [vPreview, setVPreview] = useState<any>(null);
-  const [vError, setVError] = useState<string | null>(null);
-  const [vConfirming, setVConfirming] = useState(false);
-  const [vSuccess, setVSuccess] = useState<{ bookingId: number; ownerName: string } | null>(null);
-
-  useEffect(() => {
-    if (!vCode.trim()) { setVPreview(null); setVError(null); setVSuccess(null); return; }
-    const t = window.setTimeout(async () => {
-      setVLoading(true); setVError(null); setVPreview(null); setVSuccess(null);
-      try {
-        const res = await fetch("/api/admin/help-owners/validate", {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code: vCode.trim() }),
-        });
-        const json = await res.json();
-        if (!res.ok) { setVError(json?.error ?? "Code not found."); }
-        else { setVPreview(json.details ?? null); }
-      } catch { setVError("Network error — could not reach server."); }
-      finally { setVLoading(false); }
-    }, 500);
-    return () => window.clearTimeout(t);
-  }, [vCode]);
-
-  async function vConfirmCheckin() {
-    if (!vPreview?.bookingId) return;
-    setVConfirming(true);
-    try {
-      const res = await fetch("/api/admin/help-owners/confirm-checkin", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bookingId: vPreview.bookingId }),
-      });
-      const json = await res.json();
-      if (!res.ok) { setVError(json?.error ?? "Confirmation failed."); }
-      else {
-        setVSuccess({ bookingId: vPreview.bookingId, ownerName: vPreview.property?.owner?.name ?? "Owner" });
-        setVPreview(null); setVCode("");
-        refreshRecentActivities();
-      }
-    } catch { setVError("Network error during confirmation."); }
-    finally { setVConfirming(false); }
-  }
-  // ──────────────────────────────────────────────────────────────
-
   const truncateLabel = (label: string, maxLen = 16) => {
     const s = String(label ?? "");
     if (s.length <= maxLen) return s;
-    return s.slice(0, Math.max(1, maxLen - 1)) + "…";
+    return s.slice(0, Math.max(1, maxLen - 1)) + "â€¦";
   };
 
   const revenueRangeTabClass = (tab: "hours" | "months" | "properties") => {
@@ -467,7 +410,7 @@ export default function AdminHomePage() {
     const s = String(value ?? "").replace(/\s+/g, " ").trim();
     if (!s) return "";
     if (s.length <= maxLen) return s;
-    return s.slice(0, Math.max(1, maxLen - 1)) + "…";
+    return s.slice(0, Math.max(1, maxLen - 1)) + "â€¦";
   };
 
   const parseDetails = (details: unknown): any => {
@@ -495,11 +438,11 @@ export default function AdminHomePage() {
       const obj: any = d;
 
       const status = obj.toStatus ?? obj.status ?? obj.to ?? obj.result ?? "";
-      if (obj.propertyId) return truncateText(`Property ${obj.propertyId}${status ? ` — ${status}` : ""}`);
-      if (obj.invoiceId) return truncateText(`Invoice ${obj.invoiceId}${status ? ` — ${status}` : ""}`);
-      if (obj.bookingId) return truncateText(`Booking ${obj.bookingId}${status ? ` — ${status}` : ""}`);
+      if (obj.propertyId) return truncateText(`Property ${obj.propertyId}${status ? ` â€” ${status}` : ""}`);
+      if (obj.invoiceId) return truncateText(`Invoice ${obj.invoiceId}${status ? ` â€” ${status}` : ""}`);
+      if (obj.bookingId) return truncateText(`Booking ${obj.bookingId}${status ? ` â€” ${status}` : ""}`);
 
-      if (a.includes("GRANT_BONUS") && obj.ownerId) return truncateText(`Owner ${obj.ownerId} — bonus granted`);
+      if (a.includes("GRANT_BONUS") && obj.ownerId) return truncateText(`Owner ${obj.ownerId} â€” bonus granted`);
       if (a.includes("DISABLE_USER") && typeof obj.disable !== "undefined") return truncateText(`disable: ${String(obj.disable)}`);
       if (a.includes("ENABLE_USER")) return "disable: false";
 
@@ -963,13 +906,13 @@ export default function AdminHomePage() {
                     ))}
                   </span>
                   System operational
-                  <span className="mx-1 text-white/20">·</span>
+                  <span className="mx-1 text-white/20">Â·</span>
                   <ClientTime iso={nowIso} />
                 </div>
                 <h1 className="mt-1 text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
                   {(() => { const h = new Date(nowIso).getHours(); return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening"; })()},&nbsp;Admin
                 </h1>
-                <div className="mt-1 text-sm text-slate-400">Approvals · Payments · Bookings · Revenue all in one view</div>
+                <div className="mt-1 text-sm text-slate-400">Approvals Â· Payments Â· Bookings Â· Revenue all in one view</div>
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -1162,7 +1105,7 @@ export default function AdminHomePage() {
                       <div className="min-w-0">
                         <div className="text-xs text-slate-400">Best property type</div>
                         <div className="mt-1 text-lg font-extrabold text-white tracking-tight truncate">
-                          {highlights?.bestPropertyType?.type ?? "—"}
+                          {highlights?.bestPropertyType?.type ?? "â€”"}
                         </div>
                       </div>
                       <div className="h-9 w-9 rounded-2xl border border-white/10 bg-white/10 flex items-center justify-center">
@@ -1203,7 +1146,7 @@ export default function AdminHomePage() {
                       <div className="min-w-0">
                         <div className="text-xs text-slate-400">Best driver (NoLSAF revenue)</div>
                         <div className="mt-1 text-lg font-extrabold text-white tracking-tight truncate">
-                          {highlights?.bestDriver?.name ?? "—"}
+                          {highlights?.bestDriver?.name ?? "â€”"}
                         </div>
                       </div>
                       <div className="h-9 w-9 rounded-2xl border border-white/10 bg-white/10 flex items-center justify-center">
@@ -1247,7 +1190,7 @@ export default function AdminHomePage() {
                       <div className="min-w-0">
                         <div className="text-xs text-slate-400">Best owner (revenue + bookings)</div>
                         <div className="mt-1 text-lg font-extrabold text-white tracking-tight truncate">
-                          {highlights?.bestOwner?.name ?? "—"}
+                          {highlights?.bestOwner?.name ?? "â€”"}
                         </div>
                       </div>
                       <div className="h-9 w-9 rounded-2xl border border-white/10 bg-white/10 flex items-center justify-center">
@@ -1290,7 +1233,7 @@ export default function AdminHomePage() {
                       <div className="min-w-0">
                         <div className="text-xs text-slate-400">Most booked region</div>
                         <div className="mt-1 text-lg font-extrabold text-white tracking-tight truncate">
-                          {highlights?.mostBookedRegion?.regionName ?? "—"}
+                          {highlights?.mostBookedRegion?.regionName ?? "â€”"}
                         </div>
                       </div>
                       <div className="h-9 w-9 rounded-2xl border border-white/10 bg-white/10 flex items-center justify-center">
@@ -1334,7 +1277,7 @@ export default function AdminHomePage() {
                       <div className="min-w-0">
                         <div className="text-xs text-slate-400">Top property (bookings + interactions)</div>
                         <div className="mt-1 text-lg font-extrabold text-white tracking-tight truncate">
-                          {highlights?.topProperty?.title ?? "—"}
+                          {highlights?.topProperty?.title ?? "â€”"}
                         </div>
                       </div>
                       <div className="h-9 w-9 rounded-2xl border border-white/10 bg-white/10 flex items-center justify-center">
@@ -1342,7 +1285,7 @@ export default function AdminHomePage() {
                       </div>
                     </div>
                     <div className="relative mt-2 text-xs text-slate-400 truncate">
-                      {highlights?.topProperty ? `${highlights.topProperty.type} • ${highlights.topProperty.regionName}` : ""}
+                      {highlights?.topProperty ? `${highlights.topProperty.type} â€¢ ${highlights.topProperty.regionName}` : ""}
                     </div>
                     <div className="relative mt-3 flex items-end justify-between gap-3">
                       <div className="text-sm text-slate-300">
@@ -1438,7 +1381,7 @@ export default function AdminHomePage() {
 
                 <div className="p-5 sm:p-6">
                   {chartData === null ? (
-                    <div className="py-10 text-center text-sm text-slate-400">Loading revenue data…</div>
+                    <div className="py-10 text-center text-sm text-slate-400">Loading revenue dataâ€¦</div>
                   ) : (
                     (() => {
                       const commissionArr = chartData.datasets[0].data;
@@ -1600,7 +1543,7 @@ export default function AdminHomePage() {
                                       </span>
                                       <span className="text-sm font-semibold text-white truncate">{formatAuditAction(a.action)}</span>
                                     </div>
-                                    <div className="text-xs text-slate-400 truncate mt-1">{detailsText || "—"}</div>
+                                    <div className="text-xs text-slate-400 truncate mt-1">{detailsText || "â€”"}</div>
                                   </div>
                                 </div>
                                 <ClientTime iso={a.createdAt} />
@@ -1614,196 +1557,6 @@ export default function AdminHomePage() {
                 </div>
               </section>
 
-              {/* ── Admin Booking Validation ── */}
-              <section className="col-span-12 rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-[0_20px_80px_-60px_rgba(0,0,0,0.9)] overflow-hidden">
-                <div className="p-5 sm:p-6 border-b border-white/10 flex items-center justify-between gap-3 flex-wrap">
-                  <div className="flex items-center gap-3">
-                    <div className="h-9 w-9 rounded-2xl border border-sky-400/25 bg-sky-500/15 flex items-center justify-center flex-shrink-0">
-                      <ShieldCheck className="h-4.5 w-4.5 text-sky-300" aria-hidden />
-                    </div>
-                    <div>
-                      <div className="text-sm font-semibold text-white">Admin Booking Validation</div>
-                      <div className="text-xs text-slate-400">Validate any booking code on behalf of an owner — for support escalations</div>
-                    </div>
-                  </div>
-                  {vSuccess && (
-                    <button
-                      type="button"
-                      onClick={() => { setVSuccess(null); setVCode(""); setVError(null); }}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/10 transition"
-                    >
-                      <RefreshCw className="h-3 w-3" aria-hidden /> New validation
-                    </button>
-                  )}
-                </div>
-
-                <div className="p-5 sm:p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Left — input + status */}
-                  <div className="flex flex-col gap-4">
-                    <div className="relative">
-                      <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" aria-hidden />
-                      <input
-                        value={vCode}
-                        onChange={(e) => setVCode(e.target.value)}
-                        placeholder="Paste booking check-in code…"
-                        spellCheck={false}
-                        autoComplete="off"
-                        className="w-full pl-10 pr-10 py-3 rounded-2xl border border-white/15 bg-white/8 text-white placeholder:text-slate-500 text-sm font-mono tracking-wider focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400/40 transition"
-                        aria-label="Booking check-in code"
-                      />
-                      {vCode && (
-                        <button
-                          type="button"
-                          onClick={() => { setVCode(""); setVPreview(null); setVError(null); setVSuccess(null); }}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition"
-                          aria-label="Clear code"
-                        >
-                          <X className="h-3 w-3 text-slate-300" aria-hidden />
-                        </button>
-                      )}
-                    </div>
-
-                    {/* loading */}
-                    {vLoading && (
-                      <div className="flex items-center gap-3 text-sm text-slate-400">
-                        <div className="flex gap-1">
-                          {[0, 150, 300].map((d) => (
-                            <span key={d} className="h-1.5 w-1.5 rounded-full bg-sky-400 animate-bounce" style={{ animationDelay: `${d}ms` }} />
-                          ))}
-                        </div>
-                        Checking code…
-                      </div>
-                    )}
-
-                    {/* error */}
-                    {vError && !vLoading && (
-                      <div className="flex items-start gap-3 rounded-2xl border border-red-500/20 bg-red-500/10 p-4">
-                        <AlertTriangle className="h-4 w-4 text-red-400 mt-0.5 flex-shrink-0" aria-hidden />
-                        <p className="text-sm text-red-300 leading-snug">{vError}</p>
-                      </div>
-                    )}
-
-                    {/* success */}
-                    {vSuccess && !vLoading && (
-                      <div className="flex flex-col gap-3 rounded-2xl border border-emerald-500/25 bg-emerald-500/10 p-4">
-                        <div className="flex items-center gap-2">
-                          <CheckCheck className="h-5 w-5 text-emerald-400 flex-shrink-0" aria-hidden />
-                          <p className="text-sm font-semibold text-emerald-300">Check-in confirmed!</p>
-                        </div>
-                        <p className="text-xs text-emerald-200/80 leading-relaxed">
-                          Booking <span className="font-mono font-semibold">#{vSuccess.bookingId}</span> has been validated on behalf of <span className="font-semibold">{vSuccess.ownerName}</span>.
-                          The owner has been notified and can now proceed to generate invoices as usual.
-                        </p>
-                        <div className="flex items-center gap-2 text-xs text-emerald-300/70">
-                          <Bell className="h-3.5 w-3.5" aria-hidden />
-                          Owner notification dispatched
-                        </div>
-                      </div>
-                    )}
-
-                    {/* hint when empty */}
-                    {!vCode && !vSuccess && (
-                      <div className="rounded-2xl border border-white/8 bg-white/4 p-4 text-xs leading-relaxed text-slate-500">
-                        <p className="font-semibold text-slate-400 mb-1">How this works</p>
-                        <p>1. Paste the guest&apos;s booking check-in code above.</p>
-                        <p className="mt-1">2. Review the booking details, property and owner info.</p>
-                        <p className="mt-1">3. Confirm to validate on behalf of the owner — works for all platform types (properties, drivers, agents).</p>
-                        <p className="mt-1">4. The owner is automatically notified and their booking is marked as <span className="font-mono text-emerald-400">CHECKED_IN</span>.</p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Right — booking preview */}
-                  <div>
-                    {vPreview ? (
-                      <div className="rounded-2xl border border-sky-500/20 bg-gradient-to-br from-sky-950/40 via-[#050A18]/60 to-[#02665e]/15 p-5 flex flex-col gap-4">
-                        {/* Header */}
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <div className="text-xs text-sky-400 font-semibold uppercase tracking-wider">Booking Preview</div>
-                            <div className="mt-1 text-lg font-extrabold text-white tracking-tight truncate">{vPreview.property?.title ?? "—"}</div>
-                            <div className="text-xs text-slate-400 mt-0.5">{vPreview.property?.type ?? "—"}</div>
-                          </div>
-                          <span className="inline-flex items-center rounded-xl border border-emerald-500/25 bg-emerald-500/15 px-2.5 py-1 text-xs font-bold text-emerald-300 uppercase tracking-wider">
-                            {vPreview.booking?.status ?? "ACTIVE"}
-                          </span>
-                        </div>
-
-                        {/* Details grid */}
-                        <div className="grid grid-cols-2 gap-3 text-xs">
-                          <div className="rounded-xl border border-white/8 bg-white/5 p-3">
-                            <div className="text-slate-500 uppercase tracking-wider text-[10px] mb-1">Check-in</div>
-                            <div className="font-semibold text-white">{vPreview.booking?.checkIn ? new Date(vPreview.booking.checkIn).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "—"}</div>
-                          </div>
-                          <div className="rounded-xl border border-white/8 bg-white/5 p-3">
-                            <div className="text-slate-500 uppercase tracking-wider text-[10px] mb-1">Check-out</div>
-                            <div className="font-semibold text-white">{vPreview.booking?.checkOut ? new Date(vPreview.booking.checkOut).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "—"}</div>
-                          </div>
-                          <div className="rounded-xl border border-white/8 bg-white/5 p-3">
-                            <div className="text-slate-500 uppercase tracking-wider text-[10px] mb-1">Nights</div>
-                            <div className="font-semibold text-white">{vPreview.booking?.nights ?? "—"}</div>
-                          </div>
-                          <div className="rounded-xl border border-white/8 bg-white/5 p-3">
-                            <div className="text-slate-500 uppercase tracking-wider text-[10px] mb-1">Amount</div>
-                            <div className="font-semibold text-white tabular-nums">{vPreview.booking?.currency ?? "TZS"} {Number(vPreview.booking?.totalAmount ?? 0).toLocaleString()}</div>
-                          </div>
-                        </div>
-
-                        {/* Owner + Guest */}
-                        <div className="grid grid-cols-2 gap-3 text-xs">
-                          <div className="rounded-xl border border-white/8 bg-white/5 p-3">
-                            <div className="text-slate-500 uppercase tracking-wider text-[10px] mb-1.5">Owner</div>
-                            <div className="font-semibold text-white truncate">{vPreview.property?.owner?.name ?? "—"}</div>
-                            <div className="text-slate-400 truncate mt-0.5">{vPreview.property?.owner?.email ?? ""}</div>
-                          </div>
-                          <div className="rounded-xl border border-white/8 bg-white/5 p-3">
-                            <div className="text-slate-500 uppercase tracking-wider text-[10px] mb-1.5">Guest</div>
-                            <div className="font-semibold text-white truncate">{vPreview.guest?.fullName ?? vPreview.customer?.name ?? "—"}</div>
-                            <div className="text-slate-400 truncate mt-0.5">{vPreview.guest?.phone ?? vPreview.customer?.phone ?? ""}</div>
-                          </div>
-                        </div>
-
-                        {/* Confirm button */}
-                        <button
-                          type="button"
-                          onClick={vConfirmCheckin}
-                          disabled={vConfirming}
-                          className="w-full flex items-center justify-center gap-2.5 rounded-2xl border border-emerald-400/25 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-100 font-bold text-sm py-3 transition disabled:opacity-60 disabled:cursor-not-allowed"
-                          style={{ boxShadow: "0 0 40px -15px rgba(34,197,94,0.5)" }}
-                        >
-                          {vConfirming ? (
-                            <>
-                              <RefreshCw className="h-4 w-4 animate-spin" aria-hidden /> Confirming…
-                            </>
-                          ) : (
-                            <>
-                              <ShieldCheck className="h-4 w-4" aria-hidden /> Confirm check-in for {vPreview.property?.owner?.name ?? "owner"}
-                            </>
-                          )}
-                        </button>
-                        <p className="text-center text-[10px] text-slate-500">This validates on behalf of the owner. The owner will be notified immediately.</p>
-                      </div>
-                    ) : !vSuccess && !vLoading && vCode.trim().length > 0 && !vError ? (
-                      <div className="h-full min-h-[200px] rounded-2xl border border-white/8 bg-white/3 flex items-center justify-center">
-                        <div className="text-center text-slate-500 text-sm">Enter a valid code to preview booking</div>
-                      </div>
-                    ) : !vCode && !vSuccess ? (
-                      <div
-                        className="h-full min-h-[200px] rounded-2xl border border-dashed border-white/10 flex flex-col items-center justify-center gap-3 p-6"
-                        style={{ background: "radial-gradient(600px circle at 50% 60%, rgba(2,102,94,0.08), transparent 70%)" }}
-                      >
-                        <div className="h-12 w-12 rounded-2xl border border-sky-400/20 bg-sky-500/10 flex items-center justify-center">
-                          <ShieldCheck className="h-6 w-6 text-sky-400/70" aria-hidden />
-                        </div>
-                        <div className="text-center">
-                          <div className="text-sm font-semibold text-slate-300">Support validation</div>
-                          <div className="text-xs text-slate-500 mt-1 max-w-[220px] leading-relaxed">Booking details will appear here after you paste a valid check-in code</div>
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              </section>
 
               <section className="col-span-12 rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-[0_20px_80px_-60px_rgba(0,0,0,0.9)] overflow-hidden">
                 <div className="p-5 sm:p-6 border-b border-white/10 flex items-center justify-between gap-3 flex-wrap">
@@ -1817,7 +1570,7 @@ export default function AdminHomePage() {
                 </div>
 
                 <div className="p-5 sm:p-6 grid grid-cols-12 gap-6 items-center">
-                  {/* ── NoLSAF Revenue Visa Card ── */}
+                  {/* â”€â”€ NoLSAF Revenue Visa Card â”€â”€ */}
                   <div className="col-span-12 sm:col-span-5 lg:col-span-4">
                     <div
                       className="relative rounded-[22px] overflow-hidden shadow-2xl hover:-translate-y-1.5 transition-all duration-500 cursor-default select-none"
@@ -1859,7 +1612,7 @@ export default function AdminHomePage() {
 
                       {/* Card content */}
                       <div className="relative flex flex-col justify-between p-5 pb-5" style={{ minHeight: "230px" }}>
-                        {/* Row 1 — brand + chip */}
+                        {/* Row 1 â€” brand + chip */}
                         <div className="flex items-start justify-between">
                           <div>
                             <p className="text-[10px] font-black uppercase tracking-[0.28em] text-white/50">NoLSAF</p>
@@ -1878,7 +1631,7 @@ export default function AdminHomePage() {
                           </svg>
                         </div>
 
-                        {/* Row 2 — total revenue hero */}
+                        {/* Row 2 â€” total revenue hero */}
                         <div className="mt-3">
                           <p className="text-[9px] font-bold uppercase tracking-[0.22em] text-white/45 mb-1.5">Total Platform Revenue</p>
                           <p
@@ -1889,7 +1642,7 @@ export default function AdminHomePage() {
                           </p>
                         </div>
 
-                        {/* Row 3 — breakdown + circles */}
+                        {/* Row 3 â€” breakdown + circles */}
                         <div className="mt-4 pt-3 border-t border-white/12 flex items-center justify-between gap-2">
                           <div className="flex items-center gap-3 flex-wrap">
                             <div>
@@ -1911,7 +1664,7 @@ export default function AdminHomePage() {
                             </div>
                           </div>
 
-                          {/* Dual circles — Mastercard-style */}
+                          {/* Dual circles â€” Mastercard-style */}
                           <div className="flex -space-x-3 flex-shrink-0 ml-1">
                             <div className="w-8 h-8 rounded-full flex-shrink-0" style={{ background: "radial-gradient(circle at 38% 38%, #2563eb, #0e2a7a)", opacity: 0.92 }} />
                             <div className="w-8 h-8 rounded-full flex-shrink-0" style={{ background: "radial-gradient(circle at 62% 38%, #02665e, #013f3a)", opacity: 0.80 }} />

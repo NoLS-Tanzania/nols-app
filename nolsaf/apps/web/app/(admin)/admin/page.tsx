@@ -1,7 +1,7 @@
 "use client";
 import AdminPageHeader from "@/components/AdminPageHeader";
 import Link from "next/link";
-import { LayoutDashboard, Building2, Users, BarChart3, LineChart, FileCheck2, FileBadge } from "lucide-react";
+import { AlertTriangle, Bell, CheckCheck, FileCheck2, FileBadge, LayoutDashboard, Building2, RefreshCw, ShieldCheck, Users, BarChart3, LineChart, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
 import GeneralReports from '@/components/GeneralReports';
@@ -92,41 +92,71 @@ export default function AdminHome() {
   const [invPaid, setInvPaid] = useState<any>({ items: [] });
   const [invRejected, setInvRejected] = useState<any>({ items: [] });
   const [loadingInv, setLoadingInv] = useState<boolean>(true);
-  // Validation lookup state (retrieve invoice by special code)
+  // Validation lookup state — booking code check-in validation
   const [validationCode, setValidationCode] = useState<string>("");
   const [validationResult, setValidationResult] = useState<any>(null);
   const [loadingValidation, setLoadingValidation] = useState<boolean>(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const [validationModalOpen, setValidationModalOpen] = useState(false);
+  const [vConfirming, setVConfirming] = useState(false);
+  const [vSuccess, setVSuccess] = useState<{ bookingId: number; ownerName: string } | null>(null);
+  const [vConfirmError, setVConfirmError] = useState<string | null>(null);
   const validationRef = useRef<HTMLDivElement | null>(null);
 
-  // click-outside: clear validation input/result when user clicks anywhere outside the validation box
+  // Auto-lookup when validationCode changes (debounced) — calls booking code validate API
   useEffect(() => {
-    function onDocClick(e: MouseEvent) {
-      const el = validationRef.current;
-      if (!el) return;
-      if (!el.contains(e.target as Node)) {
-        setValidationCode('');
-        setValidationResult(null);
-      }
+    if (!validationCode || !validationCode.trim()) {
+      setValidationResult(null); setValidationError(null); setVSuccess(null);
+      return;
     }
-    document.addEventListener('mousedown', onDocClick);
-    return () => document.removeEventListener('mousedown', onDocClick);
-  }, []);
-
-  // Auto-lookup when validationCode changes (debounced)
-  useEffect(() => {
-    if (!validationCode || !validationCode.trim()) { setValidationResult(null); return; }
     const t = setTimeout(async () => {
-      setLoadingValidation(true);
+      setLoadingValidation(true); setValidationError(null); setValidationResult(null);
+      setVSuccess(null); setVConfirmError(null);
       try {
-        const res = await fetch(`${API}/admin/revenue/invoices?code=${encodeURIComponent(validationCode)}&page=1&pageSize=1`, { credentials: "include" });
+        const res = await fetch(`${API}/api/admin/help-owners/validate`, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code: validationCode.trim() }),
+        });
         const json = await res.json();
-        setValidationResult((json?.items && json.items.length) ? json.items[0] : null);
-      } catch {
-        setValidationResult(null);
-      } finally { setLoadingValidation(false); }
-    }, 400);
+        if (!res.ok) { setValidationError(json?.error ?? "Code not found or invalid."); }
+        else { setValidationResult(json.details ?? null); setValidationModalOpen(true); }
+      } catch { setValidationError("Network error — could not reach server."); }
+      finally { setLoadingValidation(false); }
+    }, 500);
     return () => clearTimeout(t);
   }, [validationCode]);
+
+  async function vConfirmCheckin() {
+    if (!validationResult?.bookingId) return;
+    setVConfirming(true); setVConfirmError(null);
+    try {
+      const res = await fetch(`${API}/api/admin/help-owners/confirm-checkin`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bookingId: validationResult.bookingId }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setVConfirmError(json?.error ?? "Confirmation failed."); }
+      else {
+        setVSuccess({ bookingId: validationResult.bookingId, ownerName: validationResult.property?.owner?.name ?? "Owner" });
+        setValidationResult(null);
+        sendAnalytics('admin.booking.checkin_confirmed', { bookingId: validationResult.bookingId });
+      }
+    } catch { setVConfirmError("Network error during confirmation."); }
+    finally { setVConfirming(false); }
+  }
+
+  function vCloseModal() {
+    setValidationModalOpen(false);
+    setValidationCode("");
+    setValidationResult(null);
+    setValidationError(null);
+    setVSuccess(null);
+    setVConfirmError(null);
+  }
 
   // totalInvoicesCount removed (not displayed in header anymore)
   
@@ -468,7 +498,7 @@ export default function AdminHome() {
                 </div>
               </div>
 
-              {/* Validation column: modernized with success message */}
+              {/* Validation column */}
               {/* Third column */}
               <div className="md:pl-4 md:border-l-2 md:border-gray-200">
                 <div className="flex items-center mb-3">
@@ -477,11 +507,11 @@ export default function AdminHome() {
                   </div>
                 </div>
                 <div ref={validationRef} className="min-w-0 space-y-3 overflow-hidden">
-                  {/* Input field - centered */}
+                  {/* Input field */}
                   <div className="flex justify-center w-full">
                     <input
                       value={validationCode}
-                      onChange={(e)=>setValidationCode(e.target.value)}
+                      onChange={(e) => setValidationCode(e.target.value)}
                       placeholder="Paste validation code"
                       className="w-full max-w-xs px-4 py-2.5 text-sm font-mono tracking-wider border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all duration-200 placeholder:text-gray-400 bg-white text-center"
                       aria-label="Validation code"
@@ -496,63 +526,174 @@ export default function AdminHome() {
                         <div className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-bounce [animation-delay:-0.15s]" />
                         <div className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-bounce" />
                       </div>
-                      <span>Validating code…</span>
+                      <span>Checking code…</span>
                     </div>
                   )}
 
-                  {/* Success message when code is found */}
-                  {validationResult && !loadingValidation && (
-                    <div className="w-full rounded-lg bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 p-3 animate-in fade-in slide-in-from-top-2 duration-300 overflow-hidden">
-                      <div className="flex items-center gap-2 mb-3">
-                        <div className="h-5 w-5 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
-                          <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                          </svg>
-                        </div>
-                        <p className="text-sm font-semibold text-green-800">Code validated successfully!</p>
-                      </div>
-                      <div className="w-full rounded-lg bg-white border border-green-200 p-3 mb-3">
-                        <div className="text-sm font-medium text-gray-800 mb-1 truncate">
-                          {validationResult.invoiceNumber ?? `#${validationResult.id}`}
-                        </div>
-                        <div className="text-xs text-gray-600">
-                          Amount: <span className="font-semibold">{validationResult.amount}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 w-full">
-                        <button
-                          className="flex-1 px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-xs font-semibold shadow-sm hover:shadow transition-all duration-200 active:scale-95 whitespace-nowrap"
-                          onClick={()=>{ 
-                            sendAnalytics('invoice.validate_click', { id: validationResult.id }); 
-                            setConfirmPayload({ action: 'validate', invId: validationResult.id }); 
-                            setConfirmOpen(true); 
-                          }}
-                        >
-                          Mark Validated
-                        </button>
-                        <Link 
-                          href={`/admin/revenue`} 
-                          className="px-4 py-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 text-xs font-medium transition-colors whitespace-nowrap"
-                        >
-                          Open
-                        </Link>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Error message when code not found */}
-                  {validationCode && !loadingValidation && !validationResult && (
+                  {/* Error inline */}
+                  {validationError && !loadingValidation && (
                     <div className="w-full rounded-lg bg-red-50 border border-red-200 p-3 animate-in fade-in duration-200">
                       <div className="flex items-center gap-2">
                         <svg className="w-4 h-4 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                         </svg>
-                        <p className="text-sm text-red-700">No invoice found for that code.</p>
+                        <p className="text-sm text-red-700">{validationError}</p>
                       </div>
                     </div>
                   )}
+
+                  {/* Preview found — prompt to open popup */}
+                  {validationResult && !loadingValidation && !validationModalOpen && (
+                    <button
+                      type="button"
+                      onClick={() => setValidationModalOpen(true)}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold shadow transition-all active:scale-95"
+                    >
+                      <ShieldCheck className="h-4 w-4" /> View &amp; Confirm
+                    </button>
+                  )}
                 </div>
               </div>
+
+              {/* ── Booking Validation Popup Modal ── */}
+              {validationModalOpen && (
+                <div
+                  className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                  style={{ background: "rgba(0,0,0,0.65)", backdropFilter: "blur(6px)" }}
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label="Booking Validation"
+                  onClick={(e) => { if (e.target === e.currentTarget) vCloseModal(); }}
+                >
+                  <div
+                    className="relative w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl"
+                    style={{ background: "linear-gradient(160deg, #0e1a3a 0%, #0a2a38 45%, #012820 100%)" }}
+                  >
+                    {/* Modal header */}
+                    <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-white/10">
+                      <div className="flex items-center gap-3">
+                        <div className="h-9 w-9 rounded-2xl border border-sky-400/30 bg-sky-500/20 flex items-center justify-center flex-shrink-0">
+                          <ShieldCheck className="h-4.5 w-4.5 text-sky-300" />
+                        </div>
+                        <div>
+                          <div className="text-sm font-bold text-white">Booking Validation</div>
+                          <div className="text-xs text-slate-400">Review details before confirming check-in</div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={vCloseModal}
+                        className="h-8 w-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition"
+                        aria-label="Close"
+                      >
+                        <X className="h-4 w-4 text-white" />
+                      </button>
+                    </div>
+
+                    <div className="px-6 pt-5 pb-6 space-y-4">
+                      {/* Success state */}
+                      {vSuccess ? (
+                        <div className="space-y-4">
+                          <div className="flex flex-col items-center gap-3 py-4 text-center">
+                            <div className="h-14 w-14 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center">
+                              <CheckCheck className="h-7 w-7 text-emerald-400" />
+                            </div>
+                            <div>
+                              <p className="text-base font-bold text-emerald-300">Check-in Confirmed!</p>
+                              <p className="text-sm text-slate-400 mt-1">
+                                Booking <span className="font-mono text-white">#{vSuccess.bookingId}</span> validated for{" "}
+                                <span className="font-semibold text-white">{vSuccess.ownerName}</span>.
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs text-emerald-300/80 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-2">
+                              <Bell className="h-3.5 w-3.5" /> Owner notification dispatched
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={vCloseModal}
+                            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-white/15 bg-white/10 hover:bg-white/15 text-white text-sm font-semibold transition"
+                          >
+                            <RefreshCw className="h-4 w-4" /> New validation
+                          </button>
+                        </div>
+                      ) : validationResult ? (
+                        <>
+                          {/* Property + booking summary */}
+                          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                            <div className="flex items-start justify-between gap-3 mb-3">
+                              <div className="min-w-0">
+                                <div className="text-xs text-sky-400 font-semibold uppercase tracking-wider">Property</div>
+                                <div className="text-base font-extrabold text-white truncate mt-0.5">{validationResult.property?.title ?? "—"}</div>
+                                <div className="text-xs text-slate-400">{validationResult.property?.type ?? ""}</div>
+                              </div>
+                              <span className="flex-shrink-0 inline-flex items-center rounded-xl border border-emerald-500/25 bg-emerald-500/15 px-2.5 py-1 text-[11px] font-bold text-emerald-300 uppercase tracking-wider">
+                                {validationResult.booking?.status ?? "ACTIVE"}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                              <div className="rounded-lg border border-white/8 bg-white/5 px-3 py-2">
+                                <div className="text-slate-500 uppercase tracking-wider text-[10px] mb-0.5">Check-in</div>
+                                <div className="font-semibold text-white">{validationResult.booking?.checkIn ? new Date(validationResult.booking.checkIn).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "—"}</div>
+                              </div>
+                              <div className="rounded-lg border border-white/8 bg-white/5 px-3 py-2">
+                                <div className="text-slate-500 uppercase tracking-wider text-[10px] mb-0.5">Check-out</div>
+                                <div className="font-semibold text-white">{validationResult.booking?.checkOut ? new Date(validationResult.booking.checkOut).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "—"}</div>
+                              </div>
+                              <div className="rounded-lg border border-white/8 bg-white/5 px-3 py-2">
+                                <div className="text-slate-500 uppercase tracking-wider text-[10px] mb-0.5">Nights</div>
+                                <div className="font-semibold text-white">{validationResult.booking?.nights ?? "—"}</div>
+                              </div>
+                              <div className="rounded-lg border border-white/8 bg-white/5 px-3 py-2">
+                                <div className="text-slate-500 uppercase tracking-wider text-[10px] mb-0.5">Amount</div>
+                                <div className="font-semibold text-white tabular-nums">{validationResult.booking?.currency ?? "TZS"} {Number(validationResult.booking?.totalAmount ?? 0).toLocaleString()}</div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Owner + Guest */}
+                          <div className="grid grid-cols-2 gap-3 text-xs">
+                            <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                              <div className="text-slate-500 uppercase tracking-wider text-[10px] mb-1">Owner</div>
+                              <div className="font-semibold text-white truncate">{validationResult.property?.owner?.name ?? "—"}</div>
+                              <div className="text-slate-400 truncate mt-0.5">{validationResult.property?.owner?.phone ?? validationResult.property?.owner?.email ?? ""}</div>
+                            </div>
+                            <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                              <div className="text-slate-500 uppercase tracking-wider text-[10px] mb-1">Guest</div>
+                              <div className="font-semibold text-white truncate">{validationResult.guest?.fullName ?? validationResult.customer?.name ?? "—"}</div>
+                              <div className="text-slate-400 truncate mt-0.5">{validationResult.guest?.phone ?? validationResult.customer?.phone ?? ""}</div>
+                            </div>
+                          </div>
+
+                          {/* Confirm error */}
+                          {vConfirmError && (
+                            <div className="flex items-start gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3">
+                              <AlertTriangle className="h-4 w-4 text-red-400 mt-0.5 flex-shrink-0" />
+                              <p className="text-sm text-red-300">{vConfirmError}</p>
+                            </div>
+                          )}
+
+                          {/* Confirm button */}
+                          <button
+                            type="button"
+                            onClick={vConfirmCheckin}
+                            disabled={vConfirming}
+                            className="w-full flex items-center justify-center gap-2.5 py-3 rounded-2xl border border-emerald-400/25 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-100 font-bold text-sm transition disabled:opacity-60 disabled:cursor-not-allowed"
+                            style={{ boxShadow: "0 0 40px -15px rgba(34,197,94,0.5)" }}
+                          >
+                            {vConfirming ? (
+                              <><RefreshCw className="h-4 w-4 animate-spin" /> Confirming…</>
+                            ) : (
+                              <><ShieldCheck className="h-4 w-4" /> Confirm check-in for {validationResult.property?.owner?.name ?? "owner"}</>
+                            )}
+                          </button>
+                          <p className="text-center text-[10px] text-slate-500">Owner will be notified immediately upon confirmation.</p>
+                        </>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
