@@ -294,27 +294,27 @@ export default function PropertyAvailabilitySelectionPage() {
 
   if (loading) {
     return (
-      <div className="relative min-h-screen bg-slate-950 overflow-hidden">
+      <div className="relative min-h-screen bg-slate-50 rounded-3xl overflow-hidden border border-slate-200 shadow-xl shadow-slate-200/60">
         <div className="pointer-events-none absolute inset-0">
-          <div className="absolute -top-40 left-1/2 h-[600px] w-[1000px] -translate-x-1/2 rounded-full bg-emerald-500/10 blur-3xl" />
+          <div className="absolute -top-40 left-1/2 h-[600px] w-[1000px] -translate-x-1/2 rounded-full bg-emerald-100/80 blur-3xl" />
         </div>
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-          <div className="mb-8 h-9 w-32 rounded-xl bg-white/8 animate-pulse" />
-          <div className="mb-12 h-36 rounded-3xl bg-white/5 border border-white/10 animate-pulse" />
+          <div className="mb-8 h-9 w-32 rounded-xl bg-slate-200 animate-pulse" />
+          <div className="mb-12 h-36 rounded-3xl bg-slate-200 border border-slate-300 animate-pulse" />
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="rounded-3xl border border-white/10 bg-white/5 overflow-hidden">
-                <div className="h-36 bg-white/5 animate-pulse" />
+              <div key={i} className="rounded-3xl border border-slate-200 bg-slate-100 overflow-hidden">
+                <div className="h-36 bg-slate-200 animate-pulse" />
                 <div className="p-5 space-y-3">
                   <div className="grid grid-cols-3 gap-3">
-                    {[0,1,2].map(j => <div key={j} className="h-16 rounded-2xl bg-white/5 animate-pulse" />)}
+                    {[0,1,2].map(j => <div key={j} className="h-16 rounded-2xl bg-slate-200 animate-pulse" />)}
                   </div>
-                  <div className="h-20 rounded-2xl bg-white/5 animate-pulse" />
+                  <div className="h-20 rounded-2xl bg-slate-200 animate-pulse" />
                 </div>
               </div>
             ))}
           </div>
-          <div className="mt-10 flex items-center justify-center gap-3 text-sm text-white/40">
+          <div className="mt-10 flex items-center justify-center gap-3 text-sm text-slate-400">
             <Loader2 className="w-4 h-4 animate-spin" />
             <span>Loading your approved properties…</span>
           </div>
@@ -325,8 +325,8 @@ export default function PropertyAvailabilitySelectionPage() {
 
   if (error) {
     return (
-      <div className="relative min-h-screen bg-slate-950 flex items-center justify-center p-4">
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-8 max-w-md w-full shadow-2xl shadow-black/40">
+      <div className="relative min-h-screen bg-slate-50 rounded-3xl overflow-hidden border border-slate-200 shadow-xl shadow-slate-200/60 flex items-center justify-center p-4">
+        <div className="rounded-3xl border border-white/10 bg-slate-900 p-8 max-w-md w-full shadow-2xl shadow-black/60">
           <div className="w-12 h-12 rounded-2xl bg-rose-500/15 border border-rose-500/20 flex items-center justify-center mb-5">
             <AlertCircle className="w-6 h-6 text-rose-400" />
           </div>
@@ -354,8 +354,8 @@ export default function PropertyAvailabilitySelectionPage() {
   }
   if (properties.length === 0) {
     return (
-      <div className="relative min-h-screen bg-slate-950 flex items-center justify-center p-4">
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-8 max-w-md w-full text-center shadow-2xl shadow-black/40">
+      <div className="relative min-h-screen bg-slate-50 rounded-3xl overflow-hidden border border-slate-200 shadow-xl shadow-slate-200/60 flex items-center justify-center p-4">
+        <div className="rounded-3xl border border-white/10 bg-slate-900 p-8 max-w-md w-full text-center shadow-2xl shadow-black/60">
           <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center mx-auto mb-5 shadow-[0_0_30px_-4px_rgba(52,211,153,0.4)]">
             <CalendarDays className="w-7 h-7 text-white" />
           </div>
@@ -378,12 +378,12 @@ export default function PropertyAvailabilitySelectionPage() {
   }
 
   return (
-    <div className="relative min-h-screen bg-slate-950 overflow-hidden">
+    <div className="relative min-h-screen bg-slate-50 rounded-3xl overflow-hidden border border-slate-200 shadow-xl shadow-slate-200/60">
       {/* Ambient background glows */}
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -top-40 left-1/2 h-[600px] w-[1000px] -translate-x-1/2 rounded-full bg-emerald-500/10 blur-3xl" />
-        <div className="absolute top-1/3 -left-40 h-[400px] w-[600px] rounded-full bg-teal-500/8 blur-3xl" />
-        <div className="absolute bottom-0 right-0 h-[400px] w-[500px] rounded-full bg-cyan-500/6 blur-3xl" />
+        <div className="absolute -top-40 left-1/2 h-[600px] w-[1000px] -translate-x-1/2 rounded-full bg-emerald-200/50 blur-3xl" />
+        <div className="absolute top-1/3 -left-40 h-[400px] w-[600px] rounded-full bg-teal-200/40 blur-3xl" />
+        <div className="absolute bottom-0 right-0 h-[400px] w-[500px] rounded-full bg-cyan-200/30 blur-3xl" />
       </div>
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
@@ -392,19 +392,19 @@ export default function PropertyAvailabilitySelectionPage() {
         <nav className="mb-8 flex items-center justify-between">
           <Link
             href="/owner/properties/approved"
-            className="no-underline inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-white/70 hover:bg-white/10 hover:text-white transition"
+            className="no-underline inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 shadow-sm transition"
           >
             <ChevronRight className="w-4 h-4 rotate-180" />
             <span>Properties</span>
           </Link>
-          <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs font-semibold text-white/60">
+          <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-1.5 text-xs font-semibold text-slate-500 shadow-sm">
             <BedDouble className="w-3.5 h-3.5" />
             {properties.length} {properties.length === 1 ? "property" : "properties"}
           </span>
         </nav>
 
         {/* ── Hero header ── */}
-        <div className="relative mb-12 overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-emerald-500/20 via-teal-500/10 to-cyan-500/5 p-8 shadow-2xl shadow-black/40">
+        <div className="relative mb-12 overflow-hidden rounded-3xl border border-white/10 bg-slate-900 bg-gradient-to-br from-emerald-500/20 via-teal-500/10 to-cyan-500/5 p-8 shadow-2xl shadow-black/40">
           {/* decorative arcs */}
           <svg className="pointer-events-none absolute right-0 top-0 h-full w-1/2 opacity-10" viewBox="0 0 400 300" fill="none">
             <circle cx="400" cy="0" r="220" stroke="white" strokeWidth="1" />
@@ -472,7 +472,7 @@ export default function PropertyAvailabilitySelectionPage() {
                 href={`/owner/properties/${property.id}/availability/manage`}
                 className="no-underline group block"
               >
-                <div className="relative rounded-3xl border border-white/10 bg-white/5 backdrop-blur-sm overflow-hidden shadow-xl shadow-black/30 hover:-translate-y-1 hover:shadow-[0_28px_60px_-10px_rgba(2,102,94,0.35)] hover:border-emerald-500/30 transition-all duration-300">
+                <div className="relative rounded-3xl border border-white/10 bg-slate-900 backdrop-blur-sm overflow-hidden shadow-xl shadow-black/30 hover:-translate-y-1 hover:shadow-[0_28px_60px_-10px_rgba(2,102,94,0.35)] hover:border-emerald-500/30 transition-all duration-300">
                   {/* hover glow */}
                   <div className="pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
                     <div className="absolute -top-20 -right-20 h-52 w-52 rounded-full bg-emerald-500/15 blur-2xl" />
