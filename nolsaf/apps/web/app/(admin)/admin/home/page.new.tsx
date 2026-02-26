@@ -893,11 +893,15 @@ export default function AdminHomePage() {
               <div>
                 <div className="flex items-center gap-2 text-xs text-slate-400">
                   <span className="flex items-center gap-[3px]" aria-hidden>
-                    {([0, 400, 800] as const).map((delay) => (
+                    {([ 
+                      { delay: 0,   color: "bg-sky-400",     shadow: "rgba(56,189,248,0.9)"  },
+                      { delay: 400, color: "bg-emerald-400", shadow: "rgba(52,211,153,0.9)"  },
+                      { delay: 800, color: "bg-red-400",     shadow: "rgba(248,113,113,0.9)" },
+                    ] as const).map(({ delay, color, shadow }) => (
                       <span
                         key={delay}
-                        className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400"
-                        style={{ boxShadow: "0 0 6px rgba(52,211,153,0.85)", animation: "nols-seq-blink 1.2s ease-in-out infinite", animationDelay: `${delay}ms` }}
+                        className={`inline-block h-1.5 w-1.5 rounded-full ${color}`}
+                        style={{ boxShadow: `0 0 6px ${shadow}`, animation: "nols-seq-blink 1.2s ease-in-out infinite", animationDelay: `${delay}ms` }}
                       />
                     ))}
                   </span>
@@ -1565,56 +1569,107 @@ export default function AdminHomePage() {
                 </div>
 
                 <div className="p-5 sm:p-6 grid grid-cols-12 gap-6 items-center">
+                  {/* ── NoLSAF Revenue Visa Card ── */}
                   <div className="col-span-12 sm:col-span-5 lg:col-span-4">
-                    <div className="relative rounded-3xl border border-white/10 bg-[#050A18]/40 p-4">
-                      {opsSnapshot.total > 0 ? (
-                        <div className="relative">
-                          <Chart
-                            type="doughnut"
-                            height={210}
-                            data={{
-                              labels: opsSnapshot.labels,
-                              datasets: [
-                                {
-                                  data: opsSnapshot.values,
-                                  backgroundColor: opsSnapshot.colors,
-                                  borderColor: "rgba(255,255,255,0.14)",
-                                  borderWidth: 1.5,
-                                  hoverOffset: 6,
-                                },
-                              ],
-                            } as any}
-                            options={{
-                              responsive: true,
-                              maintainAspectRatio: false,
-                              cutout: "70%",
-                              animation: reduceMotion ? { duration: 0 } : { duration: 650, easing: "easeOutQuart" },
-                              plugins: {
-                                legend: { display: false },
-                                tooltip: {
-                                  enabled: true,
-                                  backgroundColor: "rgba(2,6,23,0.92)",
-                                  titleColor: "rgba(255,255,255,0.92)",
-                                  bodyColor: "rgba(226,232,240,0.9)",
-                                  borderColor: "rgba(255,255,255,0.14)",
-                                  borderWidth: 1,
-                                },
-                              },
-                            } as any}
-                          />
+                    <div
+                      className="relative rounded-[22px] overflow-hidden shadow-2xl hover:-translate-y-1.5 transition-all duration-500 cursor-default select-none"
+                      style={{
+                        background: "linear-gradient(135deg, #0e2a7a 0%, #0a5c82 38%, #02665e 100%)",
+                        minHeight: "230px",
+                        boxShadow: "0 28px 65px -15px rgba(2,102,94,0.50), 0 8px 22px -8px rgba(14,42,122,0.55)",
+                      }}
+                    >
+                      {/* Decorative SVG layer */}
+                      <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 380 260" fill="none" preserveAspectRatio="xMidYMid slice" aria-hidden>
+                        {/* Big arcs top-right */}
+                        <circle cx="360" cy="55"  r="155" stroke="white" strokeOpacity="0.07" strokeWidth="1" fill="none" />
+                        <circle cx="360" cy="55"  r="115" stroke="white" strokeOpacity="0.06" strokeWidth="1" fill="none" />
+                        <circle cx="325" cy="25"  r="88"  stroke="white" strokeOpacity="0.05" strokeWidth="1" fill="none" />
+                        {/* Bottom-left arc */}
+                        <circle cx="22"  cy="238" r="100" stroke="white" strokeOpacity="0.05" strokeWidth="1" fill="none" />
+                        {/* Sparkline wave */}
+                        <polyline
+                          points="18,215 55,190 95,202 135,172 175,182 215,152 255,162 295,132 335,144 375,112"
+                          stroke="white" strokeOpacity="0.15" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round"
+                        />
+                        <polygon
+                          points="18,215 55,190 95,202 135,172 175,182 215,152 255,162 295,132 335,144 375,112 380,260 18,260"
+                          fill="white" fillOpacity="0.03"
+                        />
+                        {/* Sparkline dots */}
+                        {([[55,190],[135,172],[215,152],[295,132],[375,112]] as [number,number][]).map(([cx,cy],i) => (
+                          <circle key={i} cx={cx} cy={cy} r="2.5" fill="white" fillOpacity="0.25" />
+                        ))}
+                        {/* NFC arcs top-right */}
+                        <path d="M357 22 Q368 35 357 48" stroke="white" strokeOpacity="0.55" strokeWidth="2" fill="none" strokeLinecap="round" />
+                        <path d="M350 16 Q367 35 350 54" stroke="white" strokeOpacity="0.35" strokeWidth="2" fill="none" strokeLinecap="round" />
+                        <path d="M343 10 Q366 35 343 60" stroke="white" strokeOpacity="0.18" strokeWidth="2" fill="none" strokeLinecap="round" />
+                      </svg>
 
-                          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                            <div className="text-center">
-                              <div className="text-[11px] uppercase tracking-widest text-slate-300">Total</div>
-                              <div className="mt-1 text-2xl font-extrabold text-white tabular-nums">
-                                {opsSnapshot.total.toLocaleString()}
-                              </div>
+                      {/* Top sheen */}
+                      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/35 to-transparent pointer-events-none" />
+
+                      {/* Card content */}
+                      <div className="relative flex flex-col justify-between p-5 pb-5" style={{ minHeight: "230px" }}>
+                        {/* Row 1 — brand + chip */}
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <p className="text-[10px] font-black uppercase tracking-[0.28em] text-white/50">NoLSAF</p>
+                            <p className="text-sm font-black text-white tracking-wide leading-tight mt-0.5">Revenue Card</p>
+                          </div>
+                          {/* EMV Chip */}
+                          <svg width="36" height="28" viewBox="0 0 38 30" fill="none" className="opacity-80 flex-shrink-0 mt-1" aria-hidden>
+                            <rect x="1" y="1" width="36" height="28" rx="4" fill="#c8a84b" stroke="#a07830" strokeWidth="0.8" />
+                            <rect x="1" y="10" width="36" height="10" fill="#b8983a" />
+                            <rect x="13" y="1" width="12" height="28" fill="#b8983a" />
+                            <rect x="13" y="10" width="12" height="10" fill="#a07830" />
+                            <rect x="1" y="10" width="36" height="0.8" fill="#8a6820" />
+                            <rect x="1" y="19.2" width="36" height="0.8" fill="#8a6820" />
+                            <rect x="13" y="1" width="0.8" height="28" fill="#8a6820" />
+                            <rect x="24.2" y="1" width="0.8" height="28" fill="#8a6820" />
+                          </svg>
+                        </div>
+
+                        {/* Row 2 — total revenue hero */}
+                        <div className="mt-3">
+                          <p className="text-[9px] font-bold uppercase tracking-[0.22em] text-white/45 mb-1.5">Total Platform Revenue</p>
+                          <p
+                            className="font-black text-white leading-none drop-shadow tabular-nums"
+                            style={{ fontSize: "clamp(1.45rem, 3.2vw, 2rem)", letterSpacing: "-0.02em" }}
+                          >
+                            {formatTsh(totalCommission + totalSubscription)}
+                          </p>
+                        </div>
+
+                        {/* Row 3 — breakdown + circles */}
+                        <div className="mt-4 pt-3 border-t border-white/12 flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-3 flex-wrap">
+                            <div>
+                              <p className="text-[7px] font-bold uppercase tracking-widest text-white/40">Commission</p>
+                              <p className="text-xs font-black text-white tabular-nums mt-0.5">{formatTsh(totalCommission)}</p>
+                            </div>
+                            <div className="w-px h-7 bg-white/15 flex-shrink-0" />
+                            <div>
+                              <p className="text-[7px] font-bold uppercase tracking-widest text-white/40">Subscription</p>
+                              <p className="text-xs font-black text-white tabular-nums mt-0.5">{formatTsh(totalSubscription)}</p>
+                            </div>
+                            <div className="w-px h-7 bg-white/15 flex-shrink-0" />
+                            <div className="inline-flex items-center gap-1.5">
+                              <span className="relative flex h-1.5 w-1.5 flex-shrink-0">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-75" />
+                                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-400" />
+                              </span>
+                              <p className="text-[7px] font-bold text-white/60 uppercase tracking-wide">Live</p>
                             </div>
                           </div>
+
+                          {/* Dual circles — Mastercard-style */}
+                          <div className="flex -space-x-3 flex-shrink-0 ml-1">
+                            <div className="w-8 h-8 rounded-full flex-shrink-0" style={{ background: "radial-gradient(circle at 38% 38%, #2563eb, #0e2a7a)", opacity: 0.92 }} />
+                            <div className="w-8 h-8 rounded-full flex-shrink-0" style={{ background: "radial-gradient(circle at 62% 38%, #02665e, #013f3a)", opacity: 0.80 }} />
+                          </div>
                         </div>
-                      ) : (
-                        <div className="h-[210px] flex items-center justify-center text-sm text-slate-400">No snapshot data yet.</div>
-                      )}
+                      </div>
                     </div>
                   </div>
 
