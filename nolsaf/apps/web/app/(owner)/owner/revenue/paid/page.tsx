@@ -207,17 +207,21 @@ export default function Paid() {
           </div>
         </div>
 
-        {/* Amount card — deep yellow */}
-        <div className="relative rounded-2xl bg-yellow-950 border border-yellow-900/60 shadow-sm hover:shadow-lg hover:shadow-yellow-950/30 transition-shadow duration-200 p-5 flex items-center gap-4">
-          {/* Top shimmer */}
-          <div className="absolute top-0 left-6 right-6 h-px bg-gradient-to-r from-transparent via-yellow-400/20 to-transparent" />
-          <div className="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-xl bg-yellow-900/50 border border-yellow-800/60">
-            <TrendingUp className="h-5 w-5 text-yellow-400" aria-hidden />
+        {/* Amount card — paid / confirmed green-blue */}
+        <div className="relative rounded-2xl bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-600 border border-emerald-500/30 shadow-lg shadow-emerald-600/25 hover:shadow-emerald-600/40 hover:-translate-y-0.5 transition-all duration-200 p-5 flex items-center gap-4 overflow-hidden">
+          {/* Decorative glow circle */}
+          <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full bg-white/10 pointer-events-none" />
+          <div className="absolute top-0 left-6 right-6 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+          <div className="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-xl bg-white/20 border border-white/25 backdrop-blur-sm shadow-inner">
+            <TrendingUp className="h-5 w-5 text-white drop-shadow" aria-hidden />
           </div>
-          <div className="min-w-0">
-            <p className="text-[11px] font-bold uppercase tracking-widest text-yellow-600">Total amount</p>
-            <p className="mt-0.5 text-3xl font-black text-white tabular-nums leading-none truncate">{formatCurrency(stats.totalAmount)}</p>
-            <p className="mt-1 text-xs text-yellow-700">Value under review</p>
+          <div className="relative min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-white/70">Total Amount</p>
+            <p className="mt-0.5 text-3xl font-black text-white tabular-nums leading-none truncate drop-shadow">{formatCurrency(stats.totalAmount)}</p>
+            <div className="mt-1.5 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/20 border border-white/30">
+              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+              <p className="text-[10px] font-semibold text-white/90 tracking-wide">Paid &amp; confirmed by NoLSAF</p>
+            </div>
           </div>
         </div>
       </div>
