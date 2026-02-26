@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Loader2, FileText, Receipt, RotateCw, Search, X, ArrowUpRight, TrendingUp, Hash } from "lucide-react";
+import { CheckCircle2, Loader2, FileText, Receipt, RotateCw, Search, X, ArrowUpRight, Hash } from "lucide-react";
 import axios from "axios";
 import Link from "next/link";
 import TableRow from "@/components/TableRow";
@@ -207,20 +207,63 @@ export default function Paid() {
           </div>
         </div>
 
-        {/* Amount card — paid / confirmed green-blue */}
-        <div className="relative rounded-2xl bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-600 border border-emerald-500/30 shadow-lg shadow-emerald-600/25 hover:shadow-emerald-600/40 hover:-translate-y-0.5 transition-all duration-200 p-5 flex items-center gap-4 overflow-hidden">
-          {/* Decorative glow circle */}
-          <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full bg-white/10 pointer-events-none" />
-          <div className="absolute top-0 left-6 right-6 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
-          <div className="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-xl bg-white/20 border border-white/25 backdrop-blur-sm shadow-inner">
-            <TrendingUp className="h-5 w-5 text-white drop-shadow" aria-hidden />
+        {/* Amount card — premium data-viz */}
+        <div
+          className="relative rounded-2xl overflow-hidden shadow-2xl hover:-translate-y-1 transition-all duration-300"
+          style={{ background: "linear-gradient(135deg, #1e40af 0%, #0e7490 55%, #02665e 100%)" }}
+        >
+          {/* Top shimmer line */}
+          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
+          {/* Glow orbs */}
+          <div className="absolute -top-14 -right-14 w-52 h-52 rounded-full bg-white/5 pointer-events-none" />
+          <div className="absolute -bottom-10 -left-10 w-40 h-40 rounded-full bg-white/5 pointer-events-none" />
+          {/* Mini bar-chart decoration */}
+          <div className="absolute right-5 bottom-0 flex items-end gap-[5px] pb-0" aria-hidden>
+            {[28, 44, 32, 58, 40, 68, 52, 76, 60, 88].map((h, i) => (
+              <div
+                key={i}
+                className="w-[6px] rounded-t-full bg-white/20"
+                style={{ height: `${h}px` }}
+              />
+            ))}
           </div>
-          <div className="relative min-w-0">
-            <p className="text-[11px] font-bold uppercase tracking-widest text-white/70">Total Amount</p>
-            <p className="mt-0.5 text-3xl font-black text-white tabular-nums leading-none truncate drop-shadow">{formatCurrency(stats.totalAmount)}</p>
-            <div className="mt-1.5 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/20 border border-white/30">
-              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-              <p className="text-[10px] font-semibold text-white/90 tracking-wide">Paid &amp; confirmed by NoLSAF</p>
+          {/* Animated highlight sweep */}
+          <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/5 to-white/0 pointer-events-none" />
+
+          <div className="relative p-6">
+            {/* Label */}
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/55">Total Revenue Received</p>
+
+            {/* Big amount */}
+            <p className="mt-2 text-4xl sm:text-5xl font-black text-white tabular-nums leading-none drop-shadow-sm tracking-tight">
+              {formatCurrency(stats.totalAmount)}
+            </p>
+
+            {/* Divider */}
+            <div className="mt-4 h-px w-full bg-gradient-to-r from-white/20 via-white/10 to-transparent" />
+
+            {/* Data row */}
+            <div className="mt-3 flex items-center gap-5">
+              <div>
+                <p className="text-[9px] font-bold uppercase tracking-widest text-white/45">Invoices</p>
+                <p className="mt-0.5 text-xl font-black text-white tabular-nums">{stats.totalCount}</p>
+              </div>
+              <div className="w-px h-9 bg-white/20" />
+              <div>
+                <p className="text-[9px] font-bold uppercase tracking-widest text-white/45">Avg per invoice</p>
+                <p className="mt-0.5 text-xl font-black text-white tabular-nums">
+                  {stats.totalCount > 0 ? formatCurrency(Math.round(stats.totalAmount / stats.totalCount)) : "—"}
+                </p>
+              </div>
+            </div>
+
+            {/* Confirmed badge */}
+            <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/15 border border-white/25 backdrop-blur-sm">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
+              </span>
+              <span className="text-[10px] font-bold text-white/90 tracking-wide">Paid &amp; confirmed by NoLSAF</span>
             </div>
           </div>
         </div>
