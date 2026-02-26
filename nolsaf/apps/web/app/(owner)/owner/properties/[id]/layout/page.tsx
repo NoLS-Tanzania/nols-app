@@ -188,26 +188,14 @@ export default function OwnerPropertyLayoutPage() {
         const r = await api.get<Layout| null>(`/api/owner/properties/${propertyId}/layout`);
         if (!r.data) {
           const g = await api.post<Layout>(`/api/owner/properties/${propertyId}/layout/generate`);
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'layout/page.tsx:82',message:'Layout generated from API',data:{floorsCount:g.data.floors?.length || 0,floorIds:g.data.floors?.map((f:any)=>f.id) || [],floorLabels:g.data.floors?.map((f:any)=>f.label) || []},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-          // #endregion
           setLayout(g.data);
           if (g.data.floors && g.data.floors.length > 0) {
             setActiveFloor(g.data.floors[0].id);
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'layout/page.tsx:85',message:'Active floor set after generation',data:{activeFloorId:g.data.floors[0].id,allFloors:g.data.floors.map((f:any)=>({id:f.id,label:f.label}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-            // #endregion
           }
         } else {
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'layout/page.tsx:88',message:'Layout fetched from API',data:{floorsCount:r.data.floors?.length || 0,floorIds:r.data.floors?.map((f:any)=>f.id) || [],floorLabels:r.data.floors?.map((f:any)=>f.label) || [],fullLayout:JSON.stringify(r.data).substring(0,500)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-          // #endregion
           setLayout(r.data);
           if (r.data.floors && r.data.floors.length > 0) {
             setActiveFloor(r.data.floors[0].id);
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'layout/page.tsx:91',message:'Active floor set after fetch',data:{activeFloorId:r.data.floors[0].id,allFloors:r.data.floors.map((f:any)=>({id:f.id,label:f.label}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-            // #endregion
           }
         }
       } catch (e: any) {
@@ -285,9 +273,6 @@ export default function OwnerPropertyLayoutPage() {
     if (!layout || !layout.floors || layout.floors.length === 0) return null;
     // Find floor by activeFloor, or default to first floor
     const result = layout.floors.find(f=>f.id===activeFloor) ?? layout.floors[0];
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'layout/page.tsx:170',message:'Floor computed from useMemo',data:{activeFloor,computedFloorId:result?.id,computedFloorLabel:result?.label,allFloorIds:layout.floors.map((f:any)=>f.id),allFloorLabels:layout.floors.map((f:any)=>f.label),roomsCount:result?.rooms?.length || 0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
     return result;
   }, [layout, activeFloor]);
 
@@ -352,13 +337,6 @@ export default function OwnerPropertyLayoutPage() {
       bookingsCount: av?.bookings?.length ?? 0,
     };
   }, [hoveredRoom, availability]);
-
-  // Log when activeFloor changes
-  useEffect(() => {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'layout/page.tsx:167',message:'ActiveFloor state changed',data:{activeFloor,floorId:floor?.id,floorLabel:floor?.label},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
-  }, [activeFloor, floor]);
 
   if (loading) return <div className="p-6">Loading layout…</div>;
   if (!layout || !layout.floors || layout.floors.length === 0) {
@@ -531,9 +509,6 @@ export default function OwnerPropertyLayoutPage() {
                             : "border-white/10 bg-white/5 text-white/80 hover:bg-white/10 hover:text-white hover:border-white/20"
                         }`}
                         onClick={()=>{
-                          // #region agent log
-                          fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'layout/page.tsx:295',message:'Floor button clicked',data:{clickedFloorId:f.id,clickedFloorLabel:f.label,currentActiveFloor:activeFloor,currentFloorId:floor?.id,willSwitch:activeFloor !== f.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-                          // #endregion
                           setActiveFloor(f.id);
                         }}
                       >

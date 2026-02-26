@@ -32,13 +32,6 @@ function emitAvailabilityUpdate(req: Request, propertyId: number, event: 'block_
 
 export const router = Router();
 
-// #region agent log
-router.use((req, res, next) => {
-  fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.availability.ts:35',message:'Router middleware - Request received',data:{method:req.method,path:req.path,url:req.url,originalUrl:req.originalUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-  next();
-});
-// #endregion
-
 router.use(requireAuth as RequestHandler, requireRole("OWNER") as RequestHandler);
 
 // Validation schemas
@@ -153,16 +146,7 @@ router.get("/blocks", (async (req: AuthedRequest, res: Response) => {
 router.post("/blocks", (async (req: AuthedRequest, res: Response) => {
   try {
     const ownerId = req.user!.id;
-    
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.availability.ts:128',message:'POST /blocks - Request body received',data:{body:req.body,bodyKeys:Object.keys(req.body)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
-    
     const validationResult = createBlockSchema.safeParse(req.body);
-
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.availability.ts:132',message:'POST /blocks - Validation result',data:{success:validationResult.success,errors:validationResult.success?null:validationResult.error.issues},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
 
     if (!validationResult.success) {
       res.status(400).json({
@@ -767,21 +751,10 @@ router.post("/blocks/bulk", (async (req: AuthedRequest, res: Response) => {
  */
 router.get("/check-conflicts", (async (req: AuthedRequest, res: Response) => {
   try {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.availability.ts:676',message:'GET /check-conflicts - Route hit',data:{query:req.query,method:req.method,path:req.path,url:req.url},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
-    
     const ownerId = req.user!.id;
     const { propertyId, startDate, endDate, roomCode, excludeBlockId } = req.query;
 
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.availability.ts:682',message:'GET /check-conflicts - Query params parsed',data:{propertyId,startDate,endDate,roomCode,excludeBlockId,ownerId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
-
     if (!propertyId || !startDate || !endDate) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/0a9c03b2-bc4e-4a78-a106-f197405e1191',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'owner.availability.ts:686',message:'GET /check-conflicts - Missing required params',data:{propertyId,startDate,endDate},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
       res.status(400).json({ error: "propertyId, startDate, and endDate are required" });
       return;
     }
