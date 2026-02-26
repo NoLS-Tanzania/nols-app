@@ -2,6 +2,7 @@ import { Router } from "express";
 import type { RequestHandler } from "express";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { prisma } from "@nolsaf/prisma";
+import { getBookingValidationWindowStatus } from "../lib/bookingValidationWindow.js";
 
 export const router = Router();
 router.use(requireAuth as unknown as RequestHandler, requireRole("ADMIN") as unknown as RequestHandler);
@@ -14,8 +15,9 @@ function differenceInCalendarDays(end: Date | string, start: Date | string) {
 
 /**
  * POST /admin/help-owners/validate
- * Preview booking details by code (no state change)
- * Admin can validate any booking code to help owners
+ * Preview booking details by code — returns rich details for ALL code states.
+ * Always returns 200 when the code exists (use `codeStatus` / `windowStatus` to branch UI).
+ * Returns 404 only when the code is not found at all.
  */
 router.post("/validate", async (req, res) => {
   const { code } = req.body as { code: string };
@@ -23,34 +25,37 @@ router.post("/validate", async (req, res) => {
 
   try {
     const checkinCode = await prisma.checkinCode.findFirst({
-      where: { codeVisible: code },
+      where: {
+        OR: [
+          { codeVisible: code.trim().toUpperCase() },
+          { code: code.trim().toUpperCase() },
+        ],
+      },
       include: {
+        usedBy: {
+          select: { id: true, name: true, email: true, phone: true },
+        },
         booking: {
           include: {
             cancellationRequests: {
-              select: { id: true, status: true },
+              select: {
+                id: true, status: true, reason: true, createdAt: true,
+                policyEligible: true, policyRefundPercent: true, policyRule: true,
+                reviewedAt: true, decisionNote: true,
+                user: { select: { id: true, name: true, email: true, phone: true } },
+              },
               orderBy: { createdAt: "desc" },
               take: 1,
             },
             property: {
               include: {
                 owner: {
-                  select: {
-                    id: true,
-                    name: true,
-                    email: true,
-                    phone: true,
-                  },
+                  select: { id: true, name: true, email: true, phone: true },
                 },
               },
             },
             user: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                phone: true,
-              },
+              select: { id: true, name: true, email: true, phone: true },
             },
           },
         },
@@ -58,51 +63,30 @@ router.post("/validate", async (req, res) => {
     });
 
     if (!checkinCode) {
-      return res.status(404).json({ error: "Invalid or expired code" });
-    }
-
-    if (checkinCode.status !== "ACTIVE") {
-      let error = `Code is not active (status: ${checkinCode.status})`;
-      let cancellationStatus: string | null = null;
-
-      if (checkinCode.status === "VOID") {
-        const latestCancellation = (checkinCode.booking as any)?.cancellationRequests?.[0] ?? null;
-        cancellationStatus = latestCancellation?.status ?? null;
-
-        if (latestCancellation) {
-          switch (latestCancellation.status) {
-            case "SUBMITTED":
-            case "REVIEWING":
-              error = "This booking has a cancellation request currently under review. The code has been suspended pending admin decision.";
-              break;
-            case "PROCESSING":
-              error = "This booking's cancellation has been approved and is being processed. The code has been voided — the guest will be refunded.";
-              break;
-            case "REFUNDED":
-              error = "This booking was cancelled and the guest has been refunded. The check-in code is no longer valid.";
-              break;
-            case "REJECTED":
-              error = "A cancellation request existed for this booking but was rejected. The code was voided by an admin — please contact support.";
-              break;
-          }
-        } else {
-          const voidReason = (checkinCode as any).voidReason;
-          error = voidReason
-            ? `This check-in code has been voided: ${voidReason}`
-            : "This check-in code has been voided.";
-        }
-      }
-
-      return res.status(400).json({ error, codeStatus: checkinCode.status, cancellationStatus });
+      return res.status(404).json({ error: "Code not found. Please check the code and try again." });
     }
 
     const booking = checkinCode.booking;
     const nights = differenceInCalendarDays(booking.checkOut, booking.checkIn);
+    const latestCancellation = (booking as any).cancellationRequests?.[0] ?? null;
 
+    // Shared booking details block — returned for all states
     const details = {
       bookingId: booking.id,
       codeId: checkinCode.id,
       codeStatus: checkinCode.status,
+      // Code lifecycle timestamps
+      generatedAt: checkinCode.generatedAt,
+      usedAt: checkinCode.usedAt ?? null,
+      voidedAt: (checkinCode as any).voidedAt ?? null,
+      voidReason: (checkinCode as any).voidReason ?? null,
+      // Who validated (for USED codes)
+      usedBy: checkinCode.usedBy ? {
+        id: checkinCode.usedBy.id,
+        name: checkinCode.usedBy.name,
+        email: checkinCode.usedBy.email,
+        phone: checkinCode.usedBy.phone,
+      } : null,
       property: {
         id: booking.propertyId,
         title: booking.property?.title ?? "-",
@@ -136,9 +120,51 @@ router.post("/validate", async (req, res) => {
         totalAmount: booking.totalAmount,
         currency: (booking as any).currency ?? "TZS",
       },
+      // Cancellation details (present when code is VOID due to cancellation)
+      cancellation: latestCancellation ? {
+        id: latestCancellation.id,
+        status: latestCancellation.status,
+        reason: latestCancellation.reason ?? null,
+        createdAt: latestCancellation.createdAt,
+        policyEligible: latestCancellation.policyEligible,
+        policyRefundPercent: latestCancellation.policyRefundPercent ?? null,
+        policyRule: latestCancellation.policyRule ?? null,
+        reviewedAt: latestCancellation.reviewedAt ?? null,
+        decisionNote: latestCancellation.decisionNote ?? null,
+        requestedBy: latestCancellation.user ? {
+          id: latestCancellation.user.id,
+          name: latestCancellation.user.name,
+          email: latestCancellation.user.email,
+        } : null,
+      } : null,
     };
 
-    return res.json({ ok: true, details });
+    // USED — code already validated
+    if (checkinCode.status === "USED") {
+      return res.json({ ok: true, codeStatus: "USED", details });
+    }
+
+    // VOID — cancelled or admin-voided
+    if (checkinCode.status === "VOID") {
+      return res.json({ ok: true, codeStatus: "VOID", details });
+    }
+
+    // ACTIVE — check the validation window (can only validate on/after check-in date)
+    const windowStatus = getBookingValidationWindowStatus(
+      new Date(booking.checkIn),
+      new Date(booking.checkOut),
+      new Date()
+    );
+
+    return res.json({
+      ok: true,
+      codeStatus: "ACTIVE",
+      windowStatus: windowStatus.status,          // IN_WINDOW | BEFORE_CHECKIN | AFTER_CHECKOUT
+      canValidate: windowStatus.canValidate,
+      windowReason: windowStatus.canValidate ? null : (windowStatus as any).reason,
+      details,
+    });
+
   } catch (err) {
     console.error("admin.helpOwners.validate error", err);
     res.status(500).json({ error: "Failed to validate code" });

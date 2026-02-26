@@ -94,7 +94,11 @@ export default function AdminHome() {
   const [loadingInv, setLoadingInv] = useState<boolean>(true);
   // Validation lookup state — booking code check-in validation
   const [validationCode, setValidationCode] = useState<string>("");
-  const [validationResult, setValidationResult] = useState<any>(null);
+  const [validationResult, setValidationResult] = useState<any>(null); // = details
+  const [vCodeStatus, setVCodeStatus] = useState<string | null>(null);  // USED | VOID | ACTIVE
+  const [vWindowStatus, setVWindowStatus] = useState<string | null>(null); // IN_WINDOW | BEFORE_CHECKIN | AFTER_CHECKOUT
+  const [vCanValidate, setVCanValidate] = useState<boolean>(false);
+  const [vWindowReason, setVWindowReason] = useState<string | null>(null);
   const [loadingValidation, setLoadingValidation] = useState<boolean>(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [validationModalOpen, setValidationModalOpen] = useState(false);
@@ -103,15 +107,17 @@ export default function AdminHome() {
   const [vConfirmError, setVConfirmError] = useState<string | null>(null);
   const validationRef = useRef<HTMLDivElement | null>(null);
 
-  // Auto-lookup when validationCode changes (debounced) — calls booking code validate API
+  // Auto-lookup when validationCode changes (debounced)
   useEffect(() => {
     if (!validationCode || !validationCode.trim()) {
       setValidationResult(null); setValidationError(null); setVSuccess(null);
+      setVCodeStatus(null); setVWindowStatus(null); setVCanValidate(false); setVWindowReason(null);
       return;
     }
     const t = setTimeout(async () => {
       setLoadingValidation(true); setValidationError(null); setValidationResult(null);
       setVSuccess(null); setVConfirmError(null);
+      setVCodeStatus(null); setVWindowStatus(null); setVCanValidate(false); setVWindowReason(null);
       try {
         const res = await fetch(`${API}/api/admin/help-owners/validate`, {
           method: "POST",
@@ -120,8 +126,16 @@ export default function AdminHome() {
           body: JSON.stringify({ code: validationCode.trim() }),
         });
         const json = await res.json();
-        if (!res.ok) { setValidationError(json?.error ?? "Code not found or invalid."); }
-        else { setValidationResult(json.details ?? null); setValidationModalOpen(true); }
+        if (!res.ok) {
+          setValidationError(json?.error ?? "Code not found or invalid.");
+        } else {
+          setValidationResult(json.details ?? null);
+          setVCodeStatus(json.codeStatus ?? null);
+          setVWindowStatus(json.windowStatus ?? null);
+          setVCanValidate(json.canValidate ?? false);
+          setVWindowReason(json.windowReason ?? null);
+          setValidationModalOpen(true);
+        }
       } catch { setValidationError("Network error — could not reach server."); }
       finally { setLoadingValidation(false); }
     }, 500);
@@ -156,6 +170,59 @@ export default function AdminHome() {
     setValidationError(null);
     setVSuccess(null);
     setVConfirmError(null);
+    setVCodeStatus(null);
+    setVWindowStatus(null);
+    setVCanValidate(false);
+    setVWindowReason(null);
+  }
+
+  // Reusable booking details grid (shared across all modal states)
+  function VBookingDetails({ d }: { d: any }) {
+    const fmt = (iso: string | null | undefined, opts?: Intl.DateTimeFormatOptions) =>
+      iso ? new Date(iso).toLocaleDateString(undefined, opts ?? { day: "numeric", month: "short", year: "numeric" }) : "—";
+    const fmtTs = (iso: string | null | undefined) =>
+      iso ? new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
+    return (
+      <div className="space-y-3">
+        {/* Property header */}
+        <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+          <div className="text-[10px] text-sky-400 font-bold uppercase tracking-widest mb-1">Property</div>
+          <div className="text-sm font-extrabold text-white truncate">{d.property?.title ?? "—"}</div>
+          <div className="text-[11px] text-slate-400">{d.property?.type ?? ""}</div>
+        </div>
+        {/* Dates grid */}
+        <div className="grid grid-cols-4 gap-2 text-xs">
+          {([
+            ["Check-in", fmt(d.booking?.checkIn)],
+            ["Check-out", fmt(d.booking?.checkOut)],
+            ["Nights", d.booking?.nights ?? "—"],
+            ["Amount", `${d.booking?.currency ?? "TZS"} ${Number(d.booking?.totalAmount ?? 0).toLocaleString()}`],
+          ] as [string, React.ReactNode][]).map(([label, val]) => (
+            <div key={label} className="rounded-xl border border-white/8 bg-white/5 px-2.5 py-2">
+              <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-0.5">{label}</div>
+              <div className="font-semibold text-white leading-snug break-all">{val}</div>
+            </div>
+          ))}
+        </div>
+        {/* Owner + Guest */}
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-2.5">
+            <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">Owner</div>
+            <div className="font-bold text-white truncate">{d.property?.owner?.name ?? "—"}</div>
+            <div className="text-slate-400 truncate">{d.property?.owner?.phone ?? d.property?.owner?.email ?? ""}</div>
+          </div>
+          <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-2.5">
+            <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">Guest</div>
+            <div className="font-bold text-white truncate">{d.guest?.fullName ?? d.customer?.name ?? "—"}</div>
+            <div className="text-slate-400 truncate">{d.guest?.phone ?? d.customer?.phone ?? ""}</div>
+          </div>
+        </div>
+        {/* Code timestamps */}
+        <div className="text-[10px] text-slate-600 tabular-nums">
+          Code generated: {fmtTs(d.generatedAt)}
+        </div>
+      </div>
+    );
   }
 
   // totalInvoicesCount removed (not displayed in header anymore)
@@ -556,144 +623,239 @@ export default function AdminHome() {
               </div>
 
               {/* ── Booking Validation Popup Modal ── */}
-              {validationModalOpen && (
-                <div
-                  className="fixed inset-0 z-50 flex items-center justify-center p-4"
-                  style={{ background: "rgba(0,0,0,0.65)", backdropFilter: "blur(6px)" }}
-                  role="dialog"
-                  aria-modal="true"
-                  aria-label="Booking Validation"
-                  onClick={(e) => { if (e.target === e.currentTarget) vCloseModal(); }}
-                >
+              {validationModalOpen && (() => {
+                const d = validationResult;
+                const fmtTs = (iso: string | null | undefined) =>
+                  iso ? new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
+
+                // Derive modal accent from state
+                const isUsed   = vCodeStatus === "USED";
+                const isVoid   = vCodeStatus === "VOID";
+                const isBefore = vCodeStatus === "ACTIVE" && vWindowStatus === "BEFORE_CHECKIN";
+                const isAfter  = vCodeStatus === "ACTIVE" && vWindowStatus === "AFTER_CHECKOUT";
+                const canGo    = vCodeStatus === "ACTIVE" && vCanValidate;
+
+                const modalBg = isUsed  ? "linear-gradient(160deg,#071e3d 0%,#0a2040 60%,#001a14 100%)"
+                             : isVoid  ? "linear-gradient(160deg,#1a0a0a 0%,#2a0e0e 60%,#0a0d10 100%)"
+                             : isBefore || isAfter ? "linear-gradient(160deg,#16100a 0%,#211808 60%,#0a0d10 100%)"
+                             : "linear-gradient(160deg,#0e1a3a 0%,#0a2a38 45%,#012820 100%)";
+
+                const badgeEl = isUsed
+                  ? <span className="inline-flex items-center gap-1.5 rounded-xl border border-sky-500/30 bg-sky-500/20 px-2.5 py-1 text-[11px] font-bold text-sky-300 uppercase tracking-wider"><CheckCheck className="h-3 w-3" />Already Validated</span>
+                  : isVoid
+                  ? <span className="inline-flex items-center gap-1.5 rounded-xl border border-red-500/30 bg-red-500/20 px-2.5 py-1 text-[11px] font-bold text-red-300 uppercase tracking-wider"><X className="h-3 w-3" />{d?.cancellation ? "Cancelled" : "Voided"}</span>
+                  : (isBefore || isAfter)
+                  ? <span className="inline-flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/15 px-2.5 py-1 text-[11px] font-bold text-amber-300 uppercase tracking-wider"><AlertTriangle className="h-3 w-3" />{isBefore ? "Awaiting Check-in" : "After Check-out"}</span>
+                  : <span className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/25 bg-emerald-500/15 px-2.5 py-1 text-[11px] font-bold text-emerald-300 uppercase tracking-wider"><ShieldCheck className="h-3 w-3" />Ready to Validate</span>;
+
+                return (
                   <div
-                    className="relative w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl"
-                    style={{ background: "linear-gradient(160deg, #0e1a3a 0%, #0a2a38 45%, #012820 100%)" }}
+                    className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                    style={{ background: "rgba(0,0,0,0.72)", backdropFilter: "blur(8px)" }}
+                    role="dialog" aria-modal="true" aria-label="Booking Validation"
+                    onClick={(e) => { if (e.target === e.currentTarget) vCloseModal(); }}
                   >
-                    {/* Modal header */}
-                    <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-white/10">
-                      <div className="flex items-center gap-3">
-                        <div className="h-9 w-9 rounded-2xl border border-sky-400/30 bg-sky-500/20 flex items-center justify-center flex-shrink-0">
-                          <ShieldCheck className="h-4.5 w-4.5 text-sky-300" />
+                    <div
+                      className="relative w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl"
+                      style={{ background: modalBg, boxShadow: "0 40px 100px -30px rgba(0,0,0,0.8)" }}
+                    >
+                      {/* Header */}
+                      <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-white/10">
+                        <div className="flex items-center gap-3">
+                          <div className="h-9 w-9 rounded-2xl border border-sky-400/30 bg-sky-500/20 flex items-center justify-center flex-shrink-0">
+                            <ShieldCheck className="h-4 w-4 text-sky-300" />
+                          </div>
+                          <div>
+                            <div className="text-sm font-bold text-white">Booking Code Verification</div>
+                            <div className="text-xs text-slate-400 font-mono tracking-widest">{validationCode.toUpperCase()}</div>
+                          </div>
                         </div>
-                        <div>
-                          <div className="text-sm font-bold text-white">Booking Validation</div>
-                          <div className="text-xs text-slate-400">Review details before confirming check-in</div>
+                        <div className="flex items-center gap-2">
+                          {badgeEl}
+                          <button type="button" onClick={vCloseModal}
+                            className="ml-1 h-7 w-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition"
+                            aria-label="Close">
+                            <X className="h-3.5 w-3.5 text-white" />
+                          </button>
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={vCloseModal}
-                        className="h-8 w-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition"
-                        aria-label="Close"
-                      >
-                        <X className="h-4 w-4 text-white" />
-                      </button>
-                    </div>
 
-                    <div className="px-6 pt-5 pb-6 space-y-4">
-                      {/* Success state */}
-                      {vSuccess ? (
-                        <div className="space-y-4">
-                          <div className="flex flex-col items-center gap-3 py-4 text-center">
-                            <div className="h-14 w-14 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center">
-                              <CheckCheck className="h-7 w-7 text-emerald-400" />
-                            </div>
-                            <div>
-                              <p className="text-base font-bold text-emerald-300">Check-in Confirmed!</p>
-                              <p className="text-sm text-slate-400 mt-1">
-                                Booking <span className="font-mono text-white">#{vSuccess.bookingId}</span> validated for{" "}
-                                <span className="font-semibold text-white">{vSuccess.ownerName}</span>.
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-2 text-xs text-emerald-300/80 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-2">
-                              <Bell className="h-3.5 w-3.5" /> Owner notification dispatched
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={vCloseModal}
-                            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-white/15 bg-white/10 hover:bg-white/15 text-white text-sm font-semibold transition"
-                          >
-                            <RefreshCw className="h-4 w-4" /> New validation
-                          </button>
-                        </div>
-                      ) : validationResult ? (
-                        <>
-                          {/* Property + booking summary */}
-                          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                            <div className="flex items-start justify-between gap-3 mb-3">
-                              <div className="min-w-0">
-                                <div className="text-xs text-sky-400 font-semibold uppercase tracking-wider">Property</div>
-                                <div className="text-base font-extrabold text-white truncate mt-0.5">{validationResult.property?.title ?? "—"}</div>
-                                <div className="text-xs text-slate-400">{validationResult.property?.type ?? ""}</div>
+                      {/* Body */}
+                      <div className="px-6 pt-5 pb-6 overflow-y-auto" style={{ maxHeight: "75vh" }}>
+
+                        {/* ─ POST-CONFIRM SUCCESS ─ */}
+                        {vSuccess ? (
+                          <div className="space-y-4">
+                            <div className="flex flex-col items-center gap-3 py-5 text-center">
+                              <div className="h-16 w-16 rounded-full bg-emerald-500/20 border-2 border-emerald-500/40 flex items-center justify-center">
+                                <CheckCheck className="h-8 w-8 text-emerald-400" />
                               </div>
-                              <span className="flex-shrink-0 inline-flex items-center rounded-xl border border-emerald-500/25 bg-emerald-500/15 px-2.5 py-1 text-[11px] font-bold text-emerald-300 uppercase tracking-wider">
-                                {validationResult.booking?.status ?? "ACTIVE"}
-                              </span>
-                            </div>
-                            <div className="grid grid-cols-2 gap-2 text-xs">
-                              <div className="rounded-lg border border-white/8 bg-white/5 px-3 py-2">
-                                <div className="text-slate-500 uppercase tracking-wider text-[10px] mb-0.5">Check-in</div>
-                                <div className="font-semibold text-white">{validationResult.booking?.checkIn ? new Date(validationResult.booking.checkIn).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "—"}</div>
+                              <div>
+                                <p className="text-base font-extrabold text-emerald-300">Check-in Confirmed!</p>
+                                <p className="text-sm text-slate-400 mt-1">
+                                  Booking <span className="font-mono text-white">#{vSuccess.bookingId}</span> validated by NOLSAF admin on behalf of{" "}
+                                  <span className="font-semibold text-white">{vSuccess.ownerName}</span>.
+                                </p>
                               </div>
-                              <div className="rounded-lg border border-white/8 bg-white/5 px-3 py-2">
-                                <div className="text-slate-500 uppercase tracking-wider text-[10px] mb-0.5">Check-out</div>
-                                <div className="font-semibold text-white">{validationResult.booking?.checkOut ? new Date(validationResult.booking.checkOut).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "—"}</div>
-                              </div>
-                              <div className="rounded-lg border border-white/8 bg-white/5 px-3 py-2">
-                                <div className="text-slate-500 uppercase tracking-wider text-[10px] mb-0.5">Nights</div>
-                                <div className="font-semibold text-white">{validationResult.booking?.nights ?? "—"}</div>
-                              </div>
-                              <div className="rounded-lg border border-white/8 bg-white/5 px-3 py-2">
-                                <div className="text-slate-500 uppercase tracking-wider text-[10px] mb-0.5">Amount</div>
-                                <div className="font-semibold text-white tabular-nums">{validationResult.booking?.currency ?? "TZS"} {Number(validationResult.booking?.totalAmount ?? 0).toLocaleString()}</div>
+                              <div className="flex items-center gap-2 text-xs text-emerald-300/80 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-2">
+                                <Bell className="h-3.5 w-3.5" /> Owner notification dispatched automatically
                               </div>
                             </div>
+                            <button type="button" onClick={vCloseModal}
+                              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-white/15 bg-white/8 hover:bg-white/12 text-white text-sm font-semibold transition">
+                              <RefreshCw className="h-4 w-4" /> Validate another code
+                            </button>
                           </div>
 
-                          {/* Owner + Guest */}
-                          <div className="grid grid-cols-2 gap-3 text-xs">
-                            <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-                              <div className="text-slate-500 uppercase tracking-wider text-[10px] mb-1">Owner</div>
-                              <div className="font-semibold text-white truncate">{validationResult.property?.owner?.name ?? "—"}</div>
-                              <div className="text-slate-400 truncate mt-0.5">{validationResult.property?.owner?.phone ?? validationResult.property?.owner?.email ?? ""}</div>
-                            </div>
-                            <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-                              <div className="text-slate-500 uppercase tracking-wider text-[10px] mb-1">Guest</div>
-                              <div className="font-semibold text-white truncate">{validationResult.guest?.fullName ?? validationResult.customer?.name ?? "—"}</div>
-                              <div className="text-slate-400 truncate mt-0.5">{validationResult.guest?.phone ?? validationResult.customer?.phone ?? ""}</div>
-                            </div>
-                          </div>
+                        ) : d ? (
+                          <div className="space-y-4">
+                            <VBookingDetails d={d} />
 
-                          {/* Confirm error */}
-                          {vConfirmError && (
-                            <div className="flex items-start gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3">
-                              <AlertTriangle className="h-4 w-4 text-red-400 mt-0.5 flex-shrink-0" />
-                              <p className="text-sm text-red-300">{vConfirmError}</p>
-                            </div>
-                          )}
-
-                          {/* Confirm button */}
-                          <button
-                            type="button"
-                            onClick={vConfirmCheckin}
-                            disabled={vConfirming}
-                            className="w-full flex items-center justify-center gap-2.5 py-3 rounded-2xl border border-emerald-400/25 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-100 font-bold text-sm transition disabled:opacity-60 disabled:cursor-not-allowed"
-                            style={{ boxShadow: "0 0 40px -15px rgba(34,197,94,0.5)" }}
-                          >
-                            {vConfirming ? (
-                              <><RefreshCw className="h-4 w-4 animate-spin" /> Confirming…</>
-                            ) : (
-                              <><ShieldCheck className="h-4 w-4" /> Confirm check-in for {validationResult.property?.owner?.name ?? "owner"}</>
+                            {/* ─ USED: already validated ─ */}
+                            {isUsed && (
+                              <div className="rounded-2xl border border-sky-500/25 bg-sky-500/10 p-4 space-y-3">
+                                <div className="flex items-center gap-2">
+                                  <CheckCheck className="h-4.5 w-4.5 text-sky-400 flex-shrink-0" />
+                                  <p className="text-sm font-bold text-sky-300">This code has already been validated</p>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                  <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-2">
+                                    <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-0.5">Validated at</div>
+                                    <div className="font-semibold text-white">{fmtTs(d.usedAt)}</div>
+                                  </div>
+                                  <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-2">
+                                    <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-0.5">Validated by</div>
+                                    <div className="font-semibold text-white truncate">{d.usedBy?.name ?? d.property?.owner?.name ?? "—"}</div>
+                                  </div>
+                                </div>
+                                <p className="text-[11px] text-sky-300/70 leading-relaxed">
+                                  If the owner is asking for assistance, you can confirm that this booking was already validated on{" "}
+                                  <span className="font-semibold text-sky-200">{fmtTs(d.usedAt)}</span>{d.usedBy?.name ? ` by ${d.usedBy.name}` : ""}.
+                                </p>
+                              </div>
                             )}
-                          </button>
-                          <p className="text-center text-[10px] text-slate-500">Owner will be notified immediately upon confirmation.</p>
-                        </>
-                      ) : null}
+
+                            {/* ─ VOID: cancelled/voided ─ */}
+                            {isVoid && (
+                              <div className="rounded-2xl border border-red-500/25 bg-red-500/8 p-4 space-y-3">
+                                <div className="flex items-center gap-2">
+                                  <AlertTriangle className="h-4.5 w-4.5 text-red-400 flex-shrink-0" />
+                                  <p className="text-sm font-bold text-red-300">
+                                    {d.cancellation ? "Booking Cancellation" : "Code Voided"}
+                                  </p>
+                                </div>
+                                {d.cancellation ? (
+                                  <div className="space-y-2 text-xs">
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-2">
+                                        <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-0.5">Cancellation status</div>
+                                        <div className="font-bold text-red-300 uppercase">{d.cancellation.status}</div>
+                                      </div>
+                                      <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-2">
+                                        <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-0.5">Requested at</div>
+                                        <div className="font-semibold text-white">{fmtTs(d.cancellation.createdAt)}</div>
+                                      </div>
+                                    </div>
+                                    {d.cancellation.reason && (
+                                      <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-2.5">
+                                        <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">Cancellation reason</div>
+                                        <p className="text-white/90 leading-relaxed">{d.cancellation.reason}</p>
+                                      </div>
+                                    )}
+                                    {d.cancellation.policyRefundPercent != null && (
+                                      <div className="flex items-center gap-2 rounded-xl border border-amber-500/20 bg-amber-500/8 px-3 py-2">
+                                        <div className="text-[10px] text-amber-300">
+                                          Policy: <span className="font-bold">{d.cancellation.policyRefundPercent}% refund</span>
+                                          {d.cancellation.policyRule ? ` — ${d.cancellation.policyRule}` : ""}
+                                        </div>
+                                      </div>
+                                    )}
+                                    {d.cancellation.decisionNote && (
+                                      <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-2.5">
+                                        <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">Admin decision note</div>
+                                        <p className="text-slate-300 text-[11px] leading-relaxed">{d.cancellation.decisionNote}</p>
+                                      </div>
+                                    )}
+                                    {d.cancellation.requestedBy && (
+                                      <div className="text-[10px] text-slate-500">
+                                        Requested by: <span className="text-slate-300 font-semibold">{d.cancellation.requestedBy.name}</span>
+                                        {d.cancellation.requestedBy.email ? ` · ${d.cancellation.requestedBy.email}` : ""}
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="space-y-2 text-xs">
+                                    {d.voidedAt && (
+                                      <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-2">
+                                        <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-0.5">Voided at</div>
+                                        <div className="font-semibold text-white">{fmtTs(d.voidedAt)}</div>
+                                      </div>
+                                    )}
+                                    {d.voidReason && (
+                                      <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-2.5">
+                                        <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">Void reason</div>
+                                        <p className="text-white/90 leading-relaxed">{d.voidReason}</p>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {/* ─ BEFORE CHECK-IN / AFTER CHECK-OUT ─ */}
+                            {(isBefore || isAfter) && (
+                              <div className="rounded-2xl border border-amber-500/25 bg-amber-500/8 p-4 space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <AlertTriangle className="h-4.5 w-4.5 text-amber-400 flex-shrink-0" />
+                                  <p className="text-sm font-bold text-amber-300">
+                                    {isBefore ? "Booking Is Valid — Check-in Date Not Yet Reached" : "Check-out Date Has Passed"}
+                                  </p>
+                                </div>
+                                <p className="text-xs text-amber-200/80 leading-relaxed">{vWindowReason}</p>
+                                {isBefore && (
+                                  <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-2 text-xs">
+                                    <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-0.5">Check-in opens on</div>
+                                    <div className="font-bold text-white">{d.booking?.checkIn ? new Date(d.booking.checkIn).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : "—"}</div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {/* ─ IN WINDOW: confirm button ─ */}
+                            {canGo && (
+                              <>
+                                {vConfirmError && (
+                                  <div className="flex items-start gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3">
+                                    <AlertTriangle className="h-4 w-4 text-red-400 mt-0.5 flex-shrink-0" />
+                                    <p className="text-sm text-red-300">{vConfirmError}</p>
+                                  </div>
+                                )}
+                                <button type="button" onClick={vConfirmCheckin} disabled={vConfirming}
+                                  className="w-full flex items-center justify-center gap-2.5 py-3 rounded-2xl border border-emerald-400/25 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-100 font-bold text-sm transition disabled:opacity-60 disabled:cursor-not-allowed"
+                                  style={{ boxShadow: "0 0 40px -15px rgba(34,197,94,0.5)" }}
+                                >
+                                  {vConfirming
+                                    ? <><RefreshCw className="h-4 w-4 animate-spin" /> Confirming…</>
+                                    : <><ShieldCheck className="h-4 w-4" /> Confirm check-in for {d.property?.owner?.name ?? "owner"}</>}
+                                </button>
+                                <p className="text-center text-[10px] text-slate-500">Owner will be notified immediately upon confirmation.</p>
+                              </>
+                            )}
+
+                            {/* Close / new validation for read-only states */}
+                            {!canGo && !vSuccess && (
+                              <button type="button" onClick={vCloseModal}
+                                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-white/12 bg-white/6 hover:bg-white/10 text-slate-300 text-sm font-semibold transition">
+                                <RefreshCw className="h-3.5 w-3.5" /> Validate another code
+                              </button>
+                            )}
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
           </div>
         </div>
