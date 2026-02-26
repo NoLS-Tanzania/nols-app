@@ -555,6 +555,8 @@ export default function AdminHomePage() {
     seriesStroke?: string;
     className?: string;
     featured?: boolean;
+    progressGradient?: string;
+    bottomSlot?: React.ReactNode;
   };
 
   function NavTile({
@@ -570,6 +572,8 @@ export default function AdminHomePage() {
     className,
     featured,
     index,
+    progressGradient = "from-emerald-400 to-cyan-300",
+    bottomSlot,
   }: NavItem & { index: number }) {
     const numericBadge = typeof badge === "number" && Number.isFinite(badge) ? badge : null;
     const badgeDisplay = useCountUp(numericBadge ?? 0, tilesInView && numericBadge !== null);
@@ -696,7 +700,7 @@ export default function AdminHomePage() {
                 <div className="flex-1">
                   <div className="h-2 rounded-full bg-white/20 overflow-hidden">
                     <div
-                      className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-cyan-300 transition-[width] duration-700"
+                      className={`h-full rounded-full bg-gradient-to-r ${progressGradient} transition-[width] duration-700`}
                       style={{ width: `${tilesInView ? progressPct : 0}%` }}
                       aria-hidden
                     />
@@ -706,7 +710,9 @@ export default function AdminHomePage() {
               </div>
             ) : null}
 
-            {showSparkline ? (
+            {bottomSlot ? (
+              <div className="mt-4">{bottomSlot}</div>
+            ) : showSparkline ? (
               <div className="mt-4 flex items-center justify-between gap-3">
                 <div className="text-[11px] text-white/70">Trend</div>
                 <div className="opacity-85">
@@ -886,11 +892,15 @@ export default function AdminHomePage() {
             <div className="flex items-start justify-between gap-4 flex-wrap mb-6">
               <div>
                 <div className="flex items-center gap-2 text-xs text-slate-400">
-                  <span
-                    className="inline-block h-2 w-2 rounded-full bg-emerald-400"
-                    style={{ boxShadow: "0 0 8px rgba(52,211,153,0.85)", animation: "nols-seq-blink 1.2s ease-in-out infinite" }}
-                    aria-hidden
-                  />
+                  <span className="flex items-center gap-[3px]" aria-hidden>
+                    {([0, 400, 800] as const).map((delay) => (
+                      <span
+                        key={delay}
+                        className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400"
+                        style={{ boxShadow: "0 0 6px rgba(52,211,153,0.85)", animation: "nols-seq-blink 1.2s ease-in-out infinite", animationDelay: `${delay}ms` }}
+                      />
+                    ))}
+                  </span>
                   System operational
                   <span className="mx-1 text-white/20">·</span>
                   <ClientTime iso={nowIso} />
@@ -898,7 +908,7 @@ export default function AdminHomePage() {
                 <h1 className="mt-1 text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
                   {(() => { const h = new Date(nowIso).getHours(); return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening"; })()},&nbsp;Admin
                 </h1>
-                <div className="mt-1 text-sm text-slate-400">Approvals · Payments · Bookings · Revenue — all in one view</div>
+                <div className="mt-1 text-sm text-slate-400">Approvals · Payments · Bookings · Revenue all in one view</div>
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -1646,8 +1656,17 @@ export default function AdminHomePage() {
               <section className="col-span-12 rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-[0_20px_80px_-60px_rgba(0,0,0,0.9)] overflow-hidden">
                 <div className="p-5 sm:p-6 border-b border-white/10 flex items-center justify-between gap-3 flex-wrap">
                   <div>
-                    <div className="text-sm font-semibold text-white">Quick navigation</div>
-                    <div className="text-xs text-slate-400">Tap a card for deep sections</div>
+                    <div className="text-sm font-semibold text-white">Operations Hub</div>
+                    <div className="text-xs text-slate-400">Navigate every module instantly</div>
+                  </div>
+                  <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                    <span className="flex items-center gap-[3px]" aria-hidden>
+                      {([0, 350, 700] as const).map((d) => (
+                        <span key={d} className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500/70"
+                          style={{ animation: "nols-seq-blink 1.2s ease-in-out infinite", animationDelay: `${d}ms` }} />
+                      ))}
+                    </span>
+                    Live
                   </div>
                 </div>
 
@@ -1683,6 +1702,7 @@ export default function AdminHomePage() {
                     badge={monitoring ? monitoring.pendingApprovals : null}
                     className="col-span-12 sm:col-span-6 lg:col-span-4"
                     featured
+                    progressGradient="from-emerald-400 to-lime-300"
                     index={0}
                   />
 
@@ -1696,6 +1716,7 @@ export default function AdminHomePage() {
                     badge={paymentsWaiting ?? null}
                     className="col-span-12 sm:col-span-6 lg:col-span-4"
                     featured
+                    progressGradient="from-cyan-400 to-sky-300"
                     index={1}
                   />
 
@@ -1709,6 +1730,7 @@ export default function AdminHomePage() {
                     badge={monitoring ? Math.round(bookingsAnimated) : null}
                     className="col-span-12 sm:col-span-6 lg:col-span-4"
                     featured
+                    progressGradient="from-sky-400 to-blue-300"
                     index={2}
                   />
 
@@ -1719,10 +1741,28 @@ export default function AdminHomePage() {
                     icon={BarChart2}
                     gradient="from-brand-700 via-sky-500 to-cyan-300"
                     iconWrap="bg-brand-500/15 border-brand-200/20 text-white"
-                    seriesValues={makeSpark(totalCommission + totalSubscription)}
-                    seriesStroke="rgba(255,255,255,0.88)"
                     className="col-span-12 sm:col-span-6 lg:col-span-3"
                     index={3}
+                    bottomSlot={
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center justify-between text-[10px] text-white/65">
+                          <span>Commission</span>
+                          <span className="font-semibold text-white/85 tabular-nums">{formatTsh(totalCommission)}</span>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-white/15 overflow-hidden">
+                          <div className="h-full rounded-full bg-gradient-to-r from-sky-400 to-cyan-300 transition-[width] duration-700"
+                            style={{ width: tilesInView && (totalCommission + totalSubscription) > 0 ? `${Math.round((totalCommission / (totalCommission + totalSubscription)) * 100)}%` : "50%" }} />
+                        </div>
+                        <div className="flex items-center justify-between text-[10px] text-white/65 mt-0.5">
+                          <span>Subscription</span>
+                          <span className="font-semibold text-white/85 tabular-nums">{formatTsh(totalSubscription)}</span>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-white/15 overflow-hidden">
+                          <div className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-green-300 transition-[width] duration-700"
+                            style={{ width: tilesInView && (totalCommission + totalSubscription) > 0 ? `${Math.round((totalSubscription / (totalCommission + totalSubscription)) * 100)}%` : "50%" }} />
+                        </div>
+                      </div>
+                    }
                   />
 
                   <NavTile
@@ -1732,10 +1772,21 @@ export default function AdminHomePage() {
                     icon={Building2}
                     gradient="from-brand-800 via-emerald-500 to-teal-300"
                     iconWrap="bg-emerald-500/15 border-emerald-200/20 text-white"
-                    seriesValues={makeSpark((monitoring?.activeSessions ?? 0) + 7)}
-                    seriesStroke="rgba(255,255,255,0.88)"
                     className="col-span-12 sm:col-span-6 lg:col-span-3"
                     index={4}
+                    bottomSlot={
+                      <div className="flex items-center gap-3">
+                        <MiniRing
+                          percent={Math.min(100, Math.round(100 * (1 - Math.exp(-((monitoring?.activeSessions ?? 0) + (pendingApprovalsValue ?? 0)) / 12))))}
+                          color="rgba(52,211,153,0.9)"
+                          size={50}
+                        />
+                        <div className="text-[11px] leading-tight">
+                          <div className="font-extrabold text-white tabular-nums">{monitoring?.activeSessions ?? 0}</div>
+                          <div className="text-white/60 mt-0.5">Active sessions</div>
+                        </div>
+                      </div>
+                    }
                   />
 
                   <NavTile
@@ -1745,10 +1796,19 @@ export default function AdminHomePage() {
                     icon={LineChart}
                     gradient="from-slate-600 via-brand-400 to-slate-200"
                     iconWrap="bg-white/10 border-white/15 text-white"
-                    seriesValues={makeSpark(bookingsValue + pendingApprovalsValue)}
-                    seriesStroke="rgba(255,255,255,0.86)"
                     className="col-span-12 sm:col-span-6 lg:col-span-3"
                     index={5}
+                    bottomSlot={
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-[11px] text-white/65">Signals</div>
+                        <MiniDotTrend
+                          values={makeSpark(bookingsValue + pendingApprovalsValue + 9, 16)}
+                          color="rgba(147,197,253,0.92)"
+                          width={88}
+                          height={26}
+                        />
+                      </div>
+                    }
                   />
 
                   <NavTile
@@ -1758,10 +1818,22 @@ export default function AdminHomePage() {
                     icon={MessagesSquare}
                     gradient="from-brand-800 via-blue-500 to-cyan-300"
                     iconWrap="bg-blue-500/15 border-blue-200/20 text-white"
-                    seriesValues={makeSpark(usersNewValue + 3)}
-                    seriesStroke="rgba(255,255,255,0.88)"
                     className="col-span-12 sm:col-span-6 lg:col-span-3"
                     index={6}
+                    bottomSlot={
+                      <div className="flex items-center gap-3">
+                        <span className="flex items-center gap-[3px]" aria-hidden>
+                          {([0, 350, 700] as const).map((d) => (
+                            <span key={d} className="inline-block h-2 w-2 rounded-full bg-white/50"
+                              style={{ animation: "nols-seq-blink 1.2s ease-in-out infinite", animationDelay: `${d}ms` }} />
+                          ))}
+                        </span>
+                        <div className="text-[11px] leading-tight">
+                          <span className="font-extrabold text-white tabular-nums">{usersNewValue}</span>
+                          <span className="text-white/55 ml-1">new this week</span>
+                        </div>
+                      </div>
+                    }
                   />
                 </div>
               </section>
