@@ -44,13 +44,6 @@ export default function PendingProps() {
         const suspendedItems = Array.isArray((suspended.data as any)?.items) ? (suspended.data as any).items : [];
         const draftItems = Array.isArray((draft.data as any)?.items) ? (draft.data as any).items : [];
         
-        console.log("Pending properties loaded:", {
-          pending: pendingItems.length,
-          suspended: suspendedItems.length,
-          draft: draftItems.length,
-          total: pendingItems.length + suspendedItems.length + draftItems.length,
-        });
-        
         setList([...pendingItems, ...suspendedItems, ...draftItems]);
       })
       .catch((err) => {

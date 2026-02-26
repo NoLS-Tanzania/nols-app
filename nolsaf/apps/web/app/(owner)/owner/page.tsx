@@ -276,7 +276,7 @@ export default function OwnerPage() {
                 {ownerName ?? "Your workspace"}
               </h1>
               <p className="mt-3 text-[12px] font-medium" style={{ color: "rgba(255,255,255,0.32)", maxWidth: 280 }}>
-                Bookings, revenue & live insights — all in one place.
+                Bookings, revenue & live insights all in one place.
               </p>
             </div>
 
