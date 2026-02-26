@@ -859,7 +859,18 @@ export default function PropertyAvailabilityPage() {
             <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
               {connected && (
                 <span className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-200">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-300 animate-pulse" />
+                  <span
+                    className="h-1.5 w-1.5 rounded-full bg-emerald-400"
+                    style={{ animation: "pulse 1.2s ease-in-out infinite", animationDelay: "0ms" }}
+                  />
+                  <span
+                    className="h-1.5 w-1.5 rounded-full bg-sky-400"
+                    style={{ animation: "pulse 1.2s ease-in-out infinite", animationDelay: "400ms" }}
+                  />
+                  <span
+                    className="h-1.5 w-1.5 rounded-full bg-rose-500"
+                    style={{ animation: "pulse 1.2s ease-in-out infinite", animationDelay: "800ms" }}
+                  />
                   Live updates
                 </span>
               )}
@@ -1173,11 +1184,39 @@ export default function PropertyAvailabilityPage() {
                   <p className="mt-1 text-lg font-semibold text-white">{property.title}</p>
                   <p className="mt-1 text-sm text-white/60">Tap a day to view details, or use filters below.</p>
                 </div>
-                <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
-                  <p className="text-xs text-white/60">Live</p>
-                  <p className={`text-sm font-semibold ${connected ? "text-emerald-200" : "text-white/70"}`}>
-                    {connected ? "Connected" : "Offline"}
-                  </p>
+                <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 flex flex-col items-center gap-1.5">
+                  <p className="text-xs text-white/60 self-start">Live</p>
+                  {connected ? (
+                    <>
+                      <div className="flex items-center gap-1.5">
+                        {/* Green — fires first */}
+                        <span
+                          className="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_6px_2px_rgba(52,211,153,0.7)]"
+                          style={{ animation: "pulse 1.2s ease-in-out infinite", animationDelay: "0ms" }}
+                        />
+                        {/* Blue — fires second */}
+                        <span
+                          className="h-2.5 w-2.5 rounded-full bg-sky-400 shadow-[0_0_6px_2px_rgba(56,189,248,0.7)]"
+                          style={{ animation: "pulse 1.2s ease-in-out infinite", animationDelay: "400ms" }}
+                        />
+                        {/* Red — fires third */}
+                        <span
+                          className="h-2.5 w-2.5 rounded-full bg-rose-500 shadow-[0_0_6px_2px_rgba(244,63,94,0.7)]"
+                          style={{ animation: "pulse 1.2s ease-in-out infinite", animationDelay: "800ms" }}
+                        />
+                      </div>
+                      <p className="text-xs font-bold text-emerald-300 self-start">Connected</p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-1.5">
+                        <span className="h-2.5 w-2.5 rounded-full bg-white/20" />
+                        <span className="h-2.5 w-2.5 rounded-full bg-white/20" />
+                        <span className="h-2.5 w-2.5 rounded-full bg-white/20" />
+                      </div>
+                      <p className="text-xs font-bold text-white/40 self-start">Offline</p>
+                    </>
+                  )}
                 </div>
               </div>
 
