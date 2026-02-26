@@ -391,7 +391,7 @@ export default function OwnerBookingsPage() {
 
               // Compute total revenue for this property group
               const groupRevenue = group.bookings.reduce((sum, b) => {
-                const v = Number(String(b.totalAmount ?? b.ownerBaseAmount ?? 0).replace(/,/g, ''));
+                const v = Number(String(b.ownerBaseAmount ?? b.totalAmount ?? 0).replace(/,/g, ''));
                 return sum + (Number.isFinite(v) && v > 0 ? v : 0);
               }, 0);
 
@@ -576,10 +576,10 @@ function BookingRow({
 
   const safeAmount = (() => {
     const toNum = (v: any) => Number(typeof v === 'string' ? v.replace(/,/g, '') : String(v ?? 0));
-    const total = toNum(booking.totalAmount);
-    if (Number.isFinite(total) && total > 0) return total;
     const oba = toNum(booking.ownerBaseAmount);
     if (Number.isFinite(oba) && oba > 0) return oba;
+    const total = toNum(booking.totalAmount);
+    if (Number.isFinite(total) && total > 0) return total;
     return 0;
   })();
 

@@ -313,7 +313,7 @@ export default function CheckedIn() {
                     const baseAmount = b?.ownerBaseAmount != null
                       ? Number(b.ownerBaseAmount)
                       : Math.max(0, Number(b?.totalAmount ?? 0) - Number(b?.transportFare ?? 0));
-                    const amount = b?.totalAmount != null ? formatCurrency(baseAmount) : '—';
+                    const amount = baseAmount > 0 ? formatCurrency(baseAmount) : '—';
                     const validatedAt = (b as any)?.validatedAt ?? (b as any)?.code?.usedAt ?? null;
                     
                     return (

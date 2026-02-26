@@ -79,6 +79,8 @@ export default function BookingDetail() {
   };
 
   const baseAmount = (() => {
+    const oba = Number(b?.ownerBaseAmount ?? 0);
+    if (Number.isFinite(oba) && oba > 0) return oba;
     const total = Number(b?.totalAmount ?? 0);
     const transport = Number(b?.transportFare ?? 0);
     if (!Number.isFinite(total) || !Number.isFinite(transport)) return 0;
