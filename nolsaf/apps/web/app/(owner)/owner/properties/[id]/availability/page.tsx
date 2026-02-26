@@ -30,6 +30,23 @@ import DatePicker from "@/components/ui/DatePicker";
 
 const api = axios.create({ baseURL: "", withCredentials: true });
 
+// Each room-type filter card gets its own accent colour so the owner can
+// instantly tell the filters apart. Cycles if there are more types than entries.
+const ROOM_PALETTE = [
+  // amber / yellow
+  { inactive: "border-amber-400/25 bg-amber-400/8  hover:bg-amber-400/14", active: "border-amber-400/50 bg-amber-400/18", badge: "border-amber-400/20 bg-amber-400/12 text-amber-300", dot: "bg-amber-400" },
+  // sky / blue
+  { inactive: "border-sky-400/25   bg-sky-400/8    hover:bg-sky-400/14",   active: "border-sky-400/50   bg-sky-400/18",   badge: "border-sky-400/20   bg-sky-400/12   text-sky-300",   dot: "bg-sky-400"   },
+  // violet / purple
+  { inactive: "border-violet-400/25 bg-violet-400/8 hover:bg-violet-400/14", active: "border-violet-400/50 bg-violet-400/18", badge: "border-violet-400/20 bg-violet-400/12 text-violet-300", dot: "bg-violet-400" },
+  // rose / pink
+  { inactive: "border-rose-400/25   bg-rose-400/8   hover:bg-rose-400/14",   active: "border-rose-400/50   bg-rose-400/18",   badge: "border-rose-400/20   bg-rose-400/12   text-rose-300",   dot: "bg-rose-400"   },
+  // orange
+  { inactive: "border-orange-400/25 bg-orange-400/8 hover:bg-orange-400/14", active: "border-orange-400/50 bg-orange-400/18", badge: "border-orange-400/20 bg-orange-400/12 text-orange-300", dot: "bg-orange-400" },
+  // cyan
+  { inactive: "border-cyan-400/25   bg-cyan-400/8   hover:bg-cyan-400/14",   active: "border-cyan-400/50   bg-cyan-400/18",   badge: "border-cyan-400/20   bg-cyan-400/12   text-cyan-300",   dot: "bg-cyan-400"   },
+] as const;
+
 function pad2(n: number) {
   return String(n).padStart(2, "0");
 }
@@ -1177,47 +1194,57 @@ export default function PropertyAvailabilityPage() {
               </div>
 
               <div className="mt-4 space-y-2">
+                {/* ── All rooms (emerald accent) ── */}
                 <button
                   type="button"
                   onClick={() => setSelectedRoomCode(null)}
                   className={`w-full rounded-xl border px-4 py-3 text-left transition ${
                     !selectedRoomCode
-                      ? "border-emerald-400/30 bg-emerald-400/10 text-white"
-                      : "border-white/10 bg-white/5 text-white/80 hover:bg-white/10"
+                      ? "border-emerald-400/50 bg-emerald-400/15 text-white"
+                      : "border-emerald-400/20 bg-emerald-400/8 text-white/80 hover:bg-emerald-400/14"
                   }`}
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold">All rooms</p>
-                      <p className="text-xs text-white/60">NoLSAF & non‑NoLSAF sources</p>
+                    <div className="flex items-center gap-2.5">
+                      <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 flex-shrink-0" />
+                      <div>
+                        <p className="text-sm font-semibold">All rooms</p>
+                        <p className="text-xs text-white/60">NoLSAF & non‑NoLSAF sources</p>
+                      </div>
                     </div>
-                    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-white/70">
+                    <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                      !selectedRoomCode
+                        ? "border-emerald-400/30 bg-emerald-400/15 text-emerald-200"
+                        : "border-emerald-400/20 bg-emerald-400/10 text-emerald-300"
+                    }`}>
                       {roomTypes.length}
                     </span>
                   </div>
                 </button>
 
+                {/* ── Per room-type — each gets a unique palette colour ── */}
                 {roomTypes.map((rt, index) => {
-                  // Some properties don't have explicit room codes; fall back to roomType as the selection key.
                   const key = (rt.roomCode && rt.roomCode.trim() !== "") ? rt.roomCode : rt.roomType;
                   const active = selectedRoomCode === key;
+                  const p = ROOM_PALETTE[index % ROOM_PALETTE.length];
                   return (
                     <button
                       key={rt.roomCode ? `room-${rt.roomCode}` : `room-type-${rt.roomType}-${index}`}
                       type="button"
                       onClick={() => setSelectedRoomCode(key || null)}
                       className={`w-full rounded-xl border px-4 py-3 text-left transition ${
-                        active
-                          ? "border-emerald-400/30 bg-emerald-400/10 text-white"
-                          : "border-white/10 bg-white/5 text-white/80 hover:bg-white/10"
+                        active ? `${p.active} text-white` : `${p.inactive} text-white/80`
                       }`}
                     >
                       <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold">{rt.roomType}</p>
-                          <p className="text-xs text-white/60">{rt.roomCode ? `Code: ${rt.roomCode}` : "No code (uses type name)"}</p>
+                        <div className="flex items-center gap-2.5">
+                          <span className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${p.dot}`} />
+                          <div>
+                            <p className="text-sm font-semibold">{rt.roomType}</p>
+                            <p className="text-xs text-white/60">{rt.roomCode ? `Code: ${rt.roomCode}` : "No code (uses type name)"}</p>
+                          </div>
                         </div>
-                        <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-white/70">
+                        <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${p.badge}`}>
                           {rt.roomsCount}
                         </span>
                       </div>
