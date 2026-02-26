@@ -215,6 +215,7 @@ export default function PropertyAvailabilityPage() {
   const propertyId = propertyIdParam ? Number(propertyIdParam) : NaN;
   
   const [loading, setLoading] = useState(true);
+  const [propertyLoading, setPropertyLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [property, setProperty] = useState<any>(null);
@@ -286,16 +287,20 @@ export default function PropertyAvailabilityPage() {
   useEffect(() => {
     if (isNaN(propertyId)) {
       setError("Invalid property ID");
+      setPropertyLoading(false);
       setLoading(false);
       return;
     }
 
+    setPropertyLoading(true);
     api.get(`/api/owner/properties/${propertyId}`)
       .then((res) => {
         setProperty(res.data);
+        setPropertyLoading(false);
       })
       .catch((err) => {
         setError(err?.response?.data?.error || "Failed to load property");
+        setPropertyLoading(false);
       });
   }, [propertyId]);
 
@@ -728,7 +733,7 @@ export default function PropertyAvailabilityPage() {
     );
   }
 
-  if (!property) {
+  if (!propertyLoading && !property) {
     return (
       <div className="flex items-center justify-center py-24">
         <div className="text-center">
