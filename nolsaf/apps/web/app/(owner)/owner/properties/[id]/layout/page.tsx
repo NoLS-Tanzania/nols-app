@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft, Calendar, RefreshCw, Home, Sparkles, X, Users, Clock, CheckCircle2, ShieldBan, Trash2, ExternalLink } from "lucide-react";
+import { ChevronLeft, Calendar, RefreshCw, Home, Sparkles, X, Users, Clock, CheckCircle2, ShieldBan, Trash2, ExternalLink, Layers, BedDouble } from "lucide-react";
 import { io, type Socket } from "socket.io-client";
 import DatePicker from "@/components/ui/DatePicker";
 
@@ -338,13 +338,51 @@ export default function OwnerPropertyLayoutPage() {
     };
   }, [hoveredRoom, availability]);
 
-  if (loading) return <div className="p-6">Loading layout…</div>;
+  if (loading) return (
+    <div className="relative min-h-screen bg-slate-950 rounded-3xl overflow-hidden border border-white/5 shadow-2xl shadow-black/40">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -top-40 left-1/2 h-[500px] w-[800px] -translate-x-1/2 rounded-full bg-emerald-500/10 blur-3xl" />
+      </div>
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-6">
+        <div className="flex items-center gap-4">
+          <div className="h-9 w-28 rounded-xl bg-white/8 animate-pulse" />
+          <div className="h-8 w-48 rounded-xl bg-white/8 animate-pulse" />
+        </div>
+        <div className="h-32 rounded-3xl bg-white/5 border border-white/10 animate-pulse" />
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <div className="lg:col-span-4 space-y-4">
+            {[0,1,2].map(i => <div key={i} className="h-28 rounded-2xl bg-white/5 border border-white/10 animate-pulse" />)}
+          </div>
+          <div className="lg:col-span-8">
+            <div className="h-[480px] rounded-2xl bg-white/5 border border-white/10 animate-pulse" />
+          </div>
+        </div>
+        <div className="flex items-center justify-center gap-3 py-6 text-sm text-white/40">
+          <RefreshCw className="w-4 h-4 animate-spin" />
+          <span>Loading floor plan…</span>
+        </div>
+      </div>
+    </div>
+  );
   if (!layout || !layout.floors || layout.floors.length === 0) {
     return (
-      <div className="p-6 space-y-3">
-        <div className="text-lg font-semibold">Floor plan unavailable</div>
-        {error ? <div className="text-sm text-red-600">{error}</div> : null}
-        <div className="text-sm text-slate-600">Try refreshing, or regenerate the layout.</div>
+      <div className="relative min-h-screen bg-slate-950 rounded-3xl overflow-hidden border border-white/5 shadow-2xl shadow-black/40 flex items-center justify-center p-6">
+        <div className="rounded-3xl border border-white/10 bg-white/5 p-8 max-w-md w-full shadow-2xl shadow-black/40">
+          <div className="w-12 h-12 rounded-2xl bg-amber-500/15 border border-amber-500/20 flex items-center justify-center mb-5">
+            <Layers className="w-6 h-6 text-amber-400" />
+          </div>
+          <h1 className="text-xl font-bold text-white">Floor plan unavailable</h1>
+          {error ? <p className="mt-2 text-sm text-rose-400">{error}</p> : null}
+          <p className="mt-2 text-sm text-white/50">Try refreshing, or regenerate the layout from the property settings.</p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="mt-6 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-sm font-semibold text-white hover:from-emerald-500 hover:to-teal-500 transition"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh
+          </button>
+        </div>
       </div>
     );
   }
@@ -353,7 +391,14 @@ export default function OwnerPropertyLayoutPage() {
     if (layout.floors.length > 0 && !activeFloor) {
       setActiveFloor(layout.floors[0].id);
     }
-    return <div className="p-6">Loading floor…</div>;
+    return (
+      <div className="relative min-h-screen bg-slate-950 rounded-3xl overflow-hidden border border-white/5 shadow-2xl shadow-black/40 flex items-center justify-center p-6">
+        <div className="flex flex-col items-center gap-3 text-white/50">
+          <RefreshCw className="w-6 h-6 animate-spin" />
+          <span className="text-sm font-medium">Loading floor…</span>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -534,12 +579,26 @@ export default function OwnerPropertyLayoutPage() {
 
           <main className="lg:col-span-8 space-y-6">
             <div className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-xl shadow-black/20">
-              <h2 className="text-sm font-semibold text-white">Plan</h2>
-              <p className="mt-1 text-xs text-white/60">Tip: click a room to open a new booking tab.</p>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-sm shadow-emerald-500/30 flex-shrink-0">
+                    <Layers className="w-4 h-4 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-bold text-white leading-none">Floor Plan</h2>
+                    <p className="mt-0.5 text-[11px] text-white/50">{floor.label}</p>
+                  </div>
+                </div>
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[10px] font-bold text-emerald-300">
+                  <BedDouble className="w-3 h-3" />
+                  {floor.rooms.length} rooms
+                </span>
+              </div>
+              <p className="mt-3 text-xs text-white/50">Click a room to view bookings and manage external blocks.</p>
 
               <div
                 ref={planWrapElRef}
-                className="relative mt-4 overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-white via-slate-50 to-white shadow-2xl shadow-black/30 ring-1 ring-black/5"
+                className="relative mt-4 overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 shadow-2xl shadow-black/50"
               >
                 <div key={floor.id} className="w-full animate-in fade-in zoom-in-[0.99] duration-300">
                   <svg
@@ -555,7 +614,7 @@ export default function OwnerPropertyLayoutPage() {
 
                       {/* Subtle grid to reduce the “blank canvas” feel */}
                       <pattern id="plan-grid" width="40" height="40" patternUnits="userSpaceOnUse">
-                        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#0f172a" strokeOpacity="0.06" strokeWidth="1" />
+                        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#ffffff" strokeOpacity="0.04" strokeWidth="1" />
                       </pattern>
 
                       {/* Premium-ish soft shadow for room cards */}
@@ -574,8 +633,8 @@ export default function OwnerPropertyLayoutPage() {
               y={s.pos.y}
               width={s.size.w}
               height={s.size.h}
-              fill="#f8fafc"
-              stroke="#cbd5e1"
+              fill="#1e293b"
+              stroke="#334155"
               strokeWidth="1"
               rx="10"
             />
@@ -583,12 +642,9 @@ export default function OwnerPropertyLayoutPage() {
               x={s.pos.x + 12}
               y={s.pos.y + 22}
               fontSize="16"
-              fill="#334155"
+              fill="#94a3b8"
               fontWeight="600"
               fontFamily="system-ui, -apple-system, sans-serif"
-              paintOrder="stroke"
-              stroke="#ffffff"
-              strokeWidth="3"
             >
               {s.name ?? s.type}
             </text>
@@ -602,12 +658,12 @@ export default function OwnerPropertyLayoutPage() {
           const isBooked = pct > 0;
           const isFullyBooked = pct >= 100;
           // High-contrast, premium-ish palette (still intuitive)
-          const fill = isFullyBooked ? "#fff1f2" : isBooked ? "#fffbeb" : "#ecfdf5";
+          const fill = isFullyBooked ? "#2d1115" : isBooked ? "#2a1f0a" : "#0a2420";
           const stroke = isFullyBooked ? "#e11d48" : isBooked ? "#f59e0b" : "#10b981";
           const strokeWidth = isBooked ? 3 : 2;
           const label = isFullyBooked ? "Fully Booked" : isBooked ? `${pct}% Booked` : "Available";
-          const textColor = isFullyBooked ? "#9f1239" : isBooked ? "#92400e" : "#065f46";
-          const priceColor = "#0f172a";
+          const textColor = isFullyBooked ? "#fda4af" : isBooked ? "#fcd34d" : "#6ee7b7";
+          const priceColor = "#cbd5e1";
 
           const margin = 14;
           const nameFont = Math.max(14, Math.min(22, Math.floor(r.size.h * 0.18)));
@@ -707,8 +763,9 @@ export default function OwnerPropertyLayoutPage() {
                   fontWeight="800"
                   fontFamily="system-ui, -apple-system, sans-serif"
                   paintOrder="stroke"
-                  stroke="#ffffff"
-                  strokeWidth="5"
+                  stroke="#000000"
+                  strokeOpacity="0.5"
+                  strokeWidth="3"
                 >
                   {r.name}
                 </text>
@@ -722,8 +779,9 @@ export default function OwnerPropertyLayoutPage() {
                   fontWeight="700"
                   fontFamily="system-ui, -apple-system, sans-serif"
                   paintOrder="stroke"
-                  stroke="#ffffff"
-                  strokeWidth="5"
+                  stroke="#000000"
+                  strokeOpacity="0.4"
+                  strokeWidth="2"
                 >
                   {new Intl.NumberFormat(undefined, { style: "currency", currency: "TZS" }).format(r.pricePerNight)}
                 </text>
@@ -737,8 +795,9 @@ export default function OwnerPropertyLayoutPage() {
                   fontWeight="800"
                   fontFamily="system-ui, -apple-system, sans-serif"
                   paintOrder="stroke"
-                  stroke="#ffffff"
-                  strokeWidth="5"
+                  stroke="#000000"
+                  strokeOpacity="0.4"
+                  strokeWidth="2"
                 >
                   {label}
                 </text>
