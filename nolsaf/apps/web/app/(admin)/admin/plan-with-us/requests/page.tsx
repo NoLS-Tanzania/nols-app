@@ -1545,8 +1545,8 @@ export default function AdminPlanWithUsRequestsPage() {
             className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
             onClick={() => setShowResponseModal(false)}
           />
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full my-8 max-h-[90vh] flex flex-col overflow-hidden">
+          <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-[5vh] overflow-y-auto">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full my-8 h-[90vh] flex flex-col overflow-hidden">
 
               {/* â”€â”€ Modal Header â”€â”€ */}
               <div
@@ -1580,7 +1580,7 @@ export default function AdminPlanWithUsRequestsPage() {
               </div>
 
               {/* â”€â”€ Scrollable Content â”€â”€ */}
-              <div className="flex-1 overflow-y-auto px-5 py-5 space-y-4 bg-gray-50">
+              <div className="flex-1 min-h-0 overflow-y-auto px-5 py-5 space-y-4 bg-gray-50">
 
                 {/* Request Details â€“ full context panel */}
                 <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
