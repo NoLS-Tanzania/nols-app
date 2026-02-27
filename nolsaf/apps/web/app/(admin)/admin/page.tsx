@@ -1,7 +1,7 @@
 "use client";
 import AdminPageHeader from "@/components/AdminPageHeader";
 import Link from "next/link";
-import { AlertTriangle, Bell, CheckCheck, FileCheck2, FileBadge, LayoutDashboard, Building2, RefreshCw, ShieldCheck, Users, BarChart3, LineChart, X } from "lucide-react";
+import { AlertTriangle, Bell, CheckCheck, ChevronDown, ChevronUp, FileCheck2, FileBadge, LayoutDashboard, Building2, RefreshCw, ShieldCheck, Users, BarChart3, LineChart, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
 import GeneralReports from '@/components/GeneralReports';
@@ -218,44 +218,47 @@ export default function AdminHome() {
     const fmtTs = (iso: string | null | undefined) =>
       iso ? new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
     return (
-      <div className="space-y-3">
-        {/* Property header */}
-        <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-          <div className="text-[10px] text-sky-400 font-bold uppercase tracking-widest mb-1">Property</div>
-          <div className="text-sm font-extrabold text-white truncate">{d.property?.title ?? "—"}</div>
-          <div className="text-[11px] text-slate-400">{d.property?.type ?? ""}</div>
+      <div className="space-y-2">
+        {/* Property block */}
+        <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3.5">
+          <div className="text-[9px] text-sky-400 font-bold uppercase tracking-widest mb-1.5">Property</div>
+          <div className="text-[15px] font-extrabold text-white leading-tight">{d.property?.title ?? "—"}</div>
+          {d.property?.type && <div className="mt-0.5 text-[11px] text-slate-500 font-medium uppercase tracking-wide">{d.property.type}</div>}
         </div>
-        {/* Dates grid */}
-        <div className="grid grid-cols-4 gap-2 text-xs">
-          {([
-            ["Check-in", fmt(d.booking?.checkIn)],
-            ["Check-out", fmt(d.booking?.checkOut)],
-            ["Nights", d.booking?.nights ?? "—"],
-            ["Amount", `${d.booking?.currency ?? "TZS"} ${Number(d.booking?.totalAmount ?? 0).toLocaleString()}`],
-          ] as [string, React.ReactNode][]).map(([label, val]) => (
-            <div key={label} className="rounded-xl border border-white/8 bg-white/5 px-2.5 py-2">
-              <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-0.5">{label}</div>
-              <div className="font-semibold text-white leading-snug break-all">{val}</div>
-            </div>
-          ))}
+        {/* Dates: 2+2 grid */}
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-2.5">
+            <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">Check-in</div>
+            <div className="font-bold text-white text-sm">{fmt(d.booking?.checkIn)}</div>
+          </div>
+          <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-2.5">
+            <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">Check-out</div>
+            <div className="font-bold text-white text-sm">{fmt(d.booking?.checkOut)}</div>
+          </div>
+          <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-2.5">
+            <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">Nights</div>
+            <div className="font-bold text-white text-sm">{d.booking?.nights ?? "—"}</div>
+          </div>
+          <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-2.5">
+            <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">Amount</div>
+            <div className="font-bold text-white text-sm leading-tight">{d.booking?.currency ?? "TZS"} {Number(d.booking?.totalAmount ?? 0).toLocaleString()}</div>
+          </div>
         </div>
         {/* Owner + Guest */}
-        <div className="grid grid-cols-2 gap-2 text-xs">
-          <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-2.5">
-            <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">Owner</div>
-            <div className="font-bold text-white truncate">{d.property?.owner?.name ?? "—"}</div>
-            <div className="text-slate-400 truncate">{d.property?.owner?.phone ?? d.property?.owner?.email ?? ""}</div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-3">
+            <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1.5">Owner</div>
+            <div className="font-bold text-white text-xs leading-snug">{d.property?.owner?.name ?? "—"}</div>
+            <div className="text-slate-500 text-[10px] mt-0.5 truncate">{d.property?.owner?.phone ?? d.property?.owner?.email ?? ""}</div>
           </div>
-          <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-2.5">
-            <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">Guest</div>
-            <div className="font-bold text-white truncate">{d.guest?.fullName ?? d.customer?.name ?? "—"}</div>
-            <div className="text-slate-400 truncate">{d.guest?.phone ?? d.customer?.phone ?? ""}</div>
+          <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-3">
+            <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1.5">Guest</div>
+            <div className="font-bold text-white text-xs leading-snug">{d.guest?.fullName ?? d.customer?.name ?? "—"}</div>
+            <div className="text-slate-500 text-[10px] mt-0.5 truncate">{d.guest?.phone ?? d.customer?.phone ?? ""}</div>
           </div>
         </div>
-        {/* Code timestamps */}
-        <div className="text-[10px] text-slate-600 tabular-nums">
-          Code generated: {fmtTs(d.generatedAt)}
-        </div>
+        {/* Timestamp */}
+        <div className="text-[10px] text-slate-600 tabular-nums px-0.5">Code generated: {fmtTs(d.generatedAt)}</div>
       </div>
     );
   }
@@ -700,46 +703,55 @@ export default function AdminHome() {
                     onClick={(e) => { if (e.target === e.currentTarget) vCloseModal(); }}
                   >
                     <div
-                      className="relative w-full max-w-lg rounded-[28px] overflow-hidden"
+                      className="relative w-full max-w-lg rounded-[28px] flex flex-col overflow-hidden"
                       style={{
                         background: modalBg,
                         boxShadow: `0 50px 120px -30px rgba(0,0,0,0.9), 0 0 0 1px rgba(255,255,255,0.07), inset 0 1px 0 rgba(255,255,255,0.08)`,
+                        maxHeight: "92vh",
                       }}
                     >
-                      {/* Top accent line */}
-                      <div className="h-[2px] w-full" style={{ background: `linear-gradient(90deg, transparent, ${accentColor}80, transparent)` }} />
+                      {/* Top accent bar */}
+                      <div className="h-[2px] w-full flex-shrink-0" style={{ background: `linear-gradient(90deg, transparent 5%, ${accentColor}90 50%, transparent 95%)` }} />
 
-                      {/* Header */}
-                      <div className="flex items-center justify-between px-5 pt-4 pb-3.5" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
-                        <div className="flex items-center gap-3">
-                          <div className="h-9 w-9 rounded-2xl flex items-center justify-center flex-shrink-0"
-                            style={{ background: `${accentColor}18`, border: `1px solid ${accentColor}30` }}>
-                            <ShieldCheck className="h-4 w-4" style={{ color: accentColor }} />
-                          </div>
-                          <div>
-                            <div className="text-[13px] font-extrabold text-white tracking-tight">Booking Code Verification</div>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <span className="text-[11px] text-slate-400 font-mono tracking-[0.18em]">{validationCode.toUpperCase()}</span>
-                              {d?.bookingId && <span className="text-[10px] text-slate-500 font-mono">· #{d.bookingId}</span>}
+                      {/* Header — 2-row, fixed */}
+                      <div className="flex-shrink-0 px-5 pt-4 pb-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+                        {/* Row 1: icon + title + close */}
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="h-9 w-9 rounded-2xl flex-shrink-0 flex items-center justify-center"
+                              style={{ background: `${accentColor}18`, border: `1px solid ${accentColor}35` }}>
+                              <ShieldCheck className="h-4 w-4" style={{ color: accentColor }} />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-[13px] font-extrabold text-white tracking-tight">Booking Code Verification</div>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className="text-[11px] text-slate-400 font-mono tracking-[0.15em]">{validationCode.toUpperCase()}</span>
+                                {d?.bookingId && (
+                                  <span className="inline-flex items-center rounded-md border border-white/10 bg-white/6 px-1.5 py-0.5 text-[10px] font-mono text-slate-400">
+                                    #{d.bookingId}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {badgeEl}
-                          {/* Session timer */}
-                          <div className={`hidden sm:flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-mono tabular-nums font-semibold ${
-                            sessionWarn ? "bg-red-500/15 border border-red-500/25 text-red-300" : "bg-white/6 border border-white/10 text-slate-400"
-                          }`}>
-                            <span className="opacity-60">SESSION</span> {sessionMm}:{sessionSs}
-                          </div>
                           <button type="button" onClick={vCloseModal}
-                            className="h-7 w-7 rounded-full bg-white/8 hover:bg-white/16 border border-white/10 flex items-center justify-center transition"
+                            className="flex-shrink-0 h-8 w-8 rounded-full bg-white/8 hover:bg-white/18 border border-white/10 flex items-center justify-center transition"
                             aria-label="Close"><X className="h-3.5 w-3.5 text-white" /></button>
+                        </div>
+                        {/* Row 2: status badge + session timer */}
+                        <div className="flex items-center justify-between mt-2.5 gap-2">
+                          {badgeEl}
+                          <div className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[10px] font-mono tabular-nums font-semibold flex-shrink-0 ${
+                            sessionWarn ? "bg-red-500/15 border border-red-500/25 text-red-300" : "bg-white/5 border border-white/8 text-slate-500"
+                          }`}>
+                            <span className="text-[9px] opacity-60 uppercase tracking-wider">session</span>
+                            <span>{sessionMm}:{sessionSs}</span>
+                          </div>
                         </div>
                       </div>
 
-                      {/* Body */}
-                      <div className="px-5 pt-4 pb-5 overflow-y-auto space-y-4" style={{ maxHeight: "78vh" }}>
+                      {/* Body — scrollable */}
+                      <div className="flex-1 overflow-y-auto px-5 pt-4 pb-3 space-y-3" style={{ overscrollBehavior: "contain" }}>
 
                         {/* ─ POST-CONFIRM SUCCESS ─ */}
                         {vSuccess ? (
@@ -755,7 +767,7 @@ export default function AdminHome() {
                               <div>
                                 <p className="text-lg font-extrabold text-emerald-300 tracking-tight">Check-in Confirmed!</p>
                                 <p className="text-sm text-slate-400 mt-1.5 leading-relaxed">
-                                  Booking <span className="font-mono font-bold text-white">#{vSuccess.bookingId}</span> validated by NoLSAF admin on behalf of{" "}
+                                  Booking <span className="font-mono font-bold text-white">#{vSuccess.bookingId}</span> check-in confirmed on behalf of owner{" "}
                                   <span className="font-bold text-white">{vSuccess.ownerName}</span>
                                 </p>
                               </div>
@@ -794,7 +806,7 @@ export default function AdminHome() {
 
                             <button type="button" onClick={vCloseModal}
                               className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 text-slate-300 text-sm font-semibold transition">
-                              <RefreshCw className="h-3.5 w-3.5" /> Validate another code
+                              Done
                             </button>
                           </div>
 
@@ -936,63 +948,92 @@ export default function AdminHome() {
 
                             {/* ─ NOTIFY OWNER PANEL (all non-confirmable states) ─ */}
                             {!canGo && d?.property?.owner?.id && (
-                              <div style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }} className="pt-4 space-y-2.5">
+                              <div className="space-y-2" style={{ borderTop: "1px solid rgba(255,255,255,0.07)", paddingTop: "12px" }}>
                                 <button type="button" onClick={() => setVNotifOpen(v => !v)}
-                                  className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl border border-white/8 bg-white/4 hover:bg-white/8 transition">
-                                  <div className="flex items-center gap-2">
-                                    <Bell className="h-3.5 w-3.5 text-slate-400" />
-                                    <span className="text-xs font-semibold text-slate-300">Send direct notification to owner</span>
+                                  className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl border border-white/8 bg-white/4 hover:bg-white/8 transition">
+                                  <div className="flex items-center gap-2.5">
+                                    <div className="h-6 w-6 rounded-lg bg-white/6 flex items-center justify-center flex-shrink-0">
+                                      <Bell className="h-3 w-3 text-slate-400" />
+                                    </div>
+                                    <span className="text-xs font-semibold text-slate-300">Notify owner directly</span>
                                   </div>
-                                  <span className="text-[10px] text-slate-500">{vNotifOpen ? "▲ hide" : "▼ expand"}</span>
+                                  {vNotifOpen
+                                    ? <ChevronUp className="h-3.5 w-3.5 text-slate-500" />
+                                    : <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
+                                  }
                                 </button>
 
                                 {vNotifOpen && (
-                                  <div className="space-y-2 px-1">
+                                  <div className="rounded-2xl border border-white/8 bg-white/3 p-3.5 space-y-2.5">
                                     {vNotifSent ? (
-                                      <div className="flex items-center gap-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-4 py-3 text-xs text-emerald-300">
-                                        <CheckCheck className="h-3.5 w-3.5" /> {vNotifSent}
+                                      <div className="flex items-center gap-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-3.5 py-3 text-xs text-emerald-300">
+                                        <CheckCheck className="h-3.5 w-3.5 flex-shrink-0" /> {vNotifSent}
                                       </div>
                                     ) : (
                                       <>
-                                        <div className="rounded-xl border border-white/8 bg-white/4 px-3 py-2">
-                                          <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">To</div>
-                                          <div className="text-xs font-semibold text-white">{d.property?.owner?.name ?? "Owner"}</div>
-                                          <div className="text-[10px] text-slate-500">{d.property?.owner?.email ?? d.property?.owner?.phone ?? ""}</div>
+                                        <div className="flex items-center gap-2.5 rounded-xl border border-white/8 bg-white/4 px-3 py-2.5">
+                                          <div className="h-7 w-7 rounded-full flex-shrink-0 flex items-center justify-center text-[11px] font-bold text-white"
+                                            style={{ background: `${accentColor}30`, border: `1px solid ${accentColor}40` }}>
+                                            {(d.property?.owner?.name ?? "O").charAt(0).toUpperCase()}
+                                          </div>
+                                          <div className="min-w-0">
+                                            <div className="text-xs font-semibold text-white leading-tight">{d.property?.owner?.name ?? "Owner"}</div>
+                                            <div className="text-[10px] text-slate-500 truncate">{d.property?.owner?.email ?? d.property?.owner?.phone ?? ""}</div>
+                                          </div>
                                         </div>
                                         <input value={vNotifSubject} onChange={e => setVNotifSubject(e.target.value)}
-                                          placeholder="Subject — e.g. Update on your booking code"
-                                          className="w-full px-3 py-2.5 text-xs rounded-xl border border-white/10 bg-white/4 text-white placeholder:text-slate-600 outline-none focus:border-sky-500/40 focus:bg-white/7 transition" />
+                                          placeholder="Subject — e.g. Update on your booking"
+                                          className="w-full px-3 py-2.5 text-xs rounded-xl border border-white/10 bg-white/5 text-white placeholder:text-slate-600 outline-none focus:border-sky-500/40 transition" />
                                         <textarea value={vNotifMsg} onChange={e => setVNotifMsg(e.target.value)} rows={3}
-                                          placeholder="Write a message to inform the owner about this case…"
-                                          className="w-full px-3 py-2.5 text-xs rounded-xl border border-white/10 bg-white/4 text-white placeholder:text-slate-600 outline-none focus:border-sky-500/40 focus:bg-white/7 transition resize-none" />
-                                        {vNotifError && <p className="text-[11px] text-red-400 px-1">{vNotifError}</p>}
+                                          placeholder="Write a message to the owner…"
+                                          className="w-full px-3 py-2.5 text-xs rounded-xl border border-white/10 bg-white/5 text-white placeholder:text-slate-600 outline-none focus:border-sky-500/40 transition resize-none" />
+                                        {vNotifError && <p className="text-[11px] text-red-400">{vNotifError}</p>}
                                         <button type="button" onClick={vSendNotif}
                                           disabled={vNotifSending || !vNotifSubject.trim() || !vNotifMsg.trim()}
                                           className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold text-xs transition disabled:opacity-40 disabled:cursor-not-allowed"
                                           style={{
-                                            background: "linear-gradient(135deg,rgba(56,189,248,0.18) 0%,rgba(14,165,233,0.12) 100%)",
-                                            border: "1px solid rgba(56,189,248,0.25)", color: "#7dd3fc",
+                                            background: `linear-gradient(135deg,${accentColor}22,${accentColor}10)`,
+                                            border: `1px solid ${accentColor}35`, color: accentColor,
                                           }}
                                         >
-                                          {vNotifSending ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" />Sending…</> : <><Bell className="h-3.5 w-3.5" />Send Notification to {d.property?.owner?.name ?? "Owner"}</>}
+                                          {vNotifSending
+                                            ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" />Sending…</>
+                                            : <><Bell className="h-3.5 w-3.5" />Send to {d.property?.owner?.name ?? "Owner"}</>}
                                         </button>
                                       </>
                                     )}
                                   </div>
                                 )}
-
-                                <button type="button" onClick={vCloseModal}
-                                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-white/8 bg-white/4 hover:bg-white/8 text-slate-400 text-xs font-semibold transition">
-                                  <RefreshCw className="h-3.5 w-3.5" /> Validate another code
-                                </button>
                               </div>
                             )}
                           </div>
                         ) : null}
                       </div>
 
-                      {/* Bottom accent line */}
-                      <div className="h-[1px] w-full" style={{ background: `linear-gradient(90deg, transparent, ${accentColor}30, transparent)` }} />
+                      {/* Footer — sticky action bar */}
+                      <div className="flex-shrink-0 px-5 py-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                        <div className="flex items-center gap-2">
+                          <button type="button" onClick={vCloseModal}
+                            className="flex-1 py-2.5 rounded-xl border border-white/8 bg-white/4 hover:bg-white/10 text-slate-400 hover:text-white text-xs font-semibold transition">
+                            Close
+                          </button>
+                          {!vSuccess && (
+                            <button type="button" onClick={vCloseModal}
+                              className="flex-1 py-2.5 rounded-xl text-xs font-semibold transition"
+                              style={{
+                                background: `linear-gradient(135deg,${accentColor}22,${accentColor}10)`,
+                                border: `1px solid ${accentColor}30`,
+                                color: accentColor,
+                              }}
+                            >
+                              New Verification
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Bottom accent bar */}
+                      <div className="h-[2px] w-full flex-shrink-0" style={{ background: `linear-gradient(90deg, transparent 5%, ${accentColor}40 50%, transparent 95%)` }} />
                     </div>
                   </div>
                 );
