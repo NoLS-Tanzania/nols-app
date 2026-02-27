@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { Search, X, Calendar, MapPin, Clock, User, BarChart3, TrendingUp, Loader2, FileText, AlertTriangle, Edit, Send, Eye, MessageSquare, ChevronDown, Star } from "lucide-react";
@@ -228,7 +228,21 @@ export default function AdminPlanWithUsRequestsPage() {
   const [agentSearchQuery, setAgentSearchQuery] = useState("");
   const [showAgentDropdown, setShowAgentDropdown] = useState(false);
   const agentDropdownRef = useRef<HTMLDivElement>(null);
-  
+
+  // â”€â”€ Structured feedback builder state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  type ItineraryOption = {
+    id: string; name: string; days: number; pricePerPerson: string;
+    inclusions: string[]; customInclusion: string; dayOutline: string;
+  };
+  const [itineraryOptions, setItineraryOptions] = useState<ItineraryOption[]>([]);
+  const [activeSections, setActiveSections] = useState<Set<string>>(
+    new Set(["itinerary", "permits", "timeline", "agent", "notes"])
+  );
+  const [selectedPermits, setSelectedPermits] = useState<string[]>([]);
+  const [customPermitInput, setCustomPermitInput] = useState("");
+  const [tripSpecificNotes, setTripSpecificNotes] = useState("");
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
   // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -408,6 +422,12 @@ export default function AdminPlanWithUsRequestsPage() {
         adminResponse: response.data.adminResponse || "",
       });
       setQuickMessage("");
+      // Reset structured builder state
+      setItineraryOptions([]);
+      setSelectedPermits([]);
+      setCustomPermitInput("");
+      setTripSpecificNotes("");
+      setActiveSections(new Set(["itinerary", "permits", "timeline", "agent", "notes"]));
     } catch (err) {
       console.error("Failed to load request details", err);
       // Fallback to the request from the list
@@ -424,54 +444,6 @@ export default function AdminPlanWithUsRequestsPage() {
     setShowResponseModal(true);
   };
 
-  // Handle submitting response
-  const handleSubmitResponse = async () => {
-    if (!selectedRequest) return;
-    
-    setSubmitting(true);
-    try {
-      const submitData: any = {
-        status: "COMPLETED",
-        suggestedItineraries: responseForm.suggestedItineraries,
-        requiredPermits: responseForm.requiredPermits,
-        estimatedTimeline: responseForm.estimatedTimeline,
-        adminResponse: responseForm.adminResponse,
-      };
-      
-      // If agent is selected, assign it
-      if (responseForm.assignedAgentId) {
-        submitData.assignedAgentId = responseForm.assignedAgentId;
-        // Also keep the legacy assignedAgent field updated
-        const selectedAgent = agents.find(a => a.id === responseForm.assignedAgentId);
-        if (selectedAgent) {
-          submitData.assignedAgent = selectedAgent.user?.name || "";
-        }
-      }
-      
-      await api.patch(`/api/admin/plan-with-us/requests/${selectedRequest.id}`, submitData);
-      
-      // Reload list
-      await load();
-      setShowResponseModal(false);
-      setSelectedRequest(null);
-      setResponseForm({
-        suggestedItineraries: "",
-        requiredPermits: "",
-        estimatedTimeline: "",
-        assignedAgent: "",
-        assignedAgentId: null,
-        adminResponse: "",
-      });
-      setQuickMessage("");
-      setAgentSearchQuery("");
-      setShowAgentDropdown(false);
-    } catch (err) {
-      console.error("Failed to submit response", err);
-      alert("Failed to submit response. Please try again.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
   
   // Handle agent selection
   const handleSelectAgent = (agent: any) => {
@@ -673,6 +645,102 @@ export default function AdminPlanWithUsRequestsPage() {
       ],
     };
   }, [statsData]);
+
+  // â”€â”€ Structured feedback helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const INCLUSION_PRESETS = [
+    "Accommodation","Meals (Full Board)","Meals (Half Board)","Meals (Bed & Breakfast)",
+    "Transport","Game Drives","Park Entry Fees","Guided Tours","Equipment/Gear",
+    "Airport Transfers","Cultural Activities","Photography Session","Boat Safari","Walking Safari",
+  ];
+  const PERMIT_PRESETS: Record<string, string[]> = {
+    "Safari": ["National Park Entry Permit","Vehicle Entry Fee","Photography/Filming Permit","Yellow Fever Certificate","Valid International Passport","Travel Insurance"],
+    "Cultural": ["Cultural Site Entry Permit","Photography/Filming Permit","Local Guide Certification","Travel Insurance","Valid ID"],
+    "Adventure / Hiking": ["Hiking/Trekking Permit","Mountain Climbing Certificate","Medical Fitness Certificate","Travel Insurance","Emergency Contact Registration","Gear Checklist Confirmation"],
+    "School / Teacher": ["Parent/Guardian Consent Forms","School Authorization Letter","Student ID/School Registry","First Aid Certificate (Staff)","Emergency Contact List","Dietary/Medical Requirements Sheet"],
+    "Local tourism": ["Entry Tickets for Sites","Transport Charter Permit","Travel Insurance","Valid ID Documents"],
+    "Multi-destination tour": ["National Park Entry Permits","Cross-Border Documents (if applicable)","Transport Charter Permit","Yellow Fever Certificate","Travel Insurance","Valid Passport"],
+  };
+  const SECTION_DEFS: Record<string, { id: string; label: string }[]> = {
+    "Safari":             [{ id:"itinerary",label:"Itinerary Options"},{ id:"permits",label:"Park Permits & Docs"},{ id:"timeline",label:"Timeline"},{ id:"tripSpecific",label:"Game Drive & Lodges"},{ id:"agent",label:"Assign Agent"},{ id:"notes",label:"Notes"}],
+    "Cultural":           [{ id:"itinerary",label:"Itinerary Options"},{ id:"permits",label:"Permits & Docs"},{ id:"timeline",label:"Timeline"},{ id:"tripSpecific",label:"Cultural Sites & Guide"},{ id:"agent",label:"Assign Agent"},{ id:"notes",label:"Notes"}],
+    "Adventure / Hiking": [{ id:"itinerary",label:"Itinerary Options"},{ id:"permits",label:"Permits & Gear"},{ id:"timeline",label:"Timeline"},{ id:"tripSpecific",label:"Safety & Fitness Info"},{ id:"agent",label:"Assign Agent"},{ id:"notes",label:"Notes"}],
+    "School / Teacher":   [{ id:"itinerary",label:"Itinerary Options"},{ id:"permits",label:"Required Documents"},{ id:"timeline",label:"Timeline"},{ id:"tripSpecific",label:"Educational Objectives"},{ id:"agent",label:"Assign Agent"},{ id:"notes",label:"Notes"}],
+    "Local tourism":      [{ id:"itinerary",label:"Itinerary Options"},{ id:"permits",label:"Permits & Docs"},{ id:"timeline",label:"Timeline"},{ id:"tripSpecific",label:"Route & Highlights"},{ id:"agent",label:"Assign Agent"},{ id:"notes",label:"Notes"}],
+    "default":            [{ id:"itinerary",label:"Itinerary Options"},{ id:"permits",label:"Permits & Documents"},{ id:"timeline",label:"Timeline"},{ id:"tripSpecific",label:"Trip Details"},{ id:"agent",label:"Assign Agent"},{ id:"notes",label:"Notes"}],
+  };
+  const TIMELINE_PRESETS = [
+    { label:"2-Week Window", value:"Booking confirmation required within 14 days. 50% deposit on booking, balance 7 days before departure." },
+    { label:"30-Day Standard", value:"Best booked 30 days in advance. 30% deposit on confirmation, full payment 14 days before departure." },
+    { label:"Last Minute (<7 days)", value:"Available as last-minute booking. Full payment required at booking. Subject to availability." },
+    { label:"3-Month Safari Plan", value:"Recommended 3 months in advance for peak season. 25% deposit to secure dates, balance 30 days before." },
+  ];
+  const getAvailableSections = (tripType: string) => SECTION_DEFS[tripType] || SECTION_DEFS["default"];
+  const getPermitPresets = (tripType: string) => PERMIT_PRESETS[tripType] || ["Travel Insurance","Valid ID Documents","Entry Permits"];
+  const getTripSpecificLabel = (tripType: string) => (({ "Safari":"Game Drive & Lodge Options","Cultural":"Cultural Sites & Local Guide Info","Adventure / Hiking":"Safety, Fitness & Gear Requirements","School / Teacher":"Educational Objectives & Safety Protocols","Local tourism":"Route Highlights & Local Tips" } as Record<string,string>)[tripType] || "Trip-Specific Information");
+  const getTripSpecificPlaceholder = (tripType: string) => (({ "Safari":"Describe lodge options, game reserve highlights, Big Five sightings, best drive times...","Cultural":"List cultural sites, local guides, historical significance, cultural etiquette...","Adventure / Hiking":"Fitness requirements, altitude info, gear checklist, emergency protocols...","School / Teacher":"Learning objectives, age-appropriate activities, emergency plan, dietary notes...","Local tourism":"Route map notes, local gems, viewpoints, lunch spots, photo opportunities..." } as Record<string,string>)[tripType] || "Any trip-specific details, highlights, or important information...");
+  const toggleSection = (id: string) => setActiveSections(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const addItineraryOption = () => setItineraryOptions(prev => [...prev, { id: Date.now().toString(), name: `Option ${String.fromCharCode(65 + prev.length)}`, days: 3, pricePerPerson: "", inclusions: [], customInclusion: "", dayOutline: "" }]);
+  const removeItineraryOption = (id: string) => setItineraryOptions(prev => prev.filter(o => o.id !== id));
+  const updateItineraryOption = (id: string, field: string, value: unknown) => setItineraryOptions(prev => prev.map(o => o.id === id ? { ...o, [field]: value } : o));
+  const toggleInclusion = (optId: string, item: string) => setItineraryOptions(prev => prev.map(o => o.id === optId ? { ...o, inclusions: o.inclusions.includes(item) ? o.inclusions.filter(i => i !== item) : [...o.inclusions, item] } : o));
+  const addCustomInclusion = (optId: string) => setItineraryOptions(prev => prev.map(o => o.id === optId ? { ...o, inclusions: o.customInclusion.trim() ? [...o.inclusions, o.customInclusion.trim()] : o.inclusions, customInclusion: "" } : o));
+  const togglePermit = (item: string) => setSelectedPermits(prev => prev.includes(item) ? prev.filter(p => p !== item) : [...prev, item]);
+  const addCustomPermit = () => { if (customPermitInput.trim()) { togglePermit(customPermitInput.trim()); setCustomPermitInput(""); } };
+
+  const handleSubmitResponseNew = async () => {
+    if (!selectedRequest) return;
+    setSubmitting(true);
+    try {
+      const itineraryText = itineraryOptions.length > 0
+        ? itineraryOptions.map((opt, i) => {
+            const lines: string[] = [`=== ${opt.name || `Option ${String.fromCharCode(65 + i)}`} ===`];
+            lines.push(`Duration: ${opt.days} ${opt.days === 1 ? "day" : "days"}`);
+            if (opt.pricePerPerson) lines.push(`Price per person: TZS ${opt.pricePerPerson}`);
+            if (opt.inclusions.length > 0) lines.push(`Includes: ${opt.inclusions.join(", ")}`);
+            if (opt.dayOutline.trim()) lines.push(`\nItinerary:\n${opt.dayOutline.trim()}`);
+            return lines.join("\n");
+          }).join("\n\n")
+        : responseForm.suggestedItineraries;
+
+      const permitsText = selectedPermits.length > 0
+        ? selectedPermits.map((p, i) => `${i + 1}. ${p}`).join("\n")
+        : responseForm.requiredPermits;
+
+      const fullAdminResponse = [responseForm.adminResponse, tripSpecificNotes].filter(Boolean).join("\n\n");
+
+      const submitData: Record<string, unknown> = {
+        status: "COMPLETED",
+        suggestedItineraries: itineraryText,
+        requiredPermits: permitsText,
+        estimatedTimeline: responseForm.estimatedTimeline,
+        adminResponse: fullAdminResponse,
+      };
+      if (responseForm.assignedAgentId) {
+        submitData.assignedAgentId = responseForm.assignedAgentId;
+        const sel = agents.find(a => a.id === responseForm.assignedAgentId);
+        if (sel) submitData.assignedAgent = sel.user?.name || "";
+      }
+      await api.patch(`/api/admin/plan-with-us/requests/${selectedRequest.id}`, submitData);
+      await load();
+      setShowResponseModal(false);
+      setSelectedRequest(null);
+      setResponseForm({ suggestedItineraries:"", requiredPermits:"", estimatedTimeline:"", assignedAgent:"", assignedAgentId:null, adminResponse:"" });
+      setItineraryOptions([]);
+      setSelectedPermits([]);
+      setCustomPermitInput("");
+      setTripSpecificNotes("");
+      setActiveSections(new Set(["itinerary","permits","timeline","agent","notes"]));
+      setQuickMessage("");
+      setAgentSearchQuery("");
+      setShowAgentDropdown(false);
+    } catch (err) {
+      console.error("Failed to submit response", err);
+      alert("Failed to submit response. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -1047,11 +1115,11 @@ export default function AdminPlanWithUsRequestsPage() {
                         Response: {request.respondedAt ? "Responded" : responseTimeText}
                       </span>
                       {request.hoursSinceCreation > 48 && request.status === "NEW" && (
-                        <span className="text-xs text-red-600 font-medium">• Overdue</span>
+                        <span className="text-xs text-red-600 font-medium">â€¢ Overdue</span>
                       )}
                     </div>
                   <div className="text-sm text-gray-600 mb-1">
-                    <span>Role: {request.role} • Type: {request.tripType}</span>
+                    <span>Role: {request.role} â€¢ Type: {request.tripType}</span>
                   </div>
                   <div className="text-sm text-gray-600 mb-1 flex items-center gap-2">
                     <User className="h-4 w-4 text-gray-400" />
@@ -1473,365 +1541,571 @@ export default function AdminPlanWithUsRequestsPage() {
       {/* Response Modal */}
       {showResponseModal && selectedRequest && (
         <>
-          <div 
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 transition-opacity duration-300" 
-            onClick={() => setShowResponseModal(false)} 
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
+            onClick={() => setShowResponseModal(false)}
           />
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full my-8 max-h-[90vh] flex flex-col overflow-hidden transform transition-all duration-300 scale-100 opacity-100">
-              {/* Header */}
-              <div className="sticky top-0 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200 px-4 sm:px-6 py-4 flex items-center justify-between z-10 backdrop-blur-sm">
-                <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
-                  {selectedRequest.status === "COMPLETED" ? "View Response" : "Provide Feedback"}
-                </h2>
-                <button
-                  onClick={() => setShowResponseModal(false)}
-                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-white/80 rounded-lg transition-all duration-200 hover:scale-110 active:scale-95"
-                  aria-label="Close modal"
-                >
-                  <X className="h-5 w-5 sm:h-6 sm:w-6" />
-                </button>
+            <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full my-8 max-h-[90vh] flex flex-col overflow-hidden">
+
+              {/* â”€â”€ Modal Header â”€â”€ */}
+              <div
+                className="sticky top-0 z-10 flex-shrink-0 rounded-t-2xl"
+                style={{ background: "linear-gradient(135deg,#1e3a8a 0%,#1d4ed8 50%,#0f766e 100%)" }}
+              >
+                <div className="px-6 py-4 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="inline-flex items-center justify-center h-10 w-10 rounded-xl bg-white/15 border border-white/25 flex-shrink-0">
+                      {selectedRequest.status === "COMPLETED"
+                        ? <Eye className="h-5 w-5 text-white" />
+                        : <Send className="h-5 w-5 text-white" />}
+                    </span>
+                    <div>
+                      <h2 className="text-lg font-bold text-white leading-tight">
+                        {selectedRequest.status === "COMPLETED" ? "View Response" : "Provide Feedback"}
+                      </h2>
+                      <p className="text-blue-200 text-xs mt-0.5">
+                        {selectedRequest.tripType} Â· {selectedRequest.role} Â· Group of {selectedRequest.groupSize ?? "?"}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowResponseModal(false)}
+                    className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-all"
+                    aria-label="Close"
+                  >
+                    <X className="h-5 w-5 text-white" />
+                  </button>
+                </div>
               </div>
 
-              {/* Content */}
-              <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-6 space-y-6">
-                {/* Request Details */}
-                <div className="bg-gradient-to-br from-gray-50 to-gray-100/50 rounded-xl p-4 sm:p-5 border border-gray-200/50 shadow-sm transition-all duration-300 hover:shadow-md">
-                  <h3 className="font-bold text-gray-900 mb-4 text-base sm:text-lg flex items-center gap-2">
-                    <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
-                    Request Details
-                  </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-sm">
-                    <div className="flex flex-col sm:flex-row sm:items-center">
-                      <span className="text-gray-500 font-medium mb-1 sm:mb-0 sm:mr-2">Customer:</span>
-                      <span className="font-semibold text-gray-900">{selectedRequest.customer.name}</span>
+              {/* â”€â”€ Scrollable Content â”€â”€ */}
+              <div className="flex-1 overflow-y-auto px-5 py-5 space-y-4 bg-gray-50">
+
+                {/* Request Details â€“ full context panel */}
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                  <div className="h-1 bg-gradient-to-r from-blue-400 to-indigo-500" />
+                  <div className="p-5">
+                    <h3 className="font-bold text-gray-900 text-sm flex items-center gap-2 mb-4">
+                      <span className="inline-flex h-7 w-7 rounded-md bg-blue-50 border border-blue-100 items-center justify-center">
+                        <FileText className="h-4 w-4 text-blue-600" />
+                      </span>
+                      Request Details
+                    </h3>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                      {[
+                        { label:"Customer", value:selectedRequest.customer.name, color:"blue" },
+                        { label:"Email", value:selectedRequest.customer.email, color:"blue" },
+                        { label:"Phone", value:selectedRequest.customer.phone||"â€”", color:"blue" },
+                        { label:"Role", value:selectedRequest.role, color:"purple" },
+                        { label:"Trip Type", value:selectedRequest.tripType, color:"emerald" },
+                        { label:"Group Size", value:selectedRequest.groupSize?`${selectedRequest.groupSize} people`:"â€”", color:"amber" },
+                        { label:"Travel Dates", value:selectedRequest.dateFrom?`${selectedRequest.dateFrom}${selectedRequest.dateTo?" â†’ "+selectedRequest.dateTo:""}`:"Not specified", color:"teal" },
+                        { label:"Budget", value:selectedRequest.budget?`TZS ${Number(selectedRequest.budget).toLocaleString()}`:"Not specified", color:"green" },
+                        { label:"Transport", value:selectedRequest.transportRequired?"Required":"Not required", color:selectedRequest.transportRequired?"orange":"gray" },
+                      ].map(({ label, value, color }) => (
+                        <div key={label} className="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                          <div className={`text-[10px] font-bold uppercase tracking-wider mb-1 text-${color}-600`}>{label}</div>
+                          <div className="text-sm font-medium text-gray-900 break-words">{value}</div>
+                        </div>
+                      ))}
                     </div>
-                    <div className="flex flex-col sm:flex-row sm:items-center">
-                      <span className="text-gray-500 font-medium mb-1 sm:mb-0 sm:mr-2">Email:</span>
-                      <span className="text-gray-900 break-words">{selectedRequest.customer.email}</span>
+                    <div className="mt-2.5 bg-gray-50 rounded-lg p-3 border border-gray-100">
+                      <div className="text-[10px] font-bold uppercase tracking-wider mb-1 text-teal-600">Destination(s)</div>
+                      <div className="text-sm text-gray-900">{selectedRequest.destinations || "â€”"}</div>
                     </div>
-                    <div className="flex flex-col sm:flex-row sm:items-center">
-                      <span className="text-gray-500 font-medium mb-1 sm:mb-0 sm:mr-2">Role:</span>
-                      <span className="text-gray-900">{selectedRequest.role}</span>
-                    </div>
-                    <div className="flex flex-col sm:flex-row sm:items-center">
-                      <span className="text-gray-500 font-medium mb-1 sm:mb-0 sm:mr-2">Trip Type:</span>
-                      <span className="text-gray-900">{selectedRequest.tripType}</span>
-                    </div>
-                    <div className="flex flex-col sm:flex-row sm:items-center">
-                      <span className="text-gray-500 font-medium mb-1 sm:mb-0 sm:mr-2">Destination:</span>
-                      <span className="text-gray-900 break-words">{selectedRequest.destinations || "N/A"}</span>
-                    </div>
-                    <div className="flex flex-col sm:flex-row sm:items-center">
-                      <span className="text-gray-500 font-medium mb-1 sm:mb-0 sm:mr-2">Group Size:</span>
-                      <span className="text-gray-900">{selectedRequest.groupSize || "N/A"}</span>
-                    </div>
+                    {selectedRequest.notes && (
+                      <div className="mt-2.5 bg-amber-50 rounded-lg p-3 border border-amber-200">
+                        <div className="text-[10px] font-bold uppercase tracking-wider mb-1 text-amber-700">Guest Special Requirements / Notes</div>
+                        <div className="text-sm text-amber-900 whitespace-pre-line">{selectedRequest.notes}</div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 {/* Conversation History */}
-                <div className="bg-gradient-to-br from-slate-50 to-white rounded-xl p-4 sm:p-5 border border-gray-200 shadow-sm">
-                  <h3 className="font-bold text-gray-900 mb-4 text-base sm:text-lg flex items-center gap-2">
-                    <MessageSquare className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
-                    Conversation History
-                  </h3>
-                  <ConversationHistoryDisplay requestId={selectedRequest.id} />
-                  
-                  {/* Quick Message Input */}
-                  <div className="mt-4 pt-4 border-t border-gray-200">
-                    <label className="block text-xs font-medium text-gray-600 mb-2">
-                      Send Quick Response
-                    </label>
-                    <div className="flex gap-2">
-                      <textarea
-                        value={quickMessage}
-                        onChange={(e) => setQuickMessage(e.target.value)}
-                        placeholder="Type a quick response..."
-                        rows={2}
-                        className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm transition-all resize-none"
-                      />
-                      <button
-                        onClick={handleSendQuickMessage}
-                        disabled={sendingMessage || !quickMessage.trim()}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all"
-                      >
-                        {sendingMessage ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Send className="h-4 w-4" />
-                        )}
-                      </button>
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                  <div className="h-1 bg-gradient-to-r from-slate-400 to-gray-400" />
+                  <div className="p-5">
+                    <h3 className="font-bold text-gray-900 text-sm flex items-center gap-2 mb-3">
+                      <span className="inline-flex h-7 w-7 rounded-md bg-slate-50 border border-slate-200 items-center justify-center">
+                        <MessageSquare className="h-4 w-4 text-slate-600" />
+                      </span>
+                      Conversation History
+                    </h3>
+                    <ConversationHistoryDisplay requestId={selectedRequest.id} />
+                    <div className="mt-4 pt-4 border-t border-gray-100">
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Send Quick Message</label>
+                      <div className="flex gap-2">
+                        <textarea
+                          value={quickMessage}
+                          onChange={(e) => setQuickMessage(e.target.value)}
+                          placeholder="Send a quick update to the customer..."
+                          rows={2}
+                          className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm resize-none"
+                        />
+                        <button
+                          onClick={handleSendQuickMessage}
+                          disabled={sendingMessage || !quickMessage.trim()}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2 self-end transition-all"
+                        >
+                          {sendingMessage ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Response Form */}
-                <div className="space-y-5">
-                  <div className="bg-white rounded-xl p-4 sm:p-5 border border-gray-200 shadow-sm transition-all duration-300 hover:shadow-md overflow-hidden">
-                    <label className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                      <Send className="h-4 w-4 text-blue-600" />
-                      Suggested Itineraries with Prices <span className="text-red-500">*</span>
-                    </label>
-                    <div className="w-full max-w-full box-border">
-                      <textarea
-                        value={responseForm.suggestedItineraries}
-                        onChange={(e) => setResponseForm({ ...responseForm, suggestedItineraries: e.target.value })}
-                        disabled={selectedRequest.status === "COMPLETED"}
-                        rows={6}
-                        className="w-full max-w-full min-w-0 box-border px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm transition-all duration-200 resize-y bg-white disabled:bg-gray-50 disabled:cursor-not-allowed placeholder:text-gray-400 overflow-x-hidden"
-                        placeholder="Provide detailed itineraries with estimated prices..."
-                      />
-                    </div>
-                  </div>
-
-                  <div className="bg-white rounded-xl p-4 sm:p-5 border border-gray-200 shadow-sm transition-all duration-300 hover:shadow-md overflow-hidden">
-                    <label className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-blue-600" />
-                      Checklist of Required Permits and Documents <span className="text-red-500">*</span>
-                    </label>
-                    <div className="w-full max-w-full box-border">
-                      <textarea
-                        value={responseForm.requiredPermits}
-                        onChange={(e) => setResponseForm({ ...responseForm, requiredPermits: e.target.value })}
-                        disabled={selectedRequest.status === "COMPLETED"}
-                        rows={4}
-                        className="w-full max-w-full min-w-0 box-border px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm transition-all duration-200 resize-y bg-white disabled:bg-gray-50 disabled:cursor-not-allowed placeholder:text-gray-400 overflow-x-hidden"
-                        placeholder="List all required permits, documents, and preparation steps..."
-                      />
-                    </div>
-                  </div>
-
-                  <div className="bg-white rounded-xl p-4 sm:p-5 border border-gray-200 shadow-sm transition-all duration-300 hover:shadow-md overflow-hidden">
-                    <label className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-blue-600" />
-                      Estimated Timelines and Booking Windows <span className="text-red-500">*</span>
-                    </label>
-                    <div className="w-full max-w-full box-border">
-                      <textarea
-                        value={responseForm.estimatedTimeline}
-                        onChange={(e) => setResponseForm({ ...responseForm, estimatedTimeline: e.target.value })}
-                        disabled={selectedRequest.status === "COMPLETED"}
-                        rows={4}
-                        className="w-full max-w-full min-w-0 box-border px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm transition-all duration-200 resize-y bg-white disabled:bg-gray-50 disabled:cursor-not-allowed placeholder:text-gray-400 overflow-x-hidden"
-                        placeholder="Provide estimated timelines, booking deadlines, and important dates..."
-                      />
-                    </div>
-                  </div>
-
-                  <div className="bg-white rounded-xl p-4 sm:p-5 border border-gray-200 shadow-sm transition-all duration-300 hover:shadow-md overflow-visible">
-                    <label className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                      <User className="h-4 w-4 text-blue-600" />
-                      Assign Agent
-                    </label>
-                    <div className="w-full max-w-full box-border relative" ref={agentDropdownRef}>
-                      <div className="relative">
-                        <input
-                          type="text"
-                          value={agentSearchQuery || responseForm.assignedAgent || ""}
-                          onChange={(e) => {
-                            setAgentSearchQuery(e.target.value);
-                            setShowAgentDropdown(true);
-                            if (e.target.value) {
-                              loadAgents(e.target.value);
-                            } else {
-                              loadAgents();
-                            }
-                          }}
-                          onFocus={() => {
-                            setShowAgentDropdown(true);
-                            if (agents.length === 0) {
-                              loadAgents();
-                            }
-                          }}
-                          disabled={selectedRequest.status === "COMPLETED"}
-                          className="w-full max-w-full min-w-0 box-border pl-4 pr-10 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm transition-all duration-200 bg-white disabled:bg-gray-50 disabled:cursor-not-allowed placeholder:text-gray-400"
-                          placeholder="Search and select an agent..."
-                        />
-                        <ChevronDown className={`absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 transition-transform ${showAgentDropdown ? 'rotate-180' : ''}`} />
+                {/* â”€â”€ Feedback builder (only when not COMPLETED) â”€â”€ */}
+                {selectedRequest.status !== "COMPLETED" && (
+                  <>
+                    {/* Section selector chips */}
+                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-3">
+                        Select sections to include in your feedback
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {getAvailableSections(selectedRequest.tripType).map(sec => (
+                          <button
+                            key={sec.id}
+                            type="button"
+                            onClick={() => toggleSection(sec.id)}
+                            className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+                              activeSections.has(sec.id)
+                                ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                                : "bg-white text-gray-600 border-gray-300 hover:border-blue-400 hover:text-blue-600"
+                            }`}
+                          >
+                            {activeSections.has(sec.id) ? "âœ“ " : "+ "}{sec.label}
+                          </button>
+                        ))}
                       </div>
-                      
-                      {/* Agent Dropdown */}
-                      {showAgentDropdown && !selectedRequest.status.includes("COMPLETED") && (
-                        <div className="absolute z-50 w-full mt-1 bg-white border-2 border-gray-200 rounded-xl shadow-xl max-h-96 overflow-y-auto">
-                          {agentsLoading ? (
-                            <div className="p-4 text-center text-sm text-gray-500">Loading agents...</div>
-                          ) : agents.length === 0 ? (
-                            <div className="p-4 text-center text-sm text-gray-500">No agents found. Try a different search.</div>
-                          ) : (
-                            <div className="p-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                              {agents.map((agent) => {
-                                const name = agent.user?.name || "N/A";
-                                const email = agent.user?.email || "";
-                                const initials = String(name)
-                                  .split(" ")
-                                  .filter(Boolean)
-                                  .slice(0, 2)
-                                  .map((p: string) => p[0]?.toUpperCase())
-                                  .join("") || "A";
-                                const { avg, totalReviews } = getAgentRatingSummary(agent);
-                                const selected = Number(responseForm.assignedAgentId) === Number(agent.id);
-                                const capacityClass =
-                                  agent.currentActiveRequests >= agent.maxActiveRequests
-                                    ? "bg-red-100 text-red-700"
-                                    : agent.currentActiveRequests >= agent.maxActiveRequests * 0.8
-                                      ? "bg-yellow-100 text-yellow-700"
-                                      : "bg-green-100 text-green-700";
+                    </div>
 
-                                return (
+                    {/* Itinerary Options */}
+                    {activeSections.has("itinerary") && (
+                      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                        <div className="h-1 bg-gradient-to-r from-blue-500 to-indigo-500" />
+                        <div className="p-5">
+                          <div className="flex items-center justify-between mb-4">
+                            <h3 className="font-bold text-gray-900 text-sm flex items-center gap-2">
+                              <span className="inline-flex h-7 w-7 rounded-md bg-blue-50 border border-blue-100 items-center justify-center">
+                                <MapPin className="h-4 w-4 text-blue-600" />
+                              </span>
+                              Itinerary Options
+                            </h3>
+                            <button
+                              type="button"
+                              onClick={addItineraryOption}
+                              className="px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-xs font-semibold hover:bg-blue-100 transition-all"
+                            >
+                              + Add Option
+                            </button>
+                          </div>
+                          {itineraryOptions.length === 0 && (
+                            <div className="text-center py-7 text-gray-400 text-sm border-2 border-dashed border-gray-200 rounded-xl">
+                              Click <strong>+ Add Option</strong> to build proposals (e.g. Budget Option, Premium Option)
+                            </div>
+                          )}
+                          <div className="space-y-4">
+                            {itineraryOptions.map((opt, idx) => (
+                              <div key={opt.id} className="border border-gray-200 rounded-xl overflow-hidden">
+                                {/* Option name bar */}
+                                <div className="bg-gray-50 px-4 py-2.5 flex items-center justify-between border-b border-gray-200">
+                                  <input
+                                    type="text"
+                                    value={opt.name}
+                                    onChange={e => updateItineraryOption(opt.id, "name", e.target.value)}
+                                    className="bg-transparent text-sm font-bold text-gray-900 outline-none flex-1"
+                                    placeholder={`Option ${String.fromCharCode(65 + idx)}`}
+                                  />
                                   <button
-                                    key={agent.id}
                                     type="button"
-                                    onClick={() => handleSelectAgent(agent)}
-                                    className={
-                                      "group w-full text-left rounded-xl border p-3 transition-all hover:shadow-md hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 " +
-                                      (selected ? "border-blue-300 bg-blue-50" : "border-gray-200 bg-white")
-                                    }
+                                    onClick={() => removeItineraryOption(opt.id)}
+                                    className="text-xs text-gray-400 hover:text-red-500 transition-colors ml-3"
                                   >
-                                    <div className="flex items-start justify-between gap-3">
-                                      <div className="min-w-0">
-                                        <div className="flex items-center gap-2 min-w-0">
-                                          <div className="h-8 w-8 shrink-0 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 text-white text-xs font-bold flex items-center justify-center">
-                                            {initials}
-                                          </div>
-                                          <div className="min-w-0">
-                                            <div className="font-semibold text-gray-900 truncate">{name}</div>
-                                            <div className="text-xs text-gray-500 truncate">{email}</div>
-                                          </div>
-                                        </div>
-
-                                        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
-                                          {agent.yearsOfExperience ? (
-                                            <span className="rounded-md bg-gray-100 px-2 py-0.5 text-gray-700">
-                                              {agent.yearsOfExperience} yrs exp.
-                                            </span>
-                                          ) : null}
-                                          {Array.isArray(agent.areasOfOperation) && agent.areasOfOperation.length > 0 ? (
-                                            <span className="rounded-md bg-gray-100 px-2 py-0.5 text-gray-700">
-                                              {agent.areasOfOperation.slice(0, 2).join(", ")}
-                                            </span>
-                                          ) : null}
-                                        </div>
-                                      </div>
-
-                                      <div className="shrink-0 flex flex-col items-end gap-1">
-                                        <div className={`text-xs px-2 py-1 rounded-md font-semibold ${capacityClass}`}>
-                                          {agent.currentActiveRequests}/{agent.maxActiveRequests}
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                          {renderStars(avg)}
-                                          <div className="text-xs text-gray-700 font-semibold">
-                                            {typeof avg === "number" ? avg.toFixed(1) : "—"}
-                                            <span className="text-gray-400 font-normal">
-                                              {typeof totalReviews === "number" ? ` (${totalReviews})` : ""}
-                                            </span>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    </div>
+                                    Remove
                                   </button>
-                                );
-                              })}
+                                </div>
+                                {/* Days + Price */}
+                                <div className="p-4 grid grid-cols-2 gap-3">
+                                  <div>
+                                    <label className="text-[10px] font-bold uppercase tracking-wider text-gray-500 block mb-1">Duration (days)</label>
+                                    <input
+                                      type="number"
+                                      min={1}
+                                      value={opt.days}
+                                      onChange={e => updateItineraryOption(opt.id, "days", Number(e.target.value))}
+                                      className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-[10px] font-bold uppercase tracking-wider text-gray-500 block mb-1">Price / Person (TZS)</label>
+                                    <input
+                                      type="text"
+                                      value={opt.pricePerPerson}
+                                      onChange={e => updateItineraryOption(opt.id, "pricePerPerson", e.target.value)}
+                                      className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                      placeholder="e.g. 850,000"
+                                    />
+                                  </div>
+                                </div>
+                                {/* Inclusions */}
+                                <div className="px-4 pb-3">
+                                  <label className="text-[10px] font-bold uppercase tracking-wider text-gray-500 block mb-2">What&apos;s Included â€” click to toggle</label>
+                                  <div className="flex flex-wrap gap-1.5 mb-2">
+                                    {INCLUSION_PRESETS.map(item => (
+                                      <button
+                                        key={item}
+                                        type="button"
+                                        onClick={() => toggleInclusion(opt.id, item)}
+                                        className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${
+                                          opt.inclusions.includes(item)
+                                            ? "bg-emerald-100 text-emerald-700 border-emerald-300"
+                                            : "bg-gray-50 text-gray-600 border-gray-200 hover:border-emerald-300"
+                                        }`}
+                                      >
+                                        {opt.inclusions.includes(item) ? "âœ“ " : ""}{item}
+                                      </button>
+                                    ))}
+                                  </div>
+                                  <input
+                                    type="text"
+                                    value={opt.customInclusion}
+                                    onChange={e => updateItineraryOption(opt.id, "customInclusion", e.target.value)}
+                                    onKeyDown={e => { if (e.key === "Enter") { addCustomInclusion(opt.id); e.preventDefault(); } }}
+                                    placeholder="Custom item + Enter to add"
+                                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                                  />
+                                </div>
+                                {/* Day outline */}
+                                <div className="px-4 pb-4">
+                                  <label className="text-[10px] font-bold uppercase tracking-wider text-gray-500 block mb-1">
+                                    Day-by-Day Outline <span className="font-normal text-gray-400 normal-case">(optional)</span>
+                                  </label>
+                                  <textarea
+                                    value={opt.dayOutline}
+                                    onChange={e => updateItineraryOption(opt.id, "dayOutline", e.target.value)}
+                                    rows={3}
+                                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-y"
+                                    placeholder="Day 1: Arrive Arusha, transfer to lodgeâ€¦"
+                                  />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Permits & Documents */}
+                    {activeSections.has("permits") && (
+                      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                        <div className="h-1 bg-gradient-to-r from-amber-400 to-orange-500" />
+                        <div className="p-5">
+                          <h3 className="font-bold text-gray-900 text-sm flex items-center gap-2 mb-4">
+                            <span className="inline-flex h-7 w-7 rounded-md bg-amber-50 border border-amber-100 items-center justify-center">
+                              <FileText className="h-4 w-4 text-amber-600" />
+                            </span>
+                            Required Permits &amp; Documents
+                          </h3>
+                          <p className="text-xs text-gray-500 mb-3">Click items to add them to the checklist</p>
+                          <div className="flex flex-wrap gap-1.5 mb-3">
+                            {getPermitPresets(selectedRequest.tripType).map(item => (
+                              <button
+                                key={item}
+                                type="button"
+                                onClick={() => togglePermit(item)}
+                                className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                                  selectedPermits.includes(item)
+                                    ? "bg-amber-100 text-amber-800 border-amber-300"
+                                    : "bg-gray-50 text-gray-600 border-gray-200 hover:border-amber-300"
+                                }`}
+                              >
+                                {selectedPermits.includes(item) ? "âœ“ " : ""}{item}
+                              </button>
+                            ))}
+                          </div>
+                          <input
+                            type="text"
+                            value={customPermitInput}
+                            onChange={e => setCustomPermitInput(e.target.value)}
+                            onKeyDown={e => { if (e.key === "Enter") { addCustomPermit(); e.preventDefault(); } }}
+                            placeholder="Custom requirement + Enter to add"
+                            className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 outline-none"
+                          />
+                          {selectedPermits.length > 0 && (
+                            <div className="mt-3 p-3 bg-amber-50 rounded-lg border border-amber-100">
+                              <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 mb-2">
+                                Checklist ({selectedPermits.length} items)
+                              </p>
+                              <div className="flex flex-wrap gap-1.5">
+                                {selectedPermits.map(p => (
+                                  <span key={p} className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-100 text-amber-800 rounded-full text-xs font-medium">
+                                    {p}
+                                    <button
+                                      onClick={() => togglePermit(p)}
+                                      className="text-amber-500 hover:text-amber-700 ml-0.5 leading-none"
+                                    >
+                                      Ã—
+                                    </button>
+                                  </span>
+                                ))}
+                              </div>
                             </div>
                           )}
                         </div>
-                      )}
-                    </div>
-                    {responseForm.assignedAgentId && (
-                      <div className="mt-2 flex items-center gap-2">
-                        <span className="text-xs text-gray-500">
-                          Selected: <span className="font-semibold text-gray-900">{responseForm.assignedAgent}</span>
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setResponseForm({ ...responseForm, assignedAgentId: null, assignedAgent: "" });
-                            setAgentSearchQuery("");
-                          }}
-                          className="text-xs text-red-600 hover:text-red-800 underline"
-                        >
-                          Clear
-                        </button>
                       </div>
                     )}
-                  </div>
 
-                  <div className="bg-white rounded-xl p-4 sm:p-5 border border-gray-200 shadow-sm transition-all duration-300 hover:shadow-md overflow-hidden">
-                    <label className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-blue-600" />
-                      Additional Notes / Recommendations
-                    </label>
-                    <div className="w-full max-w-full box-border">
-                      <textarea
-                        value={responseForm.adminResponse}
-                        onChange={(e) => setResponseForm({ ...responseForm, adminResponse: e.target.value })}
-                        disabled={selectedRequest.status === "COMPLETED"}
-                        rows={4}
-                        className="w-full max-w-full min-w-0 box-border px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm transition-all duration-200 resize-y bg-white disabled:bg-gray-50 disabled:cursor-not-allowed placeholder:text-gray-400 overflow-x-hidden"
-                        placeholder="Any additional recommendations, tips, or general schedule information..."
-                      />
+                    {/* Timeline */}
+                    {activeSections.has("timeline") && (
+                      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                        <div className="h-1 bg-gradient-to-r from-teal-400 to-cyan-500" />
+                        <div className="p-5">
+                          <h3 className="font-bold text-gray-900 text-sm flex items-center gap-2 mb-4">
+                            <span className="inline-flex h-7 w-7 rounded-md bg-teal-50 border border-teal-100 items-center justify-center">
+                              <Calendar className="h-4 w-4 text-teal-600" />
+                            </span>
+                            Estimated Timeline &amp; Booking Windows
+                          </h3>
+                          <p className="text-xs text-gray-500 mb-3">Pick a preset or write your own below</p>
+                          <div className="grid grid-cols-2 gap-2.5 mb-3">
+                            {TIMELINE_PRESETS.map(preset => (
+                              <button
+                                key={preset.label}
+                                type="button"
+                                onClick={() => setResponseForm(prev => ({ ...prev, estimatedTimeline: preset.value }))}
+                                className={`text-left px-3 py-2.5 border-2 rounded-xl text-xs transition-all group ${
+                                  responseForm.estimatedTimeline === preset.value
+                                    ? "border-teal-400 bg-teal-50"
+                                    : "border-gray-200 hover:border-teal-300 hover:bg-teal-50"
+                                }`}
+                              >
+                                <div className="font-bold text-gray-800 group-hover:text-teal-700">{preset.label}</div>
+                                <div className="text-gray-500 text-[11px] mt-0.5 line-clamp-2">{preset.value}</div>
+                              </button>
+                            ))}
+                          </div>
+                          <textarea
+                            value={responseForm.estimatedTimeline}
+                            onChange={e => setResponseForm({ ...responseForm, estimatedTimeline: e.target.value })}
+                            rows={3}
+                            className="w-full px-3 py-2 border-2 border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 outline-none resize-y"
+                            placeholder="Booking deadline, confirmation window, payment scheduleâ€¦"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Trip-type specific section */}
+                    {activeSections.has("tripSpecific") && (
+                      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                        <div className="h-1 bg-gradient-to-r from-purple-400 to-violet-500" />
+                        <div className="p-5">
+                          <h3 className="font-bold text-gray-900 text-sm flex items-center gap-2 mb-3">
+                            <span className="inline-flex h-7 w-7 rounded-md bg-purple-50 border border-purple-100 items-center justify-center">
+                              <MapPin className="h-4 w-4 text-purple-600" />
+                            </span>
+                            {getTripSpecificLabel(selectedRequest.tripType)}
+                          </h3>
+                          <textarea
+                            value={tripSpecificNotes}
+                            onChange={e => setTripSpecificNotes(e.target.value)}
+                            rows={4}
+                            className="w-full px-3 py-2 border-2 border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 outline-none resize-y"
+                            placeholder={getTripSpecificPlaceholder(selectedRequest.tripType)}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Assign Agent */}
+                    {activeSections.has("agent") && (
+                      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-visible">
+                        <div className="h-1 bg-gradient-to-r from-indigo-400 to-blue-500" />
+                        <div className="p-5" style={{ overflow: "visible" }}>
+                          <h3 className="font-bold text-gray-900 text-sm flex items-center gap-2 mb-4">
+                            <span className="inline-flex h-7 w-7 rounded-md bg-indigo-50 border border-indigo-100 items-center justify-center">
+                              <User className="h-4 w-4 text-indigo-600" />
+                            </span>
+                            Assign Agent
+                          </h3>
+                          <div className="w-full relative" ref={agentDropdownRef}>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={agentSearchQuery || responseForm.assignedAgent || ""}
+                                onChange={(e) => {
+                                  setAgentSearchQuery(e.target.value);
+                                  setShowAgentDropdown(true);
+                                  if (e.target.value) { loadAgents(e.target.value); } else { loadAgents(); }
+                                }}
+                                onFocus={() => { setShowAgentDropdown(true); if (agents.length === 0) loadAgents(); }}
+                                className="w-full pl-4 pr-10 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm bg-white placeholder:text-gray-400"
+                                placeholder="Search and select an agentâ€¦"
+                              />
+                              <ChevronDown className={`absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 transition-transform ${showAgentDropdown ? "rotate-180" : ""}`} />
+                            </div>
+                            {showAgentDropdown && (
+                              <div className="absolute z-50 w-full mt-1 bg-white border-2 border-gray-200 rounded-xl shadow-xl max-h-80 overflow-y-auto">
+                                {agentsLoading ? (
+                                  <div className="p-4 text-center text-sm text-gray-500">Loading agentsâ€¦</div>
+                                ) : agents.length === 0 ? (
+                                  <div className="p-4 text-center text-sm text-gray-500">No agents found. Try a different search.</div>
+                                ) : (
+                                  <div className="p-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    {agents.map((agent) => {
+                                      const name = agent.user?.name || "N/A";
+                                      const email = agent.user?.email || "";
+                                      const initials = String(name).split(" ").filter(Boolean).slice(0, 2).map((p: string) => p[0]?.toUpperCase()).join("") || "A";
+                                      const { avg, totalReviews } = getAgentRatingSummary(agent);
+                                      const selected = Number(responseForm.assignedAgentId) === Number(agent.id);
+                                      const capClass = agent.currentActiveRequests >= agent.maxActiveRequests ? "bg-red-100 text-red-700" : agent.currentActiveRequests >= agent.maxActiveRequests * 0.8 ? "bg-yellow-100 text-yellow-700" : "bg-green-100 text-green-700";
+                                      return (
+                                        <button
+                                          key={agent.id}
+                                          type="button"
+                                          onClick={() => handleSelectAgent(agent)}
+                                          className={`group w-full text-left rounded-xl border p-3 transition-all hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${selected ? "border-blue-300 bg-blue-50" : "border-gray-200 bg-white hover:border-gray-300"}`}
+                                        >
+                                          <div className="flex items-start justify-between gap-2">
+                                            <div className="min-w-0">
+                                              <div className="flex items-center gap-2">
+                                                <div className="h-8 w-8 shrink-0 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 text-white text-xs font-bold flex items-center justify-center">{initials}</div>
+                                                <div className="min-w-0">
+                                                  <div className="font-semibold text-gray-900 truncate text-sm">{name}</div>
+                                                  <div className="text-xs text-gray-500 truncate">{email}</div>
+                                                </div>
+                                              </div>
+                                              <div className="mt-1.5 flex flex-wrap gap-1.5 text-xs">
+                                                {agent.yearsOfExperience ? <span className="rounded-md bg-gray-100 px-2 py-0.5 text-gray-700">{agent.yearsOfExperience} yrs exp.</span> : null}
+                                                {Array.isArray(agent.areasOfOperation) && agent.areasOfOperation.length > 0 ? <span className="rounded-md bg-gray-100 px-2 py-0.5 text-gray-700">{agent.areasOfOperation.slice(0, 2).join(", ")}</span> : null}
+                                              </div>
+                                            </div>
+                                            <div className="shrink-0 flex flex-col items-end gap-1">
+                                              <div className={`text-xs px-2 py-0.5 rounded-md font-semibold ${capClass}`}>{agent.currentActiveRequests}/{agent.maxActiveRequests}</div>
+                                              <div className="flex items-center gap-1">{renderStars(avg)}<span className="text-xs text-gray-700 font-semibold">{typeof avg === "number" ? avg.toFixed(1) : "â€”"}{typeof totalReviews === "number" ? ` (${totalReviews})` : ""}</span></div>
+                                            </div>
+                                          </div>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          {responseForm.assignedAgentId && (
+                            <div className="mt-2 flex items-center gap-2">
+                              <span className="text-xs text-gray-500">Selected: <span className="font-semibold text-gray-900">{responseForm.assignedAgent}</span></span>
+                              <button type="button" onClick={() => { setResponseForm({ ...responseForm, assignedAgentId: null, assignedAgent: "" }); setAgentSearchQuery(""); }} className="text-xs text-red-500 hover:text-red-700 underline">Clear</button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Additional Notes */}
+                    {activeSections.has("notes") && (
+                      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                        <div className="h-1 bg-gradient-to-r from-gray-300 to-slate-400" />
+                        <div className="p-5">
+                          <h3 className="font-bold text-gray-900 text-sm flex items-center gap-2 mb-3">
+                            <span className="inline-flex h-7 w-7 rounded-md bg-gray-50 border border-gray-200 items-center justify-center">
+                              <Edit className="h-4 w-4 text-gray-500" />
+                            </span>
+                            Additional Notes / Recommendations
+                          </h3>
+                          <textarea
+                            value={responseForm.adminResponse}
+                            onChange={e => setResponseForm({ ...responseForm, adminResponse: e.target.value })}
+                            rows={3}
+                            className="w-full px-3 py-2 border-2 border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-gray-400 outline-none resize-y"
+                            placeholder="Any additional tips, recommendations, or information for the guestâ€¦"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* â”€â”€ View completed response (read-only) â”€â”€ */}
+                {selectedRequest.status === "COMPLETED" && (
+                  <div className="bg-white rounded-xl border border-emerald-200 shadow-sm overflow-hidden">
+                    <div className="h-1 bg-gradient-to-r from-emerald-400 to-teal-500" />
+                    <div className="p-5 space-y-4">
+                      <h3 className="font-bold text-gray-900 text-sm flex items-center gap-2">
+                        <span className="inline-flex h-7 w-7 rounded-md bg-emerald-50 border border-emerald-200 items-center justify-center">
+                          <Eye className="h-4 w-4 text-emerald-600" />
+                        </span>
+                        Feedback Sent to Customer
+                      </h3>
+                      {selectedRequest.suggestedItineraries && (
+                        <div>
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-blue-600 mb-1.5">Itineraries &amp; Prices</div>
+                          <div className="bg-gray-50 rounded-lg p-3 border border-gray-100 text-sm text-gray-800 whitespace-pre-wrap">{selectedRequest.suggestedItineraries}</div>
+                        </div>
+                      )}
+                      {selectedRequest.requiredPermits && (
+                        <div>
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-amber-600 mb-1.5">Required Permits &amp; Documents</div>
+                          <div className="bg-gray-50 rounded-lg p-3 border border-gray-100 text-sm text-gray-800 whitespace-pre-wrap">{selectedRequest.requiredPermits}</div>
+                        </div>
+                      )}
+                      {selectedRequest.estimatedTimeline && (
+                        <div>
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-teal-600 mb-1.5">Timeline</div>
+                          <div className="bg-gray-50 rounded-lg p-3 border border-gray-100 text-sm text-gray-800 whitespace-pre-wrap">{selectedRequest.estimatedTimeline}</div>
+                        </div>
+                      )}
+                      {selectedRequest.adminResponse && (
+                        <div>
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Additional Notes</div>
+                          <div className="bg-gray-50 rounded-lg p-3 border border-gray-100 text-sm text-gray-800 whitespace-pre-wrap">{selectedRequest.adminResponse}</div>
+                        </div>
+                      )}
+                      {selectedRequest.assignedAgent && (
+                        <div>
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 mb-1.5">Assigned Agent</div>
+                          <div className="text-sm font-semibold text-gray-900">{selectedRequest.assignedAgent}</div>
+                        </div>
+                      )}
+                      {selectedRequest.respondedAt && (
+                        <div className="text-xs text-gray-400 pt-2 border-t border-gray-100">
+                          Sent on {new Date(selectedRequest.respondedAt).toLocaleDateString("en-US", { year:"numeric", month:"long", day:"numeric" })}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                </div>
-
-                {/* Action Buttons */}
-                {selectedRequest.status !== "COMPLETED" && (
-                  <div className="flex flex-col sm:flex-row justify-end gap-3 pt-5 border-t border-gray-200 sticky bottom-0 bg-white -mx-4 sm:-mx-6 px-4 sm:px-6 pb-2">
-                    <button
-                      onClick={() => setShowResponseModal(false)}
-                      className="w-full sm:w-auto px-5 py-2.5 border-2 border-gray-300 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 active:scale-95"
-                    >
-                      Cancel
-                    </button>
-
-                    <button
-                      onClick={handleSaveAssignment}
-                      disabled={
-                        assignmentSaving ||
-                        !responseForm.assignedAgentId ||
-                        Number(responseForm.assignedAgentId) === Number(selectedRequest.assignedAgentId ?? 0)
-                      }
-                      className="w-full sm:w-auto px-5 py-2.5 border-2 border-blue-200 bg-blue-50 text-blue-700 rounded-xl text-sm font-semibold hover:bg-blue-100 hover:border-blue-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all duration-200 active:scale-95 disabled:active:scale-100"
-                      title={
-                        !responseForm.assignedAgentId
-                          ? "Select an agent to assign"
-                          : Number(responseForm.assignedAgentId) === Number(selectedRequest.assignedAgentId ?? 0)
-                            ? "Assignment is already saved"
-                            : "Save agent assignment"
-                      }
-                    >
-                      {assignmentSaving ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          Saving…
-                        </>
-                      ) : (
-                        <>
-                          <User className="h-4 w-4" />
-                          Save Assignment
-                        </>
-                      )}
-                    </button>
-
-                    <button
-                      onClick={handleSubmitResponse}
-                      disabled={submitting || !responseForm.suggestedItineraries || !responseForm.requiredPermits || !responseForm.estimatedTimeline}
-                      className="w-full sm:w-auto px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl text-sm font-semibold hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all duration-200 shadow-md hover:shadow-lg active:scale-95 disabled:active:scale-100"
-                    >
-                      {submitting ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          Sending...
-                        </>
-                      ) : (
-                        <>
-                          <Send className="h-4 w-4" />
-                          Send Feedback to Customer
-                        </>
-                      )}
-                    </button>
                   </div>
                 )}
               </div>
+
+              {/* â”€â”€ Footer actions â”€â”€ */}
+              {selectedRequest.status !== "COMPLETED" && (
+                <div className="flex-shrink-0 flex flex-col sm:flex-row justify-end gap-3 px-5 py-4 border-t border-gray-200 bg-white rounded-b-2xl">
+                  <button
+                    onClick={() => setShowResponseModal(false)}
+                    className="w-full sm:w-auto px-5 py-2.5 border-2 border-gray-300 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveAssignment}
+                    disabled={assignmentSaving || !responseForm.assignedAgentId || Number(responseForm.assignedAgentId) === Number(selectedRequest.assignedAgentId ?? 0)}
+                    className="w-full sm:w-auto px-5 py-2.5 border-2 border-blue-200 bg-blue-50 text-blue-700 rounded-xl text-sm font-semibold hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all"
+                  >
+                    {assignmentSaving ? <><Loader2 className="h-4 w-4 animate-spin" />Savingâ€¦</> : <><User className="h-4 w-4" />Save Assignment</>}
+                  </button>
+                  <button
+                    onClick={handleSubmitResponseNew}
+                    disabled={submitting || (activeSections.has("itinerary") && itineraryOptions.length === 0)}
+                    className="w-full sm:w-auto px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl text-sm font-semibold hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all shadow-md hover:shadow-lg"
+                  >
+                    {submitting ? <><Loader2 className="h-4 w-4 animate-spin" />Sendingâ€¦</> : <><Send className="h-4 w-4" />Send Feedback to Customer</>}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </>
@@ -1839,4 +2113,3 @@ export default function AdminPlanWithUsRequestsPage() {
     </div>
   );
 }
-
