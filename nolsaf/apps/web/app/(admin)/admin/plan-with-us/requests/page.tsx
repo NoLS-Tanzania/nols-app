@@ -1580,7 +1580,7 @@ export default function AdminPlanWithUsRequestsPage() {
               </div>
 
               {/* â”€â”€ Scrollable Content â”€â”€ */}
-              <div className="flex-1 min-h-0 overflow-y-auto px-5 py-5 space-y-4 bg-gray-50">
+              <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-5 py-5 space-y-4 bg-gray-50">
 
                 {/* Request Details â€“ full context panel */}
                 <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -1922,9 +1922,9 @@ export default function AdminPlanWithUsRequestsPage() {
 
                     {/* Assign Agent */}
                     {activeSections.has("agent") && (
-                      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-visible">
+                      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                         <div className="h-1 bg-gradient-to-r from-indigo-400 to-blue-500" />
-                        <div className="p-5" style={{ overflow: "visible" }}>
+                        <div className="p-5">
                           <h3 className="font-bold text-gray-900 text-sm flex items-center gap-2 mb-4">
                             <span className="inline-flex h-7 w-7 rounded-md bg-indigo-50 border border-indigo-100 items-center justify-center">
                               <User className="h-4 w-4 text-indigo-600" />
