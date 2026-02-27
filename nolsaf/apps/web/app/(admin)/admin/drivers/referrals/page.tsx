@@ -225,25 +225,78 @@ export default function AdminDriversReferralsPage() {
 
   return (
     <div className="space-y-4 lg:space-y-6 w-full overflow-x-hidden" style={{ maxWidth: '100%', boxSizing: 'border-box' }}>
-      <div className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6 shadow-sm w-full" style={{ maxWidth: '100%', boxSizing: 'border-box' }}>
-        <div className="flex flex-col items-center justify-center text-center mb-4">
-          <div className="h-12 w-12 rounded-full bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center mb-3">
-            <UserPlus className="h-6 w-6 text-blue-600" />
+      {/* Premium Banner */}
+      <div style={{ position: "relative", borderRadius: "1.25rem", overflow: "hidden", background: "linear-gradient(135deg, #0e2a7a 0%, #0a5c82 38%, #02665e 100%)", boxShadow: "0 28px 65px -15px rgba(2,102,94,0.45), 0 8px 22px -8px rgba(14,42,122,0.50)", padding: "2rem 2rem 1.75rem", maxWidth: "100%", boxSizing: "border-box" }}>
+        <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0.13, pointerEvents: "none" }} viewBox="0 0 900 160" preserveAspectRatio="xMidYMid slice">
+          <circle cx="820" cy="30" r="90" fill="none" stroke="white" strokeWidth="1.2" />
+          <circle cx="820" cy="30" r="55" fill="none" stroke="white" strokeWidth="0.7" />
+          <circle cx="60" cy="140" r="70" fill="none" stroke="white" strokeWidth="1.0" />
+          <line x1="0" y1="40" x2="900" y2="40" stroke="white" strokeWidth="0.4" />
+          <line x1="0" y1="80" x2="900" y2="80" stroke="white" strokeWidth="0.4" />
+          <line x1="0" y1="120" x2="900" y2="120" stroke="white" strokeWidth="0.4" />
+          <polyline points="0,135 100,115 200,100 320,88 440,72 540,90 640,62 740,46 840,55 900,42" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+          <polygon points="0,135 100,115 200,100 320,88 440,72 540,90 640,62 740,46 840,55 900,42 900,160 0,160" fill="white" opacity={0.06} />
+          <polyline points="0,148 100,138 200,128 320,135 440,118 540,130 640,108 740,118 840,100 900,88" fill="none" stroke="white" strokeWidth="1.2" strokeDasharray="6 4" opacity={0.5} />
+          <circle cx="540" cy="90" r="5" fill="white" opacity={0.75} />
+          <circle cx="740" cy="46" r="5" fill="white" opacity={0.75} />
+          <circle cx="900" cy="42" r="5" fill="white" opacity={0.75} />
+          <defs><radialGradient id="refBannerGlow" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="white" stopOpacity="0.12" /><stop offset="100%" stopColor="white" stopOpacity="0" /></radialGradient></defs>
+          <ellipse cx="450" cy="95" rx="200" ry="70" fill="url(#refBannerGlow)" />
+        </svg>
+        <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "center", gap: "1rem", marginBottom: "1.5rem" }}>
+          <div style={{ width: 46, height: 46, borderRadius: "50%", background: "rgba(255,255,255,0.10)", border: "1.5px solid rgba(255,255,255,0.18)", boxShadow: "0 0 0 8px rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <UserPlus style={{ width: 22, height: 22, color: "white" }} />
           </div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Driver Referrals</h1>
-          <p className="text-xs sm:text-sm text-gray-500 mt-1">View and manage driver referral programs</p>
+          <div>
+            <h1 style={{ fontSize: "1.35rem", fontWeight: 800, color: "white", margin: 0, letterSpacing: "-0.01em" }}>Driver Referrals</h1>
+            <p style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.62)", margin: "2px 0 0" }}>Referral programs · credit earnings · driver network growth tracking</p>
+          </div>
+        </div>
+        <div style={{ position: "relative", zIndex: 1, display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
+          <div style={{ background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.20)", borderRadius: "0.85rem", padding: "0.6rem 1rem", minWidth: 100 }}>
+            <div style={{ fontSize: "0.63rem", fontWeight: 700, color: "rgba(255,255,255,0.70)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Total Drivers</div>
+            {loading ? (
+              <div style={{ height: 28, background: "rgba(255,255,255,0.12)", borderRadius: "0.4rem", marginTop: 4, width: 60 }} />
+            ) : (
+              <div style={{ fontSize: "1.3rem", fontWeight: 900, color: "white", fontVariantNumeric: "tabular-nums", lineHeight: 1.2 }}>{drivers.length.toLocaleString()}</div>
+            )}
+          </div>
+          <div style={{ background: "rgba(16,185,129,0.16)", border: "1px solid rgba(16,185,129,0.35)", borderRadius: "0.85rem", padding: "0.6rem 1rem", minWidth: 100 }}>
+            <div style={{ fontSize: "0.63rem", fontWeight: 700, color: "rgba(110,231,183,0.85)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Active</div>
+            {loading ? (
+              <div style={{ height: 28, background: "rgba(255,255,255,0.12)", borderRadius: "0.4rem", marginTop: 4, width: 60 }} />
+            ) : (
+              <div style={{ fontSize: "1.3rem", fontWeight: 900, color: "#6ee7b7", fontVariantNumeric: "tabular-nums", lineHeight: 1.2 }}>{drivers.filter(d => !d.suspendedAt).length.toLocaleString()}</div>
+            )}
+          </div>
+          <div style={{ background: "rgba(239,68,68,0.14)", border: "1px solid rgba(239,68,68,0.32)", borderRadius: "0.85rem", padding: "0.6rem 1rem", minWidth: 110 }}>
+            <div style={{ fontSize: "0.63rem", fontWeight: 700, color: "rgba(252,165,165,0.85)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Suspended</div>
+            {loading ? (
+              <div style={{ height: 28, background: "rgba(255,255,255,0.12)", borderRadius: "0.4rem", marginTop: 4, width: 60 }} />
+            ) : (
+              <div style={{ fontSize: "1.3rem", fontWeight: 900, color: "#fca5a5", fontVariantNumeric: "tabular-nums", lineHeight: 1.2 }}>{drivers.filter(d => !!d.suspendedAt).length.toLocaleString()}</div>
+            )}
+          </div>
+          <div style={{ background: "rgba(14,165,233,0.14)", border: "1px solid rgba(14,165,233,0.32)", borderRadius: "0.85rem", padding: "0.6rem 1rem", minWidth: 120 }}>
+            <div style={{ fontSize: "0.63rem", fontWeight: 700, color: "rgba(125,211,252,0.85)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Showing Results</div>
+            {loading ? (
+              <div style={{ height: 28, background: "rgba(255,255,255,0.12)", borderRadius: "0.4rem", marginTop: 4, width: 60 }} />
+            ) : (
+              <div style={{ fontSize: "1.3rem", fontWeight: 900, color: "#7dd3fc", fontVariantNumeric: "tabular-nums", lineHeight: 1.2 }}>{filteredDrivers.length.toLocaleString()}</div>
+            )}
+          </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6 w-full" style={{ maxWidth: '100%', boxSizing: 'border-box' }}>
         <div className="lg:col-span-1 w-full" style={{ minWidth: 0, maxWidth: '100%', overflow: 'hidden' }}>
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden flex flex-col h-full max-h-[calc(100vh-200px)] w-full" style={{ maxWidth: '100%' }}>
+          <div style={{ borderRadius: "1rem", border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06)", background: "linear-gradient(135deg, #0a1a19 0%, #0d2320 60%, #0a1f2e 100%)", overflow: "hidden" }} className="flex flex-col h-full max-h-[calc(100vh-200px)] w-full">
             {/* Search & Filters Section */}
-            <div className="border-b border-gray-200 flex-shrink-0 w-full bg-gradient-to-br from-gray-50 to-white" style={{ padding: '1rem', maxWidth: '100%', boxSizing: 'border-box', overflow: 'hidden' }}>
+            <div style={{ borderBottom: "1px solid rgba(255,255,255,0.07)", flexShrink: 0, padding: "1rem", boxSizing: "border-box", overflow: "hidden" }} className="w-full">
               {/* Search Bar */}
               <div className="relative w-full mb-4 group" style={{ maxWidth: '100%', boxSizing: 'border-box' }}>
                 <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none z-10">
-                  <Search className="h-4 w-4 text-gray-400 group-focus-within:text-emerald-500 transition-colors duration-200" />
+                  <Search className="h-4 w-4 transition-colors duration-200" style={{ color: 'rgba(255,255,255,0.38)' }} />
                 </div>
                 <input
                   type="text"
@@ -251,19 +304,21 @@ export default function AdminDriversReferralsPage() {
                   value={search}
                   onChange={(e) => handleSearchChange(e.target.value)}
                   maxLength={100}
-                  className="w-full pl-10 pr-10 py-2.5 text-sm border border-gray-300 rounded-xl bg-white shadow-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all duration-200 hover:border-gray-400 placeholder:text-gray-400"
+                  className="w-full pl-10 pr-10 py-2.5 text-sm rounded-xl outline-none transition-all duration-200 placeholder:text-white/30"
                   style={{ 
                     boxSizing: 'border-box',
-                    WebkitBoxSizing: 'border-box',
-                    MozBoxSizing: 'border-box',
-                    maxWidth: '100%'
+                    maxWidth: '100%',
+                    background: 'rgba(255,255,255,0.07)',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    color: 'rgba(255,255,255,0.88)',
                   }}
                 />
                 {search && (
                   <button
                     onClick={() => setSearch("")}
                     aria-label="Clear search"
-                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600 active:scale-95 transition-all duration-200"
+                    className="absolute inset-y-0 right-0 flex items-center pr-3 active:scale-95 transition-all duration-200"
+                    style={{ color: 'rgba(255,255,255,0.40)' }}
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -276,11 +331,7 @@ export default function AdminDriversReferralsPage() {
                   <button
                     key={filterType}
                     onClick={() => setFilter(filterType)}
-                    className={`px-4 py-2 text-xs font-normal rounded-full transition-all duration-300 transform hover:scale-105 active:scale-95 ${
-                      filter === filterType
-                        ? "bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/30 scale-105"
-                        : "bg-white text-gray-700 border border-gray-200 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 shadow-sm"
-                    }`}
+                    style={filter === filterType ? { background: 'rgba(16,185,129,0.28)', border: '1px solid rgba(16,185,129,0.55)', color: '#6ee7b7', borderRadius: '9999px', padding: '0.4rem 0.9rem', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' } : { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.60)', borderRadius: '9999px', padding: '0.4rem 0.9rem', fontSize: '0.75rem', fontWeight: 500, cursor: 'pointer', transition: 'all 0.2s' }}
                   >
                     {filterType === "all" && "All"}
                     {filterType === "active" && "Active"}
@@ -296,9 +347,12 @@ export default function AdminDriversReferralsPage() {
                   value={sort}
                   onChange={(e) => setSort(e.target.value as SortType)}
                   aria-label="Sort drivers"
-                  className="w-full px-3 py-2 text-xs font-medium border border-gray-300 rounded-xl bg-white shadow-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none cursor-pointer transition-all duration-200 hover:border-gray-400"
+                  className="w-full px-3 py-2 text-xs font-medium rounded-xl outline-none cursor-pointer"
                   style={{ 
-                    boxSizing: 'border-box'
+                    boxSizing: 'border-box',
+                    background: 'rgba(255,255,255,0.07)',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    color: 'rgba(255,255,255,0.80)',
                   }}
                 >
                   <option value="name_asc">Name (A-Z)</option>
@@ -309,9 +363,9 @@ export default function AdminDriversReferralsPage() {
               </div>
 
               {/* Results Count */}
-              <div className="flex items-center justify-between px-2 py-1.5 bg-white/60 backdrop-blur-sm rounded-lg border border-gray-200/50">
-                <span className="text-xs font-medium text-gray-600">
-                  <span className="text-emerald-600 font-bold">{filteredDrivers.length}</span>{" "}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.4rem 0.6rem', background: 'rgba(255,255,255,0.05)', borderRadius: '0.5rem', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <span style={{ fontSize: '0.72rem', fontWeight: 500, color: 'rgba(255,255,255,0.55)' }}>
+                  <span style={{ color: '#6ee7b7', fontWeight: 700 }}>{filteredDrivers.length}</span>{" "}
                   driver{filteredDrivers.length !== 1 ? 's' : ''} found
                 </span>
                 {(search || filter !== "all" || sort !== "name_asc") && (
@@ -321,24 +375,24 @@ export default function AdminDriversReferralsPage() {
                       setFilter("all");
                       setSort("name_asc");
                     }}
-                    className="text-xs text-emerald-600 hover:text-emerald-700 font-medium transition-colors duration-200"
+                    style={{ fontSize: '0.72rem', color: '#6ee7b7', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer' }}
                   >
                     Reset
                   </button>
                 )}
               </div>
             </div>
-            <div className="divide-y divide-gray-100 overflow-y-auto flex-1 min-h-0 w-full max-w-full scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+            <div className="overflow-y-auto flex-1 min-h-0 w-full max-w-full scrollbar-thin" style={{ scrollbarColor: 'rgba(255,255,255,0.15) transparent' }}>
               {loading ? (
                 <div className="flex flex-col items-center justify-center py-12 px-4">
-                  <Loader2 className="h-8 w-8 text-emerald-600 animate-spin mb-4" />
-                  <p className="text-sm font-medium text-gray-700">Loading drivers...</p>
+                  <Loader2 className="h-8 w-8 text-emerald-400 animate-spin mb-4" />
+                  <p className="text-sm font-medium" style={{ color: 'rgba(255,255,255,0.65)' }}>Loading drivers...</p>
                 </div>
               ) : error ? (
                 <div className="flex flex-col items-center justify-center py-12 px-4">
-                  <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
-                  <p className="text-sm font-medium text-gray-700 mb-2">Failed to load drivers</p>
-                  <p className="text-xs text-gray-500 text-center mb-4">{error}</p>
+                  <AlertCircle className="h-12 w-12 text-red-400 mb-4" />
+                  <p className="text-sm font-medium mb-2" style={{ color: 'rgba(255,255,255,0.80)' }}>Failed to load drivers</p>
+                  <p className="text-xs text-center mb-4" style={{ color: 'rgba(255,255,255,0.45)' }}>{error}</p>
                   <button
                     onClick={loadDrivers}
                     className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors"
@@ -356,26 +410,22 @@ export default function AdminDriversReferralsPage() {
                         loadDriverReferrals(driver.id);
                       }
                     }}
-                    className={`group p-3 sm:p-4 cursor-pointer transition-all duration-300 w-full max-w-full box-border transform hover:translate-x-1 hover:shadow-md ${
-                      selectedDriver === driver.id 
-                        ? "bg-gradient-to-r from-emerald-50 to-emerald-100/50 border-l-4 border-emerald-600 shadow-sm" 
-                        : "hover:bg-gradient-to-r hover:from-gray-50 hover:to-white border-l-4 border-transparent"
-                    }`}
-                    style={{ animationDelay: `${index * 20}ms` }}
+                    className="group p-3 sm:p-4 cursor-pointer transition-all duration-300 w-full max-w-full box-border"
+                    style={{ borderLeft: selectedDriver === driver.id ? '4px solid #059669' : '4px solid transparent', background: selectedDriver === driver.id ? 'rgba(16,185,129,0.15)' : undefined, borderBottom: '1px solid rgba(255,255,255,0.05)', animationDelay: `${index * 20}ms` }}
                   >
                     <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                       <div className={`h-10 w-10 sm:h-12 sm:w-12 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-300 ${
                         selectedDriver === driver.id
                           ? "bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-lg shadow-emerald-500/30 scale-110"
-                          : "bg-gradient-to-br from-emerald-100 to-emerald-200 group-hover:from-emerald-200 group-hover:to-emerald-300 group-hover:scale-105"
-                      }`}>
+                          : ""
+                      }`} style={selectedDriver !== driver.id ? { background: 'rgba(16,185,129,0.18)', border: '1px solid rgba(16,185,129,0.25)' } : {}}>
                         <Truck className={`h-5 w-5 sm:h-6 sm:w-6 transition-colors duration-300 ${
-                          selectedDriver === driver.id ? "text-white" : "text-emerald-600"
+                          selectedDriver === driver.id ? "text-white" : "text-emerald-400"
                         }`} />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <p className="font-semibold text-gray-900 text-sm sm:text-base truncate group-hover:text-emerald-600 transition-colors duration-200">
+                          <p className="font-semibold text-sm sm:text-base truncate" style={{ color: 'rgba(255,255,255,0.90)' }}>
                             {driver.name}
                           </p>
                           {driver.suspendedAt && (
@@ -384,7 +434,7 @@ export default function AdminDriversReferralsPage() {
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-gray-500 truncate mt-0.5">{driver.email}</p>
+                        <p className="text-xs truncate mt-0.5" style={{ color: 'rgba(255,255,255,0.45)' }}>{driver.email}</p>
                       </div>
                       {selectedDriver === driver.id && (
                         <div className="flex-shrink-0">
@@ -396,11 +446,11 @@ export default function AdminDriversReferralsPage() {
                 ))
               ) : (
                 <div className="flex flex-col items-center justify-center py-12 px-4">
-                  <div className="h-16 w-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
-                    <Search className="h-8 w-8 text-gray-400" />
+                  <div className="h-16 w-16 rounded-full flex items-center justify-center mb-4" style={{ background: 'rgba(255,255,255,0.07)' }}>
+                    <Search className="h-8 w-8" style={{ color: 'rgba(255,255,255,0.35)' }} />
                   </div>
-                  <p className="text-sm font-medium text-gray-700 mb-1">No drivers found</p>
-                  <p className="text-xs text-gray-500 text-center">Try adjusting your search or filters</p>
+                  <p className="text-sm font-medium mb-1" style={{ color: 'rgba(255,255,255,0.65)' }}>No drivers found</p>
+                  <p className="text-xs text-center" style={{ color: 'rgba(255,255,255,0.38)' }}>Try adjusting your search or filters</p>
                 </div>
               )}
             </div>

@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
-import { TrendingUp, Search, X, Calendar, DollarSign, Clock, Users, PieChart, BarChart3, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { TrendingUp, Search, X, Calendar, Clock, PieChart, BarChart3, } from "lucide-react";
 import DatePicker from "@/components/ui/DatePicker";
 import axios from "axios";
 import Chart from "@/components/Chart";
@@ -259,90 +259,97 @@ export default function AdminDriversRevenuesPage() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      {/* Header */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-        <div className="flex flex-col items-center text-center">
-          <div className="h-16 w-16 rounded-full bg-gradient-to-br from-emerald-50 to-emerald-100 flex items-center justify-center mb-4">
-            <TrendingUp className="h-8 w-8 text-emerald-600" />
+      {/* Premium Banner */}
+      <div style={{ position: "relative", borderRadius: "1.25rem", overflow: "hidden", background: "linear-gradient(135deg, #0e2a7a 0%, #0a5c82 38%, #02665e 100%)", boxShadow: "0 28px 65px -15px rgba(2,102,94,0.45), 0 8px 22px -8px rgba(14,42,122,0.50)", padding: "2rem 2rem 1.75rem" }}>
+        <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0.13, pointerEvents: "none" }} viewBox="0 0 900 160" preserveAspectRatio="xMidYMid slice">
+          <circle cx="820" cy="30" r="90" fill="none" stroke="white" strokeWidth="1.2" />
+          <circle cx="820" cy="30" r="55" fill="none" stroke="white" strokeWidth="0.7" />
+          <circle cx="60" cy="140" r="70" fill="none" stroke="white" strokeWidth="1.0" />
+          <line x1="0" y1="40" x2="900" y2="40" stroke="white" strokeWidth="0.4" />
+          <line x1="0" y1="72" x2="900" y2="72" stroke="white" strokeWidth="0.4" />
+          <line x1="0" y1="104" x2="900" y2="104" stroke="white" strokeWidth="0.4" />
+          <line x1="0" y1="136" x2="900" y2="136" stroke="white" strokeWidth="0.4" />
+          <polyline points="0,130 90,110 180,95 270,80 360,65 450,90 540,55 630,70 720,40 810,52 900,35" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+          <polygon points="0,130 90,110 180,95 270,80 360,65 450,90 540,55 630,70 720,40 810,52 900,35 900,160 0,160" fill="white" opacity={0.06} />
+          <polyline points="0,145 90,132 180,118 270,128 360,108 450,122 540,98 630,112 720,88 810,102 900,78" fill="none" stroke="white" strokeWidth="1.2" strokeDasharray="6 4" opacity={0.5} />
+          <circle cx="540" cy="55" r="5" fill="white" opacity={0.75} />
+          <circle cx="720" cy="40" r="5" fill="white" opacity={0.75} />
+          <circle cx="900" cy="35" r="5" fill="white" opacity={0.75} />
+          <defs><radialGradient id="revBannerGlow" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="white" stopOpacity="0.12" /><stop offset="100%" stopColor="white" stopOpacity="0" /></radialGradient></defs>
+          <ellipse cx="450" cy="90" rx="200" ry="70" fill="url(#revBannerGlow)" />
+        </svg>
+        <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "center", gap: "1rem", marginBottom: "1.5rem" }}>
+          <div style={{ width: 46, height: 46, borderRadius: "50%", background: "rgba(255,255,255,0.10)", border: "1.5px solid rgba(255,255,255,0.18)", boxShadow: "0 0 0 8px rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <TrendingUp style={{ width: 22, height: 22, color: "white" }} />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Driver Revenues</h1>
-          <p className="text-sm text-gray-500 mt-1">Comprehensive revenue analytics and insights for all drivers</p>
+          <div>
+            <h1 style={{ fontSize: "1.35rem", fontWeight: 800, color: "white", margin: 0, letterSpacing: "-0.01em" }}>Driver Revenues</h1>
+            <p style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.62)", margin: "2px 0 0" }}>Gross &amp; net earnings · commissions · per-driver revenue analytics</p>
+          </div>
+        </div>
+        <div style={{ position: "relative", zIndex: 1, display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
+          <div style={{ background: "rgba(14,165,233,0.16)", border: "1px solid rgba(14,165,233,0.35)", borderRadius: "0.85rem", padding: "0.6rem 1rem", minWidth: 130 }}>
+            <div style={{ fontSize: "0.63rem", fontWeight: 700, color: "rgba(125,211,252,0.85)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Gross Revenue</div>
+            {statsLoading ? (
+              <div style={{ height: 28, background: "rgba(255,255,255,0.12)", borderRadius: "0.4rem", marginTop: 4, width: 110 }} />
+            ) : (
+              <div style={{ fontSize: "1.3rem", fontWeight: 900, color: "#7dd3fc", fontVariantNumeric: "tabular-nums", lineHeight: 1.2 }}>
+                {statsData?.summary ? new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(statsData.summary.totalGrossRevenue) : "--"} <span style={{ fontSize: "0.68rem", opacity: 0.7 }}>TZS</span>
+              </div>
+            )}
+            {statsData?.summary && !statsLoading && statsData.summary.growthRate !== 0 && (
+              <div style={{ fontSize: "0.63rem", color: statsData.summary.growthRate > 0 ? "#6ee7b7" : "#fca5a5", marginTop: 2 }}>
+                {statsData.summary.growthRate > 0 ? "+" : ""}{statsData.summary.growthRate.toFixed(1)}% growth
+              </div>
+            )}
+          </div>
+          <div style={{ background: "rgba(16,185,129,0.16)", border: "1px solid rgba(16,185,129,0.35)", borderRadius: "0.85rem", padding: "0.6rem 1rem", minWidth: 130 }}>
+            <div style={{ fontSize: "0.63rem", fontWeight: 700, color: "rgba(110,231,183,0.85)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Net Revenue</div>
+            {statsLoading ? (
+              <div style={{ height: 28, background: "rgba(255,255,255,0.12)", borderRadius: "0.4rem", marginTop: 4, width: 110 }} />
+            ) : (
+              <div style={{ fontSize: "1.3rem", fontWeight: 900, color: "#6ee7b7", fontVariantNumeric: "tabular-nums", lineHeight: 1.2 }}>
+                {statsData?.summary ? new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(statsData.summary.totalNetRevenue) : "--"} <span style={{ fontSize: "0.68rem", opacity: 0.7 }}>TZS</span>
+              </div>
+            )}
+          </div>
+          <div style={{ background: "rgba(245,158,11,0.16)", border: "1px solid rgba(245,158,11,0.35)", borderRadius: "0.85rem", padding: "0.6rem 1rem", minWidth: 130 }}>
+            <div style={{ fontSize: "0.63rem", fontWeight: 700, color: "rgba(252,211,77,0.85)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Commission</div>
+            {statsLoading ? (
+              <div style={{ height: 28, background: "rgba(255,255,255,0.12)", borderRadius: "0.4rem", marginTop: 4, width: 110 }} />
+            ) : (
+              <div style={{ fontSize: "1.3rem", fontWeight: 900, color: "#fcd34d", fontVariantNumeric: "tabular-nums", lineHeight: 1.2 }}>
+                {statsData?.summary ? new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(statsData.summary.totalCommission) : "--"} <span style={{ fontSize: "0.68rem", opacity: 0.7 }}>TZS</span>
+              </div>
+            )}
+          </div>
+          <div style={{ background: "rgba(139,92,246,0.16)", border: "1px solid rgba(139,92,246,0.35)", borderRadius: "0.85rem", padding: "0.6rem 1rem", minWidth: 110 }}>
+            <div style={{ fontSize: "0.63rem", fontWeight: 700, color: "rgba(196,181,253,0.85)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Total Trips</div>
+            {statsLoading ? (
+              <div style={{ height: 28, background: "rgba(255,255,255,0.12)", borderRadius: "0.4rem", marginTop: 4, width: 80 }} />
+            ) : (
+              <div style={{ fontSize: "1.3rem", fontWeight: 900, color: "#c4b5fd", fontVariantNumeric: "tabular-nums", lineHeight: 1.2 }}>
+                {statsData?.summary?.totalTrips?.toLocaleString() ?? "--"}
+              </div>
+            )}
+            {statsData?.summary && !statsLoading && (
+              <div style={{ fontSize: "0.63rem", color: "rgba(255,255,255,0.45)", marginTop: 2 }}>
+                Avg {new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(statsData.summary.averageRevenue)} TZS
+              </div>
+            )}
+          </div>
+          <div style={{ background: "rgba(20,184,166,0.16)", border: "1px solid rgba(20,184,166,0.35)", borderRadius: "0.85rem", padding: "0.6rem 1rem", minWidth: 100 }}>
+            <div style={{ fontSize: "0.63rem", fontWeight: 700, color: "rgba(94,234,212,0.85)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Invoices</div>
+            {statsLoading ? (
+              <div style={{ height: 28, background: "rgba(255,255,255,0.12)", borderRadius: "0.4rem", marginTop: 4, width: 80 }} />
+            ) : (
+              <div style={{ fontSize: "1.3rem", fontWeight: 900, color: "#5eead4", fontVariantNumeric: "tabular-nums", lineHeight: 1.2 }}>
+                {statsData?.summary?.totalInvoices?.toLocaleString() ?? total.toLocaleString()}
+              </div>
+            )}
+          </div>
         </div>
       </div>
-
-      {/* Summary Cards */}
-      {statsData && statsData.summary && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-300 hover:border-blue-300 group">
-            <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-full bg-blue-50 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                <DollarSign className="h-6 w-6 text-blue-600" />
-              </div>
-              <div className="flex-1">
-                <div className="text-sm font-medium text-gray-500 mb-1">Gross Revenue</div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {statsData.summary.totalGrossRevenue.toLocaleString()} TZS
-                </div>
-                {statsData.summary.growthRate !== 0 && (
-                  <div className={`text-xs mt-1 flex items-center gap-1 ${statsData.summary.growthRate > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                    {statsData.summary.growthRate > 0 ? (
-                      <ArrowUpRight className="h-3 w-3" />
-                    ) : (
-                      <ArrowDownRight className="h-3 w-3" />
-                    )}
-                    <span>{Math.abs(statsData.summary.growthRate).toFixed(1)}%</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-300 hover:border-emerald-300 group">
-            <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-full bg-emerald-50 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                <TrendingUp className="h-6 w-6 text-emerald-600" />
-              </div>
-              <div className="flex-1">
-                <div className="text-sm font-medium text-gray-500 mb-1">Net Revenue</div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {statsData.summary.totalNetRevenue.toLocaleString()} TZS
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-300 hover:border-amber-300 group">
-            <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-full bg-amber-50 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                <BarChart3 className="h-6 w-6 text-amber-600" />
-              </div>
-              <div className="flex-1">
-                <div className="text-sm font-medium text-gray-500 mb-1">Total Commission</div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {statsData.summary.totalCommission.toLocaleString()} TZS
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-300 hover:border-purple-300 group">
-            <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-full bg-purple-50 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                <Users className="h-6 w-6 text-purple-600" />
-              </div>
-              <div className="flex-1">
-                <div className="text-sm font-medium text-gray-500 mb-1">Total Trips</div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {statsData.summary.totalTrips.toLocaleString()}
-                </div>
-                <div className="text-xs text-gray-500 mt-1">
-                  Avg: {statsData.summary.averageRevenue.toLocaleString()} TZS
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

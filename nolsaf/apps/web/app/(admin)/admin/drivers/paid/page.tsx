@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
-import { CreditCard, Search, X, Calendar, DollarSign, Clock, TrendingUp, Users, PieChart } from "lucide-react";
+import { CreditCard, Search, X, Calendar, Clock, TrendingUp, PieChart } from "lucide-react";
 import DatePicker from "@/components/ui/DatePicker";
 import axios from "axios";
 import Chart from "@/components/Chart";
