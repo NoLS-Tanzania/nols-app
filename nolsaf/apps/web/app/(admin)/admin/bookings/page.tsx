@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { Calendar, Search, X, Eye } from "lucide-react";
+import { BarChart2, Calendar, CheckCircle2, ChevronDown, ChevronUp, ChevronsUpDown, Clock, Eye, LogIn, LogOut, Search, Sparkles, X, XCircle } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import DatePicker from "@/components/ui/DatePicker";
 import axios from "axios";
@@ -114,6 +114,13 @@ export default function AdminBookingsPage() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [openIds, setOpenIds] = useState<Record<number, boolean>>({});
+  const [sortCol, setSortCol] = useState<string>('');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+
+  function sortToggle(col: string) {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortCol(col); setSortDir('asc'); }
+  }
 
   function toggleMobile(id: number) {
     setOpenIds((p) => ({ ...(p || {}), [id]: !p[id] }));
@@ -257,6 +264,17 @@ export default function AdminBookingsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
+  const sortedList = !sortCol ? list : [...list].sort((a, b) => {
+    let av: string | number = 0, bv: string | number = 0;
+    if (sortCol === 'bookingCode') { av = a.id; bv = b.id; }
+    else if (sortCol === 'guestName') { av = (a.guestName ?? '').toLowerCase(); bv = (b.guestName ?? '').toLowerCase(); }
+    else if (sortCol === 'amountPaid') { av = a.totalAmount; bv = b.totalAmount; }
+    else if (sortCol === 'checkIn') { av = a.checkIn; bv = b.checkIn; }
+    else if (sortCol === 'checkOut') { av = a.checkOut; bv = b.checkOut; }
+    else if (sortCol === 'nights') { av = +new Date(a.checkOut) - +new Date(a.checkIn); bv = +new Date(b.checkOut) - +new Date(b.checkIn); }
+    return av < bv ? (sortDir === 'asc' ? -1 : 1) : av > bv ? (sortDir === 'asc' ? 1 : -1) : 0;
+  });
+
   return (
     <>
       {/* ── Page header ── */}
@@ -287,6 +305,40 @@ export default function AdminBookingsPage() {
             ))}
           </div>
         </div>
+        {/* ── Distribution bar ── */}
+        {(() => {
+          const _total = (counts['NEW'] ?? 0) + (counts['CONFIRMED'] ?? 0) + (counts['CHECKED_IN'] ?? 0) + (counts['PENDING_CHECKIN'] ?? 0) + (counts['CHECKED_OUT'] ?? 0) + (counts['CANCELED'] ?? 0);
+          const segs = [
+            { label: 'New',        val: counts['NEW'] ?? 0,                                               color: '#3b82f6' },
+            { label: 'Validated',  val: counts['CONFIRMED'] ?? 0,                                         color: '#10b981' },
+            { label: 'Check-in',   val: (counts['CHECKED_IN'] ?? 0) + (counts['PENDING_CHECKIN'] ?? 0),  color: '#f59e0b' },
+            { label: 'Check-out',  val: counts['CHECKED_OUT'] ?? 0,                                       color: '#0ea5e9' },
+            { label: 'Cancelled',  val: counts['CANCELED'] ?? 0,                                          color: '#ef4444' },
+          ].filter(s => s.val > 0);
+          if (!_total) return null;
+          return (
+            <div className="mt-3 pt-3 border-t border-gray-100">
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <BarChart2 className="h-3 w-3 text-gray-400 flex-shrink-0" />
+                <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Booking distribution</span>
+              </div>
+              <div className="flex h-2 rounded-full overflow-hidden gap-px w-full">
+                {segs.map(s => (
+                  <div key={s.label} className="h-full transition-all" style={{ flex: s.val / _total, background: s.color }} title={`${s.label}: ${s.val}`} />
+                ))}
+              </div>
+              <div className="flex items-center gap-4 mt-2 flex-wrap">
+                {segs.map(s => (
+                  <div key={s.label} className="flex items-center gap-1 text-[10px]">
+                    <div className="h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ background: s.color }} />
+                    <span className="text-gray-400">{s.label}</span>
+                    <span className="font-bold text-gray-700 tabular-nums">{s.val}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* ── Search + Filters ── */}
@@ -320,15 +372,15 @@ export default function AdminBookingsPage() {
 
         {/* Status tabs + date */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
             {([
-              { label: 'All',        value: '' },
-              { label: 'New',        value: 'NEW' },
-              { label: 'Validated',  value: 'CONFIRMED' },
-              { label: 'Check-in',   value: 'CHECKED_IN' },
-              { label: 'Check-out',  value: 'CHECKED_OUT' },
-              { label: 'Cancelled',  value: 'CANCELED' },
-            ] as { label: string; value: string }[]).map((s) => {
+              { label: 'All',        value: '',            color: '#02665e' },
+              { label: 'New',        value: 'NEW',         color: '#3b82f6' },
+              { label: 'Validated',  value: 'CONFIRMED',   color: '#10b981' },
+              { label: 'Check-in',   value: 'CHECKED_IN',  color: '#f59e0b' },
+              { label: 'Check-out',  value: 'CHECKED_OUT', color: '#0ea5e9' },
+              { label: 'Cancelled',  value: 'CANCELED',    color: '#ef4444' },
+            ] as { label: string; value: string; color: string }[]).map((s) => {
               const cnt =
                 s.value === ''
                   ? (counts['NEW'] ?? 0) + (counts['CONFIRMED'] ?? 0) + (counts['CHECKED_IN'] ?? 0) + (counts['PENDING_CHECKIN'] ?? 0) + (counts['CHECKED_OUT'] ?? 0) + (counts['CANCELED'] ?? 0)
@@ -343,16 +395,18 @@ export default function AdminBookingsPage() {
                   onClick={() => { setStatus(s.value); setTimeout(() => load(), 0); }}
                   aria-pressed={active ? 'true' : 'false'}
                   aria-label={`Filter ${s.label} bookings`}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                    active
-                      ? 'bg-white text-[#02665e] shadow-sm ring-1 ring-gray-200'
-                      : 'text-gray-500 hover:text-gray-800 hover:bg-white/60'
-                  }`}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all border"
+                  style={active
+                    ? { background: s.color, color: '#fff', borderColor: 'transparent', boxShadow: `0 2px 10px ${s.color}55` }
+                    : { background: `${s.color}12`, color: s.color, borderColor: `${s.color}28` }}
                 >
                   {s.label}
-                  <span className={`tabular-nums text-[10px] font-bold rounded px-1.5 py-0.5 ${
-                    active ? 'bg-[#02665e]/10 text-[#02665e]' : 'bg-gray-200 text-gray-400'
-                  }`}>{cnt}</span>
+                  <span
+                    className="tabular-nums text-[10px] font-bold rounded-lg px-1.5 py-0.5"
+                    style={active
+                      ? { background: 'rgba(255,255,255,0.22)', color: '#fff' }
+                      : { background: `${s.color}1a`, color: s.color }}
+                  >{cnt}</span>
                 </button>
               );
             })}
@@ -459,7 +513,7 @@ export default function AdminBookingsPage() {
           <>
             {/* ── Mobile cards ── */}
             <div className="sm:hidden divide-y divide-gray-100">
-              {list.map((b) => {
+              {sortedList.map((b) => {
                 const stripe: Record<string, string> = {
                   NEW: 'border-l-blue-400',
                   CONFIRMED: 'border-l-emerald-400',
@@ -514,18 +568,36 @@ export default function AdminBookingsPage() {
                   <tr className="border-b border-gray-200 bg-gray-50/80">
                     {/* Status stripe column */}
                     <th className="w-[3px] p-0" />
-                    {visibleColumns.map((c) => (
-                      <th
-                        key={c}
-                        className="px-4 py-3 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap"
-                      >
-                        {c === 'bookingCode' ? 'Booking' : c === 'guestName' ? 'Guest' : c === 'owner' ? 'Owner' : c === 'region' ? 'Region' : c === 'propertyRoom' ? 'Property / Room' : c === 'amountPaid' ? 'Amount' : c === 'status' ? 'Status' : c === 'checkIn' ? 'Check‑in' : c === 'checkOut' ? 'Check‑out' : c === 'nights' ? 'Nights' : c === 'actions' ? '' : c === 'contact' ? 'Contact' : c === 'paymentDate' ? 'Payment' : c === 'roomNumber' ? 'Room' : c === 'cancelledAt' ? 'Cancelled' : c === 'cancelReason' ? 'Reason' : c === 'amountRefunded' ? 'Refunded' : c}
-                      </th>
-                    ))}
+                    {visibleColumns.map((c) => {
+                      const SORTABLE = new Set(['bookingCode','guestName','amountPaid','checkIn','checkOut','nights']);
+                      const label = c === 'bookingCode' ? 'Booking' : c === 'guestName' ? 'Guest' : c === 'owner' ? 'Owner' : c === 'region' ? 'Region' : c === 'propertyRoom' ? 'Property / Room' : c === 'amountPaid' ? 'Amount' : c === 'status' ? 'Status' : c === 'checkIn' ? 'Check\u2011in' : c === 'checkOut' ? 'Check\u2011out' : c === 'nights' ? 'Nights' : c === 'actions' ? '' : c === 'contact' ? 'Contact' : c === 'paymentDate' ? 'Payment' : c === 'roomNumber' ? 'Room' : c === 'cancelledAt' ? 'Cancelled' : c === 'cancelReason' ? 'Reason' : c === 'amountRefunded' ? 'Refunded' : c;
+                      const canSort = SORTABLE.has(c);
+                      const isSorted = sortCol === c;
+                      return (
+                        <th
+                          key={c}
+                          onClick={canSort ? () => sortToggle(c) : undefined}
+                          className={`px-4 py-3 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap ${canSort ? 'cursor-pointer select-none hover:text-[#02665e] hover:bg-[#02665e]/4 transition-colors' : ''}`}
+                        >
+                          <div className="flex items-center gap-1">
+                            {label}
+                            {canSort && (
+                              <span className={`transition-colors flex-shrink-0 ${isSorted ? 'text-[#02665e]' : 'text-gray-300'}`}>
+                                {isSorted
+                                  ? sortDir === 'asc'
+                                    ? <ChevronUp className="h-3 w-3" />
+                                    : <ChevronDown className="h-3 w-3" />
+                                  : <ChevronsUpDown className="h-3 w-3" />}
+                              </span>
+                            )}
+                          </div>
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {list.map((b) => {
+                  {sortedList.map((b) => {
                     const stripeColor: Record<string, string> = {
                       NEW: 'bg-blue-400',
                       CONFIRMED: 'bg-emerald-400',
@@ -571,8 +643,28 @@ export default function AdminBookingsPage() {
                                       <span className="text-xs font-normal text-gray-400">TZS</span>
                                     </span>
                                   );
-                                case 'status':
-                                  return <StatusBadge s={b.status} />;
+                                case 'status': {
+                                  const _icons: Record<string, JSX.Element | null> = {
+                                    NEW: <Sparkles className="h-3 w-3" />,
+                                    CONFIRMED: <CheckCircle2 className="h-3 w-3" />,
+                                    PENDING_CHECKIN: <Clock className="h-3 w-3" />,
+                                    CHECKED_IN: <LogIn className="h-3 w-3" />,
+                                    CHECKED_OUT: <LogOut className="h-3 w-3" />,
+                                    CANCELED: <XCircle className="h-3 w-3" />,
+                                  };
+                                  const _labels: Record<string, string> = { NEW: 'New', CONFIRMED: 'Validated', PENDING_CHECKIN: 'Pending', CHECKED_IN: 'Checked in', CHECKED_OUT: 'Checked out', CANCELED: 'Cancelled' };
+                                  const _palette: Record<string, [string, string]> = {
+                                    NEW: ['#eff6ff','#3b82f6'], CONFIRMED: ['#ecfdf5','#10b981'], PENDING_CHECKIN: ['#fffbeb','#f59e0b'],
+                                    CHECKED_IN: ['#f0fdf4','#22c55e'], CHECKED_OUT: ['#f0f9ff','#0ea5e9'], CANCELED: ['#fef2f2','#ef4444'],
+                                  };
+                                  const [_bg, _col] = _palette[b.status] ?? ['#f9fafb','#6b7280'];
+                                  return (
+                                    <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold whitespace-nowrap" style={{ background: _bg, color: _col }}>
+                                      {_icons[b.status] ?? null}
+                                      {_labels[b.status] ?? b.status}
+                                    </span>
+                                  );
+                                }
                                 case 'checkIn':
                                   return <span className="tabular-nums text-gray-700">{new Date(b.checkIn).toLocaleDateString()}</span>;
                                 case 'checkOut':
