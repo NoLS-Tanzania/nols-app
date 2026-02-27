@@ -268,97 +268,90 @@ export default function AdminGroupStaysPassengersPage() {
     };
   }, [stats]);
 
-  // Prepare Nationality Chart data
-  const nationalityChartData = useMemo<ChartData<"bar">>(() => {
-    if (!stats || !stats.topNationalities || stats.topNationalities.length === 0) {
-      return { labels: [], datasets: [] };
-    }
-
-    const labels = stats.topNationalities.map((n) => n.nationality);
-    const data = stats.topNationalities.map((n) => n.count);
-
-    return {
-      labels,
-      datasets: [
-        {
-          label: "Passengers",
-          data,
-          backgroundColor: "rgba(16, 185, 129, 0.8)",
-          borderColor: "rgba(16, 185, 129, 1)",
-          borderWidth: 1,
-        },
-      ],
-    };
-  }, [stats]);
+  // Nationality chart replaced by ranked list — no chartData needed
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      {/* Header */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-        <div className="flex flex-col items-center text-center">
-          <div className="h-16 w-16 rounded-full bg-gradient-to-br from-green-50 to-green-100 flex items-center justify-center mb-4">
-            <UsersRound className="h-8 w-8 text-green-600" />
+      {/* Premium Banner */}
+      <div style={{ position: "relative", borderRadius: "1.25rem", overflow: "hidden", background: "linear-gradient(135deg, #14532d 0%, #166534 40%, #1e3a5f 100%)", boxShadow: "0 24px 60px -12px rgba(20,83,45,0.45), 0 8px 20px -8px rgba(30,58,138,0.30)", padding: "2rem 2rem 1.75rem" }}>
+        <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0.10, pointerEvents: "none" }} viewBox="0 0 900 160" preserveAspectRatio="xMidYMid slice">
+          <circle cx="820" cy="30" r="100" fill="none" stroke="white" strokeWidth="1.2" />
+          <circle cx="820" cy="30" r="60" fill="none" stroke="white" strokeWidth="0.7" />
+          <circle cx="60" cy="140" r="75" fill="none" stroke="white" strokeWidth="1.0" />
+          <line x1="0" y1="40" x2="900" y2="40" stroke="white" strokeWidth="0.35" />
+          <line x1="0" y1="80" x2="900" y2="80" stroke="white" strokeWidth="0.35" />
+          <line x1="0" y1="120" x2="900" y2="120" stroke="white" strokeWidth="0.35" />
+          <polyline points="0,140 120,118 240,100 360,82 480,95 600,60 720,42 840,55 900,38" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+          <polygon points="0,140 120,118 240,100 360,82 480,95 600,60 720,42 840,55 900,38 900,160 0,160" fill="white" opacity={0.05} />
+          <circle cx="600" cy="60" r="5" fill="white" opacity={0.75} />
+          <circle cx="720" cy="42" r="5" fill="white" opacity={0.75} />
+        </svg>
+        <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "center", gap: "1rem" }}>
+          <div style={{ width: 50, height: 50, borderRadius: "50%", background: "rgba(255,255,255,0.12)", border: "1.5px solid rgba(255,255,255,0.25)", boxShadow: "0 0 0 8px rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <UsersRound style={{ width: 24, height: 24, color: "white" }} />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Passengers</h1>
-          <p className="text-sm text-gray-500 mt-1">Manage and view all passenger rosters from group bookings</p>
+          <div>
+            <h1 style={{ fontSize: "1.4rem", fontWeight: 800, color: "white", margin: 0, letterSpacing: "-0.01em" }}>Passengers</h1>
+            <p style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.60)", margin: "3px 0 0" }}>Manage and view all passenger rosters from group bookings</p>
+          </div>
         </div>
       </div>
 
       {/* Summary Cards */}
       {stats && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-300 hover:border-green-300 group">
-            <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl bg-green-100 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                <Users className="h-6 w-6 text-green-600" />
+          {/* Total Passengers */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 overflow-hidden">
+            <div className="h-1 bg-gradient-to-r from-emerald-400 to-emerald-600" />
+            <div className="p-5 flex items-start gap-4">
+              <div className="h-10 w-10 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center flex-shrink-0">
+                <Users className="h-5 w-5 text-emerald-600" />
               </div>
-              <div className="flex-1">
-                <div className="text-sm font-medium text-gray-500 mb-1">Total Passengers</div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {stats.totalPassengers.toLocaleString()}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-300 hover:border-blue-300 group">
-            <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl bg-blue-100 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                <TrendingUp className="h-6 w-6 text-blue-600" />
-              </div>
-              <div className="flex-1">
-                <div className="text-sm font-medium text-gray-500 mb-1">Average Age</div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {stats.averageAge > 0 ? `${stats.averageAge} years` : "N/A"}
-                </div>
+              <div>
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Total Passengers</div>
+                <div className="text-2xl font-bold text-gray-900 tabular-nums">{stats.totalPassengers.toLocaleString()}</div>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-300 hover:border-purple-300 group">
-            <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl bg-purple-100 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                <User className="h-6 w-6 text-purple-600" />
+          {/* Average Age */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 overflow-hidden">
+            <div className="h-1 bg-gradient-to-r from-blue-400 to-blue-600" />
+            <div className="p-5 flex items-start gap-4">
+              <div className="h-10 w-10 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center flex-shrink-0">
+                <TrendingUp className="h-5 w-5 text-blue-600" />
               </div>
-              <div className="flex-1">
-                <div className="text-sm font-medium text-gray-500 mb-1">Gender Groups</div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {Object.keys(stats.genderStats).filter(k => stats.genderStats[k] > 0).length}
-                </div>
+              <div>
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Average Age</div>
+                <div className="text-2xl font-bold text-gray-900 tabular-nums">{stats.averageAge > 0 ? `${stats.averageAge} yrs` : "N/A"}</div>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-300 hover:border-amber-300 group">
-            <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl bg-amber-100 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                <Globe className="h-6 w-6 text-amber-600" />
+          {/* Gender Groups */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 overflow-hidden">
+            <div className="h-1 bg-gradient-to-r from-purple-400 to-purple-600" />
+            <div className="p-5 flex items-start gap-4">
+              <div className="h-10 w-10 rounded-lg bg-purple-50 border border-purple-100 flex items-center justify-center flex-shrink-0">
+                <User className="h-5 w-5 text-purple-600" />
               </div>
-              <div className="flex-1">
-                <div className="text-sm font-medium text-gray-500 mb-1">Nationalities</div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {Object.keys(stats.nationalityStats).filter(k => stats.nationalityStats[k] > 0).length}
-                </div>
+              <div>
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Gender Groups</div>
+                <div className="text-2xl font-bold text-gray-900 tabular-nums">{Object.keys(stats.genderStats).filter(k => stats.genderStats[k] > 0).length}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Nationalities */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 overflow-hidden">
+            <div className="h-1 bg-gradient-to-r from-amber-400 to-orange-500" />
+            <div className="p-5 flex items-start gap-4">
+              <div className="h-10 w-10 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center flex-shrink-0">
+                <Globe className="h-5 w-5 text-amber-600" />
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Nationalities</div>
+                <div className="text-2xl font-bold text-gray-900 tabular-nums">{Object.keys(stats.nationalityStats).filter(k => stats.nationalityStats[k] > 0).length}</div>
               </div>
             </div>
           </div>
@@ -368,13 +361,15 @@ export default function AdminGroupStaysPassengersPage() {
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Gender Distribution */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm transition-all duration-300 hover:shadow-lg hover:border-blue-300 hover:-translate-y-1 group">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 overflow-hidden">
+          <div className="h-1 bg-gradient-to-r from-blue-400 to-purple-500" />
+          <div className="p-6">
           <div className="mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2 group-hover:text-blue-600 transition-colors duration-300">
-              <User className="h-5 w-5 text-blue-600 group-hover:scale-110 transition-transform duration-300" />
+            <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+              <span className="inline-flex items-center justify-center h-7 w-7 rounded-md bg-blue-50 border border-blue-100"><User className="h-4 w-4 text-blue-600" /></span>
               Gender Distribution
             </h3>
-            <p className="text-sm text-gray-500 mt-1">Breakdown of passengers by gender</p>
+            <p className="text-xs text-gray-400 mt-1 ml-9">Breakdown of passengers by gender</p>
           </div>
           <div className="h-64 w-full max-h-64 min-h-[300px] overflow-hidden relative">
             {statsLoading ? (
@@ -422,16 +417,19 @@ export default function AdminGroupStaysPassengersPage() {
               </div>
             )}
           </div>
+          </div>
         </div>
 
         {/* Age Groups Distribution */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm transition-all duration-300 hover:shadow-lg hover:border-purple-300 hover:-translate-y-1 group">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 overflow-hidden">
+          <div className="h-1 bg-gradient-to-r from-purple-400 to-violet-600" />
+          <div className="p-6">
           <div className="mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2 group-hover:text-purple-600 transition-colors duration-300">
-              <TrendingUp className="h-5 w-5 text-purple-600 group-hover:scale-110 transition-transform duration-300" />
+            <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+              <span className="inline-flex items-center justify-center h-7 w-7 rounded-md bg-purple-50 border border-purple-100"><TrendingUp className="h-4 w-4 text-purple-600" /></span>
               Age Groups
             </h3>
-            <p className="text-sm text-gray-500 mt-1">Distribution of passengers by age groups</p>
+            <p className="text-xs text-gray-400 mt-1 ml-9">Distribution of passengers by age groups</p>
           </div>
           <div className="h-64 w-full max-h-64 min-h-[300px] overflow-hidden relative">
             {statsLoading ? (
@@ -493,78 +491,73 @@ export default function AdminGroupStaysPassengersPage() {
               </div>
             )}
           </div>
+          </div>
         </div>
       </div>
 
-      {/* Top Nationalities Chart */}
+      {/* Top Nationalities — Premium Ranked List */}
       {stats && stats.topNationalities && stats.topNationalities.length > 0 && (
-        <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm transition-all duration-300 hover:shadow-lg hover:border-green-300 hover:-translate-y-1 group">
-          <div className="mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2 group-hover:text-green-600 transition-colors duration-300">
-              <Globe className="h-5 w-5 text-green-600 group-hover:scale-110 transition-transform duration-300" />
-              Top Nationalities
-            </h3>
-            <p className="text-sm text-gray-500 mt-1">Most common nationalities among passengers</p>
-          </div>
-          <div className="h-64 w-full max-h-64 min-h-[300px] overflow-hidden relative">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="h-1 bg-gradient-to-r from-emerald-400 to-teal-500" />
+          <div className="p-6">
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                  <span className="inline-flex items-center justify-center h-7 w-7 rounded-md bg-emerald-50 border border-emerald-100"><Globe className="h-4 w-4 text-emerald-600" /></span>
+                  Nationalities Breakdown
+                </h3>
+                <p className="text-xs text-gray-400 mt-1 ml-9">Ranked by passenger count &mdash; {stats.topNationalities.length} {stats.topNationalities.length === 1 ? "nationality" : "nationalities"} found</p>
+              </div>
+              <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full tabular-nums">
+                {stats.totalPassengers.toLocaleString()} total
+              </span>
+            </div>
+
             {statsLoading ? (
-              <div className="h-full w-full flex items-center justify-center">
-                <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-gray-300 border-t-green-600"></div>
+              <div className="flex items-center justify-center py-10">
+                <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-gray-200 border-t-emerald-500" />
               </div>
             ) : (
-              <Chart
-                type="bar"
-                data={nationalityChartData}
-                options={{
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  indexAxis: 'y',
-                  plugins: {
-                    legend: {
-                      display: false,
-                    },
-                    tooltip: {
-                      callbacks: {
-                        label: (context: any) => {
-                          const value = context.parsed.x || 0;
-                          return `Passengers: ${value}`;
-                        },
-                      },
-                    },
-                  },
-                  scales: {
-                    x: {
-                      beginAtZero: true,
-                      ticks: {
-                        stepSize: 1,
-                        font: {
-                          size: 11,
-                        },
-                      },
-                      grid: {
-                        color: "rgba(0, 0, 0, 0.1)",
-                      },
-                    },
-                    y: {
-                      grid: {
-                        display: false,
-                      },
-                      ticks: {
-                        font: {
-                          size: 11,
-                        },
-                      },
-                    },
-                  },
-                }}
-              />
+              <div className="overflow-y-auto" style={{ maxHeight: "420px" }}>
+                <div className="space-y-1.5 pr-1">
+                  {stats.topNationalities.map((item, idx) => {
+                    const max = stats.topNationalities[0].count;
+                    const pct = max > 0 ? Math.round((item.count / max) * 100) : 0;
+                    const totalPct = stats.totalPassengers > 0 ? ((item.count / stats.totalPassengers) * 100).toFixed(1) : "0.0";
+                    const gradients = [
+                      "from-emerald-400 to-teal-500",
+                      "from-blue-400 to-cyan-500",
+                      "from-violet-400 to-purple-500",
+                      "from-amber-400 to-orange-500",
+                      "from-rose-400 to-pink-500",
+                    ];
+                    const grad = gradients[idx % gradients.length];
+                    return (
+                      <div key={item.nationality} className="group flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-50 transition-colors">
+                        <span className="w-6 text-center text-xs font-bold text-gray-300 flex-shrink-0 tabular-nums">{idx + 1}</span>
+                        <span className="w-28 min-w-[6.5rem] text-sm font-semibold text-gray-800 truncate flex-shrink-0">{item.nationality}</span>
+                        <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full bg-gradient-to-r ${grad} transition-all duration-500`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <span className="w-14 text-right text-sm font-bold text-gray-900 tabular-nums flex-shrink-0">{item.count.toLocaleString()}</span>
+                        <span className="w-12 text-right text-xs text-gray-400 tabular-nums flex-shrink-0">{totalPct}%</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             )}
           </div>
         </div>
       )}
 
       {/* Search and Filters */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="h-1 bg-gradient-to-r from-emerald-400 to-blue-400" />
+        <div className="p-4">
         <div className="flex flex-col gap-4 w-full max-w-full">
           {/* Search and Filters Grid - All fields in same grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3 w-full max-w-full">
@@ -695,10 +688,9 @@ export default function AdminGroupStaysPassengersPage() {
             </div>
           </div>
         </div>
+        </div>
       </div>
-
-      {/* Passengers Table */}
-      <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         {loading ? (
           <>
             {/* Skeleton Table */}
