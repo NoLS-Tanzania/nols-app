@@ -584,25 +584,39 @@ export default function AdminGroupStayAssignmentsPage() {
     <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
       <div className="pointer-events-none absolute inset-x-0 -top-10 h-72 bg-gradient-to-b from-brand-50/50 via-slate-50/30 to-transparent" />
       <div className="relative space-y-6">
-      {/* Header */}
-      <div className="flex flex-col items-center justify-center text-center space-y-3">
-        <div className="inline-flex items-center justify-center h-20 w-20 rounded-2xl bg-white border-2 border-brand-200 shadow-lg shadow-brand-500/10 mb-2 transition-all duration-300 hover:scale-105">
-          <Users className="h-10 w-10 text-brand" />
-        </div>
-        <div>
-          <h1 className="text-4xl font-bold text-slate-900 tracking-tight">Group Stay Assignments</h1>
-          <p className="text-base text-slate-600 mt-3 max-w-2xl mx-auto leading-relaxed">
-            Assign owners and link properties to group stays
-          </p>
+      {/* Header Banner */}
+      <div style={{ position: "relative", borderRadius: "1.25rem", overflow: "hidden", background: "linear-gradient(135deg, #1e3a5f 0%, #1e4d7b 40%, #14532d 100%)", boxShadow: "0 24px 60px -12px rgba(30,58,138,0.45), 0 8px 20px -8px rgba(20,83,45,0.35)", padding: "2rem 2rem 1.75rem" }}>
+        <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0.10, pointerEvents: "none" }} viewBox="0 0 900 160" preserveAspectRatio="xMidYMid slice">
+          <circle cx="820" cy="30" r="100" fill="none" stroke="white" strokeWidth="1.2" />
+          <circle cx="820" cy="30" r="60" fill="none" stroke="white" strokeWidth="0.7" />
+          <circle cx="60" cy="140" r="75" fill="none" stroke="white" strokeWidth="1.0" />
+          <line x1="0" y1="40" x2="900" y2="40" stroke="white" strokeWidth="0.35" />
+          <line x1="0" y1="80" x2="900" y2="80" stroke="white" strokeWidth="0.35" />
+          <line x1="0" y1="120" x2="900" y2="120" stroke="white" strokeWidth="0.35" />
+          <polyline points="0,140 120,118 240,100 360,82 480,95 600,60 720,42 840,55 900,38" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+          <polygon points="0,140 120,118 240,100 360,82 480,95 600,60 720,42 840,55 900,38 900,160 0,160" fill="white" opacity={0.05} />
+          <circle cx="600" cy="60" r="5" fill="white" opacity={0.75} />
+          <circle cx="720" cy="42" r="5" fill="white" opacity={0.75} />
+        </svg>
+        <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "center", gap: "1rem" }}>
+          <div style={{ width: 50, height: 50, borderRadius: "50%", background: "rgba(255,255,255,0.12)", border: "1.5px solid rgba(255,255,255,0.25)", boxShadow: "0 0 0 8px rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <Users style={{ width: 24, height: 24, color: "white" }} />
+          </div>
+          <div>
+            <h1 style={{ fontSize: "1.4rem", fontWeight: 800, color: "white", margin: 0, letterSpacing: "-0.01em" }}>Group Stay Assignments</h1>
+            <p style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.60)", margin: "3px 0 0" }}>Assign owners and link properties to group stays</p>
+          </div>
         </div>
       </div>
 
       {/* Summary strip */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5">
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="h-1 bg-gradient-to-r from-slate-400 via-brand to-emerald-500" />
+        <div className="p-4 sm:p-5">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="text-left">
-            <div className="text-sm font-semibold text-slate-700">Summary</div>
-            <div className="text-xs text-slate-500">Quick counts by category (respects Status/Owner filters)</div>
+            <div className="text-sm font-bold text-slate-800 tracking-tight">Summary</div>
+            <div className="text-xs text-slate-400 font-medium mt-0.5">Quick counts by category (respects Status/Owner filters)</div>
           </div>
           {loading && groupStays.length === 0 ? (
             <div className="inline-flex items-center gap-2 text-xs font-semibold text-slate-500">
@@ -614,55 +628,36 @@ export default function AdminGroupStayAssignmentsPage() {
 
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
           {([
-            { key: "admin" as const, label: "Admin-handled", icon: User, value: summary?.admin ?? null },
-            { key: "claims" as const, label: "Open for claims", icon: AlertCircle, value: summary?.claims ?? null },
-            { key: "all" as const, label: "All", icon: Users, value: summary?.total ?? null },
-          ]).map(({ key, label, icon: Icon, value }) => {
+            { key: "admin" as const, label: "Admin-handled", icon: User, value: summary?.admin ?? null, accentFrom: "from-slate-400", accentTo: "to-slate-500", iconBg: "bg-slate-50 border-slate-200 text-slate-600", iconBgActive: "bg-white border-slate-300 text-slate-700" },
+            { key: "claims" as const, label: "Open for claims", icon: AlertCircle, value: summary?.claims ?? null, accentFrom: "from-brand-400", accentTo: "to-brand-600", iconBg: "bg-brand-50/40 border-brand-100 text-brand", iconBgActive: "bg-white border-brand-200 text-brand" },
+            { key: "all" as const, label: "All", icon: Users, value: summary?.total ?? null, accentFrom: "from-emerald-400", accentTo: "to-emerald-600", iconBg: "bg-emerald-50 border-emerald-100 text-emerald-700", iconBgActive: "bg-white border-emerald-300 text-emerald-700" },
+          ]).map(({ key, label, icon: Icon, value, accentFrom, accentTo, iconBg, iconBgActive }) => {
             const active = view === key;
             const resolvedValue = summaryLoading ? null : value;
-
-            const palette =
-              key === "claims"
-                ? {
-                    activeCard: "border-brand-200 bg-gradient-to-br from-brand-50 to-white shadow-md",
-                    inactiveCard: "border-brand-100/80 bg-brand-50/20 hover:border-brand-200 hover:bg-brand-50/35 hover:shadow-sm",
-                    activeIcon: "bg-white border-brand-200 text-brand",
-                    inactiveIcon: "bg-brand-50/40 border-brand-100/80 text-brand group-hover:border-brand-200",
-                  }
-                : key === "admin"
-                  ? {
-                      activeCard: "border-slate-300 bg-gradient-to-br from-slate-50 to-white shadow-md",
-                      inactiveCard: "border-slate-200 bg-slate-50/30 hover:border-slate-300 hover:bg-slate-50/60 hover:shadow-sm",
-                      activeIcon: "bg-white border-slate-300 text-slate-700",
-                      inactiveIcon: "bg-slate-50 border-slate-200 text-slate-600 group-hover:border-slate-300",
-                    }
-                  : {
-                      activeCard: "border-slate-300 bg-white shadow-md",
-                      inactiveCard: "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/30 hover:shadow-sm",
-                      activeIcon: "bg-white border-slate-300 text-slate-700",
-                      inactiveIcon: "bg-slate-50 border-slate-200 text-slate-600 group-hover:border-slate-300",
-                    };
 
             return (
               <button
                 key={key}
                 type="button"
                 onClick={() => setView(key)}
-                className={`group text-left rounded-2xl border p-4 transition-all duration-200 ${
-                  active ? palette.activeCard : palette.inactiveCard
+                className={`group text-left rounded-xl border overflow-hidden transition-all duration-200 hover:-translate-y-0.5 ${
+                  active
+                    ? "border-slate-200 shadow-md bg-white"
+                    : "border-slate-200 shadow-sm bg-white hover:shadow-md"
                 }`}
                 aria-pressed={active}
               >
-                <div className="flex items-start justify-between">
+                <div className={`h-1 bg-gradient-to-r ${active ? `${accentFrom} ${accentTo}` : "from-slate-200 to-slate-200 group-hover:" + accentFrom}`} />
+                <div className="p-4 flex items-start justify-between">
                   <div>
-                    <div className="text-xs font-semibold text-slate-500">{label}</div>
-                    <div className="mt-1">
+                    <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{label}</div>
+                    <div className="mt-1.5">
                       <SummaryValue value={resolvedValue} />
                     </div>
                   </div>
                   <div
                     className={`inline-flex items-center justify-center h-10 w-10 rounded-xl border transition-colors ${
-                      active ? palette.activeIcon : palette.inactiveIcon
+                      active ? iconBgActive : iconBg
                     }`}
                   >
                     <Icon className="h-5 w-5" />
@@ -671,6 +666,7 @@ export default function AdminGroupStayAssignmentsPage() {
               </button>
             );
           })}
+        </div>
         </div>
       </div>
 
@@ -858,17 +854,18 @@ export default function AdminGroupStayAssignmentsPage() {
           filteredGroupStays.map((gs) => (
             <div
               key={gs.id}
-              className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden transition-all duration-300 hover:shadow-xl hover:border-brand-200 hover:-translate-y-0.5 animate-in fade-in slide-in-from-bottom-2"
+              className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 animate-in fade-in slide-in-from-bottom-2"
             >
+              <div className="h-1 bg-gradient-to-r from-brand-400 via-brand-500 to-emerald-500" />
               {/* Card Header */}
               <div className="p-6 pb-4">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-4">
-                    <div className="inline-flex items-center justify-center h-14 w-14 rounded-xl bg-gradient-to-br from-brand-50 to-brand-100 border-2 border-brand-200 shadow-sm">
-                      <UsersIcon className="h-7 w-7 text-brand" />
+                    <div className="inline-flex items-center justify-center h-12 w-12 rounded-xl bg-gradient-to-br from-brand-50 to-brand-100 border border-brand-200 shadow-sm">
+                      <UsersIcon className="h-6 w-6 text-brand" />
                     </div>
                     <div>
-                      <h3 className="text-2xl font-bold text-slate-900 mb-1">Group Stay #{gs.id}</h3>
+                      <h3 className="text-xl font-bold text-slate-900 mb-1">Group Stay #{gs.id}</h3>
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${getStatusBadge(gs.status)}`}>
                           {gs.status}
@@ -893,15 +890,15 @@ export default function AdminGroupStayAssignmentsPage() {
                 {/* Info Grid */}
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
                   {/* Customer */}
-                  <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50/50 hover:bg-slate-50 transition-colors">
-                    <div className="inline-flex items-center justify-center h-10 w-10 rounded-lg bg-white border border-slate-200 flex-shrink-0">
-                      <User className="h-5 w-5 text-brand" />
+                  <div className="flex items-start gap-3 p-3 rounded-xl bg-blue-50/40 border border-blue-100/60 hover:bg-blue-50/70 transition-colors">
+                    <div className="inline-flex items-center justify-center h-10 w-10 rounded-lg bg-white border border-blue-200/70 flex-shrink-0 shadow-sm">
+                      <User className="h-5 w-5 text-blue-600" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Customer</div>
+                      <div className="text-xs font-semibold text-blue-500 uppercase tracking-wider mb-1">Customer</div>
                       <div className="font-bold text-slate-900 truncate">{gs.user?.name || gs.user?.email || "N/A"}</div>
                       {gs.user?.phone && (
-                        <div className="flex items-center gap-1.5 mt-1 text-xs text-slate-600">
+                        <div className="flex items-center gap-1.5 mt-1 text-xs text-slate-500">
                           <Phone className="h-3 w-3" />
                           <span>{gs.user.phone}</span>
                         </div>
@@ -910,31 +907,31 @@ export default function AdminGroupStayAssignmentsPage() {
                   </div>
 
                   {/* Group Type */}
-                  <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50/50 hover:bg-slate-50 transition-colors">
-                    <div className="inline-flex items-center justify-center h-10 w-10 rounded-lg bg-white border border-slate-200 flex-shrink-0">
-                      <UsersIcon className="h-5 w-5 text-brand" />
+                  <div className="flex items-start gap-3 p-3 rounded-xl bg-purple-50/40 border border-purple-100/60 hover:bg-purple-50/70 transition-colors">
+                    <div className="inline-flex items-center justify-center h-10 w-10 rounded-lg bg-white border border-purple-200/70 flex-shrink-0 shadow-sm">
+                      <UsersIcon className="h-5 w-5 text-purple-600" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Group Type</div>
+                      <div className="text-xs font-semibold text-purple-500 uppercase tracking-wider mb-1">Group Type</div>
                       <div className="font-bold text-slate-900 capitalize">{gs.groupType}</div>
-                      <div className="flex items-center gap-2 mt-1 text-xs text-slate-600">
+                      <div className="flex items-center gap-2 mt-1 text-xs text-slate-500">
                         <span className="font-medium">{gs.headcount} people</span>
-                        <span>•</span>
+                        <span className="text-slate-300">•</span>
                         <span>{gs.roomsNeeded} rooms</span>
                       </div>
                     </div>
                   </div>
 
                   {/* Destination */}
-                  <div className="col-span-2 md:col-span-1 flex items-start gap-3 p-3 rounded-xl bg-slate-50/50 hover:bg-slate-50 transition-colors">
-                    <div className="inline-flex items-center justify-center h-10 w-10 rounded-lg bg-white border border-slate-200 flex-shrink-0">
-                      <MapPin className="h-5 w-5 text-brand" />
+                  <div className="col-span-2 md:col-span-1 flex items-start gap-3 p-3 rounded-xl bg-emerald-50/40 border border-emerald-100/60 hover:bg-emerald-50/70 transition-colors">
+                    <div className="inline-flex items-center justify-center h-10 w-10 rounded-lg bg-white border border-emerald-200/70 flex-shrink-0 shadow-sm">
+                      <MapPin className="h-5 w-5 text-emerald-600" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Destination</div>
-                      <div className="font-bold text-slate-900">{gs.toRegion}</div>
+                      <div className="text-xs font-semibold text-emerald-600 uppercase tracking-wider mb-1">Destination</div>
+                      <div className="font-bold text-slate-900 capitalize">{gs.toRegion}</div>
                       {gs.toDistrict && (
-                        <div className="text-xs text-slate-600 mt-1">{gs.toDistrict}</div>
+                        <div className="text-xs text-slate-500 mt-1 capitalize">{gs.toDistrict}</div>
                       )}
                     </div>
                   </div>
