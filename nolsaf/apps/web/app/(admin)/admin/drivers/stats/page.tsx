@@ -107,66 +107,103 @@ export default function AdminDriversStatsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-        <div className="flex flex-col items-center justify-center text-center">
-          <div className="h-12 w-12 rounded-full bg-gradient-to-br from-green-50 to-green-100 flex items-center justify-center mb-3">
-            <BarChart3 className="h-6 w-6 text-green-600" />
+      {/* Premium Banner */}
+      <div style={{ position: "relative", borderRadius: "1.25rem", overflow: "hidden", background: "linear-gradient(135deg, #0e2a7a 0%, #0a5c82 38%, #02665e 100%)", boxShadow: "0 28px 65px -15px rgba(2,102,94,0.45), 0 8px 22px -8px rgba(14,42,122,0.50)", padding: "2rem 2rem 1.75rem" }}>
+        <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0.13, pointerEvents: "none" }} viewBox="0 0 900 160" preserveAspectRatio="xMidYMid slice">
+          <circle cx="820" cy="30" r="90" fill="none" stroke="white" strokeWidth="1.2" />
+          <circle cx="820" cy="30" r="55" fill="none" stroke="white" strokeWidth="0.7" />
+          <circle cx="60" cy="140" r="70" fill="none" stroke="white" strokeWidth="1.0" />
+          <line x1="0" y1="40" x2="900" y2="40" stroke="white" strokeWidth="0.4" />
+          <line x1="0" y1="72" x2="900" y2="72" stroke="white" strokeWidth="0.4" />
+          <line x1="0" y1="104" x2="900" y2="104" stroke="white" strokeWidth="0.4" />
+          <line x1="0" y1="136" x2="900" y2="136" stroke="white" strokeWidth="0.4" />
+          <polyline points="0,130 90,110 180,95 270,80 360,65 450,90 540,55 630,70 720,40 810,52 900,35" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+          <polygon points="0,130 90,110 180,95 270,80 360,65 450,90 540,55 630,70 720,40 810,52 900,35 900,160 0,160" fill="white" opacity={0.06} />
+          <polyline points="0,145 90,132 180,118 270,128 360,108 450,122 540,98 630,112 720,88 810,102 900,78" fill="none" stroke="white" strokeWidth="1.2" strokeDasharray="6 4" opacity={0.5} />
+          <circle cx="540" cy="55" r="5" fill="white" opacity={0.75} />
+          <circle cx="720" cy="40" r="5" fill="white" opacity={0.75} />
+          <circle cx="900" cy="35" r="5" fill="white" opacity={0.75} />
+          <defs><radialGradient id="statsBannerGlow" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="white" stopOpacity="0.12" /><stop offset="100%" stopColor="white" stopOpacity="0" /></radialGradient></defs>
+          <ellipse cx="450" cy="90" rx="200" ry="70" fill="url(#statsBannerGlow)" />
+        </svg>
+        <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "center", gap: "1rem", marginBottom: "1.5rem" }}>
+          <div style={{ width: 46, height: 46, borderRadius: "50%", background: "rgba(255,255,255,0.10)", border: "1.5px solid rgba(255,255,255,0.18)", boxShadow: "0 0 0 8px rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <BarChart3 style={{ width: 22, height: 22, color: "white" }} />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Driver Statistics</h1>
-          <p className="text-sm text-gray-500 mt-1">View driver performance statistics</p>
+          <div>
+            <h1 style={{ fontSize: "1.35rem", fontWeight: 800, color: "white", margin: 0, letterSpacing: "-0.01em" }}>Driver Statistics</h1>
+            <p style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.62)", margin: "2px 0 0" }}>Per-driver daily performance · rides, earnings &amp; ratings</p>
+          </div>
+        </div>
+        <div style={{ position: "relative", zIndex: 1, display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
+          <div style={{ background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.20)", borderRadius: "0.85rem", padding: "0.6rem 1rem", minWidth: 90 }}>
+            <div style={{ fontSize: "0.63rem", fontWeight: 700, color: "rgba(255,255,255,0.70)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Drivers</div>
+            <div style={{ fontSize: "1.3rem", fontWeight: 900, color: "white", fontVariantNumeric: "tabular-nums", lineHeight: 1.2 }}>{loading ? "…" : drivers.length}</div>
+          </div>
+          {statsData && (
+            <>
+              <div style={{ background: "rgba(14,165,233,0.16)", border: "1px solid rgba(14,165,233,0.35)", borderRadius: "0.85rem", padding: "0.6rem 1rem", minWidth: 90 }}>
+                <div style={{ fontSize: "0.63rem", fontWeight: 700, color: "rgba(125,211,252,0.85)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Rides</div>
+                <div style={{ fontSize: "1.3rem", fontWeight: 900, color: "#7dd3fc", fontVariantNumeric: "tabular-nums", lineHeight: 1.2 }}>{statsData.todaysRides}</div>
+              </div>
+              <div style={{ background: "rgba(16,185,129,0.16)", border: "1px solid rgba(16,185,129,0.35)", borderRadius: "0.85rem", padding: "0.6rem 1rem", minWidth: 120 }}>
+                <div style={{ fontSize: "0.63rem", fontWeight: 700, color: "rgba(110,231,183,0.85)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Earnings</div>
+                <div style={{ fontSize: "1.3rem", fontWeight: 900, color: "#6ee7b7", fontVariantNumeric: "tabular-nums", lineHeight: 1.2 }}>
+                  {new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(statsData.earnings)} <span style={{ fontSize: "0.68rem", opacity: 0.7 }}>TZS</span>
+                </div>
+              </div>
+              <div style={{ background: "rgba(245,158,11,0.16)", border: "1px solid rgba(245,158,11,0.35)", borderRadius: "0.85rem", padding: "0.6rem 1rem", minWidth: 90 }}>
+                <div style={{ fontSize: "0.63rem", fontWeight: 700, color: "rgba(252,211,77,0.85)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Rating</div>
+                <div style={{ fontSize: "1.3rem", fontWeight: 900, color: "#fcd34d", fontVariantNumeric: "tabular-nums", lineHeight: 1.2 }}>{statsData.rating.toFixed(1)}</div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 w-full">
         <div className="lg:col-span-1 w-full min-w-0 max-w-full">
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden w-full">
-            <div className="p-3 border-b border-gray-200 w-full" style={{ boxSizing: 'border-box', maxWidth: '100%', overflow: 'hidden' }}>
-              <div className="relative w-full" style={{ maxWidth: '100%', boxSizing: 'border-box' }}>
-                <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none z-10" />
+          <div style={{ borderRadius: "1rem", border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06)", background: "linear-gradient(135deg, #0a1a19 0%, #0d2320 60%, #0a1f2e 100%)", overflow: "hidden" }} className="w-full">
+            <div style={{ padding: "0.75rem", borderBottom: "1px solid rgba(255,255,255,0.07)", boxSizing: "border-box", maxWidth: "100%", overflow: "hidden" }} className="w-full">
+              <div className="relative w-full" style={{ maxWidth: "100%", boxSizing: "border-box" }}>
+                <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-4 w-4 pointer-events-none z-10" style={{ color: "rgba(255,255,255,0.35)" }} />
                 <input
                   type="text"
                   placeholder="Search drivers..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
-                  style={{ 
-                    boxSizing: 'border-box', 
-                    maxWidth: '100%',
-                    width: '100%',
-                    WebkitBoxSizing: 'border-box',
-                    MozBoxSizing: 'border-box'
-                  }}
+                  className="w-full pl-9 pr-3 py-2 rounded-lg text-sm outline-none"
+                  style={{ boxSizing: "border-box", maxWidth: "100%", width: "100%", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.88)" }}
                 />
               </div>
             </div>
-            <div className="divide-y divide-gray-200 max-h-[600px] overflow-y-auto">
+            <div className="max-h-[600px] overflow-y-auto" style={{ scrollbarColor: "rgba(255,255,255,0.15) transparent" }}>
               {loading ? (
                 <div className="flex flex-col items-center justify-center py-12 px-4">
-                  <Loader2 className="h-8 w-8 text-emerald-600 animate-spin mb-4" />
-                  <p className="text-sm font-medium text-gray-700">Loading drivers...</p>
+                  <Loader2 className="h-8 w-8 text-emerald-400 animate-spin mb-4" />
+                  <p className="text-sm font-medium" style={{ color: "rgba(255,255,255,0.65)" }}>Loading drivers...</p>
                 </div>
               ) : filteredDrivers.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 px-4">
-                  <Search className="h-8 w-8 text-gray-400 mb-4" />
-                  <p className="text-sm font-medium text-gray-700 mb-1">No drivers found</p>
-                  <p className="text-xs text-gray-500 text-center">Try adjusting your search</p>
+                  <Search className="h-8 w-8 mb-4" style={{ color: "rgba(255,255,255,0.25)" }} />
+                  <p className="text-sm font-medium mb-1" style={{ color: "rgba(255,255,255,0.65)" }}>No drivers found</p>
+                  <p className="text-xs text-center" style={{ color: "rgba(255,255,255,0.38)" }}>Try adjusting your search</p>
                 </div>
               ) : (
                 filteredDrivers.map((driver) => (
                 <div
                   key={driver.id}
                   onClick={() => setSelectedDriver(driver.id)}
-                  className={`p-4 hover:bg-gray-50 cursor-pointer transition-colors ${
-                    selectedDriver === driver.id ? "bg-emerald-50 border-l-4 border-emerald-600" : ""
-                  }`}
+                  className="p-4 cursor-pointer transition-colors"
+                  style={{ borderBottom: "1px solid rgba(255,255,255,0.05)", borderLeft: selectedDriver === driver.id ? "4px solid #059669" : "4px solid transparent", background: selectedDriver === driver.id ? "rgba(16,185,129,0.15)" : undefined }}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-emerald-100 flex items-center justify-center">
-                      <Truck className="h-5 w-5 text-emerald-600" />
+                    <div style={{ width: 40, height: 40, borderRadius: "50%", background: selectedDriver === driver.id ? "linear-gradient(135deg,#059669,#047857)" : "rgba(16,185,129,0.18)", border: "1px solid rgba(16,185,129,0.25)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <Truck className="h-5 w-5" style={{ color: selectedDriver === driver.id ? "white" : "#6ee7b7" }} />
                     </div>
                     <div>
-                      <p className="font-medium text-gray-900">{driver.name}</p>
-                      <p className="text-xs text-gray-500">{driver.email}</p>
+                      <p className="font-medium" style={{ color: "rgba(255,255,255,0.90)" }}>{driver.name}</p>
+                      <p className="text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>{driver.email}</p>
                     </div>
                   </div>
                 </div>
@@ -178,10 +215,10 @@ export default function AdminDriversStatsPage() {
 
         <div className="lg:col-span-2">
           {statsData ? (
-            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+            <div style={{ borderRadius: "1rem", border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06)", background: "linear-gradient(135deg, #0a1a19 0%, #0d2320 60%, #0a1f2e 100%)", padding: "1.5rem" }}>
               <div className="mb-6">
-                <h2 className="text-xl font-bold text-gray-900 mb-2">{statsData.driver.name}</h2>
-                <p className="text-sm text-gray-500 mb-4">{statsData.driver.email}</p>
+                <h2 className="text-xl font-bold mb-1" style={{ color: "rgba(255,255,255,0.92)" }}>{statsData.driver.name}</h2>
+                <p className="text-sm mb-4" style={{ color: "rgba(255,255,255,0.50)" }}>{statsData.driver.email}</p>
                 <div className="flex items-center gap-2">
                   <div className="relative">
                     <button
@@ -191,13 +228,14 @@ export default function AdminDriversStatsPage() {
                         setTimeout(() => setPickerAnim(false), 350);
                         setPickerOpen((v) => !v);
                       }}
-                      className={`w-full box-border px-3 py-2 rounded-lg border border-gray-300 text-sm flex items-center justify-center gap-2 text-gray-700 bg-white transition-all ${
-                        pickerAnim ? "ring-2 ring-emerald-100" : "hover:bg-gray-50"
+                      className={`w-full box-border px-3 py-2 rounded-lg text-sm flex items-center justify-center gap-2 transition-all ${
+                        pickerAnim ? "ring-2 ring-emerald-400/30" : ""
                       }`}
+                      style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.16)", color: "rgba(255,255,255,0.80)" }}
                       aria-label="Open date picker"
                       title="Select date for statistics"
                     >
-                      <Calendar className="h-4 w-4 text-gray-500" aria-hidden="true" />
+                      <Calendar className="h-4 w-4" style={{ color: "rgba(255,255,255,0.55)" }} aria-hidden="true" />
                       <span className="tabular-nums">{formatDisplayDate(selectedDate)}</span>
                     </button>
 
@@ -224,38 +262,40 @@ export default function AdminDriversStatsPage() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-blue-50 rounded-lg p-6">
+                <div style={{ background: "rgba(14,165,233,0.16)", border: "1px solid rgba(14,165,233,0.30)", borderRadius: "0.85rem", padding: "1.5rem" }}>
                   <div className="flex items-center gap-3 mb-2">
-                    <Calendar className="h-6 w-6 text-blue-600" />
-                    <p className="text-sm text-gray-600">Rides</p>
+                    <Calendar className="h-6 w-6" style={{ color: "#7dd3fc" }} />
+                    <p className="text-sm" style={{ color: "rgba(125,211,252,0.80)" }}>Rides</p>
                   </div>
-                  <p className="text-3xl font-bold text-blue-600">{statsData.todaysRides}</p>
-                  <p className="text-xs text-gray-500 mt-1">Completed trips</p>
+                  <p className="text-3xl font-bold" style={{ color: "#7dd3fc" }}>{statsData.todaysRides}</p>
+                  <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.40)" }}>Completed trips</p>
                 </div>
 
-                <div className="bg-emerald-50 rounded-lg p-6">
+                <div style={{ background: "rgba(16,185,129,0.16)", border: "1px solid rgba(16,185,129,0.30)", borderRadius: "0.85rem", padding: "1.5rem" }}>
                   <div className="flex items-center gap-3 mb-2">
-                    <DollarSign className="h-6 w-6 text-emerald-600" />
-                    <p className="text-sm text-gray-600">Earnings</p>
+                    <DollarSign className="h-6 w-6" style={{ color: "#6ee7b7" }} />
+                    <p className="text-sm" style={{ color: "rgba(110,231,183,0.80)" }}>Earnings</p>
                   </div>
-                  <p className="text-3xl font-bold text-emerald-600">{statsData.earnings.toLocaleString()}</p>
-                  <p className="text-xs text-gray-500 mt-1">TZS</p>
+                  <p className="text-3xl font-bold" style={{ color: "#6ee7b7" }}>{statsData.earnings.toLocaleString()}</p>
+                  <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.40)" }}>TZS</p>
                 </div>
 
-                <div className="bg-amber-50 rounded-lg p-6">
+                <div style={{ background: "rgba(245,158,11,0.16)", border: "1px solid rgba(245,158,11,0.30)", borderRadius: "0.85rem", padding: "1.5rem" }}>
                   <div className="flex items-center gap-3 mb-2">
-                    <Star className="h-6 w-6 text-amber-600 fill-amber-600" />
-                    <p className="text-sm text-gray-600">Rating</p>
+                    <Star className="h-6 w-6 fill-amber-400" style={{ color: "#fcd34d" }} />
+                    <p className="text-sm" style={{ color: "rgba(252,211,77,0.80)" }}>Rating</p>
                   </div>
-                  <p className="text-3xl font-bold text-amber-600">{statsData.rating.toFixed(1)}</p>
-                  <p className="text-xs text-gray-500 mt-1">Average rating</p>
+                  <p className="text-3xl font-bold" style={{ color: "#fcd34d" }}>{statsData.rating.toFixed(1)}</p>
+                  <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.40)" }}>Average rating</p>
                 </div>
               </div>
             </div>
           ) : (
-            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-12 text-center">
-              <BarChart3 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500">Select a driver to view their statistics</p>
+            <div style={{ background: "linear-gradient(135deg, #0a1a19 0%, #0d2320 60%, #0a1f2e 100%)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "1rem", boxShadow: "0 8px 32px rgba(0,0,0,0.45)", padding: "3rem", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ width: 56, height: 56, borderRadius: "50%", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "1rem" }}>
+                <BarChart3 style={{ width: 26, height: 26, color: "rgba(255,255,255,0.35)" }} />
+              </div>
+              <p style={{ color: "rgba(255,255,255,0.50)", fontSize: "0.9rem" }}>Select a driver to view their statistics</p>
             </div>
           )}
         </div>
