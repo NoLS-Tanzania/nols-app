@@ -474,25 +474,102 @@ export default function AdminHome() {
   return (
     <div className="space-y-6">
       <ConfirmModal open={confirmOpen} title={confirmPayload?.action === 'validate' ? 'Confirm validation' : 'Confirm verification'} onConfirm={handleConfirm} onCancel={() => { setConfirmOpen(false); setConfirmPayload(null); }} />
-      <AdminPageHeader
-        title="Owners Control Dashboard"
-        icon={<LayoutDashboard className="h-8 w-8" />}
-        actions={<div className="flex items-center gap-2"><div className="text-sm text-gray-600"> </div></div>} />
+      {/* ── Premium Dashboard Header + KPI banner ── */}
+      <div
+        className="relative rounded-2xl overflow-hidden shadow-2xl"
+        style={{ background: "linear-gradient(135deg, #0e2a7a 0%, #0a5c82 38%, #02665e 100%)", boxShadow: "0 28px 65px -15px rgba(2,102,94,0.45), 0 8px 22px -8px rgba(14,42,122,0.50)" }}
+      >
+        {/* Decorative sparkline viz */}
+        <svg
+          aria-hidden
+          className="absolute inset-0 w-full h-full pointer-events-none select-none"
+          preserveAspectRatio="xMidYMid slice"
+          viewBox="0 0 900 260"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <circle cx="870" cy="50"  r="220" stroke="white" strokeOpacity="0.055" strokeWidth="1" fill="none" />
+          <circle cx="870" cy="50"  r="168" stroke="white" strokeOpacity="0.048" strokeWidth="1" fill="none" />
+          <circle cx="830" cy="18"  r="125" stroke="white" strokeOpacity="0.042" strokeWidth="1" fill="none" />
+          <circle cx="28"  cy="245" r="145" stroke="white" strokeOpacity="0.038" strokeWidth="1" fill="none" />
+          {[52, 104, 156, 208].map((y) => (
+            <line key={y} x1="0" y1={y} x2="900" y2={y} stroke="rgba(255,255,255,0.028)" strokeWidth="1" />
+          ))}
+          <polyline
+            points="0,218 80,195 160,208 240,172 320,188 400,150 480,166 560,128 640,145 720,108 800,124 880,90"
+            fill="none" stroke="white" strokeOpacity="0.15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+          />
+          <polygon
+            points="0,218 80,195 160,208 240,172 320,188 400,150 480,166 560,128 640,145 720,108 800,124 880,90 900,260 0,260"
+            fill="white" fillOpacity="0.025"
+          />
+          <polyline
+            points="0,232 100,218 200,226 300,205 400,214 500,194 600,202 700,182 800,190 900,170"
+            fill="none" stroke="white" strokeOpacity="0.065" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
+          />
+          {([[720,108],[560,128],[880,90],[240,172]] as [number,number][]).map(([px,py]) => (
+            <circle key={`${px}-${py}`} cx={px} cy={py} r="3.5" fill="white" fillOpacity="0.22" />
+          ))}
+          <radialGradient id="dashHeaderGlow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="rgba(10,92,130,0.45)" />
+            <stop offset="100%" stopColor="rgba(10,92,130,0)" />
+          </radialGradient>
+          <ellipse cx="450" cy="130" rx="320" ry="160" fill="url(#dashHeaderGlow)" />
+        </svg>
 
-      {/* KPI strip */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {loadingKpis ? (
-          Array.from({ length: 4 }).map((_,i) => (
-            <div key={i} className="skeleton-card" />
-          ))
-        ) : (
-          <>
-            <StatCard label="No. Owners" value={String(overview?.ownerCount ?? overview?.owners ?? 0)} rail="rail-brand" />
-            <StatCard label="No. Properties" value={String(overview?.propertyCount ?? overview?.properties ?? 0)} rail="rail-success" />
-            <StatCard label="Net Payable" value={fmt(overview?.netPayable ?? 0)} rail="rail-danger" />
-            <StatCard label="NoLSAF Revenue" value={fmt(overview?.nolsRevenue ?? overview?.revenue ?? 0)} rail="rail-info" />
-          </>
-        )}
+        {/* Content */}
+        <div className="relative z-10 px-6 pt-8 pb-7 sm:px-8 sm:pt-10">
+          {/* Title row */}
+          <div className="flex items-center gap-3 mb-6">
+            <div
+              className="inline-flex items-center justify-center rounded-xl flex-shrink-0"
+              style={{
+                width: 46, height: 46,
+                background: "rgba(255,255,255,0.10)",
+                border: "1.5px solid rgba(255,255,255,0.18)",
+                boxShadow: "0 0 0 6px rgba(255,255,255,0.04)",
+              }}
+            >
+              <LayoutDashboard className="h-5 w-5" style={{ color: "rgba(255,255,255,0.90)" }} />
+            </div>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight" style={{ color: "#fff", textShadow: "0 2px 10px rgba(0,0,0,0.35)" }}>
+                Owners Control Dashboard
+              </h1>
+              <p className="text-xs sm:text-sm mt-0.5" style={{ color: "rgba(255,255,255,0.48)" }}>
+                Live overview of platform activity
+              </p>
+            </div>
+          </div>
+
+          {/* KPI chips */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {loadingKpis ? (
+              Array.from({ length: 4 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="animate-pulse rounded-xl h-20"
+                  style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.08)" }}
+                />
+              ))
+            ) : (
+              [
+                { label: "No. Owners",     value: String(overview?.ownerCount ?? overview?.owners ?? 0),              accent: "rgba(56,189,248,0.22)",  border: "rgba(56,189,248,0.35)",  text: "#7dd3fc" },
+                { label: "No. Properties", value: String(overview?.propertyCount ?? overview?.properties ?? 0),       accent: "rgba(16,185,129,0.20)",  border: "rgba(16,185,129,0.32)",  text: "#6ee7b7" },
+                { label: "Net Payable",    value: fmt(overview?.netPayable ?? 0),                                      accent: "rgba(239,68,68,0.18)",   border: "rgba(239,68,68,0.30)",   text: "#fca5a5" },
+                { label: "NoLSAF Revenue", value: fmt(overview?.nolsRevenue ?? overview?.revenue ?? 0),               accent: "rgba(99,102,241,0.20)",  border: "rgba(99,102,241,0.32)",  text: "#a5b4fc" },
+              ].map(({ label, value, accent, border, text }) => (
+                <div
+                  key={label}
+                  className="rounded-xl px-4 py-3"
+                  style={{ background: accent, border: `1px solid ${border}` }}
+                >
+                  <p className="text-xs font-semibold uppercase tracking-widest mb-1.5" style={{ color: "rgba(255,255,255,0.42)" }}>{label}</p>
+                  <p className="text-xl sm:text-2xl font-black tabular-nums leading-none" style={{ color: text }}>{value}</p>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Compact invoice status controls: moved into the Invoices section header below; removed large summary cards */}
