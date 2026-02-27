@@ -912,7 +912,7 @@ export default function AdminHomePage() {
                 <h1 className="mt-1 text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
                   {(() => { const h = new Date(nowIso).getHours(); return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening"; })()},&nbsp;Admin
                 </h1>
-                <div className="mt-1 text-sm text-slate-400">Approvals Â· Payments Â· Bookings Â· Revenue all in one view</div>
+                <div className="mt-1 text-sm text-slate-400">Approvals · Payments · Bookings · Revenue all in one view</div>
               </div>
               <div className="flex items-center gap-2">
                 <button

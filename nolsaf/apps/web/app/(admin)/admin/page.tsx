@@ -106,6 +106,15 @@ export default function AdminHome() {
   const [vSuccess, setVSuccess] = useState<{ bookingId: number; ownerName: string } | null>(null);
   const [vConfirmError, setVConfirmError] = useState<string | null>(null);
   const validationRef = useRef<HTMLDivElement | null>(null);
+  // Notification-to-owner panel
+  const [vNotifSubject, setVNotifSubject] = useState("");
+  const [vNotifMsg, setVNotifMsg] = useState("");
+  const [vNotifSending, setVNotifSending] = useState(false);
+  const [vNotifSent, setVNotifSent] = useState<string | null>(null);
+  const [vNotifError, setVNotifError] = useState<string | null>(null);
+  const [vNotifOpen, setVNotifOpen] = useState(false);
+  // Session timer (30 min countdown while modal is open)
+  const [vSessionSecs, setVSessionSecs] = useState(1800);
 
   // Auto-lookup when validationCode changes (debounced)
   useEffect(() => {
@@ -174,6 +183,32 @@ export default function AdminHome() {
     setVWindowStatus(null);
     setVCanValidate(false);
     setVWindowReason(null);
+    setVNotifSubject(""); setVNotifMsg(""); setVNotifSent(null); setVNotifError(null); setVNotifOpen(false);
+    setVSessionSecs(1800);
+  }
+
+  // Session countdown while modal is open
+  useEffect(() => {
+    if (!validationModalOpen) { setVSessionSecs(1800); return; }
+    const id = setInterval(() => setVSessionSecs(s => Math.max(0, s - 1)), 1000);
+    return () => clearInterval(id);
+  }, [validationModalOpen]);
+
+  async function vSendNotif() {
+    const ownerId = validationResult?.property?.owner?.id;
+    if (!ownerId || !vNotifSubject.trim() || !vNotifMsg.trim()) return;
+    setVNotifSending(true); setVNotifError(null); setVNotifSent(null);
+    try {
+      const res = await fetch(`${API}/api/admin/owners/${ownerId}/notify`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subject: vNotifSubject.trim(), message: vNotifMsg.trim() }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setVNotifError(json?.error ?? "Failed to send."); }
+      else { setVNotifSent("Notification sent to owner successfully."); setVNotifSubject(""); setVNotifMsg(""); }
+    } catch { setVNotifError("Network error."); }
+    finally { setVNotifSending(false); }
   }
 
   // Reusable booking details grid (shared across all modal states)
@@ -628,82 +663,138 @@ export default function AdminHome() {
                 const fmtTs = (iso: string | null | undefined) =>
                   iso ? new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
 
-                // Derive modal accent from state
                 const isUsed   = vCodeStatus === "USED";
                 const isVoid   = vCodeStatus === "VOID";
                 const isBefore = vCodeStatus === "ACTIVE" && vWindowStatus === "BEFORE_CHECKIN";
                 const isAfter  = vCodeStatus === "ACTIVE" && vWindowStatus === "AFTER_CHECKOUT";
                 const canGo    = vCodeStatus === "ACTIVE" && vCanValidate;
 
-                const modalBg = isUsed  ? "linear-gradient(160deg,#071e3d 0%,#0a2040 60%,#001a14 100%)"
-                             : isVoid  ? "linear-gradient(160deg,#1a0a0a 0%,#2a0e0e 60%,#0a0d10 100%)"
-                             : isBefore || isAfter ? "linear-gradient(160deg,#16100a 0%,#211808 60%,#0a0d10 100%)"
-                             : "linear-gradient(160deg,#0e1a3a 0%,#0a2a38 45%,#012820 100%)";
+                // Session timer display
+                const sessionMm = String(Math.floor(vSessionSecs / 60)).padStart(2, "0");
+                const sessionSs = String(vSessionSecs % 60).padStart(2, "0");
+                const sessionWarn = vSessionSecs < 120;
+
+                // Accent colors per state
+                const accentColor = isUsed ? "#38bdf8" : isVoid ? "#f87171" : (isBefore || isAfter) ? "#fbbf24" : "#34d399";
+                const modalBg = isUsed
+                  ? "linear-gradient(155deg,#060f1e 0%,#091928 55%,#020e0a 100%)"
+                  : isVoid
+                  ? "linear-gradient(155deg,#120505 0%,#1e0808 55%,#080a0d 100%)"
+                  : (isBefore || isAfter)
+                  ? "linear-gradient(155deg,#100b04 0%,#1a1204 55%,#080a0d 100%)"
+                  : "linear-gradient(155deg,#060f1e 0%,#071e28 45%,#011a10 100%)";
 
                 const badgeEl = isUsed
-                  ? <span className="inline-flex items-center gap-1.5 rounded-xl border border-sky-500/30 bg-sky-500/20 px-2.5 py-1 text-[11px] font-bold text-sky-300 uppercase tracking-wider"><CheckCheck className="h-3 w-3" />Already Validated</span>
+                  ? <span className="inline-flex items-center gap-1.5 rounded-xl border border-sky-500/30 bg-sky-500/15 px-2.5 py-1 text-[10px] font-bold text-sky-300 uppercase tracking-widest"><CheckCheck className="h-3 w-3" />Already Validated</span>
                   : isVoid
-                  ? <span className="inline-flex items-center gap-1.5 rounded-xl border border-red-500/30 bg-red-500/20 px-2.5 py-1 text-[11px] font-bold text-red-300 uppercase tracking-wider"><X className="h-3 w-3" />{d?.cancellation ? "Cancelled" : "Voided"}</span>
+                  ? <span className="inline-flex items-center gap-1.5 rounded-xl border border-red-500/30 bg-red-500/15 px-2.5 py-1 text-[10px] font-bold text-red-300 uppercase tracking-widest"><X className="h-3 w-3" />{d?.cancellation ? "Cancelled" : "Voided"}</span>
                   : (isBefore || isAfter)
-                  ? <span className="inline-flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/15 px-2.5 py-1 text-[11px] font-bold text-amber-300 uppercase tracking-wider"><AlertTriangle className="h-3 w-3" />{isBefore ? "Awaiting Check-in" : "After Check-out"}</span>
-                  : <span className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/25 bg-emerald-500/15 px-2.5 py-1 text-[11px] font-bold text-emerald-300 uppercase tracking-wider"><ShieldCheck className="h-3 w-3" />Ready to Validate</span>;
+                  ? <span className="inline-flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/12 px-2.5 py-1 text-[10px] font-bold text-amber-300 uppercase tracking-widest"><AlertTriangle className="h-3 w-3" />{isBefore ? "Awaiting Check-in" : "After Checkout"}</span>
+                  : <span className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/12 px-2.5 py-1 text-[10px] font-bold text-emerald-300 uppercase tracking-widest"><ShieldCheck className="h-3 w-3" />Ready to Validate</span>;
 
                 return (
                   <div
-                    className="fixed inset-0 z-50 flex items-center justify-center p-4"
-                    style={{ background: "rgba(0,0,0,0.72)", backdropFilter: "blur(8px)" }}
+                    className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5"
+                    style={{ background: "rgba(0,0,0,0.78)", backdropFilter: "blur(10px)" }}
                     role="dialog" aria-modal="true" aria-label="Booking Validation"
                     onClick={(e) => { if (e.target === e.currentTarget) vCloseModal(); }}
                   >
                     <div
-                      className="relative w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl"
-                      style={{ background: modalBg, boxShadow: "0 40px 100px -30px rgba(0,0,0,0.8)" }}
+                      className="relative w-full max-w-lg rounded-[28px] overflow-hidden"
+                      style={{
+                        background: modalBg,
+                        boxShadow: `0 50px 120px -30px rgba(0,0,0,0.9), 0 0 0 1px rgba(255,255,255,0.07), inset 0 1px 0 rgba(255,255,255,0.08)`,
+                      }}
                     >
+                      {/* Top accent line */}
+                      <div className="h-[2px] w-full" style={{ background: `linear-gradient(90deg, transparent, ${accentColor}80, transparent)` }} />
+
                       {/* Header */}
-                      <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-white/10">
+                      <div className="flex items-center justify-between px-5 pt-4 pb-3.5" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
                         <div className="flex items-center gap-3">
-                          <div className="h-9 w-9 rounded-2xl border border-sky-400/30 bg-sky-500/20 flex items-center justify-center flex-shrink-0">
-                            <ShieldCheck className="h-4 w-4 text-sky-300" />
+                          <div className="h-9 w-9 rounded-2xl flex items-center justify-center flex-shrink-0"
+                            style={{ background: `${accentColor}18`, border: `1px solid ${accentColor}30` }}>
+                            <ShieldCheck className="h-4 w-4" style={{ color: accentColor }} />
                           </div>
                           <div>
-                            <div className="text-sm font-bold text-white">Booking Code Verification</div>
-                            <div className="text-xs text-slate-400 font-mono tracking-widest">{validationCode.toUpperCase()}</div>
+                            <div className="text-[13px] font-extrabold text-white tracking-tight">Booking Code Verification</div>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-[11px] text-slate-400 font-mono tracking-[0.18em]">{validationCode.toUpperCase()}</span>
+                              {d?.bookingId && <span className="text-[10px] text-slate-500 font-mono">· #{d.bookingId}</span>}
+                            </div>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
                           {badgeEl}
+                          {/* Session timer */}
+                          <div className={`hidden sm:flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-mono tabular-nums font-semibold ${
+                            sessionWarn ? "bg-red-500/15 border border-red-500/25 text-red-300" : "bg-white/6 border border-white/10 text-slate-400"
+                          }`}>
+                            <span className="opacity-60">SESSION</span> {sessionMm}:{sessionSs}
+                          </div>
                           <button type="button" onClick={vCloseModal}
-                            className="ml-1 h-7 w-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition"
-                            aria-label="Close">
-                            <X className="h-3.5 w-3.5 text-white" />
-                          </button>
+                            className="h-7 w-7 rounded-full bg-white/8 hover:bg-white/16 border border-white/10 flex items-center justify-center transition"
+                            aria-label="Close"><X className="h-3.5 w-3.5 text-white" /></button>
                         </div>
                       </div>
 
                       {/* Body */}
-                      <div className="px-6 pt-5 pb-6 overflow-y-auto" style={{ maxHeight: "75vh" }}>
+                      <div className="px-5 pt-4 pb-5 overflow-y-auto space-y-4" style={{ maxHeight: "78vh" }}>
 
                         {/* ─ POST-CONFIRM SUCCESS ─ */}
                         {vSuccess ? (
                           <div className="space-y-4">
-                            <div className="flex flex-col items-center gap-3 py-5 text-center">
-                              <div className="h-16 w-16 rounded-full bg-emerald-500/20 border-2 border-emerald-500/40 flex items-center justify-center">
-                                <CheckCheck className="h-8 w-8 text-emerald-400" />
+                            <div className="flex flex-col items-center gap-3 py-6 text-center">
+                              {/* Animated ring */}
+                              <div className="relative">
+                                <div className="absolute inset-0 rounded-full animate-ping" style={{ background: "rgba(52,211,153,0.15)" }} />
+                                <div className="relative h-16 w-16 rounded-full border-2 border-emerald-500/50 bg-emerald-500/15 flex items-center justify-center">
+                                  <CheckCheck className="h-8 w-8 text-emerald-400" />
+                                </div>
                               </div>
                               <div>
-                                <p className="text-base font-extrabold text-emerald-300">Check-in Confirmed!</p>
-                                <p className="text-sm text-slate-400 mt-1">
-                                  Booking <span className="font-mono text-white">#{vSuccess.bookingId}</span> validated by NOLSAF admin on behalf of{" "}
-                                  <span className="font-semibold text-white">{vSuccess.ownerName}</span>.
+                                <p className="text-lg font-extrabold text-emerald-300 tracking-tight">Check-in Confirmed!</p>
+                                <p className="text-sm text-slate-400 mt-1.5 leading-relaxed">
+                                  Booking <span className="font-mono font-bold text-white">#{vSuccess.bookingId}</span> validated by NoLSAF admin on behalf of{" "}
+                                  <span className="font-bold text-white">{vSuccess.ownerName}</span>
                                 </p>
                               </div>
-                              <div className="flex items-center gap-2 text-xs text-emerald-300/80 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-2">
-                                <Bell className="h-3.5 w-3.5" /> Owner notification dispatched automatically
+                              <div className="flex items-center gap-2 text-xs text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-2.5">
+                                <Bell className="h-3.5 w-3.5 flex-shrink-0" />
+                                <span>Owner notified automatically via the system</span>
                               </div>
                             </div>
+
+                            {/* Post-confirm: send additional note to owner */}
+                            <div style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }} className="pt-4 space-y-3">
+                              <div className="flex items-center gap-2">
+                                <Bell className="h-3.5 w-3.5 text-slate-400" />
+                                <span className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">Send additional note to owner (optional)</span>
+                              </div>
+                              {vNotifSent ? (
+                                <div className="flex items-center gap-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-4 py-3 text-xs text-emerald-300">
+                                  <CheckCheck className="h-3.5 w-3.5" /> {vNotifSent}
+                                </div>
+                              ) : (
+                                <div className="space-y-2">
+                                  <input value={vNotifSubject} onChange={e => setVNotifSubject(e.target.value)}
+                                    placeholder="Subject (e.g. Check-in confirmed for your guest)"
+                                    className="w-full px-3 py-2 text-xs rounded-xl border border-white/10 bg-white/5 text-white placeholder:text-slate-600 outline-none focus:border-emerald-500/40 focus:bg-white/8 transition" />
+                                  <textarea value={vNotifMsg} onChange={e => setVNotifMsg(e.target.value)} rows={2}
+                                    placeholder="Write a message to the owner…"
+                                    className="w-full px-3 py-2 text-xs rounded-xl border border-white/10 bg-white/5 text-white placeholder:text-slate-600 outline-none focus:border-emerald-500/40 focus:bg-white/8 transition resize-none" />
+                                  {vNotifError && <p className="text-[11px] text-red-400">{vNotifError}</p>}
+                                  <button type="button" onClick={vSendNotif} disabled={vNotifSending || !vNotifSubject.trim() || !vNotifMsg.trim()}
+                                    className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-emerald-500/25 bg-emerald-500/12 hover:bg-emerald-500/20 text-emerald-300 text-xs font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed">
+                                    {vNotifSending ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Sending…</> : <><Bell className="h-3.5 w-3.5" /> Send to {vSuccess.ownerName}</>}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+
                             <button type="button" onClick={vCloseModal}
-                              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-white/15 bg-white/8 hover:bg-white/12 text-white text-sm font-semibold transition">
-                              <RefreshCw className="h-4 w-4" /> Validate another code
+                              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 text-slate-300 text-sm font-semibold transition">
+                              <RefreshCw className="h-3.5 w-3.5" /> Validate another code
                             </button>
                           </div>
 
@@ -711,63 +802,62 @@ export default function AdminHome() {
                           <div className="space-y-4">
                             <VBookingDetails d={d} />
 
-                            {/* ─ USED: already validated ─ */}
+                            {/* ─ USED ─ */}
                             {isUsed && (
-                              <div className="rounded-2xl border border-sky-500/25 bg-sky-500/10 p-4 space-y-3">
+                              <div className="rounded-2xl border border-sky-500/20 bg-sky-500/8 p-4 space-y-3">
                                 <div className="flex items-center gap-2">
-                                  <CheckCheck className="h-4.5 w-4.5 text-sky-400 flex-shrink-0" />
+                                  <CheckCheck className="h-4 w-4 text-sky-400 flex-shrink-0" />
                                   <p className="text-sm font-bold text-sky-300">This code has already been validated</p>
                                 </div>
                                 <div className="grid grid-cols-2 gap-2 text-xs">
-                                  <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-2">
-                                    <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-0.5">Validated at</div>
-                                    <div className="font-semibold text-white">{fmtTs(d.usedAt)}</div>
+                                  <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-2.5">
+                                    <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">Validated at</div>
+                                    <div className="font-semibold text-white leading-snug">{fmtTs(d.usedAt)}</div>
                                   </div>
-                                  <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-2">
-                                    <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-0.5">Validated by</div>
+                                  <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-2.5">
+                                    <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">Validated by</div>
                                     <div className="font-semibold text-white truncate">{d.usedBy?.name ?? d.property?.owner?.name ?? "—"}</div>
+                                    <div className="text-[10px] text-slate-500 truncate">{d.usedBy?.phone ?? d.property?.owner?.phone ?? ""}</div>
                                   </div>
                                 </div>
-                                <p className="text-[11px] text-sky-300/70 leading-relaxed">
-                                  If the owner is asking for assistance, you can confirm that this booking was already validated on{" "}
-                                  <span className="font-semibold text-sky-200">{fmtTs(d.usedAt)}</span>{d.usedBy?.name ? ` by ${d.usedBy.name}` : ""}.
-                                </p>
+                                <div className="flex items-start gap-2 rounded-xl bg-sky-500/6 border border-sky-500/15 px-3 py-2.5">
+                                  <Bell className="h-3.5 w-3.5 text-sky-400 flex-shrink-0 mt-0.5" />
+                                  <p className="text-[11px] text-sky-300/80 leading-relaxed">
+                                    You may reply to the owner that this booking was validated on <span className="font-semibold text-sky-200">{fmtTs(d.usedAt)}</span>.
+                                  </p>
+                                </div>
                               </div>
                             )}
 
-                            {/* ─ VOID: cancelled/voided ─ */}
+                            {/* ─ VOID ─ */}
                             {isVoid && (
-                              <div className="rounded-2xl border border-red-500/25 bg-red-500/8 p-4 space-y-3">
+                              <div className="rounded-2xl border border-red-500/20 bg-red-500/6 p-4 space-y-3">
                                 <div className="flex items-center gap-2">
-                                  <AlertTriangle className="h-4.5 w-4.5 text-red-400 flex-shrink-0" />
-                                  <p className="text-sm font-bold text-red-300">
-                                    {d.cancellation ? "Booking Cancellation" : "Code Voided"}
-                                  </p>
+                                  <AlertTriangle className="h-4 w-4 text-red-400 flex-shrink-0" />
+                                  <p className="text-sm font-bold text-red-300">{d.cancellation ? "Booking Cancellation" : "Code Voided"}</p>
                                 </div>
                                 {d.cancellation ? (
                                   <div className="space-y-2 text-xs">
                                     <div className="grid grid-cols-2 gap-2">
-                                      <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-2">
-                                        <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-0.5">Cancellation status</div>
-                                        <div className="font-bold text-red-300 uppercase">{d.cancellation.status}</div>
+                                      <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-2.5">
+                                        <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">Status</div>
+                                        <div className="font-bold text-red-300 uppercase tracking-wide">{d.cancellation.status}</div>
                                       </div>
-                                      <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-2">
-                                        <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-0.5">Requested at</div>
-                                        <div className="font-semibold text-white">{fmtTs(d.cancellation.createdAt)}</div>
+                                      <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-2.5">
+                                        <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">Requested at</div>
+                                        <div className="font-semibold text-white leading-snug">{fmtTs(d.cancellation.createdAt)}</div>
                                       </div>
                                     </div>
                                     {d.cancellation.reason && (
                                       <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-2.5">
-                                        <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">Cancellation reason</div>
-                                        <p className="text-white/90 leading-relaxed">{d.cancellation.reason}</p>
+                                        <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">Reason</div>
+                                        <p className="text-white/85 leading-relaxed">{d.cancellation.reason}</p>
                                       </div>
                                     )}
                                     {d.cancellation.policyRefundPercent != null && (
-                                      <div className="flex items-center gap-2 rounded-xl border border-amber-500/20 bg-amber-500/8 px-3 py-2">
-                                        <div className="text-[10px] text-amber-300">
-                                          Policy: <span className="font-bold">{d.cancellation.policyRefundPercent}% refund</span>
-                                          {d.cancellation.policyRule ? ` — ${d.cancellation.policyRule}` : ""}
-                                        </div>
+                                      <div className="flex items-center gap-2 rounded-xl border border-amber-500/20 bg-amber-500/8 px-3 py-2.5">
+                                        <span className="text-[11px] text-amber-300 font-semibold">{d.cancellation.policyRefundPercent}% refund</span>
+                                        {d.cancellation.policyRule && <span className="text-[10px] text-amber-300/60">· {d.cancellation.policyRule}</span>}
                                       </div>
                                     )}
                                     {d.cancellation.decisionNote && (
@@ -777,24 +867,21 @@ export default function AdminHome() {
                                       </div>
                                     )}
                                     {d.cancellation.requestedBy && (
-                                      <div className="text-[10px] text-slate-500">
-                                        Requested by: <span className="text-slate-300 font-semibold">{d.cancellation.requestedBy.name}</span>
-                                        {d.cancellation.requestedBy.email ? ` · ${d.cancellation.requestedBy.email}` : ""}
-                                      </div>
+                                      <p className="text-[10px] text-slate-500 pt-1">Requested by: <span className="text-slate-300 font-semibold">{d.cancellation.requestedBy.name}</span>{d.cancellation.requestedBy.email ? ` · ${d.cancellation.requestedBy.email}` : ""}</p>
                                     )}
                                   </div>
                                 ) : (
                                   <div className="space-y-2 text-xs">
                                     {d.voidedAt && (
-                                      <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-2">
-                                        <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-0.5">Voided at</div>
+                                      <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-2.5">
+                                        <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">Voided at</div>
                                         <div className="font-semibold text-white">{fmtTs(d.voidedAt)}</div>
                                       </div>
                                     )}
                                     {d.voidReason && (
                                       <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-2.5">
                                         <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">Void reason</div>
-                                        <p className="text-white/90 leading-relaxed">{d.voidReason}</p>
+                                        <p className="text-white/85 leading-relaxed">{d.voidReason}</p>
                                       </div>
                                     )}
                                   </div>
@@ -802,28 +889,28 @@ export default function AdminHome() {
                               </div>
                             )}
 
-                            {/* ─ BEFORE CHECK-IN / AFTER CHECK-OUT ─ */}
+                            {/* ─ BEFORE / AFTER ─ */}
                             {(isBefore || isAfter) && (
-                              <div className="rounded-2xl border border-amber-500/25 bg-amber-500/8 p-4 space-y-2">
+                              <div className="rounded-2xl border border-amber-500/20 bg-amber-500/6 p-4 space-y-2.5">
                                 <div className="flex items-center gap-2">
-                                  <AlertTriangle className="h-4.5 w-4.5 text-amber-400 flex-shrink-0" />
+                                  <AlertTriangle className="h-4 w-4 text-amber-400 flex-shrink-0" />
                                   <p className="text-sm font-bold text-amber-300">
-                                    {isBefore ? "Booking Is Valid — Check-in Date Not Yet Reached" : "Check-out Date Has Passed"}
+                                    {isBefore ? "Booking Is Valid — Check-in Not Yet Reached" : "Check-out Date Has Passed"}
                                   </p>
                                 </div>
-                                <p className="text-xs text-amber-200/80 leading-relaxed">{vWindowReason}</p>
+                                <p className="text-xs text-amber-200/75 leading-relaxed">{vWindowReason}</p>
                                 {isBefore && (
-                                  <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-2 text-xs">
-                                    <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-0.5">Check-in opens on</div>
+                                  <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-2.5 text-xs">
+                                    <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">Check-in opens on</div>
                                     <div className="font-bold text-white">{d.booking?.checkIn ? new Date(d.booking.checkIn).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : "—"}</div>
                                   </div>
                                 )}
                               </div>
                             )}
 
-                            {/* ─ IN WINDOW: confirm button ─ */}
+                            {/* ─ IN WINDOW: confirm ─ */}
                             {canGo && (
-                              <>
+                              <div className="space-y-3">
                                 {vConfirmError && (
                                   <div className="flex items-start gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3">
                                     <AlertTriangle className="h-4 w-4 text-red-400 mt-0.5 flex-shrink-0" />
@@ -831,27 +918,81 @@ export default function AdminHome() {
                                   </div>
                                 )}
                                 <button type="button" onClick={vConfirmCheckin} disabled={vConfirming}
-                                  className="w-full flex items-center justify-center gap-2.5 py-3 rounded-2xl border border-emerald-400/25 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-100 font-bold text-sm transition disabled:opacity-60 disabled:cursor-not-allowed"
-                                  style={{ boxShadow: "0 0 40px -15px rgba(34,197,94,0.5)" }}
+                                  className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-2xl font-bold text-sm transition disabled:opacity-60 disabled:cursor-not-allowed"
+                                  style={{
+                                    background: "linear-gradient(135deg,rgba(16,185,129,0.25) 0%,rgba(5,150,105,0.18) 100%)",
+                                    border: "1px solid rgba(52,211,153,0.3)",
+                                    color: "#6ee7b7",
+                                    boxShadow: "0 0 50px -20px rgba(52,211,153,0.4), inset 0 1px 0 rgba(255,255,255,0.06)",
+                                  }}
                                 >
                                   {vConfirming
-                                    ? <><RefreshCw className="h-4 w-4 animate-spin" /> Confirming…</>
-                                    : <><ShieldCheck className="h-4 w-4" /> Confirm check-in for {d.property?.owner?.name ?? "owner"}</>}
+                                    ? <><RefreshCw className="h-4 w-4 animate-spin" /> Confirming check-in…</>
+                                    : <><ShieldCheck className="h-4.5 w-4.5" /> Confirm Check-in for {d.property?.owner?.name ?? "Owner"}</>}
                                 </button>
-                                <p className="text-center text-[10px] text-slate-500">Owner will be notified immediately upon confirmation.</p>
-                              </>
+                                <p className="text-center text-[10px] text-slate-600">Owner will be notified immediately upon confirmation.</p>
+                              </div>
                             )}
 
-                            {/* Close / new validation for read-only states */}
-                            {!canGo && !vSuccess && (
-                              <button type="button" onClick={vCloseModal}
-                                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-white/12 bg-white/6 hover:bg-white/10 text-slate-300 text-sm font-semibold transition">
-                                <RefreshCw className="h-3.5 w-3.5" /> Validate another code
-                              </button>
+                            {/* ─ NOTIFY OWNER PANEL (all non-confirmable states) ─ */}
+                            {!canGo && d?.property?.owner?.id && (
+                              <div style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }} className="pt-4 space-y-2.5">
+                                <button type="button" onClick={() => setVNotifOpen(v => !v)}
+                                  className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl border border-white/8 bg-white/4 hover:bg-white/8 transition">
+                                  <div className="flex items-center gap-2">
+                                    <Bell className="h-3.5 w-3.5 text-slate-400" />
+                                    <span className="text-xs font-semibold text-slate-300">Send direct notification to owner</span>
+                                  </div>
+                                  <span className="text-[10px] text-slate-500">{vNotifOpen ? "▲ hide" : "▼ expand"}</span>
+                                </button>
+
+                                {vNotifOpen && (
+                                  <div className="space-y-2 px-1">
+                                    {vNotifSent ? (
+                                      <div className="flex items-center gap-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-4 py-3 text-xs text-emerald-300">
+                                        <CheckCheck className="h-3.5 w-3.5" /> {vNotifSent}
+                                      </div>
+                                    ) : (
+                                      <>
+                                        <div className="rounded-xl border border-white/8 bg-white/4 px-3 py-2">
+                                          <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">To</div>
+                                          <div className="text-xs font-semibold text-white">{d.property?.owner?.name ?? "Owner"}</div>
+                                          <div className="text-[10px] text-slate-500">{d.property?.owner?.email ?? d.property?.owner?.phone ?? ""}</div>
+                                        </div>
+                                        <input value={vNotifSubject} onChange={e => setVNotifSubject(e.target.value)}
+                                          placeholder="Subject — e.g. Update on your booking code"
+                                          className="w-full px-3 py-2.5 text-xs rounded-xl border border-white/10 bg-white/4 text-white placeholder:text-slate-600 outline-none focus:border-sky-500/40 focus:bg-white/7 transition" />
+                                        <textarea value={vNotifMsg} onChange={e => setVNotifMsg(e.target.value)} rows={3}
+                                          placeholder="Write a message to inform the owner about this case…"
+                                          className="w-full px-3 py-2.5 text-xs rounded-xl border border-white/10 bg-white/4 text-white placeholder:text-slate-600 outline-none focus:border-sky-500/40 focus:bg-white/7 transition resize-none" />
+                                        {vNotifError && <p className="text-[11px] text-red-400 px-1">{vNotifError}</p>}
+                                        <button type="button" onClick={vSendNotif}
+                                          disabled={vNotifSending || !vNotifSubject.trim() || !vNotifMsg.trim()}
+                                          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold text-xs transition disabled:opacity-40 disabled:cursor-not-allowed"
+                                          style={{
+                                            background: "linear-gradient(135deg,rgba(56,189,248,0.18) 0%,rgba(14,165,233,0.12) 100%)",
+                                            border: "1px solid rgba(56,189,248,0.25)", color: "#7dd3fc",
+                                          }}
+                                        >
+                                          {vNotifSending ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" />Sending…</> : <><Bell className="h-3.5 w-3.5" />Send Notification to {d.property?.owner?.name ?? "Owner"}</>}
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+                                )}
+
+                                <button type="button" onClick={vCloseModal}
+                                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-white/8 bg-white/4 hover:bg-white/8 text-slate-400 text-xs font-semibold transition">
+                                  <RefreshCw className="h-3.5 w-3.5" /> Validate another code
+                                </button>
+                              </div>
                             )}
                           </div>
                         ) : null}
                       </div>
+
+                      {/* Bottom accent line */}
+                      <div className="h-[1px] w-full" style={{ background: `linear-gradient(90deg, transparent, ${accentColor}30, transparent)` }} />
                     </div>
                   </div>
                 );
