@@ -234,16 +234,133 @@ export default function AdminOwnersPage() {
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 xl:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6 min-w-0">
       {/* Header */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6 shadow-sm">
-        <div className="flex flex-col items-center text-center">
-          <div className="rounded-full bg-[#02665e]/10 p-3 inline-flex items-center justify-center mb-3">
-            <Building2 className="h-6 w-6 text-[#02665e]" aria-hidden />
-        </div>
-          <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Owners</h1>
-          <p className="mt-2 text-xs sm:text-sm text-gray-500">Manage platform owners and KYC status</p>
-          <div className="mt-4">
-          <button 
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#02665e] text-white rounded-lg hover:bg-[#02665e]/90 transition-all duration-200 shadow-sm hover:shadow-md font-medium text-sm sm:text-base"
+      <div
+        className="relative rounded-2xl overflow-hidden shadow-xl"
+        style={{ background: "linear-gradient(135deg, #01312e 0%, #02504a 40%, #02665e 70%, #014d47 100%)" }}
+      >
+        {/* ── Decorative background graph ── */}
+        <svg
+          aria-hidden
+          className="absolute inset-0 w-full h-full pointer-events-none select-none"
+          preserveAspectRatio="xMidYMid slice"
+          viewBox="0 0 800 220"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          {/* Horizontal grid lines */}
+          {[44, 88, 132, 176].map((y) => (
+            <line key={y} x1="0" y1={y} x2="800" y2={y} stroke="rgba(255,255,255,0.045)" strokeWidth="1" />
+          ))}
+          {/* Bar chart silhouette */}
+          {[
+            { x: 30,  h: 90  },
+            { x: 80,  h: 130 },
+            { x: 130, h: 75  },
+            { x: 180, h: 155 },
+            { x: 230, h: 110 },
+            { x: 280, h: 170 },
+            { x: 330, h: 95  },
+            { x: 380, h: 145 },
+            { x: 430, h: 60  },
+            { x: 480, h: 180 },
+            { x: 530, h: 125 },
+            { x: 580, h: 100 },
+            { x: 630, h: 160 },
+            { x: 680, h: 115 },
+            { x: 730, h: 85  },
+            { x: 780, h: 140 },
+          ].map(({ x, h }) => (
+            <rect key={x} x={x} y={220 - h} width="32" height={h} rx="4" fill="rgba(255,255,255,0.055)" />
+          ))}
+          {/* Trend line overlay */}
+          <polyline
+            points="46,140 96,105 146,155 196,70 246,115 296,55 346,125 396,80 446,170 496,45 546,100 596,120 646,65 696,110 746,145 796,88"
+            fill="none"
+            stroke="rgba(255,255,255,0.12)"
+            strokeWidth="2"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+          />
+          {/* Glow dots on trend line */}
+          {[
+            [296, 55], [496, 45], [196, 70], [646, 65],
+          ].map(([cx, cy]) => (
+            <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="4" fill="rgba(255,255,255,0.18)" />
+          ))}
+          {/* Radial glow behind icon area */}
+          <radialGradient id="ownerHeaderGlow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="rgba(2,102,94,0.6)" />
+            <stop offset="100%" stopColor="rgba(2,102,94,0)" />
+          </radialGradient>
+          <ellipse cx="400" cy="110" rx="260" ry="130" fill="url(#ownerHeaderGlow)" />
+        </svg>
+
+        {/* ── Content ── */}
+        <div className="relative z-10 flex flex-col items-center text-center px-6 py-10 sm:py-14">
+          {/* Icon orb */}
+          <div
+            className="mb-5 inline-flex items-center justify-center rounded-full"
+            style={{
+              width: 64, height: 64,
+              background: "rgba(255,255,255,0.10)",
+              border: "1.5px solid rgba(255,255,255,0.18)",
+              boxShadow: "0 0 0 8px rgba(255,255,255,0.05), 0 8px 32px rgba(0,0,0,0.35)",
+            }}
+          >
+            <Building2 className="h-7 w-7" style={{ color: "rgba(255,255,255,0.92)" }} aria-hidden />
+          </div>
+
+          {/* Title */}
+          <h1
+            className="text-2xl sm:text-3xl font-bold tracking-tight"
+            style={{ color: "#ffffff", textShadow: "0 2px 12px rgba(0,0,0,0.4)" }}
+          >
+            Owners
+          </h1>
+
+          {/* Subtitle */}
+          <p className="mt-2 text-sm sm:text-base" style={{ color: "rgba(255,255,255,0.58)" }}>
+            Manage platform owners and KYC status
+          </p>
+
+          {/* KPI chips */}
+          <div className="mt-5 flex items-center gap-3 flex-wrap justify-center">
+            {[
+              { label: "Total", value: counts[""] || 0, color: "rgba(255,255,255,0.15)" },
+              { label: "Active", value: counts["ACTIVE"] || 0, color: "rgba(16,185,129,0.22)" },
+              { label: "Pending KYC", value: counts["PENDING_KYC"] || 0, color: "rgba(245,158,11,0.22)" },
+              { label: "Approved KYC", value: counts["APPROVED_KYC"] || 0, color: "rgba(59,130,246,0.22)" },
+              { label: "Suspended", value: counts["SUSPENDED"] || 0, color: "rgba(239,68,68,0.20)" },
+            ].map(({ label, value, color }) => (
+              <div
+                key={label}
+                className="flex flex-col items-center rounded-xl px-4 py-2"
+                style={{ background: color, border: "1px solid rgba(255,255,255,0.10)" }}
+              >
+                <span className="text-lg font-bold leading-none" style={{ color: "#fff" }}>{value}</span>
+                <span className="text-[10px] mt-0.5 font-medium uppercase tracking-wide" style={{ color: "rgba(255,255,255,0.55)" }}>{label}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Export button */}
+          <div className="mt-6">
+            <button
+              className="inline-flex items-center gap-2 rounded-xl font-semibold text-sm transition-all duration-200"
+              style={{
+                padding: "10px 22px",
+                background: "rgba(255,255,255,0.12)",
+                border: "1.5px solid rgba(255,255,255,0.22)",
+                color: "rgba(255,255,255,0.92)",
+                boxShadow: "0 4px 20px rgba(0,0,0,0.25)",
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.20)";
+                (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.38)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.12)";
+                (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.22)";
+              }}
               onClick={async () => {
                 try {
                   const params = new URLSearchParams();
@@ -276,10 +393,10 @@ export default function AdminOwnersPage() {
                   alert("Failed to export owners. Please try again.");
                 }
               }}
-          >
-              <Download className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+            >
+              <Download className="h-4 w-4 flex-shrink-0" />
               <span>Export owners</span>
-          </button>
+            </button>
           </div>
         </div>
       </div>
