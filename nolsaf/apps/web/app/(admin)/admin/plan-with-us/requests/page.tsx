@@ -1580,7 +1580,7 @@ export default function AdminPlanWithUsRequestsPage() {
               </div>
 
               {/* â”€â”€ Scrollable Content â”€â”€ */}
-              <div className="flex-1 min-h-0 overflow-y-scroll px-5 py-5 space-y-4 bg-gray-50">
+              <div className="flex-1 min-h-0 overflow-y-scroll overflow-x-hidden px-5 py-5 space-y-4 bg-gray-50">
 
                 {/* Request Details - full context panel */}
                 <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -1636,18 +1636,18 @@ export default function AdminPlanWithUsRequestsPage() {
                     <ConversationHistoryDisplay requestId={selectedRequest.id} />
                     <div className="mt-4 pt-4 border-t border-gray-100">
                       <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Send Quick Message</label>
-                      <div className="flex gap-2">
+                      <div className="flex flex-col sm:flex-row gap-2 min-w-0">
                         <textarea
                           value={quickMessage}
                           onChange={(e) => setQuickMessage(e.target.value)}
                           placeholder="Send a quick update to the customer..."
                           rows={2}
-                          className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm resize-none"
+                          className="w-full sm:flex-1 max-w-full box-border px-3 py-2 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm resize-none"
                         />
                         <button
                           onClick={handleSendQuickMessage}
                           disabled={sendingMessage || !quickMessage.trim()}
-                          className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2 self-end transition-all"
+                          className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2 sm:self-end transition-all"
                         >
                           {sendingMessage ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                         </button>
@@ -1711,12 +1711,12 @@ export default function AdminPlanWithUsRequestsPage() {
                             {itineraryOptions.map((opt, idx) => (
                               <div key={opt.id} className="w-full min-w-0 border border-gray-200 rounded-xl overflow-hidden">
                                 {/* Option name bar */}
-                                <div className="bg-gray-50 px-4 py-2.5 flex items-center justify-between border-b border-gray-200">
+                                <div className="bg-gray-50 px-4 py-2.5 flex items-center justify-between border-b border-gray-200 min-w-0">
                                   <input
                                     type="text"
                                     value={opt.name}
                                     onChange={e => updateItineraryOption(opt.id, "name", e.target.value)}
-                                    className="bg-transparent text-sm font-bold text-gray-900 outline-none flex-1"
+                                    className="bg-transparent text-sm font-bold text-gray-900 outline-none flex-1 min-w-0"
                                     placeholder={`Option ${String.fromCharCode(65 + idx)}`}
                                   />
                                   <button
@@ -1728,7 +1728,7 @@ export default function AdminPlanWithUsRequestsPage() {
                                   </button>
                                 </div>
                                 {/* Days + Price */}
-                                <div className="p-4 grid grid-cols-2 gap-3 min-w-0">
+                                <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3 min-w-0">
                                   <div>
                                     <label className="text-[10px] font-bold uppercase tracking-wider text-gray-500 block mb-1">Duration (days)</label>
                                     <input
@@ -1736,7 +1736,7 @@ export default function AdminPlanWithUsRequestsPage() {
                                       min={1}
                                       value={opt.days}
                                       onChange={e => updateItineraryOption(opt.id, "days", Number(e.target.value))}
-                                      className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                      className="w-full max-w-full box-border px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                     />
                                   </div>
                                   <div>
@@ -1745,7 +1745,7 @@ export default function AdminPlanWithUsRequestsPage() {
                                       type="text"
                                       value={opt.pricePerPerson}
                                       onChange={e => updateItineraryOption(opt.id, "pricePerPerson", e.target.value)}
-                                      className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                      className="w-full max-w-full box-border px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                       placeholder="e.g. 850,000"
                                     />
                                   </div>
@@ -1775,7 +1775,7 @@ export default function AdminPlanWithUsRequestsPage() {
                                     onChange={e => updateItineraryOption(opt.id, "customInclusion", e.target.value)}
                                     onKeyDown={e => { if (e.key === "Enter") { addCustomInclusion(opt.id); e.preventDefault(); } }}
                                     placeholder="Custom item + Enter to add"
-                                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                                    className="w-full max-w-full box-border px-3 py-2 border-2 border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 outline-none"
                                   />
                                 </div>
                                 {/* Day outline */}
@@ -1870,13 +1870,13 @@ export default function AdminPlanWithUsRequestsPage() {
                             Estimated Timeline &amp; Booking Windows
                           </h3>
                           <p className="text-xs text-gray-500 mb-3">Pick a preset or write your own below</p>
-                          <div className="grid grid-cols-2 gap-2.5 mb-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-3 min-w-0">
                             {TIMELINE_PRESETS.map(preset => (
                               <button
                                 key={preset.label}
                                 type="button"
                                 onClick={() => setResponseForm(prev => ({ ...prev, estimatedTimeline: preset.value }))}
-                                className={`text-left px-3 py-2.5 border-2 rounded-xl text-xs transition-all group ${
+                                className={`text-left min-w-0 px-3 py-2.5 border-2 rounded-xl text-xs transition-all group ${
                                   responseForm.estimatedTimeline === preset.value
                                     ? "border-teal-400 bg-teal-50"
                                     : "border-gray-200 hover:border-teal-300 hover:bg-teal-50"
@@ -1942,7 +1942,7 @@ export default function AdminPlanWithUsRequestsPage() {
                                   if (e.target.value) { loadAgents(e.target.value); } else { loadAgents(); }
                                 }}
                                 onFocus={() => { setShowAgentDropdown(true); if (agents.length === 0) loadAgents(); }}
-                                className="w-full pl-4 pr-10 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm bg-white placeholder:text-gray-400"
+                                className="w-full max-w-full box-border pl-4 pr-10 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm bg-white placeholder:text-gray-400"
                                 placeholder="Search and select an agent..."
                               />
                               <ChevronDown className={`absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 transition-transform ${showAgentDropdown ? "rotate-180" : ""}`} />
