@@ -125,52 +125,72 @@ export default function GroupStaysDashboardPage() {
     <div className="space-y-6">
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-300 hover:border-purple-300 group">
-          <div className="flex items-center gap-4">
-            <Users className="h-6 w-6 text-purple-600" />
-            <div className="flex-1">
-              <div className="text-sm font-medium text-gray-500 mb-1">Total Bookings</div>
-              <div className="text-2xl font-bold text-gray-900">
-                {loading ? "..." : (summary.totalBookings || 0).toLocaleString()}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 overflow-hidden">
+          <div className="h-1 bg-gradient-to-r from-purple-500 to-purple-600" />
+          <div className="p-5">
+            <div className="flex items-start gap-4">
+              <div className="h-10 w-10 rounded-lg bg-purple-50 border border-purple-100 flex items-center justify-center flex-shrink-0">
+                <Users className="h-5 w-5 text-purple-600" />
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Total Bookings</div>
+                <div className="text-2xl font-bold text-gray-900 tabular-nums">
+                  {loading ? <span className="inline-block h-7 w-12 bg-gray-200 rounded animate-pulse" /> : (summary.totalBookings || 0).toLocaleString()}
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-300 hover:border-blue-300 group">
-          <div className="flex items-center gap-4">
-            <Clock className="h-6 w-6 text-blue-600" />
-            <div className="flex-1">
-              <div className="text-sm font-medium text-gray-500 mb-1">Pending</div>
-              <div className="text-2xl font-bold text-gray-900">
-                {loading ? "..." : (summary.pendingBookings || 0).toLocaleString()}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 overflow-hidden">
+          <div className="h-1 bg-gradient-to-r from-blue-400 to-blue-600" />
+          <div className="p-5">
+            <div className="flex items-start gap-4">
+              <div className="h-10 w-10 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center flex-shrink-0">
+                <Clock className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Pending</div>
+                <div className="text-2xl font-bold text-gray-900 tabular-nums">
+                  {loading ? <span className="inline-block h-7 w-8 bg-gray-200 rounded animate-pulse" /> : (summary.pendingBookings || 0).toLocaleString()}
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-300 hover:border-green-300 group">
-          <div className="flex items-center gap-4">
-            <CheckCircle className="h-6 w-6 text-green-600" />
-            <div className="flex-1">
-              <div className="text-sm font-medium text-gray-500 mb-1">Confirmed</div>
-              <div className="text-2xl font-bold text-gray-900">
-                {loading ? "..." : (summary.confirmedBookings || 0).toLocaleString()}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 overflow-hidden">
+          <div className="h-1 bg-gradient-to-r from-emerald-400 to-emerald-600" />
+          <div className="p-5">
+            <div className="flex items-start gap-4">
+              <div className="h-10 w-10 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center flex-shrink-0">
+                <CheckCircle className="h-5 w-5 text-emerald-600" />
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Confirmed</div>
+                <div className="text-2xl font-bold text-gray-900 tabular-nums">
+                  {loading ? <span className="inline-block h-7 w-8 bg-gray-200 rounded animate-pulse" /> : (summary.confirmedBookings || 0).toLocaleString()}
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-300 hover:border-amber-300 group">
-          <div className="flex items-center gap-4">
-            <TrendingUp className="h-6 w-6 text-amber-600" />
-            <div className="flex-1">
-              <div className="text-sm font-medium text-gray-500 mb-1">Total Passengers</div>
-              <div className="text-2xl font-bold text-gray-900">
-                {loading ? "..." : (summary.totalPassengers || 0).toLocaleString()}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 overflow-hidden">
+          <div className="h-1 bg-gradient-to-r from-amber-400 to-orange-500" />
+          <div className="p-5">
+            <div className="flex items-start gap-4">
+              <div className="h-10 w-10 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center flex-shrink-0">
+                <TrendingUp className="h-5 w-5 text-amber-600" />
               </div>
-              <div className="text-xs text-gray-500 mt-1">
-                Avg: {summary.averageHeadcount || 0} per booking
+              <div>
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Total Passengers</div>
+                <div className="text-2xl font-bold text-gray-900 tabular-nums">
+                  {loading ? <span className="inline-block h-7 w-16 bg-gray-200 rounded animate-pulse" /> : (summary.totalPassengers || 0).toLocaleString()}
+                </div>
+                <div className="text-xs text-gray-400 mt-1 font-medium">
+                  Avg: {summary.averageHeadcount || 0} per booking
+                </div>
               </div>
             </div>
           </div>
@@ -181,55 +201,71 @@ export default function GroupStaysDashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Link
           href="/admin/group-stays/bookings"
-          className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-300 hover:border-purple-300 group no-underline"
+          className="group bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 no-underline overflow-hidden"
         >
-          <div className="flex items-center gap-4">
-            <Calendar className="h-6 w-6 text-purple-600 group-hover:scale-110 transition-transform duration-300" />
-            <div className="flex-1">
-              <div className="text-sm font-medium text-gray-500 mb-1">All Bookings</div>
-              <div className="text-lg font-semibold text-gray-900">View All</div>
+          <div className="h-1 bg-gradient-to-r from-purple-500 to-purple-600" />
+          <div className="p-5 flex items-center gap-4">
+            <div className="h-10 w-10 rounded-lg bg-purple-50 border border-purple-100 flex items-center justify-center flex-shrink-0 group-hover:bg-purple-100 transition-colors">
+              <Calendar className="h-5 w-5 text-purple-600" />
             </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-0.5">All Bookings</div>
+              <div className="text-base font-bold text-gray-900 group-hover:text-purple-700 transition-colors">View All</div>
+            </div>
+            <svg className="h-4 w-4 text-gray-300 group-hover:text-purple-400 group-hover:translate-x-0.5 transition-all flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
           </div>
         </Link>
 
         <Link
           href="/admin/group-stays/requests"
-          className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-300 hover:border-blue-300 group no-underline"
+          className="group bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 no-underline overflow-hidden"
         >
-          <div className="flex items-center gap-4">
-            <Clock className="h-6 w-6 text-blue-600 group-hover:scale-110 transition-transform duration-300" />
-            <div className="flex-1">
-              <div className="text-sm font-medium text-gray-500 mb-1">Pending Requests</div>
-              <div className="text-lg font-semibold text-gray-900">
-                {loading ? "..." : (summary.pendingBookings || 0)}
+          <div className="h-1 bg-gradient-to-r from-blue-400 to-blue-600" />
+          <div className="p-5 flex items-center gap-4">
+            <div className="h-10 w-10 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center flex-shrink-0 group-hover:bg-blue-100 transition-colors">
+              <Clock className="h-5 w-5 text-blue-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-0.5">Pending Requests</div>
+              <div className="text-base font-bold text-gray-900 group-hover:text-blue-700 transition-colors tabular-nums">
+                {loading ? <span className="inline-block h-5 w-6 bg-gray-200 rounded animate-pulse" /> : (summary.pendingBookings || 0)}
               </div>
             </div>
+            <svg className="h-4 w-4 text-gray-300 group-hover:text-blue-400 group-hover:translate-x-0.5 transition-all flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
           </div>
         </Link>
 
         <Link
           href="/admin/group-stays/passengers"
-          className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-300 hover:border-green-300 group no-underline"
+          className="group bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 no-underline overflow-hidden"
         >
-          <div className="flex items-center gap-4">
-            <Users className="h-6 w-6 text-green-600 group-hover:scale-110 transition-transform duration-300" />
-            <div className="flex-1">
-              <div className="text-sm font-medium text-gray-500 mb-1">Passengers</div>
-              <div className="text-lg font-semibold text-gray-900">Manage Roster</div>
+          <div className="h-1 bg-gradient-to-r from-emerald-400 to-emerald-600" />
+          <div className="p-5 flex items-center gap-4">
+            <div className="h-10 w-10 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center flex-shrink-0 group-hover:bg-emerald-100 transition-colors">
+              <Users className="h-5 w-5 text-emerald-600" />
             </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-0.5">Passengers</div>
+              <div className="text-base font-bold text-gray-900 group-hover:text-emerald-700 transition-colors">Manage Roster</div>
+            </div>
+            <svg className="h-4 w-4 text-gray-300 group-hover:text-emerald-400 group-hover:translate-x-0.5 transition-all flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
           </div>
         </Link>
 
         <Link
           href="/admin/group-stays/arrangements"
-          className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-300 hover:border-amber-300 group no-underline"
+          className="group bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 no-underline overflow-hidden"
         >
-          <div className="flex items-center gap-4">
-            <Wrench className="h-6 w-6 text-amber-600 group-hover:scale-110 transition-transform duration-300" />
-            <div className="flex-1">
-              <div className="text-sm font-medium text-gray-500 mb-1">Arrangements</div>
-              <div className="text-lg font-semibold text-gray-900">Services</div>
+          <div className="h-1 bg-gradient-to-r from-amber-400 to-orange-500" />
+          <div className="p-5 flex items-center gap-4">
+            <div className="h-10 w-10 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center flex-shrink-0 group-hover:bg-amber-100 transition-colors">
+              <Wrench className="h-5 w-5 text-amber-600" />
             </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-0.5">Arrangements</div>
+              <div className="text-base font-bold text-gray-900 group-hover:text-amber-700 transition-colors">Services</div>
+            </div>
+            <svg className="h-4 w-4 text-gray-300 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
           </div>
         </Link>
       </div>
@@ -237,14 +273,16 @@ export default function GroupStaysDashboardPage() {
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Group Types Chart */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm transition-all duration-300 hover:shadow-lg hover:border-purple-300 hover:-translate-y-1 group">
-          <div className="mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2 group-hover:text-purple-600 transition-colors duration-300">
-              <Users className="h-5 w-5 text-purple-600 group-hover:scale-110 transition-transform duration-300" />
-              Bookings by Group Type
-            </h3>
-            <p className="text-sm text-gray-500 mt-1">Distribution of bookings across different group types</p>
-          </div>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 overflow-hidden">
+          <div className="h-1 bg-gradient-to-r from-purple-500 to-blue-500" />
+          <div className="p-6">
+            <div className="mb-4">
+              <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                <span className="inline-flex items-center justify-center h-7 w-7 rounded-md bg-purple-50 border border-purple-100"><Users className="h-4 w-4 text-purple-600" /></span>
+                Bookings by Group Type
+              </h3>
+              <p className="text-xs text-gray-400 mt-1 ml-9">Distribution of bookings across different group types</p>
+            </div>
           <div className="h-64 w-full max-h-64 min-h-[300px] overflow-hidden relative">
             {loading ? (
               <div className="h-full w-full flex items-center justify-center">
@@ -306,17 +344,20 @@ export default function GroupStaysDashboardPage() {
               />
             )}
           </div>
+          </div>
         </div>
 
         {/* Status Distribution Chart */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm transition-all duration-300 hover:shadow-lg hover:border-blue-300 hover:-translate-y-1 group">
-          <div className="mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2 group-hover:text-blue-600 transition-colors duration-300">
-              <CheckCircle className="h-5 w-5 text-blue-600 group-hover:scale-110 transition-transform duration-300" />
-              Status Distribution
-            </h3>
-            <p className="text-sm text-gray-500 mt-1">Current status breakdown of all bookings</p>
-          </div>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 overflow-hidden">
+          <div className="h-1 bg-gradient-to-r from-blue-400 to-emerald-500" />
+          <div className="p-6">
+            <div className="mb-4">
+              <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                <span className="inline-flex items-center justify-center h-7 w-7 rounded-md bg-blue-50 border border-blue-100"><CheckCircle className="h-4 w-4 text-blue-600" /></span>
+                Status Distribution
+              </h3>
+              <p className="text-xs text-gray-400 mt-1 ml-9">Current status breakdown of all bookings</p>
+            </div>
           <div className="h-64 w-full max-h-64 min-h-[300px] overflow-hidden relative">
             {loading ? (
               <div className="h-full w-full flex items-center justify-center">
@@ -356,41 +397,45 @@ export default function GroupStaysDashboardPage() {
               />
             )}
           </div>
+          </div>
         </div>
       </div>
 
       {/* Arrangements Summary */}
       {summary.arrangements && (
-        <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <Wrench className="h-5 w-5 text-amber-600" />
-            Arrangements Summary
-          </h3>
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
-            <div className="text-center p-4 bg-blue-50 rounded-lg">
-              <Car className="h-6 w-6 text-blue-600 mx-auto mb-2" />
-              <div className="text-2xl font-bold text-gray-900">{summary.arrangements.pickup}</div>
-              <div className="text-xs text-gray-500 mt-1">Pickup</div>
-            </div>
-            <div className="text-center p-4 bg-green-50 rounded-lg">
-              <Car className="h-6 w-6 text-green-600 mx-auto mb-2" />
-              <div className="text-2xl font-bold text-gray-900">{summary.arrangements.transport}</div>
-              <div className="text-xs text-gray-500 mt-1">Transport</div>
-            </div>
-            <div className="text-center p-4 bg-purple-50 rounded-lg">
-              <Utensils className="h-6 w-6 text-purple-600 mx-auto mb-2" />
-              <div className="text-2xl font-bold text-gray-900">{summary.arrangements.meals}</div>
-              <div className="text-xs text-gray-500 mt-1">Meals</div>
-            </div>
-            <div className="text-center p-4 bg-amber-50 rounded-lg">
-              <UserCheck className="h-6 w-6 text-amber-600 mx-auto mb-2" />
-              <div className="text-2xl font-bold text-gray-900">{summary.arrangements.guide}</div>
-              <div className="text-xs text-gray-500 mt-1">Guide</div>
-            </div>
-            <div className="text-center p-4 bg-red-50 rounded-lg">
-              <Wrench className="h-6 w-6 text-red-600 mx-auto mb-2" />
-              <div className="text-2xl font-bold text-gray-900">{summary.arrangements.equipment}</div>
-              <div className="text-xs text-gray-500 mt-1">Equipment</div>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="h-1 bg-gradient-to-r from-amber-400 to-orange-500" />
+          <div className="p-6">
+            <h3 className="text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <span className="inline-flex items-center justify-center h-7 w-7 rounded-md bg-amber-50 border border-amber-100"><Wrench className="h-4 w-4 text-amber-600" /></span>
+              Arrangements Summary
+            </h3>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+              <div className="text-center p-4 bg-blue-50 rounded-xl border border-blue-100">
+                <Car className="h-6 w-6 text-blue-600 mx-auto mb-2" />
+                <div className="text-2xl font-bold text-gray-900">{summary.arrangements.pickup}</div>
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-1">Pickup</div>
+              </div>
+              <div className="text-center p-4 bg-emerald-50 rounded-xl border border-emerald-100">
+                <Car className="h-6 w-6 text-emerald-600 mx-auto mb-2" />
+                <div className="text-2xl font-bold text-gray-900">{summary.arrangements.transport}</div>
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-1">Transport</div>
+              </div>
+              <div className="text-center p-4 bg-purple-50 rounded-xl border border-purple-100">
+                <Utensils className="h-6 w-6 text-purple-600 mx-auto mb-2" />
+                <div className="text-2xl font-bold text-gray-900">{summary.arrangements.meals}</div>
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-1">Meals</div>
+              </div>
+              <div className="text-center p-4 bg-amber-50 rounded-xl border border-amber-100">
+                <UserCheck className="h-6 w-6 text-amber-600 mx-auto mb-2" />
+                <div className="text-2xl font-bold text-gray-900">{summary.arrangements.guide}</div>
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-1">Guide</div>
+              </div>
+              <div className="text-center p-4 bg-red-50 rounded-xl border border-red-100">
+                <Wrench className="h-6 w-6 text-red-600 mx-auto mb-2" />
+                <div className="text-2xl font-bold text-gray-900">{summary.arrangements.equipment}</div>
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-1">Equipment</div>
+              </div>
             </div>
           </div>
         </div>
@@ -398,11 +443,13 @@ export default function GroupStaysDashboardPage() {
 
       {/* Recent Bookings */}
       {summary.recentBookings && summary.recentBookings.length > 0 && (
-        <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <Calendar className="h-5 w-5 text-purple-600" />
-            Recent Bookings
-          </h3>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="h-1 bg-gradient-to-r from-purple-500 to-indigo-500" />
+          <div className="p-6">
+            <h3 className="text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <span className="inline-flex items-center justify-center h-7 w-7 rounded-md bg-purple-50 border border-purple-100"><Calendar className="h-4 w-4 text-purple-600" /></span>
+              Recent Bookings
+            </h3>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
@@ -448,6 +495,7 @@ export default function GroupStaysDashboardPage() {
                 ))}
               </tbody>
             </table>
+          </div>
           </div>
         </div>
       )}
