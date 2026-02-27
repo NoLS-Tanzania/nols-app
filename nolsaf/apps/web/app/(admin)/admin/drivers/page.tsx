@@ -154,7 +154,7 @@ export default function AdminDriversPage() {
             </div>
             <div>
               <h1 className="text-xl sm:text-2xl font-black tracking-tight" style={{ color: "#ffffff", textShadow: "0 2px 12px rgba(0,0,0,0.40)" }}>
-                Drivers
+                Drivers Control Dashboard 
               </h1>
               <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.58)" }}>
                 Live overview of platform driver activity

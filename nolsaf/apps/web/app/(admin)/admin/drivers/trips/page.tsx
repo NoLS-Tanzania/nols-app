@@ -338,6 +338,8 @@ export default function AdminDriversTripsPage() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [kpiCounts, setKpiCounts] = useState<{ total: number; inProgress: number; completed: number; pending: number } | null>(null);
+  const [kpisLoading, setKpisLoading] = useState(true);
   type SortKey = "tripCode" | "driver" | "pickup" | "dropoff" | "vehicleType" | "createdAt" | "amount" | "status";
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
@@ -461,6 +463,30 @@ export default function AdminDriversTripsPage() {
     if (reasonError) setReasonError(null);
     window.setTimeout(() => reasonTextareaRef.current?.focus(), 0);
   };
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [rTotal, rInProgress, rCompleted, rPending] = await Promise.allSettled([
+          api.get<{ total: number }>("/api/admin/drivers/trips", { params: { page: 1, pageSize: 1 } }),
+          api.get<{ total: number }>("/api/admin/drivers/trips", { params: { page: 1, pageSize: 1, status: "IN_PROGRESS" } }),
+          api.get<{ total: number }>("/api/admin/drivers/trips", { params: { page: 1, pageSize: 1, status: "COMPLETED" } }),
+          api.get<{ total: number }>("/api/admin/drivers/trips", { params: { page: 1, pageSize: 1, status: "PENDING_ASSIGNMENT" } }),
+        ]);
+        setKpiCounts({
+          total: rTotal.status === "fulfilled" ? (rTotal.value.data?.total ?? 0) : 0,
+          inProgress: rInProgress.status === "fulfilled" ? (rInProgress.value.data?.total ?? 0) : 0,
+          completed: rCompleted.status === "fulfilled" ? (rCompleted.value.data?.total ?? 0) : 0,
+          pending: rPending.status === "fulfilled" ? (rPending.value.data?.total ?? 0) : 0,
+        });
+      } catch {
+        // best-effort
+      } finally {
+        setKpisLoading(false);
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -902,163 +928,170 @@ export default function AdminDriversTripsPage() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      {/* Header */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-        <div className="flex flex-col items-center text-center">
-          <div className="h-16 w-16 rounded-full bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center mb-4">
-            <Calendar className="h-8 w-8 text-blue-600" />
+      {/* Premium Header */}
+      <div
+        className="relative rounded-2xl overflow-hidden"
+        style={{
+          background: "linear-gradient(135deg, #0e2a7a 0%, #0a5c82 38%, #02665e 100%)",
+          boxShadow: "0 28px 65px -15px rgba(2,102,94,0.45), 0 8px 22px -8px rgba(14,42,122,0.50)",
+        }}
+      >
+        {/* Route sparkline SVG */}
+        <svg aria-hidden="true" className="absolute inset-0 w-full h-full pointer-events-none select-none" viewBox="0 0 900 220" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="860" cy="-20" r="130" fill="none" stroke="rgba(255,255,255,0.055)" strokeWidth="1.2" />
+          <circle cx="860" cy="-20" r="195" fill="none" stroke="rgba(255,255,255,0.035)" strokeWidth="1" />
+          <circle cx="40" cy="240" r="110" fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
+          <line x1="0" y1="55" x2="900" y2="55" stroke="rgba(255,255,255,0.045)" strokeWidth="0.8" />
+          <line x1="0" y1="110" x2="900" y2="110" stroke="rgba(255,255,255,0.045)" strokeWidth="0.8" />
+          <line x1="0" y1="165" x2="900" y2="165" stroke="rgba(255,255,255,0.03)" strokeWidth="0.8" />
+          <path d="M 0 185 Q 80 190 120 170 Q 200 145 260 150 Q 340 158 400 130 Q 480 95 540 110 Q 620 130 680 90 Q 740 55 800 70 Q 850 80 900 60" fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth="1.5" strokeDasharray="8 5" />
+          <polyline points="0,170 80,155 160,140 240,145 320,120 400,105 480,118 560,92 640,75 720,88 800,60 900,48" fill="none" stroke="rgba(255,255,255,0.30)" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
+          <polygon points="0,170 80,155 160,140 240,145 320,120 400,105 480,118 560,92 640,75 720,88 800,60 900,48 900,220 0,220" fill="rgba(255,255,255,0.04)" />
+          <polyline points="0,190 100,178 200,168 300,175 400,155 500,142 600,150 700,128 800,115 900,100" fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth="1.4" strokeDasharray="5 4" strokeLinejoin="round" />
+          <circle cx="320" cy="120" r="4.5" fill="rgba(125,211,252,0.70)" />
+          <circle cx="320" cy="120" r="9" fill="rgba(125,211,252,0.15)" />
+          <circle cx="560" cy="92" r="4.5" fill="rgba(110,231,183,0.70)" />
+          <circle cx="560" cy="92" r="9" fill="rgba(110,231,183,0.15)" />
+          <circle cx="800" cy="60" r="4.5" fill="rgba(165,180,252,0.70)" />
+          <circle cx="800" cy="60" r="9" fill="rgba(165,180,252,0.15)" />
+          <ellipse cx="450" cy="110" rx="260" ry="70" fill="url(#tripsGlow)" />
+          <defs>
+            <radialGradient id="tripsGlow" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="rgba(2,102,94,0.18)" />
+              <stop offset="100%" stopColor="rgba(2,102,94,0)" />
+            </radialGradient>
+          </defs>
+        </svg>
+
+        <div className="relative z-10 px-6 pt-8 pb-7 sm:px-8 sm:pt-10">
+          {/* Icon + title */}
+          <div className="flex items-center gap-4 mb-6">
+            <div className="flex items-center justify-center rounded-xl flex-shrink-0" style={{ width: 46, height: 46, background: "rgba(255,255,255,0.10)", border: "1.5px solid rgba(255,255,255,0.18)", boxShadow: "0 0 0 8px rgba(255,255,255,0.05), 0 8px 32px rgba(0,0,0,0.35)" }}>
+              <Route className="h-5 w-5" style={{ color: "rgba(255,255,255,0.92)" }} />
+            </div>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-black tracking-tight" style={{ color: "#ffffff", textShadow: "0 2px 12px rgba(0,0,0,0.40)" }}>Driver Trips</h1>
+              <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.58)" }}>Direct-accept &amp; dispatch trips · scheduled-claim trips are in Scheduled Trips</p>
+            </div>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Driver Trips</h1>
-          <p className="text-sm text-gray-500 mt-1">Direct-accept/dispatch trips only (scheduled-claim trips are in Scheduled Trips).</p>
+
+          {/* KPI chips */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {[
+              { label: "Total Trips",       value: kpiCounts?.total,      bg: "rgba(56,189,248,0.18)",  border: "rgba(56,189,248,0.32)",  color: "#7dd3fc" },
+              { label: "In Progress",       value: kpiCounts?.inProgress, bg: "rgba(16,185,129,0.18)",  border: "rgba(16,185,129,0.32)",  color: "#6ee7b7" },
+              { label: "Completed",         value: kpiCounts?.completed,  bg: "rgba(20,184,166,0.18)",  border: "rgba(20,184,166,0.32)",  color: "#5eead4" },
+              { label: "Pending Assignment", value: kpiCounts?.pending,    bg: "rgba(245,158,11,0.18)",  border: "rgba(245,158,11,0.32)",  color: "#fcd34d" },
+            ].map((kpi) => (
+              <div key={kpi.label} className="rounded-xl px-4 py-3" style={{ background: kpi.bg, border: `1px solid ${kpi.border}`, backdropFilter: "blur(8px)" }}>
+                {kpisLoading || kpi.value === undefined ? (
+                  <div className="animate-pulse rounded-lg h-10 w-full" style={{ background: "rgba(255,255,255,0.12)" }} />
+                ) : (
+                  <>
+                    <div className="text-xs uppercase tracking-widest mb-1" style={{ color: "rgba(255,255,255,0.55)" }}>{kpi.label}</div>
+                    <div className="text-2xl font-black tabular-nums" style={{ color: kpi.color, textShadow: `0 0 18px ${kpi.color}55` }}>{(kpi.value as number).toLocaleString()}</div>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
       {/* Search and Filters */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm overflow-hidden">
-        <div className="flex flex-col gap-4 w-full box-border">
-          {/* Top Row: Search and Date Picker */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full">
-            {/* Search Box */}
-            <div className="relative w-full sm:flex-1 min-w-0">
-              <div className="relative w-full">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 z-10" />
+      <div className="rounded-xl overflow-hidden" style={{ background: "linear-gradient(135deg, #0a1a19 0%, #0d2320 60%, #0a1f2e 100%)", border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06)" }}>
+        <div className="px-4 py-4 sm:px-5 sm:py-5 lg:px-6 lg:py-5">
+          <div className="flex flex-col gap-4 w-full box-border">
+
+            {/* Search + Date row */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full">
+              <div className="relative w-full sm:flex-1 min-w-0">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none z-10" style={{ color: 'rgba(255,255,255,0.38)' }} />
                 <input
                   ref={searchRef}
                   type="text"
-                  className="w-full box-border pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+                  className="w-full box-border pl-10 pr-10 py-2.5 rounded-lg outline-none text-sm transition-all"
                   placeholder="Search trips..."
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      setPage(1);
-                      load();
-                    }
-                  }}
-                  style={{ width: '100%', maxWidth: '100%' }}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); setPage(1); load(); } }}
+                  style={{ background: 'rgba(255,255,255,0.07)', border: '1.5px solid rgba(255,255,255,0.13)', color: 'rgba(255,255,255,0.90)', width: '100%', maxWidth: '100%' }}
                 />
                 {q && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setQ("");
-                      setPage(1);
-                      load();
-                    }}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors z-10"
-                    aria-label="Clear search"
-                  >
+                  <button type="button" onClick={() => { setQ(""); setPage(1); load(); }} className="absolute right-3 top-1/2 -translate-y-1/2 z-10 transition-colors" aria-label="Clear search" style={{ color: 'rgba(255,255,255,0.40)' }}>
                     <X className="h-4 w-4" />
                   </button>
                 )}
               </div>
-            </div>
 
-            {/* Date Picker */}
-            <div className="relative w-full sm:w-auto sm:flex-shrink-0">
-              <button
-                type="button"
-                onClick={() => {
-                  setPickerAnim(true);
-                  setTimeout(() => setPickerAnim(false), 350);
-                  setPickerOpen((v) => !v);
-                }}
-                className={`w-full box-border px-3 py-2 rounded-lg border border-gray-300 text-sm flex items-center justify-center gap-2 text-gray-700 bg-white transition-all ${
-                  pickerAnim ? "ring-2 ring-brand-100" : "hover:bg-gray-50"
-                }`}
-                style={{ width: '100%', maxWidth: '100%' }}
-              >
-                <Calendar className="h-4 w-4" />
-                <span>Date</span>
-              </button>
-              {pickerOpen && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setPickerOpen(false)} />
-                  <div className="fixed z-50 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-                    <DatePicker
-                      selected={date || undefined}
-                      onSelectAction={(s) => {
-                        setDate(s as string | string[]);
-                        setPage(1);
-                      }}
-                      onCloseAction={() => setPickerOpen(false)}
-                    />
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Bottom Row: Minimal Filters */}
-          <div className="flex flex-col sm:flex-row gap-3 items-center justify-center w-full">
-            <div className="flex gap-2 items-center justify-center w-full sm:w-auto overflow-x-auto pb-1 scrollbar-hide">
-              {[
-                { label: "All", value: "all" as const },
-                { label: "Assigned", value: "assigned" as const },
-                { label: "Unassigned", value: "unassigned" as const },
-              ].map((s) => (
+              {/* Date Picker */}
+              <div className="relative w-full sm:w-auto sm:flex-shrink-0">
                 <button
-                  key={s.value}
                   type="button"
-                  onClick={() => {
-                    setAssignment(s.value);
-                    setPage(1);
-                    setTimeout(() => load(), 0);
-                  }}
-                  className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-all duration-200 whitespace-nowrap flex-shrink-0 ${
-                    assignment === s.value
-                      ? "bg-brand-50 border-brand-300 text-brand-700"
-                      : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
-                  }`}
+                  onClick={() => { setPickerAnim(true); setTimeout(() => setPickerAnim(false), 350); setPickerOpen((v) => !v); }}
+                  className="w-full box-border px-4 py-2.5 rounded-lg text-sm flex items-center justify-center gap-2 transition-all"
+                  style={pickerAnim ? { background: 'rgba(2,102,94,0.30)', border: '1.5px solid rgba(2,102,94,0.65)', color: '#5eead4' } : { background: 'rgba(255,255,255,0.07)', border: '1.5px solid rgba(255,255,255,0.14)', color: 'rgba(255,255,255,0.75)' }}
                 >
-                  {s.label}
+                  <Calendar className="h-4 w-4" />
+                  <span>Date</span>
                 </button>
-              ))}
-
-              <button
-                type="button"
-                onClick={() => {
-                  // Quick filter: reuse existing filters (no new mode)
-                  setStatus("PENDING_ADMIN_ASSIGNMENT");
-                  setAssignment("unassigned");
-                  setPage(1);
-                  setTimeout(() => load(), 0);
-                }}
-                className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-all duration-200 whitespace-nowrap flex-shrink-0 ${
-                  status === "PENDING_ADMIN_ASSIGNMENT"
-                    ? "bg-amber-50 border-amber-300 text-amber-800"
-                    : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
-                }`}
-                title="Show only trips that require admin takeover"
-                aria-label="Filter trips needing admin takeover"
-              >
-                Needs takeover
-              </button>
+                {pickerOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setPickerOpen(false)} />
+                    <div className="fixed z-50 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                      <DatePicker selected={date || undefined} onSelectAction={(s) => { setDate(s as string | string[]); setPage(1); }} onCloseAction={() => setPickerOpen(false)} />
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
 
-            <div className="w-full sm:w-60">
-              <label className="sr-only" htmlFor="tripStatus">Trip status</label>
-              <select
-                id="tripStatus"
-                value={status}
-                onChange={(e) => {
-                  setStatus(e.target.value);
-                  setPage(1);
-                  setTimeout(() => load(), 0);
-                }}
-                className="w-full box-border px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 bg-white outline-none focus:ring-2 focus:ring-brand-100 focus:border-brand-500"
-              >
-                <option value="">All statuses</option>
-                <option value="PENDING">Pending</option>
-                <option value="PENDING_ASSIGNMENT">Pending Assignment</option>
-                <option value="PENDING_ADMIN_ASSIGNMENT">Pending Admin Assignment</option>
-                <option value="CONFIRMED">Confirmed</option>
-                <option value="IN_PROGRESS">In Progress</option>
-                <option value="COMPLETED">Completed</option>
-                <option value="CANCELED">Canceled</option>
-              </select>
+            {/* Assignment pills + status select */}
+            <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center w-full">
+              {/* Assignment pills — All / Assigned / Unassigned only (no duplicate Needs-takeover pill) */}
+              <div className="flex gap-2 items-center flex-wrap">
+                {([
+                  { label: "All",        value: "all"        as const, bg: "rgba(255,255,255,0.18)", border: "rgba(255,255,255,0.38)", color: "#ffffff",  inBg: "rgba(255,255,255,0.06)", inBorder: "rgba(255,255,255,0.13)" },
+                  { label: "Assigned",   value: "assigned"   as const, bg: "rgba(16,185,129,0.25)",  border: "rgba(16,185,129,0.55)",  color: "#6ee7b7", inBg: "rgba(16,185,129,0.08)",  inBorder: "rgba(16,185,129,0.20)" },
+                  { label: "Unassigned", value: "unassigned" as const, bg: "rgba(245,158,11,0.25)",  border: "rgba(245,158,11,0.55)",  color: "#fcd34d", inBg: "rgba(245,158,11,0.08)",  inBorder: "rgba(245,158,11,0.20)" },
+                ] as const).map((s) => {
+                  const isActive = assignment === s.value;
+                  return (
+                    <button
+                      key={s.value}
+                      type="button"
+                      onClick={() => { setAssignment(s.value); setPage(1); setTimeout(() => load(), 0); }}
+                      className="px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 whitespace-nowrap flex-shrink-0"
+                      style={isActive ? { background: s.bg, border: `1.5px solid ${s.border}`, color: s.color } : { background: s.inBg, border: `1.5px solid ${s.inBorder}`, color: 'rgba(255,255,255,0.65)' }}
+                    >
+                      {s.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Status dropdown — dark glass */}
+              <div className="w-full sm:w-auto sm:ml-auto sm:min-w-[220px]">
+                <label className="sr-only" htmlFor="tripStatus">Trip status</label>
+                <select
+                  id="tripStatus"
+                  value={status}
+                  onChange={(e) => { setStatus(e.target.value); setPage(1); setTimeout(() => load(), 0); }}
+                  className="w-full box-border px-3 py-2.5 rounded-lg text-sm outline-none transition-all"
+                  style={{ background: 'rgba(255,255,255,0.07)', border: '1.5px solid rgba(255,255,255,0.13)', color: 'rgba(255,255,255,0.85)' }}
+                >
+                  <option value="" style={{ background: '#0d2320' }}>All statuses</option>
+                  <option value="PENDING" style={{ background: '#0d2320' }}>Pending</option>
+                  <option value="PENDING_ASSIGNMENT" style={{ background: '#0d2320' }}>Pending Assignment</option>
+                  <option value="PENDING_ADMIN_ASSIGNMENT" style={{ background: '#0d2320' }}>Needs Takeover (Admin)</option>
+                  <option value="CONFIRMED" style={{ background: '#0d2320' }}>Confirmed</option>
+                  <option value="IN_PROGRESS" style={{ background: '#0d2320' }}>In Progress</option>
+                  <option value="COMPLETED" style={{ background: '#0d2320' }}>Completed</option>
+                  <option value="CANCELED" style={{ background: '#0d2320' }}>Canceled</option>
+                </select>
+              </div>
             </div>
+
           </div>
         </div>
       </div>

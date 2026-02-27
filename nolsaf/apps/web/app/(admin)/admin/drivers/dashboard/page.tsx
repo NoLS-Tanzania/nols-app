@@ -312,28 +312,101 @@ export default function DriversDashboardPage() {
 
       {/* Recent Drivers Section */}
       {summary.recentDrivers && summary.recentDrivers.length > 0 && (
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
-          <div className="p-6 border-b border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900">Recent Drivers</h3>
-          </div>
-          <div className="divide-y divide-gray-200">
-            {summary.recentDrivers.slice(0, 5).map((driver) => (
+        <div
+          className="rounded-2xl overflow-hidden"
+          style={{
+            background: "linear-gradient(135deg, #0a1a19 0%, #0d2320 60%, #0a1f2e 100%)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06)",
+          }}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 pt-5 pb-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+            <div className="flex items-center gap-2.5">
               <div
-                key={driver.id}
-                className="p-4 hover:bg-gray-50 transition-colors duration-200"
+                className="flex items-center justify-center rounded-lg"
+                style={{ width: 32, height: 32, background: "rgba(56,189,248,0.18)", border: "1px solid rgba(56,189,248,0.30)" }}
               >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="font-medium text-gray-900">{driver.name || "Unnamed Driver"}</div>
-                    <div className="text-sm text-gray-500">{driver.email}</div>
-                    {driver.phone && <div className="text-sm text-gray-500">{driver.phone}</div>}
+                <Users className="h-4 w-4" style={{ color: "#7dd3fc" }} />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold tracking-tight" style={{ color: "rgba(255,255,255,0.90)" }}>Recent Drivers</h3>
+                <p className="text-[11px]" style={{ color: "rgba(255,255,255,0.38)" }}>Last 5 registered</p>
+              </div>
+            </div>
+            <span
+              className="text-[11px] font-semibold px-2.5 py-1 rounded-full"
+              style={{ background: "rgba(56,189,248,0.15)", color: "#7dd3fc", border: "1px solid rgba(56,189,248,0.25)" }}
+            >
+              {summary.recentDrivers.slice(0, 5).length} / 5
+            </span>
+          </div>
+
+          {/* Driver list */}
+          <div className="px-4 py-3 space-y-2">
+            {summary.recentDrivers.slice(0, 5).map((driver, idx) => {
+              const name = driver.name || "Unnamed Driver";
+              const initials = name
+                .split(" ")
+                .slice(0, 2)
+                .map((w: string) => w[0]?.toUpperCase() ?? "")
+                .join("");
+              const avatarColors = [
+                { bg: "rgba(56,189,248,0.22)",  border: "rgba(56,189,248,0.40)",  text: "#7dd3fc"  },
+                { bg: "rgba(16,185,129,0.22)",  border: "rgba(16,185,129,0.40)",  text: "#6ee7b7"  },
+                { bg: "rgba(245,158,11,0.22)",  border: "rgba(245,158,11,0.40)",  text: "#fcd34d"  },
+                { bg: "rgba(99,102,241,0.22)",  border: "rgba(99,102,241,0.40)",  text: "#a5b4fc"  },
+                { bg: "rgba(236,72,153,0.22)",  border: "rgba(236,72,153,0.40)",  text: "#f9a8d4"  },
+              ];
+              const av = avatarColors[idx % avatarColors.length];
+              const joinedDate = new Date(driver.createdAt).toLocaleDateString("en-GB", {
+                day: "2-digit", month: "short", year: "numeric"
+              });
+
+              return (
+                <div
+                  key={driver.id}
+                  className="flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-200"
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}
+                >
+                  {/* Avatar */}
+                  <div
+                    className="flex-shrink-0 flex items-center justify-center rounded-full text-sm font-bold"
+                    style={{ width: 40, height: 40, background: av.bg, border: `1.5px solid ${av.border}`, color: av.text }}
+                  >
+                    {initials || "?"}
                   </div>
-                  <div className="text-xs text-gray-400">
-                    {new Date(driver.createdAt).toLocaleDateString()}
+
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold truncate" style={{ color: "rgba(255,255,255,0.88)" }}>{name}</div>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
+                      {driver.email && (
+                        <span className="text-[11px] truncate" style={{ color: "rgba(255,255,255,0.42)" }}>{driver.email}</span>
+                      )}
+                      {driver.phone && (
+                        <span className="text-[11px]" style={{ color: "rgba(255,255,255,0.35)" }}>{driver.phone}</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Date badge */}
+                  <div
+                    className="flex-shrink-0 text-[11px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap"
+                    style={{ background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.40)", border: "1px solid rgba(255,255,255,0.10)" }}
+                  >
+                    {joinedDate}
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
+          </div>
+
+          {/* Footer */}
+          <div className="px-5 py-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+            <p className="text-[11px] text-center" style={{ color: "rgba(255,255,255,0.28)" }}>
+              Showing the 5 most recently registered drivers
+            </p>
           </div>
         </div>
       )}
