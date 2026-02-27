@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { BarChart2, Calendar, CheckCircle2, ChevronDown, ChevronUp, ChevronsUpDown, Clock, Eye, LogIn, LogOut, Search, Sparkles, X, XCircle } from "lucide-react";
+import { BarChart2, Calendar, CheckCircle2, ChevronDown, ChevronUp, ChevronsUpDown, Clock, CreditCard, Eye, Landmark, LogIn, LogOut, Search, Smartphone, Sparkles, X, XCircle } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import DatePicker from "@/components/ui/DatePicker";
 import axios from "axios";
@@ -20,10 +20,13 @@ type Row = {
   checkIn: string;
   checkOut: string;
   guestName?: string | null;
+  guestPhone?: string | null;
   roomCode?: string | null;
   totalAmount: number;
   property: { id: number; title: string; ownerId: number; regionName?: string | null; city?: string | null };
   code?: { id: number; code: string; status: string } | null;
+  user?: { id: number; name?: string | null; email?: string | null; phone?: string | null } | null;
+  payment?: { amount?: number | null; paidAt?: string | null; method?: string | null } | null;
 };
 
 // Column presets for each filter button. Keys correspond to the status value used
@@ -689,10 +692,37 @@ export default function AdminBookingsPage() {
                                       <Eye className="h-3.5 w-3.5" /> View
                                     </a>
                                   );
-                                case 'contact':
-                                  return <span className="text-gray-400">—</span>;
-                                case 'paymentDate':
-                                  return <span className="text-gray-400">—</span>;
+                                case 'contact': {
+                                  const phone = b.guestPhone || b.user?.phone;
+                                  return phone ? (
+                                    <span className="inline-flex items-center gap-1.5 text-gray-700 font-medium tabular-nums">
+                                      <Smartphone className="h-3.5 w-3.5 text-[#02665e] flex-shrink-0" />
+                                      {phone}
+                                    </span>
+                                  ) : <span className="text-gray-300">—</span>;
+                                }
+                                case 'paymentDate': {
+                                  const method = b.payment?.method?.toUpperCase() ?? '';
+                                  const isMobile = ['MPESA','TIGOPESA','AZAMPAY','AIRTEL','HALOPESA','TTCL','VODACOM'].some(m => method.includes(m));
+                                  const isVisa = method.includes('VISA');
+                                  const isMaster = method.includes('MASTER');
+                                  const isBank = method.includes('BANK') || method.includes('TRANSFER');
+                                  const Icon = isMobile ? Smartphone : (isVisa || isMaster) ? CreditCard : isBank ? Landmark : method ? CreditCard : null;
+                                  const label = isMobile
+                                    ? method.replace('AZAMPAY','Mobile Pay')
+                                    : isVisa ? 'Visa' : isMaster ? 'Mastercard' : isBank ? 'Bank Transfer' : method || null;
+                                  if (!label && !Icon) return <span className="text-gray-300">—</span>;
+                                  return (
+                                    <div className="inline-flex items-center gap-1.5">
+                                      <span className={`flex items-center justify-center h-6 w-6 rounded-lg flex-shrink-0 ${
+                                        isMobile ? 'bg-emerald-50 text-emerald-600' : (isVisa||isMaster) ? 'bg-blue-50 text-blue-600' : isBank ? 'bg-amber-50 text-amber-600' : 'bg-gray-100 text-gray-500'
+                                      }`}>
+                                        {Icon && <Icon className="h-3.5 w-3.5" />}
+                                      </span>
+                                      <span className="text-xs font-semibold text-gray-700 leading-tight">{label}</span>
+                                    </div>
+                                  );
+                                }
                                 case 'roomNumber':
                                   return <span className="text-gray-700">{b.roomCode ?? '—'}</span>;
                                 case 'cancelledAt':

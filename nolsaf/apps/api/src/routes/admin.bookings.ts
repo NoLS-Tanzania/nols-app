@@ -140,7 +140,7 @@ router.get("/", async (req, res) => {
             updatedAt: true,
             paymentEvents: {
               where: { status: 'SUCCESS' },
-              select: { amount: true, currency: true, status: true, createdAt: true, updatedAt: true },
+              select: { amount: true, currency: true, status: true, provider: true, createdAt: true, updatedAt: true },
               orderBy: { createdAt: 'desc' },
             },
           },
@@ -198,6 +198,9 @@ router.get("/", async (req, res) => {
             : invoiceStatus === 'PAID'
               ? (latestInvoice?.total ?? null)
               : null,
+        method: paymentEvents.length > 0
+          ? (paymentEvents[0].provider ?? null)
+          : (latestInvoice?.paymentMethod ?? null),
         paidAt:
           paidAtFromEvent ??
           latestInvoice?.paidAt ??
@@ -408,6 +411,21 @@ router.get("/:id", async (req, res) => {
             policyRefundPercent: true,
             policyEligible: true,
             policyRule: true,
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+        reviews: {
+          select: {
+            id: true,
+            rating: true,
+            title: true,
+            comment: true,
+            categoryRatings: true,
+            isVerified: true,
+            ownerResponse: true,
+            ownerResponseAt: true,
+            createdAt: true,
           },
           orderBy: { createdAt: 'desc' },
           take: 1,

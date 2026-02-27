@@ -3,7 +3,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Home, User, Calendar, DollarSign, Key, AlertCircle, Loader2, RefreshCw } from "lucide-react";
+import { ArrowLeft, Home, User, Calendar, CheckCircle2, Clock, DollarSign, Key, AlertCircle, AlertTriangle, Loader2, MessageSquare, RefreshCw, Star } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 
 // Use same-origin calls + secure httpOnly cookie session.
@@ -107,78 +107,6 @@ function ConfirmModal({
   );
 }
 
-// Cancel Reason Modal Component
-function CancelReasonModal({ 
-  open, 
-  onConfirm, 
-  onCancel 
-}: { 
-  open: boolean; 
-  onConfirm: (reason: string) => void; 
-  onCancel: () => void; 
-}) {
-  const [reason, setReason] = useState("");
-
-  if (!open) return null;
-  
-  const handleConfirm = () => {
-    if (!reason.trim()) return;
-    onConfirm(reason.trim());
-    setReason("");
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="presentation">
-      <div className="absolute inset-0 bg-black/40" onClick={onCancel} />
-      <div role="dialog" aria-modal="true" aria-label="Cancel Booking" className="bg-white rounded-lg p-5 z-10 w-full max-w-md shadow-lg">
-        <div className="font-semibold text-lg mb-2">Cancel Booking</div>
-        <div className="mb-4">
-          <label htmlFor="cancel-reason" className="block text-sm font-medium text-gray-700 mb-2">
-            Cancel Reason <span className="text-red-500">*</span>
-          </label>
-          <textarea
-            id="cancel-reason"
-            value={reason}
-            onChange={(e) => {
-              const value = e.target.value;
-              if (value.length <= 500) {
-                setReason(value);
-              }
-            }}
-            placeholder="Enter reason for cancellation (minimum 3 characters)..."
-            aria-label="Enter cancellation reason"
-            title="Cancellation reason"
-            maxLength={500}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
-            rows={4}
-            autoFocus
-          />
-          <p className="text-xs text-gray-500 mt-1">
-            {reason.length}/500 characters (minimum 3 required)
-          </p>
-        </div>
-        <div className="flex justify-end gap-3">
-          <button 
-            onClick={onCancel}
-            aria-label="Cancel cancellation"
-            className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium transition-colors"
-          >
-            Cancel
-          </button>
-          <button 
-            onClick={handleConfirm}
-            disabled={!reason.trim() || reason.trim().length < 3}
-            aria-label="Confirm cancellation"
-            className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-          >
-            Confirm Cancellation
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 
 export default function AdminBookingDetail() {
   const params = useParams<{ id?: string | string[] }>();
@@ -192,7 +120,6 @@ export default function AdminBookingDetail() {
   
   // Modal and message states
   const [showVoidConfirm, setShowVoidConfirm] = useState(false);
-  const [showCancelModal, setShowCancelModal] = useState(false);
 
   const load = useCallback(async () => {
     if (!isValidBookingId(id)) {
@@ -241,39 +168,6 @@ export default function AdminBookingDetail() {
     } catch (err: any) {
       const errorMessage = err?.response?.data?.error || err?.message || "Failed to confirm booking";
       showToast("error", "Failed to Confirm Booking", errorMessage);
-    } finally {
-      setBusy(false);
-    }
-  }, [id, load]);
-
-  const handleCancel = useCallback(async (reason: string) => {
-    setShowCancelModal(false);
-    
-    if (!isValidBookingId(id)) {
-      showToast("error", "Invalid Booking", "Invalid booking ID provided");
-      return;
-    }
-
-    const sanitizedReason = sanitizeInput(reason);
-    if (sanitizedReason.length < 3) {
-      showToast("error", "Invalid Reason", "Cancel reason must be at least 3 characters");
-      return;
-    }
-
-    if (sanitizedReason.length > 500) {
-      showToast("error", "Reason Too Long", "Cancel reason must be less than 500 characters");
-      return;
-    }
-
-    setBusy(true);
-    try {
-      authify();
-      await api.post(`/api/admin/bookings/${id}/cancel`, { reason: sanitizedReason });
-      await load();
-      showToast("success", "Booking Cancelled", "Booking cancelled successfully");
-    } catch (err: any) {
-      const errorMessage = err?.response?.data?.error || err?.message || "Failed to cancel booking";
-      showToast("error", "Failed to Cancel Booking", errorMessage);
     } finally {
       setBusy(false);
     }
@@ -392,12 +286,6 @@ export default function AdminBookingDetail() {
         onCancel={() => setShowVoidConfirm(false)}
       />
 
-      <CancelReasonModal
-        open={showCancelModal}
-        onConfirm={handleCancel}
-        onCancel={() => setShowCancelModal(false)}
-      />
-
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         {/* Header */}
         <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
@@ -433,16 +321,6 @@ export default function AdminBookingDetail() {
                   ) : (
                     "Confirm & Generate Code"
                   )}
-                </button>
-              )}
-              {b.status !== "CANCELED" && (
-                <button
-                  disabled={busy}
-                  onClick={() => setShowCancelModal(true)}
-                  aria-label="Cancel booking"
-                  className="px-4 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-                >
-                  Cancel
                 </button>
               )}
             </div>
@@ -673,6 +551,102 @@ export default function AdminBookingDetail() {
                 </div>
               </div>
             </div>
+
+            {/* Check-out Summary */}
+            {(b.status === 'CHECKED_OUT' || b.status === 'CHECKED_IN') && (() => {
+              const scheduledOut = new Date(b.checkOut);
+              const now = new Date();
+              // For CHECKED_OUT: use updatedAt as actual checkout time
+              const actualOut = b.status === 'CHECKED_OUT' && b.updatedAt ? new Date(b.updatedAt) : null;
+              const isCurrentlyOverdue = b.status === 'CHECKED_IN' && now > scheduledOut;
+              const wasOverdue = b.status === 'CHECKED_OUT' && actualOut && actualOut > scheduledOut;
+              const overdueDays = wasOverdue && actualOut
+                ? Math.round((actualOut.getTime() - scheduledOut.getTime()) / 86400000)
+                : isCurrentlyOverdue
+                ? Math.round((now.getTime() - scheduledOut.getTime()) / 86400000)
+                : 0;
+              const review = Array.isArray(b.reviews) && b.reviews.length > 0 ? b.reviews[0] : null;
+              return (
+                <div className="bg-gradient-to-br from-white to-slate-50 rounded-lg border border-gray-200 p-6 shadow-sm">
+                  <div className="flex items-start gap-3 mb-4">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                      wasOverdue || isCurrentlyOverdue ? 'bg-amber-50' : 'bg-emerald-50'
+                    }`}>
+                      {wasOverdue || isCurrentlyOverdue
+                        ? <AlertTriangle className="h-5 w-5 text-amber-500" />
+                        : <CheckCircle2 className="h-5 w-5 text-emerald-600" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h2 className="text-lg font-semibold text-gray-900 mb-1">Check-out Summary</h2>
+
+                      {/* Status line */}
+                      {b.status === 'CHECKED_OUT' ? (
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2.5 py-1 w-fit mb-3">
+                          <CheckCircle2 className="h-3 w-3" /> Checkout confirmed
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-full px-2.5 py-1 w-fit mb-3">
+                          <Clock className="h-3 w-3" /> Guest is currently checked in
+                        </div>
+                      )}
+
+                      {/* Overdue banner */}
+                      {(wasOverdue || isCurrentlyOverdue) && (
+                        <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200 mb-3">
+                          <AlertTriangle className="h-4 w-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                          <div className="text-xs leading-snug">
+                            <span className="font-bold text-amber-800">
+                              {isCurrentlyOverdue ? 'Overdue — guest has not checked out' : `Late checkout — ${overdueDays} day${overdueDays !== 1 ? 's' : ''} past schedule`}
+                            </span>
+                            <div className="text-amber-600 mt-0.5">
+                              Scheduled out: <span className="font-semibold">{scheduledOut.toLocaleDateString()}</span>
+                              {wasOverdue && actualOut && (
+                                <> · Actual: <span className="font-semibold">{actualOut.toLocaleDateString()}</span></>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Guest review */}
+                      {review ? (
+                        <div className="space-y-2.5">
+                          <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Guest review</div>
+                          {/* Stars */}
+                          <div className="flex items-center gap-1">
+                            {[1,2,3,4,5].map(s => (
+                              <Star key={s} className={`h-4 w-4 ${
+                                s <= review.rating ? 'fill-amber-400 text-amber-400' : 'text-gray-200'
+                              }`} />
+                            ))}
+                            <span className="text-xs font-bold text-gray-700 ml-1">{review.rating}/5</span>
+                          </div>
+                          {review.title && <div className="text-sm font-semibold text-gray-900">{review.title}</div>}
+                          {review.comment && <div className="text-xs text-gray-600 leading-relaxed">{review.comment}</div>}
+                          <div className="text-[10px] text-gray-400">{new Date(review.createdAt).toLocaleDateString()}</div>
+
+                          {/* Owner response */}
+                          {review.ownerResponse && (
+                            <div className="mt-2 p-3 rounded-xl bg-indigo-50 border border-indigo-100">
+                              <div className="flex items-center gap-1.5 mb-1.5">
+                                <MessageSquare className="h-3.5 w-3.5 text-indigo-500" />
+                                <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wide">Owner response</span>
+                                {review.ownerResponseAt && (
+                                  <span className="text-[10px] text-indigo-400 ml-auto">{new Date(review.ownerResponseAt).toLocaleDateString()}</span>
+                                )}
+                              </div>
+                              <div className="text-xs text-indigo-800 leading-relaxed">{review.ownerResponse}</div>
+                            </div>
+                          )}
+                        </div>
+                      ) : b.status === 'CHECKED_OUT' ? (
+                        <div className="text-xs text-gray-400 italic">No review submitted for this stay.</div>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       </div>
