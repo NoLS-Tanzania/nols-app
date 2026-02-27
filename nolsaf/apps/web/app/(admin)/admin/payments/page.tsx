@@ -682,92 +682,136 @@ export default function Page() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-      {/* Header */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-        <div className="flex flex-col items-center text-center">
-          <div className="h-16 w-16 rounded-full bg-gradient-to-br from-teal-50 to-teal-100 flex items-center justify-center mb-4">
-            <Wallet className="h-8 w-8 text-teal-600" />
+      {/* Header + Summary */}
+      <div
+        className="relative rounded-2xl overflow-hidden shadow-xl"
+        style={{ background: "linear-gradient(135deg, #01312e 0%, #01403c 35%, #02665e 68%, #014d47 100%)" }}
+      >
+        {/* ── Decorative background chart ── */}
+        <svg
+          aria-hidden
+          className="absolute inset-0 w-full h-full pointer-events-none select-none"
+          preserveAspectRatio="xMidYMid slice"
+          viewBox="0 0 900 260"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          {[52, 104, 156, 208].map((y) => (
+            <line key={y} x1="0" y1={y} x2="900" y2={y} stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
+          ))}
+          {[
+            { x: 20,  h: 100 }, { x: 72,  h: 148 }, { x: 124, h: 82  }, { x: 176, h: 175 },
+            { x: 228, h: 120 }, { x: 280, h: 190 }, { x: 332, h: 105 }, { x: 384, h: 160 },
+            { x: 436, h: 70  }, { x: 488, h: 200 }, { x: 540, h: 138 }, { x: 592, h: 112 },
+            { x: 644, h: 178 }, { x: 696, h: 128 }, { x: 748, h: 95  }, { x: 800, h: 155 },
+            { x: 852, h: 88  },
+          ].map(({ x, h }) => (
+            <rect key={x} x={x} y={260 - h} width="36" height={h} rx="5" fill="rgba(255,255,255,0.048)" />
+          ))}
+          <polyline
+            points="38,168 90,118 142,185 194,78 246,130 298,62 350,140 402,90 454,195 506,48 558,110 610,132 662,72 714,122 766,160 818,98 870,145"
+            fill="none" stroke="rgba(255,255,255,0.11)" strokeWidth="2.5"
+            strokeLinejoin="round" strokeLinecap="round"
+          />
+          {[[506,48],[298,62],[662,72],[194,78]].map(([cx,cy]) => (
+            <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="4.5" fill="rgba(255,255,255,0.20)" />
+          ))}
+          <radialGradient id="payHeaderGlow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="rgba(2,102,94,0.55)" />
+            <stop offset="100%" stopColor="rgba(2,102,94,0)" />
+          </radialGradient>
+          <ellipse cx="450" cy="130" rx="300" ry="150" fill="url(#payHeaderGlow)" />
+        </svg>
+
+        {/* ── Content ── */}
+        <div className="relative z-10 flex flex-col items-center text-center px-6 pt-10 pb-8 sm:pt-14 sm:pb-10">
+          {/* Icon orb */}
+          <div
+            className="mb-5 inline-flex items-center justify-center rounded-full"
+            style={{
+              width: 64, height: 64,
+              background: "rgba(255,255,255,0.10)",
+              border: "1.5px solid rgba(255,255,255,0.18)",
+              boxShadow: "0 0 0 8px rgba(255,255,255,0.05), 0 8px 32px rgba(0,0,0,0.35)",
+            }}
+          >
+            <Wallet className="h-7 w-7" style={{ color: "rgba(255,255,255,0.92)" }} aria-hidden />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Payments</h1>
-          <p className="text-sm text-gray-500 mt-1">Track and reconcile incoming and outgoing payments</p>
+
+          <h1
+            className="text-2xl sm:text-3xl font-bold tracking-tight"
+            style={{ color: "#ffffff", textShadow: "0 2px 12px rgba(0,0,0,0.4)" }}
+          >
+            Payments
+          </h1>
+          <p className="mt-2 text-sm sm:text-base" style={{ color: "rgba(255,255,255,0.55)" }}>
+            Track and reconcile incoming and outgoing payments
+          </p>
+
+          {/* Summary toggle cards */}
+          <div className="mt-7 grid grid-cols-2 gap-4 w-full max-w-lg">
+            {/* Waiting */}
+            <button
+              onClick={() => setActiveTab('waiting')}
+              className="rounded-2xl p-5 text-left transition-all duration-200 focus:outline-none"
+              style={{
+                background: activeTab === 'waiting' ? "rgba(245,158,11,0.22)" : "rgba(255,255,255,0.07)",
+                border: activeTab === 'waiting' ? "1.5px solid rgba(245,158,11,0.55)" : "1.5px solid rgba(255,255,255,0.10)",
+                boxShadow: activeTab === 'waiting' ? "0 4px 24px rgba(245,158,11,0.18)" : "none",
+              }}
+            >
+              <div className="flex items-center gap-3 mb-3">
+                <div
+                  className="rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{
+                    width: 40, height: 40,
+                    background: activeTab === 'waiting' ? "rgba(245,158,11,0.30)" : "rgba(255,255,255,0.10)",
+                  }}
+                >
+                  <Clock className="h-5 w-5" style={{ color: activeTab === 'waiting' ? "#fcd34d" : "rgba(255,255,255,0.7)" }} />
+                </div>
+                {activeTab === 'waiting' && (
+                  <span className="inline-block h-2 w-2 rounded-full" style={{ background: "#fcd34d", boxShadow: "0 0 6px #fcd34d" }} />
+                )}
+              </div>
+              <p className="text-2xl font-bold" style={{ color: "#fff" }}>
+                {loading && summary.waiting === 0 ? "—" : summary.waiting.toLocaleString()}
+              </p>
+              <p className="text-xs font-semibold uppercase tracking-wider mt-0.5" style={{ color: activeTab === 'waiting' ? "#fcd34d" : "rgba(255,255,255,0.45)" }}>Waiting</p>
+              <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.38)" }}>Pending payments</p>
+            </button>
+
+            {/* Paid */}
+            <button
+              onClick={() => setActiveTab('paid')}
+              className="rounded-2xl p-5 text-left transition-all duration-200 focus:outline-none"
+              style={{
+                background: activeTab === 'paid' ? "rgba(16,185,129,0.20)" : "rgba(255,255,255,0.07)",
+                border: activeTab === 'paid' ? "1.5px solid rgba(16,185,129,0.50)" : "1.5px solid rgba(255,255,255,0.10)",
+                boxShadow: activeTab === 'paid' ? "0 4px 24px rgba(16,185,129,0.16)" : "none",
+              }}
+            >
+              <div className="flex items-center gap-3 mb-3">
+                <div
+                  className="rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{
+                    width: 40, height: 40,
+                    background: activeTab === 'paid' ? "rgba(16,185,129,0.28)" : "rgba(255,255,255,0.10)",
+                  }}
+                >
+                  <CheckCircle className="h-5 w-5" style={{ color: activeTab === 'paid' ? "#6ee7b7" : "rgba(255,255,255,0.7)" }} />
+                </div>
+                {activeTab === 'paid' && (
+                  <span className="inline-block h-2 w-2 rounded-full" style={{ background: "#6ee7b7", boxShadow: "0 0 6px #6ee7b7" }} />
+                )}
+              </div>
+              <p className="text-2xl font-bold" style={{ color: "#fff" }}>
+                {loading && summary.paid === 0 ? "—" : summary.paid.toLocaleString()}
+              </p>
+              <p className="text-xs font-semibold uppercase tracking-wider mt-0.5" style={{ color: activeTab === 'paid' ? "#6ee7b7" : "rgba(255,255,255,0.45)" }}>Paid History</p>
+              <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.38)" }}>Completed payments</p>
+            </button>
+          </div>
         </div>
-      </div>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <button
-          onClick={() => setActiveTab('waiting')}
-          className={`bg-white rounded-lg border-2 p-6 shadow-sm transition-all duration-300 hover:shadow-md hover:scale-[1.02] ${
-            activeTab === 'waiting'
-              ? 'border-teal-500 bg-teal-50'
-              : 'border-gray-200 hover:border-teal-300'
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className={`h-12 w-12 rounded-lg flex items-center justify-center ${
-                activeTab === 'waiting' ? 'bg-teal-100' : 'bg-yellow-100'
-              }`}>
-                <Clock className={`h-6 w-6 ${
-                  activeTab === 'waiting' ? 'text-teal-600' : 'text-yellow-600'
-                }`} />
-              </div>
-              <div className="text-left">
-                <p className={`text-xs font-semibold uppercase tracking-wider ${
-                  activeTab === 'waiting' ? 'text-teal-700' : 'text-gray-500'
-                }`}>
-                  Waiting
-                </p>
-                <p className={`text-2xl font-bold mt-1 ${
-                  activeTab === 'waiting' ? 'text-teal-900' : 'text-gray-900'
-                }`}>
-                  {loading && summary.waiting === 0 ? "..." : summary.waiting.toLocaleString()}
-                </p>
-                <p className="text-xs text-gray-500 mt-1">Pending payments</p>
-              </div>
-            </div>
-            {activeTab === 'waiting' && (
-              <div className="h-3 w-3 rounded-full bg-teal-500"></div>
-            )}
-          </div>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('paid')}
-          className={`bg-white rounded-lg border-2 p-6 shadow-sm transition-all duration-300 hover:shadow-md hover:scale-[1.02] ${
-            activeTab === 'paid'
-              ? 'border-teal-500 bg-teal-50'
-              : 'border-gray-200 hover:border-teal-300'
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className={`h-12 w-12 rounded-lg flex items-center justify-center ${
-                activeTab === 'paid' ? 'bg-teal-100' : 'bg-green-100'
-              }`}>
-                <CheckCircle className={`h-6 w-6 ${
-                  activeTab === 'paid' ? 'text-teal-600' : 'text-green-600'
-                }`} />
-              </div>
-              <div className="text-left">
-                <p className={`text-xs font-semibold uppercase tracking-wider ${
-                  activeTab === 'paid' ? 'text-teal-700' : 'text-gray-500'
-                }`}>
-                  Paid History
-                </p>
-                <p className={`text-2xl font-bold mt-1 ${
-                  activeTab === 'paid' ? 'text-teal-900' : 'text-gray-900'
-                }`}>
-                  {loading && summary.paid === 0 ? "..." : summary.paid.toLocaleString()}
-                </p>
-                <p className="text-xs text-gray-500 mt-1">Completed payments</p>
-              </div>
-            </div>
-            {activeTab === 'paid' && (
-              <div className="h-3 w-3 rounded-full bg-teal-500"></div>
-            )}
-          </div>
-        </button>
       </div>
 
       {/* Page Error */}
@@ -1136,162 +1180,181 @@ export default function Page() {
 
       {/* Modal: View Invoice Details */}
       {modalOpen && selectedPayment && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="relative bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-gray-200">
-            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center z-10">
-              <h3 className="text-xl font-semibold text-gray-900">
-                Invoice {selectedPayment.invoiceNumber}
-              </h3>
-              <button
-                onClick={() => {
-                  setModalOpen(false);
-                  setSelectedPayment(null);
-                }}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
-                aria-label="Close modal"
-              >
-                <X className="h-5 w-5" />
-              </button>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.72)", backdropFilter: "blur(6px)" }}
+        >
+          <div
+            className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl"
+            style={{
+              background: "linear-gradient(160deg, #071e1c 0%, #0b2e2a 40%, #0e3832 100%)",
+              border: "1px solid rgba(255,255,255,0.08)",
+            }}
+          >
+            {/* ── Modal header ── */}
+            <div
+              className="sticky top-0 z-10 flex items-start justify-between gap-4 px-6 py-5"
+              style={{
+                background: "linear-gradient(135deg, #01312e 0%, #02504a 100%)",
+                borderBottom: "1px solid rgba(255,255,255,0.07)",
+              }}
+            >
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "rgba(255,255,255,0.45)" }}>Invoice</p>
+                <h3 className="text-lg sm:text-xl font-bold truncate" style={{ color: "#fff" }}>
+                  {selectedPayment.invoiceNumber}
+                </h3>
+              </div>
+              <div className="flex items-center gap-3 flex-shrink-0 mt-1">
+                {/* Status pill */}
+                {(() => {
+                  const s = selectedPayment.status;
+                  const isPaid = s === 'PAID' || s === 'SUCCESS' || s === 'Completed';
+                  const isApproved = s === 'APPROVED';
+                  return (
+                    <span
+                      className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide"
+                      style={{
+                        background: isPaid ? "rgba(16,185,129,0.25)" : isApproved ? "rgba(245,158,11,0.25)" : "rgba(148,163,184,0.18)",
+                        color: isPaid ? "#6ee7b7" : isApproved ? "#fcd34d" : "#94a3b8",
+                        border: `1px solid ${isPaid ? "rgba(16,185,129,0.35)" : isApproved ? "rgba(245,158,11,0.35)" : "rgba(148,163,184,0.22)"}`,
+                      }}
+                    >
+                      {s}
+                    </span>
+                  );
+                })()}
+                <button
+                  onClick={() => { setModalOpen(false); setSelectedPayment(null); }}
+                  aria-label="Close"
+                  className="rounded-xl transition-all duration-150"
+                  style={{
+                    width: 34, height: 34,
+                    background: "rgba(0,0,0,0.35)",
+                    border: "1px solid rgba(255,255,255,0.10)",
+                    color: "rgba(148,163,184,0.85)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,0,0,0.55)"; (e.currentTarget as HTMLButtonElement).style.color = "#e2e8f0"; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,0,0,0.35)"; (e.currentTarget as HTMLButtonElement).style.color = "rgba(148,163,184,0.85)"; }}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
             </div>
 
-            <div className="p-6 space-y-6">
-              {/* Modal Error Message */}
+            <div className="p-6 space-y-5">
+              {/* Modal Error */}
               {modalError && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2">
-                  <AlertCircle className="h-4 w-4 text-red-600 flex-shrink-0 mt-0.5" />
-                  <div className="flex-1">
-                    <p className="text-sm text-red-700">{modalError}</p>
-                  </div>
-                  <button
-                    onClick={() => setModalError(null)}
-                    className="text-red-400 hover:text-red-600"
-                    aria-label="Dismiss modal error"
-                    title="Dismiss"
-                  >
+                <div
+                  className="rounded-xl p-3 flex items-start gap-2"
+                  style={{ background: "rgba(239,68,68,0.14)", border: "1px solid rgba(239,68,68,0.28)" }}
+                >
+                  <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" style={{ color: "#fca5a5" }} />
+                  <p className="text-sm flex-1" style={{ color: "#fca5a5" }}>{modalError}</p>
+                  <button onClick={() => setModalError(null)} style={{ color: "#fca5a5" }}>
                     <X className="h-3 w-3" />
                   </button>
                 </div>
               )}
 
-              {/* Invoice Details Grid */}
-              <div className="grid grid-cols-2 gap-4">
+              {/* Amount hero */}
+              <div
+                className="rounded-xl px-5 py-4 flex items-center justify-between"
+                style={{ background: "rgba(2,102,94,0.18)", border: "1px solid rgba(2,102,94,0.30)" }}
+              >
                 <div>
-                  <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Date</div>
-                  <div className="text-sm font-medium text-gray-900">
-                    {formatDateOnly(selectedPayment.date)} {formatTimeWithSeconds(selectedPayment.date)}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Status</div>
-                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${badgeClasses(selectedPayment.status)}`}>
-                    {selectedPayment.status}
-                  </span>
-                </div>
-                <div>
-                  <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Owner</div>
-                  <div className="text-sm font-medium text-gray-900">
-                    {selectedPayment.owner.name || selectedPayment.owner.email || 'N/A'}
-                  </div>
-                  {selectedPayment.owner.phone && (
-                    <div className="text-xs text-gray-500 mt-1">{selectedPayment.owner.phone}</div>
-                  )}
-                </div>
-                <div>
-                  <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Property</div>
-                  <div className="text-sm font-medium text-gray-900">
-                    {selectedPayment.property?.title || 'N/A'}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Amount</div>
-                  <div className="text-lg font-semibold text-gray-900">
+                  <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>Amount</p>
+                  <p className="text-2xl sm:text-3xl font-bold" style={{ color: "#6ee7b7" }}>
                     {formatCurrency(selectedPayment.amount, selectedPayment.currency)}
-                  </div>
+                  </p>
                 </div>
-                <div>
-                  <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Payment Method</div>
-                  <div className="text-sm font-medium text-gray-900">
-                    {formatPaymentMethod(selectedPayment.paymentMethod) || 'Not specified'}
-                  </div>
+                <div
+                  className="rounded-xl flex items-center justify-center"
+                  style={{ width: 52, height: 52, background: "rgba(2,102,94,0.30)", border: "1px solid rgba(2,102,94,0.40)" }}
+                >
+                  <Wallet className="h-6 w-6" style={{ color: "#6ee7b7" }} />
                 </div>
-                {selectedPayment.accountNumber && (
-                  <div>
-                    <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Account</div>
-                    <div className="text-sm font-medium text-gray-900 font-mono">
-                      {maskAccountNumber(selectedPayment.accountNumber)}
-                    </div>
-                  </div>
-                )}
-                {selectedPayment.paymentRef && (
-                  <div>
-                    <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Payment Reference</div>
-                    <div className="text-sm font-mono text-gray-900">{selectedPayment.paymentRef}</div>
-                  </div>
-                )}
-                {selectedPayment.receiptNumber && (
-                  <div>
-                    <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Receipt Number</div>
-                    <div className="text-sm font-mono text-gray-900">{selectedPayment.receiptNumber}</div>
-                  </div>
-                )}
               </div>
 
-              {/* Payment Event Info (if paid) */}
-              {selectedPayment.paymentEvent && (
-                <div className="border-t border-gray-200 pt-4">
-                  <div className="text-xs text-gray-500 uppercase tracking-wide mb-2">Payment Event</div>
-                  <div className="bg-gray-50 rounded-lg p-3 space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Provider:</span>
-                      <span className="font-medium text-gray-900">{selectedPayment.paymentEvent.provider}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Event ID:</span>
-                      <span className="font-mono text-gray-900">{selectedPayment.paymentEvent.eventId}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Processed:</span>
-                      <span className="text-gray-900">
-                        {formatDateOnly(selectedPayment.paymentEvent.createdAt)} {formatTimeWithSeconds(selectedPayment.paymentEvent.createdAt)}
-                      </span>
-                    </div>
+              {/* Info grid */}
+              <div className="grid grid-cols-2 gap-3">
+                {([
+                  { label: "Date", value: `${formatDateOnly(selectedPayment.date)} ${formatTimeWithSeconds(selectedPayment.date)}` },
+                  { label: "Payment Method", value: formatPaymentMethod(selectedPayment.paymentMethod) || "Not specified" },
+                  { label: "Owner", value: selectedPayment.owner.name || selectedPayment.owner.email || "N/A", sub: selectedPayment.owner.phone || undefined },
+                  { label: "Property", value: selectedPayment.property?.title || "N/A" },
+                  ...(selectedPayment.accountNumber ? [{ label: "Account", value: maskAccountNumber(selectedPayment.accountNumber), mono: true }] : []),
+                  ...(selectedPayment.paymentRef ? [{ label: "Payment Reference", value: selectedPayment.paymentRef, mono: true, colSpan: true }] : []),
+                  ...(selectedPayment.receiptNumber ? [{ label: "Receipt Number", value: selectedPayment.receiptNumber, mono: true, colSpan: true }] : []),
+                ] as Array<{ label: string; value: string; sub?: string; mono?: boolean; colSpan?: boolean }>).map(({ label, value, sub, mono, colSpan }) => (
+                  <div
+                    key={label}
+                    className={`rounded-xl px-4 py-3${colSpan ? " col-span-2" : ""}`}
+                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}
+                  >
+                    <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "rgba(255,255,255,0.35)" }}>{label}</p>
+                    <p className={`text-sm font-medium break-all${mono ? " font-mono" : ""}`} style={{ color: "rgba(255,255,255,0.88)" }}>{value}</p>
+                    {sub && <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.40)" }}>{sub}</p>}
                   </div>
+                ))}
+              </div>
+
+              {/* Payment Event */}
+              {selectedPayment.paymentEvent && (
+                <div
+                  className="rounded-xl px-4 py-4 space-y-2"
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}
+                >
+                  <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: "rgba(255,255,255,0.35)" }}>Payment Event</p>
+                  {[
+                    { k: "Provider", v: selectedPayment.paymentEvent.provider },
+                    { k: "Event ID", v: selectedPayment.paymentEvent.eventId, mono: true },
+                    { k: "Processed", v: `${formatDateOnly(selectedPayment.paymentEvent.createdAt)} ${formatTimeWithSeconds(selectedPayment.paymentEvent.createdAt)}` },
+                  ].map(({ k, v, mono }) => (
+                    <div key={k} className="flex justify-between items-center text-sm" style={{ borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: 6 }}>
+                      <span style={{ color: "rgba(255,255,255,0.40)" }}>{k}</span>
+                      <span className={mono ? "font-mono" : "font-medium"} style={{ color: "rgba(255,255,255,0.80)" }}>{v}</span>
+                    </div>
+                  ))}
                 </div>
               )}
 
-              {/* Receipt QR Code (if paid and has receipt) */}
+              {/* Receipt QR Code */}
               {selectedPayment.status === 'PAID' && selectedPayment.receiptNumber && (
-                <div className="border-t border-gray-200 pt-4">
-                  <div className="text-xs text-gray-500 uppercase tracking-wide mb-3">Receipt QR Code</div>
-                  <div className="bg-gradient-to-br from-teal-50 to-teal-100 rounded-lg p-6 flex flex-col items-center justify-center">
-                    <div className="bg-white rounded-lg p-4 shadow-md border-2 border-teal-200">
-                      <Image
-                        src={`/api/admin/invoices/${selectedPayment.invoiceId}/receipt.png`}
-                        alt="Receipt QR Code"
-                        width={224}
-                        height={224}
-                        unoptimized
-                        className="w-48 h-48 sm:w-56 sm:h-56 object-contain"
-                        onError={(e) => {
-                          // Hide QR code if image fails to load
-                          (e.currentTarget as any).style.display = 'none';
-                        }}
-                      />
-                    </div>
-                    <p className="text-xs text-gray-600 mt-4 text-center max-w-xs">
-                      Scan this QR code to verify the receipt authenticity
-                    </p>
-                    {selectedPayment.receiptNumber && (
-                      <p className="text-xs font-mono text-teal-700 mt-2 bg-white px-3 py-1 rounded border border-teal-200">
-                        {selectedPayment.receiptNumber}
-                      </p>
-                    )}
+                <div
+                  className="rounded-xl px-4 py-5 flex flex-col items-center"
+                  style={{ background: "rgba(2,102,94,0.12)", border: "1px solid rgba(2,102,94,0.25)" }}
+                >
+                  <p className="text-xs font-semibold uppercase tracking-widest mb-4" style={{ color: "rgba(255,255,255,0.35)" }}>Receipt QR Code</p>
+                  <div
+                    className="rounded-xl p-4"
+                    style={{ background: "#fff", boxShadow: "0 8px 32px rgba(0,0,0,0.40)", border: "2px solid rgba(2,102,94,0.30)" }}
+                  >
+                    <Image
+                      src={`/api/admin/invoices/${selectedPayment.invoiceId}/receipt.png`}
+                      alt="Receipt QR Code"
+                      width={224} height={224}
+                      unoptimized
+                      className="w-44 h-44 sm:w-52 sm:h-52 object-contain"
+                      onError={(e) => { (e.currentTarget as any).style.display = 'none'; }}
+                    />
                   </div>
+                  <p className="text-xs mt-4 text-center" style={{ color: "rgba(255,255,255,0.38)" }}>Scan to verify receipt authenticity</p>
+                  <span
+                    className="mt-2 px-3 py-1 rounded-lg text-xs font-mono"
+                    style={{ background: "rgba(2,102,94,0.25)", color: "#6ee7b7", border: "1px solid rgba(2,102,94,0.35)" }}
+                  >
+                    {selectedPayment.receiptNumber}
+                  </span>
                 </div>
               )}
 
               {/* Actions */}
-              <div className="flex gap-3 pt-4 border-t border-gray-200">
+              <div
+                className="flex gap-3 pt-2"
+                style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}
+              >
                 {selectedPayment.receiptNumber && selectedPayment.status === 'PAID' && (
                   <button
                     onClick={async () => {
@@ -1305,17 +1368,29 @@ export default function Page() {
                       }
                     }}
                     title="Download Receipt"
-                    className="px-3 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center justify-center"
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200"
+                    style={{
+                      background: "rgba(2,102,94,0.30)",
+                      border: "1px solid rgba(2,102,94,0.50)",
+                      color: "#6ee7b7",
+                    }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(2,102,94,0.50)"; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(2,102,94,0.30)"; }}
                   >
-                    <Download className="h-5 w-5" />
+                    <Download className="h-4 w-4" />
+                    <span>Download Receipt</span>
                   </button>
                 )}
                 <button
-                  onClick={() => {
-                    setModalOpen(false);
-                    setSelectedPayment(null);
+                  onClick={() => { setModalOpen(false); setSelectedPayment(null); }}
+                  className="px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200"
+                  style={{
+                    background: "rgba(0,0,0,0.35)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    color: "rgba(148,163,184,0.85)",
                   }}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,0,0,0.55)"; (e.currentTarget as HTMLButtonElement).style.color = "#e2e8f0"; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,0,0,0.35)"; (e.currentTarget as HTMLButtonElement).style.color = "rgba(148,163,184,0.85)"; }}
                 >
                   Close
                 </button>
