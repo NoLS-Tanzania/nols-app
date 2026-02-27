@@ -275,30 +275,99 @@ export default function AdminDriversInvoicesPage() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      {/* Header */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-        <div className="flex flex-col items-center text-center">
-          <div className="h-16 w-16 rounded-full bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center mb-4">
-            <FileText className="h-8 w-8 text-blue-600" />
+      {/* Premium Header Banner */}
+      <div
+        className="relative rounded-2xl overflow-hidden"
+        style={{
+          background: "linear-gradient(135deg, #0e2a7a 0%, #0a5c82 38%, #02665e 100%)",
+          boxShadow: "0 28px 65px -15px rgba(2,102,94,0.45), 0 8px 22px -8px rgba(14,42,122,0.50)",
+        }}
+      >
+        {/* Sparkline SVG */}
+        <svg aria-hidden="true" className="absolute inset-0 w-full h-full pointer-events-none select-none" viewBox="0 0 900 220" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="860" cy="-20" r="130" fill="none" stroke="rgba(255,255,255,0.055)" strokeWidth="1.2" />
+          <circle cx="860" cy="-20" r="195" fill="none" stroke="rgba(255,255,255,0.035)" strokeWidth="1" />
+          <circle cx="40" cy="240" r="110" fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
+          <line x1="0" y1="55" x2="900" y2="55" stroke="rgba(255,255,255,0.045)" strokeWidth="0.8" />
+          <line x1="0" y1="110" x2="900" y2="110" stroke="rgba(255,255,255,0.045)" strokeWidth="0.8" />
+          <line x1="0" y1="165" x2="900" y2="165" stroke="rgba(255,255,255,0.03)" strokeWidth="0.8" />
+          <polyline points="0,170 80,155 160,140 240,145 320,120 400,105 480,118 560,92 640,75 720,88 800,60 900,48" fill="none" stroke="rgba(255,255,255,0.30)" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
+          <polygon points="0,170 80,155 160,140 240,145 320,120 400,105 480,118 560,92 640,75 720,88 800,60 900,48 900,220 0,220" fill="rgba(255,255,255,0.04)" />
+          <polyline points="0,190 100,178 200,168 300,175 400,155 500,142 600,150 700,128 800,115 900,100" fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth="1.4" strokeDasharray="5 4" strokeLinejoin="round" />
+          <circle cx="320" cy="120" r="4.5" fill="rgba(245,158,11,0.80)" />
+          <circle cx="320" cy="120" r="9" fill="rgba(245,158,11,0.15)" />
+          <circle cx="560" cy="92" r="4.5" fill="rgba(16,185,129,0.80)" />
+          <circle cx="560" cy="92" r="9" fill="rgba(16,185,129,0.15)" />
+          <circle cx="800" cy="60" r="4.5" fill="rgba(56,189,248,0.80)" />
+          <circle cx="800" cy="60" r="9" fill="rgba(56,189,248,0.15)" />
+          <ellipse cx="450" cy="110" rx="260" ry="70" fill="url(#drvInvGlow)" />
+          <defs>
+            <radialGradient id="drvInvGlow" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="rgba(2,102,94,0.18)" />
+              <stop offset="100%" stopColor="rgba(2,102,94,0)" />
+            </radialGradient>
+          </defs>
+        </svg>
+
+        <div className="relative z-10 px-6 pt-8 pb-7 sm:px-8 sm:pt-10">
+          {/* Icon + title */}
+          <div className="flex items-center gap-4 mb-6">
+            <div className="flex items-center justify-center rounded-xl flex-shrink-0" style={{ width: 46, height: 46, background: "rgba(255,255,255,0.10)", border: "1.5px solid rgba(255,255,255,0.18)", boxShadow: "0 0 0 8px rgba(255,255,255,0.05), 0 8px 32px rgba(0,0,0,0.35)" }}>
+              <FileText className="h-5 w-5" style={{ color: "rgba(255,255,255,0.92)" }} />
+            </div>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-black tracking-tight" style={{ color: "#ffffff", textShadow: "0 2px 12px rgba(0,0,0,0.40)" }}>Driver Payout Invoices</h1>
+              <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.58)" }}>Driver-submitted payout requests after trip completion · review, approve &amp; process payments</p>
+            </div>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Driver Invoices</h1>
-          <p className="text-sm text-gray-500 mt-1">View and manage all driver invoices and payments</p>
+
+          {/* KPI chips — status counts */}
+          <div className="grid grid-cols-3 lg:grid-cols-6 gap-2.5">
+            {([
+              { label: "All",        val: "",           color: "#e2e8f0", bg: "rgba(255,255,255,0.14)",  border: "rgba(255,255,255,0.24)"  },
+              { label: "Pending",    val: "PENDING",    color: "#94a3b8", bg: "rgba(148,163,184,0.15)", border: "rgba(148,163,184,0.28)" },
+              { label: "Approved",   val: "APPROVED",   color: "#93c5fd", bg: "rgba(59,130,246,0.18)",  border: "rgba(59,130,246,0.32)"  },
+              { label: "Processing", val: "PROCESSING", color: "#fcd34d", bg: "rgba(245,158,11,0.18)",  border: "rgba(245,158,11,0.32)"  },
+              { label: "Paid",       val: "PAID",       color: "#6ee7b7", bg: "rgba(16,185,129,0.18)",  border: "rgba(16,185,129,0.32)"  },
+              { label: "Rejected",   val: "REJECTED",   color: "#fca5a5", bg: "rgba(239,68,68,0.18)",   border: "rgba(239,68,68,0.32)"   },
+            ] as const).map((chip) => {
+              const count = list.filter((r) => chip.val === "" || r.status === chip.val).length;
+              return (
+                <button
+                  key={chip.val}
+                  type="button"
+                  onClick={() => { setStatus(chip.val); setPage(1); setTimeout(() => load(), 0); }}
+                  className="rounded-xl px-3 py-2.5 text-left transition-all duration-200"
+                  style={{
+                    background: status === chip.val ? chip.bg.replace(/0\.1[0-9]/, "0.30") : chip.bg,
+                    border: `1px solid ${status === chip.val ? chip.border.replace(/0\.2[0-9]/, "0.55") : chip.border}`,
+                    backdropFilter: "blur(8px)",
+                    outline: status === chip.val ? `1.5px solid ${chip.color}44` : "none",
+                    outlineOffset: "2px",
+                  }}
+                >
+                  <div className="text-[10px] uppercase tracking-widest mb-0.5" style={{ color: "rgba(255,255,255,0.50)" }}>{chip.label}</div>
+                  <div className="text-lg font-black tabular-nums" style={{ color: chip.color }}>{loading ? "—" : count}</div>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
       {/* Search and Filters */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm overflow-hidden">
-        <div className="flex flex-col gap-4 w-full box-border">
-          {/* Top Row: Search and Date Picker */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full">
-            {/* Search Box */}
-            <div className="relative w-full sm:flex-1 min-w-0">
-              <div className="relative w-full">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 z-10" />
+      <div className="rounded-xl overflow-hidden" style={{ background: "linear-gradient(135deg, #0a1a19 0%, #0d2320 60%, #0a1f2e 100%)", border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06)" }}>
+        <div className="px-4 py-4 sm:px-5 sm:py-5 lg:px-6 lg:py-5">
+          <div className="flex flex-col gap-4 w-full box-border">
+
+            {/* Search + Date row */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full">
+              <div className="relative w-full sm:flex-1 min-w-0">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none z-10" style={{ color: 'rgba(255,255,255,0.38)' }} />
                 <input
                   ref={searchRef}
                   type="text"
-                  className="w-full box-border pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+                  className="w-full box-border pl-10 pr-10 py-2.5 rounded-lg outline-none text-sm transition-all"
                   placeholder="Search invoices or trip code..."
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
@@ -306,94 +375,69 @@ export default function AdminDriversInvoicesPage() {
                     if (e.key === "Enter") {
                       e.preventDefault();
                       setPage(1);
-                      if (isTripCodeLike(q)) {
-                        void lookupTripCode(q);
-                      }
+                      if (isTripCodeLike(q)) { void lookupTripCode(q); }
                       load();
                     }
                   }}
-                  style={{ width: '100%', maxWidth: '100%' }}
+                  style={{ background: 'rgba(255,255,255,0.07)', border: '1.5px solid rgba(255,255,255,0.13)', color: 'rgba(255,255,255,0.90)', width: '100%', maxWidth: '100%' }}
                 />
                 {q && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setQ("");
-                      setPage(1);
-                      load();
-                    }}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors z-10"
-                    aria-label="Clear search"
-                  >
+                  <button type="button" onClick={() => { setQ(""); setPage(1); load(); }} className="absolute right-3 top-1/2 -translate-y-1/2 z-10" aria-label="Clear search" style={{ color: 'rgba(255,255,255,0.40)' }}>
                     <X className="h-4 w-4" />
                   </button>
                 )}
               </div>
+
+              {/* Date Picker */}
+              <div className="relative w-full sm:w-auto sm:flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={() => { setPickerAnim(true); setTimeout(() => setPickerAnim(false), 350); setPickerOpen((v) => !v); }}
+                  className="w-full box-border px-4 py-2.5 rounded-lg text-sm flex items-center justify-center gap-2 transition-all"
+                  style={pickerAnim ? { background: 'rgba(2,102,94,0.30)', border: '1.5px solid rgba(2,102,94,0.65)', color: '#5eead4' } : { background: 'rgba(255,255,255,0.07)', border: '1.5px solid rgba(255,255,255,0.14)', color: 'rgba(255,255,255,0.75)' }}
+                >
+                  <Calendar className="h-4 w-4" />
+                  <span>Date</span>
+                </button>
+                {pickerOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setPickerOpen(false)} />
+                    <div className="fixed z-50 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                      <DatePicker selected={date || undefined} onSelectAction={(s) => { setDate(s as string | string[]); setPage(1); }} onCloseAction={() => setPickerOpen(false)} />
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
 
-            {/* Date Picker */}
-            <div className="relative w-full sm:w-auto sm:flex-shrink-0">
-              <button
-                type="button"
-                onClick={() => {
-                  setPickerAnim(true);
-                  setTimeout(() => setPickerAnim(false), 350);
-                  setPickerOpen((v) => !v);
-                }}
-                className={`w-full box-border px-3 py-2 rounded-lg border border-gray-300 text-sm flex items-center justify-center gap-2 text-gray-700 bg-white transition-all ${
-                  pickerAnim ? "ring-2 ring-blue-100" : "hover:bg-gray-50"
-                }`}
-                style={{ width: '100%', maxWidth: '100%' }}
-              >
-                <Calendar className="h-4 w-4" />
-                <span>Date</span>
-              </button>
-              {pickerOpen && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setPickerOpen(false)} />
-                  <div className="fixed z-50 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-                    <DatePicker
-                      selected={date || undefined}
-                      onSelectAction={(s) => {
-                        setDate(s as string | string[]);
-                        setPage(1);
-                      }}
-                      onCloseAction={() => setPickerOpen(false)}
-                    />
-                  </div>
-                </>
-              )}
+            {/* Status filter pills — dark tinted */}
+            <div className="flex gap-2 items-center flex-wrap">
+              {([
+                { label: "All",        value: "",           activeBg: "rgba(255,255,255,0.18)",  activeBorder: "rgba(255,255,255,0.38)",  activeColor: "#ffffff",  inBg: "rgba(255,255,255,0.06)",  inBorder: "rgba(255,255,255,0.12)" },
+                { label: "Pending",    value: "PENDING",    activeBg: "rgba(148,163,184,0.25)",  activeBorder: "rgba(148,163,184,0.55)",  activeColor: "#e2e8f0",  inBg: "rgba(148,163,184,0.07)",  inBorder: "rgba(148,163,184,0.18)" },
+                { label: "Approved",   value: "APPROVED",   activeBg: "rgba(59,130,246,0.25)",   activeBorder: "rgba(59,130,246,0.55)",   activeColor: "#93c5fd",  inBg: "rgba(59,130,246,0.08)",   inBorder: "rgba(59,130,246,0.20)"  },
+                { label: "Processing", value: "PROCESSING", activeBg: "rgba(245,158,11,0.25)",   activeBorder: "rgba(245,158,11,0.55)",   activeColor: "#fcd34d",  inBg: "rgba(245,158,11,0.08)",   inBorder: "rgba(245,158,11,0.20)"  },
+                { label: "Paid",       value: "PAID",       activeBg: "rgba(16,185,129,0.25)",   activeBorder: "rgba(16,185,129,0.55)",   activeColor: "#6ee7b7",  inBg: "rgba(16,185,129,0.08)",   inBorder: "rgba(16,185,129,0.20)"  },
+                { label: "Rejected",   value: "REJECTED",   activeBg: "rgba(239,68,68,0.25)",    activeBorder: "rgba(239,68,68,0.55)",    activeColor: "#fca5a5",  inBg: "rgba(239,68,68,0.08)",    inBorder: "rgba(239,68,68,0.20)"   },
+              ] as const).map((s) => {
+                const isActive = status === s.value;
+                return (
+                  <button
+                    key={s.value}
+                    type="button"
+                    onClick={() => { setStatus(s.value); setPage(1); setTimeout(() => load(), 0); }}
+                    className="px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 whitespace-nowrap flex-shrink-0"
+                    style={isActive ? { background: s.activeBg, border: `1.5px solid ${s.activeBorder}`, color: s.activeColor } : { background: s.inBg, border: `1.5px solid ${s.inBorder}`, color: 'rgba(255,255,255,0.60)' }}
+                  >
+                    {s.label}
+                  </button>
+                );
+              })}
             </div>
-          </div>
 
-          {/* Bottom Row: Status Filters */}
-          <div className="flex gap-2 items-center justify-center w-full overflow-x-auto pb-1 scrollbar-hide">
-            {[
-              { label: "All", value: "" },
-              { label: "Pending", value: "PENDING" },
-              { label: "Approved", value: "APPROVED" },
-              { label: "Processing", value: "PROCESSING" },
-              { label: "Paid", value: "PAID" },
-              { label: "Rejected", value: "REJECTED" },
-            ].map((s) => (
-              <button
-                key={s.value}
-                type="button"
-                onClick={() => {
-                  setStatus(s.value);
-                  setPage(1);
-                  setTimeout(() => load(), 0);
-                }}
-                className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-all duration-200 whitespace-nowrap flex-shrink-0 ${
-                  status === s.value
-                    ? "bg-blue-50 border-blue-300 text-blue-700"
-                    : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
-                }`}
-              >
-                {s.label}
-              </button>
-            ))}
           </div>
+        </div>
+      </div>
 
           {/* Trip Code Lookup (inline; no new page/mode) */}
           {isTripCodeLike(q) && (
@@ -471,8 +515,6 @@ export default function AdminDriversInvoicesPage() {
               )}
             </div>
           )}
-        </div>
-      </div>
 
       {/* Table */}
       <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
