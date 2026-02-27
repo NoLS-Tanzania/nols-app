@@ -1788,7 +1788,7 @@ export default function AdminPlanWithUsRequestsPage() {
                                     onChange={e => updateItineraryOption(opt.id, "dayOutline", e.target.value)}
                                     rows={3}
                                     className="w-full px-3 py-2 border-2 border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-y"
-                                    placeholder="Day 1: Arrive Arusha, transfer to lodgeâ€¦"
+                                    placeholder="Day 1: Arrive Arusha, transfer to lodge..."
                                   />
                                 </div>
                               </div>
@@ -1892,7 +1892,7 @@ export default function AdminPlanWithUsRequestsPage() {
                             onChange={e => setResponseForm({ ...responseForm, estimatedTimeline: e.target.value })}
                             rows={3}
                             className="w-full px-3 py-2 border-2 border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 outline-none resize-y"
-                            placeholder="Booking deadline, confirmation window, payment scheduleâ€¦"
+                            placeholder="Booking deadline, confirmation window, payment schedule..."
                           />
                         </div>
                       </div>
@@ -1943,14 +1943,14 @@ export default function AdminPlanWithUsRequestsPage() {
                                 }}
                                 onFocus={() => { setShowAgentDropdown(true); if (agents.length === 0) loadAgents(); }}
                                 className="w-full pl-4 pr-10 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm bg-white placeholder:text-gray-400"
-                                placeholder="Search and select an agentâ€¦"
+                                placeholder="Search and select an agent..."
                               />
                               <ChevronDown className={`absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 transition-transform ${showAgentDropdown ? "rotate-180" : ""}`} />
                             </div>
                             {showAgentDropdown && (
                               <div className="absolute z-50 w-full mt-1 bg-white border-2 border-gray-200 rounded-xl shadow-xl max-h-80 overflow-y-auto">
                                 {agentsLoading ? (
-                                  <div className="p-4 text-center text-sm text-gray-500">Loading agentsâ€¦</div>
+                                  <div className="p-4 text-center text-sm text-gray-500">Loading agents...</div>
                                 ) : agents.length === 0 ? (
                                   <div className="p-4 text-center text-sm text-gray-500">No agents found. Try a different search.</div>
                                 ) : (
@@ -2022,7 +2022,7 @@ export default function AdminPlanWithUsRequestsPage() {
                             onChange={e => setResponseForm({ ...responseForm, adminResponse: e.target.value })}
                             rows={3}
                             className="w-full px-3 py-2 border-2 border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-gray-400 outline-none resize-y"
-                            placeholder="Any additional tips, recommendations, or information for the guestâ€¦"
+                            placeholder="Any additional tips, recommendations, or information for the guest..."
                           />
                         </div>
                       </div>
@@ -2095,14 +2095,14 @@ export default function AdminPlanWithUsRequestsPage() {
                     disabled={assignmentSaving || !responseForm.assignedAgentId || Number(responseForm.assignedAgentId) === Number(selectedRequest.assignedAgentId ?? 0)}
                     className="w-full sm:w-auto px-5 py-2.5 border-2 border-blue-200 bg-blue-50 text-blue-700 rounded-xl text-sm font-semibold hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all"
                   >
-                    {assignmentSaving ? <><Loader2 className="h-4 w-4 animate-spin" />Savingâ€¦</> : <><User className="h-4 w-4" />Save Assignment</>}
+                    {assignmentSaving ? <><Loader2 className="h-4 w-4 animate-spin" />Saving...</> : <><User className="h-4 w-4" />Save Assignment</>}
                   </button>
                   <button
                     onClick={handleSubmitResponseNew}
                     disabled={submitting || (activeSections.has("itinerary") && itineraryOptions.length === 0)}
                     className="w-full sm:w-auto px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl text-sm font-semibold hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all shadow-md hover:shadow-lg"
                   >
-                    {submitting ? <><Loader2 className="h-4 w-4 animate-spin" />Sendingâ€¦</> : <><Send className="h-4 w-4" />Send Feedback to Customer</>}
+                    {submitting ? <><Loader2 className="h-4 w-4 animate-spin" />Sending...</> : <><Send className="h-4 w-4" />Send Feedback to Customer</>}
                   </button>
                 </div>
               )}
