@@ -1115,11 +1115,11 @@ export default function AdminPlanWithUsRequestsPage() {
                         Response: {request.respondedAt ? "Responded" : responseTimeText}
                       </span>
                       {request.hoursSinceCreation > 48 && request.status === "NEW" && (
-                        <span className="text-xs text-red-600 font-medium">â€¢ Overdue</span>
+                        <span className="text-xs text-red-600 font-medium">· Overdue</span>
                       )}
                     </div>
                   <div className="text-sm text-gray-600 mb-1">
-                    <span>Role: {request.role} â€¢ Type: {request.tripType}</span>
+                    <span>Role: {request.role} · Type: {request.tripType}</span>
                   </div>
                   <div className="text-sm text-gray-600 mb-1 flex items-center gap-2">
                     <User className="h-4 w-4 text-gray-400" />
@@ -1580,9 +1580,9 @@ export default function AdminPlanWithUsRequestsPage() {
               </div>
 
               {/* â”€â”€ Scrollable Content â”€â”€ */}
-              <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-5 py-5 space-y-4 bg-gray-50">
+              <div className="flex-1 min-h-0 overflow-y-scroll px-5 py-5 space-y-4 bg-gray-50">
 
-                {/* Request Details â€“ full context panel */}
+                {/* Request Details - full context panel */}
                 <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                   <div className="h-1 bg-gradient-to-r from-blue-400 to-indigo-500" />
                   <div className="p-5">
@@ -1596,10 +1596,10 @@ export default function AdminPlanWithUsRequestsPage() {
                       {[
                         { label:"Customer", value:selectedRequest.customer.name, color:"blue" },
                         { label:"Email", value:selectedRequest.customer.email, color:"blue" },
-                        { label:"Phone", value:selectedRequest.customer.phone||"â€”", color:"blue" },
+                        { label:"Phone", value:selectedRequest.customer.phone||"-", color:"blue" },
                         { label:"Role", value:selectedRequest.role, color:"purple" },
                         { label:"Trip Type", value:selectedRequest.tripType, color:"emerald" },
-                        { label:"Group Size", value:selectedRequest.groupSize?`${selectedRequest.groupSize} people`:"â€”", color:"amber" },
+                        { label:"Group Size", value:selectedRequest.groupSize?`${selectedRequest.groupSize} people`:"-", color:"amber" },
                         { label:"Travel Dates", value:selectedRequest.dateFrom?`${selectedRequest.dateFrom}${selectedRequest.dateTo?" â†’ "+selectedRequest.dateTo:""}`:"Not specified", color:"teal" },
                         { label:"Budget", value:selectedRequest.budget?`TZS ${Number(selectedRequest.budget).toLocaleString()}`:"Not specified", color:"green" },
                         { label:"Transport", value:selectedRequest.transportRequired?"Required":"Not required", color:selectedRequest.transportRequired?"orange":"gray" },
@@ -1612,7 +1612,7 @@ export default function AdminPlanWithUsRequestsPage() {
                     </div>
                     <div className="mt-2.5 bg-gray-50 rounded-lg p-3 border border-gray-100">
                       <div className="text-[10px] font-bold uppercase tracking-wider mb-1 text-teal-600">Destination(s)</div>
-                      <div className="text-sm text-gray-900">{selectedRequest.destinations || "â€”"}</div>
+                      <div className="text-sm text-gray-900">{selectedRequest.destinations || "-"}</div>
                     </div>
                     {selectedRequest.notes && (
                       <div className="mt-2.5 bg-amber-50 rounded-lg p-3 border border-amber-200">
@@ -1676,7 +1676,7 @@ export default function AdminPlanWithUsRequestsPage() {
                                 : "bg-white text-gray-600 border-gray-300 hover:border-blue-400 hover:text-blue-600"
                             }`}
                           >
-                            {activeSections.has(sec.id) ? "âœ“ " : "+ "}{sec.label}
+                            {activeSections.has(sec.id) ? "✓ " : "+ "}{sec.label}
                           </button>
                         ))}
                       </div>
@@ -1709,7 +1709,7 @@ export default function AdminPlanWithUsRequestsPage() {
                           )}
                           <div className="space-y-4">
                             {itineraryOptions.map((opt, idx) => (
-                              <div key={opt.id} className="border border-gray-200 rounded-xl overflow-hidden">
+                              <div key={opt.id} className="w-full min-w-0 border border-gray-200 rounded-xl overflow-hidden">
                                 {/* Option name bar */}
                                 <div className="bg-gray-50 px-4 py-2.5 flex items-center justify-between border-b border-gray-200">
                                   <input
@@ -1728,7 +1728,7 @@ export default function AdminPlanWithUsRequestsPage() {
                                   </button>
                                 </div>
                                 {/* Days + Price */}
-                                <div className="p-4 grid grid-cols-2 gap-3">
+                                <div className="p-4 grid grid-cols-2 gap-3 min-w-0">
                                   <div>
                                     <label className="text-[10px] font-bold uppercase tracking-wider text-gray-500 block mb-1">Duration (days)</label>
                                     <input
@@ -1752,7 +1752,7 @@ export default function AdminPlanWithUsRequestsPage() {
                                 </div>
                                 {/* Inclusions */}
                                 <div className="px-4 pb-3">
-                                  <label className="text-[10px] font-bold uppercase tracking-wider text-gray-500 block mb-2">What&apos;s Included â€” click to toggle</label>
+                                  <label className="text-[10px] font-bold uppercase tracking-wider text-gray-500 block mb-2">What&apos;s Included - click to toggle</label>
                                   <div className="flex flex-wrap gap-1.5 mb-2">
                                     {INCLUSION_PRESETS.map(item => (
                                       <button
@@ -1765,7 +1765,7 @@ export default function AdminPlanWithUsRequestsPage() {
                                             : "bg-gray-50 text-gray-600 border-gray-200 hover:border-emerald-300"
                                         }`}
                                       >
-                                        {opt.inclusions.includes(item) ? "âœ“ " : ""}{item}
+                                        {opt.inclusions.includes(item) ? "✓ " : ""}{item}
                                       </button>
                                     ))}
                                   </div>
@@ -1822,7 +1822,7 @@ export default function AdminPlanWithUsRequestsPage() {
                                     : "bg-gray-50 text-gray-600 border-gray-200 hover:border-amber-300"
                                 }`}
                               >
-                                {selectedPermits.includes(item) ? "âœ“ " : ""}{item}
+                                {selectedPermits.includes(item) ? "✓ " : ""}{item}
                               </button>
                             ))}
                           </div>
@@ -1847,7 +1847,7 @@ export default function AdminPlanWithUsRequestsPage() {
                                       onClick={() => togglePermit(p)}
                                       className="text-amber-500 hover:text-amber-700 ml-0.5 leading-none"
                                     >
-                                      Ã—
+                                      ×
                                     </button>
                                   </span>
                                 ))}
@@ -1985,7 +1985,7 @@ export default function AdminPlanWithUsRequestsPage() {
                                             </div>
                                             <div className="shrink-0 flex flex-col items-end gap-1">
                                               <div className={`text-xs px-2 py-0.5 rounded-md font-semibold ${capClass}`}>{agent.currentActiveRequests}/{agent.maxActiveRequests}</div>
-                                              <div className="flex items-center gap-1">{renderStars(avg)}<span className="text-xs text-gray-700 font-semibold">{typeof avg === "number" ? avg.toFixed(1) : "â€”"}{typeof totalReviews === "number" ? ` (${totalReviews})` : ""}</span></div>
+                                              <div className="flex items-center gap-1">{renderStars(avg)}<span className="text-xs text-gray-700 font-semibold">{typeof avg === "number" ? avg.toFixed(1) : "-"}{typeof totalReviews === "number" ? ` (${totalReviews})` : ""}</span></div>
                                             </div>
                                           </div>
                                         </button>
