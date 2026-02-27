@@ -3301,7 +3301,7 @@ router.get("/:id(\\d+)/referrals", async (req, res) => {
     if (!driver) return res.status(404).json({ error: "Driver not found" });
 
     const referralCode = `DRIVER-${driverId.toString().slice(-6).toUpperCase()}`;
-    const referralLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/register?ref=${referralCode}`;
+    const referralLink = `${process.env.FRONTEND_URL || process.env.WEB_ORIGIN || process.env.APP_ORIGIN || 'http://localhost:3000'}/register?ref=${referralCode}`;
 
     let referrals: any[] = [];
     let totalReferrals = 0;

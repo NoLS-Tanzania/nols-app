@@ -17,7 +17,7 @@ const getDriverReferral: RequestHandler = async (req, res) => {
 
     // Generate referral code based on driver ID
     const referralCode = `DRIVER-${driverId.toString().slice(-6).toUpperCase()}`;
-    const referralLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/register?ref=${referralCode}`;
+    const referralLink = `${process.env.FRONTEND_URL || process.env.WEB_ORIGIN || process.env.APP_ORIGIN || 'http://localhost:3000'}/register?ref=${referralCode}`;
 
     // Fetch referrals (users who signed up with this driver's referral code)
     let referrals: any[] = [];
