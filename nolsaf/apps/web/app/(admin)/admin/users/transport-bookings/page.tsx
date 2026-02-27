@@ -169,18 +169,19 @@ export default function TransportBookingsPage() {
   };
 
   const SortIcon = ({ active }: { active: boolean }) => {
-    if (!active) return <ArrowUpDown className="h-3.5 w-3.5 text-gray-400" />;
-    return sortDir === "asc" ? <ArrowUp className="h-3.5 w-3.5 text-gray-700" /> : <ArrowDown className="h-3.5 w-3.5 text-gray-700" />;
+    if (!active) return <ArrowUpDown className="h-3.5 w-3.5" style={{ color: "rgba(255,255,255,0.28)" }} />;
+    return sortDir === "asc" ? <ArrowUp className="h-3.5 w-3.5" style={{ color: "#6ee7b7" }} /> : <ArrowDown className="h-3.5 w-3.5" style={{ color: "#6ee7b7" }} />;
   };
 
   const SortableHeader = ({ label, keyName, align = "left" }: { label: string; keyName: SortKey; align?: "left" | "right" }) => {
     const isActive = sortKey === keyName;
     return (
-      <th className={`px-6 py-3 text-${align} text-xs font-semibold text-gray-700`}>
+      <th className={`px-6 py-3 text-${align}`} style={{ fontSize: "0.68rem", fontWeight: 700, color: isActive ? "#6ee7b7" : "rgba(255,255,255,0.45)", letterSpacing: "0.07em", textTransform: "uppercase" }}>
         <button
           type="button"
           onClick={() => toggleSort(keyName)}
-          className="inline-flex items-center gap-1.5 border-0 bg-transparent p-0 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors focus:outline-none"
+          className="inline-flex items-center gap-1.5 border-0 bg-transparent p-0 transition-colors focus:outline-none"
+          style={{ fontSize: "0.68rem", fontWeight: 700, color: "inherit", letterSpacing: "inherit", textTransform: "inherit" }}
           aria-label={`Sort by ${label}`}
           title={`Sort by ${label}`}
         >
@@ -264,28 +265,28 @@ export default function TransportBookingsPage() {
     switch (urgency) {
       case "urgent":
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold" style={{ background: "rgba(239,68,68,0.18)", border: "1px solid rgba(239,68,68,0.38)", color: "#fca5a5" }}>
             <AlertTriangle className="h-3 w-3 mr-1" />
             Urgent: {reason}
           </span>
         );
       case "later":
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold" style={{ background: "rgba(245,158,11,0.18)", border: "1px solid rgba(245,158,11,0.38)", color: "#fcd34d" }}>
             <Clock className="h-3 w-3 mr-1" />
             Later: {reason}
           </span>
         );
       case "specified":
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold" style={{ background: "rgba(14,165,233,0.18)", border: "1px solid rgba(14,165,233,0.38)", color: "#7dd3fc" }}>
             <Calendar className="h-3 w-3 mr-1" />
             {reason}
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-800">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold" style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.55)" }}>
             <Clock className="h-3 w-3 mr-1" />
             Flexible
           </span>
@@ -308,16 +309,16 @@ export default function TransportBookingsPage() {
         color: string;
       }
     > = {
-      NEW: { label: "New", Icon: CircleDashed, color: "text-gray-600" },
-      PENDING: { label: "Pending", Icon: Hourglass, color: "text-gray-600" },
-      REVIEWING: { label: "Reviewing", Icon: FileSearch, color: "text-blue-600" },
-      CONFIRMED: { label: "Confirmed", Icon: BadgeCheck, color: "text-blue-600" },
-      PROCESSING: { label: "Processing", Icon: Clock, color: "text-amber-600" },
-      CHECKED_IN: { label: "Checked in", Icon: CircleCheck, color: "text-emerald-600" },
-      CHECKED_OUT: { label: "Checked out", Icon: CheckCircle, color: "text-gray-600" },
-      COMPLETED: { label: "Completed", Icon: CheckCircle, color: "text-emerald-600" },
-      CANCELED: { label: "Canceled", Icon: XCircle, color: "text-red-600" },
-      CANCELLED: { label: "Cancelled", Icon: XCircle, color: "text-red-600" },
+      NEW: { label: "New", Icon: CircleDashed, color: "text-slate-400" },
+      PENDING: { label: "Pending", Icon: Hourglass, color: "text-slate-300" },
+      REVIEWING: { label: "Reviewing", Icon: FileSearch, color: "text-sky-400" },
+      CONFIRMED: { label: "Confirmed", Icon: BadgeCheck, color: "text-sky-300" },
+      PROCESSING: { label: "Processing", Icon: Clock, color: "text-amber-400" },
+      CHECKED_IN: { label: "Checked in", Icon: CircleCheck, color: "text-emerald-400" },
+      CHECKED_OUT: { label: "Checked out", Icon: CheckCircle, color: "text-slate-400" },
+      COMPLETED: { label: "Completed", Icon: CheckCircle, color: "text-emerald-400" },
+      CANCELED: { label: "Canceled", Icon: XCircle, color: "text-red-400" },
+      CANCELLED: { label: "Cancelled", Icon: XCircle, color: "text-red-400" },
     };
 
     const bookingStatus = String(rawStatus || "").toUpperCase();
@@ -352,27 +353,65 @@ export default function TransportBookingsPage() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      {/* Header */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-        <div className="flex flex-col items-center text-center">
-          <div className="h-16 w-16 rounded-full bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center mb-4">
-            <Truck className="h-8 w-8 text-blue-600" />
+      {/* Premium Banner */}
+      <div style={{ position: "relative", borderRadius: "1.25rem", overflow: "hidden", background: "linear-gradient(135deg, #0e2a7a 0%, #0a5c82 38%, #02665e 100%)", boxShadow: "0 28px 65px -15px rgba(2,102,94,0.45), 0 8px 22px -8px rgba(14,42,122,0.50)", padding: "2rem 2rem 1.75rem" }}>
+        <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0.13, pointerEvents: "none" }} viewBox="0 0 900 160" preserveAspectRatio="xMidYMid slice">
+          <circle cx="820" cy="30" r="90" fill="none" stroke="white" strokeWidth="1.2" />
+          <circle cx="820" cy="30" r="55" fill="none" stroke="white" strokeWidth="0.7" />
+          <circle cx="60" cy="140" r="70" fill="none" stroke="white" strokeWidth="1.0" />
+          <line x1="0" y1="40" x2="900" y2="40" stroke="white" strokeWidth="0.4" />
+          <line x1="0" y1="72" x2="900" y2="72" stroke="white" strokeWidth="0.4" />
+          <line x1="0" y1="104" x2="900" y2="104" stroke="white" strokeWidth="0.4" />
+          <line x1="0" y1="136" x2="900" y2="136" stroke="white" strokeWidth="0.4" />
+          <polyline points="0,130 90,112 180,96 270,80 360,65 450,88 540,52 630,68 720,36 810,50 900,32" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+          <polygon points="0,130 90,112 180,96 270,80 360,65 450,88 540,52 630,68 720,36 810,50 900,32 900,160 0,160" fill="white" opacity={0.06} />
+          <polyline points="0,145 90,133 180,119 270,130 360,112 450,125 540,100 630,115 720,92 810,105 900,82" fill="none" stroke="white" strokeWidth="1.2" strokeDasharray="6 4" opacity={0.5} />
+          <circle cx="540" cy="52" r="5" fill="white" opacity={0.75} />
+          <circle cx="720" cy="36" r="5" fill="white" opacity={0.75} />
+          <circle cx="900" cy="32" r="5" fill="white" opacity={0.75} />
+          <defs><radialGradient id="tbGlow" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="white" stopOpacity="0.12" /><stop offset="100%" stopColor="white" stopOpacity="0" /></radialGradient></defs>
+          <ellipse cx="450" cy="90" rx="200" ry="70" fill="url(#tbGlow)" />
+        </svg>
+        <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "center", gap: "1rem", marginBottom: "1.5rem" }}>
+          <div style={{ width: 46, height: 46, borderRadius: "50%", background: "rgba(255,255,255,0.10)", border: "1.5px solid rgba(255,255,255,0.18)", boxShadow: "0 0 0 8px rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <Truck style={{ width: 22, height: 22, color: "white" }} />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Transport Bookings</h1>
-          <p className="text-sm text-gray-500 mt-1">Customers who booked accommodation with transport requested (group stays + individual bookings)</p>
+          <div>
+            <h1 style={{ fontSize: "1.35rem", fontWeight: 800, color: "white", margin: 0, letterSpacing: "-0.01em" }}>Transport Bookings</h1>
+            <p style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.62)", margin: "2px 0 0" }}>Customers who booked accommodation with transport requested (group stays + individual bookings)</p>
+          </div>
+        </div>
+        <div style={{ position: "relative", zIndex: 1, display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
+          <div style={{ background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.20)", borderRadius: "0.85rem", padding: "0.6rem 1rem", minWidth: 90 }}>
+            <div style={{ fontSize: "0.63rem", fontWeight: 700, color: "rgba(255,255,255,0.70)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Total</div>
+            <div style={{ fontSize: "1.3rem", fontWeight: 900, color: "white", fontVariantNumeric: "tabular-nums", lineHeight: 1.2 }}>{loading ? "…" : total.toLocaleString()}</div>
+          </div>
+          <div style={{ background: "rgba(14,165,233,0.16)", border: "1px solid rgba(14,165,233,0.35)", borderRadius: "0.85rem", padding: "0.6rem 1rem", minWidth: 90 }}>
+            <div style={{ fontSize: "0.63rem", fontWeight: 700, color: "rgba(125,211,252,0.85)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Pages</div>
+            <div style={{ fontSize: "1.3rem", fontWeight: 900, color: "#7dd3fc", fontVariantNumeric: "tabular-nums", lineHeight: 1.2 }}>{loading ? "…" : pages}</div>
+          </div>
+          <div style={{ background: "rgba(245,158,11,0.16)", border: "1px solid rgba(245,158,11,0.35)", borderRadius: "0.85rem", padding: "0.6rem 1rem", minWidth: 90 }}>
+            <div style={{ fontSize: "0.63rem", fontWeight: 700, color: "rgba(252,211,77,0.85)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Marked</div>
+            <div style={{ fontSize: "1.3rem", fontWeight: 900, color: "#fcd34d", fontVariantNumeric: "tabular-nums", lineHeight: 1.2 }}>{markedKeys.length}</div>
+          </div>
+          <div style={{ background: "rgba(16,185,129,0.16)", border: "1px solid rgba(16,185,129,0.35)", borderRadius: "0.85rem", padding: "0.6rem 1rem", minWidth: 90 }}>
+            <div style={{ fontSize: "0.63rem", fontWeight: 700, color: "rgba(110,231,183,0.85)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Showing</div>
+            <div style={{ fontSize: "1.3rem", fontWeight: 900, color: "#6ee7b7", fontVariantNumeric: "tabular-nums", lineHeight: 1.2 }}>{loading ? "…" : visibleItems.length}</div>
+          </div>
         </div>
       </div>
 
       {/* Search and Filters */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
+      <div style={{ borderRadius: "1rem", border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06)", background: "linear-gradient(135deg, #0a1a19 0%, #0d2320 60%, #0a1f2e 100%)", padding: "1rem 1.25rem" }}>
         <div className="flex flex-col sm:flex-row gap-4 w-full max-w-full">
           {/* Search */}
           <div className="relative flex-1 min-w-0 w-full sm:w-auto">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none" style={{ color: "rgba(255,255,255,0.35)" }} />
             <input
               ref={searchRef}
               type="text"
-              className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none text-sm box-border max-w-full"
+              className="w-full pl-10 pr-10 py-2 rounded-lg text-sm box-border max-w-full outline-none"
+              style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.88)" }}
               placeholder="Search by customer name, email, phone, or location..."
               value={q}
               onChange={(e) => setQ(e.target.value)}
@@ -387,12 +426,9 @@ export default function TransportBookingsPage() {
             {q && (
               <button
                 type="button"
-                onClick={() => {
-                  setQ("");
-                  setPage(1);
-                  load();
-                }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                onClick={() => { setQ(""); setPage(1); load(); }}
+                className="absolute right-3 top-1/2 -translate-y-1/2"
+                style={{ color: "rgba(255,255,255,0.40)" }}
               >
                 <X className="h-4 w-4" />
               </button>
@@ -401,25 +437,23 @@ export default function TransportBookingsPage() {
 
           {/* Status Filter */}
           <div className="flex items-center gap-2 w-full sm:w-auto sm:flex-shrink-0">
-            <Filter className="h-4 w-4 text-gray-400 flex-shrink-0" />
+            <Filter className="h-4 w-4 flex-shrink-0" style={{ color: "rgba(255,255,255,0.40)" }} />
             <select
               value={status}
-              onChange={(e) => {
-                setStatus(e.target.value);
-                setPage(1);
-              }}
-              className="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none text-sm bg-white box-border min-w-[140px]"
+              onChange={(e) => { setStatus(e.target.value); setPage(1); }}
+              className="w-full sm:w-auto px-3 py-2 rounded-lg text-sm outline-none box-border min-w-[140px]"
+              style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.80)" }}
             >
-              <option value="">All Status</option>
-              <option value="NEW">New</option>
-              <option value="PENDING">Pending</option>
-              <option value="REVIEWING">Reviewing</option>
-              <option value="CONFIRMED">Confirmed</option>
-              <option value="PROCESSING">Processing</option>
-              <option value="CHECKED_IN">Checked in</option>
-              <option value="CHECKED_OUT">Checked out</option>
-              <option value="COMPLETED">Completed</option>
-              <option value="CANCELED">Canceled</option>
+              <option value="" style={{ background: "#0d2320" }}>All Status</option>
+              <option value="NEW" style={{ background: "#0d2320" }}>New</option>
+              <option value="PENDING" style={{ background: "#0d2320" }}>Pending</option>
+              <option value="REVIEWING" style={{ background: "#0d2320" }}>Reviewing</option>
+              <option value="CONFIRMED" style={{ background: "#0d2320" }}>Confirmed</option>
+              <option value="PROCESSING" style={{ background: "#0d2320" }}>Processing</option>
+              <option value="CHECKED_IN" style={{ background: "#0d2320" }}>Checked in</option>
+              <option value="CHECKED_OUT" style={{ background: "#0d2320" }}>Checked out</option>
+              <option value="COMPLETED" style={{ background: "#0d2320" }}>Completed</option>
+              <option value="CANCELED" style={{ background: "#0d2320" }}>Canceled</option>
             </select>
           </div>
 
@@ -428,23 +462,23 @@ export default function TransportBookingsPage() {
             <button
               type="button"
               onClick={() => setMarkedOnly((v) => !v)}
-              className={`inline-flex items-center gap-2 px-3 py-2 border rounded-lg text-sm transition-colors ${
-                markedOnly
-                  ? "border-emerald-300 bg-emerald-50 text-emerald-800"
-                  : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
-              }`}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors"
+              style={markedOnly
+                ? { background: "rgba(16,185,129,0.18)", border: "1px solid rgba(16,185,129,0.40)", color: "#6ee7b7" }
+                : { background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.75)" }}
               title={markedOnly ? "Showing marked only (current page)" : "Show marked only (current page)"}
               aria-pressed={markedOnly}
             >
               <Bookmark className="h-4 w-4" />
               <span className="whitespace-nowrap">Marked</span>
-              <span className="text-xs text-gray-500">({markedKeys.length})</span>
+              <span className="text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>({markedKeys.length})</span>
             </button>
             {markedKeys.length > 0 && (
               <button
                 type="button"
                 onClick={() => setMarkedKeys([])}
-                className="px-3 py-2 border border-gray-300 bg-white rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                className="px-3 py-2 rounded-lg text-sm transition-colors"
+                style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.65)" }}
                 title="Clear all marks"
               >
                 Clear
@@ -455,9 +489,9 @@ export default function TransportBookingsPage() {
       </div>
 
       {/* Bookings Table */}
-      <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+      <div style={{ borderRadius: "1rem", border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06)", background: "linear-gradient(135deg, #0a1a19 0%, #0d2320 60%, #0a1f2e 100%)", overflow: "hidden" }}>
         {error && (
-          <div className="px-6 py-4 border-b border-gray-200 bg-amber-50 text-amber-900 text-sm flex items-start gap-2">
+          <div className="px-6 py-4 text-sm flex items-start gap-2" style={{ borderBottom: "1px solid rgba(245,158,11,0.25)", background: "rgba(245,158,11,0.10)", color: "#fcd34d" }}>
             <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
             <div>{error}</div>
           </div>
@@ -467,50 +501,24 @@ export default function TransportBookingsPage() {
             {/* Skeleton Table */}
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+                <thead style={{ borderBottom: "1px solid rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.04)" }}>
                   <tr>
-                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">&nbsp;</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Customer</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Destination</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Dates</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Urgency</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Group Details</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Pickup Info</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Created</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-600 uppercase tracking-wider">Actions</th>
+                    {["&nbsp;","Customer","Destination","Dates","Urgency","Group Details","Pickup Info","Created","Status","Actions"].map((h, i) => (
+                      <th key={i} className={`px-6 py-3 ${h==="Actions"?"text-right":"text-left"}`} style={{ fontSize: "0.68rem", fontWeight: 700, color: "rgba(255,255,255,0.45)", letterSpacing: "0.07em", textTransform: "uppercase" }} dangerouslySetInnerHTML={{ __html: h }} />
+                    ))}
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody>
                   {[...Array(5)].map((_, i) => (
-                    <tr key={i} className="animate-pulse">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="h-4 bg-gray-200 rounded w-32 mb-2"></div>
-                        <div className="h-3 bg-gray-200 rounded w-40"></div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="h-4 bg-gray-200 rounded w-24 mb-2"></div>
-                        <div className="h-3 bg-gray-200 rounded w-32"></div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="h-4 bg-gray-200 rounded w-24"></div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="h-6 bg-gray-200 rounded w-20"></div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="h-4 bg-gray-200 rounded w-20 mb-2"></div>
-                        <div className="h-3 bg-gray-200 rounded w-16"></div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="h-4 bg-gray-200 rounded w-28"></div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="h-6 bg-gray-200 rounded w-16"></div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right">
-                        <div className="h-8 bg-gray-200 rounded w-16 ml-auto"></div>
-                      </td>
+                    <tr key={i} className="animate-pulse" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                      <td className="px-6 py-4 whitespace-nowrap"><div className="h-4 rounded w-32 mb-2" style={{ background: "rgba(255,255,255,0.08)" }}></div><div className="h-3 rounded w-40" style={{ background: "rgba(255,255,255,0.06)" }}></div></td>
+                      <td className="px-6 py-4"><div className="h-4 rounded w-24 mb-2" style={{ background: "rgba(255,255,255,0.08)" }}></div><div className="h-3 rounded w-32" style={{ background: "rgba(255,255,255,0.06)" }}></div></td>
+                      <td className="px-6 py-4 whitespace-nowrap"><div className="h-4 rounded w-24" style={{ background: "rgba(255,255,255,0.08)" }}></div></td>
+                      <td className="px-6 py-4 whitespace-nowrap"><div className="h-6 rounded w-20" style={{ background: "rgba(255,255,255,0.08)" }}></div></td>
+                      <td className="px-6 py-4"><div className="h-4 rounded w-20 mb-2" style={{ background: "rgba(255,255,255,0.08)" }}></div><div className="h-3 rounded w-16" style={{ background: "rgba(255,255,255,0.06)" }}></div></td>
+                      <td className="px-6 py-4"><div className="h-4 rounded w-28" style={{ background: "rgba(255,255,255,0.08)" }}></div></td>
+                      <td className="px-6 py-4 whitespace-nowrap"><div className="h-6 rounded w-16" style={{ background: "rgba(255,255,255,0.08)" }}></div></td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right"><div className="h-8 rounded w-16 ml-auto" style={{ background: "rgba(255,255,255,0.08)" }}></div></td>
                     </tr>
                   ))}
                 </tbody>
@@ -519,31 +527,36 @@ export default function TransportBookingsPage() {
           </>
         ) : visibleItems.length === 0 ? (
           <div className="px-6 py-12 text-center">
-            <Truck className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-            <p className="text-sm text-gray-500">{markedOnly ? "No marked transport bookings on this page." : "No transport bookings found."}</p>
+            <div style={{ width: 48, height: 48, borderRadius: "50%", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 0.75rem" }}>
+              <Truck style={{ width: 22, height: 22, color: "rgba(255,255,255,0.30)" }} />
+            </div>
+            <p className="text-sm" style={{ color: "rgba(255,255,255,0.40)" }}>{markedOnly ? "No marked transport bookings on this page." : "No transport bookings found."}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200 sticky top-0 z-10">
+              <thead style={{ position: "sticky", top: 0, zIndex: 10, borderBottom: "1px solid rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.04)" }}>
                 <tr>
-                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">&nbsp;</th>
+                  <th className="px-3 py-3 text-left" style={{ fontSize: "0.68rem", fontWeight: 700, color: "rgba(255,255,255,0.45)", letterSpacing: "0.07em", textTransform: "uppercase" }}>&nbsp;</th>
                   <SortableHeader label="Customer" keyName="customer" />
                   <SortableHeader label="Destination" keyName="destination" />
                   <SortableHeader label="Dates" keyName="date" />
                   <SortableHeader label="Urgency" keyName="urgency" />
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Group Details</th>
+                  <th className="px-6 py-3 text-left" style={{ fontSize: "0.68rem", fontWeight: 700, color: "rgba(255,255,255,0.45)", letterSpacing: "0.07em", textTransform: "uppercase" }}>Group Details</th>
                   <SortableHeader label="Pickup Info" keyName="pickup" />
                   <SortableHeader label="Created" keyName="created" />
                   <SortableHeader label="Status" keyName="status" />
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-600 uppercase tracking-wider">Actions</th>
+                  <th className="px-6 py-3 text-right" style={{ fontSize: "0.68rem", fontWeight: 700, color: "rgba(255,255,255,0.45)", letterSpacing: "0.07em", textTransform: "uppercase" }}>Actions</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody>
                 {visibleItems.map((booking) => (
                   <tr
                     key={`${booking.kind}:${booking.id}`}
-                    className="group hover:bg-gray-50 transition-colors duration-150 cursor-pointer"
+                    className="group transition-colors duration-150 cursor-pointer"
+                    style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.03)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                     onClick={(e) => {
                       const el = e.target as HTMLElement | null;
                       if (el?.closest("a,button,input,select,textarea")) return;
@@ -560,25 +573,25 @@ export default function TransportBookingsPage() {
                         }}
                         aria-label={markedSet.has(bookingKey(booking)) ? "Unmark" : "Mark"}
                         title={markedSet.has(bookingKey(booking)) ? "Unmark" : "Mark"}
-                        className="inline-flex items-center justify-center p-1 text-gray-400 hover:text-emerald-700 transition-colors"
+                        className="inline-flex items-center justify-center p-1 transition-colors"
+                        style={{ color: markedSet.has(bookingKey(booking)) ? "#6ee7b7" : "rgba(255,255,255,0.30)" }}
                       >
                         <Bookmark
-                          className={`h-4 w-4 ${markedSet.has(bookingKey(booking)) ? "text-emerald-700" : "text-gray-400"}`}
+                          className="h-4 w-4"
                           fill={markedSet.has(bookingKey(booking)) ? "currentColor" : "none"}
                         />
                       </button>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="font-medium text-gray-900">{booking.user.name || "N/A"}</div>
-                      <div className="text-sm text-gray-500 flex items-center gap-2">
-                        <Mail className="h-3.5 w-3.5 text-gray-400" />
+                      <div className="font-medium" style={{ color: "rgba(255,255,255,0.88)" }}>{booking.user.name || "N/A"}</div>
+                      <div className="text-sm flex items-center gap-2" style={{ color: "rgba(255,255,255,0.45)" }}>
+                        <Mail className="h-3.5 w-3.5 flex-shrink-0" style={{ color: "rgba(255,255,255,0.25)" }} />
                         <span className="max-w-[240px] truncate" title={booking.user.email || ""}>
                           {booking.user.email || "N/A"}
                         </span>
                       </div>
-
-                      <div className="text-xs text-gray-400 flex items-center gap-2">
-                        <Phone className="h-3.5 w-3.5 text-gray-300" />
+                      <div className="text-xs flex items-center gap-2" style={{ color: "rgba(255,255,255,0.35)" }}>
+                        <Phone className="h-3.5 w-3.5 flex-shrink-0" style={{ color: "rgba(255,255,255,0.20)" }} />
                         <span className="max-w-[240px] truncate" title={booking.user.phone || ""}>
                           {booking.user.phone || "—"}
                         </span>
@@ -586,14 +599,14 @@ export default function TransportBookingsPage() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
-                        <MapPin className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                        <MapPin className="h-4 w-4 flex-shrink-0" style={{ color: "rgba(255,255,255,0.30)" }} />
                         <div>
-                          <div className="text-sm font-medium text-gray-900">{booking.toRegion}</div>
+                          <div className="text-sm font-medium" style={{ color: "rgba(255,255,255,0.85)" }}>{booking.toRegion}</div>
                           {booking.toLocation && (
                             <div
-                              className="text-xs text-gray-500 max-w-[220px] sm:max-w-[320px] overflow-hidden"
+                              className="text-xs max-w-[220px] sm:max-w-[320px] overflow-hidden"
                               title={booking.toLocation}
-                              style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}
+                              style={{ color: "rgba(255,255,255,0.42)", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}
                             >
                               {shortenText(booking.toLocation, 48)}
                             </div>
@@ -604,20 +617,20 @@ export default function TransportBookingsPage() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       {booking.checkIn && booking.checkOut ? (
                         <div className="flex items-start gap-2">
-                          <Calendar className="h-4 w-4 text-gray-400 mt-0.5" />
+                          <Calendar className="h-4 w-4 mt-0.5" style={{ color: "rgba(255,255,255,0.30)" }} />
                           <div className="space-y-1">
                             <div className="flex items-center gap-2">
-                              <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden="true" />
-                              <span className="text-sm font-medium text-gray-900">{formatDateShort(booking.checkIn)}</span>
+                              <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden="true" />
+                              <span className="text-sm font-medium" style={{ color: "rgba(255,255,255,0.82)" }}>{formatDateShort(booking.checkIn)}</span>
                             </div>
                             <div className="flex items-center gap-2">
-                              <span className="h-2 w-2 rounded-full bg-rose-500" aria-hidden="true" />
-                              <span className="text-sm text-gray-700">{formatDateShort(booking.checkOut)}</span>
+                              <span className="h-2 w-2 rounded-full bg-rose-400" aria-hidden="true" />
+                              <span className="text-sm" style={{ color: "rgba(255,255,255,0.60)" }}>{formatDateShort(booking.checkOut)}</span>
                             </div>
                           </div>
                         </div>
                       ) : (
-                        <span className="text-sm text-gray-400">Flexible</span>
+                        <span className="text-sm" style={{ color: "rgba(255,255,255,0.35)" }}>Flexible</span>
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -625,8 +638,8 @@ export default function TransportBookingsPage() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="text-sm">
-                        <div className="font-medium text-gray-900">{booking.kind === "individual" ? "Individual" : booking.groupType}</div>
-                        <div className="text-xs text-gray-500">
+                        <div className="font-medium" style={{ color: "rgba(255,255,255,0.82)" }}>{booking.kind === "individual" ? "Individual" : booking.groupType}</div>
+                        <div className="text-xs" style={{ color: "rgba(255,255,255,0.42)" }}>
                           {booking.kind === "individual"
                             ? `${booking.roomsQty ?? 1} room(s)`
                             : `${booking.headcount ?? 0} people`}
@@ -637,41 +650,39 @@ export default function TransportBookingsPage() {
                       {booking.pickupLocation ? (
                         <div className="text-sm space-y-1">
                           <div className="flex items-start gap-2">
-                            <MapPin className="h-4 w-4 text-gray-400 flex-shrink-0 mt-0.5" />
+                            <MapPin className="h-4 w-4 flex-shrink-0 mt-0.5" style={{ color: "rgba(255,255,255,0.30)" }} />
                             <div
-                              className="font-medium text-gray-900 leading-snug max-w-[240px] sm:max-w-[340px] overflow-hidden"
+                              className="font-medium leading-snug max-w-[240px] sm:max-w-[340px] overflow-hidden"
                               title={booking.pickupLocation}
-                              style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}
+                              style={{ color: "rgba(255,255,255,0.80)", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}
                             >
                               {shortenText(booking.pickupLocation, 50)}
                             </div>
                           </div>
-
                           {booking.pickupTime && (
-                            <div className="flex items-center gap-2 text-xs text-gray-500">
-                              <Clock className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
+                            <div className="flex items-center gap-2 text-xs" style={{ color: "rgba(255,255,255,0.42)" }}>
+                              <Clock className="h-3.5 w-3.5 flex-shrink-0" style={{ color: "rgba(255,255,255,0.25)" }} />
                               <span className="leading-snug">{formatPickupTime(booking.pickupTime)}</span>
                             </div>
                           )}
-
                           {booking.arrangementNotes && booking.kind === "individual" && (
-                            <div className="text-xs text-gray-500">
-                              <span className="font-medium text-gray-600">Vehicle:</span> {booking.arrangementNotes}
+                            <div className="text-xs" style={{ color: "rgba(255,255,255,0.42)" }}>
+                              <span className="font-medium" style={{ color: "rgba(255,255,255,0.55)" }}>Vehicle:</span> {booking.arrangementNotes}
                             </div>
                           )}
                         </div>
                       ) : (
-                        <span className="text-sm text-gray-400">—</span>
+                        <span className="text-sm" style={{ color: "rgba(255,255,255,0.28)" }}>—</span>
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {(() => {
                         const v = formatDateTimeShort(booking.createdAt);
-                        if (!v) return <span className="text-sm text-gray-400">—</span>;
+                        if (!v) return <span className="text-sm" style={{ color: "rgba(255,255,255,0.28)" }}>—</span>;
                         return (
                           <div className="text-sm leading-snug">
-                            <div className="font-medium text-gray-900">{v.date}</div>
-                            <div className="text-xs text-gray-500">{v.time}</div>
+                            <div className="font-medium" style={{ color: "rgba(255,255,255,0.80)" }}>{v.date}</div>
+                            <div className="text-xs" style={{ color: "rgba(255,255,255,0.42)" }}>{v.time}</div>
                           </div>
                         );
                       })()}
@@ -685,10 +696,11 @@ export default function TransportBookingsPage() {
                         onClick={() => toggleMark(bookingKey(booking))}
                         aria-label={markedSet.has(bookingKey(booking)) ? "Unmark" : "Mark"}
                         title={markedSet.has(bookingKey(booking)) ? "Unmark" : "Mark"}
-                        className="inline-flex items-center justify-center text-gray-400 hover:text-amber-600 transition-colors mr-3"
+                        className="inline-flex items-center justify-center transition-colors mr-3"
+                        style={{ color: markedSet.has(bookingKey(booking)) ? "#fcd34d" : "rgba(255,255,255,0.30)" }}
                       >
                         <Bookmark
-                          className={`h-4 w-4 ${markedSet.has(bookingKey(booking)) ? "text-amber-600" : ""}`}
+                          className="h-4 w-4"
                           fill={markedSet.has(bookingKey(booking)) ? "currentColor" : "none"}
                         />
                       </button>
@@ -696,7 +708,8 @@ export default function TransportBookingsPage() {
                         href={getViewHref(booking)}
                         aria-label="View"
                         title="View"
-                        className="inline-flex items-center text-emerald-600 hover:text-emerald-900 text-sm font-medium"
+                        className="inline-flex items-center text-sm font-medium no-underline"
+                        style={{ color: "#6ee7b7" }}
                       >
                         <Eye className="h-4 w-4" />
                         <span className="sr-only">View</span>
@@ -712,25 +725,27 @@ export default function TransportBookingsPage() {
 
       {/* Pagination */}
       {items.length > 0 && (
-        <div className="flex items-center justify-between bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
-          <div className="text-sm text-gray-500">
+        <div style={{ borderRadius: "1rem", border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06)", background: "linear-gradient(135deg, #0a1a19 0%, #0d2320 60%, #0a1f2e 100%)", padding: "1rem 1.25rem", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div className="text-sm" style={{ color: "rgba(255,255,255,0.50)" }}>
             Showing {((page - 1) * pageSize) + 1} to {Math.min(page * pageSize, total)} of {total} bookings
           </div>
           <div className="flex gap-2">
             <button
               disabled={page <= 1}
               onClick={() => setPage(p => p - 1)}
-              className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.75)" }}
             >
               Previous
             </button>
-            <div className="px-4 py-2 text-sm font-medium text-gray-700">
+            <div className="px-4 py-2 text-sm font-medium" style={{ color: "rgba(255,255,255,0.60)" }}>
               Page {page} of {pages}
             </div>
             <button
               disabled={page >= pages}
               onClick={() => setPage(p => p + 1)}
-              className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.75)" }}
             >
               Next
             </button>
