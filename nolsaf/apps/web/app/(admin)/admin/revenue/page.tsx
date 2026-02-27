@@ -639,41 +639,102 @@ export default function AdminRevenue() {
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 xl:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6 min-w-0">
       {/* Header */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6 shadow-sm">
-      <div className="flex flex-col items-center text-center">
-          <div className="rounded-full bg-[#02665e]/10 p-3 inline-flex items-center justify-center mb-3">
-            <Wallet className="h-6 w-6 text-[#02665e]" aria-hidden />
+      <div
+        className="relative rounded-2xl overflow-hidden shadow-2xl"
+        style={{ background: "linear-gradient(135deg, #0e2a7a 0%, #0a5c82 38%, #02665e 100%)", boxShadow: "0 28px 65px -15px rgba(2,102,94,0.45), 0 8px 22px -8px rgba(14,42,122,0.50)" }}
+      >
+        {/* Decorative sparkline viz */}
+        <svg
+          aria-hidden
+          className="absolute inset-0 w-full h-full pointer-events-none select-none"
+          preserveAspectRatio="xMidYMid slice"
+          viewBox="0 0 900 220"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <circle cx="860" cy="45"  r="200" stroke="white" strokeOpacity="0.06" strokeWidth="1" fill="none" />
+          <circle cx="860" cy="45"  r="155" stroke="white" strokeOpacity="0.05" strokeWidth="1" fill="none" />
+          <circle cx="820" cy="15"  r="115" stroke="white" strokeOpacity="0.045" strokeWidth="1" fill="none" />
+          <circle cx="28"  cy="208" r="130" stroke="white" strokeOpacity="0.04" strokeWidth="1" fill="none" />
+          {[44, 88, 132, 176].map((y) => (
+            <line key={y} x1="0" y1={y} x2="900" y2={y} stroke="rgba(255,255,255,0.030)" strokeWidth="1" />
+          ))}
+          <polyline
+            points="0,188 80,165 160,178 240,145 320,160 400,125 480,142 560,108 640,124 720,90 800,106 880,78"
+            fill="none" stroke="white" strokeOpacity="0.16" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+          />
+          <polygon
+            points="0,188 80,165 160,178 240,145 320,160 400,125 480,142 560,108 640,124 720,90 800,106 880,78 900,220 0,220"
+            fill="white" fillOpacity="0.026"
+          />
+          <polyline
+            points="0,200 100,186 200,194 300,172 400,180 500,160 600,168 700,148 800,156 900,136"
+            fill="none" stroke="white" strokeOpacity="0.07" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
+          />
+          {([[720,90],[560,108],[880,78],[240,145]] as [number,number][]).map(([px,py]) => (
+            <circle key={`${px}-${py}`} cx={px} cy={py} r="3" fill="white" fillOpacity="0.22" />
+          ))}
+          <radialGradient id="revHeaderGlow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="rgba(10,92,130,0.45)" />
+            <stop offset="100%" stopColor="rgba(10,92,130,0)" />
+          </radialGradient>
+          <ellipse cx="450" cy="110" rx="300" ry="140" fill="url(#revHeaderGlow)" />
+        </svg>
+
+        {/* Content */}
+        <div className="relative z-10 flex flex-col items-center text-center px-6 py-10 sm:py-14">
+          {/* Icon orb */}
+          <div
+            className="mb-5 inline-flex items-center justify-center rounded-full"
+            style={{
+              width: 64, height: 64,
+              background: "rgba(255,255,255,0.10)",
+              border: "1.5px solid rgba(255,255,255,0.18)",
+              boxShadow: "0 0 0 8px rgba(255,255,255,0.05), 0 8px 32px rgba(0,0,0,0.35)",
+            }}
+          >
+            <Wallet className="h-7 w-7" style={{ color: "rgba(255,255,255,0.92)" }} aria-hidden />
           </div>
-          <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Revenue (Invoices &amp; Payouts)</h1>
-          <p className="mt-2 text-xs sm:text-sm text-gray-500">Invoices, payouts and exports</p>
-          <div className="mt-2">
-            <div className="relative group/tooltip inline-flex">
-              <button
-                type="button"
-                className="p-1.5 inline-flex items-center justify-center text-gray-600 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20"
-                aria-label="Invoice type info"
-                onClick={(e) => {
-                  e.preventDefault();
-                  try {
-                    (e.currentTarget as HTMLButtonElement).focus();
-                  } catch {
-                    // ignore
-                  }
-                }}
-              >
-                <Info className="h-4 w-4" aria-hidden />
-              </button>
-              <div
-                role="tooltip"
-                className="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-72 max-w-[calc(100vw-1rem)] translate-x-0 whitespace-normal break-words rounded-lg border border-gray-200 bg-white px-3 py-2 text-left text-xs text-gray-900 opacity-0 shadow-lg transition-opacity duration-150 group-hover/tooltip:opacity-100 group-focus-within/tooltip:opacity-100"
-              >
-                <div className="font-semibold">Invoice types</div>
-                <div className="mt-0.5 text-[11px] text-gray-600">
-                  <span className="font-medium text-gray-900">INV-</span>: Customer payment record (booking paid)
-                </div>
-                <div className="mt-0.5 text-[11px] text-gray-600">
-                  <span className="font-medium text-gray-900">OINV-</span>: Owner payout claim (approval flow)
-                </div>
+
+          <h1
+            className="text-2xl sm:text-3xl font-bold tracking-tight"
+            style={{ color: "#ffffff", textShadow: "0 2px 12px rgba(0,0,0,0.4)" }}
+          >
+            Revenue (Invoices &amp; Payouts)
+          </h1>
+          <p className="mt-2 text-sm sm:text-base" style={{ color: "rgba(255,255,255,0.55)" }}>
+            Invoices, payouts and exports
+          </p>
+
+          {/* Info tooltip */}
+          <div className="mt-4 relative group/tooltip inline-flex">
+            <button
+              type="button"
+              className="inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium transition-all duration-150 focus:outline-none"
+              style={{
+                background: "rgba(255,255,255,0.10)",
+                border: "1px solid rgba(255,255,255,0.15)",
+                color: "rgba(255,255,255,0.70)",
+              }}
+              aria-label="Invoice type info"
+              onClick={(e) => {
+                e.preventDefault();
+                try { (e.currentTarget as HTMLButtonElement).focus(); } catch { /* ignore */ }
+              }}
+            >
+              <Info className="h-3.5 w-3.5" aria-hidden />
+              <span>Invoice types</span>
+            </button>
+            <div
+              role="tooltip"
+              className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 z-50 mb-2 w-72 max-w-[calc(100vw-1rem)] whitespace-normal break-words rounded-xl px-3 py-2.5 text-left text-xs opacity-0 shadow-2xl transition-opacity duration-150 group-hover/tooltip:opacity-100 group-focus-within/tooltip:opacity-100"
+              style={{ background: "#0b2a38", border: "1px solid rgba(255,255,255,0.10)", color: "rgba(255,255,255,0.85)" }}
+            >
+              <div className="font-semibold mb-1" style={{ color: "#fff" }}>Invoice types</div>
+              <div className="text-[11px] mt-0.5" style={{ color: "rgba(255,255,255,0.60)" }}>
+                <span className="font-semibold" style={{ color: "#6ee7b7" }}>INV-</span>: Customer payment record (booking paid)
+              </div>
+              <div className="text-[11px] mt-0.5" style={{ color: "rgba(255,255,255,0.60)" }}>
+                <span className="font-semibold" style={{ color: "#93c5fd" }}>OINV-</span>: Owner payout claim (approval flow)
               </div>
             </div>
           </div>
