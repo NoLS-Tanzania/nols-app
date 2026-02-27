@@ -684,10 +684,10 @@ export default function Page() {
     <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
       {/* Header + Summary */}
       <div
-        className="relative rounded-2xl overflow-hidden shadow-xl"
-        style={{ background: "linear-gradient(135deg, #01312e 0%, #01403c 35%, #02665e 68%, #014d47 100%)" }}
+        className="relative rounded-2xl overflow-hidden shadow-2xl"
+        style={{ background: "linear-gradient(135deg, #0e2a7a 0%, #0a5c82 38%, #02665e 100%)", boxShadow: "0 28px 65px -15px rgba(2,102,94,0.45), 0 8px 22px -8px rgba(14,42,122,0.50)" }}
       >
-        {/* ── Decorative background chart ── */}
+        {/* ── Decorative sparkline viz (revenue-card style) ── */}
         <svg
           aria-hidden
           className="absolute inset-0 w-full h-full pointer-events-none select-none"
@@ -695,31 +695,40 @@ export default function Page() {
           viewBox="0 0 900 260"
           xmlns="http://www.w3.org/2000/svg"
         >
+          {/* Arcs top-right (revenue card style) */}
+          <circle cx="860" cy="55"  r="230" stroke="white" strokeOpacity="0.06" strokeWidth="1" fill="none" />
+          <circle cx="860" cy="55"  r="175" stroke="white" strokeOpacity="0.055" strokeWidth="1" fill="none" />
+          <circle cx="820" cy="25"  r="130" stroke="white" strokeOpacity="0.045" strokeWidth="1" fill="none" />
+          {/* Arc bottom-left */}
+          <circle cx="30"  cy="238" r="150" stroke="white" strokeOpacity="0.045" strokeWidth="1" fill="none" />
+          {/* Horizontal grid lines */}
           {[52, 104, 156, 208].map((y) => (
-            <line key={y} x1="0" y1={y} x2="900" y2={y} stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
+            <line key={y} x1="0" y1={y} x2="900" y2={y} stroke="rgba(255,255,255,0.032)" strokeWidth="1" />
           ))}
-          {[
-            { x: 20,  h: 100 }, { x: 72,  h: 148 }, { x: 124, h: 82  }, { x: 176, h: 175 },
-            { x: 228, h: 120 }, { x: 280, h: 190 }, { x: 332, h: 105 }, { x: 384, h: 160 },
-            { x: 436, h: 70  }, { x: 488, h: 200 }, { x: 540, h: 138 }, { x: 592, h: 112 },
-            { x: 644, h: 178 }, { x: 696, h: 128 }, { x: 748, h: 95  }, { x: 800, h: 155 },
-            { x: 852, h: 88  },
-          ].map(({ x, h }) => (
-            <rect key={x} x={x} y={260 - h} width="36" height={h} rx="5" fill="rgba(255,255,255,0.048)" />
-          ))}
+          {/* Sparkline 1 — main wave */}
           <polyline
-            points="38,168 90,118 142,185 194,78 246,130 298,62 350,140 402,90 454,195 506,48 558,110 610,132 662,72 714,122 766,160 818,98 870,145"
-            fill="none" stroke="rgba(255,255,255,0.11)" strokeWidth="2.5"
-            strokeLinejoin="round" strokeLinecap="round"
+            points="0,218 75,195 150,208 225,175 300,188 375,155 450,168 525,132 600,148 675,112 750,128 825,98 900,115"
+            fill="none" stroke="white" strokeOpacity="0.16" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
           />
-          {[[506,48],[298,62],[662,72],[194,78]].map(([cx,cy]) => (
-            <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="4.5" fill="rgba(255,255,255,0.20)" />
+          <polygon
+            points="0,218 75,195 150,208 225,175 300,188 375,155 450,168 525,132 600,148 675,112 750,128 825,98 900,115 900,260 0,260"
+            fill="white" fillOpacity="0.028"
+          />
+          {/* Sparkline 2 — secondary offset wave */}
+          <polyline
+            points="0,235 90,220 180,228 270,205 360,215 450,192 540,200 630,178 720,188 810,165 900,172"
+            fill="none" stroke="white" strokeOpacity="0.08" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
+          />
+          {/* Glow dots at peaks */}
+          {([[675,112],[525,132],[825,98],[225,175]] as [number,number][]).map(([px,py]) => (
+            <circle key={`${px}-${py}`} cx={px} cy={py} r="3.5" fill="white" fillOpacity="0.22" />
           ))}
-          <radialGradient id="payHeaderGlow" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="rgba(2,102,94,0.55)" />
-            <stop offset="100%" stopColor="rgba(2,102,94,0)" />
+          {/* Radial glow centre */}
+          <radialGradient id="payRevGlow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="rgba(10,92,130,0.50)" />
+            <stop offset="100%" stopColor="rgba(10,92,130,0)" />
           </radialGradient>
-          <ellipse cx="450" cy="130" rx="300" ry="150" fill="url(#payHeaderGlow)" />
+          <ellipse cx="450" cy="130" rx="320" ry="160" fill="url(#payRevGlow)" />
         </svg>
 
         {/* ── Content ── */}

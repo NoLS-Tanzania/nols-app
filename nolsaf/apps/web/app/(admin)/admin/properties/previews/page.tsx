@@ -145,13 +145,6 @@ export default function PropertyPreviewsPage() {
         params.ownerId = Number(ownerFilter);
       }
       const response = await api.get("/api/admin/properties", { params });
-      console.log('[PropertyPreviews] API Response:', {
-        statusFilter,
-        params,
-        itemsCount: response.data?.items?.length || 0,
-        total: response.data?.total || 0,
-        firstItem: response.data?.items?.[0] || null,
-      });
       setProperties(response.data.items || []);
     } catch (err: any) {
       console.error("Failed to load properties:", err);
@@ -177,7 +170,6 @@ export default function PropertyPreviewsPage() {
     (async () => {
       try {
         const r = await api.get<Record<string, number>>('/api/admin/properties/counts');
-        console.log('[PropertyPreviews] Counts response:', r.data);
         if (r?.data) {
           setCounts((prev) => {
             const newCounts = { ...prev, ...r.data };
@@ -191,9 +183,7 @@ export default function PropertyPreviewsPage() {
             return newCounts;
           });
         }
-      } catch (e: any) {
-        console.error('[PropertyPreviews] Failed to load counts:', e);
-        console.error('[PropertyPreviews] Error response:', e.response?.data);
+      } catch {
         // ignore if backend doesn't expose counts
       }
     })();
@@ -260,12 +250,71 @@ export default function PropertyPreviewsPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8 text-center">
-          <div className="flex flex-col items-center justify-center mb-3">
-            <ScanEye className="h-10 w-10 text-[#02665e] mb-3" />
-            <h1 className="text-3xl font-bold text-gray-900">Property Previews</h1>
+        {/* ── Premium header ── */}
+        <div
+          className="relative rounded-2xl overflow-hidden shadow-2xl mb-8"
+          style={{ background: "linear-gradient(135deg, #0e2a7a 0%, #0a5c82 38%, #02665e 100%)", boxShadow: "0 28px 65px -15px rgba(2,102,94,0.45), 0 8px 22px -8px rgba(14,42,122,0.50)" }}
+        >
+          {/* Decorative SVG */}
+          <svg
+            aria-hidden
+            className="absolute inset-0 w-full h-full pointer-events-none select-none"
+            preserveAspectRatio="xMidYMid slice"
+            viewBox="0 0 900 220"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <circle cx="860" cy="45"  r="200" stroke="white" strokeOpacity="0.06" strokeWidth="1" fill="none" />
+            <circle cx="860" cy="45"  r="155" stroke="white" strokeOpacity="0.05" strokeWidth="1" fill="none" />
+            <circle cx="820" cy="15"  r="115" stroke="white" strokeOpacity="0.045" strokeWidth="1" fill="none" />
+            <circle cx="28"  cy="208" r="130" stroke="white" strokeOpacity="0.04" strokeWidth="1" fill="none" />
+            {[44, 88, 132, 176].map((y) => (
+              <line key={y} x1="0" y1={y} x2="900" y2={y} stroke="rgba(255,255,255,0.030)" strokeWidth="1" />
+            ))}
+            <polyline
+              points="0,188 80,168 160,178 240,148 320,162 400,130 480,145 560,112 640,128 720,95 800,110 880,82"
+              fill="none" stroke="white" strokeOpacity="0.15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+            />
+            <polygon
+              points="0,188 80,168 160,178 240,148 320,162 400,130 480,145 560,112 640,128 720,95 800,110 880,82 900,220 0,220"
+              fill="white" fillOpacity="0.025"
+            />
+            <polyline
+              points="0,200 100,188 200,195 300,175 400,182 500,162 600,170 700,150 800,158 900,140"
+              fill="none" stroke="white" strokeOpacity="0.07" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
+            />
+            {([[720,95],[560,112],[880,82],[240,148]] as [number,number][]).map(([px,py]) => (
+              <circle key={`${px}-${py}`} cx={px} cy={py} r="3" fill="white" fillOpacity="0.22" />
+            ))}
+            <radialGradient id="prevHeaderGlow" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="rgba(10,92,130,0.45)" />
+              <stop offset="100%" stopColor="rgba(10,92,130,0)" />
+            </radialGradient>
+            <ellipse cx="450" cy="110" rx="300" ry="140" fill="url(#prevHeaderGlow)" />
+          </svg>
+
+          {/* Content */}
+          <div className="relative z-10 flex flex-col items-center text-center px-6 py-10 sm:py-14">
+            <div
+              className="mb-5 inline-flex items-center justify-center rounded-full"
+              style={{
+                width: 64, height: 64,
+                background: "rgba(255,255,255,0.10)",
+                border: "1.5px solid rgba(255,255,255,0.18)",
+                boxShadow: "0 0 0 8px rgba(255,255,255,0.05), 0 8px 32px rgba(0,0,0,0.35)",
+              }}
+            >
+              <ScanEye className="h-7 w-7" style={{ color: "rgba(255,255,255,0.92)" }} aria-hidden />
+            </div>
+            <h1
+              className="text-2xl sm:text-3xl font-bold tracking-tight"
+              style={{ color: "#ffffff", textShadow: "0 2px 12px rgba(0,0,0,0.4)" }}
+            >
+              Property Previews
+            </h1>
+            <p className="mt-2 text-sm sm:text-base" style={{ color: "rgba(255,255,255,0.55)" }}>
+              Review and manage property listings with full preview
+            </p>
           </div>
-          <p className="text-gray-600 mb-4">Review and manage property listings with full preview</p>
         </div>
 
         {/* Search and Filters Card */}
