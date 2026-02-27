@@ -111,61 +111,81 @@ export default function PlanWithUsDashboardPage() {
     <div className="space-y-6">
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-300 hover:border-blue-300 group">
-          <div className="flex items-center gap-4">
-            <ClipboardList className="h-6 w-6 text-blue-600 group-hover:scale-110 transition-transform duration-300" />
-            <div className="flex-1">
-              <div className="text-sm font-medium text-gray-500 mb-1">Total Requests</div>
-              <div className="text-2xl font-bold text-gray-900">
-                {loading ? "..." : (summary.totalRequests || 0).toLocaleString()}
+        {/* Total */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 overflow-hidden">
+          <div className="h-1 bg-gradient-to-r from-blue-500 to-indigo-600" />
+          <div className="p-5 flex items-start gap-3">
+            <div className="h-10 w-10 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center flex-shrink-0">
+              <ClipboardList className="h-5 w-5 text-blue-600" />
+            </div>
+            <div>
+              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Total Requests</div>
+              <div className="text-2xl font-bold text-gray-900 tabular-nums">
+                {loading ? <span className="inline-block h-7 w-8 bg-gray-200 rounded animate-pulse" /> : (summary.totalRequests || 0).toLocaleString()}
               </div>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-300 hover:border-amber-300 group">
-          <div className="flex items-center gap-4">
-            <Clock className="h-6 w-6 text-amber-600 group-hover:scale-110 transition-transform duration-300" />
-            <div className="flex-1">
-              <div className="text-sm font-medium text-gray-500 mb-1">New Requests</div>
-              <div className="text-2xl font-bold text-gray-900">
-                {loading ? "..." : (summary.pendingRequests || 0).toLocaleString()}
+        {/* New */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 overflow-hidden">
+          <div className="h-1 bg-gradient-to-r from-amber-400 to-orange-500" />
+          <div className="p-5 flex items-start gap-3">
+            <div className="h-10 w-10 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center flex-shrink-0">
+              <Clock className="h-5 w-5 text-amber-600" />
+            </div>
+            <div>
+              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">New Requests</div>
+              <div className="text-2xl font-bold text-gray-900 tabular-nums">
+                {loading ? <span className="inline-block h-7 w-6 bg-gray-200 rounded animate-pulse" /> : (summary.pendingRequests || 0).toLocaleString()}
               </div>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-300 hover:border-blue-300 group">
-          <div className="flex items-center gap-4">
-            <Loader2 className="h-6 w-6 text-blue-600 group-hover:scale-110 group-hover:animate-spin transition-transform duration-300" />
-            <div className="flex-1">
-              <div className="text-sm font-medium text-gray-500 mb-1">In Progress</div>
-              <div className="text-2xl font-bold text-gray-900">
-                {loading ? "..." : (summary.inProgressRequests || 0).toLocaleString()}
+        {/* In Progress */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 overflow-hidden">
+          <div className="h-1 bg-gradient-to-r from-blue-400 to-cyan-500" />
+          <div className="p-5 flex items-start gap-3">
+            <div className="h-10 w-10 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center flex-shrink-0">
+              <Loader2 className="h-5 w-5 text-blue-600" />
+            </div>
+            <div>
+              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">In Progress</div>
+              <div className="text-2xl font-bold text-gray-900 tabular-nums">
+                {loading ? <span className="inline-block h-7 w-6 bg-gray-200 rounded animate-pulse" /> : (summary.inProgressRequests || 0).toLocaleString()}
               </div>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-300 hover:border-green-300 group">
-          <div className="flex items-center gap-4">
-            <CheckCircle className="h-6 w-6 text-green-600 group-hover:scale-110 transition-transform duration-300" />
-            <div className="flex-1">
-              <div className="text-sm font-medium text-gray-500 mb-1">Completed</div>
-              <div className="text-2xl font-bold text-gray-900">
-                {loading ? "..." : (summary.completedRequests || 0).toLocaleString()}
+        {/* Completed */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 overflow-hidden">
+          <div className="h-1 bg-gradient-to-r from-emerald-400 to-green-600" />
+          <div className="p-5 flex items-start gap-3">
+            <div className="h-10 w-10 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center flex-shrink-0">
+              <CheckCircle className="h-5 w-5 text-emerald-600" />
+            </div>
+            <div>
+              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Completed</div>
+              <div className="text-2xl font-bold text-gray-900 tabular-nums">
+                {loading ? <span className="inline-block h-7 w-6 bg-gray-200 rounded animate-pulse" /> : (summary.completedRequests || 0).toLocaleString()}
               </div>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg border-2 border-amber-300 p-6 shadow-sm hover:shadow-md transition-all duration-300 hover:border-amber-400 group bg-gradient-to-br from-amber-50 to-amber-100">
-          <div className="flex items-center gap-4">
-            <AlertTriangle className="h-6 w-6 text-amber-600 group-hover:scale-110 transition-transform duration-300" />
-            <div className="flex-1">
-              <div className="text-sm font-medium text-amber-700 mb-1">Urgent (Pending)</div>
-              <div className="text-2xl font-bold text-amber-900">
-                {loading ? "..." : (summary.urgentRequests || 0).toLocaleString()}
+        {/* Urgent */}
+        <div className="bg-white rounded-xl border border-amber-200 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 overflow-hidden">
+          <div className="h-1 bg-gradient-to-r from-amber-500 to-red-500" />
+          <div className="p-5 flex items-start gap-3">
+            <div className="h-10 w-10 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center flex-shrink-0">
+              <AlertTriangle className="h-5 w-5 text-amber-600" />
+            </div>
+            <div>
+              <div className="text-xs font-semibold text-amber-600 uppercase tracking-wider mb-1">Urgent</div>
+              <div className="text-2xl font-bold text-amber-900 tabular-nums">
+                {loading ? <span className="inline-block h-7 w-6 bg-amber-100 rounded animate-pulse" /> : (summary.urgentRequests || 0).toLocaleString()}
               </div>
             </div>
           </div>
@@ -176,29 +196,37 @@ export default function PlanWithUsDashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Link
           href="/admin/plan-with-us/requests"
-          className="no-underline bg-white rounded-lg border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-300 hover:border-blue-300 group"
+          className="group no-underline bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 overflow-hidden"
         >
-          <div className="flex items-center gap-4">
-            <FileText className="h-6 w-6 text-blue-600 group-hover:scale-110 transition-transform duration-300" />
-            <div className="flex-1">
-              <div className="text-sm font-medium text-gray-500 mb-1">All Requests</div>
-              <div className="text-lg font-semibold text-gray-900">View All</div>
+          <div className="h-1 bg-gradient-to-r from-blue-500 to-indigo-600" />
+          <div className="p-5 flex items-center gap-4">
+            <div className="h-10 w-10 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center flex-shrink-0 group-hover:bg-blue-100 transition-colors">
+              <FileText className="h-5 w-5 text-blue-600" />
             </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-0.5">All Requests</div>
+              <div className="text-base font-bold text-gray-900 group-hover:text-blue-700 transition-colors">View All</div>
+            </div>
+            <svg className="h-4 w-4 text-gray-300 group-hover:text-blue-400 group-hover:translate-x-0.5 transition-all flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
           </div>
         </Link>
 
         <Link
           href="/admin/plan-with-us/requests?status=NEW"
-          className="no-underline bg-white rounded-lg border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-300 hover:border-amber-300 group"
+          className="group no-underline bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 overflow-hidden"
         >
-          <div className="flex items-center gap-4">
-            <Clock className="h-6 w-6 text-amber-600 group-hover:scale-110 transition-transform duration-300" />
-            <div className="flex-1">
-              <div className="text-sm font-medium text-gray-500 mb-1">New Requests</div>
-              <div className="text-lg font-semibold text-gray-900">
-                {loading ? "..." : (summary.pendingRequests || 0)}
+          <div className="h-1 bg-gradient-to-r from-amber-400 to-orange-500" />
+          <div className="p-5 flex items-center gap-4">
+            <div className="h-10 w-10 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center flex-shrink-0 group-hover:bg-amber-100 transition-colors">
+              <Clock className="h-5 w-5 text-amber-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-0.5">New Requests</div>
+              <div className="text-base font-bold text-gray-900 group-hover:text-amber-700 transition-colors tabular-nums">
+                {loading ? <span className="inline-block h-5 w-6 bg-gray-200 rounded animate-pulse" /> : (summary.pendingRequests || 0)}
               </div>
             </div>
+            <svg className="h-4 w-4 text-gray-300 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
           </div>
         </Link>
       </div>
@@ -206,13 +234,19 @@ export default function PlanWithUsDashboardPage() {
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Requests by Role */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm transition-all duration-300 hover:shadow-lg hover:border-blue-300 hover:-translate-y-1 group">
-          <div className="mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2 group-hover:text-blue-600 transition-colors duration-300">
-              <Users className="h-5 w-5 text-blue-600 group-hover:scale-110 transition-transform duration-300" />
-              Requests by Role
-            </h3>
-            <p className="text-sm text-gray-500 mt-1">Distribution of requests by customer role</p>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 overflow-hidden group">
+          <div className="h-1 bg-gradient-to-r from-blue-400 to-indigo-500" />
+          <div className="p-6">
+          <div className="mb-4 flex items-start gap-3">
+            <span className="inline-flex items-center justify-center h-9 w-9 rounded-lg bg-blue-50 border border-blue-100 flex-shrink-0">
+              <Users className="h-5 w-5 text-blue-600" />
+            </span>
+            <div>
+              <h3 className="text-base font-bold text-gray-900 group-hover:text-blue-700 transition-colors">
+                Requests by Role
+              </h3>
+              <p className="text-xs text-gray-400 mt-0.5">Distribution of requests by customer role</p>
+            </div>
           </div>
           <div className="h-64 w-full max-h-64 min-h-[300px] overflow-hidden relative">
             {loading ? (
@@ -260,16 +294,23 @@ export default function PlanWithUsDashboardPage() {
               </div>
             )}
           </div>
+          </div>
         </div>
 
         {/* Requests by Trip Type */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm transition-all duration-300 hover:shadow-lg hover:border-green-300 hover:-translate-y-1 group">
-          <div className="mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2 group-hover:text-green-600 transition-colors duration-300">
-              <MapPin className="h-5 w-5 text-green-600 group-hover:scale-110 transition-transform duration-300" />
-              Requests by Trip Type
-            </h3>
-            <p className="text-sm text-gray-500 mt-1">Distribution of requests by trip type</p>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 overflow-hidden group">
+          <div className="h-1 bg-gradient-to-r from-emerald-400 to-teal-500" />
+          <div className="p-6">
+          <div className="mb-4 flex items-start gap-3">
+            <span className="inline-flex items-center justify-center h-9 w-9 rounded-lg bg-emerald-50 border border-emerald-100 flex-shrink-0">
+              <MapPin className="h-5 w-5 text-emerald-600" />
+            </span>
+            <div>
+              <h3 className="text-base font-bold text-gray-900 group-hover:text-emerald-700 transition-colors">
+                Requests by Trip Type
+              </h3>
+              <p className="text-xs text-gray-400 mt-0.5">Distribution of requests by trip type</p>
+            </div>
           </div>
           <div className="h-64 w-full max-h-64 min-h-[300px] overflow-hidden relative">
             {loading ? (
@@ -331,14 +372,19 @@ export default function PlanWithUsDashboardPage() {
               </div>
             )}
           </div>
+          </div>
         </div>
       </div>
 
       {/* Recent Requests */}
       {summary.recentRequests.length > 0 && (
-        <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-blue-600" />
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-teal-500" />
+          <div className="p-6">
+          <h3 className="text-base font-bold text-gray-900 mb-5 flex items-center gap-2">
+            <span className="inline-flex items-center justify-center h-8 w-8 rounded-lg bg-blue-50 border border-blue-100">
+              <TrendingUp className="h-4 w-4 text-blue-600" />
+            </span>
             Recent Requests
           </h3>
           <div className="overflow-x-auto">
@@ -389,6 +435,7 @@ export default function PlanWithUsDashboardPage() {
                 ))}
               </tbody>
             </table>
+          </div>
           </div>
         </div>
       )}

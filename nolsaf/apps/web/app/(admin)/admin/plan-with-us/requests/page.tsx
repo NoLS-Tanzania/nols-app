@@ -677,18 +677,33 @@ export default function AdminPlanWithUsRequestsPage() {
   return (
     <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       {/* Header */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-        <div className="flex flex-col items-center text-center">
-          <div className="h-16 w-16 rounded-full bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center mb-4">
-            <FileText className="h-8 w-8 text-blue-600" />
+      <div
+        className="relative rounded-xl overflow-hidden shadow-sm"
+        style={{ background: "linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 45%, #0f766e 100%)" }}
+      >
+        {/* SVG geometric overlay */}
+        <svg className="absolute inset-0 w-full h-full opacity-10" preserveAspectRatio="none" viewBox="0 0 800 160">
+          <line x1="0" y1="40" x2="800" y2="40" stroke="white" strokeWidth="1"/>
+          <line x1="0" y1="80" x2="800" y2="80" stroke="white" strokeWidth="1"/>
+          <line x1="0" y1="120" x2="800" y2="120" stroke="white" strokeWidth="1"/>
+          <line x1="200" y1="0" x2="200" y2="160" stroke="white" strokeWidth="1"/>
+          <line x1="500" y1="0" x2="500" y2="160" stroke="white" strokeWidth="1"/>
+          <circle cx="680" cy="30" r="60" stroke="white" strokeWidth="1" fill="none"/>
+          <circle cx="100" cy="140" r="45" stroke="white" strokeWidth="1" fill="none"/>
+        </svg>
+        <div className="relative z-10 px-8 py-8 flex items-center gap-6">
+          <div className="h-16 w-16 rounded-2xl bg-white/15 border border-white/25 flex items-center justify-center flex-shrink-0 shadow-lg">
+            <FileText className="h-8 w-8 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Plan Requests</h1>
-          <p className="text-sm text-gray-500 mt-1">Review requests and provide feedback to customers</p>
+          <div>
+            <h1 className="text-2xl font-bold text-white tracking-tight">Plan Requests</h1>
+            <p className="text-blue-100 text-sm mt-1">Review requests and provide feedback to customers</p>
+          </div>
         </div>
       </div>
 
       {/* Search and Filters - Moved to Top */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
+      <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
         <div className="flex flex-col gap-4 w-full max-w-full">
           {/* Search and Filters Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3 w-full max-w-full">
@@ -819,7 +834,8 @@ export default function AdminPlanWithUsRequestsPage() {
       </div>
 
       {/* Requests Table */}
-      <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-teal-500" />
         {loading ? (
           <>
             {/* Skeleton Table */}
