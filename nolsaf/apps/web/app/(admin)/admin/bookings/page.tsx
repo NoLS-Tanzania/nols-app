@@ -22,7 +22,7 @@ type Row = {
   guestName?: string | null;
   roomCode?: string | null;
   totalAmount: number;
-  property: { id: number; title: string; ownerId: number };
+  property: { id: number; title: string; ownerId: number; regionName?: string | null; city?: string | null };
   code?: { id: number; code: string; status: string } | null;
 };
 
@@ -627,8 +627,15 @@ export default function AdminBookingsPage() {
                                   return <span className="font-medium text-gray-900">{b.guestName ?? '—'}</span>;
                                 case 'owner':
                                   return <span className="text-gray-500">{b.property?.ownerId ?? '—'}</span>;
-                                case 'region':
-                                  return <span className="text-gray-400">—</span>;
+                                case 'region': {
+                                  const parts = [b.property?.regionName, b.property?.city].filter(Boolean);
+                                  return parts.length > 0 ? (
+                                    <div>
+                                      <div className="font-medium text-gray-800 leading-tight">{parts[0]}</div>
+                                      {parts[1] && <div className="text-xs text-gray-400 mt-0.5">{parts[1]}</div>}
+                                    </div>
+                                  ) : <span className="text-gray-300">—</span>;
+                                }
                                 case 'propertyRoom':
                                   return (
                                     <div>

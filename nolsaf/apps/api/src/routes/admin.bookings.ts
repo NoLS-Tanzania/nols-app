@@ -114,6 +114,8 @@ router.get("/", async (req, res) => {
             id: true, 
             title: true, 
             ownerId: true,
+            regionName: true,
+            city: true,
             owner: { select: { id: true, name: true, email: true } }
           } 
         },

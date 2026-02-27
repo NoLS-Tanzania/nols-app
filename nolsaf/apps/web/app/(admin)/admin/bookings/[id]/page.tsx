@@ -654,13 +654,20 @@ export default function AdminBookingDetail() {
                 <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center flex-shrink-0">
                   <User className="h-5 w-5 text-indigo-600" />
                 </div>
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0 flex-1 overflow-hidden">
                   <h2 className="text-lg font-semibold text-gray-900 mb-4">Owner</h2>
-                  <div className="grid grid-cols-2 gap-4">
-                    <InfoRow label="Name" value={b.property?.owner?.name} />
-                    <InfoRow label="Email" value={b.property?.owner?.email} />
-                    {b.property?.owner?.phone && (
-                      <InfoRow label="Phone" value={b.property?.owner?.phone} />
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-4">
+                      <InfoRow label="Name" value={b.property?.owner?.name} />
+                      {b.property?.owner?.phone && (
+                        <InfoRow label="Phone" value={b.property?.owner?.phone} />
+                      )}
+                    </div>
+                    {b.property?.owner?.email && (
+                      <div>
+                        <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Email</div>
+                        <div className="font-semibold text-sm text-gray-900 break-all leading-snug">{b.property.owner.email}</div>
+                      </div>
                     )}
                   </div>
                 </div>
