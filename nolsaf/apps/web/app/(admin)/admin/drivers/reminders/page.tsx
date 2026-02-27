@@ -520,89 +520,131 @@ export default function AdminDriversRemindersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-        <div className="flex flex-col items-center justify-center text-center mb-4">
-          <div className="h-12 w-12 rounded-full bg-gradient-to-br from-indigo-50 to-indigo-100 flex items-center justify-center mb-3">
-            <Bell className="h-6 w-6 text-indigo-600" />
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900">Driver Reminders</h1>
-          <p className="text-sm text-gray-500 mt-1">View and manage driver reminders and notifications</p>
-        </div>
-        
-        {/* Expiring Documents Alert */}
-        {expiringDocuments.length > 0 && (
-          <div className="mt-4 p-4 bg-amber-50 border-2 border-amber-200 rounded-lg">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <AlertTriangle className="h-5 w-5 text-amber-600" />
-                <div>
-                  <p className="font-semibold text-amber-900">
-                    {expiringDocuments.length} driver{expiringDocuments.length > 1 ? 's' : ''} with expiring documents
-                  </p>
-                  <p className="text-sm text-amber-700">
-                    {expiringDocuments.reduce((sum, d) => sum + d.expiringDocuments.length, 0)} document{expiringDocuments.reduce((sum, d) => sum + d.expiringDocuments.length, 0) > 1 ? 's' : ''} expiring (License: 100 days, Insurance: 90 days)
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={autoCreateReminders}
-                disabled={autoCreating}
-                className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                <RefreshCw className={`h-4 w-4 ${autoCreating ? "animate-spin" : ""}`} />
-                {autoCreating ? "Creating..." : "Auto-Create Reminders"}
-              </button>
+      {/* Premium Banner */}
+      <div style={{ position: "relative", borderRadius: "1.25rem", overflow: "hidden", background: "linear-gradient(135deg, #0e2a7a 0%, #0a5c82 38%, #02665e 100%)", boxShadow: "0 28px 65px -15px rgba(2,102,94,0.45), 0 8px 22px -8px rgba(14,42,122,0.50)", padding: "2rem 2rem 1.75rem" }}>
+        <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0.13, pointerEvents: "none" }} viewBox="0 0 900 160" preserveAspectRatio="xMidYMid slice">
+          <circle cx="820" cy="30" r="90" fill="none" stroke="white" strokeWidth="1.2" />
+          <circle cx="820" cy="30" r="55" fill="none" stroke="white" strokeWidth="0.7" />
+          <circle cx="60" cy="140" r="70" fill="none" stroke="white" strokeWidth="1.0" />
+          <line x1="0" y1="40" x2="900" y2="40" stroke="white" strokeWidth="0.4" />
+          <line x1="0" y1="72" x2="900" y2="72" stroke="white" strokeWidth="0.4" />
+          <line x1="0" y1="104" x2="900" y2="104" stroke="white" strokeWidth="0.4" />
+          <line x1="0" y1="136" x2="900" y2="136" stroke="white" strokeWidth="0.4" />
+          <polyline points="0,130 90,110 180,95 270,80 360,65 450,90 540,55 630,70 720,40 810,52 900,35" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+          <polygon points="0,130 90,110 180,95 270,80 360,65 450,90 540,55 630,70 720,40 810,52 900,35 900,160 0,160" fill="white" opacity={0.06} />
+          <polyline points="0,145 90,132 180,118 270,128 360,108 450,122 540,98 630,112 720,88 810,102 900,78" fill="none" stroke="white" strokeWidth="1.2" strokeDasharray="6 4" opacity={0.5} />
+          <circle cx="540" cy="55" r="5" fill="white" opacity={0.75} />
+          <circle cx="720" cy="40" r="5" fill="white" opacity={0.75} />
+          <circle cx="900" cy="35" r="5" fill="white" opacity={0.75} />
+          <defs><radialGradient id="remBannerGlow" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="white" stopOpacity="0.12" /><stop offset="100%" stopColor="white" stopOpacity="0" /></radialGradient></defs>
+          <ellipse cx="450" cy="90" rx="200" ry="70" fill="url(#remBannerGlow)" />
+        </svg>
+        <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: "1rem", marginBottom: "1.5rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+            <div style={{ width: 46, height: 46, borderRadius: "50%", background: "rgba(255,255,255,0.10)", border: "1.5px solid rgba(255,255,255,0.18)", boxShadow: "0 0 0 8px rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Bell style={{ width: 22, height: 22, color: "white" }} />
+            </div>
+            <div>
+              <h1 style={{ fontSize: "1.35rem", fontWeight: 800, color: "white", margin: 0, letterSpacing: "-0.01em" }}>Driver Reminders</h1>
+              <p style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.62)", margin: "2px 0 0" }}>Policy alerts · license &amp; insurance expiry · safety notifications</p>
             </div>
           </div>
-        )}
+          {expiringDocuments.length > 0 && (
+            <button
+              onClick={autoCreateReminders}
+              disabled={autoCreating}
+              style={{ display: "flex", alignItems: "center", gap: "0.4rem", padding: "0.5rem 1.1rem", background: autoCreating ? "rgba(245,158,11,0.25)" : "rgba(245,158,11,0.22)", border: "1px solid rgba(245,158,11,0.55)", borderRadius: "0.75rem", color: "#fcd34d", fontSize: "0.82rem", fontWeight: 600, cursor: autoCreating ? "not-allowed" : "pointer", flexShrink: 0 }}
+            >
+              <RefreshCw style={{ width: 14, height: 14 }} className={autoCreating ? "animate-spin" : ""} />
+              {autoCreating ? "Creating..." : "Auto-Create Reminders"}
+            </button>
+          )}
+        </div>
+        <div style={{ position: "relative", zIndex: 1, display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
+          <div style={{ background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.20)", borderRadius: "0.85rem", padding: "0.6rem 1rem", minWidth: 90 }}>
+            <div style={{ fontSize: "0.63rem", fontWeight: 700, color: "rgba(255,255,255,0.70)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Drivers</div>
+            <div style={{ fontSize: "1.3rem", fontWeight: 900, color: "white", fontVariantNumeric: "tabular-nums", lineHeight: 1.2 }}>{drivers.length}</div>
+          </div>
+          <div style={{ background: "rgba(245,158,11,0.16)", border: "1px solid rgba(245,158,11,0.35)", borderRadius: "0.85rem", padding: "0.6rem 1rem", minWidth: 120 }}>
+            <div style={{ fontSize: "0.63rem", fontWeight: 700, color: "rgba(252,211,77,0.85)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Expiring Docs</div>
+            <div style={{ fontSize: "1.3rem", fontWeight: 900, color: "#fcd34d", fontVariantNumeric: "tabular-nums", lineHeight: 1.2 }}>
+              {expiringDocuments.reduce((s, d) => s + d.expiringDocuments.length, 0)}
+            </div>
+            {expiringDocuments.length > 0 && (
+              <div style={{ fontSize: "0.63rem", color: "rgba(255,255,255,0.45)", marginTop: 2 }}>{expiringDocuments.length} driver{expiringDocuments.length > 1 ? 's' : ''}</div>
+            )}
+          </div>
+          {reminderData && (
+            <>
+              <div style={{ background: "rgba(99,102,241,0.16)", border: "1px solid rgba(99,102,241,0.35)", borderRadius: "0.85rem", padding: "0.6rem 1rem", minWidth: 90 }}>
+                <div style={{ fontSize: "0.63rem", fontWeight: 700, color: "rgba(196,181,253,0.85)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Total</div>
+                <div style={{ fontSize: "1.3rem", fontWeight: 900, color: "#c4b5fd", fontVariantNumeric: "tabular-nums", lineHeight: 1.2 }}>{reminderStats.total}</div>
+              </div>
+              <div style={{ background: "rgba(245,158,11,0.16)", border: "1px solid rgba(245,158,11,0.35)", borderRadius: "0.85rem", padding: "0.6rem 1rem", minWidth: 90 }}>
+                <div style={{ fontSize: "0.63rem", fontWeight: 700, color: "rgba(252,211,77,0.85)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Unread</div>
+                <div style={{ fontSize: "1.3rem", fontWeight: 900, color: "#fcd34d", fontVariantNumeric: "tabular-nums", lineHeight: 1.2 }}>{reminderStats.unread}</div>
+              </div>
+              <div style={{ background: "rgba(239,68,68,0.14)", border: "1px solid rgba(239,68,68,0.32)", borderRadius: "0.85rem", padding: "0.6rem 1rem", minWidth: 90 }}>
+                <div style={{ fontSize: "0.63rem", fontWeight: 700, color: "rgba(252,165,165,0.85)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Expired</div>
+                <div style={{ fontSize: "1.3rem", fontWeight: 900, color: "#fca5a5", fontVariantNumeric: "tabular-nums", lineHeight: 1.2 }}>{reminderStats.expired}</div>
+              </div>
+              <div style={{ background: "rgba(16,185,129,0.16)", border: "1px solid rgba(16,185,129,0.35)", borderRadius: "0.85rem", padding: "0.6rem 1rem", minWidth: 90 }}>
+                <div style={{ fontSize: "0.63rem", fontWeight: 700, color: "rgba(110,231,183,0.85)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Active</div>
+                <div style={{ fontSize: "1.3rem", fontWeight: 900, color: "#6ee7b7", fontVariantNumeric: "tabular-nums", lineHeight: 1.2 }}>
+                  {reminderData.items.filter(r => !r.expiresAt || new Date(r.expiresAt) > new Date()).length}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 w-full">
         <div className="lg:col-span-1 w-full min-w-0 max-w-full">
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden w-full">
-            <div className="p-3 border-b border-gray-200 w-full" style={{ boxSizing: 'border-box', maxWidth: '100%', overflow: 'hidden' }}>
-              <div className="relative w-full" style={{ maxWidth: '100%', boxSizing: 'border-box' }}>
-                <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none z-10" />
+          <div style={{ borderRadius: "1rem", border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06)", background: "linear-gradient(135deg, #0a1a19 0%, #0d2320 60%, #0a1f2e 100%)", overflow: "hidden" }} className="w-full">
+            <div style={{ padding: "0.75rem", borderBottom: "1px solid rgba(255,255,255,0.07)", boxSizing: "border-box", maxWidth: "100%", overflow: "hidden" }} className="w-full">
+              <div className="relative w-full" style={{ maxWidth: "100%", boxSizing: "border-box" }}>
+                <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-4 w-4 pointer-events-none z-10" style={{ color: "rgba(255,255,255,0.35)" }} />
                 <input
                   type="text"
                   placeholder="Search drivers..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                  className="w-full pl-9 pr-3 py-2 rounded-lg text-sm outline-none"
                   style={{ 
-                    boxSizing: 'border-box', 
-                    maxWidth: '100%',
-                    width: '100%',
-                    WebkitBoxSizing: 'border-box',
-                    MozBoxSizing: 'border-box'
+                    boxSizing: "border-box", 
+                    maxWidth: "100%",
+                    width: "100%",
+                    background: "rgba(255,255,255,0.07)",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    color: "rgba(255,255,255,0.88)",
                   }}
                 />
               </div>
             </div>
-            <div className="divide-y divide-gray-200 max-h-[600px] overflow-y-auto">
+            <div className="max-h-[600px] overflow-y-auto" style={{ scrollbarColor: "rgba(255,255,255,0.15) transparent" }}>
               {filteredDrivers.map((driver) => (
                 <div
                   key={driver.id}
                   onClick={() => loadDriverReminders(driver.id)}
-                  className={`p-4 hover:bg-gray-50 cursor-pointer transition-colors ${
-                    selectedDriver === driver.id ? "bg-emerald-50 border-l-4 border-emerald-600" : ""
-                  }`}
+                  className="p-4 cursor-pointer transition-colors"
+                  style={{ borderBottom: "1px solid rgba(255,255,255,0.05)", borderLeft: selectedDriver === driver.id ? "4px solid #059669" : "4px solid transparent", background: selectedDriver === driver.id ? "rgba(16,185,129,0.15)" : undefined }}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-emerald-100 flex items-center justify-center">
+                    <div style={{ width: 40, height: 40, borderRadius: "50%", background: selectedDriver === driver.id ? "linear-gradient(135deg,#059669,#047857)" : "rgba(16,185,129,0.18)", border: "1px solid rgba(16,185,129,0.25)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                       {driver.vehicleType === "Car" ? (
-                        <Car className="h-5 w-5 text-emerald-600" />
+                        <Car className="h-5 w-5" style={{ color: selectedDriver === driver.id ? "white" : "#6ee7b7" }} />
                       ) : driver.vehicleType === "MotorCycle" ? (
-                        <Bike className="h-5 w-5 text-emerald-600" />
+                        <Bike className="h-5 w-5" style={{ color: selectedDriver === driver.id ? "white" : "#6ee7b7" }} />
                       ) : driver.vehicleType === "Tuktuk" ? (
-                        <CarTaxiFront className="h-5 w-5 text-emerald-600" />
+                        <CarTaxiFront className="h-5 w-5" style={{ color: selectedDriver === driver.id ? "white" : "#6ee7b7" }} />
                       ) : (
-                        <Truck className="h-5 w-5 text-emerald-600" />
+                        <Truck className="h-5 w-5" style={{ color: selectedDriver === driver.id ? "white" : "#6ee7b7" }} />
                       )}
                     </div>
                     <div>
-                      <p className="font-medium text-gray-900">{driver.name}</p>
-                      <p className="text-xs text-gray-500">{driver.email}</p>
+                      <p className="font-medium" style={{ color: "rgba(255,255,255,0.90)" }}>{driver.name}</p>
+                      <p className="text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>{driver.email}</p>
                     </div>
                   </div>
                 </div>
@@ -614,11 +656,11 @@ export default function AdminDriversRemindersPage() {
         <div className="lg:col-span-2 min-w-0" style={{ boxSizing: 'border-box', maxWidth: '100%', overflow: 'hidden' }}>
           {reminderData ? (
             <div className="space-y-6 min-w-0" style={{ boxSizing: 'border-box', maxWidth: '100%', overflow: 'hidden' }}>
-              <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 md:p-6 overflow-hidden" style={{ boxSizing: 'border-box', maxWidth: '100%', width: '100%' }}>
+              <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 md:p-6 overflow-hidden" style={{ background: "linear-gradient(135deg, #0a1a19 0%, #0d2320 60%, #0a1f2e 100%)", border: "1px solid rgba(255,255,255,0.08)", boxSizing: 'border-box', maxWidth: '100%', width: '100%' }}>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6 min-w-0" style={{ boxSizing: 'border-box', maxWidth: '100%' }}>
                   <div className="min-w-0" style={{ boxSizing: 'border-box', maxWidth: '100%' }}>
-                    <h2 className="text-xl font-bold text-gray-900 mb-2 truncate">{reminderData.driver.name}</h2>
-                    <p className="text-sm text-gray-500 truncate">{reminderData.driver.email}</p>
+                    <h2 className="text-xl font-bold mb-2 truncate" style={{ color: "rgba(255,255,255,0.92)" }}>{reminderData.driver.name}</h2>
+                    <p className="text-sm truncate" style={{ color: "rgba(255,255,255,0.50)" }}>{reminderData.driver.email}</p>
                   </div>
                   <button
                     onClick={() => setShowCreateModal(true)}
@@ -633,21 +675,21 @@ export default function AdminDriversRemindersPage() {
                 
                 {/* Statistics Cards */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6 min-w-0" style={{ boxSizing: 'border-box', maxWidth: '100%' }}>
-                  <div className="p-3 md:p-4 bg-indigo-50 rounded-lg border border-indigo-200 min-w-0" style={{ boxSizing: 'border-box', maxWidth: '100%' }}>
-                    <p className="text-xs md:text-sm font-medium text-gray-700 mb-1 truncate">Total</p>
-                    <p className="text-xl md:text-2xl font-bold text-indigo-600 truncate">{reminderStats.total}</p>
+                  <div className="p-3 md:p-4 rounded-lg min-w-0" style={{ background: "rgba(99,102,241,0.16)", border: "1px solid rgba(99,102,241,0.30)", boxSizing: 'border-box', maxWidth: '100%' }}>
+                    <p className="text-xs md:text-sm font-medium mb-1 truncate" style={{ color: "rgba(196,181,253,0.80)" }}>Total</p>
+                    <p className="text-xl md:text-2xl font-bold truncate" style={{ color: "#c4b5fd" }}>{reminderStats.total}</p>
                   </div>
-                  <div className="p-3 md:p-4 bg-amber-50 rounded-lg border border-amber-200 min-w-0" style={{ boxSizing: 'border-box', maxWidth: '100%' }}>
-                    <p className="text-xs md:text-sm font-medium text-gray-700 mb-1 truncate">Unread</p>
-                    <p className="text-xl md:text-2xl font-bold text-amber-600 truncate">{reminderStats.unread}</p>
+                  <div className="p-3 md:p-4 rounded-lg min-w-0" style={{ background: "rgba(245,158,11,0.16)", border: "1px solid rgba(245,158,11,0.30)", boxSizing: 'border-box', maxWidth: '100%' }}>
+                    <p className="text-xs md:text-sm font-medium mb-1 truncate" style={{ color: "rgba(252,211,77,0.80)" }}>Unread</p>
+                    <p className="text-xl md:text-2xl font-bold truncate" style={{ color: "#fcd34d" }}>{reminderStats.unread}</p>
                   </div>
-                  <div className="p-3 md:p-4 bg-red-50 rounded-lg border border-red-200 min-w-0" style={{ boxSizing: 'border-box', maxWidth: '100%' }}>
-                    <p className="text-xs md:text-sm font-medium text-gray-700 mb-1 truncate">Expired</p>
-                    <p className="text-xl md:text-2xl font-bold text-red-600 truncate">{reminderStats.expired}</p>
+                  <div className="p-3 md:p-4 rounded-lg min-w-0" style={{ background: "rgba(239,68,68,0.14)", border: "1px solid rgba(239,68,68,0.28)", boxSizing: 'border-box', maxWidth: '100%' }}>
+                    <p className="text-xs md:text-sm font-medium mb-1 truncate" style={{ color: "rgba(252,165,165,0.80)" }}>Expired</p>
+                    <p className="text-xl md:text-2xl font-bold truncate" style={{ color: "#fca5a5" }}>{reminderStats.expired}</p>
                   </div>
-                  <div className="p-3 md:p-4 bg-emerald-50 rounded-lg border border-emerald-200 min-w-0" style={{ boxSizing: 'border-box', maxWidth: '100%' }}>
-                    <p className="text-xs md:text-sm font-medium text-gray-700 mb-1 truncate">Active</p>
-                    <p className="text-xl md:text-2xl font-bold text-emerald-600 truncate">
+                  <div className="p-3 md:p-4 rounded-lg min-w-0" style={{ background: "rgba(16,185,129,0.16)", border: "1px solid rgba(16,185,129,0.30)", boxSizing: 'border-box', maxWidth: '100%' }}>
+                    <p className="text-xs md:text-sm font-medium mb-1 truncate" style={{ color: "rgba(110,231,183,0.80)" }}>Active</p>
+                    <p className="text-xl md:text-2xl font-bold truncate" style={{ color: "#6ee7b7" }}>
                       {reminderData.items.filter((r) => !r.expiresAt || new Date(r.expiresAt) > new Date()).length}
                     </p>
                   </div>
@@ -656,13 +698,13 @@ export default function AdminDriversRemindersPage() {
                 {/* Quick Filters Only */}
                 <div className="mb-6 min-w-0" style={{ boxSizing: 'border-box', maxWidth: '100%', overflow: 'hidden' }}>
                   <div className="flex flex-wrap items-center gap-2" style={{ boxSizing: 'border-box', maxWidth: '100%' }}>
-                    <span className="text-sm text-gray-600 font-medium whitespace-nowrap">Quick Filters:</span>
+                    <span className="text-sm font-medium whitespace-nowrap" style={{ color: "rgba(255,255,255,0.55)" }}>Quick Filters:</span>
                     {filterPresets.map((preset, idx) => (
                       <button
                         key={idx}
                         onClick={preset.apply}
-                        className="px-4 py-2 text-sm font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full hover:bg-emerald-100 transition-all whitespace-nowrap"
-                        style={{ boxSizing: 'border-box' }}
+                        className="px-4 py-1.5 text-sm font-medium rounded-full transition-all whitespace-nowrap"
+                        style={{ background: "rgba(16,185,129,0.14)", border: "1px solid rgba(16,185,129,0.30)", color: "#6ee7b7", boxSizing: 'border-box' }}
                       >
                         {preset.name}
                       </button>
@@ -672,13 +714,13 @@ export default function AdminDriversRemindersPage() {
 
                 <div className="min-w-0" style={{ boxSizing: 'border-box', maxWidth: '100%', overflow: 'hidden' }}>
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4 min-w-0" style={{ boxSizing: 'border-box', maxWidth: '100%' }}>
-                    <h3 className="text-lg font-semibold text-gray-900 whitespace-nowrap">Reminder List</h3>
+                    <h3 className="text-lg font-semibold whitespace-nowrap" style={{ color: "rgba(255,255,255,0.88)" }}>Reminder List</h3>
                     <div className="flex items-center gap-2 w-full sm:w-auto min-w-0" style={{ boxSizing: 'border-box', maxWidth: '100%' }}>
                       <select
                         value={sortBy}
                         onChange={(e) => setSortBy(e.target.value as "NEWEST" | "OLDEST" | "PRIORITY" | "EXPIRY")}
-                        className="flex-1 sm:flex-none px-3 py-1.5 text-sm border-2 border-gray-300 rounded-lg focus:outline-none focus:border-emerald-500 bg-white min-w-0"
-                        style={{ boxSizing: 'border-box', maxWidth: '100%' }}
+                        className="flex-1 sm:flex-none px-3 py-1.5 text-sm rounded-lg outline-none min-w-0"
+                        style={{ boxSizing: 'border-box', maxWidth: '100%', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.14)', color: 'rgba(255,255,255,0.80)' }}
                         aria-label="Sort reminders by"
                         title="Sort reminders by"
                       >
@@ -692,8 +734,8 @@ export default function AdminDriversRemindersPage() {
                           if (selectedDriver) loadDriverReminders(selectedDriver);
                           loadExpiringDocuments();
                         }}
-                        className="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all flex items-center gap-2 whitespace-nowrap flex-shrink-0"
-                        style={{ boxSizing: 'border-box' }}
+                        className="px-3 py-1.5 text-sm rounded-lg transition-all flex items-center gap-2 whitespace-nowrap flex-shrink-0"
+                        style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.65)', boxSizing: 'border-box' }}
                       >
                         <RefreshCw className="h-4 w-4" />
                         <span className="hidden sm:inline">Refresh</span>
@@ -704,14 +746,14 @@ export default function AdminDriversRemindersPage() {
                   {/* Search Bar & Results Count */}
                   <div className="mb-4 space-y-2 min-w-0" style={{ boxSizing: 'border-box', maxWidth: '100%', overflow: 'hidden' }}>
                     <div className="relative min-w-0" style={{ boxSizing: 'border-box', maxWidth: '100%' }}>
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none z-10" />
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 pointer-events-none z-10" style={{ color: 'rgba(255,255,255,0.35)' }} />
                       <input
                         type="text"
                         placeholder="Search reminders by message, type, or action..."
                         value={reminderSearch}
                         onChange={(e) => setReminderSearch(e.target.value)}
-                        className="w-full pl-10 pr-10 py-2.5 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all"
-                        style={{ boxSizing: 'border-box', maxWidth: '100%' }}
+                        className="w-full pl-10 pr-10 py-2.5 rounded-lg focus:outline-none transition-all"
+                        style={{ boxSizing: 'border-box', maxWidth: '100%', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.88)' }}
                       />
                       {reminderSearch && (
                         <button
@@ -725,13 +767,14 @@ export default function AdminDriversRemindersPage() {
                       )}
                     </div>
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-sm min-w-0" style={{ boxSizing: 'border-box', maxWidth: '100%' }}>
-                      <span className="text-gray-600 text-xs sm:text-sm">
-                        Showing <span className="font-semibold text-gray-900">{filteredReminders.length}</span> of <span className="font-semibold text-gray-900">{reminderData.items.length}</span> reminders
+                      <span className="text-xs sm:text-sm" style={{ color: 'rgba(255,255,255,0.50)' }}>
+                        Showing <span className="font-semibold" style={{ color: 'rgba(255,255,255,0.85)' }}>{filteredReminders.length}</span> of <span className="font-semibold" style={{ color: 'rgba(255,255,255,0.85)' }}>{reminderData.items.length}</span> reminders
                       </span>
                       {(activeFilters.length > 0 || reminderSearch) && (
                         <button
                           onClick={clearAllFilters}
-                          className="text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1 text-xs sm:text-sm whitespace-nowrap"
+                          className="font-medium flex items-center gap-1 text-xs sm:text-sm whitespace-nowrap"
+                          style={{ color: '#6ee7b7' }}
                         >
                           <XCircle className="h-4 w-4" />
                           Clear Filters
@@ -746,14 +789,20 @@ export default function AdminDriversRemindersPage() {
                         return (
                           <div
                             key={reminder.id}
-                            className={`border rounded-lg p-4 ${getReminderColor(reminder.type)} ${!reminder.isRead ? "ring-2 ring-offset-2" : ""} break-words`}
-                            style={{ boxSizing: 'border-box', maxWidth: '100%', wordWrap: 'break-word' }}
+                            className={`rounded-lg p-4 break-words ${
+                              !reminder.isRead ? "ring-1 ring-offset-1" : ""
+                            }`}
+                            style={{
+                              background: reminder.type === "ALERT" || reminder.type === "POLICY_VIOLATION" ? "rgba(239,68,68,0.13)" : reminder.type === "WARNING" ? "rgba(245,158,11,0.13)" : reminder.type === "LICENSE_EXPIRY" || reminder.type === "INSURANCE_EXPIRY" ? "rgba(139,92,246,0.13)" : reminder.type === "SAFETY" ? "rgba(245,158,11,0.10)" : "rgba(59,130,246,0.12)",
+                              border: reminder.type === "ALERT" || reminder.type === "POLICY_VIOLATION" ? "1px solid rgba(239,68,68,0.30)" : reminder.type === "WARNING" ? "1px solid rgba(245,158,11,0.30)" : reminder.type === "LICENSE_EXPIRY" || reminder.type === "INSURANCE_EXPIRY" ? "1px solid rgba(139,92,246,0.30)" : reminder.type === "SAFETY" ? "1px solid rgba(245,158,11,0.25)" : "1px solid rgba(59,130,246,0.28)",
+                              boxSizing: 'border-box', maxWidth: '100%', wordWrap: 'break-word'
+                            }}
                           >
                             <div className="flex items-start gap-3">
-                              <Icon className="h-5 w-5 flex-shrink-0 mt-0.5" />
+                              <Icon className="h-5 w-5 flex-shrink-0 mt-0.5" style={{ color: reminder.type === "ALERT" || reminder.type === "POLICY_VIOLATION" ? "#fca5a5" : reminder.type === "WARNING" || reminder.type === "SAFETY" ? "#fcd34d" : reminder.type === "LICENSE_EXPIRY" || reminder.type === "INSURANCE_EXPIRY" ? "#c4b5fd" : "#93c5fd" }} />
                               <div className="flex-1">
                                 <div className="flex items-center justify-between mb-1">
-                                  <span className="text-xs font-medium uppercase">{reminder.type.replace('_', ' ')}</span>
+                                  <span className="text-xs font-medium uppercase" style={{ color: 'rgba(255,255,255,0.60)' }}>{reminder.type.replace('_', ' ')}</span>
                                   <div className="flex items-center gap-2">
                                     {!reminder.isRead && (
                                       <span className="px-2 py-0.5 bg-red-500 text-white text-xs rounded-full">New</span>
@@ -763,16 +812,16 @@ export default function AdminDriversRemindersPage() {
                                     )}
                                   </div>
                                 </div>
-                                <p className="text-sm font-medium mb-1 break-words" style={{ wordWrap: 'break-word', overflowWrap: 'break-word' }}>{reminder.message}</p>
+                                <p className="text-sm font-medium mb-1 break-words" style={{ color: 'rgba(255,255,255,0.90)', wordWrap: 'break-word', overflowWrap: 'break-word' }}>{reminder.message}</p>
                                 {reminder.action && (
-                                  <p className="text-xs opacity-75 mt-1">Action: {reminder.action}</p>
+                                  <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.50)' }}>Action: {reminder.action}</p>
                                 )}
                                 {reminder.expiresAt && (
-                                  <p className="text-xs opacity-75 mt-1">
+                                  <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.45)' }}>
                                     Expires: {new Date(reminder.expiresAt).toLocaleDateString()}
                                   </p>
                                 )}
-                                <p className="text-xs opacity-50 mt-2">
+                                <p className="text-xs mt-2" style={{ color: 'rgba(255,255,255,0.35)' }}>
                                   {new Date(reminder.createdAt).toLocaleString()}
                                 </p>
                               </div>
@@ -782,8 +831,8 @@ export default function AdminDriversRemindersPage() {
                       })
                     ) : (
                       <div className="text-center py-8">
-                        <Bell className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                        <p className="text-gray-500">
+                        <Bell className="h-12 w-12 mx-auto mb-3" style={{ color: 'rgba(255,255,255,0.20)' }} />
+                        <p style={{ color: 'rgba(255,255,255,0.45)' }}>
                           {reminderData.items.length === 0 
                             ? "No reminders yet" 
                             : "No reminders match the selected filters"}
@@ -824,9 +873,11 @@ export default function AdminDriversRemindersPage() {
               </div>
             </div>
           ) : (
-            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-12 text-center">
-              <Bell className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500">Select a driver to view their reminders</p>
+            <div style={{ background: "linear-gradient(135deg, #0a1a19 0%, #0d2320 60%, #0a1f2e 100%)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "1rem", boxShadow: "0 8px 32px rgba(0,0,0,0.45)", padding: "3rem", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ width: 56, height: 56, borderRadius: "50%", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "1rem" }}>
+                <Bell style={{ width: 26, height: 26, color: "rgba(255,255,255,0.35)" }} />
+              </div>
+              <p style={{ color: "rgba(255,255,255,0.50)", fontSize: "0.9rem" }}>Select a driver to view their reminders</p>
             </div>
           )}
         </div>
