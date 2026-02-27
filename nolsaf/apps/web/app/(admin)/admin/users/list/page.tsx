@@ -238,16 +238,15 @@ export default function AdminUsersListPage(){
       </div>
 
       {/* Search and Filters */}
-      <div style={{ borderRadius: "1rem", border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06)", background: "linear-gradient(135deg, #0a1a19 0%, #0d2320 60%, #0a1f2e 100%)", padding: "1rem 1.25rem" }}>
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
         <div className="flex flex-col sm:flex-row gap-4 w-full max-w-full">
           {/* Search */}
           <div className="relative flex-1 min-w-0 w-full sm:w-auto">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none" style={{ color: "rgba(255,255,255,0.35)" }} />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
             <input
               ref={searchRef}
               type="text"
-              className="w-full pl-10 pr-10 py-2 rounded-lg text-sm box-border max-w-full outline-none"
-              style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.88)" }}
+              className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm bg-white text-gray-900 placeholder-gray-400 outline-none box-border max-w-full"
               placeholder="Search by name, email, or phone..."
               value={q}
               onChange={(e) => setQ(e.target.value)}
@@ -263,24 +262,22 @@ export default function AdminUsersListPage(){
               <button
                 type="button"
                 onClick={() => { setQ(""); setPage(1); load(); }}
-                className="absolute right-3 top-1/2 -translate-y-1/2"
-                style={{ color: "rgba(255,255,255,0.40)" }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
               >
                 <X className="h-4 w-4" />
               </button>
             )}
             {suggestions.length > 0 && (
-              <div className="absolute left-0 right-0 mt-2 z-10 rounded-lg shadow-lg max-h-56 overflow-auto" style={{ background: "#0d2320", border: "1px solid rgba(255,255,255,0.12)" }}>
+              <div className="absolute left-0 right-0 mt-2 z-10 bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 overflow-auto">
                 {suggestions.map(s => (
                   <button
                     key={s.id}
                     type="button"
                     onClick={() => { setQ(s.name ?? s.email); setSuggestions([]); setPage(1); load(); }}
-                    className="w-full text-left px-3 py-2 text-sm"
-                    style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.80)" }}
+                    className="w-full text-left px-3 py-2 text-sm border-b border-gray-100 hover:bg-gray-50 last:border-b-0"
                   >
-                    <div className="font-medium">{s.name ?? s.email}</div>
-                    <div className="text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>{s.email}</div>
+                    <div className="font-medium text-gray-900">{s.name ?? s.email}</div>
+                    <div className="text-xs text-gray-500">{s.email}</div>
                   </button>
                 ))}
               </div>
@@ -289,16 +286,15 @@ export default function AdminUsersListPage(){
 
           {/* Status Filter */}
           <div className="flex items-center gap-2 w-full sm:w-auto sm:flex-shrink-0">
-            <Filter className="h-4 w-4 flex-shrink-0" style={{ color: "rgba(255,255,255,0.40)" }} />
+            <Filter className="h-4 w-4 text-gray-400 flex-shrink-0" />
             <select
               value={status}
               onChange={(e) => { setStatus(e.target.value); setPage(1); }}
-              className="w-full sm:w-auto px-3 py-2 rounded-lg text-sm outline-none box-border min-w-[140px]"
-              style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.80)" }}
+              className="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm bg-white text-gray-700 outline-none box-border min-w-[140px]"
             >
-              <option value="" style={{ background: "#0d2320" }}>All Status</option>
-              <option value="ACTIVE" style={{ background: "#0d2320" }}>Active</option>
-              <option value="SUSPENDED" style={{ background: "#0d2320" }}>Suspended</option>
+              <option value="">All Status</option>
+              <option value="ACTIVE">Active</option>
+              <option value="SUSPENDED">Suspended</option>
             </select>
           </div>
         </div>
@@ -306,8 +302,8 @@ export default function AdminUsersListPage(){
 
       {/* Chart */}
       {items.length > 0 && (
-        <div style={{ borderRadius: "1rem", border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06)", background: "linear-gradient(135deg, #0a1a19 0%, #0d2320 60%, #0a1f2e 100%)", padding: "1.5rem" }}>
-          <h2 style={{ fontSize: "0.95rem", fontWeight: 700, color: "rgba(255,255,255,0.85)", marginBottom: "1rem" }}>Customer Engagement</h2>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+          <h2 className="text-sm font-bold text-gray-700 mb-4">Customer Engagement</h2>
           <div className="h-64">
             <Chart type="doughnut" data={engagementChartData} />
           </div>
@@ -315,31 +311,31 @@ export default function AdminUsersListPage(){
       )}
 
       {/* Customers Table */}
-      <div style={{ borderRadius: "1rem", border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06)", background: "linear-gradient(135deg, #0a1a19 0%, #0d2320 60%, #0a1f2e 100%)", overflow: "hidden" }}>
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         {loading ? (
           <>
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
-                  <tr style={{ background: "rgba(255,255,255,0.04)" }}>
+                <thead className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+                  <tr>
                     {["Customer","ID","Contact","Verification","Status","Bookings","Total Spent","Last Booking","Joined","Actions"].map(h => (
-                      <th key={h} className={`px-6 py-3 ${h==="Actions"?"text-right":"text-left"}`} style={{ fontSize: "0.68rem", fontWeight: 700, color: "rgba(255,255,255,0.45)", letterSpacing: "0.07em", textTransform: "uppercase" }}>{h}</th>
+                      <th key={h} className={`px-6 py-3 ${h==="Actions"?"text-right":"text-left"} text-xs font-semibold text-gray-500 uppercase tracking-wider`}>{h}</th>
                     ))}
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="bg-white divide-y divide-gray-100">
                   {[...Array(5)].map((_, i) => (
                     <TableRow key={i} hover={false} className="animate-pulse">
-                      <td className="px-6 py-4 whitespace-nowrap"><div className="h-4 rounded w-32 mb-2" style={{ background: "rgba(255,255,255,0.08)" }}></div><div className="h-3 rounded w-40" style={{ background: "rgba(255,255,255,0.06)" }}></div></td>
-                      <td className="px-6 py-4 whitespace-nowrap"><div className="h-4 rounded w-16" style={{ background: "rgba(255,255,255,0.08)" }}></div></td>
-                      <td className="px-6 py-4 whitespace-nowrap"><div className="h-4 rounded w-24" style={{ background: "rgba(255,255,255,0.08)" }}></div></td>
-                      <td className="px-6 py-4 whitespace-nowrap"><div className="h-6 rounded w-16" style={{ background: "rgba(255,255,255,0.08)" }}></div></td>
-                      <td className="px-6 py-4 whitespace-nowrap"><div className="h-6 rounded w-20" style={{ background: "rgba(255,255,255,0.08)" }}></div></td>
-                      <td className="px-6 py-4 whitespace-nowrap"><div className="h-4 rounded w-12" style={{ background: "rgba(255,255,255,0.08)" }}></div></td>
-                      <td className="px-6 py-4 whitespace-nowrap"><div className="h-4 rounded w-20" style={{ background: "rgba(255,255,255,0.08)" }}></div></td>
-                      <td className="px-6 py-4 whitespace-nowrap"><div className="h-4 rounded w-20" style={{ background: "rgba(255,255,255,0.08)" }}></div></td>
-                      <td className="px-6 py-4 whitespace-nowrap"><div className="h-4 rounded w-20" style={{ background: "rgba(255,255,255,0.08)" }}></div></td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right"><div className="h-8 rounded w-8 ml-auto" style={{ background: "rgba(255,255,255,0.08)" }}></div></td>
+                      <td className="px-6 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 rounded w-32 mb-2"></div><div className="h-3 bg-gray-100 rounded w-40"></div></td>
+                      <td className="px-6 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 rounded w-16"></div></td>
+                      <td className="px-6 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 rounded w-24"></div></td>
+                      <td className="px-6 py-4 whitespace-nowrap"><div className="h-6 bg-gray-200 rounded w-16"></div></td>
+                      <td className="px-6 py-4 whitespace-nowrap"><div className="h-6 bg-gray-200 rounded w-20"></div></td>
+                      <td className="px-6 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 rounded w-12"></div></td>
+                      <td className="px-6 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 rounded w-20"></div></td>
+                      <td className="px-6 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 rounded w-20"></div></td>
+                      <td className="px-6 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 rounded w-20"></div></td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right"><div className="h-8 bg-gray-200 rounded w-8 ml-auto"></div></td>
                     </TableRow>
                   ))}
                 </tbody>
@@ -348,66 +344,64 @@ export default function AdminUsersListPage(){
           </>
         ) : items.length === 0 ? (
           <div className="px-6 py-12 text-center">
-            <div style={{ width: 48, height: 48, borderRadius: "50%", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 0.75rem" }}>
-              <Users style={{ width: 22, height: 22, color: "rgba(255,255,255,0.30)" }} />
-            </div>
-            <p className="text-sm" style={{ color: "rgba(255,255,255,0.40)" }}>No customers found.</p>
+            <Users className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+            <p className="text-sm text-gray-500">No customers found.</p>
           </div>
         ) : (
           <>
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead style={{ position: "sticky", top: 0, zIndex: 10, borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
-                  <tr style={{ background: "rgba(255,255,255,0.04)" }}>
+                <thead className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200 sticky top-0 z-10">
+                  <tr>
                     {["Customer","Account ID","Contact","Verification","Status","Bookings","Total Spent","Last Booking","Joined"].map(h => (
-                      <th key={h} className="px-6 py-3 text-left" style={{ fontSize: "0.68rem", fontWeight: 700, color: "rgba(255,255,255,0.45)", letterSpacing: "0.07em", textTransform: "uppercase" }}>{h}</th>
+                      <th key={h} className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
                     ))}
-                    <th className="px-6 py-3 text-right" style={{ fontSize: "0.68rem", fontWeight: 700, color: "rgba(255,255,255,0.45)", letterSpacing: "0.07em", textTransform: "uppercase" }}>Actions</th>
+                    <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="bg-white divide-y divide-gray-100">
                   {items.map((customer) => (
-                    <TableRow key={customer.id} className="align-middle" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                    <TableRow key={customer.id} className="align-middle hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="font-medium" style={{ color: "rgba(255,255,255,0.88)" }}>{customer.name || "N/A"}</div>
-                        <div className="text-sm" style={{ color: "rgba(255,255,255,0.45)" }}>{customer.email}</div>
+                        <div className="font-semibold text-gray-900">{customer.name || "N/A"}</div>
+                        <div className="text-sm text-gray-500">{customer.email}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm font-semibold" style={{ color: "rgba(255,255,255,0.70)" }}>#{customer.id}</span>
+                        <span className="text-sm font-semibold text-gray-600">#{customer.id}</span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm" style={{ color: "rgba(255,255,255,0.55)" }}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                         {customer.phone || "N/A"}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-1.5">
                           {customer.emailVerifiedAt && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium" style={{ background: "rgba(147,51,234,0.20)", border: "1px solid rgba(196,181,253,0.35)", color: "#c4b5fd" }} title="Email Verified">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-violet-100 text-violet-700 border border-violet-200" title="Email Verified">
                               <Mail className="h-3 w-3" />
                             </span>
                           )}
                           {customer.phoneVerifiedAt && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium" style={{ background: "rgba(16,185,129,0.18)", border: "1px solid rgba(16,185,129,0.35)", color: "#6ee7b7" }} title="Phone Verified">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-700 border border-emerald-200" title="Phone Verified">
                               <Phone className="h-3 w-3" />
                             </span>
                           )}
                           {customer.twoFactorEnabled && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium" style={{ background: "rgba(245,158,11,0.18)", border: "1px solid rgba(245,158,11,0.35)", color: "#fcd34d" }} title="2FA Enabled">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700 border border-amber-200" title="2FA Enabled">
                               <Lock className="h-3 w-3" />
                             </span>
                           )}
                           {!customer.emailVerifiedAt && !customer.phoneVerifiedAt && !customer.twoFactorEnabled && (
-                            <span className="text-xs" style={{ color: "rgba(255,255,255,0.28)" }}>None</span>
+                            <span className="text-xs text-gray-400">None</span>
                           )}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {isCustomerSuspended(customer) ? (
-                          <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold" style={{ background: "rgba(239,68,68,0.18)", border: "1px solid rgba(239,68,68,0.35)", color: "#fca5a5" }}>
+                          <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold bg-red-100 text-red-700 border border-red-200">
                             <XCircle className="h-3.5 w-3.5" />
                             Suspended
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold" style={{ background: "rgba(16,185,129,0.18)", border: "1px solid rgba(16,185,129,0.35)", color: "#6ee7b7" }}>
+                          <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200">
                             <CheckCircle className="h-3.5 w-3.5" />
                             Active
                           </span>
@@ -415,19 +409,19 @@ export default function AdminUsersListPage(){
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-2">
-                          <ShoppingCart className="h-4 w-4" style={{ color: "rgba(255,255,255,0.30)" }} />
-                          <span className="text-sm font-medium" style={{ color: "rgba(255,255,255,0.75)" }}>{customer.bookingCount || 0}</span>
+                          <ShoppingCart className="h-4 w-4 text-gray-400" />
+                          <span className="text-sm font-medium text-gray-700">{customer.bookingCount || 0}</span>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm font-semibold" style={{ color: "#fcd34d" }}>
+                        <span className="text-sm font-semibold text-emerald-700">
                           {customer.totalSpent ? `TZS ${customer.totalSpent.toLocaleString()}` : "TZS 0"}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm" style={{ color: "rgba(255,255,255,0.50)" }}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {customer.lastBookingDate ? new Date(customer.lastBookingDate).toLocaleDateString() : "Never"}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm" style={{ color: "rgba(255,255,255,0.50)" }}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {new Date(customer.createdAt).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right">
@@ -435,8 +429,7 @@ export default function AdminUsersListPage(){
                           <button
                             aria-label="Customer actions"
                             onClick={() => setShowActionsMenu(showActionsMenu === customer.id ? null : customer.id)}
-                            className="p-2 rounded-lg transition-colors"
-                            style={{ color: "rgba(255,255,255,0.40)" }}
+                            className="p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
                           >
                             {actionLoading === customer.id ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
@@ -447,32 +440,29 @@ export default function AdminUsersListPage(){
                           {showActionsMenu === customer.id && (
                             <>
                               <div className="fixed inset-0 z-10" onClick={() => setShowActionsMenu(null)} />
-                              <div className="absolute right-0 mt-2 w-52 rounded-lg shadow-xl z-20 overflow-hidden" style={{ background: "#0d2320", border: "1px solid rgba(255,255,255,0.12)" }}>
+                              <div className="absolute right-0 mt-2 w-52 bg-white rounded-lg shadow-xl border border-gray-200 z-20 overflow-hidden">
                                 <Link
                                   href={`/admin/users/${customer.id}`}
-                                  className="w-full px-4 py-2.5 text-sm flex items-center gap-2 no-underline"
-                                  style={{ color: "rgba(255,255,255,0.80)", borderBottom: "1px solid rgba(255,255,255,0.07)" }}
+                                  className="w-full px-4 py-2.5 text-sm flex items-center gap-2 no-underline text-gray-700 hover:bg-gray-50 border-b border-gray-100"
                                   onClick={() => setShowActionsMenu(null)}
                                 >
-                                  <Eye className="h-4 w-4" style={{ color: "#7dd3fc" }} />
+                                  <Eye className="h-4 w-4 text-blue-500" />
                                   View Details
                                 </Link>
                                 <button
                                   type="button"
                                   onClick={() => handleReset2FA(customer.id)}
-                                  className="w-full text-left px-4 py-2.5 text-sm flex items-center gap-2"
-                                  style={{ color: "rgba(255,255,255,0.80)", borderBottom: "1px solid rgba(255,255,255,0.07)" }}
+                                  className="w-full text-left px-4 py-2.5 text-sm flex items-center gap-2 text-gray-700 hover:bg-gray-50 border-b border-gray-100"
                                 >
-                                  <Lock className="h-4 w-4" style={{ color: "#fcd34d" }} />
+                                  <Lock className="h-4 w-4 text-amber-500" />
                                   Reset 2FA
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => handleSuspend(customer.id)}
-                                  className="w-full text-left px-4 py-2.5 text-sm flex items-center gap-2"
-                                  style={{ color: "#fca5a5" }}
+                                  className="w-full text-left px-4 py-2.5 text-sm flex items-center gap-2 text-red-600 hover:bg-red-50"
                                 >
-                                  <XCircle className="h-4 w-4" style={{ color: "#fca5a5" }} />
+                                  <XCircle className="h-4 w-4 text-red-500" />
                                   Suspend
                                 </button>
                               </div>
@@ -491,27 +481,25 @@ export default function AdminUsersListPage(){
 
       {/* Pagination */}
       {items.length > 0 && (
-        <div style={{ borderRadius: "1rem", border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06)", background: "linear-gradient(135deg, #0a1a19 0%, #0d2320 60%, #0a1f2e 100%)", padding: "1rem 1.25rem", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div className="text-sm" style={{ color: "rgba(255,255,255,0.50)" }}>
+        <div className="flex items-center justify-between bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+          <div className="text-sm text-gray-500">
             Showing {((page - 1) * pageSize) + 1} to {Math.min(page * pageSize, total)} of {total} customers
           </div>
           <div className="flex gap-2">
             <button
               disabled={page <= 1}
               onClick={() => setPage(p => p - 1)}
-              className="px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.75)" }}
+              className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Previous
             </button>
-            <div className="px-4 py-2 text-sm font-medium" style={{ color: "rgba(255,255,255,0.60)" }}>
+            <div className="px-4 py-2 text-sm font-medium text-gray-700">
               Page {page} of {pages}
             </div>
             <button
               disabled={page >= pages}
               onClick={() => setPage(p => p + 1)}
-              className="px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.75)" }}
+              className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Next
             </button>

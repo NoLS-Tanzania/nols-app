@@ -906,7 +906,7 @@ export default function AdminHomePage() {
                     ))}
                   </span>
                   System operational
-                  <span className="mx-1 text-white/20">Â·</span>
+                  <span className="mx-1 text-white/20">·</span>
                   <ClientTime iso={nowIso} />
                 </div>
                 <h1 className="mt-1 text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
