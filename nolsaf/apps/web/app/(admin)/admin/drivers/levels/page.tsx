@@ -423,50 +423,77 @@ export default function AdminDriversLevelsPage() {
         </div>
       )}
 
-      {/* Header */}
-      <div className="bg-white rounded-xl p-4 md:p-6 border-2 border-slate-200 shadow-sm">
-        <div className="flex flex-col items-center justify-center text-center">
-          <div className="h-12 w-12 md:h-16 md:w-16 rounded-full bg-gradient-to-br from-purple-50 to-purple-100 flex items-center justify-center mb-3 md:mb-4">
-            <Trophy className="h-6 w-6 md:h-8 md:w-8 text-purple-600" />
+      {/* Premium Banner */}
+      <div style={{ position: "relative", borderRadius: "1.25rem", overflow: "hidden", background: "linear-gradient(135deg, #0e2a7a 0%, #0a5c82 38%, #02665e 100%)", boxShadow: "0 28px 65px -15px rgba(2,102,94,0.45), 0 8px 22px -8px rgba(14,42,122,0.50)", padding: "2rem 2rem 1.75rem" }}>
+        <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0.13, pointerEvents: "none" }} viewBox="0 0 900 160" preserveAspectRatio="xMidYMid slice">
+          <circle cx="820" cy="30" r="90" fill="none" stroke="white" strokeWidth="1.2" />
+          <circle cx="820" cy="30" r="55" fill="none" stroke="white" strokeWidth="0.7" />
+          <circle cx="60" cy="140" r="70" fill="none" stroke="white" strokeWidth="1.0" />
+          <line x1="0" y1="40" x2="900" y2="40" stroke="white" strokeWidth="0.4" />
+          <line x1="0" y1="72" x2="900" y2="72" stroke="white" strokeWidth="0.4" />
+          <line x1="0" y1="104" x2="900" y2="104" stroke="white" strokeWidth="0.4" />
+          <line x1="0" y1="136" x2="900" y2="136" stroke="white" strokeWidth="0.4" />
+          <polyline points="0,130 90,112 180,96 270,80 360,65 450,88 540,52 630,68 720,36 810,50 900,32" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+          <polygon points="0,130 90,112 180,96 270,80 360,65 450,88 540,52 630,68 720,36 810,50 900,32 900,160 0,160" fill="white" opacity={0.06} />
+          <polyline points="0,145 90,133 180,119 270,130 360,112 450,125 540,100 630,115 720,92 810,105 900,82" fill="none" stroke="white" strokeWidth="1.2" strokeDasharray="6 4" opacity={0.5} />
+          <circle cx="540" cy="52" r="5" fill="white" opacity={0.75} />
+          <circle cx="720" cy="36" r="5" fill="white" opacity={0.75} />
+          <circle cx="900" cy="32" r="5" fill="white" opacity={0.75} />
+          <defs><radialGradient id="lvlBannerGlow" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="white" stopOpacity="0.12" /><stop offset="100%" stopColor="white" stopOpacity="0" /></radialGradient></defs>
+          <ellipse cx="450" cy="90" rx="200" ry="70" fill="url(#lvlBannerGlow)" />
+        </svg>
+        <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "center", gap: "1rem", marginBottom: "1.5rem" }}>
+          <div style={{ width: 46, height: 46, borderRadius: "50%", background: "rgba(255,255,255,0.10)", border: "1.5px solid rgba(255,255,255,0.18)", boxShadow: "0 0 0 8px rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <Trophy style={{ width: 22, height: 22, color: "white" }} />
           </div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Driver Levels</h1>
-          <p className="text-xs md:text-sm text-gray-500 mt-1 md:mt-2">View driver levels, progress, and characteristics</p>
+          <div>
+            <h1 style={{ fontSize: "1.35rem", fontWeight: 800, color: "white", margin: 0, letterSpacing: "-0.01em" }}>Driver Levels</h1>
+            <p style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.62)", margin: "2px 0 0" }}>Progress, characteristics &amp; achievements per level</p>
+          </div>
+        </div>
+        <div style={{ position: "relative", zIndex: 1, display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
+          <div style={{ background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.20)", borderRadius: "0.85rem", padding: "0.6rem 1rem", minWidth: 90 }}>
+            <div style={{ fontSize: "0.63rem", fontWeight: 700, color: "rgba(255,255,255,0.70)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Total</div>
+            <div style={{ fontSize: "1.3rem", fontWeight: 900, color: "white", fontVariantNumeric: "tabular-nums", lineHeight: 1.2 }}>{summary.total}</div>
+          </div>
+          <div style={{ background: "rgba(100,116,139,0.22)", border: "1px solid rgba(148,163,184,0.40)", borderRadius: "0.85rem", padding: "0.6rem 1rem", minWidth: 90 }}>
+            <div style={{ fontSize: "0.63rem", fontWeight: 700, color: "rgba(203,213,225,0.85)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Silver</div>
+            <div style={{ fontSize: "1.3rem", fontWeight: 900, color: "#cbd5e1", fontVariantNumeric: "tabular-nums", lineHeight: 1.2 }}>{summary.silver}</div>
+          </div>
+          <div style={{ background: "rgba(245,158,11,0.16)", border: "1px solid rgba(245,158,11,0.35)", borderRadius: "0.85rem", padding: "0.6rem 1rem", minWidth: 90 }}>
+            <div style={{ fontSize: "0.63rem", fontWeight: 700, color: "rgba(252,211,77,0.85)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Gold</div>
+            <div style={{ fontSize: "1.3rem", fontWeight: 900, color: "#fcd34d", fontVariantNumeric: "tabular-nums", lineHeight: 1.2 }}>{summary.gold}</div>
+          </div>
+          <div style={{ background: "rgba(147,51,234,0.18)", border: "1px solid rgba(196,181,253,0.40)", borderRadius: "0.85rem", padding: "0.6rem 1rem", minWidth: 90 }}>
+            <div style={{ fontSize: "0.63rem", fontWeight: 700, color: "rgba(216,180,254,0.85)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Diamond</div>
+            <div style={{ fontSize: "1.3rem", fontWeight: 900, color: "#c4b5fd", fontVariantNumeric: "tabular-nums", lineHeight: 1.2 }}>{summary.diamond}</div>
+          </div>
         </div>
       </div>
 
-      {/* Tabs - Responsive Pills */}
-      <div className="bg-white rounded-xl p-4 border-2 border-slate-200 shadow-sm">
+      {/* Tabs */}
+      <div style={{ borderRadius: "1rem", border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06)", background: "linear-gradient(135deg, #0a1a19 0%, #0d2320 60%, #0a1f2e 100%)", padding: "0.85rem 1.25rem" }}>
         <div className="flex flex-wrap gap-2 justify-center">
           <div
             onClick={() => setActiveTab("drivers")}
-            className={`px-4 py-2 rounded-lg font-medium transition-all duration-300 ease-in-out cursor-pointer border-2 shadow-sm transform hover:scale-105 active:scale-95 ${
-              activeTab === "drivers"
-                ? "bg-emerald-600 text-white border-emerald-600 shadow-md scale-105"
-                : "bg-white text-gray-700 border-slate-300 hover:bg-slate-50 hover:border-slate-400"
-            }`}
+            className="px-4 py-2 rounded-lg font-medium transition-all duration-200 cursor-pointer"
+            style={activeTab === "drivers" ? { background: "linear-gradient(135deg,#059669,#047857)", color: "white", boxShadow: "0 4px 14px rgba(5,150,105,0.40)" } : { background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.70)" }}
           >
             <div className="flex items-center gap-2">
-              <Trophy className={`h-4 w-4 transition-transform duration-300 ${activeTab === "drivers" ? "animate-pulse" : ""}`} />
-              <span className="transition-colors duration-300">Drivers</span>
+              <Trophy className="h-4 w-4" />
+              <span>Drivers</span>
             </div>
           </div>
           <div
             onClick={() => setActiveTab("messages")}
-            className={`px-4 py-2 rounded-lg font-medium transition-all duration-300 ease-in-out cursor-pointer border-2 shadow-sm transform hover:scale-105 active:scale-95 ${
-              activeTab === "messages"
-                ? "bg-emerald-600 text-white border-emerald-600 shadow-md scale-105"
-                : "bg-white text-gray-700 border-slate-300 hover:bg-slate-50 hover:border-slate-400"
-            }`}
+            className="px-4 py-2 rounded-lg font-medium transition-all duration-200 cursor-pointer"
+            style={activeTab === "messages" ? { background: "linear-gradient(135deg,#059669,#047857)", color: "white", boxShadow: "0 4px 14px rgba(5,150,105,0.40)" } : { background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.70)" }}
           >
             <div className="flex items-center gap-2">
-              <MessageSquare className={`h-4 w-4 transition-transform duration-300 ${activeTab === "messages" ? "animate-pulse" : ""}`} />
-              <span className="transition-colors duration-300">Messages</span>
+              <MessageSquare className="h-4 w-4" />
+              <span>Messages</span>
               {messageCounts.total > 0 && (
-                <span className={`px-1.5 py-0.5 rounded-full text-xs font-semibold transition-colors duration-300 ${
-                  activeTab === "messages"
-                    ? "bg-white/20 text-white"
-                    : "bg-emerald-100 text-emerald-700"
-                }`}>
+                <span style={{ background: activeTab === "messages" ? "rgba(255,255,255,0.20)" : "rgba(16,185,129,0.25)", color: activeTab === "messages" ? "white" : "#6ee7b7", border: "1px solid rgba(16,185,129,0.35)", borderRadius: "9999px", padding: "0 6px", fontSize: "0.7rem", fontWeight: 700 }}>
                   {messageCounts.total}
                 </span>
               )}
@@ -481,55 +508,63 @@ export default function AdminDriversLevelsPage() {
       {/* Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div
-          className="bg-white rounded-xl p-4 md:p-6 border-2 border-slate-200 shadow-sm cursor-pointer transition-all hover:shadow-lg hover:scale-[1.02] relative overflow-hidden group"
           onClick={() => setLevelFilter("")}
+          className="cursor-pointer transition-all hover:scale-[1.02]"
+          style={{ borderRadius: "1rem", border: levelFilter === "" ? "1px solid rgba(16,185,129,0.50)" : "1px solid rgba(255,255,255,0.08)", boxShadow: "0 8px 32px rgba(0,0,0,0.40), inset 0 1px 0 rgba(255,255,255,0.06)", background: "linear-gradient(135deg, #0a1a19 0%, #0d2320 60%, #0a1f2e 100%)", padding: "1rem 1.25rem" }}
         >
-          <div className="absolute bottom-0 left-0 right-0 h-1 bg-emerald-600 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left"></div>
-          <div className="flex items-center justify-between relative z-10">
+          <div className="flex items-center justify-between">
             <div className="min-w-0 flex-1">
-              <p className="text-xs md:text-sm text-gray-600 mb-1 truncate">Total Drivers</p>
-              <p className="text-xl md:text-2xl font-bold text-gray-900">{summary.total}</p>
+              <p style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.55)", marginBottom: 4 }}>Total Drivers</p>
+              <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "white" }}>{summary.total}</p>
             </div>
-            <Truck className="h-6 w-6 md:h-8 md:w-8 text-emerald-600 flex-shrink-0 ml-2" />
+            <div style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(16,185,129,0.18)", border: "1px solid rgba(16,185,129,0.30)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Truck className="h-5 w-5" style={{ color: "#6ee7b7" }} />
+            </div>
           </div>
         </div>
         <div
-          className="bg-white rounded-xl p-4 md:p-6 border-2 border-slate-200 shadow-sm cursor-pointer transition-all hover:shadow-lg hover:scale-[1.02] relative overflow-hidden group"
           onClick={() => setLevelFilter("1")}
+          className="cursor-pointer transition-all hover:scale-[1.02]"
+          style={{ borderRadius: "1rem", border: levelFilter === "1" ? "1px solid rgba(148,163,184,0.55)" : "1px solid rgba(255,255,255,0.08)", boxShadow: "0 8px 32px rgba(0,0,0,0.40), inset 0 1px 0 rgba(255,255,255,0.06)", background: "linear-gradient(135deg, #0a1a19 0%, #0d2320 60%, #0a1f2e 100%)", padding: "1rem 1.25rem" }}
         >
-          <div className="absolute bottom-0 left-0 right-0 h-1 bg-slate-500 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left"></div>
-          <div className="flex items-center justify-between relative z-10">
+          <div className="flex items-center justify-between">
             <div className="min-w-0 flex-1">
-              <p className="text-xs md:text-sm text-gray-600 mb-1 truncate">Silver Level</p>
-              <p className="text-xl md:text-2xl font-bold text-slate-700">{summary.silver}</p>
+              <p style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.55)", marginBottom: 4 }}>Silver Level</p>
+              <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#cbd5e1" }}>{summary.silver}</p>
             </div>
-            <Star className="h-6 w-6 md:h-8 md:w-8 text-slate-500 flex-shrink-0 ml-2" />
+            <div style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(100,116,139,0.20)", border: "1px solid rgba(148,163,184,0.30)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Star className="h-5 w-5" style={{ color: "#cbd5e1" }} />
+            </div>
           </div>
         </div>
         <div
-          className="bg-white rounded-xl p-4 md:p-6 border-2 border-slate-200 shadow-sm cursor-pointer transition-all hover:shadow-lg hover:scale-[1.02] relative overflow-hidden group"
           onClick={() => setLevelFilter("2")}
+          className="cursor-pointer transition-all hover:scale-[1.02]"
+          style={{ borderRadius: "1rem", border: levelFilter === "2" ? "1px solid rgba(245,158,11,0.55)" : "1px solid rgba(255,255,255,0.08)", boxShadow: "0 8px 32px rgba(0,0,0,0.40), inset 0 1px 0 rgba(255,255,255,0.06)", background: "linear-gradient(135deg, #0a1a19 0%, #0d2320 60%, #0a1f2e 100%)", padding: "1rem 1.25rem" }}
         >
-          <div className="absolute bottom-0 left-0 right-0 h-1 bg-amber-500 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left"></div>
-          <div className="flex items-center justify-between relative z-10">
+          <div className="flex items-center justify-between">
             <div className="min-w-0 flex-1">
-              <p className="text-xs md:text-sm text-gray-600 mb-1 truncate">Gold Level</p>
-              <p className="text-xl md:text-2xl font-bold text-amber-700">{summary.gold}</p>
+              <p style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.55)", marginBottom: 4 }}>Gold Level</p>
+              <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#fcd34d" }}>{summary.gold}</p>
             </div>
-            <Trophy className="h-6 w-6 md:h-8 md:w-8 text-amber-500 flex-shrink-0 ml-2" />
+            <div style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(245,158,11,0.18)", border: "1px solid rgba(245,158,11,0.30)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Trophy className="h-5 w-5" style={{ color: "#fcd34d" }} />
+            </div>
           </div>
         </div>
         <div
-          className="bg-white rounded-xl p-4 md:p-6 border-2 border-slate-200 shadow-sm cursor-pointer transition-all hover:shadow-lg hover:scale-[1.02] relative overflow-hidden group"
           onClick={() => setLevelFilter("3")}
+          className="cursor-pointer transition-all hover:scale-[1.02]"
+          style={{ borderRadius: "1rem", border: levelFilter === "3" ? "1px solid rgba(196,181,253,0.55)" : "1px solid rgba(255,255,255,0.08)", boxShadow: "0 8px 32px rgba(0,0,0,0.40), inset 0 1px 0 rgba(255,255,255,0.06)", background: "linear-gradient(135deg, #0a1a19 0%, #0d2320 60%, #0a1f2e 100%)", padding: "1rem 1.25rem" }}
         >
-          <div className="absolute bottom-0 left-0 right-0 h-1 bg-purple-600 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left"></div>
-          <div className="flex items-center justify-between relative z-10">
+          <div className="flex items-center justify-between">
             <div className="min-w-0 flex-1">
-              <p className="text-xs md:text-sm text-gray-600 mb-1 truncate">Diamond Level</p>
-              <p className="text-xl md:text-2xl font-bold text-purple-700">{summary.diamond}</p>
+              <p style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.55)", marginBottom: 4 }}>Diamond Level</p>
+              <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#c4b5fd" }}>{summary.diamond}</p>
             </div>
-            <Award className="h-6 w-6 md:h-8 md:w-8 text-purple-600 flex-shrink-0 ml-2" />
+            <div style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(147,51,234,0.18)", border: "1px solid rgba(196,181,253,0.30)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Award className="h-5 w-5" style={{ color: "#c4b5fd" }} />
+            </div>
           </div>
         </div>
       </div>
