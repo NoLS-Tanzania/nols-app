@@ -504,17 +504,6 @@ export default function AdminPlanWithUsRecommendedPage() {
                     </div>
                   )}
 
-                  {selectedRequest.adminResponse && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Additional Notes / Recommendations
-                      </label>
-                      <div className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm whitespace-pre-wrap">
-                        {selectedRequest.adminResponse}
-                      </div>
-                    </div>
-                  )}
-
                   {selectedRequest.respondedAt && (
                     <div className="pt-4 border-t border-gray-200">
                       <p className="text-sm text-gray-500">

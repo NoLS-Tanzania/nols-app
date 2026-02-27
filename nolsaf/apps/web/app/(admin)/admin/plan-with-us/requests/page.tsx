@@ -1922,9 +1922,9 @@ export default function AdminPlanWithUsRequestsPage() {
 
                     {/* Assign Agent */}
                     {activeSections.has("agent") && (
-                      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-hidden overflow-y-visible">
                         <div className="h-1 bg-gradient-to-r from-indigo-400 to-blue-500" />
-                        <div className="p-5">
+                        <div className="p-5 overflow-x-hidden overflow-y-visible">
                           <h3 className="font-bold text-gray-900 text-sm flex items-center gap-2 mb-4">
                             <span className="inline-flex h-7 w-7 rounded-md bg-indigo-50 border border-indigo-100 items-center justify-center">
                               <User className="h-4 w-4 text-indigo-600" />
@@ -1948,7 +1948,7 @@ export default function AdminPlanWithUsRequestsPage() {
                               <ChevronDown className={`absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 transition-transform ${showAgentDropdown ? "rotate-180" : ""}`} />
                             </div>
                             {showAgentDropdown && (
-                              <div className="absolute z-50 w-full mt-1 bg-white border-2 border-gray-200 rounded-xl shadow-xl max-h-80 overflow-y-auto">
+                              <div className="relative z-50 w-full mt-1 bg-white border-2 border-gray-200 rounded-xl shadow-xl max-h-80 overflow-y-auto">
                                 {agentsLoading ? (
                                   <div className="p-4 text-center text-sm text-gray-500">Loading agents...</div>
                                 ) : agents.length === 0 ? (
