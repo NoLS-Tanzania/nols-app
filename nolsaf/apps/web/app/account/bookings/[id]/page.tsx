@@ -6,33 +6,31 @@ import axios from "axios";
 import {
   ArrowLeft,
   Building2,
-  Calendar,
   CalendarCheck,
   CalendarX,
   CheckCircle,
   Clock,
-  Download,
   FileText,
   Hash,
-  Loader2,
   MapPin,
   Moon,
   Banknote,
   Receipt,
-  Bed,
   XCircle,
-  AlertTriangle,
+  AlertCircle,
   Phone,
   Mail,
   User,
   Tag,
-  LayoutGrid,
+  ShieldCheck,
+  Star,
+  Sparkles,
+  ScanLine,
 } from "lucide-react";
 import Link from "next/link";
 
 const api = axios.create({ baseURL: "", withCredentials: true });
 
-/* ─── types ───────────────────────────────────────────────────── */
 type BookingDetail = {
   id: number;
   status: string;
@@ -69,39 +67,46 @@ type BookingDetail = {
   user?: { id: number; name: string; email?: string; phone?: string };
 };
 
-/* ─── helpers ─────────────────────────────────────────────────── */
 function getStatusMeta(status: string) {
   const s = status.toLowerCase();
-  if (s.includes("confirmed") || s.includes("checked_in") || s.includes("checked_out"))
+  if (s.includes("confirmed"))
     return {
-      label: status.replace(/_/g, " "),
+      label: "Confirmed",
       badge: "bg-emerald-50 text-emerald-700 border border-emerald-200",
-      icon: <CheckCircle className="h-4 w-4" />,
-      color: "#059669",
+      icon: <CheckCircle className="h-3.5 w-3.5" />,
+    };
+  if (s.includes("checked_in"))
+    return {
+      label: "Checked In",
+      badge: "bg-sky-50 text-sky-700 border border-sky-200",
+      icon: <ShieldCheck className="h-3.5 w-3.5" />,
+    };
+  if (s.includes("checked_out") || s.includes("completed"))
+    return {
+      label: "Completed",
+      badge: "bg-violet-50 text-violet-700 border border-violet-200",
+      icon: <Star className="h-3.5 w-3.5" />,
     };
   if (s.includes("cancel"))
     return {
       label: "Cancelled",
       badge: "bg-red-50 text-red-700 border border-red-200",
-      icon: <XCircle className="h-4 w-4" />,
-      color: "#dc2626",
+      icon: <XCircle className="h-3.5 w-3.5" />,
     };
   if (s.includes("pending"))
     return {
       label: "Pending",
       badge: "bg-amber-50 text-amber-700 border border-amber-200",
-      icon: <Clock className="h-4 w-4" />,
-      color: "#d97706",
+      icon: <Clock className="h-3.5 w-3.5" />,
     };
   return {
     label: status.replace(/_/g, " "),
-    badge: "bg-slate-100 text-slate-600 border border-slate-200",
-    icon: <Loader2 className="h-4 w-4" />,
-    color: "#64748b",
+    badge: "bg-indigo-50 text-indigo-700 border border-indigo-200",
+    icon: <Sparkles className="h-3.5 w-3.5" />,
   };
 }
 
-function formatDate(d: string) {
+function fmt(d: string) {
   return new Date(d).toLocaleDateString("en-US", {
     weekday: "short",
     year: "numeric",
@@ -110,71 +115,30 @@ function formatDate(d: string) {
   });
 }
 
-function nightsBetween(checkIn: string, checkOut: string) {
-  const diff = new Date(checkOut).getTime() - new Date(checkIn).getTime();
-  return Math.round(diff / (1000 * 60 * 60 * 24));
+function nights(ci: string, co: string) {
+  return Math.round(
+    (new Date(co).getTime() - new Date(ci).getTime()) / 86400000
+  );
 }
 
-function canRequestCancellation(booking: BookingDetail) {
-  const s = booking.status.toLowerCase();
+function canCancel(b: BookingDetail) {
+  const s = b.status.toLowerCase();
   if (s.includes("cancel") || s.includes("checked_out")) return false;
-  const checkIn = new Date(booking.checkIn);
-  const now = new Date();
-  const hoursUntilCheckIn = (checkIn.getTime() - now.getTime()) / (1000 * 60 * 60);
-  return hoursUntilCheckIn > 24;
+  return (new Date(b.checkIn).getTime() - Date.now()) / 3600000 > 24;
 }
 
-/* ─── small InfoRow ───────────────────────────────────────────── */
-function InfoRow({
-  icon,
-  label,
-  value,
-  accent,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: React.ReactNode;
-  accent?: string;
-}) {
+function InfoRow({ label, value }: { label: string; value?: string | null }) {
+  if (!value) return null;
   return (
-    <div className="flex items-start gap-3 py-3 border-b border-slate-100 last:border-0">
-      <span
-        className="mt-0.5 flex-shrink-0 p-1.5 rounded-lg"
-        style={{ background: accent ? `${accent}18` : "#f1f5f9", color: accent || "#64748b" }}
-      >
-        {icon}
-      </span>
-      <div className="flex-1 min-w-0">
-        <p className="text-xs text-slate-500 mb-0.5">{label}</p>
-        <p className="text-sm font-medium text-slate-800 break-words">{value || "—"}</p>
-      </div>
+    <div className="relative overflow-hidden rounded-2xl border border-slate-100 bg-slate-50/60 px-4 py-3">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-0.5">
+        {label}
+      </p>
+      <p className="text-sm font-bold text-slate-800 leading-snug">{value}</p>
     </div>
   );
 }
 
-/* ─── skeleton ────────────────────────────────────────────────── */
-function Skeleton() {
-  return (
-    <div className="min-h-screen bg-slate-50">
-      {/* hero */}
-      <div
-        className="h-52"
-        style={{ background: "linear-gradient(135deg,#0e2a7a 0%,#0a5c82 42%,#02665e 100%)" }}
-      />
-      <div className="max-w-3xl mx-auto px-4 -mt-16 space-y-4 pb-12">
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="bg-white rounded-3xl shadow p-6 animate-pulse space-y-3">
-            <div className="h-4 bg-slate-200 rounded w-1/3" />
-            <div className="h-3 bg-slate-100 rounded w-2/3" />
-            <div className="h-3 bg-slate-100 rounded w-1/2" />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ─── main page ───────────────────────────────────────────────── */
 export default function BookingDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -183,388 +147,654 @@ export default function BookingDetailPage() {
   const [booking, setBooking] = useState<BookingDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [downloading, setDownloading] = useState(false);
+  const [codeCopied, setCodeCopied] = useState(false);
+  const [qrUrl, setQrUrl] = useState<string>("");
 
   useEffect(() => {
     if (!id) return;
-    setLoading(true);
     api
       .get(`/api/customer/bookings/${id}`)
       .then((r) => setBooking(r.data))
-      .catch((e) => {
-        const msg = e.response?.data?.error || "Failed to load booking details.";
-        setError(msg);
-      })
+      .catch((e) =>
+        setError(e.response?.data?.error || "Failed to load booking.")
+      )
       .finally(() => setLoading(false));
   }, [id]);
 
-  async function downloadPDF() {
+  // Generate QR once booking loads
+  useEffect(() => {
     if (!booking) return;
-    setDownloading(true);
-    try {
-      const res = await api.get(`/api/customer/bookings/${booking.id}/pdf`, {
-        responseType: "blob",
-      });
-      const url = URL.createObjectURL(res.data);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `booking-${booking.id}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      // silent
-    } finally {
-      setDownloading(false);
-    }
+    const qrContent =
+      booking.code?.code ||
+      booking.bookingCode ||
+      `NOLS-BOOKING-${booking.id}`;
+    (async () => {
+      try {
+        const QR = (await import("qrcode")) as any;
+        const url = await QR.default.toDataURL(qrContent, {
+          width: 220,
+          margin: 2,
+          color: { dark: "#0f172a", light: "#f0fdf4" },
+        });
+        setQrUrl(url);
+      } catch {}
+    })();
+  }, [booking]);
+
+  function copyCode(code: string) {
+    navigator.clipboard.writeText(code).then(() => {
+      setCodeCopied(true);
+      setTimeout(() => setCodeCopied(false), 2000);
+    });
   }
 
-  if (loading) return <Skeleton />;
-
-  if (error || !booking) {
+  /* ── Loading skeleton ── */
+  if (loading)
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-4 px-4">
-        <div className="bg-white rounded-3xl shadow p-8 flex flex-col items-center gap-3 max-w-sm w-full text-center">
-          <AlertTriangle className="h-10 w-10 text-amber-500" />
-          <p className="text-slate-700 font-medium">{error || "Booking not found"}</p>
+      <div className="mx-auto w-full max-w-4xl space-y-6">
+        <div
+          className="relative overflow-hidden rounded-3xl p-8 sm:p-10 animate-pulse"
+          style={{
+            background:
+              "linear-gradient(135deg,#0f1f5c 0%,#0a5c82 52%,#02665e 100%)",
+          }}
+        >
+          <div className="flex flex-col items-center gap-4">
+            <div className="h-14 w-14 rounded-2xl bg-white/10" />
+            <div className="h-8 w-56 rounded-full bg-white/10" />
+            <div className="h-4 w-36 rounded-full bg-white/10" />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-5">
+            <div className="h-52 rounded-3xl bg-slate-100 animate-pulse" />
+            <div className="h-40 rounded-3xl bg-slate-100 animate-pulse" />
+          </div>
+          <div className="space-y-5">
+            <div className="h-48 rounded-3xl bg-slate-200 animate-pulse" />
+            <div className="h-36 rounded-3xl bg-slate-100 animate-pulse" />
+          </div>
+        </div>
+      </div>
+    );
+
+  /* ── Error ── */
+  if (error || !booking)
+    return (
+      <div className="mx-auto w-full max-w-4xl p-6">
+        <div className="relative overflow-hidden rounded-3xl border border-red-200 bg-red-50 p-10 text-center shadow-sm">
+          <AlertCircle className="w-14 h-14 text-red-400 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-red-900 mb-2">
+            Booking Not Found
+          </h2>
+          <p className="text-red-700 mb-6 text-sm">
+            {error || "We couldn't load this booking."}
+          </p>
           <Link
             href="/account/bookings"
-            className="mt-2 px-5 py-2 rounded-xl text-sm font-medium text-white"
-            style={{ background: "linear-gradient(135deg,#0e2a7a,#0a5c82)" }}
+            className="no-underline inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all"
+            style={{ background: "linear-gradient(135deg,#0f1f5c,#0a5c82)" }}
           >
-            Back to My Bookings
+            <ArrowLeft className="w-4 h-4" /> Back to My Bookings
           </Link>
         </div>
       </div>
     );
-  }
 
-  const sm = getStatusMeta(booking.status);
-  const nights = nightsBetween(booking.checkIn, booking.checkOut);
+  const meta = getStatusMeta(booking.status);
+  const n = nights(booking.checkIn, booking.checkOut);
   const invoice = booking.invoices?.[0];
   const code = booking.code?.code || booking.bookingCode;
-  const location = [booking.property.city, booking.property.district, booking.property.regionName]
+  const codeStatus = booking.code?.status || booking.codeStatus;
+  const location = [
+    booking.property.city,
+    booking.property.district,
+    booking.property.regionName,
+  ]
     .filter(Boolean)
     .join(", ");
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* ── Hero ───────────────────────────────────────────────── */}
+    <div className="mx-auto w-full max-w-4xl space-y-6 px-3 sm:px-4 lg:px-0">
+
+      {/* ── HERO ── */}
       <div
-        className="relative overflow-hidden"
+        className="relative overflow-hidden rounded-3xl shadow-[0_4px_32px_rgba(10,92,130,0.22)]"
         style={{
-          background: "linear-gradient(135deg,#0e2a7a 0%,#0a5c82 42%,#02665e 100%)",
-          minHeight: "200px",
+          background:
+            "linear-gradient(135deg,#0f1f5c 0%,#0a5c82 52%,#02665e 100%)",
         }}
       >
-        {/* svg decorative lines */}
-        <svg
-          className="absolute inset-0 w-full h-full opacity-10"
-          viewBox="0 0 800 200"
-          preserveAspectRatio="none"
-        >
-          <path d="M0,160 C200,80 400,140 800,60" stroke="white" strokeWidth="1.5" fill="none" />
-          <path d="M0,120 C150,180 350,80 800,100" stroke="white" strokeWidth="1" fill="none" />
-          <circle cx="650" cy="50" r="60" fill="white" opacity="0.04" />
-          <circle cx="100" cy="160" r="40" fill="white" opacity="0.04" />
-        </svg>
+        {/* Decorative horizontal lines */}
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="absolute inset-0 opacity-[0.07]">
+            {[12, 28, 45, 62, 78, 92].map((top, i) => (
+              <div
+                key={i}
+                className="absolute h-px rounded-full"
+                style={{
+                  top: `${top}%`,
+                  left: `${4 + i * 2}%`,
+                  right: `${4 + (5 - i) * 2}%`,
+                  background:
+                    "linear-gradient(90deg,transparent,white,transparent)",
+                }}
+              />
+            ))}
+          </div>
+          <div
+            className="absolute -right-16 -top-16 h-64 w-64 rounded-full opacity-20"
+            style={{
+              background: "radial-gradient(circle,#38bdf8 0%,transparent 70%)",
+            }}
+          />
+          <div
+            className="absolute -left-8 bottom-0 h-40 w-40 rounded-full opacity-10"
+            style={{
+              background: "radial-gradient(circle,#34d399 0%,transparent 70%)",
+            }}
+          />
+        </div>
 
-        <div className="relative z-10 max-w-3xl mx-auto px-4 pt-6 pb-20">
-          {/* back */}
-          <button
-            onClick={() => router.push("/account/bookings")}
-            className="flex items-center gap-1.5 text-white/70 hover:text-white transition-colors mb-5 text-sm"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            My Bookings
-          </button>
+        <div className="relative px-6 py-8 sm:px-10 sm:py-10">
+          {/* Back nav */}
+          <div className="flex items-center gap-3 mb-6">
+            <button
+              onClick={() => router.push("/account/bookings")}
+              className="inline-flex items-center justify-center h-9 w-9 rounded-xl transition-all hover:scale-105 active:scale-95"
+              style={{
+                background: "rgba(255,255,255,0.12)",
+                border: "1px solid rgba(255,255,255,0.18)",
+              }}
+            >
+              <ArrowLeft className="w-4 h-4 text-white" />
+            </button>
+            <span className="text-sm font-medium text-white/60">
+              My Bookings
+            </span>
+          </div>
 
-          <div className="flex items-start justify-between gap-3 flex-wrap">
-            <div>
-              <h1 className="text-2xl font-bold text-white leading-tight">
-                {booking.property.title}
-              </h1>
-              {location && (
-                <p className="text-white/70 text-sm mt-1 flex items-center gap-1">
-                  <MapPin className="h-3.5 w-3.5" />
-                  {location}
-                </p>
-              )}
+          {/* Property title + status */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-5">
+            {/* Icon bubble */}
+            <div className="relative flex-shrink-0">
+              <div className="absolute inset-0 rounded-2xl bg-teal-400/25 blur-md scale-110" />
+              <div
+                className="relative h-16 w-16 rounded-2xl flex items-center justify-center shadow-lg"
+                style={{
+                  background:
+                    "linear-gradient(135deg,rgba(52,211,153,0.22) 0%,rgba(14,116,144,0.18) 100%)",
+                  border: "1px solid rgba(255,255,255,0.15)",
+                }}
+              >
+                <Building2 className="h-8 w-8 text-white drop-shadow-md" />
+              </div>
             </div>
 
-            {/* status badge */}
-            <span
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold capitalize ${sm.badge}`}
-            >
-              {sm.icon}
-              {sm.label}
-            </span>
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-wrap items-center gap-2 mb-1">
+                <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+                  {booking.property.title}
+                </h1>
+                <span
+                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold backdrop-blur-sm ${meta.badge}`}
+                >
+                  {meta.icon} {meta.label}
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
+                {location && (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-white/60">
+                    <MapPin className="h-3.5 w-3.5" />
+                    {location}
+                  </span>
+                )}
+                {booking.property.type && (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-white/60">
+                    <Tag className="h-3.5 w-3.5" />
+                    {booking.property.type}
+                  </span>
+                )}
+                <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-white/60">
+                  <Hash className="h-3.5 w-3.5" />
+                  Booking #{booking.id}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* ── Content ────────────────────────────────────────────── */}
-      <div className="max-w-3xl mx-auto px-4 -mt-12 pb-16 space-y-4">
+      {/* ── BODY GRID ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-        {/* ── Booking Dates card ─────────────────────────────── */}
-        <div
-          className="bg-white rounded-3xl shadow-[0_2px_16px_rgba(0,0,0,0.06)] overflow-hidden"
-          style={{ borderLeft: "4px solid #0a5c82" }}
-        >
-          <div className="px-6 pt-5 pb-2 flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-sky-600" />
-            <h2 className="font-semibold text-slate-800 text-sm">Stay Dates</h2>
-          </div>
-          <div className="px-6 pb-5">
-            <InfoRow
-              icon={<CalendarCheck className="h-4 w-4" />}
-              label="Check-in"
-              value={formatDate(booking.checkIn)}
-              accent="#059669"
-            />
-            <InfoRow
-              icon={<CalendarX className="h-4 w-4" />}
-              label="Check-out"
-              value={formatDate(booking.checkOut)}
-              accent="#dc2626"
-            />
-            <InfoRow
-              icon={<Moon className="h-4 w-4" />}
-              label="Duration"
-              value={`${nights} night${nights !== 1 ? "s" : ""}`}
-              accent="#0369a1"
-            />
-            <InfoRow
-              icon={<Clock className="h-4 w-4" />}
-              label="Booked on"
-              value={formatDate(booking.createdAt)}
-              accent="#64748b"
-            />
-          </div>
-        </div>
+        {/* ── LEFT — main 2/3 ── */}
+        <div className="lg:col-span-2 space-y-5">
 
-        {/* ── Property & Room card ──────────────────────────── */}
-        <div
-          className="bg-white rounded-3xl shadow-[0_2px_16px_rgba(0,0,0,0.06)] overflow-hidden"
-          style={{ borderLeft: "4px solid #02665e" }}
-        >
-          <div className="px-6 pt-5 pb-2 flex items-center gap-2">
-            <Building2 className="h-4 w-4 text-teal-600" />
-            <h2 className="font-semibold text-slate-800 text-sm">Property & Room</h2>
-          </div>
-          <div className="px-6 pb-5">
-            <InfoRow
-              icon={<Building2 className="h-4 w-4" />}
-              label="Property"
-              value={booking.property.title}
-              accent="#0369a1"
+          {/* Stay Dates card */}
+          <div className="relative overflow-hidden bg-white rounded-3xl border border-slate-100 shadow-[0_2px_16px_rgba(0,0,0,0.05)]">
+            <div
+              className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-3xl"
+              style={{
+                background: "linear-gradient(180deg,#7dd3fc 0%,#0a5c82 100%)",
+              }}
             />
-            {booking.property.type && (
-              <InfoRow
-                icon={<Tag className="h-4 w-4" />}
-                label="Type"
-                value={booking.property.type}
-                accent="#7c3aed"
-              />
-            )}
-            {location && (
-              <InfoRow
-                icon={<MapPin className="h-4 w-4" />}
-                label="Location"
-                value={location}
-                accent="#0a5c82"
-              />
-            )}
-            {booking.roomType && (
-              <InfoRow
-                icon={<Bed className="h-4 w-4" />}
-                label="Room Type"
-                value={booking.roomType}
-                accent="#059669"
-              />
-            )}
-            {booking.rooms != null && (
-              <InfoRow
-                icon={<LayoutGrid className="h-4 w-4" />}
-                label="Rooms"
-                value={`${booking.rooms} room${booking.rooms !== 1 ? "s" : ""}`}
-                accent="#d97706"
-              />
-            )}
-          </div>
-        </div>
+            <div className="pl-6 pr-6 pt-5 pb-5">
+              <div className="flex items-center gap-2 mb-4">
+                <div
+                  className="h-7 w-7 rounded-xl flex items-center justify-center"
+                  style={{ background: "linear-gradient(135deg,#0a5c82,#02665e)" }}
+                >
+                  <Moon className="h-3.5 w-3.5 text-white" />
+                </div>
+                <h2 className="text-base font-bold text-slate-900">
+                  Stay Dates
+                </h2>
+              </div>
 
-        {/* ── Booking Code card ─────────────────────────────── */}
-        {code && (
-          <div
-            className="bg-white rounded-3xl shadow-[0_2px_16px_rgba(0,0,0,0.06)] overflow-hidden"
-            style={{ borderLeft: "4px solid #7c3aed" }}
-          >
-            <div className="px-6 pt-5 pb-2 flex items-center gap-2">
-              <Hash className="h-4 w-4 text-violet-600" />
-              <h2 className="font-semibold text-slate-800 text-sm">Booking Code</h2>
+              {/* Timeline */}
+              <div className="relative flex items-stretch gap-3 mb-4">
+                <div className="flex flex-col items-center pt-3 pb-3 flex-shrink-0">
+                  <div className="h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-emerald-200" />
+                  <div className="flex-1 w-px border-l-2 border-dashed border-slate-200 my-1.5" />
+                  <div className="h-3 w-3 rounded-full bg-rose-500 ring-2 ring-rose-200" />
+                </div>
+                <div className="flex-1 flex flex-col gap-3">
+                  <div className="rounded-2xl bg-emerald-50 border border-emerald-100 px-4 py-3">
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-emerald-600 mb-0.5">
+                      <CalendarCheck className="h-3 w-3" /> Check-in
+                    </div>
+                    <p className="text-sm font-bold text-slate-800">
+                      {fmt(booking.checkIn)}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-rose-50 border border-rose-100 px-4 py-3">
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-rose-500 mb-0.5">
+                      <CalendarX className="h-3 w-3" /> Check-out
+                    </div>
+                    <p className="text-sm font-bold text-slate-800">
+                      {fmt(booking.checkOut)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <InfoRow
+                  label="Duration"
+                  value={`${n} night${n !== 1 ? "s" : ""}`}
+                />
+                <InfoRow label="Booked on" value={fmt(booking.createdAt)} />
+                {booking.status && (
+                  <InfoRow
+                    label="Status"
+                    value={booking.status.replace(/_/g, " ")}
+                  />
+                )}
+              </div>
             </div>
-            <div className="px-6 pb-5">
-              <InfoRow
-                icon={<Hash className="h-4 w-4" />}
-                label="Code"
-                value={
-                  <span className="font-mono tracking-widest text-violet-700 font-bold">
+          </div>
+
+          {/* Property & Room card */}
+          <div className="relative overflow-hidden bg-white rounded-3xl border border-slate-100 shadow-[0_2px_16px_rgba(0,0,0,0.05)]">
+            <div
+              className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-3xl"
+              style={{
+                background: "linear-gradient(180deg,#6ee7b7 0%,#02665e 100%)",
+              }}
+            />
+            <div className="pl-6 pr-6 pt-5 pb-5">
+              <div className="flex items-center gap-2 mb-4">
+                <div
+                  className="h-7 w-7 rounded-xl flex items-center justify-center"
+                  style={{ background: "linear-gradient(135deg,#02665e,#059669)" }}
+                >
+                  <Building2 className="h-3.5 w-3.5 text-white" />
+                </div>
+                <h2 className="text-base font-bold text-slate-900">
+                  Property &amp; Room
+                </h2>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <InfoRow label="Property" value={booking.property.title} />
+                {booking.property.type && (
+                  <InfoRow label="Type" value={booking.property.type} />
+                )}
+                {location && <InfoRow label="Location" value={location} />}
+                {booking.roomType && (
+                  <InfoRow label="Room Type" value={booking.roomType} />
+                )}
+                {booking.rooms != null && (
+                  <InfoRow
+                    label="Rooms"
+                    value={`${booking.rooms} room${
+                      booking.rooms !== 1 ? "s" : ""
+                    }`}
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Booking Code card */}
+          {code && (
+            <div className="relative overflow-hidden bg-white rounded-3xl border border-slate-100 shadow-[0_2px_16px_rgba(0,0,0,0.05)]">
+              <div
+                className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-3xl"
+                style={{
+                  background:
+                    "linear-gradient(180deg,#c4b5fd 0%,#7c3aed 100%)",
+                }}
+              />
+              <div className="pl-6 pr-6 pt-5 pb-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <div
+                    className="h-7 w-7 rounded-xl flex items-center justify-center"
+                    style={{
+                      background: "linear-gradient(135deg,#7c3aed,#a78bfa)",
+                    }}
+                  >
+                    <Hash className="h-3.5 w-3.5 text-white" />
+                  </div>
+                  <h2 className="text-base font-bold text-slate-900">
+                    Booking Code
+                  </h2>
+                  {codeStatus && (
+                    <span
+                      className={`ml-auto inline-flex text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full border ${
+                        codeStatus === "ACTIVE"
+                          ? "bg-emerald-50 text-emerald-600 border-emerald-200"
+                          : codeStatus === "USED"
+                          ? "bg-sky-50 text-sky-600 border-sky-200"
+                          : "bg-slate-100 text-slate-500 border-slate-200"
+                      }`}
+                    >
+                      {codeStatus}
+                    </span>
+                  )}
+                </div>
+
+                {/* Perforated divider */}
+                <div className="relative flex items-center mb-1">
+                  <div className="w-4 h-4 rounded-full bg-slate-50 border border-slate-100 -ml-9 flex-shrink-0" />
+                  <div className="flex-1 border-t-2 border-dashed border-slate-100 mx-2" />
+                  <div className="w-4 h-4 rounded-full bg-slate-50 border border-slate-100 -mr-9 flex-shrink-0" />
+                </div>
+
+                <div
+                  className="mt-3 rounded-2xl px-6 py-5 flex flex-col items-center gap-1 cursor-pointer select-none transition-all active:scale-[0.98] hover:brightness-[0.97]"
+                  style={{
+                    background: "linear-gradient(135deg,#f5f3ff,#ede9fe)",
+                  }}
+                  onClick={() => copyCode(code)}
+                >
+                  <p className="text-[10px] font-bold tracking-[0.2em] uppercase text-violet-400 mb-1">
+                    {codeCopied ? "✓ Copied to clipboard" : "Tap to copy"}
+                  </p>
+                  <p className="text-3xl sm:text-4xl font-black tracking-[0.3em] text-violet-700 font-mono">
                     {code}
-                  </span>
-                }
-                accent="#7c3aed"
-              />
-              {(booking.code?.status || booking.codeStatus) && (
-                <InfoRow
-                  icon={<CheckCircle className="h-4 w-4" />}
-                  label="Code Status"
-                  value={(booking.code?.status || booking.codeStatus)?.replace(/_/g, " ")}
-                  accent="#7c3aed"
-                />
-              )}
+                  </p>
+                </div>
+                <p className="text-center text-xs text-slate-400 mt-3">
+                  Show this code at the property reception on arrival
+                </p>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* ── Payment card ──────────────────────────────────── */}
-        <div
-          className="bg-white rounded-3xl shadow-[0_2px_16px_rgba(0,0,0,0.06)] overflow-hidden"
-          style={{ borderLeft: "4px solid #059669" }}
-        >
-          <div className="px-6 pt-5 pb-2 flex items-center gap-2">
-            <Banknote className="h-4 w-4 text-emerald-600" />
-            <h2 className="font-semibold text-slate-800 text-sm">Payment</h2>
-          </div>
-          <div className="px-6 pb-5">
-            <InfoRow
-              icon={<Banknote className="h-4 w-4" />}
-              label="Total Amount"
-              value={`${booking.currency || "TZS"} ${booking.totalAmount?.toLocaleString()}`}
-              accent="#059669"
-            />
-            <InfoRow
-              icon={booking.isPaid ? <CheckCircle className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
-              label="Payment Status"
-              value={
-                <span className={booking.isPaid ? "text-emerald-600 font-semibold" : "text-amber-600 font-semibold"}>
-                  {booking.isPaid ? "Paid" : "Pending"}
-                </span>
-              }
-              accent={booking.isPaid ? "#059669" : "#d97706"}
-            />
-            {invoice?.invoiceNumber && (
-              <InfoRow
-                icon={<FileText className="h-4 w-4" />}
-                label="Invoice #"
-                value={invoice.invoiceNumber}
-                accent="#0369a1"
+          {/* Notes card */}
+          {booking.notes && (
+            <div className="relative overflow-hidden bg-white rounded-3xl border border-slate-100 shadow-[0_2px_16px_rgba(0,0,0,0.05)]">
+              <div
+                className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-3xl"
+                style={{
+                  background:
+                    "linear-gradient(180deg,#fde68a 0%,#d97706 100%)",
+                }}
               />
-            )}
-            {invoice?.receiptNumber && (
-              <InfoRow
-                icon={<Receipt className="h-4 w-4" />}
-                label="Receipt #"
-                value={invoice.receiptNumber}
-                accent="#059669"
-              />
-            )}
-            {invoice?.status && (
-              <InfoRow
-                icon={<Tag className="h-4 w-4" />}
-                label="Invoice Status"
-                value={invoice.status.replace(/_/g, " ")}
-                accent="#64748b"
-              />
-            )}
-          </div>
+              <div className="pl-6 pr-6 pt-5 pb-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <div
+                    className="h-7 w-7 rounded-xl flex items-center justify-center"
+                    style={{
+                      background: "linear-gradient(135deg,#d97706,#f59e0b)",
+                    }}
+                  >
+                    <FileText className="h-3.5 w-3.5 text-white" />
+                  </div>
+                  <h2 className="text-base font-bold text-slate-900">Notes</h2>
+                </div>
+                <p className="text-sm text-slate-600 leading-relaxed">
+                  {booking.notes}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* ── Property Owner card ───────────────────────────── */}
-        {booking.property.owner && (
+        {/* ── RIGHT — sidebar 1/3 ── */}
+        <div className="space-y-5">
+
+          {/* Payment — dark gradient card */}
           <div
-            className="bg-white rounded-3xl shadow-[0_2px_16px_rgba(0,0,0,0.06)] overflow-hidden"
-            style={{ borderLeft: "4px solid #0369a1" }}
+            className="relative overflow-hidden rounded-3xl shadow-[0_2px_20px_rgba(10,92,130,0.15)]"
+            style={{
+              background: "linear-gradient(135deg,#0b2240 0%,#0a3f35 100%)",
+            }}
           >
-            <div className="px-6 pt-5 pb-2 flex items-center gap-2">
-              <User className="h-4 w-4 text-sky-600" />
-              <h2 className="font-semibold text-slate-800 text-sm">Property Contact</h2>
-            </div>
-            <div className="px-6 pb-5">
-              <InfoRow
-                icon={<User className="h-4 w-4" />}
-                label="Name"
-                value={booking.property.owner.name}
-                accent="#0369a1"
-              />
-              {booking.property.owner.phone && (
-                <InfoRow
-                  icon={<Phone className="h-4 w-4" />}
-                  label="Phone"
-                  value={
-                    <a
-                      href={`tel:${booking.property.owner.phone}`}
-                      className="text-sky-600 hover:underline"
-                    >
-                      {booking.property.owner.phone}
-                    </a>
-                  }
-                  accent="#0369a1"
-                />
+            <div
+              className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full opacity-20"
+              style={{
+                background: "radial-gradient(circle,#34d399,transparent 70%)",
+              }}
+            />
+            <div className="relative px-5 py-5">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="h-6 w-6 rounded-lg bg-emerald-400/20 flex items-center justify-center">
+                  <Banknote className="h-3.5 w-3.5 text-emerald-300" />
+                </div>
+                <h2 className="text-sm font-bold text-white/80 uppercase tracking-wide">
+                  Payment
+                </h2>
+              </div>
+
+              {/* Amount + payment status row */}
+              <div className="flex items-end justify-between mb-4">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-white/40 mb-0.5">
+                    Total Amount
+                  </p>
+                  <p className="text-2xl font-black text-white leading-tight">
+                    <span className="text-sm font-semibold text-white/50 mr-1">
+                      {booking.currency || "TZS"}
+                    </span>
+                    {booking.totalAmount?.toLocaleString()}
+                  </p>
+                </div>
+                <div
+                  className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold border ${
+                    booking.isPaid
+                      ? "bg-emerald-400/15 text-emerald-300 border-emerald-400/30"
+                      : "bg-amber-400/15 text-amber-300 border-amber-400/30"
+                  }`}
+                >
+                  {booking.isPaid ? (
+                    <CheckCircle className="h-3.5 w-3.5" />
+                  ) : (
+                    <Clock className="h-3.5 w-3.5" />
+                  )}
+                  {booking.isPaid ? "Paid" : "Pending"}
+                </div>
+              </div>
+
+              {(invoice?.invoiceNumber || invoice?.receiptNumber) && (
+                <div className="space-y-2 border-t border-white/10 pt-3 mb-4">
+                  {invoice.invoiceNumber && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-white/40 flex items-center gap-1">
+                        <FileText className="h-3 w-3" /> Invoice
+                      </span>
+                      <span className="text-xs font-mono text-white/70">
+                        {invoice.invoiceNumber}
+                      </span>
+                    </div>
+                  )}
+                  {invoice.receiptNumber && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-white/40 flex items-center gap-1">
+                        <Receipt className="h-3 w-3" /> Receipt
+                      </span>
+                      <span className="text-xs font-mono text-emerald-300">
+                        {invoice.receiptNumber}
+                      </span>
+                    </div>
+                  )}
+                  {invoice.status && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-white/40">Inv. Status</span>
+                      <span className="text-xs font-semibold text-white/60 capitalize">
+                        {invoice.status.replace(/_/g, " ")}
+                      </span>
+                    </div>
+                  )}
+                </div>
               )}
-              {booking.property.owner.email && (
-                <InfoRow
-                  icon={<Mail className="h-4 w-4" />}
-                  label="Email"
-                  value={
-                    <a
-                      href={`mailto:${booking.property.owner.email}`}
-                      className="text-sky-600 hover:underline"
-                    >
-                      {booking.property.owner.email}
-                    </a>
-                  }
-                  accent="#0369a1"
-                />
-              )}
+
+              {/* QR Code */}
+              <div className="border-t border-white/10 pt-4">
+                <div className="flex items-center gap-1.5 mb-3">
+                  <ScanLine className="h-3.5 w-3.5 text-emerald-300" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-white/50">
+                    Check-in QR Code
+                  </span>
+                </div>
+                <div className="flex flex-col items-center">
+                  {qrUrl ? (
+                    <div className="rounded-2xl p-3 shadow-lg" style={{ background: "rgba(255,255,255,0.96)" }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={qrUrl}
+                        alt="Booking QR Code"
+                        className="block"
+                        style={{ width: 160, height: 160, imageRendering: "pixelated" }}
+                      />
+                    </div>
+                  ) : (
+                    <div
+                      className="rounded-2xl animate-pulse"
+                      style={{
+                        width: 188,
+                        height: 188,
+                        background: "rgba(255,255,255,0.08)",
+                      }}
+                    />
+                  )}
+                  <p className="mt-2.5 text-[11px] font-semibold text-white/40 text-center">
+                    Show to reception on arrival
+                  </p>
+                  {(code || booking.bookingCode) && (
+                    <p className="mt-0.5 text-xs font-mono font-bold tracking-widest text-emerald-300">
+                      {code || booking.bookingCode}
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
-        )}
 
-        {/* ── Actions ───────────────────────────────────────── */}
-        <div className="flex flex-wrap gap-3 pt-2">
-          {/* Download receipt */}
-          <button
-            onClick={downloadPDF}
-            disabled={downloading}
-            className="flex items-center gap-2 px-5 py-3 rounded-2xl text-sm font-semibold text-white transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-60"
-            style={{ background: "linear-gradient(135deg,#059669,#047857)" }}
-          >
-            {downloading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Download className="h-4 w-4" />
-            )}
-            {downloading ? "Downloading…" : "Download Receipt"}
-          </button>
+          {/* Property Contact card */}
+          {booking.property.owner && (
+            <div className="relative overflow-hidden bg-white rounded-3xl border border-slate-100 shadow-[0_2px_16px_rgba(0,0,0,0.05)]">
+              <div
+                className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-3xl"
+                style={{
+                  background:
+                    "linear-gradient(180deg,#7dd3fc 0%,#0369a1 100%)",
+                }}
+              />
+              <div className="pl-5 pr-5 pt-5 pb-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <div
+                    className="h-7 w-7 rounded-xl flex items-center justify-center"
+                    style={{
+                      background: "linear-gradient(135deg,#0369a1,#0a5c82)",
+                    }}
+                  >
+                    <User className="h-3.5 w-3.5 text-white" />
+                  </div>
+                  <h2 className="text-base font-bold text-slate-900">
+                    Property Contact
+                  </h2>
+                </div>
+                <div className="flex items-center gap-3 mb-3">
+                  <div
+                    className="h-11 w-11 rounded-2xl flex items-center justify-center text-white font-black text-base flex-shrink-0 shadow-sm"
+                    style={{
+                      background: "linear-gradient(135deg,#0a5c82,#02665e)",
+                    }}
+                  >
+                    {booking.property.owner.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-slate-800 text-sm truncate">
+                      {booking.property.owner.name}
+                    </p>
+                    <p className="text-xs text-slate-400">Property Manager</p>
+                  </div>
+                  <div className="flex gap-1.5">
+                    {booking.property.owner.phone && (
+                      <a
+                        href={`tel:${booking.property.owner.phone}`}
+                        className="h-8 w-8 rounded-xl bg-sky-50 hover:bg-sky-100 flex items-center justify-center text-sky-600 transition-colors"
+                        title="Call"
+                      >
+                        <Phone className="h-3.5 w-3.5" />
+                      </a>
+                    )}
+                    {booking.property.owner.email && (
+                      <a
+                        href={`mailto:${booking.property.owner.email}`}
+                        className="h-8 w-8 rounded-xl bg-sky-50 hover:bg-sky-100 flex items-center justify-center text-sky-600 transition-colors"
+                        title="Email"
+                      >
+                        <Mail className="h-3.5 w-3.5" />
+                      </a>
+                    )}
+                  </div>
+                </div>
+                {booking.property.owner.phone && (
+                  <p className="text-xs text-slate-500 flex items-center gap-1.5 mt-1">
+                    <Phone className="h-3 w-3 text-slate-400" />
+                    {booking.property.owner.phone}
+                  </p>
+                )}
+                {booking.property.owner.email && (
+                  <p className="text-xs text-slate-500 flex items-center gap-1.5 mt-1 truncate">
+                    <Mail className="h-3 w-3 text-slate-400" />
+                    {booking.property.owner.email}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
 
-          {/* Request cancellation */}
-          {canRequestCancellation(booking) && (
+          {/* Cancellation button */}
+          {canCancel(booking) && (
             <Link
               href={`/account/cancellations?code=${code || booking.id}`}
-              className="flex items-center gap-2 px-5 py-3 rounded-2xl text-sm font-semibold text-red-600 border border-red-200 bg-red-50 hover:bg-red-100 transition-all hover:scale-[1.02] active:scale-95"
+              className="no-underline w-full inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-2xl text-sm font-bold text-red-600 border-2 border-red-200 bg-white hover:bg-red-50 transition-all hover:scale-[1.01] active:scale-[0.98]"
             >
               <XCircle className="h-4 w-4" />
               Request Cancellation
             </Link>
           )}
 
-          {/* Back */}
+          {/* Back to list */}
           <Link
             href="/account/bookings"
-            className="flex items-center gap-2 px-5 py-3 rounded-2xl text-sm font-semibold text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 transition-all"
+            className="no-underline w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-sm font-semibold text-slate-500 border border-slate-200 bg-white hover:bg-slate-50 transition-all"
           >
-            <ArrowLeft className="h-4 w-4" />
-            All Bookings
+            <ArrowLeft className="h-4 w-4" /> All My Bookings
           </Link>
         </div>
       </div>
