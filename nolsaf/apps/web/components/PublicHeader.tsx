@@ -217,12 +217,12 @@ export default function PublicHeader({
   const navActiveBgClass = "bg-white/[0.14]";
   const navDotBgClass   = "bg-emerald-400";
 
-  // Nav pill: deep glass matching the hero card style
+  // Nav pill: premium dark-glass matching hero outer surround palette
   const chromePillClass = overHero
-    ? "bg-white/[0.07] ring-1 ring-white/[0.13] shadow-[0_8px_32px_rgba(0,0,0,0.34)]"
+    ? "bg-[rgba(5,14,35,0.52)] ring-1 ring-white/[0.16] shadow-[0_8px_32px_rgba(0,0,0,0.44)]"
     : scrolled
-    ? "bg-white/[0.10] ring-1 ring-white/[0.14] shadow-[0_4px_20px_rgba(0,0,0,0.28)]"
-    : "bg-[#02665e]/90 ring-1 ring-white/[0.12] shadow";
+    ? "bg-[rgba(8,22,50,0.80)] ring-1 ring-[#02665e]/50 shadow-[0_4px_20px_rgba(0,0,0,0.32)]"
+    : "bg-[rgba(11,31,92,0.88)] ring-1 ring-white/[0.14] shadow-[0_4px_16px_rgba(0,0,0,0.30)]";
 
   // Logo handling:
   // - Always use the icon-only logo (no names), same as the footer.
@@ -271,7 +271,7 @@ export default function PublicHeader({
       >
         <span className="relative z-10">{children}</span>
         {isActive && (
-          <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)] transition-all duration-300" />
+          <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[#2dd4bf] shadow-[0_0_8px_rgba(45,212,191,0.90)] transition-all duration-300" />
         )}
         {/* Hover fill */}
         <span className="absolute inset-0 rounded-full transition-all duration-300 transform scale-0 group-hover:scale-100 bg-white/10" />
@@ -313,12 +313,13 @@ export default function PublicHeader({
               // Non-public pages get full opacity for maximum visibility
               // Dark premium glass — matches the hero card background (#05080f) with a subtle emerald tint.
               background: overHero
-                ? `linear-gradient(135deg, rgba(5,8,15,${0.72 + heroBlend * 0.12}) 0%, rgba(5,8,15,${0.58 + heroBlend * 0.10}) 60%, rgba(2,102,94,${0.10 + heroBlend * 0.08}) 100%)`
+                ? `linear-gradient(135deg, rgba(8,18,50,${0.62 + heroBlend * 0.14}) 0%, rgba(10,50,100,${0.44 + heroBlend * 0.12}) 55%, rgba(2,102,94,${0.12 + heroBlend * 0.10}) 100%)`
                 : scrolled
-                ? `linear-gradient(135deg, rgba(5,8,15,${0.88 + scrollProgress * 0.08}) 0%, rgba(2,102,94,${0.55 + scrollProgress * 0.15}) 100%)`
+                ? `linear-gradient(135deg, rgba(8,18,50,${0.90 + scrollProgress * 0.06}) 0%, rgba(10,92,130,${0.60 + scrollProgress * 0.14}) 55%, rgba(2,102,94,${0.50 + scrollProgress * 0.18}) 100%)`
                 : isNonPublicPage
-                ? `rgba(2, 102, 94, 0.97)`
-                : `rgba(2, 102, 94, ${pathname === "/public" ? (0.20 + heroBlend * 0.55) : 0.98})`,
+                ? `linear-gradient(135deg, #0b1f5c 0%, #0a5c82 52%, #02665e 100%)`
+                : `linear-gradient(135deg, rgba(11,31,92,${pathname === "/public" ? (0.18 + heroBlend * 0.60) : 0.92}) 0%, rgba(10,92,130,${pathname === "/public" ? (0.10 + heroBlend * 0.48) : 0.80}) 55%, rgba(2,102,94,${pathname === "/public" ? (0.08 + heroBlend * 0.38) : 0.72}) 100%)`,
+
               backdropFilter: overHero
                 ? `blur(${18 + heroBlend * 8}px) saturate(180%)`
                 : isNonPublicPage
@@ -334,13 +335,13 @@ export default function PublicHeader({
                 ? `blur(${16 + scrollProgress * 6}px) saturate(${160 + scrollProgress * 20}%)`
                 : `blur(${6 + heroBlend * 10}px) saturate(${120 + heroBlend * 40}%)`,
               boxShadow: overHero
-                ? "inset 0 1px 0 rgba(255,255,255,0.10), inset 0 0 0 1px rgba(255,255,255,0.06)"
+                ? `0 8px 32px rgba(2,102,94,0.18), inset 0 1px 0 rgba(255,255,255,0.10), inset 0 0 0 1px rgba(255,255,255,0.06)`
                 : scrolled
-                ? `0 12px 32px rgba(0,0,0,0.28), 0 0 0 1px rgba(255,255,255,0.10), inset 0 1px 0 rgba(255,255,255,0.10)`
+                ? `0 12px 36px rgba(8,18,50,0.48), 0 0 0 1px rgba(2,102,94,0.30), inset 0 1px 0 rgba(255,255,255,0.10)`
                 : isNonPublicPage
-                ? `0 4px 16px rgba(0,0,0,0.14), 0 0 0 1px rgba(255,255,255,0.12)`
+                ? `0 4px 20px rgba(2,102,94,0.28), 0 0 0 1px rgba(255,255,255,0.10)`
                 : pathname === "/public" && heroBlend > 0.2
-                ? `0 10px 30px rgba(0,0,0,0.22), 0 0 0 1px rgba(255,255,255,0.06)`
+                ? `0 10px 32px rgba(8,18,50,0.32), 0 0 0 1px rgba(2,102,94,0.18)`
                 : 'none',
               border: overHero
                 ? "none"
@@ -461,10 +462,12 @@ export default function PublicHeader({
                     </Link>
                     <Link
                       href="/account/register"
-                      className="hidden sm:inline-flex items-center justify-center rounded-full no-underline transition-all duration-300 hover:scale-105 hover:shadow-[0_0_20px_rgba(52,211,153,0.35)] active:scale-95 font-semibold text-white bg-gradient-to-br from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500"
+                      className="hidden sm:inline-flex items-center justify-center rounded-full no-underline transition-all duration-300 hover:scale-105 active:scale-95 font-semibold text-white"
                       style={{
                         padding: scrolled ? '7px 15px' : '9px 18px',
                         fontSize: scrolled ? '13px' : '14px',
+                        background: 'linear-gradient(135deg,#0b1f5c 0%,#0a5c82 52%,#02665e 100%)',
+                        boxShadow: '0 0 0 1px rgba(2,102,94,0.45), 0 4px 16px rgba(2,102,94,0.28)',
                         transition: 'all 0.35s cubic-bezier(0.4, 0, 0.2, 1)',
                       }}
                     >
@@ -515,7 +518,7 @@ export default function PublicHeader({
           }}
         >
           {/* Top accent line */}
-          <div className="h-px bg-gradient-to-r from-transparent via-emerald-400/40 to-transparent" />
+          <div className="h-px bg-gradient-to-r from-transparent via-[#02665e]/60 to-transparent" />
           <nav className="flex flex-col py-3 px-4 gap-0.5">
             {navLinks.map((link) => (
               <Link
@@ -529,7 +532,7 @@ export default function PublicHeader({
                 }`}
               >
                 {pathname === link.href && (
-                  <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1 h-5 bg-emerald-400 rounded-full shadow-[0_0_8px_rgba(52,211,153,0.6)]"></span>
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1 h-5 bg-[#2dd4bf] rounded-full shadow-[0_0_8px_rgba(45,212,191,0.70)]"></span>
                 )}
                 <span className="relative z-10 pl-2">{link.label}</span>
               </Link>
@@ -551,7 +554,8 @@ export default function PublicHeader({
                 <Link
                   href="/account/register"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="text-white font-semibold text-sm py-2.5 px-4 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 transition-all duration-200 text-center active:scale-[0.98] no-underline shadow-[0_4px_16px_rgba(16,185,129,0.28)]"
+                  className="text-white font-semibold text-sm py-2.5 px-4 rounded-xl transition-all duration-200 text-center active:scale-[0.98] no-underline"
+                  style={{ background: 'linear-gradient(135deg,#0b1f5c 0%,#0a5c82 52%,#02665e 100%)', boxShadow: '0 4px 16px rgba(2,102,94,0.30)' }}
                 >
                   Register
                 </Link>
@@ -694,26 +698,29 @@ function RegionsDropdown({ variant = "dark", fullWidth = false }:{ variant?: "li
       {open && (
         <div
           ref={dragRef}
-          className={`${pos ? 'fixed' : 'absolute left-1/2 transform -translate-x-1/2'} mt-2 bg-white rounded-2xl shadow-2xl ring-1 ring-black/10 z-50 min-w-[24rem] sm:min-w-[32rem] lg:min-w-[40rem] xl:min-w-[48rem] max-w-[calc(100vw-2rem)] transition-all duration-300 ease-out animate-in fade-in slide-in-from-top-2`}
+          className={`${pos ? 'fixed' : 'absolute left-1/2 transform -translate-x-1/2'} mt-2 rounded-2xl z-50 min-w-[24rem] sm:min-w-[32rem] lg:min-w-[40rem] xl:min-w-[48rem] max-w-[calc(100vw-2rem)] transition-all duration-300 ease-out animate-in fade-in slide-in-from-top-2`}
+          style={{ background: 'linear-gradient(155deg,#080e28 0%,#0a2235 55%,#012018 100%)', backdropFilter: 'blur(24px) saturate(180%)', WebkitBackdropFilter: 'blur(24px) saturate(180%)', boxShadow: '0 24px 64px rgba(0,0,0,0.60), 0 0 0 1px rgba(2,102,94,0.30)', border: '1px solid rgba(255,255,255,0.08)' }}
         >
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 cursor-move select-none">
+          {/* Top accent */}
+          <div className="h-px bg-gradient-to-r from-transparent via-[#02665e]/60 to-transparent rounded-t-2xl" />
+          <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.07] cursor-move select-none">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-gray-800">Regions</span>
-              <span className="text-xs text-gray-500">Select a region</span>
+              <span className="text-sm font-semibold text-white/90">Regions</span>
+              <span className="text-xs text-white/40">Select a region</span>
             </div>
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 aria-label={minimized ? 'Restore regions' : 'Minimize regions'}
                 onClick={(ev) => { ev.stopPropagation(); setMinimized(m => { const nm = !m; saveMinimized(nm); return nm; }); }}
-                className="text-gray-600 hover:text-gray-800 text-sm px-2 py-1 rounded transition-colors"
+                className="text-white/50 hover:text-white/90 text-sm px-2 py-1 rounded transition-colors"
               >
                 {minimized ? '▸' : '▾'}
               </button>
               <div
                 onMouseDown={startDrag}
                 onTouchStart={startDrag}
-                className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-600 cursor-move"
+                className="w-6 h-6 flex items-center justify-center text-white/30 hover:text-white/70 cursor-move"
                 title="Drag to move"
               >
                 ≡
@@ -722,13 +729,13 @@ function RegionsDropdown({ variant = "dark", fullWidth = false }:{ variant?: "li
           </div>
 
           {!minimized && (
-            <div className="p-3 grid grid-cols-5 gap-0 divide-y divide-gray-100 sm:divide-y-0 sm:divide-x">
+            <div className="p-3 grid grid-cols-5 gap-0">
               {REGIONS.map((r: any) => (
                 <Link
                   key={r.id}
                   href={`/public/properties?region=${encodeURIComponent(r.id)}`}
                   onClick={() => setOpen(false)}
-                  className="block px-3 py-3 text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-800 hover:font-semibold transition-all duration-300 ease-out no-underline text-center rounded-lg cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-200 transform hover:scale-105 active:scale-95"
+                  className="block px-3 py-2.5 text-sm text-white/75 hover:text-white hover:bg-white/[0.08] hover:font-semibold transition-all duration-200 ease-out no-underline text-center rounded-lg cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#02665e]/60 transform hover:scale-105 active:scale-95"
                 >
                   {r.name}
                 </Link>

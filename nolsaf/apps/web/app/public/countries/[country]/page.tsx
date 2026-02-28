@@ -215,7 +215,7 @@ export default async function CountryTourismPage({
             <div className="rounded-[31px] bg-white/75 backdrop-blur-xl border border-white/70 p-6 sm:p-8">
               <div className="text-slate-900 text-2xl sm:text-3xl font-semibold tracking-tight">Country page not available yet</div>
               <div className="mt-2 text-slate-600 text-sm sm:text-base leading-relaxed max-w-[78ch]">
-                We couldnâ€™t find details for <span className="font-semibold text-slate-900">{decoded || raw || "this country"}</span>.
+                We couldnt find details for <span className="font-semibold text-slate-900">{decoded || raw || "this country"}</span>.
                 Choose an option below, or pick one of the available countries to explore tourism sites.
               </div>
 

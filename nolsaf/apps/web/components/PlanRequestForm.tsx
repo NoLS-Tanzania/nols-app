@@ -1,13 +1,37 @@
 ﻿"use client";
 
 import React from "react";
-import { ChevronDown, CheckCircle, ArrowRight, Plus, Trash2, ArrowUp, ArrowDown, MapPin, Calendar, Plane, FileText, Users } from 'lucide-react';
+import { ChevronDown, CheckCircle, ArrowRight, Plus, Trash2, ArrowUp, ArrowDown, MapPin, Calendar, Plane, FileText, Users, Mail, Phone, User, Car } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import DatePicker from "@/components/ui/DatePicker";
 
 type Props = {
   selectedRole: string | null;
+};
+
+const ALL_VENUES = [
+  { value: 'hotel-ballroom',      label: 'Hotel / Resort ballroom' },
+  { value: 'safari-lodge',        label: 'Safari / Bush lodge' },
+  { value: 'beachfront',          label: 'Beachfront / Oceanfront' },
+  { value: 'tented-marquee',      label: 'Tented marquee' },
+  { value: 'garden-outdoor',      label: 'Garden / Outdoor grounds' },
+  { value: 'cultural-traditional',label: 'Cultural / Traditional grounds' },
+] as const;
+
+const VENUES_BY_EVENT: Record<string, string[]> = {
+  wedding:       ['hotel-ballroom', 'beachfront', 'garden-outdoor', 'tented-marquee', 'cultural-traditional'],
+  honeymoon:     ['beachfront', 'safari-lodge', 'hotel-ballroom', 'garden-outdoor'],
+  conference:    ['hotel-ballroom', 'tented-marquee'],
+  corporate:     ['hotel-ballroom', 'tented-marquee', 'garden-outdoor'],
+  workshop:      ['hotel-ballroom', 'tented-marquee'],
+  birthday:      ['hotel-ballroom', 'beachfront', 'garden-outdoor', 'tented-marquee'],
+  'team-building': ['safari-lodge', 'garden-outdoor', 'beachfront', 'tented-marquee'],
+  graduation:    ['hotel-ballroom', 'garden-outdoor', 'tented-marquee'],
+  concert:       ['beachfront', 'garden-outdoor', 'tented-marquee', 'cultural-traditional'],
+  exhibition:    ['hotel-ballroom', 'tented-marquee', 'garden-outdoor'],
+  religious:     ['cultural-traditional', 'garden-outdoor', 'hotel-ballroom'],
+  other:         ALL_VENUES.map(v => v.value),
 };
 
 export default function PlanRequestForm({ selectedRole }: Props) {
@@ -37,6 +61,7 @@ export default function PlanRequestForm({ selectedRole }: Props) {
   const [budgetAmount, setBudgetAmount] = React.useState<string>('');
   const [touristMustHaves, setTouristMustHaves] = React.useState<string[]>([]);
   const [touristInterests, setTouristInterests] = React.useState<string[]>([]);
+  const [selectedEventType, setSelectedEventType] = React.useState<string>('');
 
   const _formatDateDisplay = React.useCallback((iso: string) => {
     try {
@@ -1093,14 +1118,21 @@ export default function PlanRequestForm({ selectedRole }: Props) {
     notes: 'Notes',
     // Event planner
     eventType: 'Event type',
-    expectedAttendees: 'Expected attendees',
-    eventStartDate: 'Event start',
-    eventEndDate: 'Event end',
-    venuePreferences: 'Venue preferences',
-    accommodationNeeded: 'Accommodation needed',
-    cateringRequired: 'Catering required',
-    avRequirements: 'AV / internet',
-    budgetPerPerson: 'Budget / person',
+    venuePreferences: 'Venue preference',
+    accommodationNeeded: 'Accommodation',
+    cateringRequired: 'Catering',
+    // Wedding
+    ceremonyStyle: 'Ceremony style',
+    decorTheme: 'Décor / theme',
+    photographyVideography: 'Photography',
+    entertainment: 'Entertainment',
+    floralArrangements: 'Floral arrangements',
+    weddingCake: 'Wedding cake',
+    // Honeymoon
+    honeymoonExperience: 'Experience type',
+    honeymoonRoomType: 'Room / suite',
+    honeymoonSpecialTouches: 'Special touches',
+    honeymoonPhotography: 'Photography',
     // School
     studentsCount: 'Students',
     chaperones: 'Chaperones',
@@ -1157,6 +1189,42 @@ export default function PlanRequestForm({ selectedRole }: Props) {
     if (lower === 'yes' || lower === 'no') return lower === 'yes' ? 'Yes' : 'No';
     return v;
   };
+
+  const reviewValueMap: Record<string, string> = {
+    // event types
+    wedding: 'Wedding / Ceremony', honeymoon: 'Honeymoon', conference: 'Conference',
+    corporate: 'Corporate event', workshop: 'Workshop / Training',
+    birthday: 'Birthday / Celebration', 'team-building': 'Team building',
+    graduation: 'Graduation', concert: 'Concert / Performance',
+    exhibition: 'Exhibition / Expo', religious: 'Religious gathering', other: 'Other',
+    // venues
+    'hotel-ballroom': 'Hotel / Resort ballroom', 'safari-lodge': 'Safari / Bush lodge',
+    beachfront: 'Beachfront / Oceanfront', 'tented-marquee': 'Tented marquee',
+    'garden-outdoor': 'Garden / Outdoor grounds', 'cultural-traditional': 'Cultural / Traditional grounds',
+    // ceremony styles
+    traditional: 'Traditional / Cultural', religious2: 'Religious', civil: 'Civil / Registry',
+    beach: 'Beach / Outdoor', garden: 'Garden', destination: 'Destination wedding',
+    intimate: 'Intimate / Micro',
+    // photography
+    'photo-only': 'Photography only', 'video-only': 'Videography only',
+    both: 'Both photo & video', none: 'Not needed',
+    // florals
+    partial: 'Partial (specify in notes)',
+    // honeymoon experience
+    'beach-relaxation': 'Beach & relaxation', 'safari-adventure': 'Safari & adventure',
+    'cultural-exploration': 'Cultural exploration', 'mountain-nature': 'Mountain & nature',
+    'island-getaway': 'Island getaway', mixed: 'Mixed (combine experiences)',
+    // honeymoon room
+    'oceanview-suite': 'Oceanview suite', 'safari-tent': 'Luxury safari tent',
+    'garden-villa': 'Garden villa', 'private-cabin': 'Private cabin / chalet',
+    overwater: 'Overwater bungalow', any: 'No preference',
+    // honeymoon special touches
+    'couples-spa': 'Couples spa package', 'private-dinner': 'Private candlelit dinner',
+    'sunset-cruise': 'Sunset cruise', 'romantic-setup': 'Romantic room setup',
+    all: 'All of the above',
+  };
+  const resolveDisplayValue = (raw: string | undefined) =>
+    raw && reviewValueMap[raw] ? reviewValueMap[raw] : formatValue(raw);
 
   const splitCommaList = React.useCallback((raw: string | undefined) => {
     return String(raw || '')
@@ -1923,32 +1991,57 @@ export default function PlanRequestForm({ selectedRole }: Props) {
             </div>
           </div>
 
-          <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <label htmlFor="event-type" className="block text-xs text-slate-600">Event type</label>
-              <input id="event-type" name="eventType" placeholder="Conference, wedding, workshop etc." className="groupstays-select mt-1 w-full rounded-md px-3 py-2 pr-9 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200" />
-            </div>
-
-            <div>
-              <label htmlFor="expected-attendees" className="block text-xs text-slate-600">Expected attendees</label>
-              <input id="expected-attendees" name="expectedAttendees" placeholder="Number of attendees" type="number" min={1} className="groupstays-select mt-1 w-full rounded-md px-3 py-2 pr-9 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200" />
-            </div>
-          </div>
-
-          <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <label htmlFor="event-start-date" className="block text-sm font-medium text-slate-700">Start date</label>
-              <input id="event-start-date" name="eventStartDate" type="date" className="groupstays-select mt-1 w-full rounded-md px-3 py-2 pr-9 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200" />
-            </div>
-            <div>
-              <label htmlFor="event-end-date" className="block text-sm font-medium text-slate-700">End date</label>
-              <input id="event-end-date" name="eventEndDate" type="date" className="groupstays-select mt-1 w-full rounded-md px-3 py-2 pr-9 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200" />
-            </div>
-          </div>
-
           <div className="mt-3">
-            <label htmlFor="venue-preferences" className="block text-xs text-slate-600">Venue preferences</label>
-            <input id="venue-preferences" name="venuePreferences" placeholder="Capacity, accessibility, indoor/outdoor, facilities" className="groupstays-select mt-1 w-full rounded-md px-3 py-2 pr-9 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200" />
+            <label htmlFor="event-type" className="block text-xs text-slate-600">Event type</label>
+            <div className="relative mt-1">
+              <select id="event-type" name="eventType" value={selectedEventType} onChange={(e) => { setSelectedEventType(e.target.value); }} className="groupstays-select w-full rounded-md px-3 py-2 pr-9 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 appearance-none">
+                <option value="">Select event type</option>
+                <option value="wedding">Wedding / Ceremony</option>
+                <option value="honeymoon">Honeymoon</option>
+                <option value="conference">Conference</option>
+                <option value="corporate">Corporate event</option>
+                <option value="workshop">Workshop / Training</option>
+                <option value="birthday">Birthday / Celebration</option>
+                <option value="team-building">Team building</option>
+                <option value="graduation">Graduation</option>
+                <option value="concert">Concert / Performance</option>
+                <option value="exhibition">Exhibition / Expo</option>
+                <option value="religious">Religious gathering</option>
+                <option value="other">Other</option>
+              </select>
+              <ChevronDown className="groupstays-chevron pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden />
+            </div>
+          </div>
+
+          {/* Venue preferences — filtered dropdown */}
+          <div className="mt-3">
+            <label htmlFor="venue-preferences" className="block text-sm font-medium text-slate-700">
+              Venue preference
+              {selectedEventType && (
+                <span className="ml-2 text-[11px] font-normal text-emerald-600">
+                  {(VENUES_BY_EVENT[selectedEventType] ?? ALL_VENUES.map(v => v.value)).length} options for this event
+                </span>
+              )}
+            </label>
+            <div className="relative mt-1">
+              <select
+                id="venue-preferences"
+                name="venuePreferences"
+                disabled={!selectedEventType}
+                className={`groupstays-select w-full rounded-md px-3 py-2 pr-9 border text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 appearance-none transition ${
+                  selectedEventType
+                    ? 'border-slate-200 bg-white'
+                    : 'border-slate-100 bg-slate-50 text-slate-400 cursor-not-allowed'
+                }`}
+              >
+                <option value="">{selectedEventType ? 'Select venue type' : 'Select event type first'}</option>
+                {(VENUES_BY_EVENT[selectedEventType] ?? ALL_VENUES.map(v => v.value)).map((val) => {
+                  const venue = ALL_VENUES.find(v => v.value === val);
+                  return venue ? <option key={venue.value} value={venue.value}>{venue.label}</option> : null;
+                })}
+              </select>
+              <ChevronDown className="groupstays-chevron pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden />
+            </div>
           </div>
 
           <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1977,16 +2070,164 @@ export default function PlanRequestForm({ selectedRole }: Props) {
             </div>
           </div>
 
-          <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <label htmlFor="av-requirements" className="block text-xs text-slate-600">AV / power / internet requirements</label>
-              <input id="av-requirements" name="avRequirements" placeholder="Microphones, projectors, power, connectivity" className="groupstays-select mt-1 w-full rounded-md px-3 py-2 pr-9 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200" />
+          {/* Wedding / Ceremony specific fields */}
+          {selectedEventType === 'wedding' && (
+          <div className="mt-4 pt-3 border-t border-slate-100">
+            <div className="flex items-center gap-1.5 mb-3">
+              <div className="w-1 h-4 bg-rose-400 rounded-sm" aria-hidden />
+              <span className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Wedding &amp; Ceremony</span>
             </div>
-            <div>
-              <label htmlFor="budget-per-person" className="block text-xs text-slate-600">Target budget per person</label>
-              <input id="budget-per-person" name="budgetPerPerson" placeholder="USD or local currency" className="groupstays-select mt-1 w-full rounded-md px-3 py-2 pr-9 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200" />
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="ceremony-style" className="block text-xs text-slate-600">Ceremony style</label>
+                <div className="relative mt-1">
+                  <select id="ceremony-style" name="ceremonyStyle" className="groupstays-select w-full rounded-md px-3 py-2 pr-9 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200">
+                    <option value="">Select style</option>
+                    <option value="traditional">Traditional / Cultural</option>
+                    <option value="religious">Religious</option>
+                    <option value="civil">Civil / Registry</option>
+                    <option value="beach">Beach / Outdoor</option>
+                    <option value="garden">Garden</option>
+                    <option value="destination">Destination wedding</option>
+                    <option value="intimate">Intimate / Micro</option>
+                    <option value="other">Other</option>
+                  </select>
+                  <ChevronDown className="groupstays-chevron pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden />
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="decor-theme" className="block text-xs text-slate-600">Décor / theme</label>
+                <input id="decor-theme" name="decorTheme" placeholder="Rustic, modern, floral, colour palette…" className="groupstays-select mt-1 w-full rounded-md px-3 py-2 pr-9 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200" />
+              </div>
+            </div>
+
+            <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="photography-videography" className="block text-xs text-slate-600">Photography / videography</label>
+                <div className="relative mt-1">
+                  <select id="photography-videography" name="photographyVideography" className="groupstays-select w-full rounded-md px-3 py-2 pr-9 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200">
+                    <option value="">Select an option</option>
+                    <option value="photo-only">Photography only</option>
+                    <option value="video-only">Videography only</option>
+                    <option value="both">Both photo &amp; video</option>
+                    <option value="none">Not needed</option>
+                  </select>
+                  <ChevronDown className="groupstays-chevron pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden />
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="entertainment" className="block text-xs text-slate-600">Entertainment</label>
+                <input id="entertainment" name="entertainment" placeholder="DJ, live band, MC, traditional performers…" className="groupstays-select mt-1 w-full rounded-md px-3 py-2 pr-9 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200" />
+              </div>
+            </div>
+
+            <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="floral-arrangements" className="block text-xs text-slate-600">Floral arrangements</label>
+                <div className="relative mt-1">
+                  <select id="floral-arrangements" name="floralArrangements" className="groupstays-select w-full rounded-md px-3 py-2 pr-9 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200">
+                    <option value="">Select an option</option>
+                    <option value="yes">Yes — include florals</option>
+                    <option value="no">No</option>
+                    <option value="partial">Partial (specify in notes)</option>
+                  </select>
+                  <ChevronDown className="groupstays-chevron pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden />
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="wedding-cake" className="block text-xs text-slate-600">Wedding cake / desserts</label>
+                <div className="relative mt-1">
+                  <select id="wedding-cake" name="weddingCake" className="groupstays-select w-full rounded-md px-3 py-2 pr-9 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200">
+                    <option value="">Select an option</option>
+                    <option value="yes">Yes</option>
+                    <option value="no">No</option>
+                  </select>
+                  <ChevronDown className="groupstays-chevron pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden />
+                </div>
+              </div>
             </div>
           </div>
+          )}
+
+          {/* Honeymoon specific fields */}
+          {selectedEventType === 'honeymoon' && (
+          <div className="mt-4 pt-3 border-t border-slate-100">
+            <div className="flex items-center gap-1.5 mb-3">
+              <div className="w-1 h-4 bg-pink-400 rounded-sm" aria-hidden />
+              <span className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Honeymoon Details</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="honeymoon-experience" className="block text-xs text-slate-600">Experience type</label>
+                <div className="relative mt-1">
+                  <select id="honeymoon-experience" name="honeymoonExperience" className="groupstays-select w-full rounded-md px-3 py-2 pr-9 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 appearance-none">
+                    <option value="">Select experience</option>
+                    <option value="beach-relaxation">Beach &amp; relaxation</option>
+                    <option value="safari-adventure">Safari &amp; adventure</option>
+                    <option value="cultural-exploration">Cultural exploration</option>
+                    <option value="mountain-nature">Mountain &amp; nature</option>
+                    <option value="island-getaway">Island getaway</option>
+                    <option value="mixed">Mixed (combine experiences)</option>
+                  </select>
+                  <ChevronDown className="groupstays-chevron pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden />
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="honeymoon-room" className="block text-xs text-slate-600">Preferred room / suite type</label>
+                <div className="relative mt-1">
+                  <select id="honeymoon-room" name="honeymoonRoomType" className="groupstays-select w-full rounded-md px-3 py-2 pr-9 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 appearance-none">
+                    <option value="">Select room type</option>
+                    <option value="oceanview-suite">Oceanview suite</option>
+                    <option value="safari-tent">Luxury safari tent</option>
+                    <option value="garden-villa">Garden villa</option>
+                    <option value="private-cabin">Private cabin / chalet</option>
+                    <option value="overwater">Overwater bungalow</option>
+                    <option value="any">No preference</option>
+                  </select>
+                  <ChevronDown className="groupstays-chevron pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden />
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="honeymoon-special-touches" className="block text-xs text-slate-600">Special touches</label>
+                <div className="relative mt-1">
+                  <select id="honeymoon-special-touches" name="honeymoonSpecialTouches" className="groupstays-select w-full rounded-md px-3 py-2 pr-9 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 appearance-none">
+                    <option value="">Select an option</option>
+                    <option value="couples-spa">Couples spa package</option>
+                    <option value="private-dinner">Private candlelit dinner</option>
+                    <option value="sunset-cruise">Sunset cruise</option>
+                    <option value="romantic-setup">Romantic room setup</option>
+                    <option value="all">All of the above</option>
+                    <option value="none">None needed</option>
+                  </select>
+                  <ChevronDown className="groupstays-chevron pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden />
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="honeymoon-photography" className="block text-xs text-slate-600">Photography / videography</label>
+                <div className="relative mt-1">
+                  <select id="honeymoon-photography" name="honeymoonPhotography" className="groupstays-select w-full rounded-md px-3 py-2 pr-9 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 appearance-none">
+                    <option value="">Select an option</option>
+                    <option value="photo-only">Photography only</option>
+                    <option value="video-only">Videography only</option>
+                    <option value="both">Both photo &amp; video</option>
+                    <option value="none">Not needed</option>
+                  </select>
+                  <ChevronDown className="groupstays-chevron pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden />
+                </div>
+              </div>
+            </div>
+          </div>
+          )}
         </div>
       )}
 
@@ -2590,7 +2831,12 @@ export default function PlanRequestForm({ selectedRole }: Props) {
         // Role-specific fields based on role
         const roleSpecificKeys: string[] = [];
         if (selectedRole === 'Event planner') {
-          roleSpecificKeys.push('eventType', 'expectedAttendees', 'eventStartDate', 'eventEndDate', 'venuePreferences', 'accommodationNeeded', 'cateringRequired', 'avRequirements', 'budgetPerPerson');
+          roleSpecificKeys.push('eventType', 'venuePreferences', 'accommodationNeeded', 'cateringRequired');
+          if (selectedEventType === 'wedding') {
+            roleSpecificKeys.push('ceremonyStyle', 'decorTheme', 'photographyVideography', 'entertainment', 'floralArrangements', 'weddingCake');
+          } else if (selectedEventType === 'honeymoon') {
+            roleSpecificKeys.push('honeymoonExperience', 'honeymoonRoomType', 'honeymoonSpecialTouches', 'honeymoonPhotography');
+          }
         } else if (selectedRole === 'School / Teacher') {
           roleSpecificKeys.push('studentsCount', 'chaperones', 'ageRange', 'learningObjectives', 'riskAssessment', 'specialNeedsSupport');
         } else if (selectedRole === 'University') {
@@ -2601,12 +2847,39 @@ export default function PlanRequestForm({ selectedRole }: Props) {
           roleSpecificKeys.push('otherDetails');
         }
         
+        // Stale/removed field names — always excluded from review regardless of session data
+        const STALE_KEYS = new Set([
+          // removed/legacy fields
+          'avRequirements', 'budgetPerPerson', 'expectedAttendees',
+          'eventStartDate', 'eventEndDate',
+          // all event-planner sub-fields — always blocked from otherKeys;
+          // they only appear inside the dedicated Event planner card above
+          'eventType', 'venuePreferences', 'accommodationNeeded', 'cateringRequired',
+          'ceremonyStyle', 'decorTheme', 'photographyVideography', 'entertainment',
+          'floralArrangements', 'weddingCake',
+          'honeymoonExperience', 'honeymoonRoomType', 'honeymoonSpecialTouches', 'honeymoonPhotography',
+        ]);
+
+        const hasValue = (k: string) => {
+          const v = String(currentReviewData[k] ?? '').trim();
+          return v !== '' && v !== '-';
+        };
+
         // Filter keys by category and get remaining keys
         const tripKeys = orderedKeys.filter(k => tripDetails.includes(k));
         const contactKeys = orderedKeys.filter(k => contactDetails.includes(k));
         const transportKeys = orderedKeys.filter(k => transportDetails.includes(k));
-        const roleKeys = orderedKeys.filter(k => roleSpecificKeys.includes(k));
-        const otherKeys = orderedKeys.filter(k => !tripDetails.includes(k) && !contactDetails.includes(k) && !transportDetails.includes(k) && !roleSpecificKeys.includes(k));
+        // For event planner: only show keys that have actual values (skip empty sub-fields)
+        const roleKeys = selectedRole === 'Event planner'
+          ? roleSpecificKeys.filter(k => orderedKeys.includes(k) && hasValue(k))
+          : orderedKeys.filter(k => roleSpecificKeys.includes(k));
+        const otherKeys = orderedKeys.filter(k =>
+          !tripDetails.includes(k) &&
+          !contactDetails.includes(k) &&
+          !transportDetails.includes(k) &&
+          !roleSpecificKeys.includes(k) &&
+          !STALE_KEYS.has(k)
+        );
         
         return (
           <section aria-labelledby="review-heading" className="space-y-5">
@@ -2674,56 +2947,238 @@ export default function PlanRequestForm({ selectedRole }: Props) {
               <div className="space-y-3">
 
                 {/* Trip Details */}
-                {tripKeys.length > 0 && (
-                  <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-                    <div className={"flex items-center justify-between gap-3 px-5 py-3 border-b border-slate-100 " + tripReviewAccent.reviewSectionFrom}>
-                      <div className="flex items-center gap-2">
-                        <div className={"w-1 h-4 rounded-full " + tripReviewAccent.reviewSectionBar.replace("before:bg-", "bg-").split(" ").find((c: string) => c.startsWith("before:bg-"))?.replace("before:", "") || "bg-emerald-500"} aria-hidden />
-                        <span className="text-sm font-semibold text-slate-900">Trip Details</span>
-                      </div>
-                      <button type="button" onClick={() => goToStep(1)} className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-emerald-700 transition">
-                        Edit <ArrowRight className="w-3.5 h-3.5" aria-hidden />
-                      </button>
-                    </div>
-                    <div className="divide-y divide-slate-50">
-                      {tripKeys.map((k) => (
-                        <div key={k} className="flex items-start gap-4 px-5 py-3">
-                          <div className={"w-28 shrink-0 text-[11px] font-semibold uppercase tracking-wide pt-0.5 " + (k === 'destinations' || k === 'tripType' ? tripReviewAccent.reviewLabel : 'text-slate-400')}>
-                            {formatLabel(k)}
+                {tripKeys.length > 0 && (() => {
+                  const fmtDate = (iso: string | undefined) => {
+                    if (!iso) return null;
+                    try {
+                      const d = new Date(`${iso}T00:00:00`);
+                      if (Number.isNaN(d.getTime())) return iso;
+                      return new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).format(d);
+                    } catch { return iso; }
+                  };
+
+                  const destRaw = currentReviewData.destinations;
+                  const destStops = parseSerializedRouteStopsForReview(destRaw);
+                  const dateFrom  = fmtDate(currentReviewData.dateFrom);
+                  const dateTo    = fmtDate(currentReviewData.dateTo);
+                  const groupSize = formatValue(currentReviewData.groupSize || currentReviewData.passengerCount);
+                  const budget    = formatValue(currentReviewData.budget);
+                  const role      = formatValue(currentReviewData.role);
+                  const tripType  = formatValue(currentReviewData.tripType);
+                  const notes     = String(currentReviewData.notes ?? '').trim();
+
+                  return (
+                    <div className="rounded-2xl overflow-hidden shadow-md border border-slate-200">
+
+                      {/* Gradient header — destinations */}
+                      <div className={`px-5 py-4 bg-gradient-to-r ${tripReviewAccent.reviewSectionFrom || 'from-emerald-700 to-teal-600'} flex items-start justify-between gap-3`}>
+                        <div>
+                          <div className="flex items-center gap-2 mb-2">
+                            <MapPin className="w-3.5 h-3.5 text-white/70 shrink-0" aria-hidden />
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-white/60">Destination{destStops.length > 1 ? 's' : ''}</span>
                           </div>
-                          <div className="flex-1 min-w-0">
-                            {k === 'destinations' ? (
-                              (() => {
-                                const raw = currentReviewData[k];
-                                const stops = parseSerializedRouteStopsForReview(raw);
-                                if (stops.length > 0) {
-                                  return (
-                                    <div className="flex flex-wrap gap-2">
-                                      {stops.map((s, index) => (
-                                        <span key={`${s.idx || index}_${s.place}`} className={"inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold " + tripReviewAccent.destinationPill}>
-                                          <span className="font-bold">{s.idx || index + 1}.</span>
-                                          {s.place}
-                                          {typeof s.nights === 'number' && <span className="opacity-70"> {s.nights}n</span>}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  );
-                                }
-                                const formatted = formatValue(raw);
-                                return <div className="text-sm text-slate-900 break-words">{formatted}</div>;
-                              })()
-                            ) : (
-                              <div className="text-sm text-slate-900 break-words">{formatValue(currentReviewData[k])}</div>
-                            )}
-                          </div>
+                          {destStops.length > 0 ? (
+                            <div className="flex flex-wrap gap-1.5">
+                              {destStops.map((s, i) => (
+                                <span key={`${s.idx ?? i}_${s.place}`} className="inline-flex items-center gap-1 rounded-full bg-white/15 border border-white/25 pl-2 pr-3 py-1 text-xs font-bold text-white">
+                                  <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white/25 text-[10px] font-black">{s.idx || i + 1}</span>
+                                  {s.place}
+                                  {typeof s.nights === 'number' && <span className="ml-1 text-white/60 font-normal">{s.nights}n</span>}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-sm font-semibold text-white">{formatValue(destRaw)}</span>
+                          )}
                         </div>
-                      ))}
+                        <button type="button" onClick={() => goToStep(1)} className="shrink-0 inline-flex items-center gap-1 text-[11px] font-semibold text-white/70 hover:text-white transition mt-0.5">
+                          Edit <ArrowRight className="w-3 h-3" />
+                        </button>
+                      </div>
+
+                      {/* Info grid */}
+                      <div className="bg-white px-5 pt-4 pb-5">
+                        <div className="grid grid-cols-1 min-[400px]:grid-cols-2 sm:grid-cols-4 gap-3">
+
+                          {/* Role */}
+                          {role && role !== '-' && (
+                            <div className="rounded-xl bg-teal-50 border border-teal-100 px-3.5 py-2.5 flex flex-col gap-1">
+                              <span className="text-[10px] font-bold uppercase tracking-widest text-teal-500">Role</span>
+                              <span className="text-sm font-bold text-teal-900 leading-snug">{role}</span>
+                            </div>
+                          )}
+
+                          {/* Trip type */}
+                          {tripType && tripType !== '-' && (
+                            <div className="rounded-xl bg-violet-50 border border-violet-100 px-3.5 py-2.5 flex flex-col gap-1">
+                              <span className="text-[10px] font-bold uppercase tracking-widest text-violet-500">Trip type</span>
+                              <span className="text-sm font-bold text-violet-900 leading-snug">{tripType}</span>
+                            </div>
+                          )}
+
+                          {/* Dates — span 2 cols if both present */}
+                          {(dateFrom || dateTo) && (
+                            <div className="col-span-1 min-[400px]:col-span-2 rounded-xl bg-slate-50 border border-slate-100 px-3.5 py-2.5 flex flex-col gap-1.5">
+                              <div className="flex items-center gap-1">
+                                <Calendar className="w-3 h-3 text-slate-400" aria-hidden />
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Dates</span>
+                              </div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {dateFrom && (
+                                  <span className="inline-flex items-center rounded-lg bg-white border border-slate-200 shadow-sm px-2.5 py-1 text-xs font-semibold text-slate-800">{dateFrom}</span>
+                                )}
+                                {dateFrom && dateTo && (
+                                  <span className="text-slate-300 text-sm">→</span>
+                                )}
+                                {dateTo && (
+                                  <span className="inline-flex items-center rounded-lg bg-white border border-slate-200 shadow-sm px-2.5 py-1 text-xs font-semibold text-slate-800">{dateTo}</span>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Group size */}
+                          {groupSize && groupSize !== '-' && (
+                            <div className="rounded-xl bg-amber-50 border border-amber-100 px-3.5 py-2.5 flex flex-col gap-1">
+                              <div className="flex items-center gap-1">
+                                <Users className="w-3 h-3 text-amber-400" aria-hidden />
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-amber-500">Group size</span>
+                              </div>
+                              <div className="flex items-baseline gap-1">
+                                <span className="text-xl font-black text-amber-900 leading-none tracking-tight">{groupSize}</span>
+                                <span className="text-xs text-amber-600 font-medium">guests</span>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Budget */}
+                          {budget && budget !== '-' && (() => {
+                            // Parse: "TZS 400000 per person (total: TZS 4,800,000)"
+                            const perMatch  = budget.match(/^([A-Z]+)?\s*([\d,]+(?:\.\d+)?)\s*per person/i);
+                            const totMatch  = budget.match(/total:\s*([A-Z]+)?\s*([\d,]+(?:\.\d+)?)/i);
+                            const currency  = (perMatch?.[1] || totMatch?.[1] || '').trim();
+                            const perRaw    = perMatch?.[2] ?? '';
+                            const totRaw    = totMatch?.[2] ?? '';
+                            const perNum    = perRaw ? Number(perRaw.replace(/,/g, '')) : null;
+                            const perFmt    = perNum !== null && !Number.isNaN(perNum)
+                              ? perNum.toLocaleString()
+                              : perRaw;
+                            const hasBoth   = perFmt && totRaw;
+
+                            return hasBoth ? (
+                              <div className="col-span-1 min-[400px]:col-span-2 sm:col-span-4">
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block mb-2">Budget</span>
+                                <div className="flex flex-col sm:flex-row items-stretch gap-3">
+                                  {/* Per person */}
+                                  <div className="flex-1 rounded-xl bg-emerald-50 border border-emerald-100 px-4 py-3 flex flex-col gap-0.5">
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-500">Per person</span>
+                                    <div className="flex items-baseline gap-1.5 mt-0.5">
+                                      {currency && <span className="text-xs font-bold text-emerald-600">{currency}</span>}
+                                      <span className="text-lg font-black text-emerald-900 tracking-tight leading-none">{perFmt}</span>
+                                    </div>
+                                  </div>
+                                  {/* Total */}
+                                  <div className="flex-1 rounded-xl bg-slate-900 border border-slate-800 px-4 py-3 flex flex-col gap-0.5">
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Total</span>
+                                    <div className="flex items-baseline gap-1.5 mt-0.5">
+                                      {currency && <span className="text-xs font-bold text-slate-300">{currency}</span>}
+                                      <span className="text-lg font-black text-white tracking-tight leading-none">{totRaw}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="col-span-2 sm:col-span-3 flex flex-col gap-0.5">
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Budget</span>
+                                <span className="text-sm font-semibold text-slate-900 leading-snug">{budget}</span>
+                              </div>
+                            );
+                          })()}
+
+                        </div>
+
+                        {/* Notes — only if filled */}
+                        {notes && notes !== '-' && (
+                          <div className="mt-4 rounded-xl bg-slate-50 border border-slate-100 px-4 py-3">
+                            <div className="flex items-center gap-1.5 mb-1">
+                              <FileText className="w-3 h-3 text-slate-400" aria-hidden />
+                              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Notes</span>
+                            </div>
+                            <p className="text-sm text-slate-700 leading-relaxed">{notes}</p>
+                          </div>
+                        )}
+                      </div>
+
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {/* Role-Specific Details */}
                 {roleKeys.length > 0 && (
+                  selectedRole === 'Event planner' ? (() => {
+                    const evtRaw = selectedEventType || (currentReviewData.eventType as string);
+                    const evtLabel = reviewValueMap[evtRaw] ?? evtRaw;
+                    const isHoneymoon = evtRaw === 'honeymoon';
+                    const isWedding = evtRaw === 'wedding';
+                    const headerGrad = isHoneymoon
+                      ? 'bg-gradient-to-r from-teal-700 to-cyan-500'
+                      : isWedding
+                        ? 'bg-gradient-to-r from-rose-700 to-pink-400'
+                        : 'bg-gradient-to-r from-violet-700 to-indigo-500';
+                    const accentLabel = isHoneymoon ? 'text-cyan-200' : isWedding ? 'text-pink-200' : 'text-indigo-200';
+                    const pillBg = isHoneymoon ? 'bg-teal-50 text-teal-800 border-teal-200' : isWedding ? 'bg-rose-50 text-rose-800 border-rose-200' : 'bg-violet-50 text-violet-800 border-violet-200';
+                    const subBg = isHoneymoon ? 'from-teal-50/40' : isWedding ? 'from-rose-50/40' : 'from-violet-50/30';
+                    const dividerColor = isHoneymoon ? 'divide-teal-50' : isWedding ? 'divide-rose-50' : 'divide-violet-50';
+                    return (
+                      <div className="rounded-2xl overflow-hidden shadow-md border border-slate-200">
+                        {/* Premium header */}
+                        <div className={`flex items-center justify-between gap-3 px-5 py-4 ${headerGrad}`}>
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/15 border border-white/20 text-base">
+                              {isHoneymoon ? '💍' : isWedding ? '💐' : '🗓️'}
+                            </div>
+                            <div>
+                              <div className="text-sm font-bold text-white tracking-tight">Event Planner Details</div>
+                              {evtRaw && (
+                                <div className="mt-1 flex items-center gap-1.5">
+                                  <span className={`text-[10px] font-semibold uppercase tracking-wider ${accentLabel}`}>Event</span>
+                                  <span className="inline-flex rounded-full bg-white/20 border border-white/25 px-2.5 py-0.5 text-[11px] font-bold text-white">{evtLabel}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <button type="button" onClick={() => goToStep(2)} className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-white/70 hover:text-white transition">
+                            Edit <ArrowRight className="w-3 h-3" aria-hidden />
+                          </button>
+                        </div>
+                        {/* Fields — 3-column grid */}
+                        <div className={`bg-gradient-to-b ${subBg} to-white px-5 py-4`}>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-5">
+                            {roleKeys.filter(k => k !== 'eventType').map((k) => {
+                              const raw = currentReviewData[k] as string | undefined;
+                              const display = resolveDisplayValue(raw);
+                              const isVenue = k === 'venuePreferences';
+                              return (
+                                <div key={k} className="flex flex-col gap-1">
+                                  <div className={`text-[10px] font-bold uppercase tracking-widest ${accentLabel}`}>
+                                    {formatLabel(k)}
+                                  </div>
+                                  {isVenue ? (
+                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 w-fit">
+                                      <MapPin className="w-3 h-3 text-slate-400 shrink-0" aria-hidden />
+                                      {display}
+                                    </span>
+                                  ) : (
+                                    <div className="text-sm font-semibold text-slate-900 leading-snug">{display}</div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })() : (
                   <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
                     <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-slate-100 bg-violet-50/50">
                       <div className="flex items-center gap-2">
@@ -2758,53 +3213,140 @@ export default function PlanRequestForm({ selectedRole }: Props) {
                       ))}
                     </div>
                   </div>
+                  )
                 )}
 
                 {/* Contact Information */}
-                {contactKeys.length > 0 && (
-                  <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-                    <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-slate-100 bg-sky-50/50">
-                      <div className="flex items-center gap-2">
-                        <div className="w-1 h-4 rounded-full bg-sky-500" aria-hidden />
-                        <span className="text-sm font-semibold text-slate-900">Contact Information</span>
-                      </div>
-                      <button type="button" onClick={() => goToStep(3)} className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-sky-700 transition">
-                        Edit <ArrowRight className="w-3.5 h-3.5" aria-hidden />
-                      </button>
-                    </div>
-                    <div className="divide-y divide-slate-50">
-                      {contactKeys.map((k) => (
-                        <div key={k} className="flex items-start gap-4 px-5 py-3">
-                          <div className="w-28 shrink-0 text-[11px] font-semibold uppercase tracking-wide text-slate-400 pt-0.5">{formatLabel(k)}</div>
-                          <div className="text-sm text-slate-900 break-words flex-1">{formatValue(currentReviewData[k])}</div>
+                {contactKeys.length > 0 && (() => {
+                  const name  = String(currentReviewData.fullName ?? '').trim();
+                  const email = String(currentReviewData.email    ?? '').trim();
+                  const phone = String(currentReviewData.phone    ?? '').trim();
+                  const initials = name ? name.split(' ').filter(Boolean).map(p => p[0]).slice(0, 2).join('').toUpperCase() : '?';
+                  return (
+                    <div className="rounded-2xl overflow-hidden shadow-md border border-slate-200">
+                      {/* Gradient header */}
+                      <div className="bg-gradient-to-r from-sky-700 to-cyan-600 px-5 py-4 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-white/20 border-2 border-white/40 flex items-center justify-center shrink-0">
+                            <span className="text-sm font-black text-white tracking-tight">{initials}</span>
+                          </div>
+                          <div>
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-white/60 mb-0.5">Contact</div>
+                            <div className="text-base font-black text-white leading-none">{name || 'Contact Information'}</div>
+                          </div>
                         </div>
-                      ))}
+                        <button type="button" onClick={() => goToStep(3)} className="shrink-0 inline-flex items-center gap-1 text-[11px] font-semibold text-white/70 hover:text-white transition">
+                          Edit <ArrowRight className="w-3 h-3" />
+                        </button>
+                      </div>
+                      {/* Tiles */}
+                      <div className="bg-white px-5 pt-4 pb-5 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        {name && (
+                          <div className="rounded-xl bg-sky-50 border border-sky-100 px-4 py-3 flex flex-col gap-1">
+                            <div className="flex items-center gap-1.5">
+                              <User className="w-3 h-3 text-sky-400" aria-hidden />
+                              <span className="text-[10px] font-bold uppercase tracking-widest text-sky-500">Name</span>
+                            </div>
+                            <span className="text-sm font-bold text-sky-900 leading-snug break-words">{name}</span>
+                          </div>
+                        )}
+                        {email && (
+                          <div className="rounded-xl bg-indigo-50 border border-indigo-100 px-4 py-3 flex flex-col gap-1">
+                            <div className="flex items-center gap-1.5">
+                              <Mail className="w-3 h-3 text-indigo-400" aria-hidden />
+                              <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-500">Email</span>
+                            </div>
+                            <span className="text-sm font-bold text-indigo-900 leading-snug break-all">{email}</span>
+                          </div>
+                        )}
+                        {phone && (
+                          <div className="rounded-xl bg-emerald-50 border border-emerald-100 px-4 py-3 flex flex-col gap-1">
+                            <div className="flex items-center gap-1.5">
+                              <Phone className="w-3 h-3 text-emerald-400" aria-hidden />
+                              <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-500">Phone</span>
+                            </div>
+                            <span className="text-sm font-bold text-emerald-900 leading-snug tracking-wide">{phone}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
 
-                {/* Transport Details */}
-                {transportKeys.length > 0 && (
-                  <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-                    <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-slate-100 bg-amber-50/50">
-                      <div className="flex items-center gap-2">
-                        <div className="w-1 h-4 rounded-full bg-amber-400" aria-hidden />
-                        <span className="text-sm font-semibold text-slate-900">Transport & Vehicle</span>
-                      </div>
-                      <button type="button" onClick={() => goToStep(3)} className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-amber-700 transition">
-                        Edit <ArrowRight className="w-3.5 h-3.5" aria-hidden />
-                      </button>
-                    </div>
-                    <div className="divide-y divide-slate-50">
-                      {transportKeys.map((k) => (
-                        <div key={k} className="flex items-start gap-4 px-5 py-3">
-                          <div className="w-28 shrink-0 text-[11px] font-semibold uppercase tracking-wide text-slate-400 pt-0.5">{formatLabel(k)}</div>
-                          <div className="text-sm text-slate-900 break-words flex-1">{formatValue(currentReviewData[k])}</div>
+                {/* Transport Details — hidden when user selected No */}
+                {transportKeys.length > 0 && String(currentReviewData.transportRequired || '').toLowerCase() !== 'no' && (() => {
+                  const vehicleType   = resolveDisplayValue(currentReviewData.vehicleType as string);
+                  const pickup        = String(currentReviewData.pickupLocation  ?? '').trim();
+                  const dropoff       = String(currentReviewData.dropoffLocation ?? '').trim();
+                  const count         = String(currentReviewData.vehiclesNeeded  ?? '').trim();
+                  const requirements  = String(currentReviewData.vehicleRequirements ?? '').trim();
+                  const hasRoute      = pickup || dropoff;
+                  return (
+                    <div className="rounded-2xl overflow-hidden shadow-md border border-slate-200">
+                      {/* Gradient header */}
+                      <div className="bg-gradient-to-r from-amber-600 to-orange-400 px-5 py-4 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/20 border border-white/30">
+                            <Car className="w-4.5 h-4.5 text-white" aria-hidden />
+                          </div>
+                          <div>
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-white/60 mb-0.5">Transport</div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-base font-black text-white leading-none">Transport & Vehicle</span>
+                              {vehicleType && vehicleType !== '-' && (
+                                <span className="inline-flex items-center rounded-full bg-white/20 border border-white/30 px-2.5 py-0.5 text-[11px] font-bold text-white">{vehicleType}</span>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                      ))}
+                        <button type="button" onClick={() => goToStep(3)} className="shrink-0 inline-flex items-center gap-1 text-[11px] font-semibold text-white/70 hover:text-white transition">
+                          Edit <ArrowRight className="w-3 h-3" />
+                        </button>
+                      </div>
+                      {/* Body */}
+                      <div className="bg-white px-5 pt-4 pb-5 flex flex-col gap-4">
+                        {/* Route row */}
+                        {hasRoute && (
+                          <div className="rounded-xl bg-amber-50 border border-amber-100 px-4 py-3">
+                            <div className="flex items-center gap-1 mb-2">
+                              <MapPin className="w-3 h-3 text-amber-400" aria-hidden />
+                              <span className="text-[10px] font-bold uppercase tracking-widest text-amber-500">Route</span>
+                            </div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {pickup && (
+                                <span className="inline-flex items-center rounded-lg bg-white border border-amber-200 shadow-sm px-3 py-1.5 text-xs font-semibold text-amber-900">{pickup}</span>
+                              )}
+                              {pickup && dropoff && (
+                                <span className="text-amber-300 text-sm font-bold">→</span>
+                              )}
+                              {dropoff && (
+                                <span className="inline-flex items-center rounded-lg bg-white border border-amber-200 shadow-sm px-3 py-1.5 text-xs font-semibold text-amber-900">{dropoff}</span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        {/* Tiles */}
+                        <div className="grid grid-cols-1 min-[400px]:grid-cols-2 gap-3">
+                          {count && (
+                            <div className="rounded-xl bg-orange-50 border border-orange-100 px-4 py-3 flex flex-col gap-1">
+                              <span className="text-[10px] font-bold uppercase tracking-widest text-orange-500">Vehicles needed</span>
+                              <div className="flex items-baseline gap-1">
+                                <span className="text-xl font-black text-orange-900 leading-none tracking-tight">{count}</span>
+                                <span className="text-xs text-orange-600 font-medium">{Number(count) === 1 ? 'vehicle' : 'vehicles'}</span>
+                              </div>
+                            </div>
+                          )}
+                          {requirements && requirements !== '-' && (
+                            <div className="rounded-xl bg-slate-50 border border-slate-100 px-4 py-3 flex flex-col gap-1">
+                              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Requirements</span>
+                              <span className="text-sm font-bold text-slate-800 leading-snug">{requirements}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {/* Additional / Other */}
                 {otherKeys.length > 0 && (

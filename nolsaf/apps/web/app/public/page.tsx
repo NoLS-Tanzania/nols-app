@@ -240,8 +240,8 @@ export default function Page() {
   const heroPointerRafRef = useRef<number | null>(null);
   const heroPointerPendingRef = useRef<{ x: number; y: number } | null>(null);
   const heroPressTimerRef = useRef<number | null>(null);
-  const [heroPointerActive, setHeroPointerActive] = useState(false);
-  const [heroPressed, setHeroPressed] = useState(false);
+  const [_heroPointerActive, setHeroPointerActive] = useState(false);
+  const [_heroPressed, setHeroPressed] = useState(false);
 
   const queueHeroPointer = useCallback((clientX: number, clientY: number) => {
     heroPointerPendingRef.current = { x: clientX, y: clientY };
@@ -824,151 +824,206 @@ export default function Page() {
       <LayoutFrame heightVariant="sm" topVariant="sm" colorVariant="muted" variant="solid" />
       {/* Hero surround frame (tinted border on ALL sides) */}
       <div className="public-container">
-        <div className="relative overflow-hidden rounded-[40px] sm:rounded-[56px] p-3 sm:p-4 lg:p-5 shadow-[0_32px_80px_rgba(2,102,94,0.40)]" style={{ background: 'linear-gradient(135deg,#012e29 0%,#01241f 50%,#013530 100%)' }}>
-          {/* Soft ambient tint — a deep teal glow, no white wash */}
-          <div className="pointer-events-none absolute inset-0 rounded-[40px] sm:rounded-[56px]" style={{ background: 'radial-gradient(circle at 50% 40%,rgba(2,102,94,0.35),transparent 65%)' }} aria-hidden />
+        <div className="relative overflow-hidden rounded-[44px] sm:rounded-[60px] p-3 sm:p-4 lg:p-5"
+          style={{
+            background: "linear-gradient(145deg,#080e28 0%,#0a2235 45%,#012018 100%)",
+            boxShadow: "0 40px 100px rgba(2,102,94,0.38),0 12px 32px rgba(8,30,80,0.55)",
+          }}>
+          {/* Outer ambient — dual teal+navy glow on the surround */}
+          <div className="pointer-events-none absolute inset-0 rounded-[44px] sm:rounded-[60px]" style={{ background: "radial-gradient(ellipse 80% 55% at 60% 45%,rgba(2,102,94,0.30),transparent 70%)" }} aria-hidden />
+          <div className="pointer-events-none absolute inset-0 rounded-[44px] sm:rounded-[60px]" style={{ background: "radial-gradient(ellipse 60% 40% at 25% 60%,rgba(8,50,120,0.22),transparent 65%)" }} aria-hidden />
 
-          {/* Inner hero border (thin premium gradient line) */}
-          <div className="relative rounded-[32px] sm:rounded-[44px] p-[1px] shadow-[0_30px_80px_rgba(0,0,0,0.50)]" style={{ background: 'linear-gradient(135deg,rgba(255,255,255,0.22) 0%,rgba(2,180,245,0.30) 50%,rgba(2,102,94,0.50) 100%)' }}>
-            <div className="pointer-events-none absolute inset-0 rounded-[32px] sm:rounded-[44px] bg-gradient-to-b from-white/12 via-white/5 to-transparent" aria-hidden />
+          {/* Inner 1px border — teal-to-blue premium line */}
+          <div className="relative rounded-[36px] sm:rounded-[52px] p-[1.5px]"
+            style={{ background: "linear-gradient(135deg,rgba(255,255,255,0.28) 0%,rgba(2,180,245,0.40) 40%,rgba(2,102,94,0.60) 75%,rgba(255,196,0,0.18) 100%)", boxShadow: "0 28px 72px rgba(0,0,0,0.55)" }}>
+            <div className="pointer-events-none absolute inset-0 rounded-[36px] sm:rounded-[52px] bg-gradient-to-b from-white/10 via-white/4 to-transparent" aria-hidden />
 
             <section
               id="public-hero"
-              className="relative overflow-hidden text-white rounded-[calc(32px-1px)] sm:rounded-[calc(44px-1px)]" style={{ background: '#011a16' }}
+              className="relative overflow-hidden text-white rounded-[calc(36px-1.5px)] sm:rounded-[calc(52px-1.5px)]"
+              style={{ background: "#050d20" }}
               ref={heroRef as any}
               onPointerEnter={() => setHeroPointerActive(true)}
-              onPointerLeave={() => {
-                setHeroPointerActive(false);
-                setHeroPressed(false);
-              }}
-              onPointerMove={(e) => {
-                if (prefersReducedMotion) return;
-                queueHeroPointer(e.clientX, e.clientY);
-              }}
+              onPointerLeave={() => { setHeroPointerActive(false); setHeroPressed(false); }}
+              onPointerMove={(e) => { if (prefersReducedMotion) return; queueHeroPointer(e.clientX, e.clientY); }}
               onPointerDown={(e) => {
-                setHeroPointerActive(true);
-                queueHeroPointer(e.clientX, e.clientY);
-                setHeroPressed(true);
+                setHeroPointerActive(true); queueHeroPointer(e.clientX, e.clientY); setHeroPressed(true);
                 if (heroPressTimerRef.current != null) window.clearTimeout(heroPressTimerRef.current);
                 heroPressTimerRef.current = window.setTimeout(() => setHeroPressed(false), 220);
               }}
               onPointerUp={() => setHeroPressed(false)}
             >
-          {/* Inner ring highlight (subtle premium frame) */}
-          <div className="pointer-events-none absolute inset-0 rounded-[calc(32px-1px)] sm:rounded-[calc(44px-1px)] ring-1 ring-white/14" aria-hidden />
-          <div className="pointer-events-none absolute inset-0 rounded-[calc(32px-1px)] sm:rounded-[calc(44px-1px)] ring-1 ring-[#02b4f5]/10 [mask-image:radial-gradient(1200px_600px_at_85%_50%,#000_35%,transparent_70%)]" aria-hidden />
-        {/* Full-bleed hero background */}
+          {/* Inner ring highlight */}
+          <div className="pointer-events-none absolute inset-0 rounded-[calc(36px-1.5px)] sm:rounded-[calc(52px-1.5px)] ring-1 ring-white/12" aria-hidden />
+        {/* ══════════════════════════════════════════════
+             FULL-BLEED HERO BACKGROUND
+        ══════════════════════════════════════════════ */}
         <div className="absolute inset-0" aria-hidden>
-          {/* Solid teal floor — ensures no white/grey ever shows through */}
-          <div className="absolute inset-0" style={{ background: 'linear-gradient(150deg,#01291f 0%,#01362a 40%,#013530 70%,#012520 100%)' }} />
 
+          {/* Layer 0 — base deep-space floor */}
+          <div className="absolute inset-0" style={{ background: "linear-gradient(155deg,#040c24 0%,#071828 40%,#041c14 72%,#020e0a 100%)" }} />
+
+          {/* Layer 1 — HeroRings (keeps brand rings) */}
           <HeroRingsBackground mode={heroMode} variant="full" className="absolute inset-0" />
 
-          {/* Brand teal tint — colours the rings with #02665e presence */}
-          <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg,rgba(2,102,94,0.62) 0%,rgba(1,54,48,0.45) 45%,rgba(2,102,94,0.25) 100%)' }} />
+          {/* Layer 2 — rich teal+navy dual wash */}
+          <div className="absolute inset-0" style={{ background: "linear-gradient(130deg,rgba(2,102,94,0.48) 0%,rgba(5,40,90,0.38) 48%,rgba(8,20,60,0.30) 100%)" }} />
 
-          {/* Strong dark washes so rings sit on a deep teal base */}
-          <div className="absolute inset-0" style={{ background: 'linear-gradient(to right,rgba(1,12,10,0.88) 0%,rgba(1,12,10,0.56) 50%,rgba(1,12,10,0.22) 100%)' }} />
-          <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom,rgba(1,12,10,0.55) 0%,rgba(1,12,10,0.08) 45%,rgba(1,12,10,0.82) 100%)' }} />
+          {/* Layer 3 — left dark vignette so text pops */}
+          <div className="absolute inset-0" style={{ background: "linear-gradient(to right,rgba(2,6,18,0.80) 0%,rgba(2,6,18,0.36) 48%,transparent 100%)" }} />
+          <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom,rgba(2,6,18,0.44) 0%,transparent 38%,rgba(2,6,18,0.70) 100%)" }} />
 
-          {/* Brand teal glow — replaces the white radial */}
-          <div className="absolute inset-0" style={{ background: 'radial-gradient(900px circle at 50% 38%,rgba(2,102,94,0.28),transparent 65%)' }} />
+          {/* Layer 4 — luxury warm-gold glow (top-right) — signals "quality" */}
+          <div className="pointer-events-none absolute" style={{ top: "-10%", right: "-8%", width: 640, height: 580, borderRadius: "50%", background: "radial-gradient(ellipse at center,rgba(251,191,36,0.10) 0%,rgba(245,158,11,0.06) 35%,transparent 65%)", filter: "blur(48px)" }} />
 
-          {/* Cursor / touch spotlight */}
-          <div
-            className={[
-              "pointer-events-none absolute inset-0 transition-opacity duration-500 ease-out motion-reduce:transition-none",
-              "bg-[radial-gradient(700px_circle_at_var(--hero-x,50%)_var(--hero-y,40%),rgba(56,189,248,0.20),transparent_55%),radial-gradient(500px_circle_at_var(--hero-x,50%)_var(--hero-y,40%),rgba(16,185,129,0.14),transparent_60%)]",
-              heroPointerActive ? (heroPressed ? "opacity-100" : "opacity-75") : "opacity-0",
-              heroPressed ? "saturate-150" : "saturate-125",
-            ].join(" ")}
-            aria-hidden
-          />
+          {/* Layer 5 — teal depth glow (bottom-left) — signals "accessible" */}
+          <div className="pointer-events-none absolute" style={{ bottom: "-8%", left: "-4%", width: 580, height: 500, borderRadius: "50%", background: "radial-gradient(ellipse at center,rgba(2,102,94,0.32) 0%,rgba(4,60,80,0.14) 45%,transparent 68%)", filter: "blur(56px)" }} />
 
-          {/* ── PREMIUM ① Slow-breathing aurora blobs ── */}
-          {!prefersReducedMotion && (
-            <>
-              <motion.div
-                className="pointer-events-none absolute"
-                style={{ top: "12%", left: "58%", width: 680, height: 520, borderRadius: "50%",
-                  background: "radial-gradient(ellipse at center, rgba(56,189,248,0.22), rgba(16,185,129,0.10) 45%, transparent 72%)",
-                  filter: "blur(48px)", transformOrigin: "center center" }}
-                animate={{ scale: [1, 1.12, 1], opacity: [0.7, 1, 0.7] }}
-                transition={{ duration: 9, ease: "easeInOut", repeat: Infinity, repeatType: "mirror" }}
-                aria-hidden
-              />
-              <motion.div
-                className="pointer-events-none absolute"
-                style={{ bottom: "8%", right: "4%", width: 440, height: 360, borderRadius: "50%",
-                  background: "radial-gradient(ellipse at center, rgba(16,185,129,0.18), rgba(56,189,248,0.08) 50%, transparent 74%)",
-                  filter: "blur(56px)", transformOrigin: "center center" }}
-                animate={{ scale: [1, 1.10, 1], opacity: [0.55, 0.90, 0.55] }}
-                transition={{ duration: 11, ease: "easeInOut", repeat: Infinity, repeatType: "mirror", delay: 3.5 }}
-                aria-hidden
-              />
-            </>
-          )}
+          {/* Layer 6 — soft blue-teal centre bloom */}
+          <div className="pointer-events-none absolute inset-0" style={{ background: "radial-gradient(ellipse 70% 50% at 52% 42%,rgba(2,102,94,0.14),rgba(14,60,140,0.10) 50%,transparent 70%)" }} />
 
-          {/* ── PREMIUM ② Constellation dot-network (lower-right zone) ── */}
-          <div className="pointer-events-none absolute inset-0 opacity-60" aria-hidden>
-            <svg className="absolute inset-0 h-full w-full" viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid slice">
+          {/* ════════════════════════════════════════════
+               ARCHITECTURAL LUXURY VISUALIZATION
+               Inspired by: hotel atrium floor plans,
+               premium property blueprints, and skyline
+               silhouettes — all teal+gold palette
+          ════════════════════════════════════════════ */}
+          <div className="pointer-events-none absolute inset-0" aria-hidden>
+            <svg className="absolute inset-0 h-full w-full" viewBox="0 0 1200 680" preserveAspectRatio="xMidYMid slice">
               <defs>
-                <radialGradient id="cst-fade" cx="75%" cy="70%" r="40%">
-                  <stop offset="0%"   stopColor="#ffffff" stopOpacity="1"   />
-                  <stop offset="100%" stopColor="#ffffff" stopOpacity="0"   />
+                {/* Fade mask — strong centre, dissolves at edges */}
+                <radialGradient id="vis-fade" cx="62%" cy="48%" r="52%">
+                  <stop offset="0%"  stopColor="white" stopOpacity="1" />
+                  <stop offset="50%" stopColor="white" stopOpacity="0.55" />
+                  <stop offset="100%" stopColor="white" stopOpacity="0" />
                 </radialGradient>
-                <mask id="cst-mask">
-                  <rect width="1000" height="700" fill="url(#cst-fade)" />
+                <mask id="vis-mask">
+                  <rect width="1200" height="680" fill="url(#vis-fade)" />
                 </mask>
+                {/* Dot grid fill */}
+                <pattern id="arch-dots" x="0" y="0" width="32" height="32" patternUnits="userSpaceOnUse">
+                  <circle cx="16" cy="16" r="1.0" fill="#5eead4" fillOpacity="0.22" />
+                </pattern>
+                {/* Gold tint for luxury accents */}
+                <linearGradient id="gold-line" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%"   stopColor="#fbbf24" stopOpacity="0.70" />
+                  <stop offset="100%" stopColor="#02665e" stopOpacity="0.50" />
+                </linearGradient>
+                <linearGradient id="teal-line" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%"   stopColor="#02665e" stopOpacity="0.60" />
+                  <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.35" />
+                </linearGradient>
+                <linearGradient id="sky-line" x1="0%" y1="0%" x2="100%" y2="98%">
+                  <stop offset="0%"   stopColor="#38bdf8" stopOpacity="0.50" />
+                  <stop offset="100%" stopColor="#02665e" stopOpacity="0.30" />
+                </linearGradient>
               </defs>
-              <g mask="url(#cst-mask)" fill="none">
-                {/* Connecting lines */}
-                <g stroke="#38bdf8" strokeOpacity="0.22" strokeWidth="0.8">
-                  <line x1="570" y1="420" x2="640" y2="380" /><line x1="640" y1="380" x2="720" y2="410" />
-                  <line x1="720" y1="410" x2="790" y2="370" /><line x1="790" y1="370" x2="860" y2="400" />
-                  <line x1="640" y1="380" x2="680" y2="320" /><line x1="680" y1="320" x2="760" y2="300" />
-                  <line x1="760" y1="300" x2="830" y2="340" /><line x1="830" y1="340" x2="900" y2="310" />
-                  <line x1="570" y1="420" x2="590" y2="510" /><line x1="590" y1="510" x2="660" y2="490" />
-                  <line x1="660" y1="490" x2="730" y2="530" /><line x1="730" y1="530" x2="810" y2="500" />
-                  <line x1="810" y1="500" x2="880" y2="540" /><line x1="760" y1="300" x2="800" y2="240" />
-                  <line x1="800" y1="240" x2="870" y2="270" /><line x1="870" y1="270" x2="940" y2="250" />
+
+              <g mask="url(#vis-mask)">
+                {/* ─── Dot grid base ─── */}
+                <rect width="1200" height="680" fill="url(#arch-dots)" />
+
+                {/* ─── Skyline silhouette (right side) ─── */}
+                <g fill="none" stroke="#2dd4bf" strokeOpacity="0.14" strokeWidth="0.8">
+                  {/* Building columns */}
+                  <rect x="720" y="280" width="28" height="280" rx="2" />
+                  <rect x="760" y="220" width="36" height="340" rx="2" />
+                  <rect x="808" y="300" width="24" height="260" rx="2" />
+                  <rect x="844" y="180" width="44" height="380" rx="2" />
+                  <rect x="900" y="250" width="30" height="310" rx="2" />
+                  <rect x="942" y="310" width="22" height="250" rx="2" />
+                  <rect x="976" y="200" width="40" height="360" rx="2" />
+                  <rect x="1028" y="260" width="26" height="300" rx="2" />
+                  <rect x="1066" y="320" width="20" height="240" rx="2" />
+                  <rect x="1098" y="230" width="32" height="330" rx="2" />
+                  {/* Window grid lines on tallest building */}
+                  {[230,260,290,320,350,380,410,440,470,500].map(y => (
+                    <line key={y} x1="846" y1={y} x2="886" y2={y} strokeOpacity="0.09" />
+                  ))}
+                  {[854,866,878].map(x => (
+                    <line key={x} x1={x} y1="182" x2={x} y2="558" strokeOpacity="0.09" />
+                  ))}
                 </g>
-                {/* Dot nodes */}
-                <g fill="#38bdf8" fillOpacity="0.55">
-                  {[
-                    [570,420,2.0],[640,380,2.4],[720,410,1.9],[790,370,2.2],[860,400,1.8],
-                    [680,320,2.0],[760,300,2.5],[830,340,2.0],[900,310,1.7],[940,250,1.6],
-                    [590,510,1.9],[660,490,2.1],[730,530,2.0],[810,500,2.3],[880,540,1.8],
-                    [800,240,1.8],[870,270,2.0],
-                  ].map(([x,y,r],i) => <circle key={i} cx={x} cy={y} r={r} />)}
+
+                {/* ─── Concentric luxury ellipses (atrium / grand hall feel) ─── */}
+                <g fill="none">
+                  <ellipse cx="860" cy="420" rx="280" ry="160" stroke="#02665e" strokeOpacity="0.18" strokeWidth="0.9" />
+                  <ellipse cx="860" cy="420" rx="210" ry="118" stroke="#02665e" strokeOpacity="0.22" strokeWidth="1.0" />
+                  <ellipse cx="860" cy="420" rx="145" ry="80" stroke="#2dd4bf" strokeOpacity="0.28" strokeWidth="1.1" />
+                  <ellipse cx="860" cy="420" rx="85" ry="46" stroke="#2dd4bf" strokeOpacity="0.35" strokeWidth="1.2" />
+                  <ellipse cx="860" cy="420" rx="40" ry="22" stroke="#fbbf24" strokeOpacity="0.30" strokeWidth="1.0" />
                 </g>
-                {/* Accent nodes (brighter, slightly larger) */}
-                <g fill="#10b981" fillOpacity="0.70">
-                  <circle cx="640" cy="380" r="3.4" />
-                  <circle cx="760" cy="300" r="3.2" />
-                  <circle cx="730" cy="530" r="3.0" />
+
+                {/* ─── Floor plan grid (hotel room layout) ─── */}
+                <g stroke="#38bdf8" strokeOpacity="0.10" strokeWidth="0.7" fill="none">
+                  {/* Horizontal corridors */}
+                  <line x1="580" y1="340" x2="1180" y2="340" />
+                  <line x1="580" y1="400" x2="1180" y2="400" />
+                  <line x1="580" y1="460" x2="1180" y2="460" />
+                  <line x1="580" y1="520" x2="1180" y2="520" />
+                  {/* Vertical room dividers */}
+                  {[620,660,700,740,780].map(x => (
+                    <line key={x} x1={x} y1="340" x2={x} y2="520" />
+                  ))}
+                </g>
+
+                {/* ─── Property location routes ─── */}
+                <g fill="none" strokeWidth="1.4" strokeDasharray="8 5">
+                  <path d="M 60 560 Q 220 340 480 200" stroke="url(#teal-line)" />
+                  <path d="M 480 200 Q 620 120 780 170" stroke="url(#sky-line)" />
+                  <path d="M 130 600 Q 340 400 620 320" stroke="url(#teal-line)" strokeDasharray="5 7" strokeWidth="1.1" />
+                  <path d="M 300 580 Q 460 360 700 260" stroke="url(#gold-line)" strokeDasharray="6 6" strokeWidth="1.0" />
+                </g>
+
+                {/* ─── Location nodes ─── */}
+                <g fill="none">
+                  {/* Primary — teal rings */}
+                  <circle cx="480" cy="200" r="11" stroke="#2dd4bf" strokeOpacity="0.50" strokeWidth="1.4" />
+                  <circle cx="480" cy="200" r="22" stroke="#2dd4bf" strokeOpacity="0.20" strokeWidth="0.9" />
+                  <circle cx="780" cy="170" r="9"  stroke="#fbbf24" strokeOpacity="0.44" strokeWidth="1.3" />
+                  <circle cx="780" cy="170" r="19" stroke="#fbbf24" strokeOpacity="0.16" strokeWidth="0.8" />
+                  <circle cx="620" cy="320" r="8"  stroke="#38bdf8" strokeOpacity="0.42" strokeWidth="1.2" />
+                  <circle cx="620" cy="320" r="17" stroke="#38bdf8" strokeOpacity="0.15" strokeWidth="0.7" />
+                  {/* Secondary */}
+                  <circle cx="60"  cy="560" r="6"  stroke="#5eead4" strokeOpacity="0.34" strokeWidth="1.0" />
+                  <circle cx="300" cy="580" r="5"  stroke="#93c5fd" strokeOpacity="0.30" strokeWidth="1.0" />
+                </g>
+
+                {/* ─── Node fill dots ─── */}
+                <g>
+                  <circle cx="480" cy="200" r="4.5" fill="#2dd4bf" fillOpacity="0.92" />
+                  <circle cx="780" cy="170" r="4.0" fill="#fbbf24" fillOpacity="0.85" />
+                  <circle cx="620" cy="320" r="3.5" fill="#38bdf8" fillOpacity="0.82" />
+                  <circle cx="60"  cy="560" r="3.0" fill="#5eead4" fillOpacity="0.70" />
+                  <circle cx="300" cy="580" r="2.5" fill="#93c5fd" fillOpacity="0.65" />
+                  <circle cx="130" cy="600" r="2.5" fill="#5eead4" fillOpacity="0.58" />
+                </g>
+
+                {/* ─── Gold accent star (luxury marker) at primary node ─── */}
+                <g transform="translate(776,166)" fill="#fbbf24" fillOpacity="0.72">
+                  <polygon points="4,0 5,3 8,3 5.5,5 6.5,8 4,6 1.5,8 2.5,5 0,3 3,3" />
                 </g>
               </g>
             </svg>
           </div>
 
-          {/* ── PREMIUM ③ Bottom colour-horizon strip ── */}
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32"
-            style={{ background: "linear-gradient(to top, rgba(16,185,129,0.18) 0%, rgba(56,189,248,0.10) 40%, transparent 100%)" }} />
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-emerald-400/30 to-transparent" />
+          {/* Bottom teal horizon */}
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-48"
+            style={{ background: "linear-gradient(to top,rgba(2,102,94,0.26) 0%,rgba(5,40,90,0.12) 50%,transparent 100%)" }} />
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-teal-400/40 to-transparent" />
 
-          {/* ── PREMIUM ④ Subtle vertical tick-marks on the right edge ── */}
-          <div className="pointer-events-none absolute inset-y-0 right-0 w-px" aria-hidden>
+          {/* Right-edge tick ruler */}
+          <div className="pointer-events-none absolute inset-y-0 right-0" aria-hidden>
             <svg className="h-full w-8" viewBox="0 8 32 684" preserveAspectRatio="none">
               {[80,160,240,320,400,480,560,640].map((y) => (
-                <line key={y} x1="28" y1={y} x2="32" y2={y} stroke="#38bdf8" strokeOpacity="0.28" strokeWidth="1.5" />
+                <line key={y} x1="28" y1={y} x2="32" y2={y} stroke="#2dd4bf" strokeOpacity="0.30" strokeWidth="1.5" />
               ))}
-              <line x1="30" y1="8" x2="30" y2="692" stroke="#38bdf8" strokeOpacity="0.07" strokeWidth="0.8" />
+              <line x1="30" y1="8" x2="30" y2="692" stroke="#2dd4bf" strokeOpacity="0.07" strokeWidth="0.8" />
             </svg>
           </div>
 
-          {/* Subtle top highlight line */}
-          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/22 to-transparent" />
+          {/* Top highlight */}
+          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
         </div>
 
         <div className="relative z-10">
@@ -980,15 +1035,20 @@ export default function Page() {
                   transition={{ duration: 0.6, ease: [0.2, 0.8, 0.2, 1] }}
                   className="max-w-4xl mx-auto text-center"
                 >
-                  <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-extrabold tracking-[-0.04em] leading-[0.90] text-white text-balance drop-shadow-[0_20px_60px_rgba(0,0,0,0.50)]">
+                  <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-[5.8rem] font-black tracking-[-0.045em] leading-[0.86] text-white text-balance">
                     Quality stay
-                    <span className="block text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 via-teal-200 to-white">
+                    <span
+                      className="block text-transparent bg-clip-text"
+                      style={{ backgroundImage: "linear-gradient(98deg,#38bdf8 0%,#0a5c82 28%,#02665e 58%,#2dd4bf 82%,#6ee7b7 100%)" }}
+                    >
                       for every <em className="font-serif not-italic">wallet.</em>
                     </span>
                   </h1>
 
-                  <p className="mx-auto mt-6 max-w-xl text-sm sm:text-base text-white/55 leading-relaxed font-light">
-                    One connected journey for accommodation, transport, and tourism simpler, trusted, unforgettable.
+                  <p className="mx-auto mt-6 max-w-[44ch] text-[15px] text-white/48 leading-[1.75] font-light">
+                    One platform for stays, transport &amp; experiences.
+                    <br />
+                    <span className="text-white/30 text-sm tracking-wide">Simpler · Trusted · Unforgettable</span>
                   </p>
 
                 </motion.div>
@@ -1226,7 +1286,7 @@ export default function Page() {
                     </div>
                   </form>
                   <div className="mt-8 lg:mt-10 w-full">
-                    <div className="flex items-center justify-center gap-3 w-full">
+                    <div className="flex items-center justify-center gap-2.5 w-full flex-wrap">
                       <Link href="/public/properties" aria-label="Browse stays" className="group relative no-underline flex-shrink-0">
                         <span className="inline-flex items-center gap-2 px-4 py-2.5 text-sm text-white font-medium rounded-full bg-emerald-500/90 hover:bg-emerald-400 active:bg-emerald-400 shadow-[0_8px_28px_rgba(16,185,129,0.30)] transition-all">
                           <BedDouble className="w-4 h-4 flex-shrink-0" />
@@ -1259,6 +1319,27 @@ export default function Page() {
                       </button>
                     </div>
                   </div>
+
+                  {/* Trust stats row */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.55, delay: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
+                    className="mt-10 flex items-center justify-center gap-6 flex-wrap"
+                  >
+                    {[
+                      { value: "12K+", label: "Happy guests" },
+                      { value: "340+", label: "Properties" },
+                      { value: "4.9★", label: "Avg. rating" },
+                      { value: "24/7", label: "Support" },
+                    ].map(({ value, label }) => (
+                      <div key={label} className="flex flex-col items-center gap-0.5">
+                        <span className="text-lg font-extrabold text-white tracking-tight leading-none">{value}</span>
+                        <span className="text-[11px] font-medium text-white/40 tracking-wide uppercase">{label}</span>
+                      </div>
+                    ))}
+                  </motion.div>
+
                 </motion.div>
               </div>
             </div>
@@ -1977,57 +2058,76 @@ export default function Page() {
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
               {/* Story (left on desktop, vertically centered vs the two cards) */}
               <div className="lg:flex lg:items-center">
-                <div className="relative w-full rounded-[28px] p-[1px] bg-gradient-to-br from-white/30 via-sky-400/10 to-emerald-500/12 shadow-[0_18px_55px_rgba(2,6,23,0.10)] ring-1 ring-white/40">
-                  <div className="relative h-full overflow-hidden rounded-[27px] bg-gradient-to-b from-[#062a58] via-[#031f45] to-[#021735] ring-1 ring-white/10 p-6">
-                    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_12%,rgba(2,180,245,0.14),transparent_55%),radial-gradient(circle_at_88%_86%,rgba(2,102,94,0.12),transparent_58%)]" aria-hidden />
-                    <div className="pointer-events-none absolute inset-0 opacity-20 [background-image:radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.10)_1px,transparent_0)] [background-size:28px_28px]" aria-hidden />
+                <div className="relative w-full rounded-[28px] p-[1.5px] shadow-[0_24px_64px_rgba(2,102,94,0.28),0_8px_24px_rgba(8,18,50,0.50)]"
+                  style={{ background: "linear-gradient(135deg,rgba(255,255,255,0.22) 0%,rgba(2,180,245,0.32) 40%,rgba(2,102,94,0.55) 80%,rgba(11,31,92,0.40) 100%)" }}>
+                  <div className="relative h-full overflow-hidden rounded-[calc(28px-1.5px)]"
+                    style={{ background: "linear-gradient(155deg,#080e28 0%,#0a1e3a 45%,#041c14 100%)" }}>
 
-                    <div className="relative z-10">
-                      <div className="inline-flex items-center gap-2 rounded-full bg-white/10 ring-1 ring-white/15 px-3 py-1.5 text-white/90 text-xs font-semibold">
-                        <Sparkles className="h-4 w-4 opacity-90" aria-hidden />
+                    {/* Ambient glows */}
+                    <div className="pointer-events-none absolute inset-0" style={{ background: "radial-gradient(ellipse 70% 50% at 15% 15%,rgba(10,92,130,0.22),transparent 60%)" }} aria-hidden />
+                    <div className="pointer-events-none absolute inset-0" style={{ background: "radial-gradient(ellipse 55% 45% at 85% 85%,rgba(2,102,94,0.20),transparent 65%)" }} aria-hidden />
+                    {/* Dot grid */}
+                    <div className="pointer-events-none absolute inset-0 opacity-[0.18] [background-image:radial-gradient(circle_at_1px_1px,rgba(45,212,191,0.55)_1px,transparent_0)] [background-size:26px_26px]" aria-hidden />
+                    {/* Top highlight */}
+                    <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" aria-hidden />
+
+                    <div className="relative z-10 p-7">
+                      {/* Badge */}
+                      <div className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold text-white/90 ring-1 ring-white/15"
+                        style={{ background: "rgba(10,92,130,0.38)", backdropFilter: "blur(8px)" }}>
+                        <Sparkles className="h-3.5 w-3.5 opacity-90" aria-hidden />
                         End-to-end travel platform
                       </div>
 
-                      <div className="mt-4 text-white font-semibold text-2xl tracking-tight leading-tight">
-                        From booking to pickup — all connected.
+                      {/* Title */}
+                      <div className="mt-5 text-white font-black text-[1.55rem] tracking-tight leading-[1.18]">
+                        From booking to pickup —{" "}
+                        <span className="text-transparent bg-clip-text" style={{ backgroundImage: "linear-gradient(98deg,#38bdf8 0%,#2dd4bf 55%,#6ee7b7 100%)" }}>
+                          all connected.
+                        </span>
                       </div>
-                      <div className="mt-2 text-white/75 text-sm leading-relaxed max-w-[56ch]">
+
+                      {/* Accent line */}
+                      <div className="mt-3 h-px w-16 rounded-full" style={{ background: "linear-gradient(90deg,#02665e,#0a5c82,transparent)" }} />
+
+                      <div className="mt-3 text-white/60 text-sm leading-relaxed max-w-[52ch]">
                         Book verified stays, coordinate transport to the property you booked, and connect solo travelers to authentic local experiences — in one flow.
                       </div>
 
-                      {/* Simple illustration: connected nodes */}
-                      <div className="mt-6 relative">
-                        <div className="pointer-events-none absolute left-3 right-3 top-1/2 -translate-y-1/2 h-px bg-gradient-to-r from-transparent via-white/18 to-transparent" aria-hidden />
-                        <div className="flex flex-wrap items-center gap-2">
-                          {[
-                            { label: "Stays", Icon: Home },
-                            { label: "Group Stays", Icon: Gavel },
-                            { label: "Transport", Icon: Car },
-                            { label: "Local guides", Icon: Users },
-                            { label: "Support", Icon: LifeBuoy },
-                          ].map(({ label, Icon }) => (
-                            <span
-                              key={label}
-                              className="relative inline-flex items-center gap-2 rounded-full bg-white/10 ring-1 ring-white/15 px-3 py-1.5 text-white/85 text-xs font-semibold backdrop-blur-md"
-                            >
-                              <Icon className="h-4 w-4 opacity-85" aria-hidden />
-                              {label}
-                            </span>
-                          ))}
-                        </div>
+                      {/* Service chips */}
+                      <div className="mt-5 flex flex-wrap items-center gap-2">
+                        {[
+                          { label: "Stays",        Icon: Home      },
+                          { label: "Group Stays",  Icon: Gavel     },
+                          { label: "Transport",    Icon: Car       },
+                          { label: "Local guides", Icon: Users     },
+                          { label: "Support",      Icon: LifeBuoy  },
+                        ].map(({ label, Icon }) => (
+                          <span
+                            key={label}
+                            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-white/80 ring-1 ring-white/12 transition-colors duration-200 hover:text-white hover:ring-[#2dd4bf]/40"
+                            style={{ background: "rgba(10,92,130,0.22)", backdropFilter: "blur(6px)" }}
+                          >
+                            <Icon className="h-3.5 w-3.5 opacity-80" aria-hidden />
+                            {label}
+                          </span>
+                        ))}
                       </div>
 
+                      {/* CTAs */}
                       <div className="mt-6 flex flex-wrap items-center gap-3">
                         <Link
                           href="/public/group-stays"
-                          className="inline-flex items-center gap-1.5 rounded-full bg-white/12 border border-white/30 backdrop-blur-md px-4 py-2 text-white/95 text-sm font-semibold shadow-[0_12px_28px_rgba(2,6,23,0.22)] transition-all duration-300 hover:bg-white/16 hover:border-white/40 no-underline hover:no-underline"
+                          className="inline-flex items-center gap-1.5 rounded-full px-5 py-2.5 text-white text-sm font-bold no-underline hover:no-underline transition-all duration-300 hover:scale-[1.03] hover:shadow-[0_8px_24px_rgba(2,102,94,0.40)]"
+                          style={{ background: "linear-gradient(135deg,#0b1f5c 0%,#0a5c82 52%,#02665e 100%)", boxShadow: "0 0 0 1px rgba(2,102,94,0.40),0 4px 16px rgba(2,102,94,0.22)" }}
                         >
                           Explore Group Stays
                           <ChevronRight className="h-4 w-4" aria-hidden />
                         </Link>
                         <Link
                           href="/public/plan-with-us"
-                          className="inline-flex items-center gap-1.5 rounded-full bg-white/6 ring-1 ring-white/12 px-4 py-2 text-white/85 text-sm font-semibold transition-all duration-300 hover:bg-white/10 no-underline hover:no-underline"
+                          className="inline-flex items-center gap-1.5 rounded-full px-5 py-2.5 text-white/80 text-sm font-semibold ring-1 ring-white/18 no-underline hover:no-underline transition-all duration-200 hover:text-white hover:ring-[#2dd4bf]/40"
+                          style={{ background: "rgba(255,255,255,0.07)" }}
                         >
                           Plan with us
                           <ChevronRight className="h-4 w-4" aria-hidden />

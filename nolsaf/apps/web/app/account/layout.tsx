@@ -59,7 +59,7 @@ export default function CustomerAccountLayout({ children }: { children: ReactNod
       </div>
 
       {isAgentPortalRoute ? <LegalModal /> : null}
-      <FloatingChatWidget position="bottom-right" />
+      {!isAgentPortalRoute && <FloatingChatWidget position="bottom-right" />}
     </div>
   );
 }

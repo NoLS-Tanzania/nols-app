@@ -693,112 +693,151 @@ export default function FloatingChatWidget({ hiddenRoutes: _hiddenRoutes = [], p
         right: "auto",
       };
     }
-    
-    // Default position
     if (position === "bottom-left") {
-      return { bottom: "16px", left: "16px", right: "auto", top: "auto" };
+      return { bottom: "20px", left: "20px", right: "auto", top: "auto" };
     }
-    return { bottom: "16px", right: "16px", left: "auto", top: "auto" };
+    return { bottom: "20px", right: "20px", left: "auto", top: "auto" };
   };
 
   const positionStyles = getPositionStyles();
 
+  const formatTime = (ts: Date | string) => {
+    try {
+      const d = typeof ts === "string" ? new Date(ts) : ts;
+      if (isNaN(d.getTime())) return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    } catch {
+      return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    }
+  };
+
   return (
-    <div className="fixed z-50" style={positionStyles}>
-      {/* Chat Card */}
+    <div className="fixed z-50">
+      {/* ── Chat Panel ── */}
       {isOpen && (
         <div
           ref={widgetRef}
-          className={`bg-white rounded-lg shadow-2xl border border-gray-200 flex flex-col transition-all duration-300 ease-in-out ${
-            isMinimized ? "w-80 h-14" : "w-96 h-[450px]"
+          className={`flex flex-col overflow-hidden rounded-2xl border border-white/10 transition-[opacity,transform] duration-300 ${
+            isMinimized ? "w-72" : "w-[340px] sm:w-[370px]"
           } ${isDragging ? "cursor-move" : ""} ${
-            isClosing ? "opacity-0 scale-95" : "opacity-100 scale-100"
+            isClosing ? "opacity-0 scale-95 translate-y-2" : "opacity-100 scale-100 translate-y-0"
           }`}
           style={{
             position: "fixed",
             ...positionStyles,
-            transition: isClosing 
-              ? "opacity 0.3s ease-out, transform 0.3s ease-out" 
-              : "all 0.3s ease-in-out",
+            height: isMinimized ? "56px" : "520px",
+            boxShadow: "0 16px_72px_rgba(0,0,0,0.22),0_4px_24px_rgba(2,102,94,0.18)",
           }}
         >
-          {/* Header - Draggable */}
+          {/* ── Header ── */}
           <div
-            className="bg-[#02665e] text-white px-4 py-3 rounded-t-lg flex items-center justify-between cursor-move select-none touch-none flex-shrink-0"
+            className="relative flex-shrink-0 flex items-center justify-between px-4 py-3.5 cursor-move select-none touch-none overflow-hidden"
+            style={{ background: "linear-gradient(135deg,#0b1f5c 0%,#0a5c82 52%,#02665e 100%)" }}
             onMouseDown={handleMouseDown}
             onTouchStart={handleTouchStart}
-            onClick={(e) => {
-              if (isMinimized) {
-                setIsMinimized(false);
-                setUnreadCount(0); // Clear unread when expanding
-              }
+            onClick={() => {
+              if (isMinimized) { setIsMinimized(false); setUnreadCount(0); }
               resetAutoCloseTimer();
             }}
           >
-            <div className="flex items-center gap-2">
-              <Bot className="w-5 h-5" />
-              <span className="font-semibold">Chat with Twiga</span>
+            {/* Decorative glow */}
+            <div className="pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full opacity-25"
+              style={{ background: "radial-gradient(circle,#38bdf8,transparent 70%)" }} />
+            <div className="pointer-events-none absolute -left-4 bottom-0 h-12 w-12 rounded-full opacity-15"
+              style={{ background: "radial-gradient(circle,#34d399,transparent 70%)" }} />
+
+            {/* Left — avatar + name */}
+            <div className="relative flex items-center gap-3">
+              {/* Twiga avatar */}
+              <div className="relative flex-shrink-0">
+                <div
+                  className="h-10 w-10 rounded-2xl flex items-center justify-center text-xl shadow-lg"
+                  style={{
+                    background: "linear-gradient(145deg,rgba(251,191,36,0.22) 0%,rgba(52,211,153,0.18) 60%,rgba(14,116,144,0.22) 100%)",
+                    border: "1.5px solid rgba(255,255,255,0.22)",
+                    boxShadow: "0 2px 12px rgba(0,0,0,0.25),inset 0 1px 0 rgba(255,255,255,0.15)",
+                  }}
+                >
+                  🦒
+                </div>
+                {/* Pulse online dot */}
+                <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3 items-center justify-center">
+                  <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-50 animate-ping" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400 border border-[#0a5c82]" />
+                </span>
+              </div>
+
+              {/* Name + subtitle */}
+              <div className="flex flex-col leading-none gap-[5px]">
+                <span
+                  className="text-[15px] font-extrabold tracking-[-0.01em] text-white"
+                  style={{ textShadow: "0 1px 8px rgba(0,0,0,0.25)" }}
+                >
+                  Twiga
+                </span>
+                <span className="flex items-center gap-1.5 text-[10px] font-medium text-white/60 tracking-wide uppercase">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/80 flex-shrink-0" />
+                  AI Travel Assistant
+                </span>
+              </div>
+
               {isMinimized && unreadCount > 0 && (
-                <span className="bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center min-w-[20px] px-1">
+                <span className="ml-1 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-rose-500 px-1.5 text-[10px] font-bold text-white shadow">
                   {unreadCount > 9 ? "9+" : unreadCount}
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-2">
+
+            {/* Right — controls */}
+            <div className="relative flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
               {!isMinimized && (
                 <select
                   value={language}
                   onChange={(e) => handleLanguageChange(e.target.value as SupportedLanguage)}
-                  className="bg-white/20 text-white text-xs px-2 py-1 rounded border-white/30 focus:outline-none focus:ring-1 focus:ring-white/50"
-                  onClick={(e) => e.stopPropagation()}
+                  className="text-white text-[11px] px-2 py-1 rounded-lg focus:outline-none focus:ring-1 focus:ring-white/30"
+                  style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)" }}
                 >
                   {LANGUAGES.map((lang) => (
-                    <option key={lang.code} value={lang.code} className="text-gray-900">
+                    <option key={lang.code} value={lang.code} className="text-gray-900 bg-white">
                       {lang.flag} {lang.name}
                     </option>
                   ))}
                 </select>
               )}
               <button
-                onClick={(e) => {
-                  e.stopPropagation();
+                onClick={() => {
                   setIsMinimized(!isMinimized);
-                  if (!isMinimized) {
-                    // When minimizing, don't clear unread count yet
-                  } else {
-                    // When expanding, clear unread count
-                    setUnreadCount(0);
-                  }
+                  if (isMinimized) setUnreadCount(0);
                   resetAutoCloseTimer();
                 }}
-                className="p-1 hover:bg-white/20 rounded transition-colors relative"
+                className="h-7 w-7 rounded-lg flex items-center justify-center text-white transition-all hover:scale-110 active:scale-95"
+                style={{ background: "rgba(0,0,0,0.22)", border: "1px solid rgba(255,255,255,0.12)" }}
                 aria-label={isMinimized ? "Expand" : "Minimize"}
               >
-                <Minimize2 className="w-4 h-4" />
+                <Minimize2 className="w-3.5 h-3.5" />
               </button>
               <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsOpen(false);
-                }}
-                className="p-1 hover:bg-white/20 rounded transition-colors"
+                onClick={() => setIsOpen(false)}
+                className="h-7 w-7 rounded-lg flex items-center justify-center text-white transition-all hover:scale-110 active:scale-95"
+                style={{ background: "rgba(0,0,0,0.22)", border: "1px solid rgba(255,255,255,0.12)" }}
                 aria-label="Close"
               >
-                <X className="w-4 h-4" />
+                <X className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
 
-          {/* Messages Area */}
+          {/* ── Messages ── */}
           {!isMinimized && (
             <>
-              <div 
-                className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50 min-h-0"
+              <div
+                className="flex-1 overflow-y-auto min-h-0 px-4 py-4 space-y-4"
+                style={{ background: "linear-gradient(180deg,#f1f5f9 0%,#f8fafc 100%)" }}
                 onClick={resetAutoCloseTimer}
                 onScroll={resetAutoCloseTimer}
               >
                 {isLoadingHistory ? (
-                  <div className="flex items-center justify-center h-full">
+                  <div className="flex h-full items-center justify-center">
                     <LogoSpinner size="sm" ariaLabel="Loading" />
                   </div>
                 ) : (
@@ -806,137 +845,122 @@ export default function FloatingChatWidget({ hiddenRoutes: _hiddenRoutes = [], p
                     {messages.map((message) => (
                       <div
                         key={message.id}
-                        className={`flex gap-2 ${
-                          message.role === "user" ? "justify-end" : "justify-start"
-                        }`}
+                        className={`flex items-end gap-2 ${message.role === "user" ? "justify-end" : "justify-start"}`}
                       >
+                        {/* Bot avatar */}
                         {message.role === "assistant" && (
-                          <div className="flex-shrink-0 w-7 h-7 rounded-full bg-[#02665e] flex items-center justify-center">
-                            <Bot className="w-4 h-4 text-white" />
+                          <div
+                            className="flex-shrink-0 h-7 w-7 rounded-xl flex items-center justify-center text-sm shadow-sm mb-0.5"
+                            style={{ background: "linear-gradient(135deg,#0a5c82,#02665e)" }}
+                          >
+                            🦒
                           </div>
                         )}
 
+                        {/* Bubble */}
                         <div
-                          className={`max-w-[75%] rounded-lg px-3 py-2 ${
+                          className={`max-w-[78%] rounded-2xl px-3.5 py-2.5 shadow-sm ${
                             message.role === "user"
-                              ? "bg-[#02665e] text-white"
-                              : "bg-white text-gray-900 border border-gray-200"
+                              ? "rounded-br-sm text-white"
+                              : "rounded-bl-sm bg-white border border-slate-100 text-slate-800"
                           }`}
+                          style={
+                            message.role === "user"
+                              ? { background: "linear-gradient(135deg,#0a5c82,#02665e)" }
+                              : undefined
+                          }
                         >
-                          <p className="text-sm whitespace-pre-wrap">
+                          <p className="text-sm leading-relaxed whitespace-pre-wrap">
                             {message.isTyping && message.displayedContent !== undefined
                               ? message.displayedContent + (message.displayedContent.length < message.content.length ? "▊" : "")
                               : message.content}
                           </p>
-                          <div className="flex items-center justify-between mt-1">
-                            <p
-                              className={`text-xs ${
-                                message.role === "user" ? "text-white/70" : "text-gray-500"
-                              }`}
-                            >
-                              {(() => {
-                                try {
-                                  const date = typeof message.timestamp === "string" 
-                                    ? new Date(message.timestamp) 
-                                    : message.timestamp;
-                                  
-                                  // Check if date is valid
-                                  if (isNaN(date.getTime())) {
-                                    // If invalid, use current time
-                                    return new Date().toLocaleTimeString([], {
-                                      hour: "2-digit",
-                                      minute: "2-digit",
-                                    });
-                                  }
-                                  
-                                  // Format as HH:MM
-                                  return date.toLocaleTimeString([], {
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  });
-                                } catch (e) {
-                                  // Fallback to current time if any error
-                                  return new Date().toLocaleTimeString([], {
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  });
-                                }
-                              })()}
-                            </p>
+                          <div className="flex items-center justify-between mt-1.5 gap-2">
+                            <span className={`text-[10px] font-medium ${message.role === "user" ? "text-white/55" : "text-slate-400"}`}>
+                              {formatTime(message.timestamp)}
+                            </span>
                             {message.role === "assistant" && !message.isTyping && (
-                              <div className="flex gap-1 ml-2">
+                              <div className="flex gap-0.5">
                                 <button
-                                  onClick={() => {
+                                  onClick={() =>
                                     setMessages((prev) =>
-                                      prev.map((msg) =>
-                                        msg.id === message.id
-                                          ? { ...msg, reaction: msg.reaction === "like" ? null : "like" }
-                                          : msg
-                                      )
-                                    );
-                                  }}
-                                  className={`p-1 rounded transition-colors ${
+                                      prev.map((m) => m.id === message.id ? { ...m, reaction: m.reaction === "like" ? null : "like" } : m)
+                                    )
+                                  }
+                                  className={`h-5 w-5 rounded-md flex items-center justify-center transition-all ${
                                     message.reaction === "like"
-                                      ? "bg-green-100 text-green-600"
-                                      : "text-gray-400 hover:text-green-600 hover:bg-gray-100"
+                                      ? "bg-emerald-50 text-emerald-600"
+                                      : "text-slate-300 hover:text-emerald-500 hover:bg-emerald-50"
                                   }`}
-                                  aria-label="Like this message"
+                                  aria-label="Like"
                                 >
-                                  <ThumbsUp className="w-3 h-3" />
+                                  <ThumbsUp className="w-2.5 h-2.5" />
                                 </button>
                                 <button
-                                  onClick={() => {
+                                  onClick={() =>
                                     setMessages((prev) =>
-                                      prev.map((msg) =>
-                                        msg.id === message.id
-                                          ? { ...msg, reaction: msg.reaction === "dislike" ? null : "dislike" }
-                                          : msg
-                                      )
-                                    );
-                                  }}
-                                  className={`p-1 rounded transition-colors ${
+                                      prev.map((m) => m.id === message.id ? { ...m, reaction: m.reaction === "dislike" ? null : "dislike" } : m)
+                                    )
+                                  }
+                                  className={`h-5 w-5 rounded-md flex items-center justify-center transition-all ${
                                     message.reaction === "dislike"
-                                      ? "bg-red-100 text-red-600"
-                                      : "text-gray-400 hover:text-red-600 hover:bg-gray-100"
+                                      ? "bg-rose-50 text-rose-600"
+                                      : "text-slate-300 hover:text-rose-500 hover:bg-rose-50"
                                   }`}
-                                  aria-label="Dislike this message"
+                                  aria-label="Dislike"
                                 >
-                                  <ThumbsDown className="w-3 h-3" />
+                                  <ThumbsDown className="w-2.5 h-2.5" />
                                 </button>
                               </div>
                             )}
                           </div>
                         </div>
 
+                        {/* User avatar */}
                         {message.role === "user" && (
-                          <div className="flex-shrink-0 w-7 h-7 rounded-full bg-gray-300 flex items-center justify-center">
-                            <User className="w-4 h-4 text-gray-600" />
+                          <div
+                            className="flex-shrink-0 h-7 w-7 rounded-xl flex items-center justify-center mb-0.5 shadow-sm"
+                            style={{ background: "linear-gradient(135deg,#334155,#475569)" }}
+                          >
+                            <User className="w-3.5 h-3.5 text-white" />
                           </div>
                         )}
                       </div>
                     ))}
 
+                    {/* Fetching indicator */}
                     {isLoading && (
-                      <div className="flex gap-2 justify-start">
-                        <div className="flex-shrink-0 w-7 h-7 rounded-full bg-[#02665e] flex items-center justify-center">
-                          <Bot className="w-4 h-4 text-white" />
+                      <div className="flex items-end gap-2 justify-start">
+                        <div
+                          className="flex-shrink-0 h-7 w-7 rounded-xl flex items-center justify-center text-sm shadow-sm"
+                          style={{ background: "linear-gradient(135deg,#0a5c82,#02665e)" }}
+                        >
+                          🦒
                         </div>
-                        <div className="bg-white rounded-lg px-3 py-2 border border-gray-200">
+                        <div className="rounded-2xl rounded-bl-sm bg-white border border-slate-100 px-4 py-3 shadow-sm">
                           <LogoSpinner size="xs" ariaLabel="Loading" />
                         </div>
                       </div>
                     )}
-                    
+
+                    {/* Typing animation dots */}
                     {isTyping && !isLoading && (
-                      <div className="flex gap-2 justify-start">
-                        <div className="flex-shrink-0 w-7 h-7 rounded-full bg-[#02665e] flex items-center justify-center">
-                          <Bot className="w-4 h-4 text-white" />
+                      <div className="flex items-end gap-2 justify-start">
+                        <div
+                          className="flex-shrink-0 h-7 w-7 rounded-xl flex items-center justify-center text-sm shadow-sm"
+                          style={{ background: "linear-gradient(135deg,#0a5c82,#02665e)" }}
+                        >
+                          🦒
                         </div>
-                        <div className="bg-white rounded-lg px-3 py-2 border border-gray-200">
-                          <div className="flex gap-1 items-center">
-                            <span className="w-2 h-2 bg-[#02665e] rounded-full animate-bounce" style={{ animationDelay: "0ms" }}></span>
-                            <span className="w-2 h-2 bg-[#02665e] rounded-full animate-bounce" style={{ animationDelay: "150ms" }}></span>
-                            <span className="w-2 h-2 bg-[#02665e] rounded-full animate-bounce" style={{ animationDelay: "300ms" }}></span>
+                        <div className="rounded-2xl rounded-bl-sm bg-white border border-slate-100 px-4 py-3 shadow-sm">
+                          <div className="flex gap-1.5 items-center">
+                            {[0, 150, 300].map((delay) => (
+                              <span
+                                key={delay}
+                                className="w-2 h-2 rounded-full animate-bounce"
+                                style={{ animationDelay: `${delay}ms`, background: "linear-gradient(135deg,#0a5c82,#02665e)" }}
+                              />
+                            ))}
                           </div>
                         </div>
                       </div>
@@ -947,26 +971,27 @@ export default function FloatingChatWidget({ hiddenRoutes: _hiddenRoutes = [], p
                 )}
               </div>
 
-              {/* Input Area */}
-              <div className="border-t border-gray-200 p-3 bg-white rounded-b-lg flex-shrink-0">
-                <form onSubmit={handleSend} className="flex gap-2">
+              {/* ── Input Area ── */}
+              <div
+                className="flex-shrink-0 px-3 py-3 border-t border-slate-100"
+                style={{ background: "#ffffff" }}
+              >
+                <form onSubmit={handleSend} className="flex items-center gap-2">
                   <input
                     type="text"
                     value={input}
-                    onChange={(e) => {
-                      setInput(e.target.value);
-                      resetAutoCloseTimer();
-                    }}
+                    onChange={(e) => { setInput(e.target.value); resetAutoCloseTimer(); }}
                     onFocus={resetAutoCloseTimer}
                     onClick={resetAutoCloseTimer}
-                    placeholder="Type your message..."
-                    className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#02665e] focus:border-transparent"
+                    placeholder="Type your message…"
                     disabled={isLoading}
+                    className="flex-1 rounded-xl bg-slate-50 border border-slate-200 px-4 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition-all focus:border-teal-400/60 focus:ring-2 focus:ring-teal-400/20 disabled:opacity-60"
                   />
                   <button
                     type="submit"
                     disabled={!input.trim() || isLoading}
-                    className="px-4 py-2 bg-[#02665e] text-white rounded-lg hover:bg-[#024a44] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+                    className="flex-shrink-0 h-10 w-10 rounded-xl flex items-center justify-center text-white shadow-sm transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                    style={{ background: "linear-gradient(135deg,#0a5c82,#02665e)" }}
                   >
                     {isLoading ? (
                       <LogoSpinner size="xs" ariaLabel="Sending" className="text-white/90" />
@@ -975,68 +1000,58 @@ export default function FloatingChatWidget({ hiddenRoutes: _hiddenRoutes = [], p
                     )}
                   </button>
                 </form>
+                <p className="text-center text-[10px] text-slate-300 mt-2 tracking-wide">
+                  Powered by NoLSAF AI · Twiga 🦒
+                </p>
               </div>
             </>
           )}
         </div>
       )}
 
-      {/* Floating Button */}
+      {/* ── FAB Button ── */}
       {!isOpen && (
         <button
           onClick={() => {
             setIsOpen(true);
             setIsMinimized(false);
             setIsClosing(false);
-            // Load saved position or use default
             const saved = localStorage.getItem("chatbot_widget_position");
             if (saved) {
-              try {
-                const pos = JSON.parse(saved);
-                setPositionState(pos);
-              } catch {
-                setPositionState({ x: 0, y: 0 });
-              }
+              try { setPositionState(JSON.parse(saved)); }
+              catch { setPositionState({ x: 0, y: 0 }); }
             } else {
               setPositionState({ x: 0, y: 0 });
             }
-            if (messages.length === 0) {
-              initializeConversation();
-            }
+            if (messages.length === 0) initializeConversation();
             resetAutoCloseTimer();
           }}
-          className={[
-            "group",
-            "relative",
-            "rounded-full",
-            "p-[2px]",
-            "text-white",
-            "shadow-[0_18px_60px_rgba(2,6,23,0.22)]",
-            "ring-1 ring-white/20",
-            "bg-gradient-to-br from-[#02b4f5]/95 via-[#02665e]/95 to-emerald-500/85",
-            "transition-all duration-300",
-            "hover:-translate-y-0.5 hover:shadow-[0_24px_80px_rgba(2,6,23,0.28)]",
-            "active:translate-y-0 active:scale-[0.98]",
-            "focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#02b4f5]/55",
-          ].join(" ")}
-          aria-label="Open chat"
+          aria-label="Open chat with Twiga"
+          className="group relative rounded-full bg-transparent p-0 border-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-teal-400/60"
           style={{
             position: "fixed",
-            ...(position === "bottom-left" 
-              ? { bottom: "16px", left: "16px" }
-              : { bottom: "16px", right: "16px" }),
+            ...(position === "bottom-left" ? { bottom: "20px", left: "20px" } : { bottom: "20px", right: "20px" }),
           }}
         >
+          {/* Pulse ring */}
+          <span className="absolute inset-0 rounded-full animate-ping opacity-20"
+            style={{ background: "linear-gradient(135deg,#02b4f5,#02665e)" }} />
+          {/* Outer glow */}
+          <span className="pointer-events-none absolute -inset-3 rounded-full blur-xl opacity-50 transition-opacity duration-300 group-hover:opacity-75"
+            style={{ background: "radial-gradient(circle,#02b4f5,#02665e,transparent 70%)" }} />
+          {/* Inner button */}
           <span
-            className="pointer-events-none absolute -inset-3 rounded-full bg-[#02b4f5]/18 blur-2xl opacity-60 transition-opacity duration-300 group-hover:opacity-85"
-            aria-hidden
-          />
-          <span
-            className="relative grid place-items-center rounded-full bg-[#02665e] p-4 ring-1 ring-white/25 shadow-[0_10px_30px_rgba(2,6,23,0.18)]"
-            aria-hidden
+            className="relative flex h-[52px] w-[52px] items-center justify-center rounded-full text-white shadow-[0_8px_32px_rgba(2,102,94,0.35)] transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-[0_16px_48px_rgba(2,102,94,0.45)] group-active:scale-95"
+            style={{ background: "linear-gradient(135deg,#0a5c82 0%,#02665e 60%,#059669 100%)" }}
           >
-            <MessageCircle className="w-6 h-6" />
+            <MessageCircle className="w-5 h-5" />
           </span>
+          {/* Unread badge */}
+          {unreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 z-10 h-5 min-w-[20px] rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white flex items-center justify-center shadow">
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </span>
+          )}
         </button>
       )}
     </div>
