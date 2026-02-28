@@ -4,6 +4,7 @@ import { prisma } from "@nolsaf/prisma";
 import { AuthedRequest, requireAuth, requireRole } from "../middleware/auth.js";
 import crypto from "crypto";
 import { sendMail } from "../lib/mailer.js";
+import { getEmailVerificationEmail, getEmailChangeConfirmationEmail } from "../lib/authEmailTemplates.js";
 import { audit } from "../lib/audit.js";
 import { sanitizeText } from "../lib/sanitize.js";
 import rateLimit from "express-rate-limit";
@@ -81,51 +82,6 @@ function getGreetingName(user: { name?: string | null; email?: string | null }):
 function getVerificationUrl(token: string): string {
   const appUrl = process.env.APP_URL || "http://localhost:3000";
   return `${appUrl}/api/admin/email/verify?token=${token}`;
-}
-
-// Helper: Generate email HTML template
-function generateEmailTemplate(
-  greetingName: string,
-  action: "verify" | "change",
-  verificationUrl: string
-): string {
-  const title = action === "verify" 
-    ? "Verify your email address" 
-    : "Confirm your new email address";
-  const message = action === "verify"
-    ? "Please verify your email address by clicking the link below:"
-    : "Please confirm your new email address by clicking the link below:";
-  
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>${title}</title>
-    </head>
-    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <div style="background-color: #f8f9fa; padding: 30px; border-radius: 8px;">
-        <h2 style="color: #02665e; margin-top: 0;">${title}</h2>
-        <p>Hello ${greetingName},</p>
-        <p>${message}</p>
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${verificationUrl}" 
-             style="display: inline-block; background-color: #02665e; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">
-            ${action === "verify" ? "Verify Email" : "Confirm Email"}
-          </a>
-        </div>
-        <p style="font-size: 14px; color: #666;">
-          Or copy and paste this link into your browser:<br>
-          <a href="${verificationUrl}" style="color: #02665e; word-break: break-all;">${verificationUrl}</a>
-        </p>
-        <p style="font-size: 14px; color: #666; margin-top: 30px;">
-          This link expires in ${TOKEN_EXPIRY_MINUTES} minutes. If you didn't request this, please ignore this email.
-        </p>
-      </div>
-    </body>
-    </html>
-  `;
 }
 
 // Zod Validation Schemas
@@ -215,9 +171,9 @@ router.post("/verify/send", limitEmailSend, (async (req, res) => {
     // Send verification email
     const verificationUrl = getVerificationUrl(token);
     const greetingName = getGreetingName(user);
-    const emailHtml = generateEmailTemplate(greetingName, "verify", verificationUrl);
+    const { subject: verifySubject, html: emailHtml } = getEmailVerificationEmail(greetingName, verificationUrl, TOKEN_EXPIRY_MINUTES);
 
-    await sendMail(user.email, "Verify your email address", emailHtml);
+    await sendMail(user.email, verifySubject, emailHtml);
 
     // Audit log
     await audit(req as AuthedRequest, "ADMIN_EMAIL_VERIFY_SEND", `user:${userId}`);
@@ -298,9 +254,9 @@ router.post("/change/send", limitEmailSend, (async (req, res) => {
     // Send verification email to new address
     const verificationUrl = getVerificationUrl(token);
     const greetingName = getGreetingName(user);
-    const emailHtml = generateEmailTemplate(greetingName, "change", verificationUrl);
+    const { subject: changeSubject, html: emailHtml } = getEmailChangeConfirmationEmail(greetingName, newEmail, verificationUrl, TOKEN_EXPIRY_MINUTES);
 
-    await sendMail(newEmail, "Confirm your new email address", emailHtml);
+    await sendMail(newEmail, changeSubject, emailHtml);
 
     // Audit log
     await audit(

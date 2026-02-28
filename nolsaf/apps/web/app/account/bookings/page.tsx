@@ -7,7 +7,6 @@ import {
   Hash, BedDouble, DoorOpen,
 } from "lucide-react";
 import Link from "next/link";
-import { sanitizeTrustedHtml } from "@/utils/html";
 
 const api = axios.create({ baseURL: "", withCredentials: true });
 
@@ -117,31 +116,46 @@ export default function MyBookingsPage() {
   };
 
   const downloadPDF = async (bookingId: number) => {
+    const toast = (type: "error" | "success", message: string) => {
+      try {
+        window.dispatchEvent(new CustomEvent("nols:toast", {
+          detail: { type, title: "Booking PDF", message, duration: 5000 },
+        }));
+      } catch {}
+    };
+
     try {
       const response = await fetch(`/api/customer/bookings/${bookingId}/pdf`, {
         credentials: "include",
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        alert(error.error || "Failed to generate PDF");
+        let errMsg = "Failed to generate PDF";
+        try { errMsg = (await response.json()).error || errMsg; } catch {}
+        toast("error", errMsg);
         return;
       }
 
-      // Get HTML content
-      const html = sanitizeTrustedHtml(await response.text());
-      
-      // Create a new window and print
-      const printWindow = window.open("", "_blank");
-      if (printWindow) {
-        printWindow.document.write(html);
-        printWindow.document.close();
-        printWindow.onload = () => {
-          printWindow.print();
-        };
-      }
+      // True binary PDF download — no print dialog needed
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      // Try to get filename from Content-Disposition header
+      const disposition = response.headers.get("content-disposition") || "";
+      const match = disposition.match(/filename="?([^";\n]+)"?/i);
+      anchor.download = match?.[1] ?? `Booking-${bookingId}.pdf`;
+      anchor.href = url;
+      anchor.style.display = "none";
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
     } catch (err: any) {
-      alert("Failed to download PDF: " + (err?.message || "Unknown error"));
+      try {
+        window.dispatchEvent(new CustomEvent("nols:toast", {
+          detail: { type: "error", title: "Booking PDF", message: "Failed to download PDF: " + (err?.message || "Unknown error"), duration: 5000 },
+        }));
+      } catch {}
     }
   };
 

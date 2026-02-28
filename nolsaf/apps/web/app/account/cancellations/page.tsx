@@ -439,7 +439,7 @@ export default function CancellationRequestPage() {
                   After check-in
                 </div>
                 <p className="text-sm sm:text-base text-gray-700 leading-relaxed min-w-0 break-words">
-                  Generally <span className="font-semibold text-gray-900">no refunds</span>. Exceptional circumstances require documentation and are reviewed strictly — contact{" "}
+                  Generally <span className="font-semibold text-gray-900">no refunds</span>. Exceptional circumstances require documentation and are reviewed strictly contact{" "}
                   <a className="font-medium text-[#02665e] hover:text-[#014d47] underline break-all transition-colors" href={`mailto:${CANCELLATION_EMAIL}`}>
                     {CANCELLATION_EMAIL}
                   </a>

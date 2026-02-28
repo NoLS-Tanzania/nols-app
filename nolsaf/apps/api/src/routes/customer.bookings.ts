@@ -2,7 +2,7 @@ import { Router } from "express";
 import type { RequestHandler } from "express";
 import { prisma } from "@nolsaf/prisma";
 import { AuthedRequest, requireAuth } from "../middleware/auth.js";
-import { generateBookingPDF } from "../lib/pdfGenerator.js";
+import { generateBookingTicketPdf } from "../lib/pdfDocuments.js";
 
 export const router = Router();
 router.use(requireAuth as RequestHandler);
@@ -310,10 +310,6 @@ router.get("/:id/pdf", (async (req: AuthedRequest, res) => {
       include: {
         property: true,
         code: true,
-        invoices: {
-          take: 1,
-          orderBy: { createdAt: "desc" },
-        },
         user: {
           select: {
             name: true,
@@ -329,81 +325,40 @@ router.get("/:id/pdf", (async (req: AuthedRequest, res) => {
 
     // Allow generating PDF for both valid and expired bookings as long as a booking code exists.
     // (Expired means after checkout; code may have been USED.)
-    if (!booking.code?.code) {
+    if (!booking.code?.codeVisible) {
       return res.status(400).json({ error: "Booking code not available" });
     }
 
     // Prepare booking details for PDF
-    const invoice = booking.invoices?.[0] || null;
-    const bookingDetails: {
-      bookingId: number;
-      bookingCode: string;
-      guestName: string;
-      guestPhone?: string;
-      nationality?: string;
-      property: {
-        title: string;
-        type: string;
-        regionName?: string;
-        district?: string;
-        city?: string;
-        country: string;
-      };
-      checkIn: Date;
-      checkOut: Date;
-      roomType?: string;
-      rooms?: number;
-      totalAmount: number;
-      services?: any;
-      invoice?: {
-        invoiceNumber?: string;
-        receiptNumber?: string;
-        paidAt?: Date;
-      };
-      nights: number;
-    } = {
+    const bookingDetails = {
       bookingId: booking.id,
-      bookingCode: booking.code!.code,
+      bookingCode: booking.code!.codeVisible,
       guestName: booking.guestName || booking.user?.name || "Guest",
       guestPhone: booking.guestPhone || booking.user?.phone || undefined,
-      nationality: booking.nationality || undefined,
-      property: {
-        title: booking.property?.title || "Property",
-        type: booking.property?.type || "Property",
-        regionName: booking.property?.regionName || undefined,
-        district: booking.property?.district || undefined,
-        city: booking.property?.city || undefined,
-        country: booking.property?.country || "Tanzania",
-      },
+      propertyName: booking.property?.title || "Property",
+      propertyLocation: [booking.property?.regionName, booking.property?.district, booking.property?.city]
+        .filter(Boolean).join(", ") || null,
       checkIn: booking.checkIn,
       checkOut: booking.checkOut,
-      roomType: (booking as any).roomType || booking.roomCode || undefined,
-      rooms: (booking as any).rooms || undefined,
+      rooms: booking.roomsQty ?? 1,
       totalAmount: Number(booking.totalAmount || 0),
-      services: (booking as any).services || undefined,
-      invoice: invoice ? {
-        invoiceNumber: invoice.invoiceNumber || undefined,
-        receiptNumber: invoice.receiptNumber || undefined,
-        paidAt: invoice.paidAt || undefined,
-      } : undefined,
-      nights: 0, // Will be calculated below
+      confirmedAt: (booking as any).confirmedAt ?? null,
     };
 
-    // Calculate nights
-    const checkInDate = new Date(booking.checkIn);
-    const checkOutDate = new Date(booking.checkOut);
-    bookingDetails.nights = Math.ceil(
-      (checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24)
-    );
+    const nights = Math.max(1, Math.ceil(
+      (new Date(booking.checkOut).getTime() - new Date(booking.checkIn).getTime()) / 86400000
+    ));
+    const codeVisible = booking.code!.codeVisible;
+    const propertySlug = (booking.property?.title ?? "booking").replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase();
+    const filename = `Reservation-${codeVisible}-${propertySlug}.pdf`;
 
-    // Generate PDF HTML
-    const { html, filename } = await generateBookingPDF(bookingDetails);
+    // Generate real binary PDF using pdfkit (no browser print dialog needed)
+    const pdfBuffer = await generateBookingTicketPdf({ ...bookingDetails, nights } as any);
 
-    // Return HTML that can be printed as PDF by browser
-    // For server-side PDF generation, you'd use puppeteer or similar
-    res.setHeader("Content-Type", "text/html; charset=utf-8");
-    res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
-    return res.send(html);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Length", String(pdfBuffer.length));
+    return res.send(pdfBuffer);
   } catch (error: any) {
     console.error("GET /customer/bookings/:id/pdf error:", error);
     return res.status(500).json({ error: "Failed to generate PDF" });

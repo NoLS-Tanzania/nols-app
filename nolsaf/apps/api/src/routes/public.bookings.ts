@@ -10,6 +10,8 @@ import { checkPropertyAvailability, checkGuestCapacity } from "../lib/bookingAva
 import { sanitizeText } from "../lib/sanitize.js";
 import { notifyAdmins, notifyOwner } from "../lib/notifications.js";
 import { invalidateOwnerReports } from "../lib/cache.js";
+import { sendMail } from "../lib/mailer.js";
+import { getBookingReceivedEmail } from "../lib/bookingEmailTemplates.js";
 import { maybeAuth } from "../middleware/auth.js";
 import { AUTO_DISPATCH_LOOKAHEAD_MS, MIN_TRANSPORT_LEAD_MS } from "../lib/transportPolicy.js";
 import { generateTransportTripCode } from "../lib/tripCode.js";
@@ -1338,6 +1340,26 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
       } catch {}
 
     } catch {}
+
+    // Send "Booking Received" email to guest (best-effort — never blocks response)
+    try {
+      // Prefer explicit guest email; fall back to the authenticated user's email
+      const guestEmail = sanitizedGuestEmail || (req as any).user?.email || null;
+      if (guestEmail) {
+        const { subject, html } = getBookingReceivedEmail({
+          guestName: sanitizedGuestName || "Guest",
+          propertyName: String((property as any).title || "your property"),
+          bookingId: result.bookingId,
+          checkIn: result.checkIn,
+          checkOut: result.checkOut,
+          totalAmount: result.totalAmount,
+          roomsQty: roomsQty,
+        });
+        await sendMail(guestEmail, subject, html);
+      }
+    } catch (e) {
+      console.warn("[BOOKING_RECEIVED] Email send failed:", e);
+    }
 
     // Return success response
     return res.status(201).json({

@@ -5,6 +5,7 @@ import { hashPassword, verifyPassword } from '../lib/crypto.js';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { sendMail } from '../lib/mailer.js';
+import { getPasswordResetEmail, getLoginAlertEmail } from '../lib/authEmailTemplates.js';
 import { sendSms } from '../lib/sms.js';
 import { addPasswordToHistory } from '../lib/security.js';
 import { validatePasswordWithSettings } from '../lib/securitySettings.js';
@@ -715,6 +716,44 @@ router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res,
       console.warn("Failed to audit login:", auditError);
     }
 
+    // Send new sign-in alert email (best-effort, never blocks the response)
+    if (user.email) {
+      try {
+        const ua = String(req.headers['user-agent'] || '');
+        const device = (() => {
+          if (/mobile|android|iphone|ipad/i.test(ua)) {
+            if (/iphone/i.test(ua)) return 'iPhone (Mobile)';
+            if (/ipad/i.test(ua)) return 'iPad (Tablet)';
+            if (/android/i.test(ua)) return 'Android (Mobile)';
+            return 'Mobile Device';
+          }
+          if (/windows/i.test(ua)) return 'Windows (Desktop)';
+          if (/macintosh|mac os/i.test(ua)) return 'Mac (Desktop)';
+          if (/linux/i.test(ua)) return 'Linux (Desktop)';
+          return ua.slice(0, 80) || 'Unknown';
+        })();
+        // Country from Cloudflare header (when behind CF CDN) or fallback headers
+        const country = String(
+          req.headers['cf-ipcountry'] ||
+          req.headers['x-country-code'] ||
+          req.headers['x-vercel-ip-country'] ||
+          ''
+        ) || undefined;
+        const appUrl = process.env.APP_URL || process.env.WEB_ORIGIN || 'http://localhost:3000';
+        const { subject, html } = getLoginAlertEmail({
+          name: user.email,
+          loginAt: new Date(),
+          ipAddress: clientIp !== 'unknown' ? clientIp : undefined,
+          device,
+          country,
+          resetPasswordUrl: `${appUrl}/account/reset-password`,
+        });
+        await sendMail(user.email, subject, html);
+      } catch (e) {
+        console.warn('[LOGIN] Sign-in alert email failed:', e);
+      }
+    }
+
     return res.status(200).json({ ok: true, user: { id: user.id, role: user.role, email: user.email } });
   } catch (e: any) {
     console.error("[LOGIN] login-password failed", e);
@@ -1282,7 +1321,8 @@ router.post('/forgot-password', async (req, res) => {
     // Send via email if available, otherwise via SMS
     if (user.email) {
       try {
-        await sendMail(user.email, 'Password reset', `<p>Click to reset your password: <a href="${resetLink}">${resetLink}</a></p>`);
+        const { subject: resetSubject, html: resetHtml } = getPasswordResetEmail(user.name || user.email || 'there', resetLink);
+        await sendMail(user.email, resetSubject, resetHtml);
       } catch (e) {
         console.warn('Failed to send reset email:', e);
       }

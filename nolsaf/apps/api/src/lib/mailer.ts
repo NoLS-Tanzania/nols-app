@@ -13,13 +13,26 @@ const smtpTransporter = process.env.SMTP_HOST ? nodemailer.createTransport({
   auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER!, pass: process.env.SMTP_PASS! } : undefined,
 }) : null;
 
+export interface MailAttachment {
+  /** Filename shown to the recipient (e.g. "Booking-ABCD1234.pdf") */
+  filename: string;
+  /** Raw binary content — use Buffer from pdfkit or similar */
+  content: Buffer;
+}
+
 /**
  * Send email using Resend (preferred) or SMTP (fallback)
- * @param to - Recipient email address
- * @param subject - Email subject
- * @param html - Email HTML content
+ * @param to          - Recipient email address
+ * @param subject     - Email subject
+ * @param html        - Email HTML content
+ * @param attachments - Optional PDF/file attachments
  */
-export async function sendMail(to: string, subject: string, html: string) {
+export async function sendMail(
+  to: string,
+  subject: string,
+  html: string,
+  attachments?: MailAttachment[]
+) {
   const from = process.env.EMAIL_FROM || process.env.RESEND_FROM_DOMAIN || "no-reply@nolsapp.com";
   
   // Sanitize HTML content
@@ -44,6 +57,12 @@ export async function sendMail(to: string, subject: string, html: string) {
         to: [to],
         subject: subject,
         html: clean,
+        ...(attachments?.length ? {
+          attachments: attachments.map(a => ({
+            filename: a.filename,
+            content: a.content,
+          })),
+        } : {}),
       });
 
       if (error) {
@@ -61,7 +80,19 @@ export async function sendMail(to: string, subject: string, html: string) {
   // Fallback to SMTP if Resend fails or is not configured
   if (smtpTransporter && process.env.SMTP_HOST) {
     try {
-      const info = await smtpTransporter.sendMail({ from, to, subject, html: clean });
+      const info = await smtpTransporter.sendMail({
+        from,
+        to,
+        subject,
+        html: clean,
+        ...(attachments?.length ? {
+          attachments: attachments.map(a => ({
+            filename: a.filename,
+            content: a.content,
+            contentType: 'application/pdf',
+          })),
+        } : {}),
+      });
       return { success: true, messageId: info.messageId, provider: 'smtp' };
     } catch (error: any) {
       console.error('[SMTP] Failed to send email:', error.message);

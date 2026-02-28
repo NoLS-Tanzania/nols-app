@@ -9,6 +9,8 @@ import { toCsv } from "../lib/csv.js";
 import { invalidateOwnerReports } from "../lib/cache.js";
 import { generateBookingPDF } from "../lib/pdfGenerator.js";
 import { decrypt } from "../lib/crypto.js";
+import { sendMail } from "../lib/mailer.js";
+import { generatePaymentReceiptPdf, generateOwnerDisbursementPdf } from "../lib/pdfDocuments.js";
 
 export const router = Router();
 router.use(requireAuth as express.RequestHandler, requireRole("ADMIN") as express.RequestHandler);
@@ -957,6 +959,89 @@ router.post("/invoices/:id/mark-paid", async (req, res) => {
         console.warn('Failed to emit referral credit update', e);
       }
     } catch {}
+
+    // ─── Send PDFs via email (best-effort, never blocks response) ───
+    try {
+      const propertyTitle = (inv as any).booking?.property?.title ?? "your property";
+      const bk = (updated as any).booking;
+
+      // 1. Customer payment receipt
+      if (bk?.userId) {
+        try {
+          const guest = await prisma.user.findUnique({
+            where: { id: bk.userId },
+            select: { email: true, name: true },
+          });
+          if (guest?.email) {
+            const receiptPdf = await generatePaymentReceiptPdf({
+              receiptNumber: updated.receiptNumber ?? `RCPT-${updated.id}`,
+              invoiceNumber: updated.invoiceNumber ?? `INV-${updated.id}`,
+              bookingId: updated.bookingId,
+              bookingCode: bk.codeVisible ?? null,
+              guestName: bk.guestName || guest.name || "Guest",
+              guestEmail: guest.email,
+              propertyName: propertyTitle,
+              checkIn: bk.checkIn,
+              checkOut: bk.checkOut,
+              total: Number(inv.total ?? updated.total ?? 0),
+              commissionAmount: Number(inv.commissionAmount ?? 0),
+              netPayable: Number(inv.netPayable ?? 0),
+              paymentMethod: updated.paymentMethod,
+              paymentRef: updated.paymentRef,
+              paidAt: updated.paidAt,
+              qrPng: updated.receiptQrPng ? Buffer.from(updated.receiptQrPng as any) : null,
+            });
+            await sendMail(
+              guest.email,
+              `Payment Receipt — Booking #${updated.bookingId}`,
+              `<p>Dear ${bk.guestName || guest.name || "Guest"},</p><p>Your payment has been received. Please find your receipt attached.</p><p>Receipt: <strong>${updated.receiptNumber}</strong></p><p>Thank you for choosing NoLSAF.</p>`,
+              [{ filename: `Receipt-${updated.receiptNumber ?? updated.id}.pdf`, content: receiptPdf }],
+            );
+          }
+        } catch (e) {
+          console.warn("[INVOICE_PAID] Customer receipt email failed:", e);
+        }
+      }
+
+      // 2. Owner disbursement notice
+      try {
+        const owner = await prisma.user.findUnique({
+          where: { id: updated.ownerId },
+          select: { email: true, name: true },
+        });
+        if (owner?.email) {
+          const disburseePdf = await generateOwnerDisbursementPdf({
+            ownerName: owner.name || `Owner #${updated.ownerId}`,
+            ownerEmail: owner.email,
+            receiptNumber: updated.receiptNumber ?? `RCPT-${updated.id}`,
+            invoiceNumber: updated.invoiceNumber ?? `INV-${updated.id}`,
+            bookingId: updated.bookingId,
+            bookingCode: (updated as any).booking?.codeVisible ?? null,
+            propertyName: propertyTitle,
+            checkIn: bk?.checkIn ?? new Date(),
+            checkOut: bk?.checkOut ?? new Date(),
+            totalRevenue: Number(inv.total ?? updated.total ?? 0),
+            commissionPercent: Number(inv.commissionPercent ?? 0),
+            commissionAmount: Number(inv.commissionAmount ?? 0),
+            netPayable: Number(inv.netPayable ?? updated.netPayable ?? 0),
+            paymentMethod: updated.paymentMethod,
+            paymentRef: updated.paymentRef,
+            paidAt: updated.paidAt,
+            qrPng: updated.receiptQrPng ? Buffer.from(updated.receiptQrPng as any) : null,
+          });
+          await sendMail(
+            owner.email,
+            `Disbursement Receipt — Booking #${updated.bookingId}`,
+            `<p>Dear ${owner.name || "Property Owner"},</p><p>Your disbursement for Booking #${updated.bookingId} at <strong>${propertyTitle}</strong> has been processed. Please find your disbursement receipt attached.</p><p>Net Amount: <strong>TZS ${Number(inv.netPayable ?? 0).toLocaleString()}</strong></p><p>Thank you for being a NoLSAF partner.</p>`,
+            [{ filename: `Disbursement-${updated.receiptNumber ?? updated.id}.pdf`, content: disburseePdf }],
+          );
+        }
+      } catch (e) {
+        console.warn("[INVOICE_PAID] Owner disbursement email failed:", e);
+      }
+    } catch (emailErr) {
+      console.warn("[INVOICE_PAID] PDF email block failed:", emailErr);
+    }
 
     res.json({ ok: true, invoice: updated });
   } catch (err: any) {

@@ -6,6 +6,9 @@ import type { RequestHandler } from 'express';
 import { generateReadableCode, hashCode } from "../lib/codes";
 import { audit } from "../lib/audit";
 import { invalidateOwnerReports } from "../lib/cache";
+import { sendMail, type MailAttachment } from "../lib/mailer.js";
+import { getBookingConfirmedEmail, getBookingCancelledEmail } from "../lib/bookingEmailTemplates.js";
+import { generateBookingTicketPdf } from "../lib/pdfDocuments.js";
 
 export const router = Router();
 router.use(requireAuth as unknown as RequestHandler, requireRole("ADMIN") as unknown as RequestHandler);
@@ -480,6 +483,49 @@ router.post("/:id/confirm", async (req, res) => {
   const io = req.app.get("io");
   if (io) io.emit("admin:code:generated", { bookingId: result.bookingId, code: result.codeVisible });
 
+  // Send confirmation email to guest (best-effort, never blocks the response)
+  try {
+    const bFull = await prisma.booking.findUnique({
+      where: { id: result.bookingId },
+      include: {
+        property: { select: { title: true } },
+        user: { select: { name: true, email: true } },
+      },
+    });
+    if (bFull?.user?.email) {
+      const { subject, html } = getBookingConfirmedEmail({
+        guestName: bFull.guestName || bFull.user.name || "Guest",
+        propertyName: (bFull.property as any)?.title ?? "your property",
+        bookingId: bFull.id,
+        checkIn: bFull.checkIn,
+        checkOut: bFull.checkOut,
+        totalAmount: bFull.totalAmount as any,
+        roomsQty: bFull.roomsQty,
+        checkinCode: result.codeVisible,
+      });
+      let attachments: MailAttachment[] | undefined;
+      try {
+        const pdfBuf = await generateBookingTicketPdf({
+          bookingId: bFull.id,
+          bookingCode: result.codeVisible,
+          guestName: bFull.guestName || (bFull.user as any).name || "Guest",
+          propertyName: (bFull.property as any)?.title ?? "your property",
+          checkIn: bFull.checkIn,
+          checkOut: bFull.checkOut,
+          rooms: bFull.roomsQty ?? 1,
+          totalAmount: Number(bFull.totalAmount ?? 0),
+          confirmedAt: new Date(),
+        });
+        attachments = [{ filename: `Booking-${result.codeVisible}.pdf`, content: pdfBuf }];
+      } catch (pdfErr) {
+        console.warn("[BOOKING_CONFIRM] PDF generation failed (email will still be sent):", pdfErr);
+      }
+      await sendMail(bFull.user.email, subject, html, attachments);
+    }
+  } catch (e) {
+    console.warn("[BOOKING_CONFIRM] Email send failed:", e);
+  }
+
   return res.json({ ok: true, code: result.codeVisible });
 });
 
@@ -627,7 +673,14 @@ router.post("/:id/cancel", async (req, res) => {
   const reason = String(req.body?.reason ?? "").trim();
   if (reason.length < 3) return res.status(400).json({ error: "Reason is required (min 3 chars)" });
 
-  const before = await prisma.booking.findUnique({ where: { id }, include: { code: true } });
+  const before = await prisma.booking.findUnique({
+    where: { id },
+    include: {
+      code: true,
+      property: { select: { title: true } },
+      user: { select: { name: true, email: true } },
+    },
+  });
   if (!before) return res.status(404).json({ error: "Booking not found" });
   if (before.status === "CANCELED") return res.status(400).json({ error: "Already canceled" });
 
@@ -643,6 +696,24 @@ router.post("/:id/cancel", async (req, res) => {
     });
     const io = req.app.get("io");
     if (io) io.emit("admin:code:voided", { bookingId: id, code: before.code.codeVisible });
+  }
+
+  // Send cancellation email to guest (best-effort)
+  try {
+    if ((before.user as any)?.email) {
+      const { subject, html } = getBookingCancelledEmail({
+        guestName: before.guestName || (before.user as any).name || "Guest",
+        propertyName: (before.property as any)?.title ?? "your property",
+        bookingId: before.id,
+        checkIn: before.checkIn,
+        checkOut: before.checkOut,
+        totalAmount: before.totalAmount as any,
+        cancelReason: reason,
+      });
+      await sendMail((before.user as any).email, subject, html);
+    }
+  } catch (e) {
+    console.warn("[BOOKING_CANCEL] Email send failed:", e);
   }
 
   return res.json({ ok: true, booking: updated });

@@ -1,6 +1,8 @@
 /**
  * Email templates for Plan Request notifications
+ * Premium, branded HTML emails — uses shared emailBase.ts design system
  */
+import { BRAND_TEAL, BRAND_DARK, TEXT_MUTED, TEXT_MAIN, baseEmail, infoCard, calloutBox, ctaButton } from "./emailBase.js";
 
 export interface PlanRequestEmailData {
   customerName: string;
@@ -29,212 +31,118 @@ export interface PlanRequestAgentAssignmentEmailData {
   tripType?: string;
 }
 
-/**
- * Email template for new plan request submission (to customer)
- */
+// ─── 1. Customer: Request received ───────────────────────────────────────────
 export function getNewPlanRequestCustomerEmail(data: PlanRequestEmailData): { subject: string; html: string } {
   const appUrl = process.env.APP_URL || "http://localhost:3000";
-  const customerPortalUrl = `${appUrl}/account/event-plans`;
-  
+  const portalUrl = `${appUrl}/account/event-plans`;
+
+  const rows: Array<[string, string]> = [["Request ID", `#${data.requestId}`]];
+  if (data.role)        rows.push(["Request Type", data.role]);
+  if (data.tripType)    rows.push(["Trip Type", data.tripType]);
+  if (data.destinations) rows.push(["Destination(s)", data.destinations]);
+  if (data.dateFrom && data.dateTo)
+    rows.push(["Travel Dates", `${new Date(data.dateFrom).toLocaleDateString("en-GB", { day:"numeric", month:"short", year:"numeric" })} – ${new Date(data.dateTo).toLocaleDateString("en-GB", { day:"numeric", month:"short", year:"numeric" })}`]);
+
+  const body = `
+    <p style="margin:0 0 16px;font-size:16px;font-weight:600;color:${BRAND_TEAL};">Hello ${data.customerName},</p>
+    <p style="margin:0 0 16px;">Thank you for choosing NoLSAF to plan your Africa experience. We have successfully received your request and our travel experts are reviewing it now.</p>
+    ${infoCard(BRAND_TEAL, rows)}
+    ${calloutBox(BRAND_TEAL, "⏱️", "What happens next?", `Our specialists will prepare a personalised itinerary, pricing, and all the details you need — typically within <strong>48 hours</strong>. You'll receive another email the moment your response is ready.`)}
+    <p style="margin:16px 0 4px;font-size:14px;color:${TEXT_MUTED};">Track your request and view updates at any time from your portal:</p>
+    ${ctaButton(portalUrl, "View My Event Plans", BRAND_TEAL)}
+    <p style="margin:24px 0 0;font-size:13px;color:${TEXT_MUTED};">Need to add details? Reply to this email or use the portal messaging feature.</p>
+    <p style="margin:20px 0 0;">Warm regards,<br><strong style="color:${BRAND_DARK};">The NoLSAF Team</strong></p>
+  `;
+
   return {
-    subject: "Your Event Plan Request Has Been Received - NoLSAF",
-    html: `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Plan Request Received</title>
-        </head>
-        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="background: linear-gradient(135deg, #02665e 0%, #014d47 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-            <h1 style="color: white; margin: 0; font-size: 24px;">Request Received! 🎉</h1>
-          </div>
-          
-          <div style="background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
-            <p style="font-size: 16px; margin-top: 0;">Hello ${data.customerName},</p>
-            
-            <p>Thank you for planning your event with NoLSAF! We have successfully received your request <strong>#${data.requestId}</strong> and our team is currently reviewing it.</p>
-            
-            ${data.role ? `<p><strong>Request Type:</strong> ${data.role}</p>` : ''}
-            ${data.tripType ? `<p><strong>Trip Type:</strong> ${data.tripType}</p>` : ''}
-            ${data.destinations ? `<p><strong>Destination(s):</strong> ${data.destinations}</p>` : ''}
-            ${data.dateFrom && data.dateTo ? `<p><strong>Travel Dates:</strong> ${new Date(data.dateFrom).toLocaleDateString()} - ${new Date(data.dateTo).toLocaleDateString()}</p>` : ''}
-            
-            <div style="background: white; padding: 20px; border-radius: 8px; border-left: 4px solid #02665e; margin: 20px 0;">
-              <p style="margin: 0; font-weight: 600; color: #02665e;">⏰ What's Next?</p>
-              <p style="margin: 10px 0 0 0;">Our travel experts are working on your request and will get back to you within <strong>48 hours</strong> with a detailed itinerary, pricing, and all the information you need.</p>
-            </div>
-            
-            <p>You can track your request and view updates at any time:</p>
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${customerPortalUrl}" style="background: #02665e; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">View My Event Plans</a>
-            </div>
-            
-            <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">If you have any questions or need to provide additional information, please don't hesitate to contact us or send a follow-up message through your event plans portal.</p>
-            
-            <p style="margin-top: 30px;">Best regards,<br><strong>The NoLSAF Team</strong></p>
-          </div>
-          
-          <div style="text-align: center; margin-top: 20px; color: #9ca3af; font-size: 12px;">
-            <p>&copy; ${new Date().getFullYear()} NoLSAF. All rights reserved.</p>
-          </div>
-        </body>
-      </html>
-    `
+    subject: `We've received your plan request #${data.requestId} — NoLSAF`,
+    html: baseEmail(BRAND_TEAL, BRAND_DARK, "Request Received", "🎉", body),
   };
 }
 
-/**
- * Email template for new plan request notification (to admins)
- */
+// ─── 2. Admin: New inbound request ───────────────────────────────────────────
 export function getNewPlanRequestAdminEmail(data: PlanRequestEmailData): { subject: string; html: string } {
   const appUrl = process.env.APP_URL || "http://localhost:3000";
-  const adminPortalUrl = `${appUrl}/admin/plan-with-us/requests?status=NEW`;
-  
+  const adminUrl = `${appUrl}/admin/plan-with-us/requests?status=NEW`;
+
+  const rows: Array<[string, string]> = [
+    ["Request ID", `#${data.requestId}`],
+    ["Customer", data.customerName],
+  ];
+  if (data.role)        rows.push(["Role", data.role]);
+  if (data.tripType)    rows.push(["Trip Type", data.tripType]);
+  if (data.destinations) rows.push(["Destination(s)", data.destinations]);
+  if (data.dateFrom && data.dateTo)
+    rows.push(["Travel Dates", `${new Date(data.dateFrom).toLocaleDateString("en-GB", { day:"numeric", month:"short", year:"numeric" })} – ${new Date(data.dateTo).toLocaleDateString("en-GB", { day:"numeric", month:"short", year:"numeric" })}`]);
+
+  const ADMIN_BLUE = "#1d4ed8";
+  const body = `
+    <p style="margin:0 0 16px;font-size:15px;">A new plan request has just been submitted and is awaiting review.</p>
+    ${infoCard(ADMIN_BLUE, rows)}
+    ${calloutBox(ADMIN_BLUE, "⚡", "Action required", "Please review this request and assign it to an agent within <strong>48 hours</strong>. The customer is expecting an initial response.")}
+    ${ctaButton(adminUrl, "Review Request in Admin Panel", ADMIN_BLUE)}
+  `;
+
   return {
-    subject: `New Plan Request #${data.requestId} - ${data.role || 'Event Planning'}`,
-    html: `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>New Plan Request</title>
-        </head>
-        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-            <h1 style="color: white; margin: 0; font-size: 24px;">New Plan Request 🔔</h1>
-          </div>
-          
-          <div style="background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
-            <p style="font-size: 16px; margin-top: 0;">A new plan request has been submitted:</p>
-            
-            <div style="background: white; padding: 20px; border-radius: 8px; border-left: 4px solid #3b82f6; margin: 20px 0;">
-              <p style="margin: 0 0 10px 0;"><strong>Request ID:</strong> #${data.requestId}</p>
-              <p style="margin: 0 0 10px 0;"><strong>Customer:</strong> ${data.customerName}</p>
-              ${data.role ? `<p style="margin: 0 0 10px 0;"><strong>Role:</strong> ${data.role}</p>` : ''}
-              ${data.tripType ? `<p style="margin: 0 0 10px 0;"><strong>Trip Type:</strong> ${data.tripType}</p>` : ''}
-              ${data.destinations ? `<p style="margin: 0 0 10px 0;"><strong>Destination(s):</strong> ${data.destinations}</p>` : ''}
-              ${data.dateFrom && data.dateTo ? `<p style="margin: 0;"><strong>Travel Dates:</strong> ${new Date(data.dateFrom).toLocaleDateString()} - ${new Date(data.dateTo).toLocaleDateString()}</p>` : ''}
-            </div>
-            
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${adminPortalUrl}" style="background: #3b82f6; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">Review Request</a>
-            </div>
-            
-            <p style="color: #6b7280; font-size: 14px;">Please review and respond to this request within 48 hours.</p>
-          </div>
-        </body>
-      </html>
-    `
+    subject: `[NoLSAF Admin] New Plan Request #${data.requestId} — ${data.role || "Event Planning"}`,
+    html: baseEmail(ADMIN_BLUE, "#1e3a8a", "New Plan Request", "🔔", body),
   };
 }
 
-/**
- * Email template for admin response notification (to customer)
- */
+// ─── 3. Customer: Admin/agent response ready ──────────────────────────────────
 export function getPlanRequestResponseEmail(data: PlanRequestResponseEmailData): { subject: string; html: string } {
   const appUrl = process.env.APP_URL || "http://localhost:3000";
-  const customerPortalUrl = `${appUrl}/account/event-plans`;
-  
+  const portalUrl = `${appUrl}/account/event-plans`;
+
+  const included: string[] = [];
+  if (data.hasItineraries) included.push("✅&nbsp; Suggested itineraries with pricing");
+  if (data.hasPermits)     included.push("✅&nbsp; Required permits &amp; document checklist");
+  if (data.hasTimeline)    included.push("✅&nbsp; Estimated timelines &amp; booking windows");
+  included.push("✅&nbsp; Expert recommendations &amp; notes");
+
+  const EMERALD = "#059669";
+  const body = `
+    <p style="margin:0 0 16px;font-size:16px;font-weight:600;color:${EMERALD};">Hello ${data.customerName},</p>
+    <p style="margin:0 0 16px;">Great news — ${data.adminName ? `<strong>${data.adminName}</strong> has` : "our team has"} reviewed your event plan request <strong>#${data.requestId}</strong> and prepared a detailed response just for you.</p>
+    ${calloutBox(EMERALD, "📋", "What's included in your response:", included.map(i => `<span style="display:block;margin:4px 0;">${i}</span>`).join(""))}
+    <p style="margin:16px 0 4px;font-size:14px;color:${TEXT_MUTED};">Log in to your portal to read the full response, ask questions, and proceed with your booking:</p>
+    ${ctaButton(portalUrl, "View My Response", EMERALD)}
+    <p style="margin:24px 0 0;font-size:13px;color:${TEXT_MUTED};">Have questions? Use the portal messaging feature to get in touch directly with your travel specialist.</p>
+    <p style="margin:20px 0 0;">Warm regards,<br><strong style="color:${BRAND_DARK};">${data.adminName || "The NoLSAF Team"}</strong></p>
+  `;
+
   return {
-    subject: `Response to Your Event Plan Request #${data.requestId} - NoLSAF`,
-    html: `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Plan Request Response</title>
-        </head>
-        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-            <h1 style="color: white; margin: 0; font-size: 24px;">Response Ready! ✨</h1>
-          </div>
-          
-          <div style="background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
-            <p style="font-size: 16px; margin-top: 0;">Hello ${data.customerName},</p>
-            
-            <p>Great news! We have reviewed your event plan request <strong>#${data.requestId}</strong> and prepared a detailed response for you.</p>
-            
-            <div style="background: white; padding: 20px; border-radius: 8px; border-left: 4px solid #10b981; margin: 20px 0;">
-              <p style="margin: 0 0 15px 0; font-weight: 600; color: #10b981;">📋 What's Included:</p>
-              <ul style="margin: 0; padding-left: 20px;">
-                ${data.hasItineraries ? '<li style="margin: 5px 0;">✅ Suggested itineraries with prices</li>' : ''}
-                ${data.hasPermits ? '<li style="margin: 5px 0;">✅ Checklist of required permits and documents</li>' : ''}
-                ${data.hasTimeline ? '<li style="margin: 5px 0;">✅ Estimated timelines and booking windows</li>' : ''}
-                <li style="margin: 5px 0;">✅ Additional recommendations and notes</li>
-              </ul>
-            </div>
-            
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${customerPortalUrl}" style="background: #10b981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">View Response</a>
-            </div>
-            
-            <p style="color: #6b7280; font-size: 14px;">If you have any questions or need clarifications, you can send a follow-up message directly from your event plans portal.</p>
-            
-            <p style="margin-top: 30px;">Best regards,<br><strong>${data.adminName || 'The NoLSAF Team'}</strong></p>
-          </div>
-          
-          <div style="text-align: center; margin-top: 20px; color: #9ca3af; font-size: 12px;">
-            <p>&copy; ${new Date().getFullYear()} NoLSAF. All rights reserved.</p>
-          </div>
-        </body>
-      </html>
-    `
+    subject: `Your NoLSAF travel plan is ready — Request #${data.requestId}`,
+    html: baseEmail(EMERALD, "#047857", "Response Ready", "✨", body),
   };
 }
 
-/**
- * Email template for agent assignment notification
- */
+// ─── 4. Agent: New assignment ─────────────────────────────────────────────────
 export function getPlanRequestAgentAssignmentEmail(data: PlanRequestAgentAssignmentEmailData): { subject: string; html: string } {
   const appUrl = process.env.APP_URL || "http://localhost:3000";
-  const adminPortalUrl = `${appUrl}/admin/plan-with-us/requests`;
-  
+  // Link to agent portal, not admin panel
+  const agentUrl = `${appUrl}/account/agent/assignments`;
+
+  const rows: Array<[string, string]> = [
+    ["Request ID", `#${data.requestId}`],
+    ["Customer", data.customerName],
+  ];
+  if (data.role)     rows.push(["Request Type", data.role]);
+  if (data.tripType) rows.push(["Trip Type", data.tripType]);
+
+  const VIOLET = "#7c3aed";
+  const body = `
+    <p style="margin:0 0 16px;font-size:16px;font-weight:600;color:${VIOLET};">Hello ${data.agentName},</p>
+    <p style="margin:0 0 16px;">You have been assigned to a new travel planning request. Please review the details below and begin preparing the best Africa experience for this guest.</p>
+    ${infoCard(VIOLET, rows)}
+    ${calloutBox(VIOLET, "🎯", "Your responsibility", `Review the full request details, prepare an itinerary and pricing, and submit your response through the agent portal. The client is expecting a reply within <strong>48 hours</strong>.`)}
+    ${ctaButton(agentUrl, "Open My Assignments", VIOLET)}
+    <p style="margin:24px 0 0;font-size:13px;color:${TEXT_MUTED};">Questions about this assignment? Contact the admin team through the portal or reply to this email.</p>
+    <p style="margin:20px 0 0;">Best regards,<br><strong style="color:${BRAND_DARK};">The NoLSAF Admin Team</strong></p>
+  `;
+
   return {
-    subject: `You've Been Assigned to Plan Request #${data.requestId}`,
-    html: `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Agent Assignment</title>
-        </head>
-        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-            <h1 style="color: white; margin: 0; font-size: 24px;">New Assignment 🎯</h1>
-          </div>
-          
-          <div style="background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
-            <p style="font-size: 16px; margin-top: 0;">Hello ${data.agentName},</p>
-            
-            <p>You have been assigned to work on plan request <strong>#${data.requestId}</strong>.</p>
-            
-            <div style="background: white; padding: 20px; border-radius: 8px; border-left: 4px solid #8b5cf6; margin: 20px 0;">
-              <p style="margin: 0 0 10px 0;"><strong>Request ID:</strong> #${data.requestId}</p>
-              <p style="margin: 0 0 10px 0;"><strong>Customer:</strong> ${data.customerName}</p>
-              ${data.role ? `<p style="margin: 0 0 10px 0;"><strong>Role:</strong> ${data.role}</p>` : ''}
-              ${data.tripType ? `<p style="margin: 0;"><strong>Trip Type:</strong> ${data.tripType}</p>` : ''}
-            </div>
-            
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${adminPortalUrl}" style="background: #8b5cf6; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">View Request Details</a>
-            </div>
-            
-            <p style="color: #6b7280; font-size: 14px;">Please review the request details and coordinate with the admin team to provide the best service to our customer.</p>
-            
-            <p style="margin-top: 30px;">Best regards,<br><strong>The NoLSAF Team</strong></p>
-          </div>
-          
-          <div style="text-align: center; margin-top: 20px; color: #9ca3af; font-size: 12px;">
-            <p>&copy; ${new Date().getFullYear()} NoLSAF. All rights reserved.</p>
-          </div>
-        </body>
-      </html>
-    `
+    subject: `[NoLSAF] New Assignment — Plan Request #${data.requestId}`,
+    html: baseEmail(VIOLET, "#6d28d9", "New Assignment", "🎯", body),
   };
 }
-
