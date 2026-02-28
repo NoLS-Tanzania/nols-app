@@ -45,7 +45,7 @@
     "overrides": {
       "axios": "1.13.5",
       "diff": "4.0.4",
-      "fast-xml-parser": "5.3.6",
+      "fast-xml-parser": "5.3.9",
       "glob": "10.5.0",
       "hono": "4.11.10",
       "js-yaml": "4.1.1",
@@ -60,7 +60,10 @@
   "overrides": {
     "axios": "1.13.5",
     "diff": "4.0.4",
-    "fast-xml-parser": "5.3.6",
+    "fast-xml-parser": "5.3.9",
+    "@aws-sdk/xml-builder": {
+      "fast-xml-parser": "5.3.9"
+    },
     "glob": "10.5.0",
     "hono": "4.11.10",
     "js-yaml": "4.1.1",
