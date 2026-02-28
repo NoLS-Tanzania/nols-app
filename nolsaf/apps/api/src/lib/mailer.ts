@@ -33,7 +33,7 @@ export async function sendMail(
   html: string,
   attachments?: MailAttachment[]
 ) {
-  const from = process.env.EMAIL_FROM || process.env.RESEND_FROM_DOMAIN || "no-reply@nolsapp.com";
+  const from = process.env.EMAIL_FROM || process.env.RESEND_FROM_DOMAIN || "no-reply@nolsaf.com";
   
   // Sanitize HTML content
   const clean = sanitizeHtml(html, {
@@ -49,35 +49,33 @@ export async function sendMail(
     allowedSchemes: ["http", "https", "data", "mailto"],
   });
 
-  // Try Resend first (if configured)
+  // Try Resend (if configured) — if Resend key is set but send fails, throw immediately
+  // rather than silently falling through; this surfaces domain-verification errors to callers
   if (resend && process.env.RESEND_API_KEY) {
-    try {
-      const { data, error } = await resend.emails.send({
-        from: from,
-        to: [to],
-        subject: subject,
-        html: clean,
-        ...(attachments?.length ? {
-          attachments: attachments.map(a => ({
-            filename: a.filename,
-            content: a.content,
-          })),
-        } : {}),
-      });
+    console.log(`[Resend] Sending email from=${from} to=${to} subject="${subject}"`);
+    const { data, error } = await resend.emails.send({
+      from: from,
+      to: [to],
+      subject: subject,
+      html: clean,
+      ...(attachments?.length ? {
+        attachments: attachments.map(a => ({
+          filename: a.filename,
+          content: a.content,
+        })),
+      } : {}),
+    });
 
-      if (error) {
-        console.error('[Resend] Email send error:', error);
-        throw new Error(`Resend error: ${error.message || 'Unknown error'}`);
-      }
-
-      return { success: true, messageId: data?.id, provider: 'resend' };
-    } catch (error: any) {
-      console.error('[Resend] Failed to send email, falling back to SMTP:', error.message);
-      // Fall through to SMTP fallback
+    if (error) {
+      console.error('[Resend] Email send error:', { from, to, error });
+      throw new Error(`Resend error: ${(error as any).message || JSON.stringify(error)}`);
     }
+
+    console.log(`[Resend] Email sent successfully id=${data?.id} from=${from} to=${to}`);
+    return { success: true, messageId: data?.id, provider: 'resend' };
   }
 
-  // Fallback to SMTP if Resend fails or is not configured
+  // Fallback to SMTP only when Resend is not configured at all
   if (smtpTransporter && process.env.SMTP_HOST) {
     try {
       const info = await smtpTransporter.sendMail({
@@ -100,12 +98,12 @@ export async function sendMail(
     }
   }
 
-  // Development mode: just log if no provider is configured
+  // Development mode: log instead of sending — but ONLY when no provider is configured at all
   if (process.env.NODE_ENV !== 'production') {
-    console.log(`[Email] -> ${to}: ${subject}`);
-    console.log(`[Email] Content: ${clean.substring(0, 100)}...`);
+    console.log(`[Email:DEV] No provider configured — logging only. from=${from} to=${to} subject="${subject}"`);
+    console.log(`[Email:DEV] Content: ${clean.substring(0, 200)}...`);
     return { success: true, messageId: `dev-${Date.now()}`, provider: 'console' };
   }
 
-  throw new Error('No email provider configured. Please set RESEND_API_KEY or SMTP_HOST');
+  throw new Error('No email provider configured. Set RESEND_API_KEY or SMTP_HOST environment variables.');
 }
