@@ -221,7 +221,7 @@ export default function BookingDetailPage() {
   /* ── Error ── */
   if (error || !booking)
     return (
-      <div className="mx-auto w-full max-w-4xl p-6">
+      <div className="mx-auto w-full max-w-4xl">
         <div className="relative overflow-hidden rounded-3xl border border-red-200 bg-red-50 p-10 text-center shadow-sm">
           <AlertCircle className="w-14 h-14 text-red-400 mx-auto mb-4" />
           <h2 className="text-xl font-bold text-red-900 mb-2">
@@ -255,7 +255,7 @@ export default function BookingDetailPage() {
     .join(", ");
 
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-6 px-3 sm:px-4 lg:px-0">
+    <div className="mx-auto w-full max-w-4xl space-y-6">
 
       {/* ── HERO ── */}
       <div
@@ -333,7 +333,7 @@ export default function BookingDetailPage() {
 
             <div className="flex-1 min-w-0">
               <div className="flex flex-wrap items-center gap-2 mb-1">
-                <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+                <h1 className="text-xl sm:text-3xl font-extrabold text-white tracking-tight break-words min-w-0">
                   {booking.property.title}
                 </h1>
                 <span
@@ -369,7 +369,7 @@ export default function BookingDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
         {/* ── LEFT — main 2/3 ── */}
-        <div className="lg:col-span-2 space-y-5">
+        <div className="lg:col-span-2 space-y-5 min-w-0">
 
           {/* Stay Dates card */}
           <div className="relative overflow-hidden bg-white rounded-3xl border border-slate-100 shadow-[0_2px_16px_rgba(0,0,0,0.05)]">
@@ -379,10 +379,10 @@ export default function BookingDetailPage() {
                 background: "linear-gradient(180deg,#7dd3fc 0%,#0a5c82 100%)",
               }}
             />
-            <div className="pl-6 pr-6 pt-5 pb-5">
+            <div className="pl-5 pr-5 pt-5 pb-5">
               <div className="flex items-center gap-2 mb-4">
                 <div
-                  className="h-7 w-7 rounded-xl flex items-center justify-center"
+                  className="h-7 w-7 rounded-xl flex items-center justify-center flex-shrink-0"
                   style={{ background: "linear-gradient(135deg,#0a5c82,#02665e)" }}
                 >
                   <Moon className="h-3.5 w-3.5 text-white" />
@@ -443,10 +443,10 @@ export default function BookingDetailPage() {
                 background: "linear-gradient(180deg,#6ee7b7 0%,#02665e 100%)",
               }}
             />
-            <div className="pl-6 pr-6 pt-5 pb-5">
+            <div className="pl-5 pr-5 pt-5 pb-5">
               <div className="flex items-center gap-2 mb-4">
                 <div
-                  className="h-7 w-7 rounded-xl flex items-center justify-center"
+                  className="h-7 w-7 rounded-xl flex items-center justify-center flex-shrink-0"
                   style={{ background: "linear-gradient(135deg,#02665e,#059669)" }}
                 >
                   <Building2 className="h-3.5 w-3.5 text-white" />
@@ -486,10 +486,10 @@ export default function BookingDetailPage() {
                     "linear-gradient(180deg,#c4b5fd 0%,#7c3aed 100%)",
                 }}
               />
-              <div className="pl-6 pr-6 pt-5 pb-5">
+              <div className="pl-5 pr-5 pt-5 pb-5">
                 <div className="flex items-center gap-2 mb-4">
                   <div
-                    className="h-7 w-7 rounded-xl flex items-center justify-center"
+                    className="h-7 w-7 rounded-xl flex items-center justify-center flex-shrink-0"
                     style={{
                       background: "linear-gradient(135deg,#7c3aed,#a78bfa)",
                     }}
@@ -515,10 +515,8 @@ export default function BookingDetailPage() {
                 </div>
 
                 {/* Perforated divider */}
-                <div className="relative flex items-center mb-1">
-                  <div className="w-4 h-4 rounded-full bg-slate-50 border border-slate-100 -ml-9 flex-shrink-0" />
-                  <div className="flex-1 border-t-2 border-dashed border-slate-100 mx-2" />
-                  <div className="w-4 h-4 rounded-full bg-slate-50 border border-slate-100 -mr-9 flex-shrink-0" />
+                <div className="relative flex items-center mb-1 overflow-hidden">
+                  <div className="flex-1 border-t-2 border-dashed border-slate-200" />
                 </div>
 
                 <div
@@ -531,7 +529,7 @@ export default function BookingDetailPage() {
                   <p className="text-[10px] font-bold tracking-[0.2em] uppercase text-violet-400 mb-1">
                     {codeCopied ? "✓ Copied to clipboard" : "Tap to copy"}
                   </p>
-                  <p className="text-3xl sm:text-4xl font-black tracking-[0.3em] text-violet-700 font-mono">
+                  <p className="text-xl sm:text-3xl font-black tracking-[0.15em] sm:tracking-[0.3em] text-violet-700 font-mono break-all text-center w-full">
                     {code}
                   </p>
                 </div>
@@ -552,10 +550,10 @@ export default function BookingDetailPage() {
                     "linear-gradient(180deg,#fde68a 0%,#d97706 100%)",
                 }}
               />
-              <div className="pl-6 pr-6 pt-5 pb-5">
+              <div className="pl-5 pr-5 pt-5 pb-5">
                 <div className="flex items-center gap-2 mb-3">
                   <div
-                    className="h-7 w-7 rounded-xl flex items-center justify-center"
+                    className="h-7 w-7 rounded-xl flex items-center justify-center flex-shrink-0"
                     style={{
                       background: "linear-gradient(135deg,#d97706,#f59e0b)",
                     }}
@@ -573,7 +571,7 @@ export default function BookingDetailPage() {
         </div>
 
         {/* ── RIGHT — sidebar 1/3 ── */}
-        <div className="space-y-5">
+        <div className="space-y-5 min-w-0">
 
           {/* Payment — dark gradient card */}
           <div
@@ -599,12 +597,12 @@ export default function BookingDetailPage() {
               </div>
 
               {/* Amount + payment status row */}
-              <div className="flex items-end justify-between mb-4">
-                <div>
+              <div className="flex items-end justify-between gap-2 mb-4">
+                <div className="min-w-0">
                   <p className="text-[10px] font-semibold uppercase tracking-widest text-white/40 mb-0.5">
                     Total Amount
                   </p>
-                  <p className="text-2xl font-black text-white leading-tight">
+                  <p className="text-xl font-black text-white leading-tight truncate">
                     <span className="text-sm font-semibold text-white/50 mr-1">
                       {booking.currency || "TZS"}
                     </span>
@@ -670,23 +668,19 @@ export default function BookingDetailPage() {
                 </div>
                 <div className="flex flex-col items-center">
                   {qrUrl ? (
-                    <div className="rounded-2xl p-3 shadow-lg" style={{ background: "rgba(255,255,255,0.96)" }}>
+                    <div className="rounded-2xl p-2.5 shadow-lg w-full max-w-[200px]" style={{ background: "rgba(255,255,255,0.96)" }}>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={qrUrl}
                         alt="Booking QR Code"
-                        className="block"
-                        style={{ width: 160, height: 160, imageRendering: "pixelated" }}
+                        className="block w-full h-auto"
+                        style={{ imageRendering: "pixelated" }}
                       />
                     </div>
                   ) : (
                     <div
-                      className="rounded-2xl animate-pulse"
-                      style={{
-                        width: 188,
-                        height: 188,
-                        background: "rgba(255,255,255,0.08)",
-                      }}
+                      className="rounded-2xl animate-pulse w-full max-w-[200px] aspect-square"
+                      style={{ background: "rgba(255,255,255,0.08)" }}
                     />
                   )}
                   <p className="mt-2.5 text-[11px] font-semibold text-white/40 text-center">
