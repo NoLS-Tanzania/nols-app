@@ -125,8 +125,8 @@ router.get("/", (async (req: AuthedRequest, res) => {
 
     if (status) where.AND.push({ status: String(status) });
 
-    const pageNum = Number(page);
-    const pageSizeNum = Number(pageSize);
+    const pageNum = Math.max(1, Number(page) || 1);
+    const pageSizeNum = Math.min(50, Math.max(1, Number(pageSize) || 20));
     const skip = (pageNum - 1) * pageSizeNum;
 
     const [bookings, total] = await Promise.all([
@@ -141,8 +141,6 @@ router.get("/", (async (req: AuthedRequest, res) => {
               regionName: true,
               district: true,
               city: true,
-              country: true,
-              photos: true,
             },
           },
           code: {
