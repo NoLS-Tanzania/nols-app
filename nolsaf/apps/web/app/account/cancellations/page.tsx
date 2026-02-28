@@ -1,10 +1,10 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { AlertTriangle, ArrowLeft, CheckCircle, Search, XCircle, Calendar, DollarSign, MapPin, Mail, Phone, ChevronRight } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle, Search, XCircle, Calendar, DollarSign, MapPin, Mail, Phone, ChevronRight, Ban } from "lucide-react";
 import LayoutFrame from "@/components/LayoutFrame";
 import LogoSpinner from "@/components/LogoSpinner";
 
@@ -73,6 +73,16 @@ export default function CancellationRequestPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<{ id: number; status: string } | null>(null);
 
+  // Rate-limit lockout: timestamp (ms) until which the user is blocked from validating
+  const [rateLimitedUntil, setRateLimitedUntil] = useState<number | null>(null);
+  const [rateLimitCountdown, setRateLimitCountdown] = useState("");
+  // How many lookup attempts the server says remain before lockout (null = not yet fetched)
+  const LOOKUP_LIMIT = 4;
+  const [attemptsRemaining, setAttemptsRemaining] = useState<number | null>(null);
+
+  // Ref: last code that was successfully resolved — prevents redundant re-fetches
+  const lastResolvedCodeRef = useRef<string>("");
+
   const [reason, setReason] = useState("");
   const [confirmPolicy, setConfirmPolicy] = useState(false);
   const [confirmTerms, setConfirmTerms] = useState(false);
@@ -103,19 +113,46 @@ export default function CancellationRequestPage() {
     void loadMyRequests();
   }, []);
 
+  // Countdown ticker for rate-limit lockout UI — formats as hh:mm:ss
+  useEffect(() => {
+    if (!rateLimitedUntil) return;
+    const fmt = (secs: number) => {
+      const h = Math.floor(secs / 3600);
+      const m = Math.floor((secs % 3600) / 60);
+      const s = secs % 60;
+      if (h > 0) return `${h}h ${String(m).padStart(2, "0")}m ${String(s).padStart(2, "0")}s`;
+      return `${String(m).padStart(2, "0")}m ${String(s).padStart(2, "0")}s`;
+    };
+    const tick = () => {
+      const remaining = Math.ceil((rateLimitedUntil - Date.now()) / 1000);
+      if (remaining <= 0) {
+        setRateLimitedUntil(null);
+        setRateLimitCountdown("");
+        setAttemptsRemaining(null);
+      } else {
+        setRateLimitCountdown(fmt(remaining));
+      }
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [rateLimitedUntil]);
+
   // Auto-validate when code changes (debounced)
+  // Rules: min 8 chars, 1500ms debounce, skip if already resolved the same code
   useEffect(() => {
     const normalized = normalizeCode(code);
-    if (normalized.length >= 6) {
-      // Only validate if code is at least 6 characters
+    if (normalized.length >= 8) {
+      // Skip API call if this exact code is already loaded
+      if (normalized === lastResolvedCodeRef.current && lookup !== null) return;
       const timer = setTimeout(() => {
         void doLookup(normalized);
-      }, 500); // 500ms debounce
+      }, 1500); // 1500ms debounce — prevents rapid-fire on keystroke
       return () => clearTimeout(timer);
     } else if (normalized.length === 0) {
-      // Clear lookup if code is empty
       setLookup(null);
       setError(null);
+      lastResolvedCodeRef.current = "";
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]);
@@ -128,19 +165,49 @@ export default function CancellationRequestPage() {
       return;
     }
 
+    // Guard: refuse if client-side lockout is still active
+    if (rateLimitedUntil && Date.now() < rateLimitedUntil) {
+      const secs = Math.ceil((rateLimitedUntil - Date.now()) / 1000);
+      const h = Math.floor(secs / 3600);
+      const m = Math.floor((secs % 3600) / 60);
+      const s = secs % 60;
+      const display = h > 0 ? `${h}h ${m}m` : `${m}m ${s}s`;
+      setError(`Validation locked. Please wait ${display} before trying again.`);
+      return;
+    }
+
+    // Guard: skip if we already have a valid resolved result for this exact code
+    if (c === lastResolvedCodeRef.current && lookup !== null) return;
+
     setLoadingLookup(true);
     setError(null);
     setSuccess(null);
 
     try {
       const res = await api.get<LookupResponse>("/api/customer/cancellations/lookup", { params: { code: c } });
+      // Track remaining budget from server header (RateLimit-Remaining)
+      const remaining = Number(res.headers["ratelimit-remaining"] ?? res.headers["x-ratelimit-remaining"]);
+      if (Number.isFinite(remaining)) setAttemptsRemaining(remaining);
       setLookup(res.data);
+      lastResolvedCodeRef.current = c;
       setConfirmPolicy(false);
       setConfirmTerms(false);
       setReason("");
     } catch (e: any) {
       setLookup(null);
-      setError(e?.response?.data?.error || "Failed to validate booking code.");
+      lastResolvedCodeRef.current = "";
+      // Still capture remaining attempts from error response headers
+      const headers = e?.response?.headers || {};
+      const remaining = Number(headers["ratelimit-remaining"] ?? headers["x-ratelimit-remaining"]);
+      if (Number.isFinite(remaining)) setAttemptsRemaining(remaining);
+      if (e?.response?.status === 429) {
+        setAttemptsRemaining(0);
+        const until = Date.now() + 60 * 60_000; // 1-hour lockout
+        setRateLimitedUntil(until);
+        setError("Too many failed attempts. Validation is locked for 1 hour.");
+      } else {
+        setError(e?.response?.data?.error || "Failed to validate booking code.");
+      }
     } finally {
       setLoadingLookup(false);
     }
@@ -208,82 +275,127 @@ export default function CancellationRequestPage() {
     <div className="w-full min-w-0 overflow-x-hidden">
       <LayoutFrame />
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 sm:space-y-8 min-w-0">
-        {/* Back Button */}
-        <div className="flex items-center">
-          <Link
-            href="/account/bookings"
-            aria-label="Back to bookings"
-            className="group no-underline inline-flex items-center justify-center h-9 w-9 sm:h-10 sm:w-10 rounded-full text-slate-700 hover:text-slate-900 hover:bg-slate-100 active:bg-slate-200 transition-all duration-200 hover:scale-105 active:scale-95 touch-manipulation"
-          >
-            <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5 transition-transform group-hover:-translate-x-0.5" />
-          </Link>
-        </div>
-
-        {/* Header */}
-        <div className="text-center">
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-semibold text-gray-900 mb-2">Cancellation Request</h1>
-          <p className="text-sm sm:text-base text-gray-600 max-w-2xl mx-auto">
-            Enter your booking code to start a cancellation request (subject to our{" "}
-            <Link 
-              href="/cancellation-policy" 
-              className="text-blue-600 hover:text-blue-700 underline font-medium transition-colors"
+        {/* ── Premium Cancellation Header ── */}
+        <div className="relative overflow-hidden rounded-2xl shadow-lg" style={{ background: "linear-gradient(135deg,#18181b 0%,#881337 48%,#c2410c 100%)" }}>
+          <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 900 130" fill="none" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+            <circle cx="820" cy="10" r="130" stroke="white" strokeOpacity="0.05" strokeWidth="1" fill="none"/>
+            <circle cx="60" cy="120" r="80" stroke="white" strokeOpacity="0.04" strokeWidth="1" fill="none"/>
+            <polyline points="0,100 160,82 320,90 480,58 640,70 800,42 900,54" stroke="white" strokeOpacity="0.09" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+            <polygon points="0,100 160,82 320,90 480,58 640,70 800,42 900,54 900,130 0,130" fill="white" fillOpacity="0.03"/>
+          </svg>
+          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent"/>
+          {/* Back button inside header */}
+          <div className="absolute top-4 left-4 sm:top-5 sm:left-5">
+            <Link
+              href="/account/bookings"
+              aria-label="Back to bookings"
+              className="group no-underline inline-flex items-center gap-1.5 rounded-xl bg-white/10 border border-white/20 px-3 py-1.5 text-white/80 text-[11px] font-bold hover:bg-white/20 hover:text-white transition-all"
             >
-              cancellation policy
+              <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" />
+              Bookings
             </Link>
-            ).
-          </p>
+          </div>
+          <div className="relative flex flex-col items-center text-center px-8 pt-14 pb-8">
+            <div className="w-14 h-14 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center mb-4 shadow-lg">
+              <Ban className="h-7 w-7 text-white" />
+            </div>
+            <h1 className="text-2xl font-black text-white tracking-tight">Cancellation Request</h1>
+            <p className="text-rose-200/80 text-sm mt-1 font-medium max-w-md">
+              Enter your booking code to start a request — subject to our{" "}
+              <Link href="/cancellation-policy" className="text-rose-100 underline underline-offset-2 font-bold hover:text-white transition-colors">
+                cancellation policy
+              </Link>
+            </p>
+          </div>
         </div>
 
-      {/* Booking Code Input */}
-      <div className="w-full max-w-md mx-auto bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6 box-border">
-        <label className="block text-xs font-medium text-gray-700 mb-1.5 text-center">
-          Booking code
-        </label>
-        <div className="relative w-full min-w-0 box-border">
-          <input
-            value={code}
-            onChange={(e) => setCode(normalizeCode(e.target.value))}
-            placeholder="e.g. ABCD9F3A"
-            className="w-full min-w-0 max-w-full rounded-lg border border-gray-300 bg-white pl-3 pr-8 py-2 text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] transition-all box-border"
-          />
-          {loadingLookup && (
-            <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
-              <LogoSpinner size="xs" className="h-4 w-4" ariaLabel="Validating booking code" />
+      {/* ── Booking Code Input ── */}
+      <div className="w-full max-w-lg mx-auto">
+        <div className="relative overflow-hidden rounded-3xl bg-white border border-slate-100 shadow-[0_2px_16px_rgba(0,0,0,0.06)] px-6 pt-6 pb-6">
+          {/* subtle left accent */}
+          <div className="absolute left-0 inset-y-0 w-[3px] rounded-l-3xl" style={{ background: "linear-gradient(180deg,#881337,#c2410c)" }} />
+          <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-3 text-center">
+            Booking Code
+          </label>
+          <div className="relative w-full min-w-0">
+            <input
+              value={code}
+              onChange={(e) => setCode(normalizeCode(e.target.value))}
+              placeholder="e.g. ABCD9F3A"
+              disabled={!!rateLimitedUntil}
+              className={[
+                "w-full min-w-0 max-w-full rounded-2xl border-2 bg-slate-50 pl-4 pr-10 py-3 text-base font-mono font-semibold text-slate-900 placeholder:text-slate-400 placeholder:font-sans placeholder:font-normal outline-none transition-all box-border",
+                rateLimitedUntil
+                  ? "border-red-300 bg-red-50 cursor-not-allowed opacity-60"
+                  : "border-slate-200 focus:ring-2 focus:ring-rose-200 focus:border-rose-400",
+              ].join(" ")}
+            />
+            {loadingLookup && (
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                <LogoSpinner size="xs" className="h-4 w-4" ariaLabel="Validating booking code" />
+              </div>
+            )}
+            {!loadingLookup && code && !rateLimitedUntil && (
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                <Search className="h-4 w-4 text-slate-400" />
+              </div>
+            )}
+          </div>
+          {rateLimitedUntil ? (
+            <div className="mt-3 flex items-center justify-center gap-2 rounded-xl bg-red-50 border border-red-200 px-4 py-2.5">
+              <Ban className="h-4 w-4 text-red-600 flex-shrink-0" />
+              <span className="text-[12px] font-bold text-red-700">
+                Locked — try again in{" "}
+                <span className="tabular-nums font-black">{rateLimitCountdown}</span>
+              </span>
+            </div>
+          ) : (
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <p className="text-[11px] text-slate-400 font-medium">Validation happens automatically</p>
+              {attemptsRemaining !== null && (
+                <span className={[
+                  "inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[10px] font-bold tabular-nums border",
+                  attemptsRemaining <= 2
+                    ? "bg-red-50 border-red-200 text-red-700"
+                    : attemptsRemaining <= 4
+                      ? "bg-amber-50 border-amber-200 text-amber-700"
+                      : "bg-slate-50 border-slate-200 text-slate-500",
+                ].join(" ")}>
+                  <span className={[
+                    "w-1.5 h-1.5 rounded-full",
+                    attemptsRemaining <= 2 ? "bg-red-500" : attemptsRemaining <= 4 ? "bg-amber-500" : "bg-slate-400",
+                  ].join(" ")} />
+                  {attemptsRemaining}/{LOOKUP_LIMIT} attempts left
+                </span>
+              )}
             </div>
           )}
-          {!loadingLookup && code && (
-            <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
-              <Search className="h-4 w-4 text-gray-400" />
-            </div>
-          )}
-        </div>
-        <p className="mt-1.5 text-xs text-gray-500 text-center">Validation happens automatically</p>
 
         {error && (
-          <div className="mt-4 w-full min-w-0 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-red-900 mb-1">Error</div>
-                <div className="text-sm text-red-800 break-words">{error}</div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {success && (
-          <div className="mt-4 w-full min-w-0 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
-            <div className="flex items-start gap-3">
-              <CheckCircle className="h-5 w-5 text-emerald-600 flex-shrink-0 mt-0.5" />
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-emerald-900 mb-1">Request submitted</div>
-                <div className="text-sm text-emerald-800">
-                  Your cancellation request is now <span className="font-semibold">{success.status || "PENDING"}</span>.
+            <div className="mt-4 w-full min-w-0 rounded-2xl border border-red-200 bg-red-50 px-4 py-3">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-bold text-red-900 mb-0.5">Error</div>
+                  <div className="text-sm text-red-800 break-words">{error}</div>
                 </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
+          {success && (
+            <div className="mt-4 w-full min-w-0 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+              <div className="flex items-start gap-3">
+                <CheckCircle className="h-5 w-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-bold text-emerald-900 mb-0.5">Request submitted</div>
+                  <div className="text-sm text-emerald-800">
+                    Your cancellation request is now <span className="font-semibold">{success.status || "PENDING"}</span>.
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {lookup && (
@@ -756,82 +868,99 @@ export default function CancellationRequestPage() {
         </div>
       )}
 
-      {/* My Cancellation Claims Card */}
-      <div className="w-full min-w-0 max-w-full bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6 lg:p-8 box-border overflow-hidden">
-        <div className="text-center mb-4 sm:mb-6">
-          <h2 className="text-lg sm:text-xl lg:text-2xl font-semibold text-gray-900 mb-1 sm:mb-2">My Cancellation Claims</h2>
-          <p className="text-xs sm:text-sm lg:text-base text-gray-500">Track your submitted claims and messages</p>
+      {/* ── My Cancellation Claims ── */}
+      <div className="relative overflow-hidden rounded-3xl bg-white border border-slate-100 shadow-[0_2px_16px_rgba(0,0,0,0.05)]">
+        {/* Section header */}
+        <div className="relative overflow-hidden rounded-t-3xl px-6 py-5" style={{ background: "linear-gradient(135deg,#18181b 0%,#881337 48%,#c2410c 100%)" }}>
+          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent"/>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center flex-shrink-0">
+              <Ban className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-base font-black text-white tracking-tight">My Cancellation Claims</h2>
+              <p className="text-rose-200/80 text-[11px] font-medium">Track your submitted claims and messages</p>
+            </div>
+            {myRequests.length > 0 && (
+              <span className="ml-auto inline-flex items-center gap-1.5 bg-white/15 border border-white/25 text-white text-[10px] font-bold uppercase tracking-widest rounded-full px-3 py-1 flex-shrink-0">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-300 inline-block"/>
+                {myRequests.length}
+              </span>
+            )}
+          </div>
         </div>
 
-        {loadingRequests ? (
-          <div className="flex items-center justify-center gap-2 py-8 text-sm text-gray-500">
-            <LogoSpinner size="xs" className="h-4 w-4" ariaLabel="Loading cancellation claims" />
-            <span>Loading…</span>
-          </div>
-        ) : (
-          <div className="space-y-2 sm:space-y-3 min-w-0">
-            {myRequests.length === 0 ? (
-              <div className="text-center py-8 sm:py-12 px-4">
-                <div className="inline-flex items-center justify-center h-12 w-12 sm:h-16 sm:w-16 rounded-xl bg-gray-100 mb-3 sm:mb-4">
-                  <Calendar className="h-6 w-6 sm:h-8 sm:w-8 text-gray-400" />
+        <div className="p-4 sm:p-5">
+          {loadingRequests ? (
+            <div className="flex items-center justify-center gap-2 py-10 text-sm text-slate-500">
+              <LogoSpinner size="xs" className="h-4 w-4" ariaLabel="Loading cancellation claims" />
+              <span>Loading…</span>
+            </div>
+          ) : (
+            <div className="space-y-3 min-w-0">
+              {myRequests.length === 0 ? (
+                <div className="text-center py-10 px-4">
+                  <div className="mx-auto w-14 h-14 rounded-2xl flex items-center justify-center mb-3" style={{ background: "linear-gradient(135deg,#881337,#c2410c)" }}>
+                    <Ban className="h-7 w-7 text-white" />
+                  </div>
+                  <div className="text-sm font-black text-slate-900">No claims yet</div>
+                  <div className="text-xs text-slate-500 mt-1">Your cancellation requests will appear here</div>
                 </div>
-                <div className="text-sm font-medium text-gray-700">No claims yet</div>
-                <div className="text-xs sm:text-sm text-gray-500 mt-1">Your cancellation requests will appear here</div>
-              </div>
-            ) : (
-              myRequests.slice(0, 10).map((r: any) => {
-                const statusColors: Record<string, string> = {
-                  SUBMITTED: "bg-blue-50 text-blue-700 border-blue-200",
-                  REVIEWING: "bg-amber-50 text-amber-700 border-amber-200",
-                  NEED_INFO: "bg-orange-50 text-orange-700 border-orange-200",
-                  PROCESSING: "bg-indigo-50 text-indigo-700 border-indigo-200",
-                  REFUNDED: "bg-emerald-50 text-emerald-700 border-emerald-200",
-                  REJECTED: "bg-red-50 text-red-700 border-red-200",
-                };
-                const statusColor = statusColors[r.status] || "bg-gray-50 text-gray-700 border-gray-200";
-                
-                return (
-                  <Link
-                    key={r.id}
-                    href={`/account/cancellations/${r.id}`}
-                    className="w-full min-w-0 group no-underline flex items-center gap-2 sm:gap-3 lg:gap-4 rounded-xl border border-gray-200 bg-white p-3 sm:p-4 lg:px-5 lg:py-4 hover:border-[#02665e]/50 hover:shadow-md transition-all duration-300 hover:bg-gray-50/50 box-border overflow-hidden"
-                  >
-                    <div className="flex-shrink-0">
-                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-gradient-to-br from-[#02665e]/10 to-[#02665e]/5 flex items-center justify-center border border-[#02665e]/20 group-hover:from-[#02665e]/20 group-hover:to-[#02665e]/10 transition-all">
-                        <span className="text-sm sm:text-base font-bold text-[#02665e]">#{r.id}</span>
+              ) : (
+                myRequests.slice(0, 10).map((r: any) => {
+                  const statusMeta: Record<string, { bar: string; pill: string; dot: string }> = {
+                    SUBMITTED:  { bar: "linear-gradient(180deg,#1d4ed8,#3b82f6)", pill: "bg-blue-50 text-blue-700 border-blue-200",    dot: "bg-blue-500" },
+                    REVIEWING:  { bar: "linear-gradient(180deg,#b45309,#f59e0b)", pill: "bg-amber-50 text-amber-700 border-amber-200",  dot: "bg-amber-500" },
+                    NEED_INFO:  { bar: "linear-gradient(180deg,#c2410c,#fb923c)", pill: "bg-orange-50 text-orange-700 border-orange-200", dot: "bg-orange-500" },
+                    PROCESSING: { bar: "linear-gradient(180deg,#4338ca,#818cf8)", pill: "bg-indigo-50 text-indigo-700 border-indigo-200", dot: "bg-indigo-500" },
+                    REFUNDED:   { bar: "linear-gradient(180deg,#047857,#34d399)", pill: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-500" },
+                    REJECTED:   { bar: "linear-gradient(180deg,#881337,#f43f5e)", pill: "bg-rose-50 text-rose-700 border-rose-200",    dot: "bg-rose-500" },
+                  };
+                  const meta = statusMeta[r.status] || { bar: "linear-gradient(180deg,#94a3b8,#cbd5e1)", pill: "bg-slate-50 text-slate-600 border-slate-200", dot: "bg-slate-400" };
+
+                  return (
+                    <Link
+                      key={r.id}
+                      href={`/account/cancellations/${r.id}`}
+                      className="relative overflow-hidden w-full min-w-0 group no-underline flex items-center gap-3 sm:gap-4 rounded-2xl border border-slate-100 bg-white pl-5 pr-4 py-3.5 hover:shadow-[0_4px_20px_rgba(136,19,55,0.09)] hover:-translate-y-px transition-all duration-200 box-border"
+                    >
+                      {/* left accent */}
+                      <div className="absolute left-0 inset-y-0 w-[3px] rounded-l-2xl" style={{ background: meta.bar }} />
+                      {/* icon badge */}
+                      <div className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center shadow-sm" style={{ background: meta.bar }}>
+                        <span className="text-[13px] font-black text-white">#{r.id}</span>
                       </div>
-                    </div>
-                    <div className="min-w-0 flex-1 space-y-1.5 sm:space-y-2 overflow-hidden">
-                      <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
-                        <span className={`px-2 sm:px-3 py-0.5 sm:py-1 rounded-lg text-[10px] sm:text-xs font-semibold uppercase tracking-wide border ${statusColor} transition-colors flex-shrink-0`}>
-                          {r.status}
-                        </span>
-                        {r.createdAt && (
-                          <span className="text-[10px] sm:text-xs text-gray-500 whitespace-nowrap">
-                            {new Date(r.createdAt).toLocaleDateString()}
+                      <div className="min-w-0 flex-1 space-y-1 overflow-hidden">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10px] font-bold uppercase tracking-wide border ${meta.pill} flex-shrink-0`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${meta.dot}`} />
+                            {r.status}
                           </span>
-                        )}
-                      </div>
-                      <div className="space-y-1 min-w-0">
-                        <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm min-w-0">
-                          <span className="text-gray-500 font-medium flex-shrink-0">Code:</span>
-                          <span className="font-mono font-semibold text-gray-900 truncate min-w-0">{r.bookingCode}</span>
+                          {r.createdAt && (
+                            <span className="text-[11px] text-slate-400 whitespace-nowrap font-medium">
+                              {new Date(r.createdAt).toLocaleDateString()}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[12px] text-slate-600 min-w-0">
+                          <span className="text-slate-400 font-medium flex-shrink-0">Code:</span>
+                          <span className="font-mono font-semibold text-slate-800 truncate">{r.bookingCode}</span>
                         </div>
                         {r.booking?.property?.title && (
-                          <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-gray-600 min-w-0">
-                            <MapPin className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-gray-400 flex-shrink-0" />
-                            <span className="truncate min-w-0">{r.booking.property.title}</span>
+                          <div className="flex items-center gap-1.5 text-[11px] text-slate-500 min-w-0">
+                            <MapPin className="h-3 w-3 text-slate-400 flex-shrink-0" />
+                            <span className="truncate">{r.booking.property.title}</span>
                           </div>
                         )}
                       </div>
-                    </div>
-                    <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400 group-hover:text-[#02665e] group-hover:translate-x-1 transition-all flex-shrink-0 ml-1 sm:ml-2" />
-                  </Link>
-                );
-              })
-            )}
-          </div>
-        )}
+                      <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-rose-600 group-hover:translate-x-0.5 transition-all flex-shrink-0" />
+                    </Link>
+                  );
+                })
+              )}
+            </div>
+          )}
+        </div>
       </div>
       </div>
     </div>

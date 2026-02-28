@@ -70,44 +70,26 @@ type AuctionOffer = {
   };
 };
 
-function SkeletonLine({ w = "w-full" }: { w?: string }) {
-  return <div className={`h-3 ${w} rounded-full bg-slate-200/80 animate-pulse`} />;
-}
-
-function GroupStayCardSkeleton({ variant }: { variant: "active" | "expired" }) {
-  const isActive = variant === "active";
+function GroupStayCardSkeleton({ variant: _variant }: { variant: "active" | "expired" }) {
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-sm">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="min-w-[220px] flex-1">
-              <SkeletonLine w="w-64" />
-              <div className="mt-2">
-                <SkeletonLine w="w-40" />
-              </div>
+    <div className="relative overflow-hidden bg-white rounded-3xl border border-slate-100 shadow-[0_2px_16px_rgba(0,0,0,0.05)] p-5 sm:p-6">
+      <div className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-3xl bg-gradient-to-b from-emerald-300 to-emerald-600 opacity-40" />
+      <div className="flex flex-col gap-4 pl-3">
+        <div className="flex items-center gap-3">
+          <div className="h-11 w-11 rounded-2xl bg-slate-100 animate-pulse" />
+          <div className="flex-1 space-y-2">
+            <div className="h-4 w-40 rounded-full bg-slate-200 animate-pulse" />
+            <div className="h-3 w-24 rounded-full bg-slate-100 animate-pulse" />
+          </div>
+          <div className="h-6 w-20 rounded-full bg-slate-100 animate-pulse" />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="rounded-2xl bg-slate-50 border border-slate-100 p-3 space-y-2">
+              <div className="h-3 w-16 rounded-full bg-slate-200 animate-pulse" />
+              <div className="h-4 w-24 rounded-full bg-slate-100 animate-pulse" />
             </div>
-            <span
-              className={[
-                "inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold",
-                isActive ? "bg-[#02665e]/10 text-[#02665e]" : "bg-slate-100 text-slate-700",
-              ].join(" ")}
-            >
-              {isActive ? <CheckCircle className="h-4 w-4" /> : <Calendar className="h-4 w-4 text-red-600" />}
-              {isActive ? "Active" : "Completed"}
-            </span>
-          </div>
-
-          <div className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="rounded-xl bg-slate-50/70 border border-slate-200 p-3">
-                <SkeletonLine w="w-20" />
-                <div className="mt-2">
-                  <SkeletonLine w="w-28" />
-                </div>
-              </div>
-            ))}
-          </div>
+          ))}
         </div>
       </div>
     </div>
@@ -282,13 +264,15 @@ export default function MyGroupStaysPage() {
   };
 
   const getStatusColor = (stay: GroupStay) => {
-    if (stay.status === "PENDING") return "bg-amber-100 text-amber-700";
+    if (stay.status === "PENDING") return "bg-amber-50 text-amber-700 border-amber-200";
+    if (stay.status === "REVIEWING") return "bg-emerald-50 text-emerald-700 border-emerald-200";
+    if (stay.status === "PROCESSING") return "bg-sky-50 text-sky-700 border-sky-200";
     if (stay.isValid) {
-      return stay.status === "CONFIRMED" ? "bg-[#02665e]/10 text-[#02665e]" : "bg-[#02665e]/10 text-[#02665e]";
+      return stay.status === "CONFIRMED" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-emerald-50 text-emerald-700 border-emerald-200";
     }
-    if (stay.status === "COMPLETED") return "bg-green-100 text-green-700";
-    if (stay.status === "CANCELED") return "bg-red-100 text-red-700";
-    return "bg-slate-100 text-slate-700";
+    if (stay.status === "COMPLETED") return "bg-green-50 text-green-700 border-green-200";
+    if (stay.status === "CANCELED") return "bg-red-50 text-red-700 border-red-200";
+    return "bg-slate-100 text-slate-500 border-slate-200";
   };
 
   // Parse and format admin suggestions text (handles markdown-like formatting)
@@ -349,21 +333,28 @@ export default function MyGroupStaysPage() {
   if (loading) {
     return (
       <div className="mx-auto w-full max-w-5xl space-y-6">
-        <div className="text-center">
-          <div className="mx-auto max-w-md">
-            <div className="h-8 w-56 mx-auto rounded-full bg-slate-200/80 animate-pulse" />
-            <div className="mt-3 h-4 w-72 mx-auto rounded-full bg-slate-200/70 animate-pulse" />
+        <div
+          className="relative overflow-hidden rounded-3xl p-8 sm:p-10 animate-pulse"
+          style={{ background: "linear-gradient(135deg, #091e2e 0%, #0e3f5e 42%, #02665e 100%)" }}
+        >
+          <div className="flex flex-col items-center gap-4">
+            <div className="h-16 w-16 rounded-2xl bg-white/10" />
+            <div className="h-8 w-48 rounded-full bg-white/10" />
+            <div className="h-4 w-64 rounded-full bg-white/10" />
+            <div className="flex gap-3 mt-1">
+              {[80, 96, 80, 80].map((w, i) => (
+                <div key={i} className="h-7 rounded-full bg-white/10" style={{ width: w }} />
+              ))}
+            </div>
           </div>
         </div>
-
         <div className="flex justify-center">
-          <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-1 shadow-sm flex-wrap">
+          <div className="inline-flex gap-2 rounded-2xl bg-slate-100 p-1.5 border border-slate-200">
             {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="h-9 w-24 rounded-xl bg-white/80 animate-pulse" />
+              <div key={i} className="h-9 w-24 rounded-xl bg-white animate-pulse" />
             ))}
           </div>
         </div>
-
         <div className="space-y-4">
           <GroupStayCardSkeleton variant="active" />
           <GroupStayCardSkeleton variant="expired" />
@@ -379,20 +370,152 @@ export default function MyGroupStaysPage() {
         entered ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1",
       ].join(" ")}
     >
-      {/* Header Card */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-        <div className="flex flex-col items-center text-center">
-          <div className="h-16 w-16 rounded-full bg-gradient-to-br from-[#02665e]/10 to-[#014d47]/10 flex items-center justify-center mb-4">
-            <Users className="h-8 w-8 text-[#02665e]" />
+      {/* ══════════════ PREMIUM HEADER ══════════════ */}
+      <div
+        className="relative overflow-hidden rounded-3xl shadow-[0_4px_40px_rgba(2,60,80,0.38)]"
+        style={{ background: "linear-gradient(135deg, #091e2e 0%, #0e3f5e 42%, #02665e 100%)" }}
+      >
+        {/* ── Radial glow layers (blue + teal) ── */}
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute inset-0" style={{
+            background: "radial-gradient(600px circle at 15% 20%, rgba(56,189,248,0.18), transparent 55%), radial-gradient(500px circle at 90% 75%, rgba(2,102,94,0.38), transparent 60%)"
+          }} />
+        </div>
+
+        {/* ── SVG Graph Visualization Background ── */}
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <svg
+            className="absolute inset-0 w-full h-full"
+            viewBox="0 0 800 220"
+            preserveAspectRatio="xMidYMid slice"
+            aria-hidden="true"
+          >
+            <defs>
+              <linearGradient id="gsAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="rgba(56,189,248,0.18)" />
+                <stop offset="100%" stopColor="rgba(56,189,248,0)" />
+              </linearGradient>
+              <linearGradient id="gsAreaGrad2" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="rgba(2,180,160,0.16)" />
+                <stop offset="100%" stopColor="rgba(2,180,160,0)" />
+              </linearGradient>
+            </defs>
+
+            {/* Bar chart columns (background layer) */}
+            {[
+              { x: 30,  h: 60,  c: "rgba(56,189,248,0.10)" },
+              { x: 80,  h: 90,  c: "rgba(56,189,248,0.13)" },
+              { x: 130, h: 50,  c: "rgba(2,180,160,0.10)" },
+              { x: 180, h: 110, c: "rgba(56,189,248,0.14)" },
+              { x: 230, h: 75,  c: "rgba(2,180,160,0.11)" },
+              { x: 280, h: 130, c: "rgba(56,189,248,0.15)" },
+              { x: 330, h: 85,  c: "rgba(2,180,160,0.12)" },
+              { x: 380, h: 145, c: "rgba(56,189,248,0.16)" },
+              { x: 430, h: 95,  c: "rgba(2,180,160,0.11)" },
+              { x: 480, h: 120, c: "rgba(56,189,248,0.13)" },
+              { x: 530, h: 70,  c: "rgba(2,180,160,0.10)" },
+              { x: 580, h: 105, c: "rgba(56,189,248,0.14)" },
+              { x: 630, h: 155, c: "rgba(2,180,160,0.14)" },
+              { x: 680, h: 90,  c: "rgba(56,189,248,0.12)" },
+              { x: 730, h: 125, c: "rgba(2,180,160,0.13)" },
+              { x: 780, h: 60,  c: "rgba(56,189,248,0.10)" },
+            ].map((b, i) => (
+              <rect key={i} x={b.x - 16} y={220 - b.h} width={32} height={b.h} rx={4} fill={b.c} />
+            ))}
+
+            {/* Area fill under line 1 (sky-blue) */}
+            <path
+              d="M0,160 C60,140 120,110 180,95 C240,80 300,105 360,70 C420,35 480,60 540,45 C600,30 660,55 720,40 C760,30 800,35 800,35 L800,220 L0,220 Z"
+              fill="url(#gsAreaGrad)"
+            />
+            {/* Line 1 */}
+            <path
+              d="M0,160 C60,140 120,110 180,95 C240,80 300,105 360,70 C420,35 480,60 540,45 C600,30 660,55 720,40 C760,30 800,35 800,35"
+              fill="none"
+              stroke="rgba(56,189,248,0.45)"
+              strokeWidth="2"
+              strokeLinecap="round"
+            />
+
+            {/* Area fill under line 2 (teal) */}
+            <path
+              d="M0,185 C80,175 160,165 240,150 C320,135 400,155 480,130 C560,105 640,120 720,100 C760,90 800,95 800,95 L800,220 L0,220 Z"
+              fill="url(#gsAreaGrad2)"
+            />
+            {/* Line 2 */}
+            <path
+              d="M0,185 C80,175 160,165 240,150 C320,135 400,155 480,130 C560,105 640,120 720,100 C760,90 800,95 800,95"
+              fill="none"
+              stroke="rgba(2,180,160,0.38)"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeDasharray="6 3"
+            />
+
+            {/* Data point dots on line 1 */}
+            {[
+              [180, 95], [360, 70], [540, 45], [720, 40],
+            ].map(([cx, cy], i) => (
+              <g key={i}>
+                <circle cx={cx} cy={cy} r={4} fill="rgba(56,189,248,0.5)" />
+                <circle cx={cx} cy={cy} r={7} fill="rgba(56,189,248,0.12)" />
+              </g>
+            ))}
+
+            {/* Horizontal grid lines */}
+            {[55, 110, 165].map((y, i) => (
+              <line key={i} x1="0" y1={y} x2="800" y2={y}
+                stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+            ))}
+          </svg>
+        </div>
+
+        <div className="relative px-6 py-10 sm:px-10 sm:py-12">
+          <div className="flex flex-col items-center text-center gap-4">
+            {/* Icon with glow */}
+            <div className="relative">
+              <div className="absolute inset-0 rounded-2xl blur-md scale-110"
+                style={{ background: "rgba(56,189,248,0.22)" }} />
+              <div className="relative h-16 w-16 rounded-2xl flex items-center justify-center shadow-lg"
+                style={{ background: "linear-gradient(135deg, rgba(56,189,248,0.18) 0%, rgba(2,102,94,0.22) 100%)", border: "1px solid rgba(255,255,255,0.15)" }}>
+                <Users className="h-8 w-8 text-white drop-shadow-md" />
+              </div>
+            </div>
+
+            <div>
+              <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight drop-shadow">
+                My Group Stay
+              </h1>
+              <p className="mt-1.5 text-sm sm:text-base text-sky-200/70 font-medium">
+                View all your group booking arrangements
+              </p>
+            </div>
+
+            {/* Stats chips */}
+            <div className="flex flex-wrap justify-center gap-2 mt-1">
+              <span className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold"
+                style={{ background: "rgba(56,189,248,0.12)", border: "1px solid rgba(56,189,248,0.28)", color: "#7dd3fc" }}>
+                <Users className="h-3.5 w-3.5" />
+                {groupStays.length} Total
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold"
+                style={{ background: "rgba(2,180,160,0.14)", border: "1px solid rgba(2,180,160,0.30)", color: "#5eead4" }}>
+                <CheckCircle className="h-3.5 w-3.5" />
+                {activeCount} Active
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold"
+                style={{ background: "rgba(251,191,36,0.12)", border: "1px solid rgba(251,191,36,0.28)", color: "#fde68a" }}>
+                <Clock className="h-3.5 w-3.5" />
+                {pendingCount} Pending
+              </span>
+            </div>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">My Group Stay</h1>
-          <p className="text-sm text-gray-500 mt-1">View all your group booking arrangements</p>
         </div>
       </div>
 
-      {/* Filter tabs */}
+      {/* ══════════════ FILTER TABS ══════════════ */}
       <div className="flex justify-center">
-        <div className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-1 shadow-sm flex-wrap">
+        <div className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-slate-100/80 border border-slate-200 p-1.5 shadow-sm flex-wrap">
           {[
             { key: "pending" as const, label: "Pending", count: pendingCount },
             { key: "reviewed" as const, label: "Reviewed", count: reviewedCount },
@@ -408,13 +531,12 @@ export default function MyGroupStaysPage() {
                 aria-pressed={active}
                 onClick={() => setFilter(t.key)}
                 className={[
-                  "inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold whitespace-nowrap transition-all duration-200",
+                  "inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold whitespace-nowrap transition-all duration-200 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/30 focus-visible:ring-offset-1",
                   active
-                    ? "border-[#02665e] bg-[#02665e] text-white"
-                    : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-400",
-                  "active:scale-[0.98]",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/25 focus-visible:ring-offset-2",
+                    ? "text-white shadow-md"
+                    : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300",
                 ].join(" ")}
+                style={active ? { background: "linear-gradient(135deg, #0a2e19 0%, #059669 100%)", border: "none" } : {}}
               >
                 <span>{t.label}</span>
                 <span
@@ -432,12 +554,16 @@ export default function MyGroupStaysPage() {
       </div>
 
       {filteredGroupStays.length === 0 ? (
-        <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center shadow-sm">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#02665e]/10 transition-transform duration-200 hover:scale-[1.03]">
-            <Users className="h-7 w-7 text-[#02665e]" />
+        <div className="relative overflow-hidden rounded-3xl border border-slate-100 bg-white p-12 text-center shadow-[0_2px_20px_rgba(0,0,0,0.05)]">
+          <div className="pointer-events-none absolute inset-0 opacity-[0.03]"
+            style={{ background: "radial-gradient(circle at 50% 0%, #059669, transparent 60%)" }} />
+          <div className="relative">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl shadow-md"
+            style={{ background: "linear-gradient(135deg, #0a2e19 0%, #059669 100%)" }}>
+            <Users className="h-8 w-8 text-white" />
           </div>
-          <div className="mt-4 text-lg font-bold text-slate-900">No group stays found</div>
-          <div className="mt-1 text-sm text-slate-600">
+          <div className="mt-5 text-xl font-bold text-slate-900">No group stays found</div>
+          <div className="mt-2 text-sm text-slate-500 max-w-xs mx-auto leading-relaxed">
             {filter === "pending"
               ? "You don't have any group stays waiting for review at the moment."
               : filter === "reviewed"
@@ -451,16 +577,18 @@ export default function MyGroupStaysPage() {
               : "No group stays found."}
           </div>
           {filter === "active" && (
-            <div className="mt-6 flex justify-center">
+            <div className="mt-7 flex justify-center">
               <Link
                 href="/public/group-stays"
-                className="group no-underline inline-flex items-center justify-center gap-2 rounded-xl bg-[#02665e] px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-[#014d47] hover:shadow-md active:scale-[0.99] transition"
+                className="group no-underline inline-flex items-center justify-center gap-2 rounded-2xl px-6 py-3 text-sm font-semibold text-white shadow-md hover:shadow-lg active:scale-[0.99] transition-all"
+                style={{ background: "linear-gradient(135deg, #0a2e19 0%, #059669 100%)" }}
               >
                 Book a group stay
                 <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
               </Link>
             </div>
           )}
+          </div>
         </div>
       ) : (
         <div className="space-y-4">
@@ -486,24 +614,35 @@ export default function MyGroupStaysPage() {
             return (
               <div key={`${stay.id}-${section}`} className="space-y-2">
                 {showSectionHeader && (
-                  <div className="pt-2">
-                    <div className="flex items-end justify-between">
-                      <div className="text-sm font-bold text-slate-900">{sectionTitle}</div>
-                      <div className="text-xs font-semibold text-slate-600">{sectionCount}</div>
+                  <div className="pt-2 pb-1">
+                    <div
+                      className="flex items-center justify-between rounded-2xl px-4 py-2.5"
+                      style={{ background: section === "reviewing" ? "linear-gradient(135deg, rgba(13,92,57,0.08), rgba(5,150,105,0.05))" : "rgba(251,191,36,0.07)", border: section === "reviewing" ? "1px solid rgba(5,150,105,0.15)" : "1px solid rgba(251,191,36,0.2)" }}
+                    >
+                      <div>
+                        <div className="text-sm font-bold" style={{ color: section === "reviewing" ? "#065f46" : "#92400e" }}>{sectionTitle}</div>
+                        <div className="mt-0.5 text-xs" style={{ color: section === "reviewing" ? "#047857" : "#b45309" }}>{sectionDescription}</div>
+                      </div>
+                      <span className="inline-flex items-center justify-center h-6 min-w-6 rounded-full px-2 text-xs font-bold"
+                        style={{ background: section === "reviewing" ? "rgba(5,150,105,0.15)" : "rgba(251,191,36,0.2)", color: section === "reviewing" ? "#065f46" : "#92400e" }}>
+                        {sectionCount}
+                      </span>
                     </div>
-                    <div className="mt-0.5 text-xs text-slate-600">{sectionDescription}</div>
                   </div>
                 )}
 
                 <div className="group">
-                  <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-[2px] group-hover:border-slate-300">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="relative overflow-hidden bg-white rounded-3xl border border-slate-100 shadow-[0_2px_16px_rgba(0,0,0,0.05)] transition-all duration-200 hover:shadow-[0_6px_32px_rgba(5,150,105,0.12)] hover:-translate-y-[2px]">
+                    <div className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-3xl"
+                      style={{ background: stay.status === "PENDING" ? "linear-gradient(180deg, #fde68a 0%, #f59e0b 100%)" : stay.status === "REVIEWING" ? "linear-gradient(180deg, #6ee7b7 0%, #059669 100%)" : stay.isValid ? "linear-gradient(180deg, #6ee7b7 0%, #059669 100%)" : stay.status === "COMPLETED" ? "linear-gradient(180deg, #86efac 0%, #16a34a 100%)" : "linear-gradient(180deg, #fca5a5 0%, #dc2626 100%)" }} />
+              <div className="flex flex-col gap-4 pl-5 pr-5 pt-5 pb-5 sm:pl-6 sm:pr-6 sm:pt-6 sm:pb-5">
                 <div className="min-w-0 flex-1">
                   {/* Header with property title and status */}
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="flex items-center gap-3">
-                      <div className="p-2 bg-[#02665e]/10 rounded-xl">
-                        <Users className="h-5 w-5 text-[#02665e]" />
+                      <div className="h-11 w-11 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm"
+                        style={{ background: stay.status === "PENDING" ? "linear-gradient(135deg, #fef9c3, #fef08a)" : "linear-gradient(135deg, #d1fae5, #a7f3d0)" }}>
+                        <Users className={`h-5 w-5 ${stay.status === "PENDING" ? "text-amber-600" : "text-emerald-700"}`} />
                       </div>
                       <div>
                         <h3 className="text-lg font-bold text-slate-900">
@@ -515,7 +654,7 @@ export default function MyGroupStaysPage() {
                       </div>
                     </div>
                     <span
-                      className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${getStatusColor(stay)}`}
+                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold border ${getStatusColor(stay)}`}
                     >
                       {stay.status === "PENDING" || stay.status === "REVIEWING" ? (
                         <Clock className="h-4 w-4" />
@@ -546,47 +685,39 @@ export default function MyGroupStaysPage() {
                   {/* Booking Information Grid */}
                   <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
                     {/* Check-in */}
-                    <div className="rounded-xl bg-slate-50/70 border border-slate-200 p-3">
-                      <div className="flex items-center gap-2 text-xs font-medium text-slate-500 mb-1">
-                        <Calendar className="h-3.5 w-3.5 text-[#02665e]" />
+                    <div className="rounded-2xl bg-emerald-50/60 border border-emerald-100 p-3">
+                      <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-emerald-600 mb-0.5">
+                        <Calendar className="h-3 w-3" />
                         Check-in
                       </div>
-                      <div className="mt-0.5 font-semibold text-slate-900">
-                        {formatDate(stay.checkIn)}
-                      </div>
+                      <div className="font-bold text-slate-800 text-sm">{formatDate(stay.checkIn)}</div>
                     </div>
 
                     {/* Check-out */}
-                    <div className="rounded-xl bg-slate-50/70 border border-slate-200 p-3">
-                      <div className="flex items-center gap-2 text-xs font-medium text-slate-500 mb-1">
-                        <Calendar className="h-3.5 w-3.5 text-[#02665e]" />
+                    <div className="rounded-2xl bg-indigo-50/60 border border-indigo-100 p-3">
+                      <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-indigo-500 mb-0.5">
+                        <Calendar className="h-3 w-3" />
                         Check-out
                       </div>
-                      <div className="mt-0.5 font-semibold text-slate-900">
-                        {formatDate(stay.checkOut)}
-                      </div>
+                      <div className="font-bold text-slate-800 text-sm">{formatDate(stay.checkOut)}</div>
                     </div>
 
                     {/* Number of Guests */}
-                    <div className="rounded-xl bg-slate-50/70 border border-slate-200 p-3">
-                      <div className="flex items-center gap-2 text-xs font-medium text-slate-500 mb-1">
-                        <Users className="h-3.5 w-3.5 text-[#02665e]" />
+                    <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3">
+                      <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-0.5">
+                        <Users className="h-3 w-3" />
                         Guests
                       </div>
-                      <div className="mt-0.5 font-semibold text-slate-900">
-                        {stay.numberOfGuests} {stay.numberOfGuests === 1 ? "guest" : "guests"}
-                      </div>
+                      <div className="font-bold text-slate-800 text-sm">{stay.numberOfGuests} {stay.numberOfGuests === 1 ? "guest" : "guests"}</div>
                     </div>
 
                     {/* Total Amount */}
-                    <div className="rounded-xl bg-slate-50/70 border border-slate-200 p-3">
-                      <div className="flex items-center gap-2 text-xs font-medium text-slate-500 mb-1">
-                        <Building2 className="h-3.5 w-3.5 text-[#02665e]" />
+                    <div className="rounded-2xl bg-amber-50/60 border border-amber-100 p-3">
+                      <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-amber-500 mb-0.5">
+                        <Building2 className="h-3 w-3" />
                         Total Amount
                       </div>
-                      <div className="mt-0.5 font-semibold text-slate-900">
-                        {Number(stay.totalAmount).toLocaleString("en-US")} TZS
-                      </div>
+                      <div className="font-bold text-slate-800 text-sm">{Number(stay.totalAmount).toLocaleString("en-US")} TZS</div>
                     </div>
                   </div>
 
@@ -1023,8 +1154,22 @@ type ConversationMessage = {
   formattedDate: string;
 };
 
+function decodeHtmlEntities(str: string): string {
+  return str
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#x27;/g, "'")
+    .replace(/&#39;/g, "'")
+    .replace(/&#x2F;/g, '/')
+    .replace(/&apos;/g, "'")
+    .replace(/&nbsp;/g, ' ');
+}
+
 function GroupStayMessaging({ bookingId }: { bookingId: number }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [messageType, setMessageType] = useState("Ask for Feedback");
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
@@ -1213,7 +1358,7 @@ function GroupStayMessaging({ bookingId }: { bookingId: number }) {
             setIsOpen(true);
             setMessage(getMessageTemplate(messageType));
           }}
-          className="w-full flex items-center justify-center gap-2 rounded-xl border border-[#02665e] bg-white text-[#02665e] font-semibold px-4 py-3 text-sm hover:bg-[#02665e]/5 transition-all duration-200 active:scale-[0.98]"
+          className="w-full flex items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-700 font-semibold px-4 py-3 text-sm hover:bg-emerald-100 transition-all duration-200 active:scale-[0.98]"
         >
           <MessageSquare className="h-4 w-4" />
           Contact Admin
@@ -1224,64 +1369,86 @@ function GroupStayMessaging({ bookingId }: { bookingId: number }) {
 
   if (!isOpen && conversationMessages.length > 0) {
     return (
-      <div className="mt-4 space-y-4">
-        {/* Conversation History */}
-        <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 sm:p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h4 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-              <MessageSquare className="h-4 w-4 text-[#02665e]" />
-              Conversation History
-            </h4>
-            <button
-              onClick={() => {
-                setIsOpen(true);
-                setMessage(getMessageTemplate(messageType));
-              }}
-              className="text-xs font-medium text-[#02665e] hover:text-[#014d47] transition-colors"
-            >
-              Send Message
-            </button>
-          </div>
-          
-          {/* Messages List - Chat Style */}
-          <div className="space-y-3 max-h-[400px] overflow-y-auto">
-            {conversationMessages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`flex ${msg.senderRole === 'USER' ? 'justify-start' : 'justify-end'}`}
+      <div className="mt-4">
+        {/* Chat panel */}
+        <div className="overflow-hidden rounded-2xl border border-slate-100 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
+          {/* Panel header — click to expand/collapse */}
+          <button
+            type="button"
+            onClick={() => setIsExpanded((v) => !v)}
+            className="w-full flex items-center justify-between px-4 py-3 bg-gradient-to-r from-[#0a2e19] to-[#059669] cursor-pointer"
+          >
+            <div className="flex items-center gap-2">
+              <div className="h-7 w-7 rounded-full bg-white/20 flex items-center justify-center">
+                <MessageSquare className="h-3.5 w-3.5 text-white" />
+              </div>
+              <div className="text-left">
+                <p className="text-xs font-semibold text-white leading-none">Conversation History</p>
+                <p className="text-[10px] text-emerald-200 mt-0.5">{conversationMessages.length} message{conversationMessages.length !== 1 ? 's' : ''} · tap to {isExpanded ? 'hide' : 'view'}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsOpen(true);
+                  setMessage(getMessageTemplate(messageType));
+                }}
+                className="flex items-center gap-1.5 rounded-full bg-white/20 hover:bg-white/30 px-3 py-1.5 text-[11px] font-semibold text-white transition-all"
               >
-                <div className={`flex flex-col ${msg.senderRole === 'USER' ? 'items-start max-w-[80%] sm:max-w-[70%]' : 'items-end max-w-[80%] sm:max-w-[70%]'}`}>
-                  <div className={`flex items-center gap-2 mb-1.5 ${msg.senderRole === 'USER' ? '' : 'flex-row-reverse'}`}>
-                    {msg.senderRole === 'USER' && (
-                      <span className="text-[10px] font-medium text-[#02665e] px-2 py-0.5 rounded-md bg-[#02665e]/10">
-                        {msg.messageType}
-                      </span>
-                    )}
-                    {msg.senderRole === 'ADMIN' && (
-                      <span className="text-[10px] font-semibold text-[#02665e] px-2 py-0.5 rounded-md bg-[#02665e]/10 border border-[#02665e]/20">
-                        Admin
-                      </span>
-                    )}
-                    {msg.senderRole === 'SYSTEM' && (
-                      <span className="text-[10px] font-semibold text-[#02665e] px-2 py-0.5 rounded-md bg-[#02665e]/10 border border-[#02665e]/20">
-                        NoLSAF
-                      </span>
-                    )}
-                    <span className="text-[10px] text-slate-400">{msg.formattedDate}</span>
+                <MessageSquare className="h-3 w-3" />
+                Reply
+              </span>
+              <ChevronDown className={`h-4 w-4 text-white/80 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
+            </div>
+          </button>
+
+          {/* Messages timeline — hidden until expanded */}
+          <div className={`overflow-hidden transition-all duration-300 ${isExpanded ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'}`}>
+          <div className="bg-slate-50/60 px-4 py-4 space-y-4 max-h-[380px] overflow-y-auto">
+            {conversationMessages.map((msg) => {
+              const isUser = msg.senderRole === 'USER';
+              const decoded = decodeHtmlEntities(msg.message);
+              return (
+                <div key={msg.id} className={`flex gap-2.5 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
+                  {/* Avatar */}
+                  <div className={`h-8 w-8 rounded-full flex-shrink-0 flex items-center justify-center text-[11px] font-bold shadow-sm ${
+                    isUser
+                      ? 'bg-gradient-to-br from-emerald-500 to-emerald-700 text-white'
+                      : 'bg-gradient-to-br from-slate-700 to-slate-900 text-white'
+                  }`}>
+                    {isUser ? 'Me' : msg.senderRole === 'SYSTEM' ? 'N' : 'A'}
                   </div>
-                  <div
-                    className={`rounded-xl px-3 py-2 shadow-sm ${
-                      msg.senderRole === 'USER'
-                        ? 'bg-[#02665e] text-white rounded-tl-sm'
-                        : 'bg-white border-2 border-[#02665e]/20 rounded-tr-sm'
-                    }`}
-                  >
-                    <p className="text-sm whitespace-pre-wrap">{msg.message}</p>
+
+                  {/* Bubble + meta */}
+                  <div className={`flex flex-col max-w-[75%] ${isUser ? 'items-end' : 'items-start'}`}>
+                    {/* Sender + time row */}
+                    <div className={`flex items-center gap-1.5 mb-1 ${isUser ? 'flex-row-reverse' : ''}`}>
+                      <span className="text-[11px] font-semibold text-slate-700">
+                        {isUser ? 'You' : msg.senderRole === 'SYSTEM' ? 'NoLSAF' : 'Admin'}
+                      </span>
+                      <span className="text-[10px] text-slate-400">{msg.formattedDate}</span>
+                      {isUser && (
+                        <span className="text-[9px] font-medium text-emerald-600 bg-emerald-50 border border-emerald-100 rounded px-1.5 py-px">
+                          {msg.messageType}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Bubble */}
+                    <div className={`relative rounded-2xl px-3.5 py-2.5 shadow-sm text-sm leading-relaxed whitespace-pre-wrap ${
+                      isUser
+                        ? 'bg-gradient-to-br from-emerald-600 to-emerald-700 text-white rounded-tr-sm'
+                        : 'bg-white border border-slate-200 text-slate-800 rounded-tl-sm'
+                    }`}>
+                      {decoded}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
+          </div>{/* end animation wrapper */}
         </div>
       </div>
     );
@@ -1289,101 +1456,106 @@ function GroupStayMessaging({ bookingId }: { bookingId: number }) {
 
   // Message form (when isOpen is true)
   return (
-    <div className="mt-4 rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 sm:p-5">
-      <div className="flex items-center justify-between mb-4">
-        <h4 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-          <MessageSquare className="h-4 w-4 text-[#02665e]" />
-          Contact Admin
-        </h4>
+    <div className="mt-4 overflow-hidden rounded-2xl border border-slate-100 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
+      {/* Form header */}
+      <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-[#0a2e19] to-[#059669]">
+        <div className="flex items-center gap-2">
+          <div className="h-7 w-7 rounded-full bg-white/20 flex items-center justify-center">
+            <MessageSquare className="h-3.5 w-3.5 text-white" />
+          </div>
+          <p className="text-xs font-semibold text-white">Contact Admin</p>
+        </div>
         <button
           onClick={() => setIsOpen(false)}
-          className="text-slate-400 hover:text-slate-600 transition-colors"
+          className="h-7 w-7 rounded-full bg-white/10 hover:bg-white/25 flex items-center justify-center text-white/80 hover:text-white transition-all"
           aria-label="Close"
         >
           <XCircle className="h-4 w-4" />
         </button>
       </div>
 
-      {sent ? (
-        <div className="flex items-center gap-2 text-sm text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-lg p-3">
-          <CheckCircle className="h-4 w-4" />
-          <span>Message sent successfully!</span>
-        </div>
-      ) : (
-        <>
-          {/* Message Type Dropdown */}
-          <div className="mb-4">
-            <label className="block text-xs font-medium text-slate-600 mb-2">
-              Message Type
-            </label>
-            <div className="relative">
-              <select
-                value={messageType}
-                onChange={(e) => handleMessageTypeChange(e.target.value)}
-                className="w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 py-2.5 pr-9 text-sm focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] transition-all"
-              >
-                {messageTypes.map((type) => (
-                  <option key={type} value={type}>
-                    {type}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+      <div className="bg-white px-4 py-4">
+        {sent ? (
+          <div className="flex items-center gap-2.5 text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl p-3.5">
+            <CheckCircle className="h-4 w-4 flex-shrink-0" />
+            <span className="font-medium">Message sent successfully!</span>
+          </div>
+        ) : (
+          <>
+            {/* Message Type Dropdown */}
+            <div className="mb-3">
+              <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
+                Message Type
+              </label>
+              <div className="relative">
+                <select
+                  value={messageType}
+                  onChange={(e) => handleMessageTypeChange(e.target.value)}
+                  className="w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 pr-9 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-400 transition-all"
+                >
+                  {messageTypes.map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+              </div>
             </div>
-          </div>
 
-          {/* Message Textarea */}
-          <div className="mb-4">
-            <label className="block text-xs font-medium text-slate-600 mb-2">
-              Your Message
-            </label>
-            <textarea
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder="Type your message here..."
-              rows={4}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] transition-all resize-none"
-            />
-            {(message.includes("[") && message.includes("]")) && (
-              <p className="mt-2 text-xs text-red-600 font-medium flex items-center gap-1.5">
-                <span className="text-red-500">⚠️</span>
-                <span>Please replace the text in <span className="font-bold text-red-700 bg-red-50 px-1.5 py-0.5 rounded border border-red-200">[brackets]</span> with your specific information.</span>
-              </p>
-            )}
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleSend}
-              disabled={sending || !message.trim()}
-              className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-[#02665e] text-white font-semibold px-4 py-2.5 text-sm hover:bg-[#014d47] hover:shadow-md active:scale-[0.98] transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-[#02665e]"
-            >
-              {sending ? (
-                <>
-                  <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Sending...
-                </>
-              ) : (
-                <>
-                  <Send className="h-4 w-4" />
-                  Send Message
-                </>
+            {/* Message Textarea */}
+            <div className="mb-4">
+              <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
+                Your Message
+              </label>
+              <textarea
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder="Type your message here..."
+                rows={4}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-400 transition-all resize-none"
+              />
+              {(message.includes("[") && message.includes("]")) && (
+                <p className="mt-2 text-xs text-amber-700 font-medium flex items-center gap-1.5 bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-2">
+                  <span>⚠️</span>
+                  <span>Replace the text in <span className="font-bold bg-amber-100 px-1 rounded">[brackets]</span> with your specific information.</span>
+                </p>
               )}
-            </button>
-            <button
-              onClick={() => {
-                setIsOpen(false);
-                setMessage("");
-                setMessageType("Ask for Feedback");
-              }}
-              className="px-4 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-700 font-medium text-sm hover:bg-slate-50 transition-colors"
-            >
-              Cancel
-            </button>
-          </div>
-        </>
-      )}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-2.5">
+              <button
+                onClick={handleSend}
+                disabled={sending || !message.trim()}
+                className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#0a2e19] to-[#059669] text-white font-semibold px-4 py-2.5 text-sm hover:opacity-90 hover:shadow-md active:scale-[0.98] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {sending ? (
+                  <>
+                    <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4" />
+                    Send Message
+                  </>
+                )}
+              </button>
+              <button
+                onClick={() => {
+                  setIsOpen(false);
+                  setMessage("");
+                  setMessageType("Ask for Feedback");
+                }}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 font-medium text-sm hover:bg-slate-100 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,0 +1,19 @@
+"use client"
+
+import React from "react"
+import TwoFactorSettings from "@/components/security/TwoFactorSettings"
+
+export default function AccountTwoFactorPage() {
+  return (
+    <TwoFactorSettings
+      statusUrl="/api/account/security/2fa"
+      provisionTotpUrl="/api/account/security/2fa/provision?type=totp"
+      postUrl="/api/account/security/2fa"
+      smsSendUrl="/api/account/2fa/sms/send"
+      smsVerifyUrl="/api/account/2fa/sms/verify"
+      smsDisableUrl="/api/account/2fa/sms/disable"
+      backHref="/account/security"
+      containerClassName="public-container w-full"
+    />
+  )
+}

@@ -133,15 +133,15 @@ export default function TotpSettingsSection({
   }
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:shadow-md p-4 sm:p-6 overflow-hidden break-words">
+    <section className="rounded-2xl border border-slate-700/60 bg-[#0f1923] shadow-lg transition-all duration-200 p-4 sm:p-6 overflow-hidden break-words">
       <div className="flex flex-col sm:flex-row items-start sm:items-start justify-between gap-4 mb-6">
         <div className="flex items-start gap-4 flex-1 min-w-0">
-          <div className="h-12 w-12 rounded-xl bg-[#02665e]/10 flex items-center justify-center flex-shrink-0 transition-transform duration-200 hover:scale-110">
-            <Smartphone className="h-6 w-6 text-[#02665e]" strokeWidth={2} />
+          <div className="h-12 w-12 rounded-xl bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center flex-shrink-0 transition-transform duration-200 hover:scale-110">
+            <Smartphone className="h-6 w-6 text-emerald-400" strokeWidth={2} />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="font-semibold text-lg text-slate-900">Two-Factor Authentication (TOTP)</div>
-            <p className="text-sm text-slate-600 mt-1">
+            <div className="font-semibold text-lg text-slate-100">Two-Factor Authentication (TOTP)</div>
+            <p className="text-sm text-slate-400 mt-1">
               Add an extra layer of security to your account using a TOTP app (Google Authenticator, Authy).
             </p>
           </div>
@@ -182,7 +182,7 @@ export default function TotpSettingsSection({
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4 items-start w-full">
               <div className="flex justify-center md:justify-start w-full min-w-0">
-                <div className="w-40 h-40 sm:w-48 sm:h-48 rounded-xl overflow-hidden border border-slate-200 bg-white flex items-center justify-center shadow-sm flex-shrink-0">
+                <div className="w-40 h-40 sm:w-48 sm:h-48 rounded-xl overflow-hidden border border-slate-700 bg-slate-800 flex items-center justify-center shadow-sm flex-shrink-0">
                   {setup?.qrDataUrl ? (
                     <Image src={setup.qrDataUrl} alt="TOTP QR" width={160} height={160} className="object-contain" />
                   ) : (
@@ -192,9 +192,9 @@ export default function TotpSettingsSection({
               </div>
               <div className="w-full min-w-0">
                 <label className="text-sm grid gap-2 w-full min-w-0">
-                  <span className="font-medium text-slate-700">Enter 6-digit code</span>
+                  <span className="font-medium text-slate-300">Enter 6-digit code</span>
                   <input
-                    className="border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:border-[#02665e]/50 focus:outline-none focus:ring-1 focus:ring-[#02665e]/20 transition-all duration-200 ease-out w-full bg-white min-w-0 max-w-full"
+                    className="border border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:border-emerald-500/50 focus:outline-none focus:ring-1 focus:ring-emerald-500/20 transition-all duration-200 ease-out w-full bg-slate-800/60 text-slate-100 placeholder:text-slate-500 min-w-0 max-w-full"
                     value={code}
                     onChange={(e) => setCode(e.target.value)}
                     placeholder="000000"
@@ -211,7 +211,7 @@ export default function TotpSettingsSection({
                     {loading ? "Verifying…" : "Verify & Enable"}
                   </button>
                   <button
-                    className="inline-flex items-center justify-center gap-2 px-4 sm:px-6 py-3 rounded-xl border border-slate-300 bg-white text-slate-700 font-semibold text-sm hover:bg-slate-50 hover:border-slate-400 active:scale-[0.98] transition-all duration-200 w-full sm:w-auto"
+                    className="inline-flex items-center justify-center gap-2 px-4 sm:px-6 py-3 rounded-xl border border-slate-700 bg-slate-800 text-slate-300 font-semibold text-sm hover:bg-slate-700 hover:border-slate-600 active:scale-[0.98] transition-all duration-200 w-full sm:w-auto"
                     onClick={() => setSetup(null)}
                     type="button"
                     disabled={loading}
@@ -237,16 +237,17 @@ export default function TotpSettingsSection({
         ) : (
           <div className="space-y-3 sm:space-y-4 w-full max-w-full">
             <div className="w-full max-w-full min-w-0">
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5 sm:mb-2">Enter TOTP code or backup code to disable</label>
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5 sm:mb-2">Enter TOTP code or backup code to disable</label>
               <input
                 type="text"
                 value={disableCode}
                 onChange={(e) => setDisableCode(e.target.value)}
                 placeholder="Enter code"
-                className="block w-full max-w-full min-w-0 rounded-lg border-2 border-slate-200 px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-mono focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200 transition-all duration-200 box-border"
+                className="block w-full max-w-full min-w-0 rounded-lg border-2 border-slate-700 bg-slate-800/60 text-slate-100 placeholder:text-slate-500 font-mono px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 text-xs sm:text-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/30 transition-all duration-200 box-border"
                 autoFocus
               />
               <p className="mt-1.5 text-xs text-slate-500">Enter a 6-digit TOTP code from your authenticator app or a backup code.</p>
+              
             </div>
             <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full max-w-full">
               <button
@@ -262,7 +263,7 @@ export default function TotpSettingsSection({
                   setShowDisableInput(false)
                   setDisableCode("")
                 }}
-                className="sm:w-auto inline-flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 text-xs font-semibold text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-all duration-300 border-2 border-slate-200 hover:border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed min-w-0"
+                className="sm:w-auto inline-flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-all duration-300 border-2 border-slate-700 hover:border-slate-600 disabled:opacity-50 disabled:cursor-not-allowed min-w-0"
                 type="button"
                 disabled={loading}
               >

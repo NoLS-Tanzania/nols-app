@@ -53,22 +53,42 @@ export const limitCodeSearch = rateLimit({
   legacyHeaders: false,
 });
 
-// Rate limiter for cancellation lookups (prevents abuse of code validation)
+// Rate limiter for cancellation lookups (prevents brute-force / DoS on code validation).
+// Keyed by authenticated userId so each account is budgeted independently;
+// falls back to IP for unauthenticated traffic (should not reach here in practice).
 export const limitCancellationLookup = rateLimit({
-  windowMs: 60_000, // 1 minute
-  limit: 30, // 30 lookups per minute per IP
-  standardHeaders: true,
+  windowMs: 60 * 60_000,     // 1-hour sliding window
+  limit: 4,                  // max 4 failed attempts per user per hour
+  standardHeaders: true,     // RateLimit-* headers (RFC 6585)
   legacyHeaders: false,
-  message: { error: "Too many cancellation code lookups. Please wait a moment and try again." },
+  skipSuccessfulRequests: false, // count every attempt, success or failure
+  message: { error: "Too many code validation attempts. You are locked out for 1 hour." },
+  keyGenerator: (req) => {
+    const userId = (req as any)?.user?.id;
+    if (typeof userId === "number" && Number.isFinite(userId) && userId > 0) {
+      return `cancel-lookup:${userId}`;
+    }
+    // Fallback: key by IP (should rarely be reached — route requires auth)
+    return `cancel-lookup-ip:${req.ip || req.socket?.remoteAddress || "unknown"}`;
+  },
 });
 
-// Rate limiter for cancellation submissions (prevents spam submissions)
+// Rate limiter for cancellation submissions.
+// Keyed by userId — prevents one account from spamming requests even through a proxy.
 export const limitCancellationSubmit = rateLimit({
-  windowMs: 15 * 60_000, // 15 minutes
-  limit: 5, // 5 submissions per 15 minutes per IP
+  windowMs: 15 * 60_000,     // 15-minute window
+  limit: 3,                  // max 3 submission attempts per user per 15 min
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: "Too many cancellation requests. Please wait before submitting another request." },
+  skipSuccessfulRequests: false,
+  message: { error: "Too many cancellation submissions. Please wait 15 minutes before trying again." },
+  keyGenerator: (req) => {
+    const userId = (req as any)?.user?.id;
+    if (typeof userId === "number" && Number.isFinite(userId) && userId > 0) {
+      return `cancel-submit:${userId}`;
+    }
+    return `cancel-submit-ip:${req.ip || req.socket?.remoteAddress || "unknown"}`;
+  },
 });
 
 // Rate limiter for cancellation messages (prevents spam messaging)

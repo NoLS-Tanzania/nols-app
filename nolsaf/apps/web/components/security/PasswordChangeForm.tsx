@@ -343,10 +343,10 @@ export default function PasswordChangeForm({
         </div>
 
         {isSameAsCurrent ? (
-          <div className="rounded-lg bg-red-50 border border-red-200 p-3">
+          <div className="rounded-lg bg-red-900/20 border border-red-500/30 p-3">
             <div className="flex items-center gap-2">
-              <XCircle className="h-4 w-4 text-red-600 flex-shrink-0" />
-              <span className="text-sm font-semibold text-red-800">The new password must be different from your current password.</span>
+              <XCircle className="h-4 w-4 text-red-400 flex-shrink-0" />
+              <span className="text-sm font-semibold text-red-400">The new password must be different from your current password.</span>
             </div>
           </div>
         ) : null}
@@ -369,7 +369,7 @@ export default function PasswordChangeForm({
         }
       >
         <label className={isSection ? "text-sm grid gap-1.5 w-full" : "text-sm grid gap-2 w-full"}>
-          <span className={isSection ? "font-medium text-slate-700 text-sm" : "font-semibold text-slate-700"}>Current password</span>
+          <span className={isSection ? "font-medium text-slate-300 text-sm" : "font-semibold text-slate-700"}>Current password</span>
           {isSection ? (
             <div className="relative">
               <input
@@ -377,12 +377,12 @@ export default function PasswordChangeForm({
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 placeholder="Enter current password"
-                className="border border-slate-200 rounded-lg px-3 py-2.5 pr-14 text-sm focus:border-[#02665e]/50 focus:outline-none focus:ring-1 focus:ring-[#02665e]/20 transition-all duration-200 ease-out w-full bg-white"
+                className="border border-slate-700 rounded-lg px-3 py-2.5 pr-14 text-sm focus:border-emerald-500/50 focus:outline-none focus:ring-1 focus:ring-emerald-500/20 transition-all duration-200 ease-out w-full bg-slate-800/60 text-slate-100 placeholder:text-slate-500"
               />
               <button
                 type="button"
                 onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-[#02665e] transition-all duration-200 border-0 bg-transparent outline-none focus:outline-none p-1.5 rounded-md hover:bg-slate-100/50 focus:bg-slate-100/50 cursor-pointer"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-emerald-400 transition-all duration-200 border-0 bg-transparent outline-none focus:outline-none p-1.5 rounded-md hover:bg-slate-700/50 focus:bg-slate-700/50 cursor-pointer"
                 aria-label={showCurrentPassword ? "Hide password" : "Show password"}
               >
                 {showCurrentPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
@@ -419,7 +419,7 @@ export default function PasswordChangeForm({
         }
       >
         <label className={isSection ? "text-sm grid gap-1.5 w-full" : "text-sm grid gap-2 w-full"}>
-          <span className={isSection ? "font-medium text-slate-700 text-sm" : "font-semibold text-slate-700"}>New password</span>
+          <span className={isSection ? "font-medium text-slate-300 text-sm" : "font-semibold text-slate-700"}>New password</span>
           {isSection ? (
             <div className="relative">
               <input
@@ -441,9 +441,9 @@ export default function PasswordChangeForm({
                 maxLength={effectiveMaxLength}
                 disabled={inputLocked || (timeoutUntil !== null && Date.now() < timeoutUntil)}
                 placeholder={placeholderLabel}
-                className={`border rounded-lg px-3 py-2.5 pr-14 text-sm focus:outline-none focus:ring-1 transition-all duration-300 ease-out w-full bg-white ${
+                className={`border rounded-lg px-3 py-2.5 pr-14 text-sm focus:outline-none focus:ring-1 transition-all duration-300 ease-out w-full bg-slate-800/60 text-slate-100 placeholder:text-slate-500 ${
                   inputLocked || (timeoutUntil !== null && Date.now() < timeoutUntil)
-                    ? "bg-slate-100 cursor-not-allowed border-red-400"
+                    ? "bg-slate-700 cursor-not-allowed border-red-500/60"
                     : !newPassword
                       ? "border-slate-200 focus:border-[#02665e]/50 focus:ring-[#02665e]/20"
                       : passwordValidation.strength === "strong"
@@ -456,7 +456,7 @@ export default function PasswordChangeForm({
               <button
                 type="button"
                 onClick={() => setShowNewPassword(!showNewPassword)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-[#02665e] transition-all duration-200 border-0 bg-transparent outline-none focus:outline-none p-1.5 rounded-md hover:bg-slate-100/50 focus:bg-slate-100/50 cursor-pointer"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-emerald-400 transition-all duration-200 border-0 bg-transparent outline-none focus:outline-none p-1.5 rounded-md hover:bg-slate-700/50 focus:bg-slate-700/50 cursor-pointer"
                 aria-label={showNewPassword ? "Hide password" : "Show password"}
               >
                 {showNewPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
@@ -521,7 +521,7 @@ export default function PasswordChangeForm({
         }
       >
         <label className={isSection ? "text-sm grid gap-1.5 w-full" : "text-sm grid gap-2 w-full"}>
-          <span className={isSection ? "font-medium text-slate-700 text-sm" : "font-semibold text-slate-700"}>Confirm new password</span>
+          <span className={isSection ? "font-medium text-slate-300 text-sm" : "font-semibold text-slate-700"}>Confirm new password</span>
           {isSection ? (
             <div className="relative">
               <input
@@ -543,9 +543,9 @@ export default function PasswordChangeForm({
                 maxLength={effectiveMaxLength}
                 disabled={confirmInputLocked || (timeoutUntil !== null && Date.now() < timeoutUntil)}
                 placeholder={placeholderLabel}
-                className={`border rounded-lg px-3 py-2.5 pr-14 text-sm focus:outline-none focus:ring-1 transition-all duration-300 ease-out w-full bg-white ${
+                className={`border rounded-lg px-3 py-2.5 pr-14 text-sm focus:outline-none focus:ring-1 transition-all duration-300 ease-out w-full bg-slate-800/60 text-slate-100 placeholder:text-slate-500 ${
                   confirmInputLocked || (timeoutUntil !== null && Date.now() < timeoutUntil)
-                    ? "bg-slate-100 cursor-not-allowed border-red-400"
+                    ? "bg-slate-700 cursor-not-allowed border-red-500/60"
                     : !confirmPassword
                       ? "border-slate-200 focus:border-[#02665e]/50 focus:ring-[#02665e]/20"
                       : passwordMatch === true
@@ -558,7 +558,7 @@ export default function PasswordChangeForm({
               <button
                 type="button"
                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-[#02665e] transition-all duration-200 border-0 bg-transparent outline-none focus:outline-none p-1.5 rounded-md hover:bg-slate-100/50 focus:bg-slate-100/50 cursor-pointer"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-emerald-400 transition-all duration-200 border-0 bg-transparent outline-none focus:outline-none p-1.5 rounded-md hover:bg-slate-700/50 focus:bg-slate-700/50 cursor-pointer"
                 aria-label={showConfirmPassword ? "Hide password" : "Show password"}
               >
                 {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
@@ -667,7 +667,7 @@ export default function PasswordChangeForm({
             </div>
 
             <div className="space-y-1.5 pt-1">
-              <div className="text-xs font-semibold text-slate-600 mb-1.5">Password requirements:</div>
+              <div className="text-xs font-semibold text-slate-400 mb-1.5">Password requirements:</div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-1.5 gap-x-4">
                 {requirements.map((req, idx) => (
                   <div key={idx} className="flex items-center gap-2 text-xs">
@@ -695,16 +695,16 @@ export default function PasswordChangeForm({
       ) : null}
 
       {timeoutUntil && Date.now() < timeoutUntil && (
-        <div className={isSection ? "rounded-lg bg-red-50 border-2 border-red-200 p-4" : "rounded-md bg-red-50 border-2 border-red-200 p-4"}>
+        <div className={isSection ? "rounded-lg bg-red-900/20 border-2 border-red-500/30 p-4" : "rounded-md bg-red-50 border-2 border-red-200 p-4"}>
           <div className="flex items-start gap-3">
             <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
             <div className="flex-1">
-              <div className="text-sm font-bold text-red-800 mb-1">
+              <div className="text-sm font-bold text-red-400 mb-1">
                 Account temporarily locked due to {consecutiveFailures >= 3 ? 3 : consecutiveFailures} failed attempt
                 {consecutiveFailures >= 3 ? "s" : consecutiveFailures > 1 ? "s" : ""}
               </div>
-              <div className="text-sm text-red-700">
-                Please wait <span className="font-bold text-red-800">{remainingSeconds}</span> second
+              <div className="text-sm text-red-400">
+                Please wait <span className="font-bold text-red-300">{remainingSeconds}</span> second
                 {remainingSeconds !== 1 ? "s" : ""} before trying again.
               </div>
             </div>
@@ -713,10 +713,10 @@ export default function PasswordChangeForm({
       )}
 
       {cooldownUntil && Date.now() < cooldownUntil && (
-        <div className={isSection ? "rounded-lg bg-blue-50 border border-blue-200 p-3" : "rounded-md bg-blue-50 border-2 border-blue-200 p-3"}>
+        <div className={isSection ? "rounded-lg bg-blue-900/20 border border-blue-500/30 p-3" : "rounded-md bg-blue-50 border-2 border-blue-200 p-3"}>
           <div className="flex items-center gap-2">
             <AlertCircle className="h-4 w-4 text-blue-600 flex-shrink-0" />
-            <div className="text-sm font-semibold text-blue-800">
+              <div className="text-sm font-semibold text-blue-300">
               Password was recently changed. You can change it again in {Math.ceil((cooldownUntil - Date.now()) / 60000)} minute(s).
             </div>
           </div>
@@ -724,13 +724,13 @@ export default function PasswordChangeForm({
       )}
 
       {error && (
-        <div className={isSection ? "rounded-lg bg-red-50 border border-red-200 p-3" : "rounded-md bg-red-50 border-2 border-red-200 p-3"}>
-          <div className={isSection ? "text-sm font-medium text-red-800 whitespace-pre-line" : "text-sm font-medium text-red-800 whitespace-pre-line"}>{error}</div>
+        <div className={isSection ? "rounded-lg bg-red-900/20 border border-red-500/30 p-3" : "rounded-md bg-red-50 border-2 border-red-200 p-3"}>
+          <div className={isSection ? "text-sm font-medium text-red-400 whitespace-pre-line" : "text-sm font-medium text-red-800 whitespace-pre-line"}>{error}</div>
         </div>
       )}
       {success && (
-        <div className={isSection ? "rounded-lg bg-green-50 border border-green-200 p-3" : "rounded-md bg-green-50 border-2 border-green-200 p-3"}>
-          <div className="text-sm font-medium text-green-800">{success}</div>
+        <div className={isSection ? "rounded-lg bg-green-900/20 border border-green-500/30 p-3" : "rounded-md bg-green-50 border-2 border-green-200 p-3"}>
+          <div className="text-sm font-medium text-green-400">{success}</div>
         </div>
       )}
 
@@ -768,14 +768,14 @@ export default function PasswordChangeForm({
 
   if (isSection) {
     return (
-      <section className="rounded-2xl border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:shadow-md p-4 sm:p-6">
+      <section className="rounded-2xl border border-slate-700/60 bg-[#0f1923] shadow-lg transition-all duration-200 p-4 sm:p-6">
         <div className="flex flex-col sm:flex-row items-start gap-4 mb-6">
-          <div className="h-12 w-12 rounded-xl bg-[#02665e]/10 flex items-center justify-center flex-shrink-0 transition-transform duration-200 hover:scale-110">
-            <Lock className="h-6 w-6 text-[#02665e]" strokeWidth={2} />
+          <div className="h-12 w-12 rounded-xl bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center flex-shrink-0 transition-transform duration-200 hover:scale-110">
+            <Lock className="h-6 w-6 text-emerald-400" strokeWidth={2} />
           </div>
           <div className="flex-1 min-w-0 break-words">
-            <div className="font-semibold text-lg text-slate-900 break-words">Change Password</div>
-            <p className="text-sm text-slate-600 mt-1 whitespace-normal break-words">Update your account password. Choose a strong, unique password.</p>
+            <div className="font-semibold text-lg text-slate-100 break-words">Change Password</div>
+            <p className="text-sm text-slate-400 mt-1 whitespace-normal break-words">Update your account password. Choose a strong, unique password.</p>
           </div>
         </div>
 

@@ -48,13 +48,24 @@ export default function AccountSecurityPanel({ variant = "page", roleLabelOverri
   return (
     <div className={`w-full ${embedded ? "space-y-4" : "space-y-6"}`}>
       {!embedded ? (
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-sm">
-          <div className="flex flex-col items-center text-center">
-            <div className="h-16 w-16 rounded-full bg-gradient-to-br from-[#02665e]/10 to-[#014d47]/10 flex items-center justify-center mb-4">
-              <Shield className="h-8 w-8 text-[#02665e]" />
+        <div
+          className="relative overflow-hidden rounded-3xl shadow-[0_4px_32px_rgba(0,0,0,0.4)] border border-slate-700/60"
+          style={{ background: "linear-gradient(135deg, #0c1222 0%, #0f2460 52%, #02665e 100%)" }}
+        >
+          {/* BG glow */}
+          <div className="pointer-events-none absolute inset-0" style={{
+            background: "radial-gradient(480px circle at 20% 30%, rgba(56,189,248,0.15), transparent 55%), radial-gradient(380px circle at 85% 70%, rgba(2,102,94,0.35), transparent 60%)"
+          }} />
+          <div className="relative flex flex-col items-center text-center px-6 py-10 sm:px-10 sm:py-12 gap-3">
+            <div className="relative">
+              <div className="absolute inset-0 rounded-full blur-md scale-110" style={{ background: "rgba(56,189,248,0.2)" }} />
+              <div className="relative h-16 w-16 rounded-2xl flex items-center justify-center shadow-lg"
+                style={{ background: "linear-gradient(135deg, rgba(56,189,248,0.18) 0%, rgba(2,102,94,0.22) 100%)", border: "1px solid rgba(255,255,255,0.15)" }}>
+                <Shield className="h-8 w-8 text-white drop-shadow" />
+              </div>
             </div>
-            <h1 className="text-2xl font-bold text-gray-900">Security</h1>
-            <p className="text-sm text-gray-500 mt-1">Manage your account security settings</p>
+            <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight drop-shadow">Security</h1>
+            <p className="text-sm text-blue-200/70 font-medium">Manage your account security settings</p>
           </div>
         </div>
       ) : null}
