@@ -237,6 +237,7 @@ export default function AdminPlanWithUsRequestsPage() {
     priceMode: "trip" | "night";
     inclusionDetails: Record<string, string>;
     feeAmounts: Record<string, string>; // per selected fee-item → TZS amount per person
+    linkedProperties: Array<{ id: number; title: string; type: string | null; regionName?: string | null }>;
   };
   const [itineraryOptions, setItineraryOptions] = useState<ItineraryOption[]>([]);
   const [activeSections, setActiveSections] = useState<Set<string>>(
@@ -244,6 +245,13 @@ export default function AdminPlanWithUsRequestsPage() {
   );
   const [selectedPermits, setSelectedPermits] = useState<string[]>([]);
   const [tripSpecificNotes, setTripSpecificNotes] = useState("");
+  // Property search state for linking approved listings to accommodation
+  const [propSearch, setPropSearch] = useState<{
+    optId: string;
+    query: string;
+    results: Array<{ id: number; title: string; type: string | null; regionName?: string | null }>;
+    loading: boolean;
+  } | null>(null);
   // ───────────────────────────────────────────────────────────────────────────
 
   // Close dropdown when clicking outside
@@ -440,6 +448,7 @@ export default function AdminPlanWithUsRequestsPage() {
           priceMode: "trip" as const,
           inclusionDetails: {},
           feeAmounts: {},
+          linkedProperties: [],
         })));
       } else {
         setItineraryOptions([]);
@@ -756,7 +765,25 @@ export default function AdminPlanWithUsRequestsPage() {
 
   const getTripSpecificPlaceholder = (tripType: string) => (({ "Safari":"Describe lodge options, game reserve highlights, Big Five sightings, best drive times...","Cultural":"List cultural sites, local guides, historical significance, cultural etiquette...","Adventure / Hiking":"Fitness requirements, altitude info, gear checklist, emergency protocols...","School / Teacher":"Learning objectives, age-appropriate activities, emergency plan, dietary notes...","Local tourism":"Route map notes, local gems, viewpoints, lunch spots, photo opportunities..." } as Record<string,string>)[tripType] || "Any trip-specific details, highlights, or important information...");
   const toggleSection = (id: string) => setActiveSections(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
-  const addItineraryOption = () => setItineraryOptions(prev => [...prev, { id: Date.now().toString(), name: `Option ${String.fromCharCode(65 + prev.length)}`, days: 3, pricePerPerson: "", inclusions: [], customInclusion: "", dayOutline: "", priceMode: "trip" as const, inclusionDetails: {}, feeAmounts: {} }]);
+  const addItineraryOption = () => setItineraryOptions(prev => [...prev, { id: Date.now().toString(), name: `Option ${String.fromCharCode(65 + prev.length)}`, days: 3, pricePerPerson: "", inclusions: [], customInclusion: "", dayOutline: "", priceMode: "trip" as const, inclusionDetails: {}, feeAmounts: {}, linkedProperties: [] }]);
+  const linkProperty = (optId: string, p: { id: number; title: string; type: string | null; regionName?: string | null }) =>
+    setItineraryOptions(prev => prev.map(o => o.id === optId ? { ...o, linkedProperties: [...(o.linkedProperties ?? []).filter(lp => lp.id !== p.id), p] } : o));
+  const unlinkProperty = (optId: string, propId: number) =>
+    setItineraryOptions(prev => prev.map(o => o.id === optId ? { ...o, linkedProperties: (o.linkedProperties ?? []).filter(lp => lp.id !== propId) } : o));
+  const searchApprovedProperties = async (optId: string, query: string) => {
+    setPropSearch({ optId, query, results: [], loading: !!query.trim() });
+    if (!query.trim()) return;
+    try {
+      const r = await api.get("/api/admin/properties", {
+        params: { status: "APPROVED", q: query.trim(), page: 1, pageSize: 10 },
+      });
+      const items: Array<{ id: number; title: string; type: string | null; regionName?: string | null }> =
+        r.data?.items ?? r.data?.data?.items ?? [];
+      setPropSearch(prev => prev?.optId === optId && prev.query === query ? { ...prev, results: items, loading: false } : prev);
+    } catch {
+      setPropSearch(prev => prev?.optId === optId ? { ...prev, results: [], loading: false } : prev);
+    }
+  };
   const removeItineraryOption = (id: string) => setItineraryOptions(prev => prev.filter(o => o.id !== id));
   const updateItineraryOption = (id: string, field: string, value: unknown) => setItineraryOptions(prev => prev.map(o => o.id === id ? { ...o, [field]: value } : o));
   const updateInclusionDetail = (optId: string, catId: string, text: string) =>
@@ -806,6 +833,9 @@ export default function AdminPlanWithUsRequestsPage() {
                   }
                   const det = opt.inclusionDetails?.[cat.id];
                   if (det?.trim()) lines.push(`   ${det.trim()}`);
+                  if (cat.id === "accommodation" && (opt.linkedProperties?.length ?? 0) > 0) {
+                    lines.push(`   Linked listings: ${opt.linkedProperties!.map(p => p.title).join(", ")}`);
+                  }
                 }
               });
               const known = INCLUSION_CATEGORIES.flatMap(c => c.options);
@@ -1039,277 +1069,297 @@ export default function AdminPlanWithUsRequestsPage() {
       })()}
 
       {/* Requests Table */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-md overflow-hidden">
         <div className="h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-teal-500" />
+
+        {/* ── Loading skeletons ── */}
         {loading ? (
-          <>
-            {/* Skeleton Table */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trip Type</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Destination</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dates</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Group Size</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Budget</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {[...Array(5)].map((_, i) => (
-                    <tr key={i} className="animate-pulse">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="h-4 bg-gray-200 rounded w-12"></div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="h-4 bg-gray-200 rounded w-24"></div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="h-4 bg-gray-200 rounded w-32 mb-2"></div>
-                        <div className="h-3 bg-gray-200 rounded w-40"></div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="h-4 bg-gray-200 rounded w-20"></div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="h-4 bg-gray-200 rounded w-28"></div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="h-4 bg-gray-200 rounded w-32"></div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="h-4 bg-gray-200 rounded w-16"></div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="h-4 bg-gray-200 rounded w-20"></div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="h-6 bg-gray-200 rounded-full w-20"></div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right">
-                        <div className="h-8 bg-gray-200 rounded w-24 ml-auto"></div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
+          <div className="p-4 space-y-3">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="animate-pulse flex items-center gap-4 p-4 rounded-xl border border-gray-100 bg-gray-50">
+                <div className="w-10 h-10 rounded-full bg-gray-200 shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3.5 bg-gray-200 rounded w-40" />
+                  <div className="h-3 bg-gray-200 rounded w-64" />
+                </div>
+                <div className="h-6 bg-gray-200 rounded-full w-20 shrink-0" />
+                <div className="h-8 bg-gray-200 rounded-lg w-28 shrink-0" />
+              </div>
+            ))}
+          </div>
         ) : list.length === 0 ? (
-          <div className="px-6 py-12 text-center">
-            <FileText className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-            <p className="text-sm text-gray-500">No plan requests found.</p>
+          <div className="px-6 py-16 text-center">
+            <div className="w-16 h-16 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-center mx-auto mb-4">
+              <FileText className="h-8 w-8 text-gray-300" />
+            </div>
+            <p className="text-sm font-semibold text-gray-500">No plan requests found</p>
             <p className="text-xs text-gray-400 mt-1">Try adjusting your filters or search query.</p>
           </div>
         ) : (
           <>
-            {/* Desktop Table */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trip Type</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Destination</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dates</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Group Size</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Budget</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {list.map((request) => {
-                    return (
-                      <tr key={request.id} className={`hover:bg-gray-50 transition-colors duration-150 ${request.isUrgent ? "bg-amber-50 border-l-4 border-l-amber-500" : ""}`}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          <div className="flex items-center gap-2">
-                            #{request.id}
-                            {request.isUrgent && (
-                              <div title="Urgent request">
-                                <AlertTriangle className="h-4 w-4 text-amber-600" />
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{request.role}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          <div>
-                            <div className="font-medium">{request.customer.name}</div>
-                            <div className="text-xs text-gray-400">{request.customer.email}</div>
-                            {request.customer.phone && (
-                              <div className="text-xs text-gray-400">{request.customer.phone}</div>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{request.tripType}</td>
-                        <td className="px-6 py-4 text-sm text-gray-500">
-                          <div className="flex items-center gap-2">
-                            <MapPin className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                            <span className="max-w-xs truncate">{request.destinations || "N/A"}</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {request.dateFrom && request.dateTo ? (
-                            <div className="flex items-center gap-2">
-                              <Calendar className="h-4 w-4 text-gray-400" />
-                              <span>{new Date(request.dateFrom).toLocaleDateString()} - {new Date(request.dateTo).toLocaleDateString()}</span>
-                            </div>
-                          ) : (
-                            "Flexible"
-                          )}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{request.groupSize || "N/A"}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{request.budget || "N/A"}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-full border ${
-                            request.status === "COMPLETED" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
-                            request.status === "IN_PROGRESS" ? "bg-blue-50 text-blue-700 border-blue-200" :
-                            "bg-amber-50 text-amber-700 border-amber-200"
-                          }`}>
-                            <span className={`inline-block h-1.5 w-1.5 rounded-full ${request.status === "COMPLETED" ? "bg-emerald-500" : request.status === "IN_PROGRESS" ? "bg-blue-500" : "bg-amber-500"}`} />{request.status === "NEW" ? "New" : request.status === "IN_PROGRESS" ? "In Progress" : "Completed"}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <div className="flex items-center justify-end gap-2">
-                            {request.status === "NEW" && (
-                              <button
-                                onClick={() => handleStartWork(request.id)}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 text-xs font-semibold hover:bg-blue-100 hover:border-blue-300 transition-all"
-                              >
-                                <Edit className="h-4 w-4" />
-                                Start Work
-                              </button>
-                            )}
-                            {request.status === "IN_PROGRESS" && (
-                              <button
-                                onClick={() => handleOpenResponse(request)}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-semibold hover:bg-green-700 transition-all shadow-sm"
-                              >
-                                <Send className="h-4 w-4" />
-                                Provide Feedback
-                              </button>
-                            )}
-                            {request.status === "COMPLETED" && (
-                              <button
-                                onClick={() => handleOpenResponse(request)}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 border border-gray-200 text-xs font-semibold hover:bg-gray-200 transition-all"
-                              >
-                                <Eye className="h-4 w-4" />
-                                View Response
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+            {/* ── Column header row (desktop only) ── */}
+            <div className="hidden lg:grid grid-cols-[56px_1fr_1fr_1fr_1fr_140px_120px] gap-x-4 px-5 py-2.5 bg-gray-50 border-b border-gray-100">
+              {["#", "Customer", "Trip Type", "Destination", "Dates", "Status", ""].map((h) => (
+                <span key={h} className="text-[10px] font-bold uppercase tracking-widest text-gray-400">{h}</span>
+              ))}
             </div>
 
-            {/* Mobile Cards */}
-            <div className="md:hidden divide-y divide-gray-200">
+            {/* ── Rows ── */}
+            <div className="divide-y divide-gray-50">
               {list.map((request) => {
-                const responseTimeColor = request.hoursSinceCreation > 48 
-                  ? "text-red-600" 
-                  : request.hoursSinceCreation > 24 
-                  ? "text-amber-600" 
-                  : "text-green-600";
-                const responseTimeText = request.hoursSinceCreation < 24
-                  ? `${request.hoursSinceCreation}h`
-                  : `${Math.floor(request.hoursSinceCreation / 24)}d`;
-                
+                const initials = (request.customer.name || "?").split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
+                const avatarColors: Record<string, string> = {
+                  "Tourist": "bg-blue-100 text-blue-700",
+                  "Teacher": "bg-amber-100 text-amber-700",
+                  "School": "bg-violet-100 text-violet-700",
+                  "Local": "bg-emerald-100 text-emerald-700",
+                };
+                const avatarColor = avatarColors[request.role?.split(" ")[0] ?? ""] ?? "bg-indigo-100 text-indigo-700";
+
+                const statusMeta = request.status === "COMPLETED"
+                  ? { label: "Completed", dot: "bg-emerald-500", pill: "bg-emerald-50 text-emerald-700 border-emerald-200", glow: "" }
+                  : request.status === "IN_PROGRESS"
+                  ? { label: "In Progress", dot: "bg-blue-500", pill: "bg-blue-50 text-blue-700 border-blue-200", glow: "" }
+                  : { label: "New", dot: "bg-amber-400 animate-pulse", pill: "bg-amber-50 text-amber-700 border-amber-200", glow: "" };
+
+                const tripTypeMeta: Record<string, { color: string; short: string }> = {
+                  "Safari": { color: "bg-emerald-100 text-emerald-800 border-emerald-200", short: "Safari" },
+                  "Cultural": { color: "bg-orange-100 text-orange-800 border-orange-200", short: "Cultural" },
+                  "Adventure / Hiking": { color: "bg-sky-100 text-sky-800 border-sky-200", short: "Hiking" },
+                  "School / Teacher": { color: "bg-violet-100 text-violet-800 border-violet-200", short: "School" },
+                  "Local tourism": { color: "bg-teal-100 text-teal-800 border-teal-200", short: "Local" },
+                  "Multi-destination tour": { color: "bg-indigo-100 text-indigo-800 border-indigo-200", short: "Multi" },
+                };
+                const ttMeta = tripTypeMeta[request.tripType] ?? { color: "bg-gray-100 text-gray-700 border-gray-200", short: request.tripType };
+
+                // Parse destinations for a compact display
+                const destRaw = request.destinations || "";
+                const destParts = destRaw.split(/\d+\)/).map((s: string) => s.trim()).filter(Boolean);
+                const firstDest = destParts.length > 0
+                  ? destParts[0].replace(/\s*[-\u2014\u2013]\s*\d+\s*nights?/i, "").trim()
+                  : destRaw.replace(/\s*[-\u2014\u2013]\s*\d+\s*nights?/i, "").trim() || "N/A";
+                const extraDestCount = destParts.length > 1 ? destParts.length - 1 : 0;
+
+                // Date display
+                const dateStr = (() => {
+                  if (!request.dateFrom || !request.dateTo) return null;
+                  const from = new Date(request.dateFrom);
+                  const to = new Date(request.dateTo);
+                  const fmtShort = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+                  const sameYear = from.getFullYear() === to.getFullYear();
+                  return sameYear
+                    ? `${fmtShort(from)} – ${fmtShort(to)}, ${to.getFullYear()}`
+                    : `${fmtShort(from)} ${from.getFullYear()} – ${fmtShort(to)} ${to.getFullYear()}`;
+                })();
+
+                const isOverdue = request.hoursSinceCreation > 48 && request.status === "NEW";
+                const agingColor = request.hoursSinceCreation > 48 ? "text-red-500" : request.hoursSinceCreation > 24 ? "text-amber-500" : "text-emerald-500";
+                const agingLabel = request.respondedAt ? null : request.hoursSinceCreation < 24
+                  ? `${request.hoursSinceCreation}h ago`
+                  : `${Math.floor(request.hoursSinceCreation / 24)}d ago`;
+
                 return (
-                  <div key={request.id} className={`p-4 bg-white hover:bg-gray-50 transition-colors duration-150 ${request.isUrgent ? "bg-amber-50 border-l-4 border-l-amber-500" : ""}`}>
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-gray-900">Request #{request.id}</span>
-                        {request.isUrgent && (
-                          <div title="Urgent request">
-                            <AlertTriangle className="h-4 w-4 text-amber-600" />
+                  <div
+                    key={request.id}
+                    className={`group relative px-5 py-4 transition-all duration-150 hover:bg-blue-50/30 ${
+                      request.isUrgent ? "bg-amber-50/60 hover:bg-amber-50" : ""
+                    }`}
+                  >
+                    {/* Urgent left stripe */}
+                    {request.isUrgent && (
+                      <div className="absolute left-0 top-0 bottom-0 w-1 rounded-r bg-amber-400" />
+                    )}
+
+                    {/* ── Desktop layout ── */}
+                    <div className="hidden lg:grid grid-cols-[56px_1fr_1fr_1fr_1fr_140px_120px] gap-x-4 items-center">
+
+                      {/* ID */}
+                      <div className="flex flex-col items-start gap-1">
+                        <span className="text-[11px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 rounded-lg px-2 py-0.5 leading-none">
+                          #{request.id}
+                        </span>
+                        {request.isUrgent && <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />}
+                      </div>
+
+                      {/* Customer */}
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${avatarColor}`}>
+                          {initials}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-gray-900 truncate leading-tight">{request.customer.name}</p>
+                          <p className="text-[11px] text-gray-400 truncate leading-tight">{request.customer.email}</p>
+                          {request.customer.phone && (
+                            <p className="text-[11px] text-gray-400 truncate leading-tight">{request.customer.phone}</p>
+                          )}
+                          <span className={`inline-block mt-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded border ${avatarColor} border-current/20`}>
+                            {request.role}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Trip type */}
+                      <div>
+                        <span className={`inline-flex items-center px-2 py-1 rounded-lg border text-[11px] font-semibold ${ttMeta.color}`}>
+                          {request.tripType}
+                        </span>
+                        {request.groupSize && (
+                          <div className="flex items-center gap-1 mt-1">
+                            <Users className="w-3 h-3 text-gray-400" />
+                            <span className="text-[11px] text-gray-500">{request.groupSize} {Number(request.groupSize) === 1 ? "person" : "people"}</span>
+                          </div>
+                        )}
+                        {request.budget && (
+                          <p className="text-[10px] text-gray-400 mt-0.5 truncate">Budget: {request.budget}</p>
+                        )}
+                      </div>
+
+                      {/* Destination */}
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <MapPin className="w-3.5 h-3.5 text-teal-500 shrink-0" />
+                          <span className="text-xs font-semibold text-gray-800 truncate">{firstDest}</span>
+                        </div>
+                        {extraDestCount > 0 && (
+                          <span className="mt-0.5 inline-block text-[10px] font-medium text-indigo-600 bg-indigo-50 border border-indigo-100 rounded-full px-1.5 py-0.5">
+                            +{extraDestCount} more stop{extraDestCount > 1 ? "s" : ""}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Dates */}
+                      <div>
+                        {dateStr ? (
+                          <div className="flex items-center gap-1.5">
+                            <Calendar className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                            <span className="text-xs text-gray-700 leading-tight">{dateStr}</span>
+                          </div>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[11px] text-gray-400 bg-gray-50 border border-gray-100 rounded-lg px-2 py-0.5">
+                            <Calendar className="w-3 h-3" /> Flexible
+                          </span>
+                        )}
+                        {agingLabel && (
+                          <p className={`text-[10px] font-medium mt-1 ${agingColor}`}>
+                            {isOverdue ? "Overdue · " : ""}{agingLabel}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Status */}
+                      <div>
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold rounded-full border ${statusMeta.pill}`}>
+                          <span className={`inline-block h-1.5 w-1.5 rounded-full ${statusMeta.dot}`} />
+                          {statusMeta.label}
+                        </span>
+                        {request.assignedAgent && (
+                          <p className="text-[10px] text-gray-500 mt-1 flex items-center gap-1">
+                            <User className="w-3 h-3" />{request.assignedAgent}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Action */}
+                      <div className="flex justify-end">
+                        {request.status === "NEW" && (
+                          <button
+                            onClick={() => handleStartWork(request.id)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border-2 border-blue-200 text-blue-700 text-xs font-bold hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all shadow-sm"
+                          >
+                            <Edit className="h-3.5 w-3.5" /> Start
+                          </button>
+                        )}
+                        {request.status === "IN_PROGRESS" && (
+                          <button
+                            onClick={() => handleOpenResponse(request)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 text-white text-xs font-bold hover:from-green-600 hover:to-emerald-700 transition-all shadow-md"
+                          >
+                            <Send className="h-3.5 w-3.5" /> Respond
+                          </button>
+                        )}
+                        {request.status === "COMPLETED" && (
+                          <button
+                            onClick={() => handleOpenResponse(request)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border-2 border-gray-200 text-gray-600 text-xs font-bold hover:bg-gray-100 transition-all"
+                          >
+                            <Eye className="h-3.5 w-3.5" /> Review
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* ── Mobile / Tablet layout ── */}
+                    <div className="lg:hidden space-y-3">
+                      {/* Top row */}
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${avatarColor}`}>
+                          {initials}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-bold text-gray-900">{request.customer.name}</span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${avatarColor} border-current/20`}>{request.role}</span>
+                            {request.isUrgent && <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />}
+                          </div>
+                          <p className="text-[11px] text-gray-400 truncate">{request.customer.email}{request.customer.phone ? ` · ${request.customer.phone}` : ""}</p>
+                        </div>
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold rounded-full border shrink-0 ${statusMeta.pill}`}>
+                          <span className={`h-1.5 w-1.5 rounded-full ${statusMeta.dot}`} />{statusMeta.label}
+                        </span>
+                      </div>
+                      {/* Meta pills */}
+                      <div className="flex flex-wrap gap-1.5">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-lg border text-[11px] font-semibold ${ttMeta.color}`}>{request.tripType}</span>
+                        {request.groupSize && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border border-gray-200 bg-gray-50 text-[11px] text-gray-600">
+                            <Users className="w-3 h-3" />{request.groupSize}
+                          </span>
+                        )}
+                        {request.budget && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-lg border border-gray-200 bg-gray-50 text-[11px] text-gray-600">{request.budget}</span>
+                        )}
+                        <span className="text-[10px] font-medium text-indigo-600 bg-indigo-50 border border-indigo-100 rounded-full px-2 py-0.5">#{request.id}</span>
+                      </div>
+                      {/* Destination + Dates */}
+                      <div className="flex items-start gap-3 text-xs text-gray-600">
+                        {firstDest !== "N/A" && (
+                          <div className="flex items-center gap-1">
+                            <MapPin className="w-3.5 h-3.5 text-teal-500 shrink-0" />
+                            <span className="font-medium truncate max-w-[160px]">{firstDest}{extraDestCount > 0 ? ` +${extraDestCount}` : ""}</span>
+                          </div>
+                        )}
+                        {dateStr && (
+                          <div className="flex items-center gap-1 text-gray-500">
+                            <Calendar className="w-3.5 h-3.5 shrink-0" />
+                            <span>{dateStr}</span>
                           </div>
                         )}
                       </div>
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-full border ${
-                      request.status === "COMPLETED" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
-                      request.status === "IN_PROGRESS" ? "bg-blue-50 text-blue-700 border-blue-200" :
-                      "bg-amber-50 text-amber-700 border-amber-200"
-                    }`}>
-                      <span className={`inline-block h-1.5 w-1.5 rounded-full ${request.status === "COMPLETED" ? "bg-emerald-500" : request.status === "IN_PROGRESS" ? "bg-blue-500" : "bg-amber-500"}`} />{request.status === "NEW" ? "New" : request.status === "IN_PROGRESS" ? "In Progress" : "Completed"}
-                    </span>
+                      {/* Action row */}
+                      <div className="flex items-center justify-between">
+                        {agingLabel && (
+                          <span className={`text-[11px] font-medium ${agingColor}`}>{isOverdue ? "Overdue · " : ""}{agingLabel}</span>
+                        )}
+                        <div className="ml-auto flex gap-2">
+                          {request.status === "NEW" && (
+                            <button onClick={() => handleStartWork(request.id)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border-2 border-blue-200 text-blue-700 text-xs font-bold hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all shadow-sm">
+                              <Edit className="h-3.5 w-3.5" /> Start
+                            </button>
+                          )}
+                          {request.status === "IN_PROGRESS" && (
+                            <button onClick={() => handleOpenResponse(request)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 text-white text-xs font-bold hover:from-green-600 hover:to-emerald-700 transition-all shadow-md">
+                              <Send className="h-3.5 w-3.5" /> Respond
+                            </button>
+                          )}
+                          {request.status === "COMPLETED" && (
+                            <button onClick={() => handleOpenResponse(request)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border-2 border-gray-200 text-gray-600 text-xs font-bold hover:bg-gray-100 transition-all">
+                              <Eye className="h-3.5 w-3.5" /> Review
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-sm text-gray-600 mb-1 flex items-center gap-2">
-                      <Clock className={`h-4 w-4 ${responseTimeColor}`} />
-                      <span className={responseTimeColor}>
-                        Response: {request.respondedAt ? "Responded" : responseTimeText}
-                      </span>
-                      {request.hoursSinceCreation > 48 && request.status === "NEW" && (
-                        <span className="text-xs text-red-600 font-medium">· Overdue</span>
-                      )}
-                    </div>
-                  <div className="text-sm text-gray-600 mb-1">
-                    <span>Role: {request.role} · Type: {request.tripType}</span>
                   </div>
-                  <div className="text-sm text-gray-600 mb-1 flex items-center gap-2">
-                    <User className="h-4 w-4 text-gray-400" />
-                    <span>Customer: {request.customer.name}</span>
-                  </div>
-                  <div className="text-sm text-gray-600 mb-1 flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-gray-400" />
-                    <span>Destination: {request.destinations || "N/A"}</span>
-                  </div>
-                  <div className="text-sm text-gray-600 mb-1 flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-gray-400" />
-                    <span>
-                      {request.dateFrom && request.dateTo
-                        ? `${new Date(request.dateFrom).toLocaleDateString()} - ${new Date(request.dateTo).toLocaleDateString()}`
-                        : "Flexible dates"}
-                    </span>
-                  </div>
-                  <div className="text-sm text-gray-600 mb-1">
-                    <span>Group Size: {request.groupSize || "N/A"}</span>
-                    {request.transportRequired && (
-                      <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">Transport</span>
-                    )}
-                  </div>
-                  <div className="mt-3 flex gap-2 justify-end">
-                    {request.status === "NEW" && (
-                      <button
-                        onClick={() => handleStartWork(request.id)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 text-xs font-semibold hover:bg-blue-100 transition-all"
-                      >
-                        <Edit className="h-4 w-4" />
-                        Start Work
-                      </button>
-                    )}
-                    {request.status === "IN_PROGRESS" && (
-                      <button
-                        onClick={() => handleOpenResponse(request)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-semibold hover:bg-green-700 transition-all shadow-sm"
-                      >
-                        <Send className="h-4 w-4" />
-                        Provide Feedback
-                      </button>
-                    )}
-                    {request.status === "COMPLETED" && (
-                      <button
-                        onClick={() => handleOpenResponse(request)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 border border-gray-200 text-xs font-semibold hover:bg-gray-200 transition-all"
-                      >
-                        <Eye className="h-4 w-4" />
-                        View Response
-                      </button>
-                    )}
-                  </div>
-                </div>
                 );
               })}
             </div>
@@ -2189,6 +2239,87 @@ export default function AdminPlanWithUsRequestsPage() {
                                                       </div>
                                                     );
                                                   })()}
+                                                </div>
+                                              )}
+                                              {cat.id === "accommodation" && (
+                                                <div className="mb-2.5">
+                                                  <p className="text-[10px] font-bold text-purple-600 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                                                    <Building2 className="w-3 h-3" /> Link Approved Properties
+                                                  </p>
+                                                  {/* Linked property chips */}
+                                                  {(opt.linkedProperties?.length ?? 0) > 0 && (
+                                                    <div className="flex flex-wrap gap-1.5 mb-2">
+                                                      {opt.linkedProperties!.map(p => (
+                                                        <span key={p.id} className="inline-flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-full text-[11px] font-medium bg-purple-100 text-purple-800 border border-purple-300">
+                                                          <Building2 className="w-3 h-3 shrink-0 text-purple-500" />
+                                                          <button
+                                                            type="button"
+                                                            onClick={() => window.open(`/admin/properties/previews?id=${p.id}`, "_blank")}
+                                                            className="hover:underline font-semibold max-w-[130px] truncate text-left leading-none"
+                                                            title={`Open ${p.title} listing`}
+                                                          >
+                                                            {p.title}
+                                                          </button>
+                                                          {p.regionName && <span className="text-purple-400 text-[10px]">· {p.regionName}</span>}
+                                                          <button
+                                                            type="button"
+                                                            onClick={() => unlinkProperty(opt.id, p.id)}
+                                                            className="ml-0.5 w-4 h-4 shrink-0 flex items-center justify-center rounded-full hover:bg-red-100 text-purple-400 hover:text-red-500 text-sm leading-none"
+                                                            title="Remove"
+                                                          ><X className="w-2.5 h-2.5" /></button>
+                                                        </span>
+                                                      ))}
+                                                    </div>
+                                                  )}
+                                                  {/* Search input */}
+                                                  <div className="relative">
+                                                    <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-purple-50 border-2 border-purple-200 rounded-lg focus-within:ring-2 focus-within:ring-purple-400">
+                                                      <Search className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                                                      <input
+                                                        type="text"
+                                                        value={propSearch?.optId === opt.id ? propSearch.query : ""}
+                                                        onChange={e => searchApprovedProperties(opt.id, e.target.value)}
+                                                        onFocus={() => { if (!propSearch || propSearch.optId !== opt.id) setPropSearch({ optId: opt.id, query: "", results: [], loading: false }); }}
+                                                        placeholder="Search approved properties to link..."
+                                                        className="flex-1 min-w-0 bg-transparent text-xs outline-none placeholder-purple-300 text-purple-900"
+                                                      />
+                                                      {propSearch?.optId === opt.id && propSearch.loading && <Loader2 className="w-3 h-3 text-purple-400 animate-spin shrink-0" />}
+                                                      {propSearch?.optId === opt.id && propSearch.query && !propSearch.loading && (
+                                                        <button type="button" onClick={() => setPropSearch(null)} className="shrink-0 text-purple-300 hover:text-purple-600"><X className="w-3 h-3" /></button>
+                                                      )}
+                                                    </div>
+                                                    {propSearch?.optId === opt.id && (propSearch.results.length > 0 || (propSearch.query && !propSearch.loading)) && (
+                                                      <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-white border border-purple-200 rounded-xl shadow-2xl overflow-hidden">
+                                                        {propSearch.results.length === 0 ? (
+                                                          <div className="px-3 py-2.5 text-[11px] text-gray-400 italic">No approved properties found — describe it manually in the field below.</div>
+                                                        ) : (
+                                                          <div className="max-h-44 overflow-y-auto divide-y divide-gray-100">
+                                                            {propSearch.results.map((p) => {
+                                                              const alreadyLinked = opt.linkedProperties?.some(lp => lp.id === p.id);
+                                                              return (
+                                                                <button
+                                                                  key={p.id}
+                                                                  type="button"
+                                                                  disabled={alreadyLinked}
+                                                                  onClick={() => { linkProperty(opt.id, p); setPropSearch(null); }}
+                                                                  className={`w-full text-left px-3 py-2 flex items-start gap-2 transition-colors ${
+                                                                    alreadyLinked ? "opacity-50 cursor-default bg-gray-50" : "hover:bg-purple-50 cursor-pointer"
+                                                                  }`}
+                                                                >
+                                                                  <Building2 className="w-3.5 h-3.5 text-purple-400 shrink-0 mt-0.5" />
+                                                                  <div className="min-w-0 flex-1">
+                                                                    <p className="text-xs font-semibold text-gray-800 truncate">{p.title}</p>
+                                                                    <p className="text-[10px] text-gray-400">{[p.type, p.regionName].filter(Boolean).join(" · ")}{alreadyLinked ? " — already linked" : ""}</p>
+                                                                  </div>
+                                                                  {!alreadyLinked && <span className="shrink-0 text-[10px] text-purple-500 font-medium self-center">Link</span>}
+                                                                </button>
+                                                              );
+                                                            })}
+                                                          </div>
+                                                        )}
+                                                      </div>
+                                                    )}
+                                                  </div>
                                                 </div>
                                               )}
                                               <textarea
