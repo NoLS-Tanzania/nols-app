@@ -425,13 +425,19 @@ export default function CareersManagement() {
         body: JSON.stringify({ status, adminNotes: notes })
       });
       if (!r.ok) throw new Error('Failed to update application');
-      setSuccess('Application status updated successfully');
+      const updated = await r.json();
+      if (updated.emailWarning) {
+        setSuccess(`Status updated. Note: ${updated.emailWarning}`);
+      } else if (updated.emailSent) {
+        setSuccess('Application status updated — email notification sent to applicant.');
+      } else {
+        setSuccess('Application status updated successfully');
+      }
       loadApplications();
       if (viewingApplication?.id === applicationId) {
-        const updated = await r.json();
         setViewingApplication(updated);
       }
-      setTimeout(() => setSuccess(null), 3000);
+      setTimeout(() => setSuccess(null), 5000);
     } catch (e: any) {
       setError(e.message || 'Failed to update application');
       setTimeout(() => setError(null), 5000);

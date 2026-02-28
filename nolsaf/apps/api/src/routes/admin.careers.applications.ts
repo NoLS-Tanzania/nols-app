@@ -678,7 +678,15 @@ router.patch("/:id", async (req, res) => {
     await audit(req as any, "JOB_APPLICATION_UPDATE", "JOB_APPLICATION", existingApplication, finalApplication);
 
     // Send email notification if status changed to a notifiable status
+    let emailSent = false;
+    let emailWarning: string | undefined;
+
     if (statusChanged && newStatus && ["REVIEWING", "SHORTLISTED", "REJECTED", "HIRED"].includes(newStatus)) {
+      const recipientEmail = String(finalApplication.email || "").trim();
+      if (!recipientEmail) {
+        emailWarning = "No email address on file for this applicant — notification not sent";
+        console.warn("[CAREERS_EMAIL] Skipping notification: no email address", { applicationId: parsedId, status: newStatus });
+      } else {
       try {
         const onboarding = (req as any)._agentOnboarding as
           | { username?: string; setupLink?: string; expiresHours?: number }
@@ -780,23 +788,24 @@ router.patch("/:id", async (req, res) => {
           });
         }
 
-        await sendMail(finalApplication.email, subject, html);
-        
-        console.log(`Application status email sent to ${finalApplication.email} for status: ${newStatus}`);
+        await sendMail(recipientEmail, subject, html);
+        emailSent = true;
+        console.log(`[CAREERS_EMAIL] Notification sent to ${recipientEmail} for status: ${newStatus}`);
       } catch (emailError: any) {
-        // Log email error but don't fail the request
-        console.error("Error sending application status email:", emailError);
+        // Log email error but don't fail the status update
+        emailWarning = emailError.message || "Email delivery failed";
+        console.error("[CAREERS_EMAIL] Failed to send notification:", emailError);
         console.error("Email error details:", {
           message: emailError.message,
           applicationId: parsedId,
-          applicantEmail: updatedApplication.email,
+          applicantEmail: recipientEmail,
           status: newStatus
         });
-        // Continue - the status update was successful even if email failed
       }
+      } // end: recipientEmail guard
     }
 
-    return res.json(updatedApplication);
+    return res.json({ ...finalApplication, emailSent, emailWarning });
   } catch (error: any) {
     console.error("Error updating application:", error);
     console.error("Error details:", {
