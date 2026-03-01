@@ -93,6 +93,8 @@ export default function CareersManagement() {
   const [, setStatisticsLoading] = useState(false);
   const [resumeViewUrl, setResumeViewUrl] = useState<string | null>(null);
   const [viewingResume, setViewingResume] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     const tab = String(searchParams?.get("tab") || "").toLowerCase();
@@ -282,11 +284,15 @@ export default function CareersManagement() {
     setShowForm(true);
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this job posting?')) return;
-    
+  const handleDelete = (id: number) => {
+    setDeleteConfirmId(id);
+  };
+
+  const handleDeleteConfirmed = async () => {
+    if (!deleteConfirmId) return;
+    setIsDeleting(true);
     try {
-      const url = `${apiBase.replace(/\/$/, '')}/api/admin/careers/${id}`;
+      const url = `${apiBase.replace(/\/$/, '')}/api/admin/careers/${deleteConfirmId}`;
       const r = await fetch(url, {
         method: 'DELETE',
         credentials: 'include'
@@ -298,6 +304,9 @@ export default function CareersManagement() {
     } catch (e: any) {
       setError(e.message || 'Failed to delete job');
       setTimeout(() => setError(null), 5000);
+    } finally {
+      setIsDeleting(false);
+      setDeleteConfirmId(null);
     }
   };
 
@@ -1922,6 +1931,57 @@ export default function CareersManagement() {
             <div className="flex-1 overflow-y-auto p-6 bg-gray-100 min-w-0 min-h-0">
               <div className="bg-white rounded-lg p-6 shadow-sm">
                 <PDFViewer url={resumeViewUrl} />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmId !== null && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="delete-confirm-title">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => !isDeleting && setDeleteConfirmId(null)} />
+          <div className="relative w-full max-w-sm rounded-2xl bg-white shadow-2xl border border-gray-100 overflow-hidden">
+            {/* Red accent top bar */}
+            <div className="h-1 w-full bg-gradient-to-r from-red-500 via-red-400 to-rose-500" />
+            <div className="p-6">
+              {/* Icon + heading */}
+              <div className="flex items-start gap-4 mb-4">
+                <div className="shrink-0 h-10 w-10 rounded-xl bg-red-50 border border-red-100 flex items-center justify-center">
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                    <path d="M10 2a8 8 0 1 0 0 16A8 8 0 0 0 10 2Zm0 4.5a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 10 6.5Zm0 7a.875.875 0 1 1 0-1.75.875.875 0 0 1 0 1.75Z" fill="#ef4444" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 id="delete-confirm-title" className="text-[15px] font-bold text-gray-900">Delete job posting?</h2>
+                  <p className="mt-1 text-sm text-gray-500 leading-relaxed">
+                    This will permanently remove the job posting and cannot be undone.
+                  </p>
+                </div>
+              </div>
+
+              {/* Buttons */}
+              <div className="flex items-center justify-end gap-3 mt-6">
+                <button
+                  type="button"
+                  disabled={isDeleting}
+                  onClick={() => setDeleteConfirmId(null)}
+                  className="px-4 py-2 rounded-xl text-sm font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 hover:border-gray-300 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isDeleting}
+                  onClick={handleDeleteConfirmed}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-red-600 hover:bg-red-700 transition-colors shadow-sm disabled:opacity-60"
+                >
+                  {isDeleting ? (
+                    <>
+                      <span className="h-3.5 w-3.5 rounded-full border-2 border-white/40 border-t-white animate-spin" aria-hidden />
+                      Deleting…
+                    </>
+                  ) : 'Delete'}
+                </button>
               </div>
             </div>
           </div>
