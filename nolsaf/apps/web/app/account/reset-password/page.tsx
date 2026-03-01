@@ -10,6 +10,9 @@ export default function ResetPasswordPage() {
   const id = search?.get("id") ?? "";
   const _method = search?.get("method") ?? "email";
   const nextRaw = search?.get("next") ?? "";
+  const reason = search?.get("reason") ?? "";
+  const usernameRaw = search?.get("username") ?? "";
+  const isOnboarding = reason === "onboarding";
 
   const next = (() => {
     const v = String(nextRaw || "").trim();
@@ -80,10 +83,11 @@ export default function ResetPasswordPage() {
       const data = await res.json();
       if (res.ok && data && data.ok) {
         setSuccess(true);
-        setTimeout(() => router.push(next || "/account/login"), 2200);
       } else {
         if (data && data.message === "weak_password" && Array.isArray(data.reasons)) {
           setReasons(data.reasons);
+        } else if (data && data.message === "password_already_set") {
+          setError("__password_already_set__");
         } else if (data && data.message) {
           setError(String(data.message));
         } else {
@@ -128,7 +132,30 @@ export default function ResetPasswordPage() {
         </div>
 
         <div className="px-6 py-5 min-w-0 overflow-hidden">
-          {error && (
+          {error === "__password_already_set__" ? (
+            <div className="p-5 bg-sky-50 border border-sky-200 rounded-lg min-w-0">
+              <div className="flex items-start gap-3 mb-4">
+                <CheckCircle2 className="w-5 h-5 text-sky-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-semibold text-sky-900 mb-1">Password already set</h3>
+                  <p className="text-xs text-sky-700">
+                    Your password has already been created. You can log in directly using your credentials.
+                  </p>
+                  {usernameRaw && (
+                    <p className="mt-2 text-xs text-sky-800">
+                      Username: <span className="font-semibold">{usernameRaw}</span>
+                    </p>
+                  )}
+                </div>
+              </div>
+              <button
+                onClick={() => router.push("/account/login")}
+                className="w-full px-4 py-2.5 bg-[#02665e] hover:bg-[#014e47] text-white text-sm font-medium rounded-lg transition-colors"
+              >
+                Go to Login
+              </button>
+            </div>
+          ) : error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2.5 text-sm text-red-800">
               <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
               <span className="flex-1 min-w-0 break-words">{error}</span>
@@ -147,11 +174,52 @@ export default function ResetPasswordPage() {
           )}
 
           {success ? (
-            <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg flex items-start gap-2.5 min-w-0">
-              <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
-              <div className="flex-1 min-w-0">
-                <h3 className="text-sm font-semibold text-emerald-900 mb-1">Password Reset Successful</h3>
-                <p className="text-xs text-emerald-700">Redirecting to sign-in...</p>
+            <div className="min-w-0">
+              <div className="p-5 bg-emerald-50 border border-emerald-200 rounded-xl min-w-0">
+                <div className="flex items-start gap-3 mb-4">
+                  <div className="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-base font-bold text-emerald-900 mb-1">
+                      {isOnboarding ? "Welcome aboard! 🎉" : "Password set successfully!"}
+                    </h3>
+                    <p className="text-sm text-emerald-800">
+                      {isOnboarding
+                        ? "Your account is ready. You can now log in and start your journey with NoLSAF."
+                        : "Your new password has been saved."}
+                    </p>
+                  </div>
+                </div>
+
+                {isOnboarding && (
+                  <div className="mb-4 p-3 bg-white border border-emerald-200 rounded-lg text-sm text-slate-700 space-y-1.5">
+                    <p className="font-semibold text-slate-800 mb-2">Your login credentials:</p>
+                    {usernameRaw && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-500 text-xs w-20 flex-shrink-0">Username</span>
+                        <span className="font-medium text-slate-900 break-all">{usernameRaw}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-500 text-xs w-20 flex-shrink-0">Password</span>
+                      <span className="text-slate-600 text-xs">The password you just created</span>
+                    </div>
+                  </div>
+                )}
+
+                {isOnboarding && (
+                  <p className="text-xs text-emerald-700 mb-4 italic">
+                    Good luck in your new role — we&apos;re excited to have you on the team!
+                  </p>
+                )}
+
+                <button
+                  onClick={() => router.push("/account/login")}
+                  className="w-full px-4 py-2.5 bg-[#02665e] hover:bg-[#014e47] text-white text-sm font-semibold rounded-lg transition-colors shadow-sm"
+                >
+                  Go to Login
+                </button>
               </div>
             </div>
           ) : (

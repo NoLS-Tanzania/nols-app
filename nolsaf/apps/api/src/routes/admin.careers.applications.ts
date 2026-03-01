@@ -744,7 +744,8 @@ router.patch("/:id", async (req, res) => {
 
               const next = encodeURIComponent("/account/agent");
               hiredSetupExpiresHours = 72;
-              hiredSetupLink = `${origin}/account/reset-password?token=${raw}&id=${userId}&next=${next}&reason=onboarding`;
+              const usernameParam = hiredUsername ? `&username=${encodeURIComponent(hiredUsername)}` : '';
+              hiredSetupLink = `${origin}/account/reset-password?token=${raw}&id=${userId}&next=${next}&reason=onboarding${usernameParam}`;
             }
           } catch (tokenErr: any) {
             console.error("[CAREERS_HIRED] Failed to generate setup token:", tokenErr?.message);

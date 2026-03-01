@@ -6,7 +6,7 @@
  *   - Password reset
  *   - Welcome (new account)
  */
-import { BRAND_TEAL, BRAND_DARK, TEXT_MUTED, baseEmail, calloutBox, ctaButton } from "./emailBase.js";
+import { BRAND_TEAL, BRAND_DARK, TEXT_MUTED, baseEmail, securityEmail, calloutBox, ctaButton } from "./emailBase.js";
 
 // ─── 1. Email verification ────────────────────────────────────────────────────
 export function getEmailVerificationEmail(
@@ -67,24 +67,92 @@ export function getPasswordResetEmail(
   resetUrl: string,
   expiryMinutes = 60
 ): { subject: string; html: string } {
-  const AMBER = "#d97706";
-
   const body = `
-    <p style="margin:0 0 16px;font-size:16px;font-weight:600;color:${AMBER};">Hello ${name},</p>
-    <p style="margin:0 0 16px;">We received a request to reset the password for your NoLSAF account.</p>
-    ${calloutBox(AMBER, "🔑", "Reset your password:", `Click the button below to set a new password. This link is valid for <strong>${expiryMinutes} minutes</strong> and can only be used once. If you didn't request a password reset, you can safely ignore this email — your password won't change.`)}
-    ${ctaButton(resetUrl, "Reset My Password", AMBER)}
-    <p style="margin:20px 0 0;font-size:13px;color:${TEXT_MUTED};">
-      Or copy and paste this link into your browser:<br>
-      <a href="${resetUrl}" style="color:${BRAND_TEAL};word-break:break-all;text-decoration:none;font-size:12px;">${resetUrl}</a>
+    <p style="margin:0 0 14px;font-size:15px;font-weight:600;color:#1e3d72;">Hello ${name},</p>
+    <p style="margin:0 0 14px;color:#374151;">We received a request to reset the password for your NoLSAF account. If this was you, click the button below to set a new password.</p>
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0;background:#f0f4ff;border-left:3px solid #1e3d72;border-radius:4px;">
+      <tr><td style="padding:14px 16px;">
+        <p style="margin:0;font-size:13px;color:#374151;line-height:1.7;">
+          &#8226; This link is valid for <strong>${expiryMinutes} minutes</strong> and can only be used <strong>once</strong>.<br>
+          &#8226; If you did not request this, your password has not been changed — you can safely ignore this email.
+        </p>
+      </td></tr>
+    </table>
+
+    ${ctaButton(resetUrl, "Reset My Password", "#1e3d72")}
+
+    <p style="margin:18px 0 0;font-size:12px;color:#6b7280;">
+      Or copy and paste this URL into your browser:<br>
+      <a href="${resetUrl}" style="color:#1e3d72;word-break:break-all;text-decoration:none;font-size:11px;">${resetUrl}</a>
     </p>
-    <p style="margin:16px 0 0;font-size:13px;color:${TEXT_MUTED};">For your security, this link will expire after one use. If you need to reset your password again, please request a new link.</p>
-    <p style="margin:24px 0 0;">Warm regards,<br><strong style="color:${BRAND_DARK};">The NoLSAF Team</strong></p>
+    <p style="margin:20px 0 0;font-size:13px;color:#374151;">Warm regards,<br><strong style="color:#1e3d72;">The NoLSAF Security Team</strong></p>
   `;
 
   return {
     subject: "Reset your NoLSAF password",
-    html: baseEmail(AMBER, "#b45309", "Password Reset", "🔑", body),
+    html: securityEmail("Password Reset", body),
+  };
+}
+
+// ─── 3b. Password changed confirmation ───────────────────────────────────────
+export interface PasswordChangedEmailData {
+  name: string;
+  email: string;
+  changedAt: Date;
+  ipAddress?: string;
+  device?: string;
+  securityUrl: string;
+}
+
+export function getPasswordChangedConfirmationEmail(
+  data: PasswordChangedEmailData
+): { subject: string; html: string } {
+  const fmtDateTime = (d: Date) =>
+    d.toUTCString().replace(" GMT", " UTC");
+
+  const rows: [string, string][] = [
+    ["Account",   data.email],
+    ["Changed at", fmtDateTime(data.changedAt)],
+    ["IP Address", data.ipAddress || "Unknown"],
+    ["Device",     data.device    || "Unknown"],
+  ];
+
+  const tableRows = rows.map(([label, value]) => `
+    <tr>
+      <td style="padding:9px 14px;font-size:12px;font-weight:600;color:#1e3d72;white-space:nowrap;border-bottom:1px solid #e8ecf4;width:110px;font-family:'Poppins','Segoe UI',Arial,sans-serif;">${label}</td>
+      <td style="padding:9px 14px;font-size:12px;color:#374151;border-bottom:1px solid #e8ecf4;word-break:break-all;font-family:'Poppins','Segoe UI',Arial,sans-serif;">${value}</td>
+    </tr>`).join("");
+
+  const detailTable = `
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;border:1px solid #dce4f0;border-radius:6px;overflow:hidden;">
+      <tbody>${tableRows}</tbody>
+    </table>`;
+
+  const body = `
+    <p style="margin:0 0 14px;font-size:15px;font-weight:600;color:#16a34a;">&#10003;&nbsp; Password changed successfully</p>
+    <p style="margin:0 0 14px;color:#374151;">Hello ${data.name}, your NoLSAF account password was just changed. Here are the details:</p>
+
+    ${detailTable}
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;background:#fef2f2;border-left:3px solid #dc2626;border-radius:4px;">
+      <tr><td style="padding:13px 16px;">
+        <p style="margin:0;font-size:13px;font-weight:600;color:#b91c1c;margin-bottom:5px;">Wasn&apos;t you?</p>
+        <p style="margin:0;font-size:12px;color:#7f1d1d;line-height:1.6;">
+          If you did not make this change, your account may be compromised. Reset your password immediately and contact
+          <a href="mailto:security@nolsaf.com" style="color:#b91c1c;font-weight:600;">security@nolsaf.com</a>.
+        </p>
+      </td></tr>
+    </table>
+
+    ${ctaButton(data.securityUrl, "Reset Password Now", "#dc2626")}
+
+    <p style="margin:20px 0 0;font-size:13px;color:#374151;">If this was you, no further action is needed.<br><strong style="color:#1e3d72;">The NoLSAF Security Team</strong></p>
+  `;
+
+  return {
+    subject: "Your NoLSAF password was changed",
+    html: securityEmail("Password Changed", body),
   };
 }
 

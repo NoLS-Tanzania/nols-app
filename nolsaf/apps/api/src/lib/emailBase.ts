@@ -146,6 +146,127 @@ export function baseEmail(
 </html>`;
 }
 
+// ─── Security footer (no social links — security emails only) ─────────────────
+function buildSecurityFooter(): string {
+  const year = new Date().getFullYear();
+  return `
+    <tr>
+      <td style="padding:0 40px;">
+        <div style="height:1px;background:linear-gradient(90deg,transparent,#e4eceb,transparent);"></div>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:24px 40px 28px;text-align:center;">
+        <p style="margin:0 0 4px;font-size:13px;font-weight:700;color:${BRAND_TEAL};letter-spacing:0.6px;font-family:'Poppins','Segoe UI',Arial,sans-serif;">NoLSAF</p>
+        <p style="margin:0 0 14px;font-size:11px;color:${TEXT_MUTED};font-family:'Poppins','Segoe UI',Arial,sans-serif;">
+          Dar es Salaam, Tanzania
+          &nbsp;&bull;&nbsp;
+          <a href="mailto:security@nolsaf.com" style="color:${BRAND_TEAL};text-decoration:none;">security@nolsaf.com</a>
+          &nbsp;&bull;&nbsp;
+          <a href="https://nolsaf.com" style="color:${BRAND_TEAL};text-decoration:none;">nolsaf.com</a>
+        </p>
+        <p style="margin:0 0 10px;font-size:11px;color:#9ca3af;line-height:1.65;max-width:440px;margin-left:auto;margin-right:auto;font-family:'Poppins','Segoe UI',Arial,sans-serif;">
+          This is an automated security notification from NoLSAF. Do not reply to this email.
+          If you did not perform this action, contact
+          <a href="mailto:security@nolsaf.com" style="color:#dc2626;text-decoration:none;font-weight:600;">security@nolsaf.com</a>
+          immediately.
+        </p>
+        <p style="margin:0;font-size:10px;color:#d1d5db;font-family:'Poppins','Segoe UI',Arial,sans-serif;">&copy; ${year} NoLSAF. All rights reserved.</p>
+      </td>
+    </tr>`;
+}
+
+// ─── Security email wrapper ───────────────────────────────────────────────────
+/**
+ * Security-themed email shell — dark navy/slate header with an embedded
+ * lock SVG watermark. Used for password reset, password-changed confirmation,
+ * and other security-critical transactional emails.
+ */
+export function securityEmail(
+  badgeLabel: string,
+  body: string
+): string {
+  // Inline SVG: faint NOLSAF watermark + decorative lock shapes on both sides
+  const headerSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="580" height="72" viewBox="0 0 580 72" style="display:block;margin:0 auto;">
+  <text x="290" y="58" text-anchor="middle" font-family="Arial,sans-serif" font-size="68" font-weight="900" letter-spacing="14" fill="rgba(255,255,255,0.035)">NOLSAF</text>
+  <!-- Left mini-lock -->
+  <g opacity="0.14" transform="translate(52,16)">
+    <rect x="0" y="14" width="22" height="17" rx="3" fill="white"/>
+    <path d="M4 14v-4a7 7 0 0114 0v4" stroke="white" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="11" cy="22.5" r="2" fill="rgba(0,0,0,0.25)"/>
+    <rect x="10" y="24.5" width="2" height="3" rx="1" fill="rgba(0,0,0,0.2)"/>
+  </g>
+  <!-- Right mini-lock -->
+  <g opacity="0.14" transform="translate(506,16)">
+    <rect x="0" y="14" width="22" height="17" rx="3" fill="white"/>
+    <path d="M4 14v-4a7 7 0 0114 0v4" stroke="white" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="11" cy="22.5" r="2" fill="rgba(0,0,0,0.25)"/>
+    <rect x="10" y="24.5" width="2" height="3" rx="1" fill="rgba(0,0,0,0.2)"/>
+  </g>
+  <!-- Shield left -->
+  <path d="M110 32 L118 28 L126 32 L126 42 Q118 47 118 47 Q110 42 110 42 Z" fill="rgba(255,255,255,0.06)"/>
+  <!-- Shield right -->
+  <path d="M454 32 L462 28 L470 32 L470 42 Q462 47 462 47 Q454 42 454 42 Z" fill="rgba(255,255,255,0.06)"/>
+</svg>`;
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <style>@import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,400;0,600;0,700;0,900;1,400&display=swap');</style>
+  <!--[if mso]><noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript><![endif]-->
+</head>
+<body style="margin:0;padding:0;background-color:#e8eceb;font-family:'Poppins','Segoe UI',Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#e8eceb;">
+    <tr><td align="center" style="padding:28px 12px 20px;">
+
+      <!-- Card -->
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+        style="max-width:600px;background:#ffffff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.09),0 12px 32px rgba(12,24,48,0.13);">
+
+        <!-- ══ HEADER ══ -->
+        <tr>
+          <td style="background:linear-gradient(150deg,#0c1830 0%,#1a2d52 38%,#1e3d72 68%,#162e5a 100%);padding:28px 36px 0;text-align:center;">
+
+            <!-- Wordmark -->
+            <h1 style="margin:0 0 6px;color:#ffffff;font-size:24px;font-weight:900;letter-spacing:7px;text-transform:uppercase;line-height:1.1;font-family:'Poppins','Segoe UI',Arial,sans-serif;">NoLSAF</h1>
+
+            <!-- Tagline -->
+            <p style="margin:0 0 16px;color:rgba(255,255,255,0.55);font-size:10px;letter-spacing:2.5px;text-transform:uppercase;font-style:italic;font-family:'Poppins','Segoe UI',Arial,sans-serif;">Security &nbsp;&bull;&nbsp; Privacy &nbsp;&bull;&nbsp; Trust</p>
+
+            <!-- Badge -->
+            <div style="display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.22);border-radius:22px;padding:7px 20px;margin-bottom:18px;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.90)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;vertical-align:middle;display:inline-block;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+              <span style="color:#ffffff;font-size:13px;font-weight:600;font-family:'Poppins','Segoe UI',Arial,sans-serif;vertical-align:middle;">${badgeLabel}</span>
+            </div>
+
+            <!-- Decorative SVG -->
+            ${headerSvg}
+          </td>
+        </tr>
+
+        <!-- 3px accent line -->
+        <tr><td style="height:3px;background:linear-gradient(90deg,#1e3d72,#3b82f6,#1e3d72);font-size:0;line-height:0;">&nbsp;</td></tr>
+
+        <!-- Body -->
+        <tr>
+          <td style="padding:30px 36px 26px;color:${TEXT_MAIN};font-size:14px;line-height:1.75;font-family:'Poppins','Segoe UI',Arial,sans-serif;">
+            ${body}
+          </td>
+        </tr>
+
+        ${buildSecurityFooter()}
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
 // ─── Careers: minimal one-line footer ────────────────────────────────────────
 function buildCareersFooter(supportEmail: string): string {
   const year = new Date().getFullYear();

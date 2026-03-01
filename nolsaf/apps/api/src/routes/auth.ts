@@ -5,7 +5,7 @@ import { hashPassword, verifyPassword } from '../lib/crypto.js';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { sendMail } from '../lib/mailer.js';
-import { getPasswordResetEmail, getLoginAlertEmail } from '../lib/authEmailTemplates.js';
+import { getPasswordResetEmail, getLoginAlertEmail, getPasswordChangedConfirmationEmail } from '../lib/authEmailTemplates.js';
 import { sendSms } from '../lib/sms.js';
 import { addPasswordToHistory } from '../lib/security.js';
 import { validatePasswordWithSettings } from '../lib/securitySettings.js';
@@ -1364,6 +1364,9 @@ router.post('/reset-password', async (req, res) => {
         const expires = user.resetPasswordExpires ? new Date(user.resetPasswordExpires).getTime() : 0;
         if (dbToken !== hashed) return res.status(400).json({ message: 'invalid token' });
         if (Date.now() > expires) return res.status(400).json({ message: 'token expired' });
+      } else if (user && !user.resetPasswordToken) {
+        // Token was already consumed — password was already set
+        return res.status(400).json({ message: 'password_already_set' });
       } else {
         user = null; // fall back to memory
       }
@@ -1403,6 +1406,25 @@ router.post('/reset-password', async (req, res) => {
 
     // Remove in-memory token
     if (resetTokenStore[hashed]) delete resetTokenStore[hashed];
+
+    // Send password-changed confirmation email (non-blocking)
+    try {
+      const recipientEmail = user.email || user.phone;
+      if (recipientEmail && recipientEmail.includes('@')) {
+        const appUrl = process.env.WEB_ORIGIN || process.env.APP_ORIGIN || process.env.CORS_ORIGIN?.split(',')[0]?.trim() || 'https://nolsaf.com';
+        const { subject: cSubject, html: cHtml } = getPasswordChangedConfirmationEmail({
+          name: user.name || user.email || 'User',
+          email: user.email,
+          changedAt: new Date(),
+          ipAddress: req.ip || req.socket?.remoteAddress,
+          device: String(req.headers['user-agent'] || '').slice(0, 120) || undefined,
+          securityUrl: `${appUrl}/account/forgot-password`,
+        });
+        await sendMail(recipientEmail, cSubject, cHtml);
+      }
+    } catch (emailErr) {
+      console.warn('[reset-password] Failed to send confirmation email:', emailErr);
+    }
 
     return res.json({ ok: true, message: 'password reset' });
   } catch (err) {
