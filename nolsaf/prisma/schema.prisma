@@ -2017,6 +2017,11 @@ model Agent {
   /// Total revenue generated for NoLSAF (in TZS) - sum of commissions from completed trips
   totalRevenueGenerated Decimal @default(0) @db.Decimal(15, 2)
 
+  /// Suspension metadata — populated when status = SUSPENDED
+  suspendedAt      DateTime? /// Timestamp when the suspension was applied
+  suspensionReason String?   @db.Text /// Reason recorded by the admin
+  suspendedBy      Int?      /// Admin user ID who applied the suspension
+
   /// Created and updated timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

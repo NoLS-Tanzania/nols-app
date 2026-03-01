@@ -8,6 +8,8 @@ import { audit } from "../lib/audit.js";
 import { sanitizeText } from "../lib/sanitize.js";
 import rateLimit from "express-rate-limit";
 import { Prisma } from "@prisma/client";
+import { sendMail } from "../lib/mailer.js";
+import { getAgentSuspensionEmail, getAgentRestorationEmail } from "../lib/authEmailTemplates.js";
 
 // ============================================================
 // Constants
@@ -1345,6 +1347,138 @@ router.patch("/:id", validate(getAgentParamsSchema, "params"), validate(updateAg
     sendError(res, 500, "Failed to update agent");
   }
 });
+
+// ============================================================
+// POST /api/admin/agents/:id/suspend
+// Temporarily suspend an agent and send a notification email.
+// ============================================================
+router.post(
+  "/:id/suspend",
+  validate(getAgentParamsSchema, "params"),
+  async (req: any, res) => {
+    try {
+      const { id } = req.validatedParams;
+      const agentId = Number(id);
+      const adminId = getAdminId(req as AuthedRequest);
+
+      const rawReason = String(req.body?.reason ?? "").trim();
+      if (!rawReason) return sendError(res, 400, "A suspension reason is required.");
+      const reason = sanitizeText(rawReason);
+
+      const existing = await prisma.agent.findUnique({
+        where: { id: agentId },
+        include: { user: { select: { id: true, name: true, fullName: true, email: true } } },
+      });
+      if (!existing) return sendError(res, 404, "Agent not found");
+      if (existing.status === "SUSPENDED") return sendError(res, 400, "Agent is already suspended.");
+
+      const caseRef = `NOLS-AGT-${String(agentId).padStart(5, "0")}-${Date.now().toString(36).toUpperCase()}`;
+      const now = new Date();
+
+      const updated = await prisma.agent.update({
+        where: { id: agentId },
+        data: {
+          status: "SUSPENDED",
+          suspendedAt: now,
+          suspensionReason: reason,
+          suspendedBy: adminId,
+        } as any,
+        include: { user: { select: { id: true, name: true, fullName: true, email: true } } },
+      });
+
+      await audit(req as AuthedRequest, "AGENT_SUSPENDED", `agent:${agentId}`, existing, updated);
+
+      // Non-blocking notification email
+      const recipientEmail = (updated as any).user?.email;
+      if (recipientEmail) {
+        const recipientName = (updated as any).user?.fullName || (updated as any).user?.name || "Agent";
+        const { subject, html } = getAgentSuspensionEmail({
+          name: recipientName,
+          reason,
+          caseRef,
+          suspendedAt: now.toLocaleString("en-GB", { dateStyle: "long", timeStyle: "short" }),
+          contactEmail: "hr@nolsaf.com",
+        });
+        sendMail(recipientEmail, subject, html).catch((err: any) =>
+          console.warn("[SUSPEND] Suspension email failed:", err?.message)
+        );
+      }
+
+      return sendSuccess(res, { agentId, caseRef, status: "SUSPENDED" }, "Agent suspended successfully.");
+    } catch (err: any) {
+      console.error("[POST /admin/agents/:id/suspend] Error:", err);
+      sendError(res, 500, "Failed to suspend agent.");
+    }
+  }
+);
+
+// ============================================================
+// POST /api/admin/agents/:id/restore
+// Reinstate a suspended agent and send a notification email.
+// ============================================================
+router.post(
+  "/:id/restore",
+  validate(getAgentParamsSchema, "params"),
+  async (req: any, res) => {
+    try {
+      const { id } = req.validatedParams;
+      const agentId = Number(id);
+      const adminId = getAdminId(req as AuthedRequest);
+
+      const rawNotes = String(req.body?.notes ?? "").trim();
+      const notes = rawNotes ? sanitizeText(rawNotes) : undefined;
+
+      const existing = await prisma.agent.findUnique({
+        where: { id: agentId },
+        include: { user: { select: { id: true, name: true, fullName: true, email: true } } },
+      });
+      if (!existing) return sendError(res, 404, "Agent not found");
+      if (existing.status !== "SUSPENDED") return sendError(res, 400, "Agent is not currently suspended.");
+
+      // Reconstruct the case reference from the stored suspension timestamp for continuity
+      const storedAt = (existing as any).suspendedAt as Date | null;
+      const caseRef = storedAt
+        ? `NOLS-AGT-${String(agentId).padStart(5, "0")}-${storedAt.getTime().toString(36).toUpperCase()}`
+        : `NOLS-AGT-${String(agentId).padStart(5, "0")}-RESTORED`;
+
+      const now = new Date();
+
+      const updated = await prisma.agent.update({
+        where: { id: agentId },
+        data: {
+          status: "ACTIVE",
+          suspendedAt: null,
+          suspensionReason: null,
+          suspendedBy: null,
+        } as any,
+        include: { user: { select: { id: true, name: true, fullName: true, email: true } } },
+      });
+
+      await audit(req as AuthedRequest, "AGENT_RESTORED", `agent:${agentId}`, existing, updated);
+
+      // Non-blocking notification email
+      const recipientEmail = (updated as any).user?.email;
+      if (recipientEmail) {
+        const recipientName = (updated as any).user?.fullName || (updated as any).user?.name || "Agent";
+        const { subject, html } = getAgentRestorationEmail({
+          name: recipientName,
+          caseRef,
+          restoredAt: now.toLocaleString("en-GB", { dateStyle: "long", timeStyle: "short" }),
+          notes,
+          contactEmail: "hr@nolsaf.com",
+        });
+        sendMail(recipientEmail, subject, html).catch((err: any) =>
+          console.warn("[RESTORE] Restoration email failed:", err?.message)
+        );
+      }
+
+      return sendSuccess(res, { agentId, caseRef, status: "ACTIVE" }, "Agent access reinstated successfully.");
+    } catch (err: any) {
+      console.error("[POST /admin/agents/:id/restore] Error:", err);
+      sendError(res, 500, "Failed to restore agent.");
+    }
+  }
+);
 
 // ============================================================
 // POST /api/admin/agents/:id/assign-to-request

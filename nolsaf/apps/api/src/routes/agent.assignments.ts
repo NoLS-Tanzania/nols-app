@@ -109,6 +109,14 @@ async function getActiveAgent(req: AuthedRequest): Promise<AgentGateResult> {
   }
 
   const status = String(agent.status || "").toUpperCase();
+  if (status === "SUSPENDED") {
+    return {
+      ok: false,
+      status: 403,
+      error: "AGENT_SUSPENDED",
+      message: "Account suspended pending investigation",
+    };
+  }
   if (status !== "ACTIVE") {
     return {
       ok: false,

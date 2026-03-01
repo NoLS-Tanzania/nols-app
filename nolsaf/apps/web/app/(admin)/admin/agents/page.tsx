@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
-import { Search, X, User, CheckCircle, XCircle, Clock, Eye, Filter, GraduationCap, MapPin, Award, Languages, Briefcase, UsersRound, ChevronDown, Calendar, DollarSign, Star, CheckCircle2, Mail, Phone, TrendingUp, Target, Trophy, Loader2, AlertCircle, RefreshCw, ExternalLink, FileX, Check, Undo2 } from "lucide-react";
+import { Search, X, User, CheckCircle, XCircle, Clock, Eye, Filter, GraduationCap, MapPin, Award, Languages, Briefcase, UsersRound, ChevronDown, Calendar, DollarSign, Star, CheckCircle2, Mail, Phone, TrendingUp, Target, Trophy, Loader2, AlertCircle, RefreshCw, ExternalLink, FileX, Check, Undo2, ShieldOff, ShieldCheck, AlertTriangle } from "lucide-react";
 import axios from "axios";
 import Link from "next/link";
 
@@ -179,6 +179,12 @@ export default function AdminAgentsPage() {
   const [personalDetailsOpen, setPersonalDetailsOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Suspend / Restore modal state
+  const [suspendModal, setSuspendModal] = useState<{ open: boolean; agentId: number | null; reason: string }>({ open: false, agentId: null, reason: "" });
+  const [restoreModal, setRestoreModal] = useState<{ open: boolean; agentId: number | null; notes: string }>({ open: false, agentId: null, notes: "" });
+  const [isSuspending, setIsSuspending] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
+
   const [agentDocuments, setAgentDocuments] = useState<AgentDocument[]>([]);
   const [docsLoading, setDocsLoading] = useState(false);
   const [docsError, setDocsError] = useState<string | null>(null);
@@ -300,6 +306,44 @@ export default function AdminAgentsPage() {
     setAgentDetailsError(null);
     setLoadingAgentDetails(false);
   }, []);
+
+  async function handleSuspendConfirmed() {
+    if (!suspendModal.agentId || suspendModal.reason.trim().length < 10) return;
+    setIsSuspending(true);
+    try {
+      authify();
+      await api.post(`/api/admin/agents/${suspendModal.agentId}/suspend`, { reason: suspendModal.reason.trim() });
+      setSuspendModal({ open: false, agentId: null, reason: "" });
+      load();
+      if (viewingAgent && viewingAgent.id === suspendModal.agentId) {
+        const res = await api.get(`/api/admin/agents/${suspendModal.agentId}`);
+        setViewingAgent(unwrapApiData<Agent>(res.data) ?? viewingAgent);
+      }
+    } catch (e: any) {
+      alert(e?.response?.data?.message || "Failed to suspend agent.");
+    } finally {
+      setIsSuspending(false);
+    }
+  }
+
+  async function handleRestoreConfirmed() {
+    if (!restoreModal.agentId) return;
+    setIsRestoring(true);
+    try {
+      authify();
+      await api.post(`/api/admin/agents/${restoreModal.agentId}/restore`, { notes: restoreModal.notes.trim() || undefined });
+      setRestoreModal({ open: false, agentId: null, notes: "" });
+      load();
+      if (viewingAgent && viewingAgent.id === restoreModal.agentId) {
+        const res = await api.get(`/api/admin/agents/${restoreModal.agentId}`);
+        setViewingAgent(unwrapApiData<Agent>(res.data) ?? viewingAgent);
+      }
+    } catch (e: any) {
+      alert(e?.response?.data?.message || "Failed to restore agent.");
+    } finally {
+      setIsRestoring(false);
+    }
+  }
 
   useEffect(() => {
     const tasks = viewingAgent?.assignedPlanRequests || [];
@@ -827,14 +871,35 @@ export default function AdminAgentsPage() {
                   <div className="text-sm text-white/80 truncate">{viewingAgent.user.email || "—"}</div>
                 </div>
               </div>
-              <button
-                onClick={closeAgentDetails}
-                aria-label="Close agent details"
-                className="group p-2 rounded-xl text-white/90 hover:text-white hover:bg-white/10 transition-colors"
-                title="Close"
-              >
-                <X size={18} className="transition-transform duration-200 group-hover:rotate-90" />
-              </button>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {viewingAgent.status !== "SUSPENDED" ? (
+                  <button
+                    onClick={() => setSuspendModal({ open: true, agentId: viewingAgent.id, reason: "" })}
+                    title="Suspend agent"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/35 text-white text-xs font-medium transition-colors border border-red-400/30"
+                  >
+                    <ShieldOff size={13} />
+                    Suspend
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setRestoreModal({ open: true, agentId: viewingAgent.id, notes: "" })}
+                    title="Restore agent access"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-400/20 hover:bg-emerald-400/35 text-white text-xs font-medium transition-colors border border-emerald-300/30"
+                  >
+                    <ShieldCheck size={13} />
+                    Restore
+                  </button>
+                )}
+                <button
+                  onClick={closeAgentDetails}
+                  aria-label="Close agent details"
+                  className="group p-2 rounded-xl text-white/90 hover:text-white hover:bg-white/10 transition-colors"
+                  title="Close"
+                >
+                  <X size={18} className="transition-transform duration-200 group-hover:rotate-90" />
+                </button>
+              </div>
             </div>
             
             {/* Content */}
@@ -1793,6 +1858,96 @@ export default function AdminAgentsPage() {
               >
                 Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Suspend modal ───────────────────────────────────── */}
+      {suspendModal.open && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-[2px]" onClick={() => !isSuspending && setSuspendModal({ open: false, agentId: null, reason: "" })} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="h-1.5 bg-gradient-to-r from-red-500 to-orange-500 rounded-t-2xl" />
+            <div className="p-6">
+              <div className="flex items-center gap-4 mb-5">
+                <div className="h-11 w-11 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
+                  <AlertTriangle className="text-red-600" size={20} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">Suspend Agent Account</h3>
+                  <p className="text-sm text-gray-500 mt-0.5">The agent will be locked out and notified by email.</p>
+                </div>
+              </div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Reason for suspension <span className="text-red-500">*</span></label>
+              <textarea
+                rows={4}
+                placeholder="Describe the reason for this suspension (required)…"
+                value={suspendModal.reason}
+                onChange={(e) => setSuspendModal((s) => ({ ...s, reason: e.target.value }))}
+                disabled={isSuspending}
+                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-800 resize-none focus:outline-none focus:ring-2 focus:ring-red-400 disabled:opacity-50"
+              />
+              <div className="flex gap-3 mt-5">
+                <button
+                  onClick={() => setSuspendModal({ open: false, agentId: null, reason: "" })}
+                  disabled={isSuspending}
+                  className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >Cancel</button>
+                <button
+                  onClick={handleSuspendConfirmed}
+                  disabled={isSuspending || suspendModal.reason.trim().length < 10}
+                  className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isSuspending ? <Loader2 size={15} className="animate-spin" /> : <ShieldOff size={15} />}
+                  {isSuspending ? "Suspending…" : "Suspend Account"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Restore modal ───────────────────────────────────── */}
+      {restoreModal.open && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-[2px]" onClick={() => !isRestoring && setRestoreModal({ open: false, agentId: null, notes: "" })} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="h-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-t-2xl" />
+            <div className="p-6">
+              <div className="flex items-center gap-4 mb-5">
+                <div className="h-11 w-11 rounded-xl bg-emerald-50 flex items-center justify-center flex-shrink-0">
+                  <ShieldCheck className="text-emerald-600" size={20} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">Reinstate Agent Access</h3>
+                  <p className="text-sm text-gray-500 mt-0.5">The agent will be notified by email and regain portal access.</p>
+                </div>
+              </div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Restoration notes <span className="text-gray-400 font-normal">(optional)</span></label>
+              <textarea
+                rows={3}
+                placeholder="Add any notes for the agent (optional)…"
+                value={restoreModal.notes}
+                onChange={(e) => setRestoreModal((s) => ({ ...s, notes: e.target.value }))}
+                disabled={isRestoring}
+                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-800 resize-none focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:opacity-50"
+              />
+              <div className="flex gap-3 mt-5">
+                <button
+                  onClick={() => setRestoreModal({ open: false, agentId: null, notes: "" })}
+                  disabled={isRestoring}
+                  className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >Cancel</button>
+                <button
+                  onClick={handleRestoreConfirmed}
+                  disabled={isRestoring}
+                  className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isRestoring ? <Loader2 size={15} className="animate-spin" /> : <ShieldCheck size={15} />}
+                  {isRestoring ? "Reinstating…" : "Restore Access"}
+                </button>
+              </div>
             </div>
           </div>
         </div>

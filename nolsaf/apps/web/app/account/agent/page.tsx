@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import axios from "axios";
-import { ArrowRight, BadgeCheck, CheckCircle, ClipboardList, Clock, Eye, Star, ToggleRight } from "lucide-react";
+import { ArrowRight, BadgeCheck, CheckCircle, ClipboardList, Clock, Eye, Star, ToggleRight, ShieldAlert } from "lucide-react";
 import LogoSpinner from "@/components/LogoSpinner";
 
 const api = axios.create({ baseURL: "", withCredentials: true });
@@ -581,6 +581,7 @@ export default function AgentPortalHomePage() {
   const [stats, setStats] = useState<AssignmentStats>({ total: 0, completed: 0, inProgress: 0 });
   const [recent, setRecent] = useState<AssignmentPreview[]>([]);
   const [authRequired, setAuthRequired] = useState(false);
+  const [isSuspended, setIsSuspended] = useState(false);
   const [account, setAccount] = useState<AccountMe | null>(null);
   const [agentMe, setAgentMe] = useState<AgentMe | null>(null);
   const [trendItems, setTrendItems] = useState<AssignmentPreview[]>([]);
@@ -603,7 +604,12 @@ export default function AgentPortalHomePage() {
         // Ensure user is authenticated + load agent context for level/ratings.
         const [meRes, agentRes, res] = await Promise.all([
           api.get("/api/account/me"),
-          api.get("/api/agent/me").catch(() => ({ data: null })),
+          api.get("/api/agent/me").catch((e: any) => {
+            if (e?.response?.status === 403 && e?.response?.data?.error === "AGENT_SUSPENDED") {
+              if (alive) setIsSuspended(true);
+            }
+            return { data: null };
+          }),
           // Best-effort stats + a small preview list (safe fallback if API not ready yet).
           api.get("/api/agent/assignments?page=1&pageSize=60").catch(() => ({
             data: { total: 0, completed: 0, inProgress: 0, items: [] },
@@ -805,6 +811,28 @@ export default function AgentPortalHomePage() {
                   Sign in
                   <ArrowRight className="w-4 h-4" aria-hidden />
                 </Link>
+              </div>
+            </div>
+          )}
+
+          {isSuspended && !loading && (
+            <div className="mt-5 rounded-2xl border border-amber-400/30 bg-amber-500/10 backdrop-blur p-5">
+              <div className="flex items-start gap-4">
+                <div className="h-10 w-10 rounded-xl bg-amber-400/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <ShieldAlert className="text-amber-300" size={20} />
+                </div>
+                <div>
+                  <div className="text-sm font-bold text-amber-100">Account Temporarily Suspended</div>
+                  <div className="text-sm text-amber-200/80 mt-1 leading-relaxed">
+                    Your agent account has been suspended pending an internal review. You cannot accept or manage assignments during this period.
+                  </div>
+                  <div className="mt-3 text-xs text-amber-300/70 leading-relaxed">
+                    If you believe this is an error, please contact{" "}
+                    <a href="mailto:security@nolsaf.com" className="underline hover:text-amber-200">security@nolsaf.com</a>.
+                    {" "}For general enquiries, reach us at{" "}
+                    <a href="mailto:hr@nolsaf.com" className="underline hover:text-amber-200">hr@nolsaf.com</a>.
+                  </div>
+                </div>
               </div>
             </div>
           )}

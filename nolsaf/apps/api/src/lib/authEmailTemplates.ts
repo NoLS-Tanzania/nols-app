@@ -6,7 +6,7 @@
  *   - Password reset
  *   - Welcome (new account)
  */
-import { BRAND_TEAL, BRAND_DARK, TEXT_MUTED, baseEmail, securityEmail, calloutBox, ctaButton } from "./emailBase.js";
+import { BRAND_TEAL, BRAND_DARK, TEXT_MUTED, baseEmail, securityEmail, calloutBox, ctaButton, careersEmail, infoCard } from "./emailBase.js";
 
 // ─── 1. Email verification ────────────────────────────────────────────────────
 export function getEmailVerificationEmail(
@@ -256,5 +256,147 @@ export function getLoginAlertEmail(data: LoginAlertEmailData): { subject: string
   return {
     subject: "New sign-in detected on your NoLSAF account",
     html: securityEmail("New Sign-In Detected", body),
+  };
+}
+
+// ─── 6. Agent account suspension ─────────────────────────────────────────────
+export function getAgentSuspensionEmail(data: {
+  name: string;
+  reason: string;
+  caseRef: string;
+  suspendedAt: string;
+  contactEmail?: string;
+}): { subject: string; html: string } {
+  const AMBER  = "#b45309";
+  const AMBER_BG = "#fffbeb";
+
+  const detailRows: Array<[string, string]> = [
+    ["Agent name",   data.name],
+    ["Case ref",     data.caseRef],
+    ["Suspended on", data.suspendedAt],
+    ["Contact",      data.contactEmail || "hr@nolsaf.com"],
+  ];
+
+  const body = `
+    <p style="margin:0 0 14px;font-size:16px;font-weight:700;color:#7c2d12;">Dear ${data.name},</p>
+
+    <p style="margin:0 0 14px;color:#374151;line-height:1.75;">
+      We are writing to inform you that your NoLSAF Agent account has been
+      <strong style="color:#b91c1c;">temporarily suspended</strong> pending an internal investigation.
+      During this period you will not be able to access the Agent Portal.
+    </p>
+
+    <!-- Reason block -->
+    <table width="100%" cellpadding="0" cellspacing="0"
+      style="margin:16px 0;background:${AMBER_BG};border-left:4px solid ${AMBER};border-radius:4px;">
+      <tr><td style="padding:14px 18px;">
+        <p style="margin:0 0 6px;font-size:13px;font-weight:700;color:${AMBER};">Reason for suspension</p>
+        <p style="margin:0;font-size:13px;color:#78350f;line-height:1.7;">${data.reason}</p>
+      </td></tr>
+    </table>
+
+    ${infoCard("#b45309", detailRows)}
+
+    <!-- What to expect -->
+    <table width="100%" cellpadding="0" cellspacing="0"
+      style="margin:16px 0;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;">
+      <tr>
+        <td style="padding:16px 18px;">
+          <p style="margin:0 0 10px;font-size:13px;font-weight:700;color:#111827;">What happens next</p>
+          <ul style="margin:0;padding-left:18px;font-size:13px;color:#374151;line-height:1.85;">
+            <li>NoLSAF will conduct a thorough and fair investigation.</li>
+            <li>You may be contacted for your account of events — please cooperate fully.</li>
+            <li>If the investigation concludes that no policy was violated, your access will be reinstated and you will be notified by email.</li>
+            <li>If a violation is confirmed, further disciplinary measures may follow in accordance with your employment terms.</li>
+          </ul>
+        </td>
+      </tr>
+    </table>
+
+    <p style="margin:14px 0;font-size:13px;color:#374151;line-height:1.75;">
+      If you have questions or wish to submit a written response, please contact our HR team:
+      <a href="mailto:${data.contactEmail || "hr@nolsaf.com"}" style="color:${BRAND_TEAL};font-weight:600;">${data.contactEmail || "hr@nolsaf.com"}</a>.
+      Please quote your case reference <strong>${data.caseRef}</strong> in all correspondence.
+    </p>
+
+    <p style="margin:20px 0 0;font-size:13px;color:#374151;">
+      Regards,<br>
+      <strong style="color:#7c2d12;">NoLSAF Human Resources &amp; Compliance</strong>
+    </p>
+  `;
+
+  return {
+    subject: `[Important] Your NoLSAF Agent account has been temporarily suspended — Ref: ${data.caseRef}`,
+    html: careersEmail("⚠️", "Account Suspended", "Temporary Suspension Notice", body, data.contactEmail || "hr@nolsaf.com"),
+  };
+}
+
+// ─── 7. Agent account restoration ────────────────────────────────────────────
+export function getAgentRestorationEmail(data: {
+  name: string;
+  caseRef: string;
+  restoredAt: string;
+  notes?: string;
+  contactEmail?: string;
+}): { subject: string; html: string } {
+  const GREEN    = "#059669";
+  const GREEN_BG = "#ecfdf5";
+
+  const detailRows: Array<[string, string]> = [
+    ["Agent name",  data.name],
+    ["Case ref",    data.caseRef],
+    ["Restored on", data.restoredAt],
+    ["Contact",     data.contactEmail || "hr@nolsaf.com"],
+  ];
+
+  const notesBlock = data.notes
+    ? `
+    <table width="100%" cellpadding="0" cellspacing="0"
+      style="margin:16px 0;background:#f0fdf4;border-left:4px solid ${GREEN};border-radius:4px;">
+      <tr><td style="padding:14px 18px;">
+        <p style="margin:0 0 6px;font-size:13px;font-weight:700;color:${GREEN};">Note from NoLSAF</p>
+        <p style="margin:0;font-size:13px;color:#064e3b;line-height:1.7;">${data.notes}</p>
+      </td></tr>
+    </table>`
+    : "";
+
+  const body = `
+    <p style="margin:0 0 14px;font-size:16px;font-weight:700;color:#064e3b;">Dear ${data.name},</p>
+
+    <p style="margin:0 0 14px;color:#374151;line-height:1.75;">
+      We are pleased to inform you that following the conclusion of our investigation
+      (case reference <strong>${data.caseRef}</strong>),
+      your NoLSAF Agent account has been <strong style="color:${GREEN};">fully reinstated</strong>.
+      You may now log in to the Agent Portal as normal.
+    </p>
+
+    <!-- Green success highlight -->
+    <table width="100%" cellpadding="0" cellspacing="0"
+      style="margin:16px 0;background:${GREEN_BG};border-left:4px solid ${GREEN};border-radius:4px;">
+      <tr><td style="padding:14px 18px;">
+        <p style="margin:0;font-size:13px;font-weight:700;color:${GREEN};">
+          ✔ Access fully restored — no violations were established
+        </p>
+      </td></tr>
+    </table>
+
+    ${notesBlock}
+    ${infoCard(GREEN, detailRows)}
+
+    <p style="margin:14px 0;font-size:13px;color:#374151;line-height:1.75;">
+      We appreciate your patience during this process. Should you need any
+      support or have further questions, please reach out to
+      <a href="mailto:${data.contactEmail || "hr@nolsaf.com"}" style="color:${BRAND_TEAL};font-weight:600;">${data.contactEmail || "hr@nolsaf.com"}</a>.
+    </p>
+
+    <p style="margin:20px 0 0;font-size:13px;color:#374151;">
+      Welcome back,<br>
+      <strong style="color:#064e3b;">NoLSAF Human Resources &amp; Compliance</strong>
+    </p>
+  `;
+
+  return {
+    subject: `[Update] Your NoLSAF Agent account has been reinstated — Ref: ${data.caseRef}`,
+    html: careersEmail("✅", "Access Reinstated", "Account Restoration Notice", body, data.contactEmail || "hr@nolsaf.com"),
   };
 }
