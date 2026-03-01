@@ -2024,7 +2024,7 @@ model Agent {
   // Relations
   user                 User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   assignedPlanRequests PlanRequest[]   @relation("AssignedAgent")
-  application          JobApplication? @relation // Link back to original job application
+  applications         JobApplication[] @relation // All job applications that resulted in this agent's hire
   reviews              AgentReview[] // Reviews received from users
 
   @@index([status])
@@ -2233,7 +2233,8 @@ model JobApplication {
   agentApplicationData Json? // Object with agent profile fields
 
   /// Link to Agent profile if application is approved (status = HIRED)
-  agentId Int? @unique
+  /// Not @unique — same agent may be linked from multiple applications over time.
+  agentId Int?
 
   /// Record creation timestamp
   submittedAt DateTime @default(now())

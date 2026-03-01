@@ -72,7 +72,9 @@ async function getActiveAgent(req: AuthedRequest): Promise<AgentGateResult> {
       currentActiveRequests: true,
       createdAt: true,
       updatedAt: true,
-      application: {
+      applications: {
+        take: 1,
+        orderBy: { submittedAt: 'desc' },
         select: {
           id: true,
           status: true,
@@ -170,9 +172,9 @@ router.get(
         maxActiveRequests: (agent as any).maxActiveRequests ?? null,
         currentActiveRequests: (agent as any).currentActiveRequests ?? null,
         employmentCommencedAt: (agent as any).createdAt ?? null,
-        employmentType: (agent as any)?.application?.job?.type ?? null,
-        employmentTitle: (agent as any)?.application?.job?.title ?? null,
-        application: (agent as any).application ?? null,
+        employmentType: (agent as any)?.applications?.[0]?.job?.type ?? null,
+        employmentTitle: (agent as any)?.applications?.[0]?.job?.title ?? null,
+        application: (agent as any).applications?.[0] ?? null,
         performanceMetrics,
         user: agent.user,
       },

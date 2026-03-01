@@ -461,31 +461,13 @@ router.patch("/:id", async (req, res) => {
                 }
               }
 
-              // Create a one-time password setup token/link (re-uses reset-password mechanism)
-              // This avoids emailing plaintext temporary passwords.
-              try {
-                const raw = crypto.randomBytes(24).toString("hex");
-                const hashed = crypto.createHash("sha256").update(raw).digest("hex");
-                const expiresAt = Date.now() + 1000 * 60 * 60 * 24; // 24 hours
-
-                await tx.user.update({
-                  where: { id: user.id },
-                  data: {
-                    resetPasswordToken: hashed as any,
-                    resetPasswordExpires: new Date(expiresAt) as any,
-                  } as any,
-                });
-
-                const origin = process.env.WEB_ORIGIN || process.env.APP_ORIGIN || "http://localhost:3000";
-                const next = encodeURIComponent("/account/agent");
-                (req as any)._agentOnboarding = {
-                  username: email || phone || "",
-                  setupLink: `${origin}/account/reset-password?token=${raw}&id=${user.id}&next=${next}&reason=onboarding`,
-                  expiresHours: 24,
-                };
-              } catch (e) {
-                // token generation failure should not block hiring
-              }
+              // Create a one-time password setup token/link.
+              // IMPORTANT: token is NOT generated inside the transaction — if the
+              // transaction rolls back the DB write is lost but the link was already
+              // emailed. Instead we record the user.id and generate the token AFTER
+              // the transaction commits (Path 2 below handles this for all cases).
+              (req as any)._hiredUserId = user.id;
+              (req as any)._hiredUsername = email || phone || "";
 
               // Ensure agent profile exists
               let agentProfile = await tx.agent.findUnique({
@@ -620,6 +602,12 @@ router.patch("/:id", async (req, res) => {
               }
 
               // Link application to agent
+              // First clear any prior link from another application to this agent
+              // (the agentId column has no @unique constraint but we keep the data clean)
+              await tx.jobApplication.updateMany({
+                where: { agentId: agentProfile.id, id: { not: parsedId } },
+                data: { agentId: null },
+              });
               await tx.jobApplication.update({
                 where: { id: parsedId },
                 data: { agentId: agentProfile.id },
@@ -701,15 +689,23 @@ router.patch("/:id", async (req, res) => {
         let hiredUsername: string | undefined = onboarding?.username;
         let hiredSetupExpiresHours: number | undefined = onboarding?.expiresHours;
 
-        if (isAgentHire && newStatus === "HIRED" && (!hiredSetupLink || !hiredUsername)) {
+        if (isAgentHire && newStatus === "HIRED" && !hiredSetupLink) {
+          // Token generation always happens HERE (outside any transaction) so it
+          // cannot be rolled back. _hiredUserId is set by the transaction above;
+          // if the transaction failed (agentError catch) we fall back to a DB lookup.
           try {
             const email = String(finalApplication.email || "").trim().toLowerCase();
             const phone = String(finalApplication.phone || "").trim();
 
-            hiredUsername = hiredUsername || email || phone;
+            hiredUsername = hiredUsername
+              || (req as any)._hiredUsername
+              || email || phone;
 
-            let userId: number | null = null;
-            if ((finalApplication as any).agent?.userId) userId = Number((finalApplication as any).agent.userId);
+            let userId: number | null = (req as any)._hiredUserId ?? null;
+
+            if (!userId && (finalApplication as any).agent?.userId) {
+              userId = Number((finalApplication as any).agent.userId);
+            }
 
             if (!userId && (finalApplication as any).agent?.id) {
               const a = await prisma.agent.findUnique({
@@ -735,7 +731,7 @@ router.patch("/:id", async (req, res) => {
             if (userId) {
               const raw = crypto.randomBytes(24).toString("hex");
               const hashed = crypto.createHash("sha256").update(raw).digest("hex");
-              const expiresAt = Date.now() + 1000 * 60 * 60 * 24; // 24 hours
+              const expiresAt = Date.now() + 1000 * 60 * 60 * 72; // 72 hours
 
               await prisma.user.update({
                 where: { id: userId },
@@ -747,11 +743,11 @@ router.patch("/:id", async (req, res) => {
               });
 
               const next = encodeURIComponent("/account/agent");
-              hiredSetupExpiresHours = 24;
+              hiredSetupExpiresHours = 72;
               hiredSetupLink = `${origin}/account/reset-password?token=${raw}&id=${userId}&next=${next}&reason=onboarding`;
             }
-          } catch {
-            // Do not fail email sending if token generation fails
+          } catch (tokenErr: any) {
+            console.error("[CAREERS_HIRED] Failed to generate setup token:", tokenErr?.message);
           }
         }
 

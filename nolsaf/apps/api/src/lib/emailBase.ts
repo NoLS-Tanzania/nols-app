@@ -146,6 +146,115 @@ export function baseEmail(
 </html>`;
 }
 
+// ─── Careers: minimal one-line footer ────────────────────────────────────────
+function buildCareersFooter(supportEmail: string): string {
+  const year = new Date().getFullYear();
+  return `
+    <tr>
+      <td style="padding:20px 56px 28px;text-align:center;border-top:1px solid #e8eded;">
+        <p style="margin:0;font-size:12px;color:#b0b8bf;line-height:1.6;">
+          &copy; ${year} NoLSAF &nbsp;&bull;&nbsp;
+          <a href="mailto:${supportEmail}" style="color:${BRAND_TEAL};text-decoration:none;">${supportEmail}</a>
+          &nbsp;&bull;&nbsp;
+          <a href="https://nolsaf.com/careers" style="color:${BRAND_TEAL};text-decoration:none;">nolsaf.com/careers</a>
+        </p>
+      </td>
+    </tr>`;
+}
+
+// ─── Careers email wrapper ────────────────────────────────────────────────────
+/**
+ * Premium careers email shell — Poppins font, CSS-only header with inline SVG
+ * graph visualisation + faint watermark. No external images.
+ */
+export function careersEmail(
+  headlineIcon: string,
+  headlineText: string,
+  jobTitle: string,
+  body: string,
+  supportEmail = "careers@nolsaf.com"
+): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <style>@import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,400;0,600;0,700;0,900;1,400&display=swap');</style>
+  <!--[if mso]><noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript><![endif]-->
+</head>
+<body style="margin:0;padding:0;background-color:#dce3e2;font-family:'Poppins','Segoe UI',Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#dce3e2;">
+    <tr><td align="center" style="padding:24px 12px 20px;">
+
+      <!-- Card -->
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+        style="max-width:620px;background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 6px rgba(0,0,0,0.10),0 10px 36px rgba(1,77,71,0.16);">
+
+        <!-- ══ HEADER ══ -->
+        <tr>
+          <td style="background:linear-gradient(150deg,#011a18 0%,#01352f 42%,#025950 72%,#014d47 100%);padding:30px 40px 0;text-align:center;">
+
+            <!-- Wordmark -->
+            <h1 style="margin:0 0 7px;color:#ffffff;font-size:26px;font-weight:900;letter-spacing:7px;text-transform:uppercase;line-height:1.1;font-family:'Poppins','Segoe UI',Arial,sans-serif;">NoLSAF</h1>
+
+            <!-- Italic tagline -->
+            <p style="margin:0 0 18px;color:rgba(255,255,255,0.60);font-size:11px;font-style:italic;line-height:1.65;font-family:'Poppins','Segoe UI',Arial,sans-serif;">
+              Africa's finest travel experiences &mdash; where every journey matters<br>and every talent shapes the road ahead.
+            </p>
+
+            <!-- SVG: faint NOLSAF watermark + dashboard-style graph line -->
+            <div style="font-size:0;line-height:0;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="580" height="96" viewBox="0 0 580 96" style="display:block;width:100%;max-width:100%;">
+                <!-- Watermark text -->
+                <text x="290" y="80" font-family="Arial Black,Arial,sans-serif" font-size="86" font-weight="900"
+                  fill="rgba(255,255,255,0.032)" text-anchor="middle" letter-spacing="6">NOLSAF</text>
+                <!-- Gradient fill under graph line -->
+                <defs>
+                  <linearGradient id="gFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="rgba(100,210,190,0.13)"/>
+                    <stop offset="100%" stop-color="rgba(100,210,190,0.00)"/>
+                  </linearGradient>
+                </defs>
+                <path d="M0 72 C70 62,130 44,200 40 C268 37,315 60,375 50 C430 41,500 22,580 10 L580 96 L0 96 Z"
+                  fill="url(#gFill)"/>
+                <!-- Graph line -->
+                <path d="M0 72 C70 62,130 44,200 40 C268 37,315 60,375 50 C430 41,500 22,580 10"
+                  fill="none" stroke="rgba(100,210,190,0.50)" stroke-width="1.8"
+                  stroke-linecap="round" stroke-linejoin="round"/>
+                <!-- Data point dots -->
+                <circle cx="200" cy="40" r="3.5" fill="rgba(100,210,190,0.80)" stroke="rgba(255,255,255,0.45)" stroke-width="1.5"/>
+                <circle cx="375" cy="50" r="3.5" fill="rgba(100,210,190,0.80)" stroke="rgba(255,255,255,0.45)" stroke-width="1.5"/>
+                <circle cx="578" cy="10" r="5"   fill="#5dcfb8"                stroke="rgba(255,255,255,0.70)" stroke-width="2"/>
+              </svg>
+            </div>
+
+          </td>
+        </tr>
+
+        <!-- Accent line -->
+        <tr>
+          <td style="background:linear-gradient(90deg,#014d47 0%,#02665e 30%,#059669 50%,#02665e 70%,#014d47 100%);height:3px;font-size:0;line-height:0;">&nbsp;</td>
+        </tr>
+
+        <!-- Body -->
+        <tr>
+          <td style="padding:32px 36px 28px;color:${TEXT_MAIN};font-size:14px;line-height:1.75;font-family:'Poppins','Segoe UI',Arial,sans-serif;">
+            ${body}
+          </td>
+        </tr>
+
+        ${buildCareersFooter(supportEmail)}
+
+      </table>
+
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
 // ─── Reusable UI blocks ───────────────────────────────────────────────────────
 
 /**
