@@ -304,7 +304,10 @@ router.patch("/:id", async (req, res) => {
 
     const existingApplication = await prisma.jobApplication.findUnique({
       where: { id: parsedId },
-      include: { job: true }
+      include: {
+        job: true,
+        agent: { select: { id: true, userId: true } },
+      },
     });
 
     if (!existingApplication) {
@@ -403,8 +406,13 @@ router.patch("/:id", async (req, res) => {
     // This is the only supported recruitment method for agents.
     if (statusChanged && newStatus === "HIRED") {
       try {
-        if (existingApplication.agentId) {
-          // Already linked to an agent profile.
+        if (existingApplication.agentId && (existingApplication as any).agent?.userId) {
+          // Already correctly linked — populate _hiredUserId so Path 2 token generation
+          // works without needing fallback DB lookups.
+          const linkedAgent = (existingApplication as any).agent;
+          (req as any)._hiredUserId   = linkedAgent.userId;
+          (req as any)._hiredUsername = String(existingApplication.email || (existingApplication as any).phone || "").trim().toLowerCase();
+          console.log(`[CAREERS_HIRED] Application ${parsedId} already linked to Agent ${linkedAgent.id} (User ${linkedAgent.userId}) — skipping re-provision`);
         } else {
           const agentData = (existingApplication.agentApplicationData ?? {}) as any;
           const appRegion = typeof (existingApplication as any).region === "string" ? String((existingApplication as any).region).trim() : "";

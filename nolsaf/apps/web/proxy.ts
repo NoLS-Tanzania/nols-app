@@ -42,15 +42,21 @@ export function proxy(req: NextRequest) {
       path === "/account/forgot-password" ||
       path === "/account/reset-password";
 
-    // Allow the Agent Portal pages to render a "sign in required" preview state
-    // instead of redirecting at the proxy layer.
+    // Allow the Agent Portal pages — but require AGENT (or ADMIN) role.
+    // Other authenticated roles hitting /account/agent get redirected to their
+    // own portal instead of seeing a broken state.
     const isAgentPortalRoute = path === "/account/agent" || path.startsWith("/account/agent/");
 
-    if (!isAccountAuthRoute && !isAgentPortalRoute) {
-      // Use token presence as the primary auth signal.
-      // If missing, redirect to customer login to avoid confusing empty states.
+    if (!isAccountAuthRoute) {
       if (!token) {
         url.pathname = "/account/login";
+        return NextResponse.redirect(url);
+      }
+      // Role-guard the agent portal — non-agents are bounced to their home
+      if (isAgentPortalRoute && role && role !== "AGENT" && role !== "ADMIN") {
+        if (role === "OWNER") url.pathname = "/owner";
+        else if (role === "DRIVER") url.pathname = "/driver";
+        else url.pathname = "/account";
         return NextResponse.redirect(url);
       }
     }
@@ -61,6 +67,7 @@ export function proxy(req: NextRequest) {
     if (role === "ADMIN") url.pathname = "/admin/home";
     else if (role === "OWNER") url.pathname = "/owner";
     else if (role === "DRIVER") url.pathname = "/driver";
+    else if (role === "AGENT") url.pathname = "/account/agent";
     else url.pathname = "/account";
     return NextResponse.redirect(url);
   }

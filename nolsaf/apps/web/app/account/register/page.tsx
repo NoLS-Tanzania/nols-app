@@ -97,6 +97,7 @@ export default function RegisterPage() {
       if (role === 'ADMIN') return '/admin/home';
       if (role === 'OWNER') return '/owner';
       if (role === 'DRIVER') return '/driver';
+      if (role === 'AGENT') return '/account/agent';
       return '/account';
     } catch {
       return '/account';
