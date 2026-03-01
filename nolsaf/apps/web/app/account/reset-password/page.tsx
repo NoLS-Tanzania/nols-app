@@ -84,7 +84,7 @@ export default function ResetPasswordPage() {
       if (res.ok && data && data.ok) {
         setSuccess(true);
       } else {
-        if (data && data.message === "weak_password" && Array.isArray(data.reasons)) {
+        if (data && (data.message === "weak_password" || data.message === "password_reused") && Array.isArray(data.reasons)) {
           setReasons(data.reasons);
         } else if (data && data.message === "password_already_set") {
           setError("__password_already_set__");

@@ -75,7 +75,7 @@ export function getPasswordResetEmail(
       <tr><td style="padding:14px 16px;">
         <p style="margin:0;font-size:13px;color:#374151;line-height:1.7;">
           &#8226; This link is valid for <strong>${expiryMinutes} minutes</strong> and can only be used <strong>once</strong>.<br>
-          &#8226; If you did not request this, your password has not been changed — you can safely ignore this email.
+          &#8226; If you did not request this, your password has not been changed you can safely ignore this email.
         </p>
       </td></tr>
     </table>

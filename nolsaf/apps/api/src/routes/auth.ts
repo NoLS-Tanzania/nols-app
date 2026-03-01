@@ -7,7 +7,7 @@ import jwt from 'jsonwebtoken';
 import { sendMail } from '../lib/mailer.js';
 import { getPasswordResetEmail, getLoginAlertEmail, getPasswordChangedConfirmationEmail } from '../lib/authEmailTemplates.js';
 import { sendSms } from '../lib/sms.js';
-import { addPasswordToHistory } from '../lib/security.js';
+import { addPasswordToHistory, isPasswordReused } from '../lib/security.js';
 import { validatePasswordWithSettings } from '../lib/securitySettings.js';
 import { getRoleSessionMaxMinutes } from '../lib/securitySettings.js';
 import { signUserJwt, setAuthCookie, clearAuthCookie } from '../lib/sessionManager.js';
@@ -1431,6 +1431,12 @@ router.post('/reset-password', async (req, res) => {
     // Validate password strength using SystemSetting configuration
     const strength = await validatePasswordWithSettings(String(password), user?.role);
     if (!strength.valid) return res.status(400).json({ message: 'weak_password', reasons: strength.reasons });
+
+    // Prevent reuse of recent passwords
+    try {
+      const reused = await isPasswordReused(normalizedUserId, String(password));
+      if (reused) return res.status(400).json({ message: 'password_reused', reasons: ['You cannot reuse a recent password. Please choose a different one.'] });
+    } catch (e) { /* ignore history check errors — don't block reset */ }
 
     // Hash and update password
     const pwHash = await hashPassword(String(password));
