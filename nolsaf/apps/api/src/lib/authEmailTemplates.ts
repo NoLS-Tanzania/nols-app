@@ -210,10 +210,8 @@ export interface LoginAlertEmailData {
 }
 
 export function getLoginAlertEmail(data: LoginAlertEmailData): { subject: string; html: string } {
-  const SLATE = "#334155";
-
   const fmtDateTime = (d: Date) =>
-    d.toISOString().replace("T", " ").slice(0, 19) + " UTC";
+    d.toUTCString().replace(" GMT", " UTC");
 
   const rows: [string, string][] = [
     ["Date",       fmtDateTime(data.loginAt)],
@@ -224,31 +222,39 @@ export function getLoginAlertEmail(data: LoginAlertEmailData): { subject: string
 
   const tableRows = rows.map(([label, value]) => `
     <tr>
-      <td style="padding:10px 16px;font-size:13px;font-weight:600;color:${SLATE};white-space:nowrap;border-bottom:1px solid #e2e8e7;width:110px;">${label}</td>
-      <td style="padding:10px 16px;font-size:13px;color:#374151;border-bottom:1px solid #e2e8e7;word-break:break-all;">${value}</td>
+      <td style="padding:9px 14px;font-size:12px;font-weight:600;color:#1e3d72;white-space:nowrap;border-bottom:1px solid #e8ecf4;width:110px;font-family:'Poppins','Segoe UI',Arial,sans-serif;">${label}</td>
+      <td style="padding:9px 14px;font-size:12px;color:#374151;border-bottom:1px solid #e8ecf4;word-break:break-all;font-family:'Poppins','Segoe UI',Arial,sans-serif;">${value}</td>
     </tr>`).join("");
 
   const detailTable = `
-    <table width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;border:1px solid #e2e8e7;border-radius:8px;overflow:hidden;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;border:1px solid #dce4f0;border-radius:6px;overflow:hidden;">
       <tbody>${tableRows}</tbody>
     </table>`;
 
   const body = `
-    <p style="margin:0 0 16px;font-size:16px;font-weight:600;color:${SLATE};">Hello ${data.name},</p>
-    <p style="margin:0 0 16px;">We detected a successful sign-in to your NoLSAF account. Here are the details:</p>
+    <p style="margin:0 0 14px;font-size:15px;font-weight:600;color:#1e3d72;">Hello ${data.name},</p>
+    <p style="margin:0 0 14px;color:#374151;">We detected a new sign-in to your NoLSAF account from a device we haven't seen before. Here are the details:</p>
+
     ${detailTable}
-    <p style="margin:0 0 8px;font-size:14px;font-weight:600;color:${SLATE};">If this wasn't you:</p>
-    <ul style="margin:0 0 20px;padding-left:20px;font-size:14px;color:#374151;line-height:1.8;">
-      <li><a href="${data.resetPasswordUrl}" style="color:#dc2626;font-weight:600;text-decoration:none;">Reset your password immediately</a></li>
-      <li>Contact us at <a href="mailto:security@nolsaf.com" style="color:${BRAND_TEAL};text-decoration:none;">security@nolsaf.com</a></li>
-    </ul>
-    <p style="margin:0 0 20px;font-size:14px;color:#6b7280;">If this was you, no action is required.</p>
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;background:#fef2f2;border-left:3px solid #dc2626;border-radius:4px;">
+      <tr><td style="padding:13px 16px;">
+        <p style="margin:0;font-size:13px;font-weight:600;color:#b91c1c;margin-bottom:5px;">Wasn&apos;t you?</p>
+        <p style="margin:0;font-size:12px;color:#7f1d1d;line-height:1.6;">
+          If you don&apos;t recognise this sign-in, your account may be compromised.
+          <a href="${data.resetPasswordUrl}" style="color:#b91c1c;font-weight:600;text-decoration:none;">Reset your password immediately</a>
+          and contact <a href="mailto:security@nolsaf.com" style="color:#b91c1c;font-weight:600;">security@nolsaf.com</a>.
+        </p>
+      </td></tr>
+    </table>
+
     ${ctaButton(data.resetPasswordUrl, "Reset My Password", "#dc2626")}
-    <p style="margin:24px 0 0;font-size:12px;color:#9ca3af;">This is an automated security notification. Please do not reply to this email — contact <a href="mailto:security@nolsaf.com" style="color:${BRAND_TEAL};">security@nolsaf.com</a> for any concerns.</p>
+
+    <p style="margin:18px 0 0;font-size:13px;color:#374151;">If this was you, no action is needed. Future sign-ins from this device will not trigger another alert.<br><strong style="color:#1e3d72;">The NoLSAF Security Team</strong></p>
   `;
 
   return {
     subject: "New sign-in detected on your NoLSAF account",
-    html: baseEmail(SLATE, "#1e293b", "New Sign-In Detected 🔐", "🔐", body),
+    html: securityEmail("New Sign-In Detected", body),
   };
 }

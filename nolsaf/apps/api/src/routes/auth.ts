@@ -476,6 +476,37 @@ router.post('/login', (req, res) => {
   return res.status(400).json({ error: "Use POST /api/auth/login-password for email/password login." });
 });
 
+// ─── Known-device fingerprint store ──────────────────────────────────────────
+// Tracks SHA-256 fingerprints (UA + IP prefix) per userId so login-alert emails
+// are only sent when a truly new device/browser is seen.
+// Resets on server restart — first login after a deploy will alert once per user.
+const knownDeviceStore = new Map<number, Set<string>>();
+const MAX_KNOWN_DEVICES = 20; // cap per user to avoid unbounded growth
+
+function getDeviceFingerprint(ua: string, ip: string): string {
+  // Use first two octets of IPv4 / first segment of IPv6 so minor IP changes
+  // on the same network don't trigger spurious alerts.
+  const ipPrefix = ip.split('.').slice(0, 2).join('.') || ip.split(':')[0] || ip;
+  return crypto.createHash('sha256').update(`${ua}::${ipPrefix}`).digest('hex').slice(0, 16);
+}
+
+function isNewDevice(userId: number, fingerprint: string): boolean {
+  const known = knownDeviceStore.get(userId);
+  if (!known) return true; // first-ever login for this user in this server process
+  return !known.has(fingerprint);
+}
+
+function recordDevice(userId: number, fingerprint: string): void {
+  let known = knownDeviceStore.get(userId);
+  if (!known) { known = new Set(); knownDeviceStore.set(userId, known); }
+  if (known.size >= MAX_KNOWN_DEVICES) {
+    // Evict oldest entry to stay bounded
+    const oldest = known.values().next().value;
+    if (oldest) known.delete(oldest);
+  }
+  known.add(fingerprint);
+}
+
 // POST /api/auth/login-password
 // Body: { email, password }
 // Rate limited: 10 login attempts per IP per 15 minutes
@@ -716,7 +747,7 @@ router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res,
       console.warn("Failed to audit login:", auditError);
     }
 
-    // Send new sign-in alert email (best-effort, never blocks the response)
+    // Send new sign-in alert email — only when the device/browser is new
     if (user.email) {
       try {
         const ua = String(req.headers['user-agent'] || '');
@@ -740,15 +771,24 @@ router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res,
           ''
         ) || undefined;
         const appUrl = process.env.APP_URL || process.env.WEB_ORIGIN || 'http://localhost:3000';
-        const { subject, html } = getLoginAlertEmail({
-          name: user.email,
-          loginAt: new Date(),
-          ipAddress: clientIp !== 'unknown' ? clientIp : undefined,
-          device,
-          country,
-          resetPasswordUrl: `${appUrl}/account/reset-password`,
-        });
-        await sendMail(user.email, subject, html);
+
+        // Fingerprint: hash of UA + IP prefix
+        const fingerprint = getDeviceFingerprint(ua, clientIp);
+        const newDevice = isNewDevice(user.id, fingerprint);
+        // Always record so subsequent logins from same device are silent
+        recordDevice(user.id, fingerprint);
+
+        if (newDevice) {
+          const { subject, html } = getLoginAlertEmail({
+            name: user.email,
+            loginAt: new Date(),
+            ipAddress: clientIp !== 'unknown' ? clientIp : undefined,
+            device,
+            country,
+            resetPasswordUrl: `${appUrl}/account/forgot-password`,
+          });
+          await sendMail(user.email, subject, html);
+        }
       } catch (e) {
         console.warn('[LOGIN] Sign-in alert email failed:', e);
       }
