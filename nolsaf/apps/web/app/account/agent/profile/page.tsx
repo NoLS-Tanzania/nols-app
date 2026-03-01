@@ -49,7 +49,7 @@ type AgentMe = {
     employmentCommencedAt?: string | null;
     employmentType?: string | null;
     employmentTitle?: string | null;
-    user?: { id: number; name?: string | null; email?: string | null; phone?: string | null };
+    user?: { id: number; name?: string | null; fullName?: string | null; email?: string | null; phone?: string | null; nationality?: string | null; region?: string | null; district?: string | null };
   };
 };
 
@@ -237,9 +237,9 @@ export default function AgentProfilePage() {
       Boolean(displayName && displayName !== "—"),
       Boolean(account?.email || agent?.user?.email),
       Boolean(account?.phone || agent?.user?.phone),
-      Boolean(account?.nationality),
-      Boolean(account?.region),
-      Boolean(account?.district),
+      Boolean(account?.nationality || agent?.user?.nationality),
+      Boolean(account?.region || agent?.user?.region),
+      Boolean(account?.district || agent?.user?.district),
       areas.length > 0,
       langs.length > 0,
       requiredDocsOk,
@@ -255,8 +255,11 @@ export default function AgentProfilePage() {
     account?.nationality,
     account?.phone,
     account?.region,
+    agent?.user?.district,
     agent?.user?.email,
+    agent?.user?.nationality,
     agent?.user?.phone,
+    agent?.user?.region,
     areas.length,
     avatarUrl,
     displayName,
@@ -715,9 +718,9 @@ export default function AgentProfilePage() {
               <InfoItem icon={<UserRound className="w-5 h-5" aria-hidden />} label="Full name" value={displayName} />
               <InfoItem icon={<Mail className="w-5 h-5" aria-hidden />} label="Email" value={account?.email || agent?.user?.email || "—"} />
               <InfoItem icon={<Phone className="w-5 h-5" aria-hidden />} label="Phone" value={account?.phone || agent?.user?.phone || "—"} />
-              <InfoItem icon={<Globe className="w-5 h-5" aria-hidden />} label="Nationality" value={account?.nationality || "—"} />
-              <InfoItem icon={<MapPin className="w-5 h-5" aria-hidden />} label="Region" value={account?.region || "—"} />
-              <InfoItem icon={<MapPin className="w-5 h-5" aria-hidden />} label="District" value={account?.district || "—"} />
+              <InfoItem icon={<Globe className="w-5 h-5" aria-hidden />} label="Nationality" value={account?.nationality || agent?.user?.nationality || "—"} />
+              <InfoItem icon={<MapPin className="w-5 h-5" aria-hidden />} label="Region" value={account?.region || agent?.user?.region || "—"} />
+              <InfoItem icon={<MapPin className="w-5 h-5" aria-hidden />} label="District" value={account?.district || agent?.user?.district || "—"} />
               </div>
             </div>
           </div>

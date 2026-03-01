@@ -80,6 +80,10 @@ async function getActiveAgent(req: AuthedRequest): Promise<AgentGateResult> {
           status: true,
           submittedAt: true,
           reviewedAt: true,
+          fullName: true,
+          nationality: true,
+          region: true,
+          district: true,
           job: {
             select: {
               id: true,
@@ -91,7 +95,7 @@ async function getActiveAgent(req: AuthedRequest): Promise<AgentGateResult> {
           },
         },
       },
-      user: { select: { id: true, name: true, email: true, phone: true, role: true } },
+      user: { select: { id: true, name: true, fullName: true, email: true, phone: true, role: true, nationality: true, region: true, district: true } },
     },
   });
 
@@ -126,6 +130,31 @@ router.get(
     const gate = await getActiveAgent(req as AuthedRequest);
     if (!gate.ok) return res.status(gate.status).json({ ok: false, error: gate.error, message: gate.message });
     const agent = gate.agent;
+
+    // Best-effort sync: populate nationality/region/district/fullName on the User record
+    // from the linked JobApplication if they are missing. This covers agents who were
+    // provisioned before these fields were copied during the HIRED flow.
+    try {
+      const linkedApp = (agent as any).applications?.[0];
+      const u = agent.user as any;
+      if (linkedApp && (!u?.nationality || !u?.region || !u?.district || !u?.fullName)) {
+        const appNationality = typeof linkedApp.nationality === "string" ? linkedApp.nationality.trim() : "";
+        const appRegion     = typeof linkedApp.region      === "string" ? linkedApp.region.trim()      : "";
+        const appDistrict   = typeof linkedApp.district    === "string" ? linkedApp.district.trim()    : "";
+        const appFullName   = typeof linkedApp.fullName    === "string" ? linkedApp.fullName.trim()    : "";
+        const syncUpdate: Record<string, string> = {};
+        if (!u?.nationality && appNationality) syncUpdate.nationality = appNationality;
+        if (!u?.region      && appRegion)      syncUpdate.region      = appRegion;
+        if (!u?.district    && appDistrict)    syncUpdate.district    = appDistrict;
+        if (!u?.fullName    && appFullName)    syncUpdate.fullName    = appFullName;
+        if (Object.keys(syncUpdate).length > 0) {
+          await prisma.user.update({ where: { id: u.id }, data: syncUpdate as any });
+          Object.assign(agent.user, syncUpdate); // reflect in current response
+        }
+      }
+    } catch {
+      // non-blocking — ignore sync failures
+    }
 
     const reviewsAgg = await prisma.agentReview.aggregate({
       where: { agentId: agent.id },

@@ -413,6 +413,36 @@ router.patch("/:id", async (req, res) => {
           (req as any)._hiredUserId   = linkedAgent.userId;
           (req as any)._hiredUsername = String(existingApplication.email || (existingApplication as any).phone || "").trim().toLowerCase();
           console.log(`[CAREERS_HIRED] Application ${parsedId} already linked to Agent ${linkedAgent.id} (User ${linkedAgent.userId}) — skipping re-provision`);
+
+          // Best-effort: sync nationality/region/district from the application to the user
+          // in case they were missing at the time of initial provisioning.
+          try {
+            const agentDataForSync = (existingApplication.agentApplicationData ?? {}) as any;
+            const appNationality = typeof (existingApplication as any).nationality === "string" && String((existingApplication as any).nationality).trim()
+              ? String((existingApplication as any).nationality).trim()
+              : (typeof agentDataForSync.nationality === "string" ? String(agentDataForSync.nationality).trim() : "");
+            const appRegion   = typeof (existingApplication as any).region    === "string" ? String((existingApplication as any).region).trim()    : "";
+            const appDistrict = typeof (existingApplication as any).district  === "string" ? String((existingApplication as any).district).trim()  : "";
+            const appFullName = typeof (existingApplication as any).fullName  === "string" ? String((existingApplication as any).fullName).trim()  : "";
+
+            if (appNationality || appRegion || appDistrict || appFullName) {
+              const existingUser = await prisma.user.findUnique({
+                where: { id: linkedAgent.userId },
+                select: { nationality: true, region: true, district: true, fullName: true } as any,
+              });
+              const syncUpdate: Record<string, string> = {};
+              if (!(existingUser as any)?.nationality && appNationality) syncUpdate.nationality = appNationality;
+              if (!(existingUser as any)?.region      && appRegion)      syncUpdate.region      = appRegion;
+              if (!(existingUser as any)?.district    && appDistrict)    syncUpdate.district    = appDistrict;
+              if (!(existingUser as any)?.fullName    && appFullName)    syncUpdate.fullName    = appFullName;
+              if (Object.keys(syncUpdate).length > 0) {
+                await prisma.user.update({ where: { id: linkedAgent.userId }, data: syncUpdate as any });
+                console.log(`[CAREERS_HIRED] Synced profile fields ${Object.keys(syncUpdate).join(', ')} to User ${linkedAgent.userId}`);
+              }
+            }
+          } catch (syncErr: any) {
+            console.warn("[CAREERS_HIRED] Failed to sync profile fields for already-linked agent:", syncErr?.message);
+          }
         } else {
           const agentData = (existingApplication.agentApplicationData ?? {}) as any;
           const appRegion = typeof (existingApplication as any).region === "string" ? String((existingApplication as any).region).trim() : "";
