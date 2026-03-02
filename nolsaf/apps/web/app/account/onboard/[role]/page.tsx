@@ -39,6 +39,7 @@ export default function OnboardRole() {
   const [paymentCountdown, setPaymentCountdown] = useState<number>(0);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [paymentMessage, setPaymentMessage] = useState<string | null>(null);
+  const [accountPhone, setAccountPhone] = useState<string>(''); // set from /api/account/me, used for auto-verify
   const [idFile, setIdFile] = useState<File | null>(null);
   const [vehicleRegFile, setVehicleRegFile] = useState<File | null>(null);
   const [stepIndex, setStepIndex] = useState<number>(1); // 1..4 for driver onboarding steps
@@ -88,6 +89,7 @@ export default function OnboardRole() {
         const me = json?.data ?? json;
         if (!alive) return;
         setNeedsPasswordSetup(me?.hasPassword === false);
+        if (me?.phone) setAccountPhone(me.phone);
       } catch {
         // ignore
       }
@@ -107,6 +109,20 @@ export default function OnboardRole() {
   );
 
   const title = role === 'driver' ? 'Welcome, Driver' : role === 'owner' ? 'Welcome, Property Owner' : 'Welcome, Traveller';
+  // Normalise phone numbers so +255712345678 and 0712345678 compare equal
+  const normalizePhone = (p: string) => p.replace(/[\s\-]/g, '').replace(/^0(\d{9})$/, '+255$1');
+
+  // Auto-verify payment phone when it matches the account registration phone
+  // (that phone was already OTP-verified at sign-up, so no second code is needed)
+  useEffect(() => {
+    if (!accountPhone || !paymentPhone.trim()) return;
+    if (normalizePhone(paymentPhone.trim()) === normalizePhone(accountPhone)) {
+      setPaymentVerified(true);
+      setPaymentSent(false);
+      setPaymentMessage(null);
+    }
+    // Note: we do NOT reset to false here — resetting happens only in onChange
+  }, [paymentPhone, accountPhone]);
   const help = role === 'driver'
     ? 'Please provide driver details, vehicle information, and verification documents.'
     : role === 'owner'
@@ -363,6 +379,12 @@ export default function OnboardRole() {
 
   const sendPaymentOtp = async () => {
     setPaymentMessage(null);
+    // If the entered phone matches the account phone, auto-verify without sending a code
+    if (accountPhone && normalizePhone(paymentPhone.trim()) === normalizePhone(accountPhone)) {
+      setPaymentVerified(true);
+      setPaymentSent(false);
+      return;
+    }
     if (!paymentPhone || paymentPhone.trim().length < 5) {
       setFieldErrors(prev => ({ ...prev, paymentPhone: 'Please enter a valid phone number' }));
       setTouched(prev => ({ ...prev, paymentPhone: true }));
@@ -1278,7 +1300,16 @@ export default function OnboardRole() {
                             <input 
                               ref={paymentRef} 
                               value={paymentPhone} 
-                              onChange={e => { setPaymentPhone(e.target.value); if (!paymentVerified) setPaymentVerified(false); }} 
+                              onChange={e => { 
+                              const val = e.target.value;
+                              setPaymentPhone(val);
+                              // Reset verification unless the new value already matches the account phone
+                              // (the auto-verify useEffect will re-set it to true if they match)
+                              if (!accountPhone || normalizePhone(val.trim()) !== normalizePhone(accountPhone)) {
+                                setPaymentVerified(false);
+                                setPaymentSent(false);
+                              }
+                            }} 
                               onBlur={() => { setTouched(prev => ({ ...prev, paymentPhone: true })); setFieldErrors(prev => ({ ...prev, paymentPhone: validateField('paymentPhone') })); }} 
                               readOnly={paymentVerified} 
                               aria-readonly={paymentVerified} 
@@ -1415,13 +1446,23 @@ export default function OnboardRole() {
                     )}
 
                     {paymentVerified && (
-                      <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-2">
-                        <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-emerald-700">Payment phone verified</p>
-                          <p className="text-xs text-emerald-600">{paymentPhone}</p>
+                      accountPhone && normalizePhone(paymentPhone.trim()) === normalizePhone(accountPhone) ? (
+                        <div className="p-3 bg-sky-50 border border-sky-200 rounded-lg flex items-start gap-3">
+                          <CheckCircle2 className="w-5 h-5 text-sky-600 flex-shrink-0 mt-0.5" />
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-sky-700">Already verified — no code needed</p>
+                            <p className="text-xs text-sky-600 mt-0.5">This is the same phone you used to create your account. It was already verified during registration.</p>
+                          </div>
                         </div>
-                      </div>
+                      ) : (
+                        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-2">
+                          <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-emerald-700">Payment phone verified</p>
+                            <p className="text-xs text-emerald-600">{paymentPhone}</p>
+                          </div>
+                        </div>
+                      )
                     )}
                   </div>
                 </div>

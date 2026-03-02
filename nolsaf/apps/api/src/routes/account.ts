@@ -198,7 +198,10 @@ const getMe: RequestHandler = async (req, res) => {
     let user: any = null;
     stage = 'user_select_full';
     const meta = (prisma as any).user?._meta ?? {};
-    const hasField = (field: string) => Object.prototype.hasOwnProperty.call(meta, field);
+    // When _meta is unavailable (empty object), default hasField to true so that all schema
+    // fields are selected; the P2022 fallback below strips any truly unknown column.
+    const metaHasEntries = Object.keys(meta).length > 0;
+    const hasField = (field: string) => !metaHasEntries || Object.prototype.hasOwnProperty.call(meta, field);
     const select: any = {
       id: true,
       role: true,
@@ -241,6 +244,7 @@ const getMe: RequestHandler = async (req, res) => {
     if (hasField('paymentPhone')) select.paymentPhone = true;
     if (hasField('paymentVerified')) select.paymentVerified = true;
     if (hasField('isVipDriver')) select.isVipDriver = true;
+    if (hasField('kycStatus')) select.kycStatus = true;
 
     try {
       user = await prisma.user.findUnique({ where: { id: userId }, select } as any);

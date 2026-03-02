@@ -20,6 +20,11 @@ import {
   UserPlus,
   BarChart3,
   Bell,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  ShieldCheck,
+  ShieldX,
 } from "lucide-react";
 
 // Use same-origin for HTTP calls so Next.js rewrites proxy to the API
@@ -61,6 +66,7 @@ type DriverRow = {
   available: boolean | null;
   isAvailable: boolean | null;
   rating: number | null;
+  kycStatus: string | null;
   performance?: {
     totalTrips: number;
     completedTrips: number;
@@ -183,6 +189,23 @@ export default function AdminAllDriversPage() {
   const [overviewStats, setOverviewStats] = useState<DriverStatsData | null>(null);
   const [overviewReferrals, setOverviewReferrals] = useState<DriverReferralsData | null>(null);
   const [overviewBonuses, setOverviewBonuses] = useState<DriverBonusesData | null>(null);
+  const [kycLoading, setKycLoading] = useState<Record<number, boolean>>({});
+
+  async function setDriverKyc(driverId: number, action: 'approve' | 'reject') {
+    setKycLoading(prev => ({ ...prev, [driverId]: true }));
+    try {
+      await api.patch(`/api/admin/drivers/${driverId}/kyc`, { action });
+      setItems(prev => prev.map(d =>
+        d.id === driverId
+          ? { ...d, kycStatus: action === 'approve' ? 'APPROVED_KYC' : 'REJECTED_KYC' }
+          : d
+      ));
+    } catch (e: any) {
+      alert(e?.response?.data?.message || e?.message || 'Failed to update driver status');
+    } finally {
+      setKycLoading(prev => ({ ...prev, [driverId]: false }));
+    }
+  }
 
   useEffect(() => {
     authify();
@@ -305,6 +328,9 @@ export default function AdminAllDriversPage() {
               <option value="UNAVAILABLE">Unavailable</option>
               <option value="SUSPENDED">Suspended</option>
               <option value="DISABLED">Disabled</option>
+              <option value="PENDING_KYC">⏳ Pending Approval</option>
+              <option value="APPROVED_KYC">✅ Approved</option>
+              <option value="REJECTED_KYC">❌ Rejected</option>
             </select>
           </div>
 
@@ -324,6 +350,7 @@ export default function AdminAllDriversPage() {
                 <tr>
                   <th className="text-left font-semibold px-4 py-3">Driver</th>
                   <th className="text-left font-semibold px-4 py-3">Status</th>
+                  <th className="text-left font-semibold px-4 py-3">KYC</th>
                   <th className="text-left font-semibold px-4 py-3">Vehicle</th>
                   <th className="text-left font-semibold px-4 py-3">Area</th>
                   <th className="text-left font-semibold px-4 py-3">Trips</th>
@@ -355,6 +382,26 @@ export default function AdminAllDriversPage() {
                           <StatusIcon driver={d} />
                           <span className="text-xs text-gray-700">{statusLabel(d)}</span>
                         </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        {d.kycStatus === 'PENDING_KYC' && (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                            <Clock className="w-3 h-3" />Pending
+                          </span>
+                        )}
+                        {d.kycStatus === 'APPROVED_KYC' && (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <ShieldCheck className="w-3 h-3" />Approved
+                          </span>
+                        )}
+                        {d.kycStatus === 'REJECTED_KYC' && (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-700 border border-red-200">
+                            <ShieldX className="w-3 h-3" />Rejected
+                          </span>
+                        )}
+                        {!d.kycStatus && (
+                          <span className="text-xs text-gray-400">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <div className="text-gray-900 truncate max-w-[200px]" title={d.vehicleType || ""}>{d.vehicleType || "—"}</div>
@@ -467,6 +514,42 @@ export default function AdminAllDriversPage() {
                             <span className="sr-only">Details</span>
                           </Link>
                         </div>
+                        {/* KYC approve / reject actions */}
+                        {(d.kycStatus === 'PENDING_KYC' || d.kycStatus === 'REJECTED_KYC') && (
+                          <div className="flex items-center gap-1.5 mt-2 justify-end">
+                            <button
+                              type="button"
+                              disabled={kycLoading[d.id]}
+                              onClick={() => setDriverKyc(d.id, 'approve')}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                              title="Approve driver"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />Approve
+                            </button>
+                            <button
+                              type="button"
+                              disabled={kycLoading[d.id]}
+                              onClick={() => setDriverKyc(d.id, 'reject')}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
+                              title="Reject driver"
+                            >
+                              <XCircle className="w-3.5 h-3.5" />Reject
+                            </button>
+                          </div>
+                        )}
+                        {d.kycStatus === 'APPROVED_KYC' && (
+                          <div className="flex items-center gap-1.5 mt-2 justify-end">
+                            <button
+                              type="button"
+                              disabled={kycLoading[d.id]}
+                              onClick={() => setDriverKyc(d.id, 'reject')}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-red-50 hover:text-red-700 disabled:opacity-50 transition-colors"
+                              title="Revoke approval"
+                            >
+                              <XCircle className="w-3.5 h-3.5" />Revoke
+                            </button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );

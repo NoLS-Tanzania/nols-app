@@ -1525,7 +1525,10 @@ const updateDriverProfile: RequestHandler = async (req, res) => {
 
   // Best-effort: only include fields if Prisma user model has them
   const meta = (prisma as any).user?._meta ?? {};
-  const hasField = (field: string) => Object.prototype.hasOwnProperty.call(meta, field);
+  // When _meta is unavailable (empty object), default hasField to true so all schema fields
+  // are attempted; the P2022 error-retry below strips any truly unknown column.
+  const metaHasEntries = Object.keys(meta).length > 0;
+  const hasField = (field: string) => !metaHasEntries || Object.prototype.hasOwnProperty.call(meta, field);
   const beforeSelect: any = { };
   if (hasField('fullName')) beforeSelect.fullName = true;
   if (hasField('name')) beforeSelect.name = true;
@@ -1910,7 +1913,7 @@ const postToggle2fa: RequestHandler = async (req, res) => {
           // attempt to update sms2faEnabled and phone fields if they exist
           if (action === 'enable') {
             updateData.sms2faEnabled = true;
-            if (phone && Object.prototype.hasOwnProperty.call((prisma as any).user._meta ?? {}, 'phone')) updateData.phone = phone;
+            if (phone) updateData.phone = phone; // phone is a core schema field — always include
           } else {
             updateData.sms2faEnabled = false;
           }
@@ -1923,11 +1926,10 @@ const postToggle2fa: RequestHandler = async (req, res) => {
             // try to read stored secret from DB only if the prisma model supports it
             let storedSecret: string | null = null;
             try {
-              if ((prisma as any).user && Object.prototype.hasOwnProperty.call((prisma as any).user._meta ?? {}, 'totpSecret')) {
-                const u = await prisma.user.findUnique({ where: { id: user.id }, select: { totpSecret: true } as any });
-                storedSecret = (u as any)?.totpSecret ?? null;
-              }
-            } catch (e) { /* ignore read errors */ }
+              // totpSecret is in the schema — attempt unconditionally, catch P2022 if column missing
+              const u = await prisma.user.findUnique({ where: { id: user.id }, select: { totpSecret: true } as any });
+              storedSecret = (u as any)?.totpSecret ?? null;
+            } catch (e) { /* ignore read errors — column may not exist in this DB */ }
 
             // fallback: accept secret passed in body (not ideal for prod)
             const secretToCheck = storedSecret || (req.body && typeof req.body.secret === 'string' ? req.body.secret : null);
@@ -2008,12 +2010,10 @@ const get2faProvision: RequestHandler = async (req, res) => {
     let qr: string | null = null;
     try { qr = await qrcode.toDataURL(otpauth); } catch (e) { /* ignore qr generation errors */ }
 
-    // Attempt to persist secret to user record if schema supports it
+    // Attempt to persist secret to user record (totpSecret is in schema — let try-catch handle missing column)
     try {
-      if ((prisma as any).user && Object.prototype.hasOwnProperty.call((prisma as any).user._meta ?? {}, 'totpSecret')) {
-        await prisma.user.update({ where: { id: user.id }, data: { totpSecret: secret } as any });
-      }
-    } catch (e) { /* ignore persistence errors */ }
+      await prisma.user.update({ where: { id: user.id }, data: { totpSecret: secret } as any });
+    } catch (e) { /* ignore persistence errors — column may not exist in this DB */ }
 
     return res.json({ secret, otpauth, qr });
   } catch (err) {

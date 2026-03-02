@@ -1138,9 +1138,11 @@ router.post('/profile', upload.any(), async (req, res) => {
     // Enforce that the role in the request (if any) matches the user's role (prevents role hopping)
     let dbRole: string | null = null;
     let hasPasswordAlready = false;
+    let currentKycStatus: string | null = null;
     try {
-      const dbUser = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true, passwordHash: true } as any });
+      const dbUser = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true, passwordHash: true, kycStatus: true } as any });
       if (!dbUser) return res.status(401).json({ error: 'Unauthorized' });
+      currentKycStatus = (dbUser as any)?.kycStatus ?? null;
       const requested = normalizeSignupRole(role);
       // Normalize DB roles too (e.g. USER/TRAVELLER should be treated as CUSTOMER)
       dbRole = normalizeSignupRole(dbUser.role) || String(dbUser.role || '').trim().toUpperCase();
@@ -1190,7 +1192,10 @@ router.post('/profile', upload.any(), async (req, res) => {
       // include newer columns yet (e.g., gender/nationality/tin/address/etc).
       // Avoid passing unknown fields (Prisma validates args before hitting the DB).
       const meta = (prisma as any).user?._meta ?? {};
-      const hasField = (field: string) => Object.prototype.hasOwnProperty.call(meta, field);
+      // When _meta is unavailable (empty object), default hasField to true so that all schema
+      // fields are attempted; the P2022 error-retry below strips any truly unknown column.
+      const metaHasEntries = Object.keys(meta).length > 0;
+      const hasField = (field: string) => !metaHasEntries || Object.prototype.hasOwnProperty.call(meta, field);
 
       const dataToUpdate: any = {
         name: name ? String(name) : undefined,
@@ -1226,6 +1231,20 @@ router.post('/profile', upload.any(), async (req, res) => {
       if (hasField('isVipDriver') && typeof isVipDriver !== 'undefined') {
         dataToUpdate.isVipDriver =
           String(isVipDriver) === 'true' || String(isVipDriver) === '1';
+      }
+
+      // When a driver submits onboarding details for the first time, put them in PENDING review.
+      // Only set PENDING_KYC if they haven't been approved/rejected yet (preserve admin decisions).
+      if (
+        (dbRole === 'DRIVER') &&
+        typeof licenseNumber === 'string' && licenseNumber.trim() &&
+        typeof vehicleType === 'string' && vehicleType.trim() &&
+        typeof plateNumber === 'string' && plateNumber.trim()
+      ) {
+        if (!currentKycStatus || currentKycStatus === 'PENDING_KYC') {
+          // First submission or re-submission — mark pending review
+          dataToUpdate.kycStatus = 'PENDING_KYC';
+        }
       }
 
       // Referral fields

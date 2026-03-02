@@ -288,6 +288,9 @@ router.get("/", async (req, res) => {
           { OR: [{ available: false }, { isAvailable: false }] },
         ];
       }
+      if (status === "PENDING_KYC") where.kycStatus = "PENDING_KYC";
+      if (status === "APPROVED_KYC") where.kycStatus = "APPROVED_KYC";
+      if (status === "REJECTED_KYC") where.kycStatus = "REJECTED_KYC";
     }
 
     const skip = (Number(page) - 1) * Number(pageSize);
@@ -314,6 +317,7 @@ router.get("/", async (req, res) => {
             available: true,
             isAvailable: true,
             isVipDriver: true,
+            kycStatus: true,
             rating: true,
             vehicleType: true,
             plateNumber: true,
@@ -5147,6 +5151,37 @@ router.get("/:id(\\d+)/activities", async (req, res) => {
     }
     console.error('Unhandled error in GET /admin/drivers/:id/activities:', err);
     return res.status(500).json({ error: 'Internal server error', message: err?.message });
+  }
+});
+
+/** PATCH /admin/drivers/:id/kyc — approve or reject a driver application */
+router.patch('/:id(\\d+)/kyc', async (req, res) => {
+  try {
+    const driverId = Number(req.params.id);
+    const { action, reason } = req.body ?? {};
+    if (!['approve', 'reject'].includes(String(action))) {
+      return res.status(400).json({ error: 'action must be \'approve\' or \'reject\'' });
+    }
+    const kycStatus = action === 'approve' ? 'APPROVED_KYC' : 'REJECTED_KYC';
+    const driver = await prisma.user.findUnique({ where: { id: driverId, role: 'DRIVER' } as any });
+    if (!driver) return res.status(404).json({ error: 'Driver not found' });
+    await prisma.user.update({ where: { id: driverId }, data: { kycStatus } as any });
+    // Emit real-time notification to the driver if Socket.IO is available
+    try {
+      const io = (req as any).app?.get?.('io');
+      if (io) {
+        io.to(`user:${driverId}`).emit('kyc_status_update', {
+          kycStatus,
+          message: kycStatus === 'APPROVED_KYC'
+            ? 'Your driver application has been approved! You can now access your dashboard.'
+            : `Your driver application has been reviewed. Status: ${reason || 'Rejected'}. Please contact support for more details.`,
+        });
+      }
+    } catch (e) { /* socket errors are non-fatal */ }
+    return res.json({ ok: true, driverId, kycStatus });
+  } catch (err: any) {
+    console.error('PATCH /admin/drivers/:id/kyc error:', err);
+    return res.status(500).json({ error: 'internal_error', message: err?.message });
   }
 });
 

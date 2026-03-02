@@ -7,9 +7,118 @@ import DriverSiteHeader from "@/components/DriverSiteHeader";
 import DriverFooter from "@/components/DriverFooter";
 import DriverSidebar from "@/components/DriverSidebar";
 import LayoutFrame from "@/components/LayoutFrame";
+import { Clock, ShieldX, CheckCircle2, AlertTriangle, RefreshCw } from "lucide-react";
+
+type KycStatus = 'PENDING_KYC' | 'APPROVED_KYC' | 'REJECTED_KYC' | null;
+
+function PendingApprovalScreen() {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-amber-50/30 flex items-center justify-center p-4">
+      <div className="max-w-md w-full bg-white rounded-2xl shadow-lg border border-amber-200/60 overflow-hidden">
+        <div className="bg-gradient-to-r from-amber-500 to-amber-400 p-6 text-center">
+          <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3">
+            <Clock className="w-9 h-9 text-white" />
+          </div>
+          <h1 className="text-xl font-bold text-white">Application Under Review</h1>
+          <p className="text-amber-100 text-sm mt-1">Your driver application is being processed</p>
+        </div>
+        <div className="p-6 space-y-4">
+          <div className="space-y-3">
+            {[
+              { icon: CheckCircle2, text: "Registration details submitted", done: true },
+              { icon: Clock, text: "Admin review in progress", done: false },
+              { icon: CheckCircle2, text: "Account activation", done: false },
+            ].map(({ icon: Icon, text, done }, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${done ? 'bg-emerald-100' : 'bg-amber-100'}`}>
+                  <Icon className={`w-4 h-4 ${done ? 'text-emerald-600' : 'text-amber-500'}`} />
+                </div>
+                <span className={`text-sm ${done ? 'text-slate-700 font-medium' : 'text-slate-400'}`}>{text}</span>
+              </div>
+            ))}
+          </div>
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+            <p className="text-sm text-amber-800 font-medium mb-1">What happens next?</p>
+            <p className="text-xs text-amber-700 leading-relaxed">
+              Our team will verify your documents and details within <strong>1–2 business days</strong>. 
+              You'll be notified by SMS once your account is approved and you can start receiving trip requests.
+            </p>
+          </div>
+          <div className="text-center">
+            <p className="text-xs text-slate-400">Need help? Contact us at <a href="mailto:support@nolsaf.com" className="text-amber-600 hover:underline">support@nolsaf.com</a></p>
+          </div>
+          <button
+            onClick={() => window.location.reload()}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-sm font-medium hover:bg-amber-100 transition-colors"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Check status
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RejectedScreen() {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-red-50/30 flex items-center justify-center p-4">
+      <div className="max-w-md w-full bg-white rounded-2xl shadow-lg border border-red-200/60 overflow-hidden">
+        <div className="bg-gradient-to-r from-red-600 to-red-500 p-6 text-center">
+          <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3">
+            <ShieldX className="w-9 h-9 text-white" />
+          </div>
+          <h1 className="text-xl font-bold text-white">Application Not Approved</h1>
+          <p className="text-red-100 text-sm mt-1">Your driver application was not accepted</p>
+        </div>
+        <div className="p-6 space-y-4">
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-red-800 mb-1">What this means</p>
+              <p className="text-xs text-red-700 leading-relaxed">
+                Your registration was reviewed but could not be approved at this time. This may be due to incomplete 
+                documents, a failed verification check, or not meeting our driver requirements.
+              </p>
+            </div>
+          </div>
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+            <p className="text-sm font-medium text-slate-800 mb-2">Next steps</p>
+            <ul className="text-xs text-slate-600 space-y-1.5 list-disc pl-4">
+              <li>Contact our support team for the specific reason</li>
+              <li>Ensure your documents are clear and valid</li>
+              <li>You may reapply after addressing the issues</li>
+            </ul>
+          </div>
+          <a
+            href="mailto:support@nolsaf.com"
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition-colors"
+          >
+            Contact Support
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function DriverLayout({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [kycStatus, setKycStatus] = useState<KycStatus | 'loading'>('loading');
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch('/api/account/me', { credentials: 'include' });
+        if (!r.ok) { window.location.href = '/driver/login'; return; }
+        const json = await r.json().catch(() => null);
+        const me = json?.data ?? json;
+        setKycStatus((me?.kycStatus as KycStatus) ?? null);
+      } catch {
+        setKycStatus(null);
+      }
+    })();
+  }, []);
 
   // Listen for global toggle events (header hamburger can dispatch `toggle-driver-sidebar`)
   useEffect(() => {
@@ -18,6 +127,25 @@ export default function DriverLayout({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("toggle-driver-sidebar", handler as EventListener);
   }, []);
 
+  // Loading state — show minimal spinner while checking approval
+  if (kycStatus === 'loading') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-center">
+          <div className="w-10 h-10 border-3 border-[#02665e] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-sm text-slate-500">Loading…</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Pending KYC — driver must wait for admin approval
+  if (kycStatus === 'PENDING_KYC') return <PendingApprovalScreen />;
+
+  // Rejected — application was denied
+  if (kycStatus === 'REJECTED_KYC') return <RejectedScreen />;
+
+  // null (legacy / pre-approval drivers) or APPROVED_KYC — allow access
   return (
     <div className="min-h-screen flex flex-col bg-neutral-50">
       {/* Full-width header in driver mode */}
