@@ -72,12 +72,13 @@ export default function RegisterPage() {
       }
       const { sessionId, publicKey } = await optRes.json();
 
-      const b64urlToUint8 = (s: string): Uint8Array => {
+      const b64urlToUint8 = (s: string): Uint8Array<ArrayBuffer> => {
         let str = s.replace(/-/g, '+').replace(/_/g, '/');
         const pad = (4 - (str.length % 4)) % 4;
         if (pad) str += '='.repeat(pad);
         const bin = atob(str);
-        const bytes = new Uint8Array(bin.length);
+        const buf = new ArrayBuffer(bin.length);
+        const bytes = new Uint8Array(buf);
         for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
         return bytes;
       };
