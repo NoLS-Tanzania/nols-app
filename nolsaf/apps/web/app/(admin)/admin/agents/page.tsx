@@ -1884,13 +1884,13 @@ export default function AdminAgentsPage() {
               {/* Glow ring */}
               <div className="absolute -inset-px rounded-3xl bg-gradient-to-br from-red-500/30 via-transparent to-orange-500/20 blur-sm" />
 
-              <div className="relative bg-gradient-to-b from-[#1a0a0a] to-[#0f172a] rounded-3xl overflow-hidden shadow-[0_32px_80px_rgba(0,0,0,0.7)] ring-1 ring-white/10">
+              <div className="relative bg-gradient-to-b from-[#1a0a0a] to-[#0f172a] rounded-3xl overflow-hidden shadow-[0_32px_80px_rgba(0,0,0,0.7)] ring-1 ring-white/10 flex flex-col max-h-[90vh]">
 
                 {/* ── TOP ACCENT BAR ── */}
-                <div className="h-1 bg-gradient-to-r from-red-600 via-orange-500 to-red-600" />
+                <div className="h-1 bg-gradient-to-r from-red-600 via-orange-500 to-red-600 flex-shrink-0" />
 
                 {/* ── HEADER ── */}
-                <div className="px-7 pt-7 pb-5">
+                <div className="px-6 pt-5 pb-4 flex-shrink-0">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3.5">
                       <div className="relative">
@@ -1925,8 +1925,8 @@ export default function AdminAgentsPage() {
                 </div>
 
                 {/* ── AGENT CARD ── */}
-                <div className="mx-7 mb-5 rounded-2xl bg-white/5 border border-white/10 p-4 flex items-center gap-4">
-                  <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-red-500/30 to-orange-500/20 border border-red-400/20 flex items-center justify-center text-sm font-bold text-red-300 flex-shrink-0 select-none">
+                <div className="mx-6 mb-4 rounded-2xl bg-white/5 border border-white/10 p-3.5 flex items-center gap-3.5 flex-shrink-0">
+                  <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-red-500/30 to-orange-500/20 border border-red-400/20 flex items-center justify-center text-sm font-bold text-red-300 flex-shrink-0 select-none">
                     {agentInitials}
                   </div>
                   <div className="min-w-0 flex-1">
@@ -1943,46 +1943,52 @@ export default function AdminAgentsPage() {
 
                 {/* ── STEP 1 BODY ── */}
                 {suspendModal.step === 1 && (
-                  <div className="px-7 pb-7">
+                  <div className="px-6 pb-6 overflow-y-auto flex-1">
                     {/* Consequences */}
-                    <div className="mb-5 rounded-2xl bg-amber-500/5 border border-amber-500/15 p-4">
-                      <p className="text-xs font-bold text-amber-400 uppercase tracking-widest mb-3">What happens after suspension</p>
-                      <ul className="space-y-2">
+                    <div className="mb-4 rounded-xl bg-amber-500/5 border border-amber-500/15 p-3.5">
+                      <p className="text-[10px] font-bold text-amber-400 uppercase tracking-widest mb-2.5">What happens after suspension</p>
+                      <ul className="space-y-1.5">
                         {[
-                          ["Portal access blocked", "Agent will be locked out of the portal immediately."],
-                          ["Email notification sent", "Agent receives an official suspension notice with your reason."],
-                          ["Assignments paused", "No new plan requests can be assigned during this period."],
-                          ["Investigation window", "Admin can restore access at any time after review."],
+                          ["Portal access blocked", "Agent is locked out immediately."],
+                          ["Standard notice sent", "Agent receives a professional suspension email."],
+                          ["Assignments paused", "No new requests can be assigned."],
+                          ["Restorable any time", "Admin can reinstate access after review."],
                         ].map(([title, desc]) => (
-                          <li key={title} className="flex items-start gap-2.5">
-                            <span className="mt-0.5 h-4 w-4 rounded-full bg-amber-500/15 border border-amber-400/30 flex items-center justify-center flex-shrink-0">
-                              <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                          <li key={title} className="flex items-start gap-2">
+                            <span className="mt-1 h-3 w-3 rounded-full bg-amber-500/20 border border-amber-400/30 flex items-center justify-center flex-shrink-0">
+                              <span className="h-1 w-1 rounded-full bg-amber-400" />
                             </span>
-                            <span className="text-xs text-white/70 leading-relaxed">
-                              <span className="font-semibold text-white/90">{title}</span> — {desc}
+                            <span className="text-xs text-white/65 leading-relaxed">
+                              <span className="font-semibold text-white/85">{title}</span> — {desc}
                             </span>
                           </li>
                         ))}
                       </ul>
                     </div>
 
-                    {/* Reason */}
-                    <div className="mb-6">
-                      <label className="block text-xs font-bold text-white/60 uppercase tracking-widest mb-2">
-                        Reason for suspension <span className="text-red-400 normal-case font-normal">* min 10 characters</span>
-                      </label>
+                    {/* Internal audit note */}
+                    <div className="mb-5">
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="text-xs font-bold text-white/60 uppercase tracking-widest">
+                          Internal audit note
+                        </label>
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-700/60 border border-white/8 text-[10px] font-medium text-white/40">
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                          Not sent to agent
+                        </span>
+                      </div>
                       <textarea
-                        rows={4}
+                        rows={3}
                         autoFocus
-                        placeholder="Clearly describe the reason for this suspension. This will be included in the email sent to the agent…"
+                        placeholder="Internal reason for this suspension. This is for your records only and will not appear in any email sent to the agent…"
                         value={suspendModal.reason}
                         onChange={(e) => setSuspendModal((s) => ({ ...s, reason: e.target.value }))}
                         disabled={isSuspending}
-                        className="w-full rounded-xl bg-white/5 border border-white/10 focus:border-red-500/50 focus:bg-white/8 px-4 py-3 text-sm text-white/90 placeholder-white/25 resize-none focus:outline-none focus:ring-2 focus:ring-red-500/20 transition-all disabled:opacity-50"
+                        className="w-full rounded-xl bg-white/5 border border-white/10 focus:border-slate-500/50 focus:bg-white/[0.07] px-4 py-3 text-sm text-white/90 placeholder-white/20 resize-none focus:outline-none focus:ring-2 focus:ring-slate-500/20 transition-all disabled:opacity-50"
                       />
-                      <div className="mt-1.5 flex items-center justify-between">
-                        <span className={`text-xs transition-colors ${reasonReady ? "text-emerald-400" : "text-white/30"}`}>
-                          {reasonReady ? "✓ Reason looks good" : `${suspendModal.reason.trim().length}/10 characters minimum`}
+                      <div className="mt-1.5">
+                        <span className={`text-xs transition-colors ${reasonReady ? "text-emerald-400" : "text-white/25"}`}>
+                          {reasonReady ? "✓ Note recorded" : `${suspendModal.reason.trim().length}/10 minimum`}
                         </span>
                       </div>
                     </div>
@@ -2010,11 +2016,14 @@ export default function AdminAgentsPage() {
 
                 {/* ── STEP 2 BODY ── */}
                 {suspendModal.step === 2 && (
-                  <div className="px-7 pb-7">
-                    {/* Reason recap */}
-                    <div className="mb-5 rounded-xl bg-white/4 border border-white/8 px-4 py-3">
-                      <p className="text-xs font-bold text-white/40 uppercase tracking-widest mb-1">Reason on file</p>
-                      <p className="text-sm text-white/70 leading-relaxed">{suspendModal.reason.trim()}</p>
+                  <div className="px-6 pb-6 overflow-y-auto flex-1">
+                    {/* Internal note recap */}
+                    <div className="mb-4 rounded-xl bg-white/4 border border-white/8 px-4 py-3">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <p className="text-[10px] font-bold text-white/35 uppercase tracking-widest">Internal audit note</p>
+                        <span className="text-[10px] text-white/25 font-medium">— not sent to agent</span>
+                      </div>
+                      <p className="text-sm text-white/65 leading-relaxed">{suspendModal.reason.trim()}</p>
                     </div>
 
                     {/* Name confirmation */}

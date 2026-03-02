@@ -282,18 +282,15 @@ export function getAgentSuspensionEmail(data: {
 
     <p style="margin:0 0 14px;color:#374151;line-height:1.75;">
       We are writing to inform you that your NoLSAF Agent account has been
-      <strong style="color:#b91c1c;">temporarily suspended</strong> pending an internal investigation.
+      <strong style="color:#b91c1c;">temporarily suspended</strong> pending an internal review.
       During this period you will not be able to access the Agent Portal.
     </p>
 
-    <!-- Reason block -->
-    <table width="100%" cellpadding="0" cellspacing="0"
-      style="margin:16px 0;background:${AMBER_BG};border-left:4px solid ${AMBER};border-radius:4px;">
-      <tr><td style="padding:14px 18px;">
-        <p style="margin:0 0 6px;font-size:13px;font-weight:700;color:${AMBER};">Reason for suspension</p>
-        <p style="margin:0;font-size:13px;color:#78350f;line-height:1.7;">${data.reason}</p>
-      </td></tr>
-    </table>
+    <p style="margin:0 0 14px;color:#374151;line-height:1.75;">
+      This suspension has been applied in accordance with NoLSAF&apos;s agent conduct and compliance
+      policy. Our team will conduct a fair and thorough review of the matter. You will be notified
+      by email once a decision has been reached.
+    </p>
 
     ${infoCard("#b45309", detailRows)}
 
