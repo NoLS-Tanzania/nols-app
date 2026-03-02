@@ -1943,7 +1943,7 @@ export default function AdminAgentsPage() {
 
                 {/* ── STEP 1 BODY ── */}
                 {suspendModal.step === 1 && (
-                  <div className="px-6 pb-6 overflow-y-auto flex-1">
+                  <div className="px-6 pb-6 overflow-y-auto flex-1 min-h-0">
                     {/* Consequences */}
                     <div className="mb-4 rounded-xl bg-amber-500/5 border border-amber-500/15 p-3.5">
                       <p className="text-[10px] font-bold text-amber-400 uppercase tracking-widest mb-2.5">What happens after suspension</p>
@@ -1998,7 +1998,7 @@ export default function AdminAgentsPage() {
                       <button
                         onClick={() => setSuspendModal({ open: false, agentId: null, reason: "", step: 1, confirmName: "" })}
                         disabled={isSuspending}
-                        className="flex-1 py-3 rounded-xl border border-white/10 text-white/60 text-sm font-medium hover:bg-white/5 hover:text-white/80 transition-all disabled:opacity-40"
+                        className="flex-1 py-3 rounded-xl bg-transparent border border-white/10 text-white/60 text-sm font-medium hover:bg-white/5 hover:text-white/80 transition-all disabled:opacity-40"
                       >
                         Cancel
                       </button>
@@ -2016,7 +2016,7 @@ export default function AdminAgentsPage() {
 
                 {/* ── STEP 2 BODY ── */}
                 {suspendModal.step === 2 && (
-                  <div className="px-6 pb-6 overflow-y-auto flex-1">
+                  <div className="px-6 pb-6 overflow-y-auto flex-1 min-h-0">
                     {/* Internal note recap */}
                     <div className="mb-4 rounded-xl bg-white/4 border border-white/8 px-4 py-3">
                       <div className="flex items-center gap-1.5 mb-1">
@@ -2027,7 +2027,7 @@ export default function AdminAgentsPage() {
                     </div>
 
                     {/* Name confirmation */}
-                    <div className="mb-6">
+                    <div className="mb-3">
                       <label className="block text-xs font-bold text-white/60 uppercase tracking-widest mb-1">
                         Type agent name to confirm
                       </label>
@@ -2071,7 +2071,7 @@ export default function AdminAgentsPage() {
 
                     {/* Final warning callout */}
                     {nameConfirmed && (
-                      <div className="mb-5 rounded-xl border border-red-500/20 bg-red-500/8 px-4 py-3 flex items-start gap-3">
+                      <div className="mb-3 rounded-xl border border-red-500/20 bg-red-500/8 px-4 py-3 flex items-start gap-3">
                         <AlertTriangle size={15} className="text-red-400 flex-shrink-0 mt-0.5" />
                         <p className="text-xs text-red-300/80 leading-relaxed">
                           You are about to suspend <span className="font-bold text-red-300">{agentName}</span>.
@@ -2085,7 +2085,7 @@ export default function AdminAgentsPage() {
                       <button
                         onClick={() => setSuspendModal((s) => ({ ...s, step: 1, confirmName: "" }))}
                         disabled={isSuspending}
-                        className="flex-1 py-3 rounded-xl border border-white/10 text-white/60 text-sm font-medium hover:bg-white/5 hover:text-white/80 transition-all disabled:opacity-40 flex items-center justify-center gap-1.5"
+                        className="flex-1 py-3 rounded-xl bg-transparent border border-white/10 text-white/60 text-sm font-medium hover:bg-white/5 hover:text-white/80 transition-all disabled:opacity-40 flex items-center justify-center gap-1.5"
                       >
                         <span className="text-xs opacity-60">←</span> Back
                       </button>
