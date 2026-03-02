@@ -1991,7 +1991,7 @@ export default function AdminAgentsPage() {
                               className={`w-full text-left rounded-xl border px-4 py-3 flex items-start gap-3 transition-all cursor-pointer disabled:opacity-50 ${
                                 selected
                                   ? "border-red-500/40 bg-red-500/8"
-                                  : "border-white/8 bg-white/3 hover:border-white/15 hover:bg-white/5"
+                                  : "border-white/10 bg-transparent hover:border-white/20 hover:bg-white/[0.04]"
                               }`}
                             >
                               <span className={`mt-0.5 h-4 w-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${
@@ -2046,13 +2046,10 @@ export default function AdminAgentsPage() {
 
                     {/* Name confirmation */}
                     <div className="mb-3">
-                      <label className="block text-xs font-bold text-white/60 uppercase tracking-widest mb-1">
-                        Type agent name to confirm
-                      </label>
-                      <p className="text-xs text-white/35 mb-3">
-                        Type <span className="text-white/70 font-semibold">{agentName}</span> exactly to activate the suspension.
+                      <p className="text-xs text-white/35 mb-2">
+                        Type <span className="text-white/70 font-semibold">{agentName}</span> to confirm.
                       </p>
-                      <div className="relative">
+                      <div className="relative inline-flex w-auto max-w-[220px]">
                         <input
                           type="text"
                           autoFocus
@@ -2060,7 +2057,7 @@ export default function AdminAgentsPage() {
                           value={suspendModal.confirmName}
                           onChange={(e) => setSuspendModal((s) => ({ ...s, confirmName: e.target.value }))}
                           disabled={isSuspending}
-                          className={`w-full rounded-xl bg-white/5 border px-4 py-3 text-sm text-white/90 placeholder-white/20 focus:outline-none focus:ring-2 transition-all disabled:opacity-50 pr-10 ${
+                          className={`w-full rounded-xl bg-white/5 border px-3 py-2 text-sm text-white/90 placeholder-white/20 focus:outline-none focus:ring-2 transition-all disabled:opacity-50 pr-9 ${
                             suspendModal.confirmName === ""
                               ? "border-white/10 focus:border-red-500/40 focus:ring-red-500/15"
                               : nameConfirmed
