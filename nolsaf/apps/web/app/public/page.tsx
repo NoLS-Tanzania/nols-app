@@ -2082,43 +2082,52 @@ export default function Page() {
                         Book verified stays, coordinate transport to the property you booked, and connect solo travelers to authentic local experiences — in one flow.
                       </div>
 
-                      {/* Service chips */}
-                      <div className="mt-5 flex flex-wrap items-center gap-2">
-                        {[
-                          { label: "Stays",        Icon: Home      },
-                          { label: "Group Stays",  Icon: Gavel     },
-                          { label: "Transport",    Icon: Car       },
-                          { label: "Local guides", Icon: Users     },
-                          { label: "Support",      Icon: LifeBuoy  },
-                        ].map(({ label, Icon }) => (
+                      {/* Service chips — 2-col grid, Support centred below */}
+                      <div className="mt-5">
+                        <div className="grid grid-cols-2 gap-2">
+                          {[
+                            { label: "Stays",        Icon: Home      },
+                            { label: "Group Stays",  Icon: Gavel     },
+                            { label: "Transport",    Icon: Car       },
+                            { label: "Local guides", Icon: Users     },
+                          ].map(({ label, Icon }) => (
+                            <span
+                              key={label}
+                              className="inline-flex items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-white/80 ring-1 ring-white/12 transition-colors duration-200 hover:text-white hover:ring-[#2dd4bf]/40"
+                              style={{ background: "rgba(10,92,130,0.22)", backdropFilter: "blur(6px)" }}
+                            >
+                              <Icon className="h-3.5 w-3.5 opacity-80" aria-hidden />
+                              {label}
+                            </span>
+                          ))}
+                        </div>
+                        {/* Support — centered on its own row */}
+                        <div className="mt-2 flex justify-center">
                           <span
-                            key={label}
                             className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-white/80 ring-1 ring-white/12 transition-colors duration-200 hover:text-white hover:ring-[#2dd4bf]/40"
                             style={{ background: "rgba(10,92,130,0.22)", backdropFilter: "blur(6px)" }}
                           >
-                            <Icon className="h-3.5 w-3.5 opacity-80" aria-hidden />
-                            {label}
+                            <LifeBuoy className="h-3.5 w-3.5 opacity-80" aria-hidden />
+                            Support
                           </span>
-                        ))}
+                        </div>
                       </div>
 
-                      {/* CTAs */}
-                      <div className="mt-6 flex flex-wrap items-center gap-3">
+                      {/* CTAs — side by side, no arrows */}
+                      <div className="mt-6 grid grid-cols-2 gap-3">
                         <Link
                           href="/public/group-stays"
-                          className="inline-flex items-center gap-1.5 rounded-full px-5 py-2.5 text-white text-sm font-bold no-underline hover:no-underline transition-all duration-300 hover:scale-[1.03] hover:shadow-[0_8px_24px_rgba(2,102,94,0.40)]"
+                          className="inline-flex items-center justify-center rounded-full px-4 py-2.5 text-white text-sm font-bold no-underline hover:no-underline transition-all duration-300 hover:scale-[1.03] hover:shadow-[0_8px_24px_rgba(2,102,94,0.40)]"
                           style={{ background: "linear-gradient(135deg,#0b1f5c 0%,#0a5c82 52%,#02665e 100%)", boxShadow: "0 0 0 1px rgba(2,102,94,0.40),0 4px 16px rgba(2,102,94,0.22)" }}
                         >
                           Explore Group Stays
-                          <ChevronRight className="h-4 w-4" aria-hidden />
                         </Link>
                         <Link
                           href="/public/plan-with-us"
-                          className="inline-flex items-center gap-1.5 rounded-full px-5 py-2.5 text-white/80 text-sm font-semibold ring-1 ring-white/18 no-underline hover:no-underline transition-all duration-200 hover:text-white hover:ring-[#2dd4bf]/40"
+                          className="inline-flex items-center justify-center rounded-full px-4 py-2.5 text-white/80 text-sm font-semibold ring-1 ring-white/18 no-underline hover:no-underline transition-all duration-200 hover:text-white hover:ring-[#2dd4bf]/40"
                           style={{ background: "rgba(255,255,255,0.07)" }}
                         >
                           Plan with us
-                          <ChevronRight className="h-4 w-4" aria-hidden />
                         </Link>
                       </div>
                     </div>

@@ -42,10 +42,10 @@ export default function MobilePublicNav() {
     return () => { alive = false; };
   }, []);
 
-  const accountHref  = authed ? "/dashboard" : "/account/sign-in";
+  const accountHref  = authed ? "/account" : "/account/sign-in";
   const isHome       = pathname === "/public";
   const isProperties = pathname.startsWith("/public/properties");
-  const isAccount    = pathname.startsWith("/dashboard") || pathname.startsWith("/account");
+  const isAccount    = pathname.startsWith("/account");
 
   // Hide on portals that have their own navigation
   const isHidden =

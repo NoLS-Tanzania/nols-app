@@ -274,7 +274,7 @@ export default function BookingFlowCard() {
                     const iconClass = s.color;
 
                     return (
-                      <li key={s.label} className="relative z-10 flex-1 min-w-[8.5rem] sm:min-w-0 list-none">
+                      <li key={s.label} className="relative z-10 flex-1 min-w-0 list-none">
                         <button
                           type="button"
                           onClick={() => handleStepChange(stepNum)}
@@ -282,7 +282,7 @@ export default function BookingFlowCard() {
                           aria-label={s.label}
                           disabled={isTransitioning}
                           className={[
-                            "w-full flex items-center justify-center gap-2 bg-transparent border-0 rounded-full px-2 py-1.5",
+                            "w-full flex items-center justify-center gap-1 sm:gap-2 bg-transparent border-0 rounded-full px-1 sm:px-2 py-1.5",
                             "focus:outline-none focus-visible:ring-2 focus-visible:ring-[#02b4f5]/25 transform transition-all duration-300 ease-out",
                             activeStep === stepNum ? "scale-[1.02]" : "hover:scale-[1.02]",
                             isTransitioning ? "opacity-60 cursor-wait" : "",
@@ -321,7 +321,7 @@ export default function BookingFlowCard() {
                               </>
                             )}
                           </svg>
-                          <span className={["text-sm whitespace-nowrap", activeStep === stepNum ? "text-slate-900" : "text-slate-700"].join(" ")}>{s.label}</span>
+                          <span className={["text-sm whitespace-nowrap hidden sm:inline", activeStep === stepNum ? "text-slate-900" : "text-slate-700"].join(" ")}>{s.label}</span>
                         </button>
                       </li>
                     );

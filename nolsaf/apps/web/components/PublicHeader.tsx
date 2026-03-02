@@ -481,7 +481,7 @@ export default function PublicHeader({
                   <GlobalPicker variant={headerVariant} />
                   <ThemeToggle variant={headerVariant} />
 
-                  {authed && <UserMenu variant={headerVariant} />}
+                  {authed && <span className="hidden xl:inline-flex"><UserMenu variant={headerVariant} /></span>}
 
                   {/* Mobile Menu Button */}
                   <button

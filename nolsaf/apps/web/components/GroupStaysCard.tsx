@@ -737,9 +737,9 @@ export default function GroupStaysCard({ onCloseAction }: { onCloseAction?: () =
             {/* Stepper header */}
             <div className="sm:col-span-2">
               <div className="mb-3">
-                <nav className="flex items-center justify-center gap-6">
+                <nav className="flex items-center justify-center gap-1.5 sm:gap-4">
                   {[1,2,3,4].map((s, i) => (
-                    <div key={s} className="flex items-center gap-3">
+                    <div key={s} className="flex items-center gap-1.5 sm:gap-3">
                       <button
                         type="button"
                         onClick={() => {
@@ -755,14 +755,14 @@ export default function GroupStaysCard({ onCloseAction }: { onCloseAction?: () =
                             setCurrentStep(s);
                           }
                         }}
-                        className={`flex items-center justify-center w-10 h-10 rounded-full text-sm font-semibold transition-transform transform ${currentStep===s ? 'bg-emerald-600 text-white shadow-md scale-105' : 'bg-slate-100 text-slate-700 hover:scale-105'} focus:outline-none focus:ring-2 focus:ring-emerald-200`}
+                        className={`flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full text-xs sm:text-sm font-semibold transition-transform transform ${currentStep===s ? 'bg-emerald-600 text-white shadow-md scale-105' : 'bg-slate-100 text-slate-700 hover:scale-105'} focus:outline-none focus:ring-2 focus:ring-emerald-200`}
                         aria-current={currentStep===s ? 'step' : undefined}
                         aria-label={`Step ${s}`}
                       >
                         {s}
                       </button>
                       <div className="hidden sm:block text-sm text-slate-600">{s === 1 ? 'Details' : s === 2 ? 'Accommodation' : s === 3 ? 'Roster' : 'Review'}</div>
-                      {i < 3 ? <div className={`w-16 h-1 rounded ${currentStep > s ? 'bg-emerald-500' : 'bg-slate-200'} transition-colors`} /> : null}
+                      {i < 3 ? <div className={`w-8 sm:w-14 h-1 rounded ${currentStep > s ? 'bg-emerald-500' : 'bg-slate-200'} transition-colors`} /> : null}
                     </div>
                   ))}
                 </nav>
