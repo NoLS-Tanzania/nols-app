@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import React, { useEffect, useState, useRef, useMemo } from "react";
-import { ChevronDown, Menu, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, MapPin, Menu, X } from 'lucide-react';
 import { REGIONS } from '@/lib/tzRegions';
 import UserMenu from '@/components/UserMenu';
 import ThemeToggle from "@/components/ThemeToggle";
@@ -21,6 +21,7 @@ export default function PublicHeader({
 }) {
   const [authed, setAuthed] = React.useState<boolean>(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
+  const [mobileRegionsOpen, setMobileRegionsOpen] = useState<boolean>(false);
   const [scrolled, setScrolled] = useState<boolean>(false);
   const [headerVisible, setHeaderVisible] = useState<boolean>(true);
   const [scrollProgress, setScrollProgress] = useState<number>(0);
@@ -502,60 +503,71 @@ export default function PublicHeader({
           </div>
         </div>
 
-        {/* Mobile Menu — dark premium glass, matches hero */}
+        {/* Mobile Menu — compact left-anchored panel */}
         <div
-          className={`xl:hidden absolute top-full left-0 right-0 transition-all duration-300 ease-out overflow-hidden ${
+          className={`xl:hidden absolute top-full left-2 sm:left-3 z-50 transition-all duration-300 ease-out overflow-hidden ${
             mobileMenuOpen
-              ? 'max-h-[640px] opacity-100'
-              : 'max-h-0 opacity-0'
+              ? 'max-h-[90vh] opacity-100 translate-y-0 pointer-events-auto overflow-y-auto'
+              : 'max-h-0 opacity-0 -translate-y-2 pointer-events-none'
           }`}
           style={{
-            background: 'linear-gradient(180deg, rgba(5,8,15,0.97) 0%, rgba(5,8,15,0.94) 100%)',
-            backdropFilter: 'blur(24px) saturate(180%)',
-            WebkitBackdropFilter: 'blur(24px) saturate(180%)',
-            borderTop: '1px solid rgba(255,255,255,0.08)',
-            boxShadow: '0 24px 56px rgba(0,0,0,0.54)',
+            width: 'min(280px, calc(100vw - 16px))',
+            marginTop: '6px',
+            background: 'linear-gradient(180deg, rgba(5,10,18,0.98) 0%, rgba(4,9,16,0.96) 100%)',
+            backdropFilter: 'blur(28px) saturate(180%)',
+            WebkitBackdropFilter: 'blur(28px) saturate(180%)',
+            border: '1px solid rgba(255,255,255,0.09)',
+            borderRadius: '18px',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.60), 0 0 0 1px rgba(45,212,191,0.06)',
           }}
         >
           {/* Top accent line */}
-          <div className="h-px bg-gradient-to-r from-transparent via-[#02665e]/60 to-transparent" />
-          <nav className="flex flex-col py-3 px-4 gap-0.5">
+          <div className="h-px mx-3 mt-2 rounded-full bg-gradient-to-r from-transparent via-[#2dd4bf]/30 to-transparent" />
+          <nav className="flex flex-col py-2 px-2 gap-0.5">
             {navLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
                 onClick={() => setMobileMenuOpen(false)}
-                className={`relative text-white/90 font-medium text-sm py-3 px-4 rounded-xl transition-all duration-200 active:scale-[0.98] no-underline hover:text-white ${
+                className={`relative text-white/90 font-medium text-[13px] py-2.5 px-3 rounded-2xl transition-all duration-200 active:scale-[0.97] no-underline hover:text-white ${
                   pathname === link.href
-                    ? 'bg-white/[0.12] text-white'
-                    : 'hover:bg-white/[0.07]'
+                    ? 'bg-white/[0.10] text-white'
+                    : 'hover:bg-white/[0.06]'
                 }`}
               >
                 {pathname === link.href && (
-                  <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1 h-5 bg-[#2dd4bf] rounded-full shadow-[0_0_8px_rgba(45,212,191,0.70)]"></span>
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 w-[3px] h-4 bg-[#2dd4bf] rounded-full shadow-[0_0_8px_rgba(45,212,191,0.70)]"></span>
                 )}
                 <span className="relative z-10 pl-2">{link.label}</span>
               </Link>
             ))}
-            <div className="mt-2 mb-1 border-t border-white/[0.08] pt-2">
-              <div className="px-4">
-                <RegionsDropdown fullWidth />
-              </div>
+            <div className="mt-1.5 mb-1 border-t border-white/[0.07] pt-2 px-1">
+              <button
+                type="button"
+                onClick={() => { setMobileMenuOpen(false); setMobileRegionsOpen(true); }}
+                className="w-full flex items-center justify-between text-white/85 font-medium text-[13px] py-2.5 px-3 rounded-2xl bg-white/[0.05] hover:bg-white/[0.10] active:scale-[0.97] transition-all duration-150 border-0 outline-none"
+              >
+                <span className="flex items-center gap-2">
+                  <MapPin className="w-3.5 h-3.5 text-[#2dd4bf]" />
+                  Regions
+                </span>
+                <ChevronRight className="w-3.5 h-3.5 text-white/35" />
+              </button>
             </div>
             {!authed && (
-              <div className="pt-2 border-t border-white/[0.08] mt-1 flex flex-col gap-2 px-2 pb-3">
+              <div className="pt-1.5 border-t border-white/[0.07] mt-0.5 flex flex-col gap-1.5 px-1 pb-2">
                 <Link
                   href="/account/login"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="text-white/85 font-medium text-sm py-2.5 px-4 rounded-xl bg-white/[0.08] hover:bg-white/[0.13] ring-1 ring-white/[0.10] transition-all duration-200 text-center active:scale-[0.98] no-underline"
+                  className="text-white/80 font-medium text-[13px] py-2 px-3 rounded-2xl bg-white/[0.07] hover:bg-white/[0.12] ring-1 ring-white/[0.09] transition-all duration-200 text-center active:scale-[0.97] no-underline"
                 >
                   Sign in
                 </Link>
                 <Link
                   href="/account/register"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="text-white font-semibold text-sm py-2.5 px-4 rounded-xl transition-all duration-200 text-center active:scale-[0.98] no-underline"
-                  style={{ background: 'linear-gradient(135deg,#0b1f5c 0%,#0a5c82 52%,#02665e 100%)', boxShadow: '0 4px 16px rgba(2,102,94,0.30)' }}
+                  className="text-white font-semibold text-[13px] py-2 px-3 rounded-2xl transition-all duration-200 text-center active:scale-[0.97] no-underline"
+                  style={{ background: 'linear-gradient(135deg,#0b1f5c 0%,#0a5c82 52%,#02665e 100%)', boxShadow: '0 4px 14px rgba(2,102,94,0.28)' }}
                 >
                   Register
                 </Link>
@@ -576,6 +588,69 @@ export default function PublicHeader({
           transition: 'height 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
         }}
       />
+
+      {/* ── Mobile Regions Full-Screen Overlay ── */}
+      <div
+        className={`fixed inset-0 z-[200] flex flex-col transition-all duration-300 ease-out ${
+          mobileRegionsOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+        }`}
+        style={{ background: 'rgba(4,8,18,0.88)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)' }}
+        onClick={(e) => { if (e.target === e.currentTarget) setMobileRegionsOpen(false); }}
+      >
+        {/* Sheet — slides up from bottom */}
+        <div
+          className={`mt-auto rounded-t-3xl flex flex-col transition-transform duration-300 ease-out ${
+            mobileRegionsOpen ? 'translate-y-0' : 'translate-y-full'
+          }`}
+          style={{
+            background: 'linear-gradient(175deg, #080e28 0%, #0a2235 52%, #012018 100%)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            borderBottom: 'none',
+            boxShadow: '0 -16px 60px rgba(0,0,0,0.60)',
+            maxHeight: '88vh',
+          }}
+        >
+          {/* Handle */}
+          <div className="flex justify-center pt-3 pb-1">
+            <span className="w-10 h-1 rounded-full bg-white/20" />
+          </div>
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 py-3 border-b border-white/[0.07]">
+            <div>
+              <p className="text-white font-semibold text-base leading-tight">Regions</p>
+              <p className="text-white/40 text-xs mt-0.5">Select a region to explore stays</p>
+            </div>
+            <button
+              type="button"
+              aria-label="Close regions"
+              onClick={() => setMobileRegionsOpen(false)}
+              className="w-8 h-8 rounded-full bg-white/[0.08] flex items-center justify-center text-white/60 hover:text-white hover:bg-white/[0.15] transition-all border-0 outline-none active:scale-90"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          {/* Teal accent */}
+          <div className="h-px mx-5" style={{ background: 'linear-gradient(90deg, transparent, rgba(45,212,191,0.50), transparent)' }} />
+          {/* Grid */}
+          <div className="overflow-y-auto px-4 py-4" style={{ maxHeight: 'calc(88vh - 106px)' }}>
+            <div className="grid grid-cols-3 gap-2">
+              {REGIONS.map((r: any) => (
+                <Link
+                  key={r.id}
+                  href={`/public/properties?region=${encodeURIComponent(r.id)}`}
+                  onClick={() => setMobileRegionsOpen(false)}
+                  className="flex items-center justify-center px-2 py-3.5 rounded-2xl text-center text-[12px] font-medium leading-tight text-white/75 hover:text-white active:scale-95 transition-all duration-150 select-none"
+                  style={{ textDecoration: 'none', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.07)' }}
+                >
+                  {r.name}
+                </Link>
+              ))}
+            </div>
+          </div>
+          {/* Bottom safe area pad */}
+          <div style={{ height: 'env(safe-area-inset-bottom, 16px)', minHeight: '16px' }} />
+        </div>
+      </div>
     </>
   );
 }
@@ -695,10 +770,29 @@ function RegionsDropdown({ variant = "dark", fullWidth = false }:{ variant?: "li
         </div>
       </button>
 
-      {open && (
+      {/* ── Inline accordion (mobile hamburger / fullWidth mode) ── */}
+      {fullWidth && open && (
+        <div className="mt-1 rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+          <div className="px-2 py-2 grid grid-cols-3 gap-0.5">
+            {REGIONS.map((r: any) => (
+              <Link
+                key={r.id}
+                href={`/public/properties?region=${encodeURIComponent(r.id)}`}
+                onClick={() => setOpen(false)}
+                className="block px-1.5 py-2 text-[11px] font-medium text-white/70 hover:text-white hover:bg-white/[0.10] transition-all duration-150 no-underline text-center rounded-xl cursor-pointer active:scale-95 leading-tight"
+              >
+                {r.name}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Floating panel (desktop nav trigger) ── */}
+      {!fullWidth && open && (
         <div
           ref={dragRef}
-          className={`${pos ? 'fixed' : 'absolute left-1/2 transform -translate-x-1/2'} mt-2 rounded-2xl z-50 min-w-[24rem] sm:min-w-[32rem] lg:min-w-[40rem] xl:min-w-[48rem] max-w-[calc(100vw-2rem)] transition-all duration-300 ease-out animate-in fade-in slide-in-from-top-2`}
+          className={`${pos ? 'fixed' : 'absolute left-1/2 transform -translate-x-1/2'} mt-2 rounded-2xl z-50 w-[calc(100vw-2rem)] sm:w-auto sm:min-w-[32rem] lg:min-w-[40rem] xl:min-w-[48rem] max-w-[calc(100vw-2rem)] transition-all duration-300 ease-out animate-in fade-in slide-in-from-top-2`}
           style={{ background: 'linear-gradient(155deg,#080e28 0%,#0a2235 55%,#012018 100%)', backdropFilter: 'blur(24px) saturate(180%)', WebkitBackdropFilter: 'blur(24px) saturate(180%)', boxShadow: '0 24px 64px rgba(0,0,0,0.60), 0 0 0 1px rgba(2,102,94,0.30)', border: '1px solid rgba(255,255,255,0.08)' }}
         >
           {/* Top accent */}
@@ -729,7 +823,7 @@ function RegionsDropdown({ variant = "dark", fullWidth = false }:{ variant?: "li
           </div>
 
           {!minimized && (
-            <div className="p-3 grid grid-cols-5 gap-0">
+            <div className="p-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-0.5">
               {REGIONS.map((r: any) => (
                 <Link
                   key={r.id}

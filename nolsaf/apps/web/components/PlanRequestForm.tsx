@@ -1517,12 +1517,33 @@ export default function PlanRequestForm({ selectedRole }: Props) {
         </>
       )}
 
-      {/* Two-column wrapper: show stepper + content only after a role is selected */}
-      <div className="mt-4 flex items-start gap-6">
+      {/* Stepper + content wrapper */}
+      <div className="mt-4 flex flex-col sm:flex-row items-start gap-4 sm:gap-6">
         {selectedRole ? (
           <>
-            <div className="w-28 pr-4 border-r border-slate-200">
-              <div className="flex flex-col items-center gap-4">
+            {/* ── Stepper ── */}
+            <div className="w-full sm:w-28 sm:pr-4 sm:border-r sm:border-slate-200 pb-2 sm:pb-0 border-b border-slate-100 sm:border-b-0">
+              {/* Mobile: horizontal */}
+              <div className="flex sm:hidden items-center justify-between relative px-1">
+                {/* connector line behind circles */}
+                <div className="absolute top-5 left-6 right-6 h-px bg-slate-200" />
+                {['Details', 'Role', 'Transport', 'Review'].map((label, i) => (
+                  <div key={label} className="relative flex flex-col items-center flex-1">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold z-10 ${
+                      step === i+1
+                        ? 'bg-emerald-600 text-white shadow-[0_0_0_3px_#d1fae5]'
+                        : step > i+1
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : 'bg-gray-100 text-slate-400'
+                    }`}>{i+1}</div>
+                    <div className={`mt-1.5 text-[10px] font-medium text-center leading-tight ${
+                      step === i+1 ? 'text-emerald-700' : 'text-slate-400'
+                    }`}>{label}</div>
+                  </div>
+                ))}
+              </div>
+              {/* Desktop: vertical */}
+              <div className="hidden sm:flex flex-col items-center gap-4">
                 {['Details', 'Role', 'Transport', 'Review'].map((label, i) => (
                   <div key={label} className="flex flex-col items-center">
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold ${step === i+1 ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-slate-700'}`}>{i+1}</div>

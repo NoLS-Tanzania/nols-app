@@ -32,9 +32,11 @@ interface FloatingChatWidgetProps {
   hiddenRoutes?: string[];
   /** Custom position */
   position?: "bottom-right" | "bottom-left";
+  /** Extra bottom offset applied on mobile (< 768px) so FAB clears a mobile nav bar */
+  mobileBottomOffset?: number;
 }
 
-export default function FloatingChatWidget({ hiddenRoutes: _hiddenRoutes = [], position = "bottom-right" }: FloatingChatWidgetProps) {
+export default function FloatingChatWidget({ hiddenRoutes: _hiddenRoutes = [], position = "bottom-right", mobileBottomOffset = 0 }: FloatingChatWidgetProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -713,6 +715,9 @@ export default function FloatingChatWidget({ hiddenRoutes: _hiddenRoutes = [], p
 
   return (
     <div className="fixed z-50">
+      {mobileBottomOffset > 0 && (
+        <style>{`@media (max-width: 767px) { .nolsaf-chat-fab { bottom: ${20 + mobileBottomOffset}px !important; } }`}</style>
+      )}
       {/* ── Chat Panel ── */}
       {isOpen && (
         <div
@@ -1027,7 +1032,7 @@ export default function FloatingChatWidget({ hiddenRoutes: _hiddenRoutes = [], p
             resetAutoCloseTimer();
           }}
           aria-label="Open chat with Twiga"
-          className="group relative rounded-full bg-transparent p-0 border-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-teal-400/60"
+          className="nolsaf-chat-fab group relative rounded-full bg-transparent p-0 border-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-teal-400/60"
           style={{
             position: "fixed",
             ...(position === "bottom-left" ? { bottom: "20px", left: "20px" } : { bottom: "20px", right: "20px" }),

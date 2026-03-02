@@ -32,7 +32,7 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
         </div>
       </div>
 
-      <FloatingChatWidget position="bottom-right" />
+      <FloatingChatWidget position="bottom-right" mobileBottomOffset={56} />
     </div>
   );
 }

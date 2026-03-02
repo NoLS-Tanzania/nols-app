@@ -7,6 +7,7 @@ import Script from "next/script";
 import type { Metadata } from "next";
 import ToastContainer from "../components/ToastContainer";
 import SuspendedAccessOverlay from "../components/SuspendedAccessOverlay";
+import MobilePublicNav from "../components/MobilePublicNav";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -62,13 +63,16 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             `}
           </Script>
         )}
-        <div className="min-h-screen bg-neutral-50">
+        <div className="min-h-screen bg-neutral-50 pb-16 md:pb-0">
           <Suspense fallback={null}>{children}</Suspense>
         </div>
         <Suspense fallback={null}>
           <SuspendedAccessOverlay />
         </Suspense>
         <ToastContainer />
+        <Suspense fallback={null}>
+          <MobilePublicNav />
+        </Suspense>
       </body>
     </html>
   );
