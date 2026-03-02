@@ -3228,8 +3228,23 @@ router.get("/:id(\\d+)", async (req, res) => {
       select: {
         id: true, name: true, email: true, phone: true,
         suspendedAt: true, createdAt: true,
+        // vetting fields
+        kycStatus: true,
+        licenseNumber: true,
+        plateNumber: true,
+        vehicleType: true,
+        operationArea: true,
+        isVipDriver: true,
+        gender: true,
+        nationality: true,
+        nin: true,
+        region: true,
+        district: true,
+        paymentPhone: true,
+        paymentVerified: true,
+        payout: true, // contains drivingLicenseUrl, nationalIdUrl etc stored by profile page
         _count: true,
-      },
+      } as any,
     });
     if (!driver) return res.status(404).json({ error: "Driver not found" });
 

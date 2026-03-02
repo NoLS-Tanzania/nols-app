@@ -117,6 +117,7 @@ const adminDetails: Item[] = [
 
 const driverDetails: Item[] = [
   { href: "/admin/drivers", label: "Dashboard", Icon: LayoutDashboard },
+  { href: "/admin/drivers/vetting", label: "Driver Vetting", Icon: ShieldCheck },
   { href: "/admin/drivers/all", label: "All Drivers", Icon: Truck },
   { href: "/admin/drivers/trips", label: "Trips", Icon: Calendar },
   { href: "/admin/drivers/trips/scheduled", label: "Scheduled Trips", Icon: Calendar },
