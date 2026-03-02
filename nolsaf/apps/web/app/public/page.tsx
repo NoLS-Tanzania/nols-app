@@ -8,7 +8,6 @@ import {
   ChevronRight,
   X,
   Calendar,
-  Search,
   Eye,
   Sparkles,
   Gavel,
@@ -1027,7 +1026,7 @@ export default function Page() {
         </div>
 
         <div className="relative z-10">
-          <div className="public-container min-h-[calc(100vh-72px)] grid grid-cols-1 lg:grid-cols-12 items-center gap-12 pt-16 pb-12 sm:pt-20 sm:pb-14 lg:pt-24 lg:pb-16">
+          <div className="public-container grid grid-cols-1 lg:grid-cols-12 items-center gap-6 sm:gap-10 lg:gap-12 pt-10 pb-8 sm:pt-14 sm:pb-10 lg:min-h-[calc(100vh-72px)] lg:pt-24 lg:pb-16">
               <div className="lg:col-span-12 flex flex-col items-center">
                 <motion.div
                   initial={{ opacity: 0, y: 14 }}
@@ -1035,7 +1034,7 @@ export default function Page() {
                   transition={{ duration: 0.6, ease: [0.2, 0.8, 0.2, 1] }}
                   className="max-w-4xl mx-auto text-center"
                 >
-                  <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-[5.8rem] font-black tracking-[-0.045em] leading-[0.86] text-white text-balance">
+                  <h1 className="text-[2rem] sm:text-5xl md:text-[4.5rem] lg:text-[5.8rem] font-black tracking-[-0.045em] leading-[0.95] sm:leading-[0.86] text-white text-balance">
                     Quality stay
                     <span
                       className="block text-transparent bg-clip-text"
@@ -1045,7 +1044,7 @@ export default function Page() {
                     </span>
                   </h1>
 
-                  <p className="mx-auto mt-6 max-w-[44ch] text-[15px] text-white/48 leading-[1.75] font-light">
+                  <p className="mx-auto mt-3 sm:mt-6 max-w-[44ch] text-[13px] sm:text-[15px] text-white/48 leading-[1.75] font-light">
                     One platform for stays, transport &amp; experiences.
                     <br />
                     <span className="text-white/30 text-sm tracking-wide">Simpler · Trusted · Unforgettable</span>
@@ -1057,16 +1056,16 @@ export default function Page() {
                   initial={{ opacity: 0, y: 18 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6, delay: 0.08, ease: [0.2, 0.8, 0.2, 1] }}
-                  className="mt-8 w-full max-w-3xl mx-auto"
+                  className="mt-5 sm:mt-8 w-full max-w-3xl mx-auto"
                 >
                 <form onSubmit={submitSearch} className="w-full pointer-events-auto">
-                  <div className="flex items-center gap-1.5 bg-gradient-to-b from-white/[0.16] to-white/[0.06] backdrop-blur-2xl rounded-full p-2 shadow-[0_22px_80px_rgba(0,0,0,0.42)] ring-1 ring-white/22 w-full sm:w-fit mx-auto">
+                  <div className="flex items-center gap-1.5 bg-gradient-to-b from-white/[0.16] to-white/[0.06] backdrop-blur-2xl rounded-full p-2 shadow-[0_22px_80px_rgba(0,0,0,0.42)] ring-1 ring-white/22 w-full mx-auto">
                     <input
                       aria-label="Search query"
                       value={q}
                       onChange={(e) => setQ(e.target.value)}
                       placeholder={searchPlaceholder}
-                      className="flex-1 sm:flex-none sm:min-w-[170px] min-w-0 px-3 sm:px-4 py-2 text-sm sm:text-base rounded-l-full rounded-r-none border border-white/22 bg-white/[0.06] text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-emerald-400/45 focus:border-emerald-400/55"
+                      className="flex-1 min-w-0 px-3 py-2 text-sm rounded-l-full rounded-r-none border border-white/22 bg-white/[0.06] text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-emerald-400/45 focus:border-emerald-400/55"
                     />
 
                       <div ref={guestRef} className="flex-none w-14 sm:w-auto inline-flex items-center justify-center gap-1.5 border border-white/20 rounded-full overflow-visible px-2 py-1.5 relative bg-white/5">
@@ -1234,15 +1233,14 @@ export default function Page() {
                           )
                         ) : null}
                       </div>
-                      <div ref={dateRef} className="flex-none w-12 sm:w-auto inline-flex items-center justify-center gap-1.5 relative border border-white/20 rounded-full px-2.5 py-1.5 bg-white/5">
+                      <div ref={dateRef} className="flex-none inline-flex items-center justify-center gap-1.5 relative border border-white/20 rounded-full px-2.5 py-1.5 bg-white/5">
                         <button
                           type="button"
                           aria-label="Select dates"
                           onClick={() => { setDateOpen((v) => !v); }}
                           className="w-full inline-flex items-center justify-center px-0 py-0 bg-transparent text-white border-0 text-sm"
                         >
-                          <Calendar className="h-5 w-5 sm:hidden" aria-hidden />
-                          <span className="hidden sm:inline truncate">
+                          <span className="truncate text-sm">
                             {checkin ? (checkout ? formatRangeShort(checkin, checkout) : formatSingleShort(checkin)) : 'Add dates'}
                           </span>
                         </button>
@@ -1278,44 +1276,34 @@ export default function Page() {
                       </div>
                       <button
                         type="submit"
-                        className="flex-none flex-shrink-0 flex items-center justify-center w-12 h-12 sm:w-auto sm:h-auto px-0 sm:px-3 py-0 sm:py-2 text-white rounded-r-full rounded-l-none font-semibold text-sm transition-all duration-200 whitespace-nowrap bg-gradient-to-r from-emerald-500 via-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 shadow-[0_12px_40px_rgba(16,185,129,0.30)] hover:shadow-[0_18px_55px_rgba(16,185,129,0.32)] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/60"
+                        className="flex-none flex-shrink-0 flex items-center justify-center px-4 py-2 text-white rounded-r-full rounded-l-none font-semibold text-sm transition-all duration-200 whitespace-nowrap bg-gradient-to-r from-emerald-500 via-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 shadow-[0_12px_40px_rgba(16,185,129,0.30)] hover:shadow-[0_18px_55px_rgba(16,185,129,0.32)] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/60"
                       >
-                        <Search className="h-5 w-5 sm:hidden" aria-hidden />
-                        <span className="hidden sm:inline">Search</span>
+                        <span>Search</span>
                       </button>
                     </div>
                   </form>
-                  <div className="mt-8 lg:mt-10 w-full">
-                    <div className="flex items-center justify-center gap-2.5 w-full flex-wrap">
-                      <Link href="/public/properties" aria-label="Browse stays" className="group relative no-underline flex-shrink-0">
-                        <span className="inline-flex items-center gap-2 px-4 py-2.5 text-sm text-white font-medium rounded-full bg-emerald-500/90 hover:bg-emerald-400 active:bg-emerald-400 shadow-[0_8px_28px_rgba(16,185,129,0.30)] transition-all">
-                          <BedDouble className="w-4 h-4 flex-shrink-0" />
-                          <span className="hidden sm:inline whitespace-nowrap">Browse stays</span>
-                        </span>
-                        <span className="pointer-events-none sm:hidden absolute -top-9 left-1/2 -translate-x-1/2 z-20 whitespace-nowrap px-2 py-1 text-xs font-medium text-white/90 rounded-full bg-white/[0.10] ring-1 ring-white/20 backdrop-blur-sm opacity-0 translate-y-1 transition-all duration-150 group-hover:opacity-100 group-hover:translate-y-0 group-active:opacity-100 group-active:translate-y-0">
-                          Browse stays
+                  <div className="mt-4 sm:mt-6 lg:mt-8 w-full">
+                    <div className="flex items-center justify-center gap-2 sm:gap-2.5 w-full flex-wrap">
+                      <Link href="/public/properties" aria-label="Browse stays" className="no-underline flex-shrink-0">
+                        <span className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-white font-medium rounded-full bg-emerald-500/90 hover:bg-emerald-400 active:bg-emerald-400 shadow-[0_8px_28px_rgba(16,185,129,0.30)] transition-all">
+                          <BedDouble className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+                          <span className="whitespace-nowrap">Browse stays</span>
                         </span>
                       </Link>
-                      <Link href="/account/register?role=owner" aria-label="List your property" className="group relative no-underline flex-shrink-0">
-                        <span className="inline-flex items-center gap-2 px-4 py-2.5 text-sm text-white/85 font-medium rounded-full bg-white/[0.08] ring-1 ring-white/15 hover:bg-white/[0.14] active:bg-white/[0.18] backdrop-blur-sm transition-all">
-                          <Plus className="w-4 h-4 flex-shrink-0" />
-                          <span className="hidden sm:inline whitespace-nowrap">List your property</span>
-                        </span>
-                        <span className="pointer-events-none sm:hidden absolute -top-9 left-1/2 -translate-x-1/2 z-20 whitespace-nowrap px-2 py-1 text-xs font-medium text-white/90 rounded-full bg-white/[0.10] ring-1 ring-white/20 backdrop-blur-sm opacity-0 translate-y-1 transition-all duration-150 group-hover:opacity-100 group-hover:translate-y-0 group-active:opacity-100 group-active:translate-y-0">
-                          List your property
+                      <Link href="/account/register?role=owner" aria-label="List your property" className="no-underline flex-shrink-0">
+                        <span className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-white/85 font-medium rounded-full bg-white/[0.08] ring-1 ring-white/15 hover:bg-white/[0.14] active:bg-white/[0.18] backdrop-blur-sm transition-all">
+                          <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+                          <span className="whitespace-nowrap">List your property</span>
                         </span>
                       </Link>
                       <button
                         type="button"
                         onClick={scrollToBookingFlow}
                         aria-label="How it works"
-                        className="group relative flex-shrink-0 inline-flex items-center gap-2 px-4 py-2.5 text-sm text-white/85 font-medium rounded-full bg-white/[0.08] ring-1 ring-white/15 hover:bg-white/[0.14] active:bg-white/[0.18] backdrop-blur-sm transition-all"
+                        className="flex-shrink-0 inline-flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-white/85 font-medium rounded-full bg-white/[0.08] ring-1 ring-white/15 hover:bg-white/[0.14] active:bg-white/[0.18] backdrop-blur-sm transition-all"
                       >
-                        <PlayCircle className="w-4 h-4 flex-shrink-0" />
-                        <span className="hidden sm:inline whitespace-nowrap">How it works</span>
-                        <span className="pointer-events-none sm:hidden absolute -top-9 left-1/2 -translate-x-1/2 z-20 whitespace-nowrap px-2 py-1 text-xs font-medium text-white/90 rounded-full bg-white/[0.10] ring-1 ring-white/20 backdrop-blur-sm opacity-0 translate-y-1 transition-all duration-150 group-hover:opacity-100 group-hover:translate-y-0 group-active:opacity-100 group-active:translate-y-0">
-                          How it works
-                        </span>
+                        <PlayCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+                        <span className="whitespace-nowrap">How it works</span>
                       </button>
                     </div>
                   </div>
@@ -1325,7 +1313,7 @@ export default function Page() {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.55, delay: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
-                    className="mt-10 flex items-center justify-center gap-6 flex-wrap"
+                    className="mt-5 sm:mt-10 flex items-center justify-center gap-4 sm:gap-6 flex-wrap"
                   >
                     {[
                       { value: "12K+", label: "Happy guests" },
