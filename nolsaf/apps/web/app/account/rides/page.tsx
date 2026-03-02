@@ -324,7 +324,7 @@ export default function MyRidesPage() {
 
       {/* ═══════════════ EMPTY STATE ═══════════════ */}
       {filteredRides.length === 0 ? (
-        <div className="relative overflow-hidden rounded-3xl border border-slate-100 bg-white p-12 text-center shadow-[0_2px_20px_rgba(0,0,0,0.05)]">
+        <div className="relative overflow-hidden rounded-3xl border border-slate-100 bg-white p-8 text-center shadow-[0_2px_20px_rgba(0,0,0,0.05)]">
           <div className="pointer-events-none absolute inset-0 opacity-[0.03]"
             style={{ background: "radial-gradient(circle at 50% 0%, #0369a1, transparent 60%)" }} />
           <div className="relative">
@@ -340,19 +340,27 @@ export default function MyRidesPage() {
                 ? "You haven't completed any rides yet."
                 : filter === "expired"
                 ? "You don't have any expired rides."
-                : "When you book a ride, it will appear here for easy access."}
+                : "Your rides appear here once you book a property that includes transport."}
             </div>
+
+            {/* Book a property CTA card — only on 'all' filter */}
             {filter === "all" && (
-              <div className="mt-7 flex justify-center">
-                <Link
-                  href="/public/properties"
-                  className="group no-underline inline-flex items-center justify-center gap-2 rounded-2xl px-6 py-3 text-sm font-semibold text-white shadow-md hover:shadow-lg active:scale-[0.99] transition-all"
-                  style={{ background: "linear-gradient(135deg, #1e3a5f 0%, #0369a1 100%)" }}
+              <Link
+                href="/public/properties"
+                className="group no-underline mt-7 mx-auto max-w-xs flex items-center gap-4 rounded-2xl border border-sky-100 bg-gradient-to-br from-sky-50 to-white px-5 py-4 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-[2px] active:scale-[0.99]"
+              >
+                <span
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl shadow-sm"
+                  style={{ background: "linear-gradient(135deg, #0a5c82 0%, #02665e 100%)" }}
                 >
-                  Book a ride
-                  <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
-                </Link>
-              </div>
+                  <Car className="h-5 w-5 text-white" />
+                </span>
+                <div className="flex-1 text-left">
+                  <div className="text-sm font-bold text-slate-900 leading-snug">Book a property</div>
+                  <div className="text-xs text-slate-500 mt-0.5 leading-relaxed">Secure your ride when you make a property booking.</div>
+                </div>
+                <ArrowRight className="h-4 w-4 text-sky-500 shrink-0 transition-transform duration-200 group-hover:translate-x-0.5" />
+              </Link>
             )}
           </div>
         </div>

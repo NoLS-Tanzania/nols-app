@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import React, { useEffect, useState, useCallback } from "react";
-import { Home, Building2, Plus, User } from "lucide-react";
+import { Home, Building2, Plus, User, Car } from "lucide-react";
 import { usePathname } from "next/navigation";
 
 interface MeResponse {
@@ -11,7 +11,7 @@ interface MeResponse {
   profileImage?: string;
 }
 
-type Slot = "home" | "stays" | "list" | "account";
+type Slot = "home" | "stays" | "list" | "rides" | "account";
 
 export default function MobilePublicNav() {
   const pathname = usePathname();
@@ -45,7 +45,8 @@ export default function MobilePublicNav() {
   const accountHref  = authed ? "/account" : "/account/sign-in";
   const isHome       = pathname === "/public";
   const isProperties = pathname.startsWith("/public/properties");
-  const isAccount    = pathname.startsWith("/account");
+  const isRides      = pathname.startsWith("/account/rides");
+  const isAccount    = pathname.startsWith("/account") && !isRides;
 
   // Hide on portals that have their own navigation
   const isHidden =
@@ -177,6 +178,29 @@ export default function MobilePublicNav() {
             }}
           >
             <Plus width={20} height={20} strokeWidth={2.6} color="#ffffff" />
+          </span>
+        </Link>
+
+        {/* My Rides */}
+        <Link
+          href={authed ? "/account/rides" : "/account/sign-in"}
+          aria-label="My rides"
+          style={{ textDecoration: "none" }}
+          className="relative flex items-center justify-center flex-1 h-full select-none outline-none"
+          {...touch("rides")}
+        >
+          <span
+            className="absolute top-0 left-1/2 -translate-x-1/2 rounded-b-full"
+            style={{
+              width:      isRides ? "22px" : "0px",
+              height:     "2.5px",
+              background: TEAL,
+              opacity:    isRides ? 1 : 0,
+              transition: "width 0.2s ease, opacity 0.2s ease",
+            }}
+          />
+          <span style={iconScale("rides")}>
+            <Car width={22} height={22} strokeWidth={strokeW(isRides)} color={iconColor(isRides)} />
           </span>
         </Link>
 

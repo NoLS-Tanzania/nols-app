@@ -386,7 +386,7 @@ export default function BookingFlowCard() {
 
               {/* Text / actions */}
               <div className="md:col-span-6 order-2 md:order-1">
-                <div className="rounded-3xl border border-white/70 bg-white/70 backdrop-blur-xl ring-1 ring-slate-200/70 p-4 sm:p-5 shadow-[0_18px_55px_rgba(2,6,23,0.10)]">
+                <div className="rounded-3xl overflow-hidden border border-white/70 bg-white/70 backdrop-blur-xl ring-1 ring-slate-200/70 p-4 sm:p-5 shadow-[0_18px_55px_rgba(2,6,23,0.10)]">
                   <div className="text-base font-semibold text-slate-900 tracking-tight">{activeMeta.title}</div>
                   <div className="mt-1 text-sm text-slate-600 leading-relaxed">{activeMeta.kicker}</div>
 
