@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowRight, BadgeCheck, CheckCircle2, Home, KeyRound, MapPinned, PlayCircle, ShieldCheck, User } from 'lucide-react';
+import { ArrowRight, BadgeCheck, Building2, CheckCircle2, Home, KeyRound, MapPinned, PlayCircle, ShieldCheck, User } from 'lucide-react';
 import VoiceRecorder from './VoiceRecorder';
 
 const STEP_META = [
@@ -559,8 +559,9 @@ export default function BookingFlowCard() {
                         busy ? "opacity-70 pointer-events-none" : "",
                       ].join(" ")}
                     >
-                      <span>Browse stays</span>
-                      <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden />
+                      <Building2 className="w-5 h-5 sm:hidden" aria-hidden />
+                      <span className="hidden sm:inline">Browse stays</span>
+                      <ArrowRight className="hidden sm:inline w-4 h-4 transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden />
                     </Link>
                     <div className="mt-2 text-xs text-slate-500 text-center">
                       Tip: Tap the steps above to preview the full flow.

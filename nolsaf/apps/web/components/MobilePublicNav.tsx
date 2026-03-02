@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import React, { useEffect, useState, useCallback } from "react";
-import { Home, Building2, Plus, User, Car } from "lucide-react";
-import { usePathname } from "next/navigation";
+import { Home, Building2, Plus, User, Car, Calendar, Users, ClipboardList, Settings as SettingsIcon, LogOut, X } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
 
 interface MeResponse {
   id: number;
@@ -18,6 +18,8 @@ export default function MobilePublicNav() {
   const [authed, setAuthed] = useState(false);
   const [user, setUser] = useState<MeResponse | null>(null);
   const [pressed, setPressed] = useState<Slot | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const router = useRouter();
 
   const press   = useCallback((s: Slot) => setPressed(s), []);
   const release = useCallback(() => setPressed(null), []);
@@ -42,7 +44,6 @@ export default function MobilePublicNav() {
     return () => { alive = false; };
   }, []);
 
-  const accountHref  = authed ? "/account" : "/account/sign-in";
   const isHome       = pathname === "/public";
   const isProperties = pathname.startsWith("/public/properties");
   const isRides      = pathname.startsWith("/account/rides");
@@ -88,6 +89,7 @@ export default function MobilePublicNav() {
   const strokeW    = (active: boolean) => active ? 2.4 : 1.5;
 
   return (
+    <>
     <nav
       aria-label="Mobile navigation"
       className="flex md:hidden fixed bottom-0 left-0 right-0 z-50"
@@ -205,11 +207,12 @@ export default function MobilePublicNav() {
         </Link>
 
         {/* Account */}
-        <Link
-          href={accountHref}
+        <button
+          type="button"
           aria-label={authed ? "My account" : "Sign in"}
-          style={{ textDecoration: "none" }}
-          className="relative flex items-center justify-center flex-1 h-full select-none outline-none"
+          style={{ background: "none", border: "none", padding: 0 }}
+          className="relative flex items-center justify-center flex-1 h-full select-none outline-none cursor-pointer"
+          onClick={() => authed ? setMenuOpen(true) : router.push("/account/sign-in")}
           {...touch("account")}
         >
           <span
@@ -245,9 +248,98 @@ export default function MobilePublicNav() {
               <User width={22} height={22} strokeWidth={strokeW(isAccount)} color={iconColor(isAccount)} />
             )}
           </span>
-        </Link>
+        </button>
 
       </div>
     </nav>
+
+    {/* ── Mobile Account Sheet ── */}
+    {menuOpen && (
+      <>
+        {/* Backdrop */}
+        <div
+          className="fixed inset-0 z-[55] bg-black/50 backdrop-blur-sm"
+          onClick={() => setMenuOpen(false)}
+          aria-hidden
+        />
+        {/* Sheet */}
+        <div
+          className="fixed bottom-0 left-0 right-0 z-[60] rounded-t-3xl bg-white shadow-2xl"
+          style={{ paddingBottom: "env(safe-area-inset-bottom, 12px)" }}
+        >
+          {/* Drag handle */}
+          <div className="mx-auto mt-3 w-10 h-1 rounded-full bg-slate-200" />
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-slate-100">
+            <div>
+              {user?.name && (
+                <div className="font-bold text-slate-900 text-base leading-tight">{user.name}</div>
+              )}
+              <div className="text-xs text-slate-400 mt-0.5">Manage your account</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setMenuOpen(false)}
+              className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 transition-colors"
+              aria-label="Close menu"
+            >
+              <X className="w-4 h-4 text-slate-600" />
+            </button>
+          </div>
+
+          {/* Menu items */}
+          <div className="px-3 py-2">
+            {([
+              { href: "/account",            label: "My account",    Icon: User          },
+              { href: "/account/bookings",    label: "My Bookings",   Icon: Calendar      },
+              { href: "/account/rides",       label: "My Rides",      Icon: Car           },
+              { href: "/account/group-stays", label: "My Group Stay", Icon: Users         },
+              { href: "/account/event-plans", label: "My Event Plan", Icon: ClipboardList },
+              { href: "/account/security",    label: "Settings",      Icon: SettingsIcon  },
+            ] as { href: string; label: string; Icon: React.ElementType }[]).map(({ href, label, Icon }) => {
+              const active = pathname === href || pathname.startsWith(href + "/");
+              return (
+                <button
+                  key={href}
+                  type="button"
+                  className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-colors hover:bg-slate-50 active:bg-slate-100"
+                  onClick={() => { setMenuOpen(false); router.push(href); }}
+                >
+                  <span
+                    className="flex items-center justify-center w-8 h-8 rounded-lg shrink-0"
+                    style={{ background: active ? "linear-gradient(135deg,#0a5c82,#02665e)" : "#f1f5f9" }}
+                  >
+                    <Icon className="w-4 h-4" style={{ color: active ? "#ffffff" : "#64748b" }} />
+                  </span>
+                  <span className={`text-sm font-medium ${active ? "text-teal-700" : "text-slate-700"}`}>
+                    {label}
+                  </span>
+                  {active && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-teal-500" />}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Sign out */}
+          <div className="px-3 pb-2 pt-1 border-t border-slate-100">
+            <button
+              type="button"
+              className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-colors hover:bg-red-50 active:bg-red-100"
+              onClick={async () => {
+                setMenuOpen(false);
+                await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+                window.location.href = "/account/login";
+              }}
+            >
+              <span className="flex items-center justify-center w-8 h-8 rounded-lg shrink-0 bg-red-50">
+                <LogOut className="w-4 h-4 text-red-500" />
+              </span>
+              <span className="text-sm font-medium text-red-500">Sign out</span>
+            </button>
+          </div>
+        </div>
+      </>
+    )}
+    </>
   );
 }
