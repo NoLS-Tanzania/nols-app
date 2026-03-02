@@ -1493,17 +1493,19 @@ const postAccountPasskeysAuthenticateVerify: RequestHandler = async (req, res) =
     let verification: any = null;
     try {
       verification = await (verifyAuthenticationResponse as any)({
-        credential: response,
+        response,
         expectedChallenge: storedChallenge,
         expectedOrigin: origin,
         expectedRPID: rpID,
-        authenticator: {
-          credentialPublicKey: fromBase64Url(publicKey),
-          credentialID: fromBase64Url(stored.credentialId || stored.credentialID || stored.id || credId),
+        credential: {
+          id: stored.credentialId || stored.credentialID || stored.id || credId,
+          publicKey: fromBase64Url(publicKey),
           counter: signCount,
         },
+        requireUserVerification: false,
       } as any);
-    } catch {
+    } catch (e) {
+      console.error("account.security.passkeys.authenticate.verify error:", (e as any)?.message ?? e);
       return res.status(400).json({ error: "verification failed" });
     }
 

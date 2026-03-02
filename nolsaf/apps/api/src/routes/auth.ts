@@ -1323,8 +1323,9 @@ router.post('/profile', upload.any(), async (req, res) => {
 const passkeyLoginChallenges = new Map<string, { challenge: string; expiresAt: number }>();
 
 function fromBase64UrlToBuffer(s: string): Buffer {
-  const str = s.replace(/-/g, '+').replace(/_/g, '/');
-  return Buffer.from(str, 'base64');
+  s = s.replace(/-/g, '+').replace(/_/g, '/');
+  while (s.length % 4) s += '=';
+  return Buffer.from(s, 'base64');
 }
 
 /** POST /api/auth/passkeys/options — returns WebAuthn authentication options (discoverable) */
@@ -1384,19 +1385,21 @@ router.post('/passkeys/verify', async (req, res) => {
     let verification: any = null;
     try {
       verification = await (verifyAuthenticationResponse as any)({
-        credential: response,
+        response, // the full assertion object
         expectedChallenge: entry.challenge,
         expectedOrigin: origin,
         expectedRPID: rpID,
-        authenticator: {
-          credentialPublicKey: fromBase64UrlToBuffer(stored.publicKey),
-          credentialID: fromBase64UrlToBuffer(stored.credentialId),
+        credential: {
+          id: stored.credentialId,
+          publicKey: fromBase64UrlToBuffer(stored.publicKey),
           counter: typeof stored.signCount === 'number' ? stored.signCount : 0,
         },
+        requireUserVerification: false,
       } as any);
     } catch (e) {
-      const details = process.env.NODE_ENV !== 'production' ? String((e as any)?.message ?? e) : undefined;
-      return res.status(400).json({ error: 'verification failed', ...(details ? { details } : {}) });
+      const details = String((e as any)?.message ?? e);
+      console.error('[passkeys/verify] verifyAuthenticationResponse threw:', details);
+      return res.status(400).json({ error: 'verification failed', details: process.env.NODE_ENV !== 'production' ? details : undefined });
     }
 
     if (!verification?.verified) return res.status(400).json({ error: 'verification failed' });

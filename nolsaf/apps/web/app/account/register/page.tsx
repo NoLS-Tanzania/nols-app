@@ -133,7 +133,7 @@ export default function RegisterPage() {
       await redirectAfterAuth();
     } catch (e: any) {
       if (e?.name === 'NotAllowedError') {
-        setError('Passkey sign-in was cancelled. Please try again.');
+        setError('No passkey found for this device. Log in with phone or email first, then register your fingerprint under Account → Security → Passkeys.');
       } else {
         setError(e?.message || 'Passkey sign-in failed');
       }
@@ -876,24 +876,28 @@ export default function RegisterPage() {
                   <div className="flex-1 h-px bg-slate-800" />
                 </div>
 
-                <button
-                  type="button"
-                  onClick={handlePasskeySignIn}
-                  disabled={passkeyLoading || isLockedOut}
-                  className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-[#02665e]/30 bg-[#02665e]/8 py-2.5 text-xs font-semibold text-[#02665e] hover:bg-[#02665e]/15 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {passkeyLoading ? (
-                    <>
-                      <LogoSpinner size="xs" ariaLabel="Authenticating" className="text-[#02665e]" />
-                      <span>Authenticating...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Fingerprint className="w-4 h-4 flex-shrink-0" />
-                      <span>Sign in with Passkey</span>
-                    </>
-                  )}
-                </button>
+                <div className="flex flex-col items-center gap-2 py-2">
+                  <button
+                    type="button"
+                    onClick={handlePasskeySignIn}
+                    disabled={passkeyLoading || isLockedOut}
+                    className="w-24 h-24 rounded-2xl bg-slate-100/5 border border-slate-700/60 flex items-center justify-center hover:bg-slate-100/10 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+                    aria-label="Tap to login with biometrics"
+                  >
+                    {passkeyLoading ? (
+                      <LogoSpinner size="sm" ariaLabel="Authenticating" className="text-slate-300" />
+                    ) : (
+                      <Fingerprint className="w-12 h-12 text-slate-300" strokeWidth={1.25} />
+                    )}
+                  </button>
+                  <span className="text-[13px] text-slate-400 font-medium">
+                    {passkeyLoading ? 'Authenticating...' : 'Tap to login with biometrics'}
+                  </span>
+                  <p className="text-center text-[11px] text-slate-600 leading-relaxed px-4">
+                    First time?{' '}
+                    <span className="text-slate-500">Log in then go to Account → Security → Passkeys to register.</span>
+                  </p>
+                </div>
               </>
             ) : (
               <>
