@@ -240,6 +240,7 @@ const getMe: RequestHandler = async (req, res) => {
     if (hasField('operationArea')) select.operationArea = true;
     if (hasField('paymentPhone')) select.paymentPhone = true;
     if (hasField('paymentVerified')) select.paymentVerified = true;
+    if (hasField('isVipDriver')) select.isVipDriver = true;
 
     try {
       user = await prisma.user.findUnique({ where: { id: userId }, select } as any);

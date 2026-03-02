@@ -1107,6 +1107,7 @@ router.post('/profile', upload.any(), async (req, res) => {
       operationArea,
       paymentPhone,
       paymentVerified,
+      isVipDriver,
     } = body;
     
     // Get user from token (Authorization: Bearer OR httpOnly cookie)
@@ -1222,6 +1223,10 @@ router.post('/profile', upload.any(), async (req, res) => {
         dataToUpdate.paymentVerified =
           String(paymentVerified) === '1' || String(paymentVerified).toLowerCase() === 'true';
       }
+      if (hasField('isVipDriver') && typeof isVipDriver !== 'undefined') {
+        dataToUpdate.isVipDriver =
+          String(isVipDriver) === 'true' || String(isVipDriver) === '1';
+      }
 
       // Referral fields
       if (hasField('referredBy')) dataToUpdate.referredBy = referredBy as any;
@@ -1258,6 +1263,10 @@ router.post('/profile', upload.any(), async (req, res) => {
             paymentVerified:
               typeof paymentVerified !== 'undefined'
                 ? (String(paymentVerified) === '1' || String(paymentVerified).toLowerCase() === 'true')
+                : undefined,
+            isVipDriver:
+              typeof isVipDriver !== 'undefined'
+                ? (String(isVipDriver) === 'true' || String(isVipDriver) === '1')
                 : undefined,
             referredBy: referredBy as any,
             referralCode: referralCode || null,

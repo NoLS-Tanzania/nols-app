@@ -14,6 +14,7 @@ import {
   ChevronRight,
   Bell,
   BadgeDollarSign,
+  User,
 } from "lucide-react";
 import React from "react";
 
@@ -123,6 +124,9 @@ export default function DriverSidebar() {
           <div className="space-y-1">
           {/* Dashboard */}
           <Item href="/driver" label="Dashboard" Icon={LayoutDashboard} currentPath={path} />
+
+          {/* My Profile */}
+          <Item href="/driver/profile" label="My Profile" Icon={User} currentPath={path} />
 
           {/* Live Map */}
           <Item href="/driver/map?live=1" label="Live Map" Icon={Map} currentPath={path} />

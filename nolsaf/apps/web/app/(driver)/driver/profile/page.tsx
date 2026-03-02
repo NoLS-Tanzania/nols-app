@@ -510,6 +510,25 @@ export default function DriverProfile() {
           )}
           {renderField("Plate number", form.plateNumber, Truck, true, 'plateNumber')}
           {renderField("Operation / Parking area", form.operationArea || form.parkingArea, MapPin, false, 'operationArea')}
+          {/* VIP Vehicle Class - read-only display (set during onboarding, reviewed by admin) */}
+          <div className={`p-4 border-2 rounded-xl transition-colors ${form.isVipDriver ? 'bg-amber-50 border-amber-300' : 'bg-white border-slate-200'}`}>
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                {/* Star icon inline via SVG to avoid import */}
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 text-amber-500" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                VIP Vehicle Class
+              </span>
+            </div>
+            {form.isVipDriver ? (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-400/20 text-amber-800 text-xs font-bold border border-amber-400/40">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 fill-amber-500 text-amber-500" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                VIP — Eligible for premium bookings
+              </span>
+            ) : (
+              <p className="text-sm text-slate-500 italic">Standard vehicle class</p>
+            )}
+            <p className="text-[10px] text-slate-400 mt-2">VIP status is set during registration and reviewed by our team.</p>
+          </div>
         </div>
       </section>
 

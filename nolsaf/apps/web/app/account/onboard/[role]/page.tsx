@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import * as Icons from 'lucide-react';
-import { User, Mail, UserCircle, Globe, CreditCard, FileText, Upload, CheckCircle2, Truck, MapPin, Phone, ChevronDown, AlertCircle, ChevronLeft, ChevronRight, Loader2, Car, X, Clock, Building2, UserCircle2, ArrowLeft } from 'lucide-react';
+import { User, Mail, UserCircle, Globe, CreditCard, FileText, Upload, CheckCircle2, Truck, MapPin, Phone, ChevronDown, AlertCircle, ChevronLeft, ChevronRight, Loader2, Car, X, Clock, Building2, UserCircle2, ArrowLeft, Star } from 'lucide-react';
 
 export default function OnboardRole() {
   const routeParams = useParams<{ role?: string | string[] }>();
@@ -29,6 +29,7 @@ export default function OnboardRole() {
   const [nin, setNin] = useState('');
   const [licenseNumber, setLicenseNumber] = useState('');
   const [vehicleType, setVehicleType] = useState<string>(''); // single pick: Bajaji, Bodaboda, Vehicle
+  const [isVipDriver, setIsVipDriver] = useState(false); // VIP vehicle declaration
   const [operationArea, setOperationArea] = useState('');
   const [paymentPhone, setPaymentPhone] = useState('');
   // OTP verification state for payment phone
@@ -161,6 +162,7 @@ export default function OnboardRole() {
       fd.append('operationArea', operationArea || '');
       fd.append('paymentPhone', paymentPhone || '');
       fd.append('paymentVerified', paymentVerified ? '1' : '0');
+      fd.append('isVipDriver', isVipDriver ? 'true' : 'false');
         if (licenseFile) fd.append('licenseFile', licenseFile, licenseFile.name);
         if (idFile) fd.append('idFile', idFile, idFile.name);
         if (vehicleRegFile) fd.append('vehicleRegFile', vehicleRegFile, vehicleRegFile.name);
@@ -436,22 +438,28 @@ export default function OnboardRole() {
   
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-slate-50 py-6 px-4">
-      <div className={`${role !== 'driver' ? 'max-w-md' : 'max-w-4xl'} w-full bg-white rounded-xl shadow-lg overflow-hidden border border-slate-100`}>
+    <main className={`min-h-screen flex items-center justify-center py-6 px-4 ${role === 'driver' ? 'bg-[#04080f]' : 'bg-gradient-to-br from-slate-50 via-white to-slate-50'}`}>
+      <div className={`${role !== 'driver' ? 'max-w-md' : 'max-w-4xl'} w-full ${role === 'driver' ? 'bg-white rounded-2xl overflow-hidden ring-1 ring-amber-400/15 shadow-[0_32px_80px_rgba(0,0,0,0.65)]' : 'bg-white rounded-xl shadow-lg overflow-hidden border border-slate-100'}`}>
         {/* Modern Header */}
-        <div className={`relative bg-gradient-to-r from-[#02665e] to-[#014e47] ${role !== 'driver' ? 'px-4 py-3' : 'px-6 py-5'}`}>
+        <div className={`relative ${role === 'driver' ? 'bg-gradient-to-br from-[#04080f] via-slate-900 to-[#060d08] border-b border-amber-400/20' : 'bg-gradient-to-r from-[#02665e] to-[#014e47]'} ${role !== 'driver' ? 'px-4 py-3' : 'px-6 py-8'}`}>
           <div className="flex flex-col items-center text-center gap-1.5">
-            <div className={`${role !== 'driver' ? 'w-10 h-10' : 'w-12 h-12'} rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center`}>
+            {role === 'driver' && (
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400/10 border border-amber-400/30 text-amber-400 text-[10px] font-bold tracking-widest uppercase mb-3">
+                <Star className="w-3 h-3 fill-amber-400" />
+                Professional Driver Registration
+              </div>
+            )}
+            <div className={`${role !== 'driver' ? 'w-10 h-10 bg-white/20 backdrop-blur-sm' : 'w-16 h-16 bg-amber-400/10 ring-2 ring-amber-400/30'} rounded-full flex items-center justify-center`}>
               {role === 'driver' ? (
-                <Truck className="w-6 h-6 text-white" />
+                <Truck className="w-8 h-8 text-amber-400" />
               ) : role === 'owner' ? (
                 <Building2 className="w-5 h-5 text-white" />
               ) : (
                 <UserCircle2 className="w-5 h-5 text-white" />
               )}
             </div>
-            <h1 className={`${role !== 'driver' ? 'text-xl sm:text-2xl' : 'text-2xl sm:text-3xl'} font-bold text-white`}>{title}</h1>
-            <p className={`${role !== 'driver' ? 'text-xs' : 'text-xs sm:text-sm'} text-white/90 ${role !== 'driver' ? 'max-w-xs' : 'max-w-2xl'} mx-auto`}>{help}</p>
+            <h1 className={`${role !== 'driver' ? 'text-xl sm:text-2xl' : 'text-3xl sm:text-4xl'} font-bold ${role === 'driver' ? 'text-white tracking-tight' : 'text-white'}`}>{title}</h1>
+            <p className={`${role !== 'driver' ? 'text-xs' : 'text-sm'} ${role === 'driver' ? 'text-slate-400' : 'text-white/90'} ${role !== 'driver' ? 'max-w-xs' : 'max-w-2xl'} mx-auto`}>{help}</p>
             </div>
 
           {/* Modern Step Indicator */}
@@ -499,33 +507,33 @@ export default function OnboardRole() {
                           </div>
                         ) : (
                           // For drivers: keep numbers
-                          <div className={`relative flex items-center justify-center w-8 h-8 rounded-lg text-xs font-semibold transition-all duration-300 ${
+                          <div className={`relative flex items-center justify-center w-9 h-9 rounded-xl text-xs font-bold transition-all duration-300 ${
                             isActive 
-                              ? 'bg-white text-[#02665e] shadow-lg ring-2 ring-white/30' 
+                              ? 'bg-amber-400 text-slate-950 shadow-lg shadow-amber-400/40 ring-2 ring-amber-300/50 scale-110' 
                               : isCompleted
-                              ? 'bg-white text-[#02665e] shadow-md'
-                              : 'bg-white/10 text-white/70 hover:bg-white/20'
+                              ? 'bg-amber-400/15 text-amber-400 border border-amber-400/40'
+                              : 'bg-white/5 text-slate-500 border border-white/10 hover:bg-white/10'
                           }`}>
                             {isCompleted ? (
-                              <CheckCircle2 className="w-4 h-4 text-[#02665e]" />
+                              <CheckCircle2 className="w-4 h-4 text-amber-400" />
                             ) : (
-                              <span className={isActive ? 'text-[#02665e]' : 'text-white/70'}>{step.num}</span>
+                              <span className={isActive ? 'text-slate-950 font-extrabold' : 'text-slate-500'}>{step.num}</span>
                             )}
                           </div>
                         )}
-                        <span className={`text-[9px] sm:text-[10px] font-medium transition-colors ${
+                        <span className={`text-[9px] sm:text-[10px] font-semibold transition-colors ${
                           isActive 
-                            ? 'text-white' 
+                            ? 'text-amber-400' 
                             : isCompleted
-                            ? 'text-[#02665e] font-semibold'
-                            : 'text-white/80'
+                            ? 'text-amber-400/60'
+                            : 'text-slate-500'
                         }`}>
                           {step.label}
                         </span>
                       </button>
                       {i < (role === 'driver' ? 4 : 1) && (
-                        <div className={`w-6 sm:w-10 h-0.5 rounded-full transition-all duration-300 ${
-                          isCompleted ? 'bg-white' : 'bg-white/30'
+                        <div className={`w-6 sm:w-12 h-[2px] rounded-full transition-all duration-500 ${
+                          isCompleted ? 'bg-amber-400/50' : 'bg-white/10'
                         }`} />
                       )}
                     </div>
@@ -536,7 +544,7 @@ export default function OnboardRole() {
           </div>
         </div>
 
-        <div className={role !== 'driver' ? 'p-4' : 'p-6'}>
+        <div className={role !== 'driver' ? 'p-4' : 'p-6 bg-gradient-to-b from-slate-50/80 to-white'}>
           {error && !(error === 'Please provide both name and email' && role === 'driver' && stepIndex !== 5) && (
             <div className={`mb-4 ${role !== 'driver' ? 'p-2.5' : 'p-3'} bg-red-50 border-l-4 border-red-500 rounded-r-lg flex items-start gap-2`}>
               <AlertCircle className={`${role !== 'driver' ? 'w-3.5 h-3.5' : 'w-4 h-4'} text-red-500 flex-shrink-0 mt-0.5`} />
@@ -874,11 +882,14 @@ export default function OnboardRole() {
               {/* Step contents with small animation */}
               {stepIndex === 1 && (
                 <div className={`space-y-5 rounded-2xl p-6 border border-slate-200/70 bg-gradient-to-br from-white via-white to-slate-50/60 shadow-sm ring-1 ring-slate-900/5 transition-all duration-300 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
-                  <div className="flex items-center gap-2 pb-4 border-b border-slate-200/80">
-                    <div className="w-9 h-9 rounded-xl bg-[#02665e]/10 flex items-center justify-center">
-                      <User className="w-4 h-4 text-[#02665e]" />
+                  <div className="flex items-center gap-3 pb-4 border-b-2 border-slate-100">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#02665e]/10 to-[#02665e]/5 flex items-center justify-center ring-1 ring-[#02665e]/10">
+                      <User className="w-5 h-5 text-[#02665e]" />
                     </div>
-                    <h3 className="text-lg font-bold text-slate-900">Personal Details</h3>
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-900">Personal Details</h3>
+                      <p className="text-xs text-slate-500">Your identity and contact information</p>
+                    </div>
                   </div>
 
                   <div className="space-y-4">
@@ -1084,12 +1095,15 @@ export default function OnboardRole() {
               )}
 
               {stepIndex === 2 && (
-                <div className={`space-y-4 rounded-xl p-5 border-2 border-slate-100 bg-gradient-to-br from-white to-slate-50/50 shadow-sm transition-all duration-300 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
-                  <div className="flex items-center gap-2 pb-3 border-b border-slate-200">
-                    <div className="w-8 h-8 rounded-lg bg-[#02665e]/10 flex items-center justify-center">
-                      <Truck className="w-4 h-4 text-[#02665e]" />
+                <div className={`space-y-5 rounded-2xl p-6 border border-slate-200/70 bg-gradient-to-br from-white via-white to-slate-50/60 shadow-sm ring-1 ring-slate-900/5 transition-all duration-300 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
+                  <div className="flex items-center gap-3 pb-4 border-b-2 border-slate-100">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#02665e]/10 to-[#02665e]/5 flex items-center justify-center ring-1 ring-[#02665e]/10">
+                      <Truck className="w-5 h-5 text-[#02665e]" />
                     </div>
-                    <h3 className="text-lg font-bold text-slate-900">Driving Details</h3>
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-900">Driving Details</h3>
+                      <p className="text-xs text-slate-500">Vehicle, licence, and operation information</p>
+                    </div>
                   </div>
 
                   <div className="space-y-4">
@@ -1198,19 +1212,56 @@ export default function OnboardRole() {
                         />
                       </div>
                     </div>
+
+                    {/* VIP Vehicle Declaration */}
+                    <div>
+                      <label className="text-sm font-semibold text-slate-900 mb-2 flex items-center gap-2">
+                        <Star className="w-3.5 h-3.5 text-amber-500" />
+                        VIP Vehicle Class
+                        <span className="text-xs font-normal text-slate-500">(optional)</span>
+                      </label>
+                      <label className={`flex items-start gap-4 p-4 rounded-xl cursor-pointer border-2 transition-all duration-200 ${
+                        isVipDriver
+                          ? 'bg-amber-50 border-amber-400 shadow-sm shadow-amber-100'
+                          : 'bg-white border-slate-200 hover:border-amber-300 hover:shadow-sm'
+                      }`}>
+                        <input
+                          type="checkbox"
+                          checked={isVipDriver}
+                          onChange={e => setIsVipDriver(e.target.checked)}
+                          className="mt-0.5 w-4 h-4 rounded border-slate-300 accent-amber-500 cursor-pointer"
+                        />
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`text-sm font-semibold ${isVipDriver ? 'text-amber-800' : 'text-slate-900'}`}>
+                              I declare this as a VIP class vehicle
+                            </span>
+                            {isVipDriver && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-700 text-xs font-semibold border border-amber-400/30">
+                                <Star className="w-3 h-3 fill-amber-500" />
+                                VIP
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-slate-500 mt-1.5">
+                            VIP vehicles are eligible for premium and first-class booking requests. Your VIP status will be reviewed and confirmed by our team.
+                          </p>
+                        </div>
+                      </label>
+                    </div>
                   </div>
                 </div>
               )}
 
               {stepIndex === 3 && (
-                <div className={`space-y-4 rounded-xl p-5 border-2 border-slate-100 bg-gradient-to-br from-white to-slate-50/50 shadow-sm transition-all duration-300 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
-                  <div className="flex items-center gap-2 pb-3 border-b border-slate-200">
-                    <div className="w-8 h-8 rounded-lg bg-[#02665e]/10 flex items-center justify-center">
-                      <CreditCard className="w-4 h-4 text-[#02665e]" />
+                <div className={`space-y-5 rounded-2xl p-6 border border-slate-200/70 bg-gradient-to-br from-white via-white to-slate-50/60 shadow-sm ring-1 ring-slate-900/5 transition-all duration-300 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
+                  <div className="flex items-center gap-3 pb-4 border-b-2 border-slate-100">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#02665e]/10 to-[#02665e]/5 flex items-center justify-center ring-1 ring-[#02665e]/10">
+                      <CreditCard className="w-5 h-5 text-[#02665e]" />
                     </div>
                     <div className="flex-1">
                       <h3 className="text-lg font-bold text-slate-900">Payment Details</h3>
-                      <p className="text-xs text-slate-600 mt-0.5">Provide a phone number used to receive payments (any supported mobile-money provider).</p>
+                      <p className="text-xs text-slate-500 mt-0.5">Provide a phone number used to receive payments (any supported mobile-money provider).</p>
                     </div>
                   </div>
 
@@ -1377,12 +1428,15 @@ export default function OnboardRole() {
               )}
 
               {stepIndex === 4 && (
-                <div className={`space-y-4 rounded-xl p-5 border-2 border-slate-100 bg-gradient-to-br from-white to-slate-50/50 shadow-sm transition-all duration-300 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
-                  <div className="flex items-center gap-2 pb-3 border-b border-slate-200">
-                    <div className="w-8 h-8 rounded-lg bg-[#02665e]/10 flex items-center justify-center">
-                      <Upload className="w-4 h-4 text-[#02665e]" />
+                <div className={`space-y-5 rounded-2xl p-6 border border-slate-200/70 bg-gradient-to-br from-white via-white to-slate-50/60 shadow-sm ring-1 ring-slate-900/5 transition-all duration-300 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
+                  <div className="flex items-center gap-3 pb-4 border-b-2 border-slate-100">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#02665e]/10 to-[#02665e]/5 flex items-center justify-center ring-1 ring-[#02665e]/10">
+                      <Upload className="w-5 h-5 text-[#02665e]" />
                     </div>
-                    <h3 className="text-lg font-bold text-slate-900">Upload verification documents</h3>
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-900">Verification Documents</h3>
+                      <p className="text-xs text-slate-500">Upload your official licence and identity documents</p>
+                    </div>
                   </div>
 
                   <div className="space-y-4">
@@ -1512,18 +1566,18 @@ export default function OnboardRole() {
               )}
 
               {stepIndex === 5 && (
-                <div className={`space-y-4 rounded-xl p-5 border-2 border-slate-100 bg-gradient-to-br from-white to-slate-50/50 shadow-sm transition-all duration-300 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
-                  <div className="flex items-center gap-2 pb-3 border-b border-slate-200">
-                    <div className="w-8 h-8 rounded-lg bg-[#02665e]/10 flex items-center justify-center">
-                      <CheckCircle2 className="w-4 h-4 text-[#02665e]" />
+                <div className={`space-y-5 rounded-2xl p-6 border border-slate-200/70 bg-gradient-to-br from-white via-white to-slate-50/60 shadow-sm ring-1 ring-slate-900/5 transition-all duration-300 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
+                  <div className="flex items-center gap-3 pb-4 border-b-2 border-slate-100">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#02665e]/10 to-[#02665e]/5 flex items-center justify-center ring-1 ring-[#02665e]/10">
+                      <CheckCircle2 className="w-5 h-5 text-[#02665e]" />
                     </div>
                     <div className="flex-1">
                       <h3 className="text-lg font-bold text-slate-900">Review your details</h3>
-                      <p className="text-xs text-slate-600 mt-0.5">Please confirm the information below before submitting your profile.</p>
+                      <p className="text-xs text-slate-500 mt-0.5">Confirm the information below before submitting your professional profile.</p>
                     </div>
                     <div className="hidden sm:flex items-center">
-                      <span className="inline-flex items-center px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold">
-                        <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
+                      <span className="inline-flex items-center px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
                         Ready to submit
                       </span>
                     </div>
@@ -1678,6 +1732,26 @@ export default function OnboardRole() {
                             <button type="button" onClick={() => setStepIndex(2)} className="text-xs text-[#02665e] hover:text-[#02665e]/80 hover:underline font-medium">Edit</button>
                           </div>
                           <div className="text-sm text-slate-900 font-medium">{operationArea || <span className="text-slate-400 italic">—</span>}</div>
+                        </div>
+
+                        <div className={`p-3 border-2 rounded-lg transition-colors ${isVipDriver ? 'bg-amber-50 border-amber-300' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                              <Star className="w-3 h-3 text-amber-500" />
+                              VIP Vehicle Class
+                            </label>
+                            <button type="button" onClick={() => setStepIndex(2)} className="text-xs text-[#02665e] hover:text-[#02665e]/80 hover:underline font-medium">Edit</button>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            {isVipDriver ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-700 text-xs font-semibold border border-amber-400/30">
+                                <Star className="w-3 h-3 fill-amber-500" />
+                                VIP Declared
+                              </span>
+                            ) : (
+                              <span className="text-sm text-slate-500 italic">Standard vehicle</span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
