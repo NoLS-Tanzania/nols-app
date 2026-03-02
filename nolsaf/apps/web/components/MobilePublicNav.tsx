@@ -85,35 +85,38 @@ export default function MobilePublicNav() {
   /* Brand accent - clean teal */
   const TEAL = "#2dd4bf";
 
-  const iconColor  = (active: boolean) => active ? TEAL : "rgba(255,255,255,0.45)";
+  const iconColor  = (active: boolean) => active ? TEAL : "rgba(30,40,60,0.50)";
   const strokeW    = (active: boolean) => active ? 2.4 : 1.5;
 
   return (
     <>
     <nav
       aria-label="Mobile navigation"
-      className="flex md:hidden fixed bottom-0 left-0 right-0 z-50"
+      className="flex md:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-50"
       style={{
-        background: "rgba(8, 12, 20, 0.97)",
-        backdropFilter: "blur(24px)",
-        WebkitBackdropFilter: "blur(24px)",
-        borderRadius: "12px 12px 0 0",
-        borderTop: "1px solid rgba(255,255,255,0.07)",
-        boxShadow: "0 -4px 24px rgba(0,0,0,0.45), 0 -1px 0 rgba(45,212,191,0.12)",
-        paddingBottom: "env(safe-area-inset-bottom, 0px)",
+        background: "rgba(255,255,255,0.88)",
+        backdropFilter: "blur(20px) saturate(1.8)",
+        WebkitBackdropFilter: "blur(20px) saturate(1.8)",
+        borderRadius: "999px",
+        border: "1px solid rgba(0,0,0,0.07)",
+        boxShadow: "0 8px 32px rgba(0,0,0,0.14), 0 1px 0 rgba(255,255,255,0.9) inset, 0 0 0 0.5px rgba(45,212,191,0.18)",
+        paddingBottom: "0px",
+        width: "auto",
+        minWidth: "280px",
+        maxWidth: "360px",
       }}
     >
       {/* Subtle teal shimmer on top edge */}
       <div
-        className="absolute inset-x-0 top-0 h-px pointer-events-none"
+        className="absolute inset-x-6 top-0 h-px pointer-events-none rounded-full"
         style={{
           background:
-            "linear-gradient(90deg, transparent 0%, rgba(45,212,191,0.30) 30%, rgba(45,212,191,0.55) 50%, rgba(45,212,191,0.30) 70%, transparent 100%)",
+            "linear-gradient(90deg, transparent 0%, rgba(45,212,191,0.40) 30%, rgba(45,212,191,0.70) 50%, rgba(45,212,191,0.40) 70%, transparent 100%)",
         }}
         aria-hidden
       />
 
-      <div className="flex w-full items-stretch h-[62px]">
+      <div className="flex w-full items-stretch h-[58px] px-1">
 
         {/* Home */}
         <Link
@@ -238,11 +241,11 @@ export default function MobilePublicNav() {
                   style={{
                     width: "24px",
                     height: "24px",
-                    outline: isAccount ? `2px solid ${TEAL}` : "1.5px solid rgba(255,255,255,0.20)",
+                    outline: isAccount ? `2px solid ${TEAL}` : "1.5px solid rgba(0,0,0,0.12)",
                     outlineOffset: "1px",
                   }}
                 />
-                <span className="absolute -bottom-0.5 -right-0.5 w-[7px] h-[7px] rounded-full bg-emerald-400 ring-[1.5px] ring-[#080c14]" />
+                <span className="absolute -bottom-0.5 -right-0.5 w-[7px] h-[7px] rounded-full bg-emerald-400 ring-[1.5px] ring-white" />
               </span>
             ) : (
               <User width={22} height={22} strokeWidth={strokeW(isAccount)} color={iconColor(isAccount)} />

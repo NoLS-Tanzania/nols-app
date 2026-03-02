@@ -544,13 +544,15 @@ export default function BookingFlowCard() {
                   ) : null}
 
                   <div className="mt-5">
+                    {/* Mobile: compact icon button — Desktop: full text button */}
+                    <div className="flex sm:block justify-center">
                     <Link
                       href="/public/properties"
                       aria-disabled={busy ? "true" : "false"}
                       className={[
                         "group inline-flex items-center justify-center gap-2",
-                        "w-full max-w-[360px] mx-auto min-[420px]:w-auto min-[420px]:max-w-none",
-                        "px-5 py-2.5 rounded-2xl no-underline font-semibold",
+                        "w-12 h-12 sm:w-auto sm:h-auto",
+                        "sm:px-5 sm:py-2.5 rounded-2xl no-underline font-semibold",
                         "text-white shadow-sm",
                         "bg-gradient-to-r from-[#02665e] via-[#02665e] to-emerald-600",
                         "hover:shadow-[0_16px_40px_rgba(2,102,94,0.22)] hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99]",
@@ -563,6 +565,7 @@ export default function BookingFlowCard() {
                       <span className="hidden sm:inline">Browse stays</span>
                       <ArrowRight className="hidden sm:inline w-4 h-4 transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden />
                     </Link>
+                    </div>
                     <div className="mt-2 text-xs text-slate-500 text-center">
                       Tip: Tap the steps above to preview the full flow.
                     </div>

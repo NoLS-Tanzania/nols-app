@@ -26,7 +26,15 @@ export default function PublicHeader({
   const [headerVisible, setHeaderVisible] = useState<boolean>(true);
   const [scrollProgress, setScrollProgress] = useState<number>(0);
   const [scrollAmount, setScrollAmount] = useState<number>(0);
+  const [isMobile, setIsMobile] = useState<boolean>(false);
   const headerRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
   const pathname = usePathname();
   const [isOverHero, setIsOverHero] = useState<boolean>(false);
   const isPublicHome = pathname === "/public";
@@ -213,10 +221,10 @@ export default function PublicHeader({
   const overHero = isPublicPath && pathname === "/public" && isOverHero && !scrolled;
   const headerVariant: "light" | "dark" = "dark";
 
-  const navTextClass    = "text-white";
-  const navHoverBgClass = "hover:bg-white/12";
-  const navActiveBgClass = "bg-white/[0.14]";
-  const navDotBgClass   = "bg-emerald-400";
+  const _navTextClass    = "text-white";
+  const _navHoverBgClass = "hover:bg-white/12";
+  const _navActiveBgClass = "bg-white/[0.14]";
+  const _navDotBgClass   = "bg-emerald-400";
 
   // Nav pill: premium dark-glass matching hero outer surround palette
   const chromePillClass = overHero
@@ -285,7 +293,7 @@ export default function PublicHeader({
       <header 
         ref={headerRef}
         className={`fixed z-50 text-white ${
-          headerVisible 
+          (isMobile || headerVisible)
             ? 'translate-y-0 opacity-100' 
             : '-translate-y-full opacity-0 pointer-events-none'
         } w-full`}
@@ -303,13 +311,13 @@ export default function PublicHeader({
             style={{
               // On /public, the header overlays the hero. Keep a small inset from the top
               // so the header + hero read as a single, intentional composition.
-              marginTop: isPublicHome ? 'clamp(10px, 1.5vw, 14px)' : (scrolled ? '10px' : '0'),
-              borderRadius: compact ? '20px' : (isPublicHome && !scrolled ? '28px' : '24px'),
+              marginTop: isMobile ? '0' : (isPublicHome ? 'clamp(10px, 1.5vw, 14px)' : (scrolled ? '10px' : '0')),
+              borderRadius: isMobile ? '0 0 10px 10px' : (compact ? '20px' : (isPublicHome && !scrolled ? '28px' : '24px')),
               width: '100%',
               // Always constrain width so logo and icons never get clipped to screen edges.
-              maxWidth: (overHero || scrolled) ? '1200px' : '100%',
-              marginLeft: (overHero || scrolled) ? 'auto' : undefined,
-              marginRight: (overHero || scrolled) ? 'auto' : undefined,
+              maxWidth: isMobile ? '100%' : ((overHero || scrolled) ? '1200px' : '100%'),
+              marginLeft: isMobile ? 0 : ((overHero || scrolled) ? 'auto' : undefined),
+              marginRight: isMobile ? 0 : ((overHero || scrolled) ? 'auto' : undefined),
               // Naspers-style coupling: transparent over hero, then smoothly fills into our brand glass header.
               // Non-public pages get full opacity for maximum visibility
               // Dark premium glass — matches the hero card background (#05080f) with a subtle emerald tint.
@@ -477,7 +485,7 @@ export default function PublicHeader({
                   </>
                 )}
 
-                <div className={`flex items-center rounded-full px-1.5 py-1 backdrop-blur-md ${chromePillClass}`} style={{ gap: scrolled ? '4px' : '6px' }}>
+                <div className={`flex items-center rounded-full px-1.5 py-1 ${isMobile ? '' : `backdrop-blur-md ${chromePillClass}`}`} style={{ gap: scrolled ? '4px' : '6px' }}>
                   <GlobalPicker variant={headerVariant} />
                   <ThemeToggle variant={headerVariant} />
 

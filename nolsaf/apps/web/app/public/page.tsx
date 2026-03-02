@@ -19,6 +19,7 @@ import {
   BedDouble,
   PlayCircle,
   Plus,
+  Search,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, FormEvent, useMemo } from "react";
 import { createPortal } from 'react-dom';
@@ -823,23 +824,23 @@ export default function Page() {
       <LayoutFrame heightVariant="sm" topVariant="sm" colorVariant="muted" variant="solid" />
       {/* Hero surround frame (tinted border on ALL sides) */}
       <div className="public-container">
-        <div className="relative overflow-hidden rounded-[44px] sm:rounded-[60px] p-3 sm:p-4 lg:p-5"
+        <div className="relative overflow-hidden rounded-none sm:rounded-[60px] -mx-2 sm:mx-0 p-0 sm:p-4 lg:p-5"
           style={{
             background: "linear-gradient(145deg,#080e28 0%,#0a2235 45%,#012018 100%)",
             boxShadow: "0 40px 100px rgba(2,102,94,0.38),0 12px 32px rgba(8,30,80,0.55)",
           }}>
           {/* Outer ambient — dual teal+navy glow on the surround */}
-          <div className="pointer-events-none absolute inset-0 rounded-[44px] sm:rounded-[60px]" style={{ background: "radial-gradient(ellipse 80% 55% at 60% 45%,rgba(2,102,94,0.30),transparent 70%)" }} aria-hidden />
-          <div className="pointer-events-none absolute inset-0 rounded-[44px] sm:rounded-[60px]" style={{ background: "radial-gradient(ellipse 60% 40% at 25% 60%,rgba(8,50,120,0.22),transparent 65%)" }} aria-hidden />
+          <div className="pointer-events-none absolute inset-0 rounded-none sm:rounded-[60px]" style={{ background: "radial-gradient(ellipse 80% 55% at 60% 45%,rgba(2,102,94,0.30),transparent 70%)" }} aria-hidden />
+          <div className="pointer-events-none absolute inset-0 rounded-none sm:rounded-[60px]" style={{ background: "radial-gradient(ellipse 60% 40% at 25% 60%,rgba(8,50,120,0.22),transparent 65%)" }} aria-hidden />
 
           {/* Inner 1px border — teal-to-blue premium line */}
-          <div className="relative rounded-[36px] sm:rounded-[52px] p-[1.5px]"
+          <div className="relative rounded-none sm:rounded-[52px] p-0 sm:p-[1.5px]"
             style={{ background: "linear-gradient(135deg,rgba(255,255,255,0.28) 0%,rgba(2,180,245,0.40) 40%,rgba(2,102,94,0.60) 75%,rgba(255,196,0,0.18) 100%)", boxShadow: "0 28px 72px rgba(0,0,0,0.55)" }}>
-            <div className="pointer-events-none absolute inset-0 rounded-[36px] sm:rounded-[52px] bg-gradient-to-b from-white/10 via-white/4 to-transparent" aria-hidden />
+            <div className="pointer-events-none absolute inset-0 rounded-none sm:rounded-[52px] bg-gradient-to-b from-white/10 via-white/4 to-transparent" aria-hidden />
 
             <section
               id="public-hero"
-              className="relative overflow-hidden text-white rounded-[calc(36px-1.5px)] sm:rounded-[calc(52px-1.5px)]"
+              className="relative overflow-hidden text-white rounded-none sm:rounded-[calc(52px-1.5px)]"
               style={{ background: "#050d20" }}
               ref={heroRef as any}
               onPointerEnter={() => setHeroPointerActive(true)}
@@ -866,20 +867,26 @@ export default function Page() {
           <HeroRingsBackground mode={heroMode} variant="full" className="absolute inset-0" />
 
           {/* Layer 2 — rich teal+navy dual wash */}
-          <div className="absolute inset-0" style={{ background: "linear-gradient(130deg,rgba(2,102,94,0.48) 0%,rgba(5,40,90,0.38) 48%,rgba(8,20,60,0.30) 100%)" }} />
+          <div className="absolute inset-0" style={{ background: "linear-gradient(130deg,rgba(2,102,94,0.65) 0%,rgba(5,40,90,0.52) 48%,rgba(8,20,60,0.40) 100%)" }} />
 
           {/* Layer 3 — left dark vignette so text pops */}
-          <div className="absolute inset-0" style={{ background: "linear-gradient(to right,rgba(2,6,18,0.80) 0%,rgba(2,6,18,0.36) 48%,transparent 100%)" }} />
-          <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom,rgba(2,6,18,0.44) 0%,transparent 38%,rgba(2,6,18,0.70) 100%)" }} />
+          <div className="absolute inset-0" style={{ background: "linear-gradient(to right,rgba(2,6,18,0.82) 0%,rgba(2,6,18,0.42) 48%,transparent 100%)" }} />
+          <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom,rgba(2,6,18,0.44) 0%,transparent 38%,rgba(2,6,18,0.72) 100%)" }} />
 
           {/* Layer 4 — luxury warm-gold glow (top-right) — signals "quality" */}
-          <div className="pointer-events-none absolute" style={{ top: "-10%", right: "-8%", width: 640, height: 580, borderRadius: "50%", background: "radial-gradient(ellipse at center,rgba(251,191,36,0.10) 0%,rgba(245,158,11,0.06) 35%,transparent 65%)", filter: "blur(48px)" }} />
+          <div className="pointer-events-none absolute" style={{ top: "-10%", right: "-8%", width: 680, height: 620, borderRadius: "50%", background: "radial-gradient(ellipse at center,rgba(251,191,36,0.22) 0%,rgba(245,158,11,0.12) 35%,transparent 65%)", filter: "blur(44px)" }} />
 
           {/* Layer 5 — teal depth glow (bottom-left) — signals "accessible" */}
-          <div className="pointer-events-none absolute" style={{ bottom: "-8%", left: "-4%", width: 580, height: 500, borderRadius: "50%", background: "radial-gradient(ellipse at center,rgba(2,102,94,0.32) 0%,rgba(4,60,80,0.14) 45%,transparent 68%)", filter: "blur(56px)" }} />
+          <div className="pointer-events-none absolute" style={{ bottom: "-8%", left: "-4%", width: 640, height: 560, borderRadius: "50%", background: "radial-gradient(ellipse at center,rgba(2,102,94,0.55) 0%,rgba(4,60,80,0.22) 45%,transparent 68%)", filter: "blur(50px)" }} />
 
-          {/* Layer 6 — soft blue-teal centre bloom */}
-          <div className="pointer-events-none absolute inset-0" style={{ background: "radial-gradient(ellipse 70% 50% at 52% 42%,rgba(2,102,94,0.14),rgba(14,60,140,0.10) 50%,transparent 70%)" }} />
+          {/* Layer 6 — vivid cyan centre bloom */}
+          <div className="pointer-events-none absolute inset-0" style={{ background: "radial-gradient(ellipse 70% 50% at 50% 38%,rgba(45,212,191,0.18),rgba(56,189,248,0.10) 50%,transparent 70%)" }} />
+
+          {/* Layer 7 — emerald-to-violet diagonal shimmer for depth */}
+          <div className="pointer-events-none absolute inset-0" style={{ background: "linear-gradient(218deg,rgba(167,139,250,0.08) 0%,transparent 42%,rgba(16,185,129,0.12) 100%)" }} />
+
+          {/* Layer 8 — bottom-left emerald spotlight (fills the dark corner) */}
+          <div className="pointer-events-none absolute" style={{ bottom: "-6%", left: "-5%", width: 560, height: 480, borderRadius: "50%", background: "radial-gradient(ellipse at 30% 70%,rgba(45,212,191,0.32) 0%,rgba(16,185,129,0.20) 38%,rgba(2,102,94,0.10) 60%,transparent 75%)", filter: "blur(36px)" }} />
 
           {/* ════════════════════════════════════════════
                ARCHITECTURAL LUXURY VISUALIZATION
@@ -946,11 +953,11 @@ export default function Page() {
 
                 {/* ─── Concentric luxury ellipses (atrium / grand hall feel) ─── */}
                 <g fill="none">
-                  <ellipse cx="860" cy="420" rx="280" ry="160" stroke="#02665e" strokeOpacity="0.18" strokeWidth="0.9" />
-                  <ellipse cx="860" cy="420" rx="210" ry="118" stroke="#02665e" strokeOpacity="0.22" strokeWidth="1.0" />
-                  <ellipse cx="860" cy="420" rx="145" ry="80" stroke="#2dd4bf" strokeOpacity="0.28" strokeWidth="1.1" />
-                  <ellipse cx="860" cy="420" rx="85" ry="46" stroke="#2dd4bf" strokeOpacity="0.35" strokeWidth="1.2" />
-                  <ellipse cx="860" cy="420" rx="40" ry="22" stroke="#fbbf24" strokeOpacity="0.30" strokeWidth="1.0" />
+                  <ellipse cx="860" cy="420" rx="280" ry="160" stroke="#02665e" strokeOpacity="0.32" strokeWidth="1.0" />
+                  <ellipse cx="860" cy="420" rx="210" ry="118" stroke="#02665e" strokeOpacity="0.40" strokeWidth="1.1" />
+                  <ellipse cx="860" cy="420" rx="145" ry="80" stroke="#2dd4bf" strokeOpacity="0.50" strokeWidth="1.3" />
+                  <ellipse cx="860" cy="420" rx="85" ry="46" stroke="#2dd4bf" strokeOpacity="0.65" strokeWidth="1.4" />
+                  <ellipse cx="860" cy="420" rx="40" ry="22" stroke="#fbbf24" strokeOpacity="0.55" strokeWidth="1.2" />
                 </g>
 
                 {/* ─── Floor plan grid (hotel room layout) ─── */}
@@ -977,39 +984,120 @@ export default function Page() {
                 {/* ─── Location nodes ─── */}
                 <g fill="none">
                   {/* Primary — teal rings */}
-                  <circle cx="480" cy="200" r="11" stroke="#2dd4bf" strokeOpacity="0.50" strokeWidth="1.4" />
-                  <circle cx="480" cy="200" r="22" stroke="#2dd4bf" strokeOpacity="0.20" strokeWidth="0.9" />
-                  <circle cx="780" cy="170" r="9"  stroke="#fbbf24" strokeOpacity="0.44" strokeWidth="1.3" />
-                  <circle cx="780" cy="170" r="19" stroke="#fbbf24" strokeOpacity="0.16" strokeWidth="0.8" />
-                  <circle cx="620" cy="320" r="8"  stroke="#38bdf8" strokeOpacity="0.42" strokeWidth="1.2" />
-                  <circle cx="620" cy="320" r="17" stroke="#38bdf8" strokeOpacity="0.15" strokeWidth="0.7" />
+                  <circle cx="480" cy="200" r="11" stroke="#2dd4bf" strokeOpacity="0.80" strokeWidth="1.6" />
+                  <circle cx="480" cy="200" r="22" stroke="#2dd4bf" strokeOpacity="0.34" strokeWidth="1.0" />
+                  <circle cx="780" cy="170" r="9"  stroke="#fbbf24" strokeOpacity="0.75" strokeWidth="1.5" />
+                  <circle cx="780" cy="170" r="19" stroke="#fbbf24" strokeOpacity="0.28" strokeWidth="0.9" />
+                  <circle cx="620" cy="320" r="8"  stroke="#38bdf8" strokeOpacity="0.72" strokeWidth="1.4" />
+                  <circle cx="620" cy="320" r="17" stroke="#38bdf8" strokeOpacity="0.28" strokeWidth="0.8" />
                   {/* Secondary */}
-                  <circle cx="60"  cy="560" r="6"  stroke="#5eead4" strokeOpacity="0.34" strokeWidth="1.0" />
-                  <circle cx="300" cy="580" r="5"  stroke="#93c5fd" strokeOpacity="0.30" strokeWidth="1.0" />
+                  <circle cx="60"  cy="560" r="6"  stroke="#5eead4" strokeOpacity="0.55" strokeWidth="1.2" />
+                  <circle cx="300" cy="580" r="5"  stroke="#93c5fd" strokeOpacity="0.50" strokeWidth="1.1" />
                 </g>
 
                 {/* ─── Node fill dots ─── */}
                 <g>
-                  <circle cx="480" cy="200" r="4.5" fill="#2dd4bf" fillOpacity="0.92" />
-                  <circle cx="780" cy="170" r="4.0" fill="#fbbf24" fillOpacity="0.85" />
-                  <circle cx="620" cy="320" r="3.5" fill="#38bdf8" fillOpacity="0.82" />
-                  <circle cx="60"  cy="560" r="3.0" fill="#5eead4" fillOpacity="0.70" />
-                  <circle cx="300" cy="580" r="2.5" fill="#93c5fd" fillOpacity="0.65" />
-                  <circle cx="130" cy="600" r="2.5" fill="#5eead4" fillOpacity="0.58" />
+                  <circle cx="480" cy="200" r="4.5" fill="#2dd4bf" fillOpacity="1" />
+                  <circle cx="780" cy="170" r="4.0" fill="#fbbf24" fillOpacity="1" />
+                  <circle cx="620" cy="320" r="3.5" fill="#38bdf8" fillOpacity="1" />
+                  <circle cx="60"  cy="560" r="3.0" fill="#5eead4" fillOpacity="0.88" />
+                  <circle cx="300" cy="580" r="2.5" fill="#93c5fd" fillOpacity="0.80" />
+                  <circle cx="130" cy="600" r="2.5" fill="#5eead4" fillOpacity="0.75" />
                 </g>
 
                 {/* ─── Gold accent star (luxury marker) at primary node ─── */}
-                <g transform="translate(776,166)" fill="#fbbf24" fillOpacity="0.72">
+                <g transform="translate(776,166)" fill="#fbbf24" fillOpacity="0.95">
                   <polygon points="4,0 5,3 8,3 5.5,5 6.5,8 4,6 1.5,8 2.5,5 0,3 3,3" />
                 </g>
+              </g>
+
+              {/* ══════════════════════════════════════════════
+                   BOTTOM-LEFT CORNER DECORATION (no mask)
+                   Quarter-circle arcs · building blueprint
+                   location cluster · scan lines · label chip
+              ══════════════════════════════════════════════ */}
+              <g>
+                {/* Quarter-circle arcs radiating from bottom-left corner */}
+                <g fill="none">
+                  <path d="M 0 680 A 90 90 0 0 1 90 590" stroke="#2dd4bf" strokeOpacity="0.60" strokeWidth="1.3" />
+                  <path d="M 0 680 A 165 165 0 0 1 165 515" stroke="#2dd4bf" strokeOpacity="0.44" strokeWidth="1.1" />
+                  <path d="M 0 680 A 255 255 0 0 1 255 425" stroke="#02665e" strokeOpacity="0.50" strokeWidth="1.0" />
+                  <path d="M 0 680 A 360 360 0 0 1 360 320" stroke="#38bdf8" strokeOpacity="0.28" strokeWidth="0.8" />
+                  <path d="M 0 680 A 460 460 0 0 1 420 240" stroke="#5eead4" strokeOpacity="0.16" strokeWidth="0.7" />
+                </g>
+
+                {/* Mini hotel / property blueprint sketch */}
+                <g stroke="#2dd4bf" strokeOpacity="0.52" strokeWidth="0.9" fill="none">
+                  <rect x="46" y="496" width="56" height="38" rx="1.5" />
+                  <line x1="74" y1="496" x2="74" y2="534" />
+                  <line x1="46" y1="515" x2="102" y2="515" />
+                  <path d="M 40 496 L 74 482 L 108 496" strokeOpacity="0.38" />
+                  <path d="M 66 534 L 66 544 L 82 544 L 82 534" strokeOpacity="0.60" />
+                  <rect x="52" y="500" width="14" height="10" rx="1" strokeOpacity="0.35" />
+                  <rect x="86" y="500" width="14" height="10" rx="1" strokeOpacity="0.35" />
+                </g>
+                <g transform="translate(70,478)" fill="#fbbf24" fillOpacity="0.75">
+                  <polygon points="4,0 5,3 8,3 5.5,5 6.5,8 4,6 1.5,8 2.5,5 0,3 3,3" />
+                </g>
+
+                {/* Location cluster — nodes with rings */}
+                <g fill="none">
+                  <circle cx="60"  cy="562" r="13" stroke="#5eead4" strokeOpacity="0.48" strokeWidth="1.1" />
+                  <circle cx="60"  cy="562" r="24" stroke="#5eead4" strokeOpacity="0.22" strokeWidth="0.8" />
+                  <circle cx="145" cy="604" r="10" stroke="#2dd4bf" strokeOpacity="0.52" strokeWidth="1.1" />
+                  <circle cx="145" cy="604" r="20" stroke="#2dd4bf" strokeOpacity="0.22" strokeWidth="0.7" />
+                  <circle cx="210" cy="572" r="8"  stroke="#38bdf8" strokeOpacity="0.48" strokeWidth="1.0" />
+                  <circle cx="210" cy="572" r="16" stroke="#38bdf8" strokeOpacity="0.20" strokeWidth="0.6" />
+                  <circle cx="270" cy="612" r="6"  stroke="#a78bfa" strokeOpacity="0.40" strokeWidth="0.9" />
+                  <circle cx="310" cy="588" r="5"  stroke="#fbbf24" strokeOpacity="0.38" strokeWidth="0.9" />
+                </g>
+
+                {/* Node fill dots */}
+                <g>
+                  <circle cx="60"  cy="562" r="3.5" fill="#5eead4"  fillOpacity="0.95" />
+                  <circle cx="145" cy="604" r="3.0" fill="#2dd4bf"  fillOpacity="0.90" />
+                  <circle cx="210" cy="572" r="2.5" fill="#38bdf8"  fillOpacity="0.88" />
+                  <circle cx="270" cy="612" r="2.5" fill="#a78bfa"  fillOpacity="0.78" />
+                  <circle cx="310" cy="588" r="2.0" fill="#fbbf24"  fillOpacity="0.72" />
+                  <circle cx="180" cy="640" r="2.0" fill="#5eead4"  fillOpacity="0.65" />
+                  <circle cx="245" cy="650" r="1.8" fill="#93c5fd"  fillOpacity="0.60" />
+                </g>
+
+                {/* Route connectors between nodes */}
+                <g fill="none" strokeWidth="1.1" strokeDasharray="5 5">
+                  <path d="M 60 562 Q 102 583 145 604" stroke="#5eead4" strokeOpacity="0.55" />
+                  <path d="M 145 604 Q 177 588 210 572" stroke="#2dd4bf" strokeOpacity="0.50" />
+                  <path d="M 210 572 Q 240 580 270 612" stroke="#a78bfa" strokeOpacity="0.38" strokeDasharray="4 6" />
+                  <path d="M 210 572 Q 260 580 310 588" stroke="#fbbf24" strokeOpacity="0.32" strokeDasharray="4 7" />
+                  <path d="M 60 562 Q 135 567 210 572" stroke="#38bdf8" strokeOpacity="0.28" strokeDasharray="3 7" />
+                </g>
+
+                {/* Horizontal terrain / scan lines */}
+                <g stroke="#2dd4bf" strokeOpacity="0.14" strokeWidth="0.65">
+                  {[574, 590, 606, 622, 638, 654, 668].map((y) => (
+                    <line key={y} x1="0" y1={y} x2="360" y2={y} />
+                  ))}
+                </g>
+
+                {/* Left-edge tick marks */}
+                <g stroke="#2dd4bf" strokeOpacity="0.40" strokeWidth="1.2">
+                  {[520, 560, 600, 640].map((y) => (
+                    <line key={y} x1="0" y1={y} x2="7" y2={y} />
+                  ))}
+                </g>
+
+                {/* NOLSAF label chip */}
+                <rect x="12" y="622" width="92" height="19" rx="9.5" fill="#02665e" fillOpacity="0.30" />
+                <rect x="12" y="622" width="92" height="19" rx="9.5" stroke="#2dd4bf" strokeOpacity="0.48" strokeWidth="0.8" fill="none" />
+                <text x="27" y="635.5" fill="#5eead4" fillOpacity="0.90" fontSize="8.5" fontFamily="monospace" letterSpacing="1.5">NOLSAF</text>
               </g>
             </svg>
           </div>
 
           {/* Bottom teal horizon */}
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-48"
-            style={{ background: "linear-gradient(to top,rgba(2,102,94,0.26) 0%,rgba(5,40,90,0.12) 50%,transparent 100%)" }} />
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-teal-400/40 to-transparent" />
+            style={{ background: "linear-gradient(to top,rgba(2,102,94,0.40) 0%,rgba(5,40,90,0.18) 50%,transparent 100%)" }} />
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-teal-400/60 to-transparent" />
 
           {/* Right-edge tick ruler */}
           <div className="pointer-events-none absolute inset-y-0 right-0" aria-hidden>
@@ -1034,20 +1122,26 @@ export default function Page() {
                   transition={{ duration: 0.6, ease: [0.2, 0.8, 0.2, 1] }}
                   className="max-w-4xl mx-auto text-center"
                 >
-                  <h1 className="text-[2rem] sm:text-5xl md:text-[4.5rem] lg:text-[5.8rem] font-black tracking-[-0.045em] leading-[0.95] sm:leading-[0.86] text-white text-balance">
-                    Quality stay
+                  <h1 className="text-[2rem] sm:text-5xl md:text-[4.5rem] lg:text-[5.8rem] font-black tracking-[-0.045em] leading-[0.95] sm:leading-[0.86] text-balance">
+                    <span
+                      className="text-transparent bg-clip-text"
+                      style={{
+                        backgroundImage: "linear-gradient(100deg,#ffffff 0%,#e2fdf8 40%,#a7f3d0 100%)",
+                        filter: "drop-shadow(0 0 32px rgba(45,212,191,0.45))"
+                      }}
+                    >Quality stay</span>
                     <span
                       className="block text-transparent bg-clip-text"
-                      style={{ backgroundImage: "linear-gradient(98deg,#38bdf8 0%,#0a5c82 28%,#02665e 58%,#2dd4bf 82%,#6ee7b7 100%)" }}
+                      style={{ backgroundImage: "linear-gradient(95deg,#4ade80 0%,#2dd4bf 32%,#38bdf8 62%,#a78bfa 100%)" }}
                     >
                       for every <em className="font-serif not-italic">wallet.</em>
                     </span>
                   </h1>
 
-                  <p className="mx-auto mt-3 sm:mt-6 max-w-[44ch] text-[13px] sm:text-[15px] text-white/48 leading-[1.75] font-light">
+                  <p className="mx-auto mt-3 sm:mt-6 max-w-[44ch] text-[13px] sm:text-[15px] text-white/80 leading-[1.75] font-light">
                     One platform for stays, transport &amp; experiences.
                     <br />
-                    <span className="text-white/30 text-sm tracking-wide">Simpler · Trusted · Unforgettable</span>
+                    <span className="hidden sm:inline text-white/30 text-sm tracking-wide">Simpler · Trusted · Unforgettable</span>
                   </p>
 
                 </motion.div>
@@ -1058,17 +1152,25 @@ export default function Page() {
                   transition={{ duration: 0.6, delay: 0.08, ease: [0.2, 0.8, 0.2, 1] }}
                   className="mt-5 sm:mt-8 w-full max-w-3xl mx-auto"
                 >
-                <form onSubmit={submitSearch} className="w-full pointer-events-auto">
-                  <div className="flex items-center gap-1.5 bg-gradient-to-b from-white/[0.16] to-white/[0.06] backdrop-blur-2xl rounded-full p-2 shadow-[0_22px_80px_rgba(0,0,0,0.42)] ring-1 ring-white/22 w-full mx-auto">
+                <form onSubmit={submitSearch} className="w-full pointer-events-auto flex justify-center sm:block">
+                  <div className="flex items-center gap-1.5 bg-gradient-to-b from-white/[0.18] to-white/[0.08] backdrop-blur-2xl rounded-full p-2 shadow-[0_22px_80px_rgba(0,0,0,0.50)] ring-1 ring-white/30 w-[270px] sm:w-full mx-auto">
                     <input
                       aria-label="Search query"
                       value={q}
                       onChange={(e) => setQ(e.target.value)}
                       placeholder={searchPlaceholder}
-                      className="flex-1 min-w-0 px-3 py-2 text-sm rounded-l-full rounded-r-none border border-white/22 bg-white/[0.06] text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-emerald-400/45 focus:border-emerald-400/55"
+                      className="flex-1 min-w-0 px-3 py-2 text-sm rounded-full sm:rounded-l-full sm:rounded-r-none border border-white/22 bg-white/[0.06] text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-emerald-400/45 focus:border-emerald-400/55"
                     />
+                    {/* Mobile-only search submit icon */}
+                    <button
+                      type="submit"
+                      aria-label="Search"
+                      className="flex sm:hidden flex-none items-center justify-center w-9 h-9 rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 shadow-[0_6px_20px_rgba(16,185,129,0.35)] active:scale-95 transition-transform"
+                    >
+                      <Search className="w-4 h-4 text-white" />
+                    </button>
 
-                      <div ref={guestRef} className="flex-none w-14 sm:w-auto inline-flex items-center justify-center gap-1.5 border border-white/20 rounded-full overflow-visible px-2 py-1.5 relative bg-white/5">
+                      <div ref={guestRef} className="hidden sm:inline-flex flex-none w-14 sm:w-auto items-center justify-center gap-1.5 border border-white/20 rounded-full overflow-visible px-2 py-1.5 relative bg-white/5">
                         <div className="relative inline-block">
                           <button
                             type="button"
@@ -1233,7 +1335,7 @@ export default function Page() {
                           )
                         ) : null}
                       </div>
-                      <div ref={dateRef} className="flex-none inline-flex items-center justify-center gap-1.5 relative border border-white/20 rounded-full px-2.5 py-1.5 bg-white/5">
+                      <div ref={dateRef} className="hidden sm:inline-flex flex-none items-center justify-center gap-1.5 relative border border-white/20 rounded-full px-2.5 py-1.5 bg-white/5">
                         <button
                           type="button"
                           aria-label="Select dates"
@@ -1276,13 +1378,13 @@ export default function Page() {
                       </div>
                       <button
                         type="submit"
-                        className="flex-none flex-shrink-0 flex items-center justify-center px-4 py-2 text-white rounded-r-full rounded-l-none font-semibold text-sm transition-all duration-200 whitespace-nowrap bg-gradient-to-r from-emerald-500 via-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 shadow-[0_12px_40px_rgba(16,185,129,0.30)] hover:shadow-[0_18px_55px_rgba(16,185,129,0.32)] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/60"
+                        className="hidden sm:flex flex-none flex-shrink-0 items-center justify-center px-4 py-2 text-white rounded-r-full rounded-l-none font-semibold text-sm transition-all duration-200 whitespace-nowrap bg-gradient-to-r from-emerald-500 via-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 shadow-[0_12px_40px_rgba(16,185,129,0.30)] hover:shadow-[0_18px_55px_rgba(16,185,129,0.32)] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/60"
                       >
                         <span>Search</span>
                       </button>
                     </div>
                   </form>
-                  <div className="mt-4 sm:mt-6 lg:mt-8 w-full">
+                  <div className="hidden sm:block mt-4 sm:mt-6 lg:mt-8 w-full">
                     <div className="flex items-center justify-center gap-2 sm:gap-2.5 w-full flex-wrap">
                       <Link href="/public/properties" aria-label="Browse stays" className="no-underline flex-shrink-0">
                         <span className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-white font-medium rounded-full bg-emerald-500/90 hover:bg-emerald-400 active:bg-emerald-400 shadow-[0_8px_28px_rgba(16,185,129,0.30)] transition-all">
@@ -1313,7 +1415,7 @@ export default function Page() {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.55, delay: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
-                    className="mt-5 sm:mt-10 flex items-center justify-center gap-4 sm:gap-6 flex-wrap"
+                    className="hidden sm:flex mt-5 sm:mt-10 items-center justify-center gap-4 sm:gap-6 flex-wrap"
                   >
                     {[
                       { value: "12K+", label: "Happy guests" },
@@ -2120,7 +2222,7 @@ export default function Page() {
                           className="inline-flex items-center justify-center rounded-full px-4 py-2.5 text-white text-sm font-bold no-underline hover:no-underline transition-all duration-300 hover:scale-[1.03] hover:shadow-[0_8px_24px_rgba(2,102,94,0.40)]"
                           style={{ background: "linear-gradient(135deg,#0b1f5c 0%,#0a5c82 52%,#02665e 100%)", boxShadow: "0 0 0 1px rgba(2,102,94,0.40),0 4px 16px rgba(2,102,94,0.22)" }}
                         >
-                          Explore Group Stays
+                          Group Stays
                         </Link>
                         <Link
                           href="/public/plan-with-us"
