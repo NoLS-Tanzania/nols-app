@@ -2128,69 +2128,91 @@ export default function AdminAgentsPage() {
       {/* ── Restore modal ───────────────────────────────────── */}
       {restoreModal.open && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-[2px]" onClick={() => !isRestoring && setRestoreModal({ open: false, agentId: null, notes: "" })} />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-            <div className="h-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-t-2xl" />
-            <div className="p-6">
-              <div className="flex items-center gap-4 mb-5">
-                <div className="h-11 w-11 rounded-xl bg-emerald-50 flex items-center justify-center flex-shrink-0">
-                  <ShieldCheck className="text-emerald-600" size={20} />
+          <div
+            className="absolute inset-0 bg-gradient-to-br from-slate-950/80 via-emerald-950/20 to-slate-950/80 backdrop-blur-sm"
+            onClick={() => !isRestoring && setRestoreModal({ open: false, agentId: null, notes: "" })}
+          />
+          <div className="relative w-full max-w-xs">
+            {/* Glow ring */}
+            <div className="absolute -inset-px rounded-3xl bg-gradient-to-br from-emerald-500/25 via-transparent to-teal-500/15 blur-sm" />
+            <div className="relative bg-gradient-to-b from-[#071a14] to-[#0f172a] rounded-3xl overflow-hidden shadow-[0_32px_80px_rgba(0,0,0,0.7)] ring-1 ring-white/10 flex flex-col max-h-[90vh]">
+
+              {/* Top accent */}
+              <div className="h-1 bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-500 flex-shrink-0" />
+
+              {/* Header */}
+              <div className="px-5 pt-4 pb-3 flex items-center justify-between flex-shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center flex-shrink-0">
+                    <ShieldCheck className="text-emerald-400" size={17} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold text-emerald-400 uppercase tracking-widest mb-0.5">Reinstate Access</p>
+                    <h2 className="text-base font-bold text-white leading-tight">Restore Agent</h2>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-lg font-bold text-gray-900">Reinstate Agent Access</h3>
-                  <p className="text-sm text-gray-500 mt-0.5">The agent will be notified by email and regain portal access.</p>
-                </div>
-              </div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-2.5">Select Reason for Reinstatement</p>
-              <div className="space-y-2">
-                {([
-                  { id: "Issue Resolved", desc: "The underlying violation or concern has been addressed and verified." },
-                  { id: "Successful Appeal", desc: "Agent's appeal was reviewed and the suspension was found to be unwarranted." },
-                  { id: "Reinstatement Approved", desc: "Management has approved reinstatement following a formal review period." },
-                ] as { id: string; desc: string }[]).map((opt) => {
-                  const selected = restoreModal.notes === opt.id;
-                  return (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      onClick={() => setRestoreModal((s) => ({ ...s, notes: opt.id }))}
-                      disabled={isRestoring}
-                      className={`w-full text-left rounded-xl border px-4 py-3 flex items-start gap-3 transition-all cursor-pointer disabled:opacity-50 ${
-                        selected
-                          ? "border-emerald-400/50 bg-emerald-50"
-                          : "border-gray-200 bg-white hover:border-emerald-200 hover:bg-emerald-50/40"
-                      }`}
-                    >
-                      <span className={`mt-0.5 h-4 w-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${
-                        selected ? "border-emerald-500 bg-emerald-100" : "border-gray-300"
-                      }`}>
-                        {selected && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />}
-                      </span>
-                      <span>
-                        <span className={`block text-sm font-semibold leading-tight ${
-                          selected ? "text-emerald-700" : "text-gray-700"
-                        }`}>{opt.id}</span>
-                        <span className="block text-xs text-gray-400 leading-relaxed mt-0.5">{opt.desc}</span>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="flex gap-3 mt-5">
                 <button
                   onClick={() => setRestoreModal({ open: false, agentId: null, notes: "" })}
                   disabled={isRestoring}
-                  className="flex-1 py-2.5 rounded-xl bg-transparent border border-gray-200 text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
-                >Cancel</button>
-                <button
-                  onClick={handleRestoreConfirmed}
-                  disabled={isRestoring || !restoreModal.notes}
-                  className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="p-1.5 rounded-xl text-white/40 hover:text-white/80 hover:bg-white/5 transition-colors disabled:opacity-30"
                 >
-                  {isRestoring ? <Loader2 size={15} className="animate-spin" /> : <ShieldCheck size={15} />}
-                  {isRestoring ? "Reinstating…" : "Restore Access"}
+                  <X size={15} />
                 </button>
               </div>
+
+              {/* Body */}
+              <div className="px-5 pb-5 overflow-y-auto flex-1 min-h-0">
+                <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-2">Select reason</p>
+                <div className="space-y-1.5">
+                  {([
+                    { id: "Issue Resolved", desc: "Violation addressed and verified." },
+                    { id: "Successful Appeal", desc: "Suspension found to be unwarranted." },
+                    { id: "Reinstatement Approved", desc: "Approved after formal review." },
+                  ] as { id: string; desc: string }[]).map((opt) => {
+                    const selected = restoreModal.notes === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setRestoreModal((s) => ({ ...s, notes: opt.id }))}
+                        disabled={isRestoring}
+                        className={`w-full text-left rounded-xl border px-3.5 py-2.5 flex items-center gap-3 transition-all cursor-pointer disabled:opacity-50 ${
+                          selected
+                            ? "border-emerald-500/40 bg-emerald-500/8"
+                            : "border-white/10 bg-transparent hover:border-white/20 hover:bg-white/[0.04]"
+                        }`}
+                      >
+                        <span className={`h-4 w-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${
+                          selected ? "border-emerald-400 bg-emerald-500/20" : "border-white/20"
+                        }`}>
+                          {selected && <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />}
+                        </span>
+                        <span>
+                          <span className={`block text-sm font-semibold leading-tight ${selected ? "text-white" : "text-white/70"}`}>{opt.id}</span>
+                          <span className="block text-[11px] text-white/35 mt-0.5">{opt.desc}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="flex gap-2.5 mt-4">
+                  <button
+                    onClick={() => setRestoreModal({ open: false, agentId: null, notes: "" })}
+                    disabled={isRestoring}
+                    className="flex-1 py-2.5 rounded-xl bg-transparent border border-white/10 text-white/60 text-sm font-medium hover:bg-white/5 hover:text-white/80 transition-all disabled:opacity-40"
+                  >Cancel</button>
+                  <button
+                    onClick={handleRestoreConfirmed}
+                    disabled={isRestoring || !restoreModal.notes}
+                    className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-sm font-semibold hover:from-emerald-500 hover:to-teal-500 transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/30"
+                  >
+                    {isRestoring ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
+                    {isRestoring ? "Reinstating…" : "Restore"}
+                  </button>
+                </div>
+              </div>
+
             </div>
           </div>
         </div>
