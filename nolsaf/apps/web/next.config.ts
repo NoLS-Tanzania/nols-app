@@ -16,7 +16,9 @@ const socketOrigin = (process.env.NEXT_PUBLIC_SOCKET_URL || '').replace(/\/$/, '
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   transpilePackages: ['@nolsaf/shared'],
-  output: 'standalone',
+  // 'standalone' is required for Docker/Railway deployments.
+  // Vercel (process.env.VERCEL) handles its own output format — standalone breaks it.
+  output: process.env.VERCEL ? undefined : 'standalone',
   experimental: {
     // Allow larger proxied bodies for draft property submissions in development.
     // Without this, Next will truncate bodies >10MB when proxying /api/*.

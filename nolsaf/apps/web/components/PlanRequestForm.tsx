@@ -3147,9 +3147,7 @@ export default function PlanRequestForm({ selectedRole }: Props) {
                         ? 'bg-gradient-to-r from-rose-700 to-pink-400'
                         : 'bg-gradient-to-r from-violet-700 to-indigo-500';
                     const accentLabel = isHoneymoon ? 'text-cyan-200' : isWedding ? 'text-pink-200' : 'text-indigo-200';
-                    const pillBg = isHoneymoon ? 'bg-teal-50 text-teal-800 border-teal-200' : isWedding ? 'bg-rose-50 text-rose-800 border-rose-200' : 'bg-violet-50 text-violet-800 border-violet-200';
                     const subBg = isHoneymoon ? 'from-teal-50/40' : isWedding ? 'from-rose-50/40' : 'from-violet-50/30';
-                    const dividerColor = isHoneymoon ? 'divide-teal-50' : isWedding ? 'divide-rose-50' : 'divide-violet-50';
                     return (
                       <div className="rounded-2xl overflow-hidden shadow-md border border-slate-200">
                         {/* Premium header */}
