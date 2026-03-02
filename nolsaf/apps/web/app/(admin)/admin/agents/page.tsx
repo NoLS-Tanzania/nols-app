@@ -1966,30 +1966,48 @@ export default function AdminAgentsPage() {
                       </ul>
                     </div>
 
-                    {/* Internal audit note */}
+                    {/* Suspension reason picker */}
                     <div className="mb-5">
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="text-xs font-bold text-white/60 uppercase tracking-widest">
-                          Internal audit note
-                        </label>
+                      <div className="flex items-center justify-between mb-3">
+                        <label className="text-xs font-bold text-white/60 uppercase tracking-widest">Select Reason</label>
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-700/60 border border-white/8 text-[10px] font-medium text-white/40">
                           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                          Not sent to agent
+                          Internal only
                         </span>
                       </div>
-                      <textarea
-                        rows={3}
-                        autoFocus
-                        placeholder="Internal reason for this suspension. This is for your records only and will not appear in any email sent to the agent…"
-                        value={suspendModal.reason}
-                        onChange={(e) => setSuspendModal((s) => ({ ...s, reason: e.target.value }))}
-                        disabled={isSuspending}
-                        className="w-full rounded-xl bg-white/5 border border-white/10 focus:border-slate-500/50 focus:bg-white/[0.07] px-4 py-3 text-sm text-white/90 placeholder-white/20 resize-none focus:outline-none focus:ring-2 focus:ring-slate-500/20 transition-all disabled:opacity-50"
-                      />
-                      <div className="mt-1.5">
-                        <span className={`text-xs transition-colors ${reasonReady ? "text-emerald-400" : "text-white/25"}`}>
-                          {reasonReady ? "✓ Note recorded" : `${suspendModal.reason.trim().length}/10 minimum`}
-                        </span>
+                      <div className="space-y-2">
+                        {([
+                          { id: "Policy Violation", desc: "Breach of platform rules, terms of service, or operational guidelines." },
+                          { id: "Code of Conduct Breach", desc: "Misconduct, harassment, or inappropriate behaviour toward clients or staff." },
+                          { id: "Fraudulent Activity", desc: "Suspected fraud, misrepresentation, or deliberate abuse of the system." },
+                        ] as { id: string; desc: string }[]).map((opt) => {
+                          const selected = suspendModal.reason === opt.id;
+                          return (
+                            <button
+                              key={opt.id}
+                              type="button"
+                              onClick={() => setSuspendModal((s) => ({ ...s, reason: opt.id }))}
+                              disabled={isSuspending}
+                              className={`w-full text-left rounded-xl border px-4 py-3 flex items-start gap-3 transition-all cursor-pointer disabled:opacity-50 ${
+                                selected
+                                  ? "border-red-500/40 bg-red-500/8"
+                                  : "border-white/8 bg-white/3 hover:border-white/15 hover:bg-white/5"
+                              }`}
+                            >
+                              <span className={`mt-0.5 h-4 w-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${
+                                selected ? "border-red-400 bg-red-500/20" : "border-white/20"
+                              }`}>
+                                {selected && <span className="h-1.5 w-1.5 rounded-full bg-red-400" />}
+                              </span>
+                              <span>
+                                <span className={`block text-sm font-semibold leading-tight ${
+                                  selected ? "text-white" : "text-white/70"
+                                }`}>{opt.id}</span>
+                                <span className="block text-xs text-white/35 leading-relaxed mt-0.5">{opt.desc}</span>
+                              </span>
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
 
@@ -2020,8 +2038,8 @@ export default function AdminAgentsPage() {
                     {/* Internal note recap */}
                     <div className="mb-4 rounded-xl bg-white/4 border border-white/8 px-4 py-3">
                       <div className="flex items-center gap-1.5 mb-1">
-                        <p className="text-[10px] font-bold text-white/35 uppercase tracking-widest">Internal audit note</p>
-                        <span className="text-[10px] text-white/25 font-medium">— not sent to agent</span>
+                        <p className="text-[10px] font-bold text-white/35 uppercase tracking-widest">Suspension Reason</p>
+                        <span className="text-[10px] text-white/25 font-medium">— internal record only</span>
                       </div>
                       <p className="text-sm text-white/65 leading-relaxed">{suspendModal.reason.trim()}</p>
                     </div>
@@ -2126,25 +2144,51 @@ export default function AdminAgentsPage() {
                   <p className="text-sm text-gray-500 mt-0.5">The agent will be notified by email and regain portal access.</p>
                 </div>
               </div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Restoration notes <span className="text-gray-400 font-normal">(optional)</span></label>
-              <textarea
-                rows={3}
-                placeholder="Add any notes for the agent (optional)…"
-                value={restoreModal.notes}
-                onChange={(e) => setRestoreModal((s) => ({ ...s, notes: e.target.value }))}
-                disabled={isRestoring}
-                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-800 resize-none focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:opacity-50"
-              />
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-2.5">Select Reason for Reinstatement</p>
+              <div className="space-y-2">
+                {([
+                  { id: "Issue Resolved", desc: "The underlying violation or concern has been addressed and verified." },
+                  { id: "Successful Appeal", desc: "Agent's appeal was reviewed and the suspension was found to be unwarranted." },
+                  { id: "Reinstatement Approved", desc: "Management has approved reinstatement following a formal review period." },
+                ] as { id: string; desc: string }[]).map((opt) => {
+                  const selected = restoreModal.notes === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setRestoreModal((s) => ({ ...s, notes: opt.id }))}
+                      disabled={isRestoring}
+                      className={`w-full text-left rounded-xl border px-4 py-3 flex items-start gap-3 transition-all cursor-pointer disabled:opacity-50 ${
+                        selected
+                          ? "border-emerald-400/50 bg-emerald-50"
+                          : "border-gray-200 bg-white hover:border-emerald-200 hover:bg-emerald-50/40"
+                      }`}
+                    >
+                      <span className={`mt-0.5 h-4 w-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${
+                        selected ? "border-emerald-500 bg-emerald-100" : "border-gray-300"
+                      }`}>
+                        {selected && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />}
+                      </span>
+                      <span>
+                        <span className={`block text-sm font-semibold leading-tight ${
+                          selected ? "text-emerald-700" : "text-gray-700"
+                        }`}>{opt.id}</span>
+                        <span className="block text-xs text-gray-400 leading-relaxed mt-0.5">{opt.desc}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
               <div className="flex gap-3 mt-5">
                 <button
                   onClick={() => setRestoreModal({ open: false, agentId: null, notes: "" })}
                   disabled={isRestoring}
-                  className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
+                  className="flex-1 py-2.5 rounded-xl bg-transparent border border-gray-200 text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
                 >Cancel</button>
                 <button
                   onClick={handleRestoreConfirmed}
-                  disabled={isRestoring}
-                  className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  disabled={isRestoring || !restoreModal.notes}
+                  className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {isRestoring ? <Loader2 size={15} className="animate-spin" /> : <ShieldCheck size={15} />}
                   {isRestoring ? "Reinstating…" : "Restore Access"}
