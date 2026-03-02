@@ -180,7 +180,7 @@ export default function AdminAgentsPage() {
   const [error, setError] = useState<string | null>(null);
 
   // Suspend / Restore modal state
-  const [suspendModal, setSuspendModal] = useState<{ open: boolean; agentId: number | null; reason: string }>({ open: false, agentId: null, reason: "" });
+  const [suspendModal, setSuspendModal] = useState<{ open: boolean; agentId: number | null; reason: string; step: 1 | 2; confirmName: string }>({ open: false, agentId: null, reason: "", step: 1, confirmName: "" });
   const [restoreModal, setRestoreModal] = useState<{ open: boolean; agentId: number | null; notes: string }>({ open: false, agentId: null, notes: "" });
   const [isSuspending, setIsSuspending] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
@@ -313,7 +313,7 @@ export default function AdminAgentsPage() {
     try {
       authify();
       await api.post(`/api/admin/agents/${suspendModal.agentId}/suspend`, { reason: suspendModal.reason.trim() });
-      setSuspendModal({ open: false, agentId: null, reason: "" });
+      setSuspendModal({ open: false, agentId: null, reason: "", step: 1, confirmName: "" });
       load();
       if (viewingAgent && viewingAgent.id === suspendModal.agentId) {
         const res = await api.get(`/api/admin/agents/${suspendModal.agentId}`);
@@ -874,7 +874,7 @@ export default function AdminAgentsPage() {
               <div className="flex items-center gap-2 flex-shrink-0">
                 {viewingAgent.status !== "SUSPENDED" ? (
                   <button
-                    onClick={() => setSuspendModal({ open: true, agentId: viewingAgent.id, reason: "" })}
+                    onClick={() => setSuspendModal({ open: true, agentId: viewingAgent.id, reason: "", step: 1, confirmName: "" })}
                     title="Suspend agent"
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/35 text-white text-xs font-medium transition-colors border border-red-400/30"
                   >
@@ -1863,50 +1863,243 @@ export default function AdminAgentsPage() {
         </div>
       )}
 
-      {/* ── Suspend modal ───────────────────────────────────── */}
-      {suspendModal.open && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-[2px]" onClick={() => !isSuspending && setSuspendModal({ open: false, agentId: null, reason: "" })} />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-            <div className="h-1.5 bg-gradient-to-r from-red-500 to-orange-500 rounded-t-2xl" />
-            <div className="p-6">
-              <div className="flex items-center gap-4 mb-5">
-                <div className="h-11 w-11 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
-                  <AlertTriangle className="text-red-600" size={20} />
+      {/* ── Suspend modal (premium multi-step) ──────────────────────────── */}
+      {suspendModal.open && (() => {
+        const suspendTarget = agents.find(a => a.id === suspendModal.agentId) ?? viewingAgent;
+        const agentName = suspendTarget?.user?.name || suspendTarget?.user?.fullName || "Agent";
+        const agentEmail = suspendTarget?.user?.email || "";
+        const agentInitials = initials(agentName);
+        const nameConfirmed = suspendModal.confirmName.trim().toLowerCase() === agentName.trim().toLowerCase();
+        const reasonReady = suspendModal.reason.trim().length >= 10;
+
+        return (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <div
+              className="absolute inset-0 bg-gradient-to-br from-slate-950/80 via-red-950/20 to-slate-950/80 backdrop-blur-sm"
+              onClick={() => !isSuspending && setSuspendModal({ open: false, agentId: null, reason: "", step: 1, confirmName: "" })}
+            />
+
+            <div className="relative w-full max-w-lg">
+              {/* Glow ring */}
+              <div className="absolute -inset-px rounded-3xl bg-gradient-to-br from-red-500/30 via-transparent to-orange-500/20 blur-sm" />
+
+              <div className="relative bg-gradient-to-b from-[#1a0a0a] to-[#0f172a] rounded-3xl overflow-hidden shadow-[0_32px_80px_rgba(0,0,0,0.7)] ring-1 ring-white/10">
+
+                {/* ── TOP ACCENT BAR ── */}
+                <div className="h-1 bg-gradient-to-r from-red-600 via-orange-500 to-red-600" />
+
+                {/* ── HEADER ── */}
+                <div className="px-7 pt-7 pb-5">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3.5">
+                      <div className="relative">
+                        <div className="h-12 w-12 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+                          <ShieldOff className="text-red-400" size={22} />
+                        </div>
+                        <div className="absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full bg-red-500 border-2 border-[#1a0a0a] animate-pulse" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-red-400 uppercase tracking-widest mb-0.5">
+                          {suspendModal.step === 1 ? "Step 1 of 2 — Review" : "Step 2 of 2 — Confirm"}
+                        </p>
+                        <h2 className="text-xl font-bold text-white leading-tight">
+                          {suspendModal.step === 1 ? "Suspend Agent Account" : "Confirm Suspension"}
+                        </h2>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setSuspendModal({ open: false, agentId: null, reason: "", step: 1, confirmName: "" })}
+                      disabled={isSuspending}
+                      className="p-1.5 rounded-xl text-white/40 hover:text-white/80 hover:bg-white/5 transition-colors disabled:opacity-30"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+
+                  {/* Step progress bar */}
+                  <div className="mt-5 flex gap-1.5">
+                    <div className="h-1 flex-1 rounded-full bg-red-500" />
+                    <div className={`h-1 flex-1 rounded-full transition-all duration-500 ${suspendModal.step === 2 ? "bg-red-500" : "bg-white/10"}`} />
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-lg font-bold text-gray-900">Suspend Agent Account</h3>
-                  <p className="text-sm text-gray-500 mt-0.5">The agent will be locked out and notified by email.</p>
+
+                {/* ── AGENT CARD ── */}
+                <div className="mx-7 mb-5 rounded-2xl bg-white/5 border border-white/10 p-4 flex items-center gap-4">
+                  <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-red-500/30 to-orange-500/20 border border-red-400/20 flex items-center justify-center text-sm font-bold text-red-300 flex-shrink-0 select-none">
+                    {agentInitials}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-semibold text-white text-sm truncate">{agentName}</div>
+                    {agentEmail && <div className="text-xs text-white/40 truncate mt-0.5">{agentEmail}</div>}
+                  </div>
+                  <div className="flex-shrink-0">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                      ACTIVE
+                    </span>
+                  </div>
                 </div>
-              </div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Reason for suspension <span className="text-red-500">*</span></label>
-              <textarea
-                rows={4}
-                placeholder="Describe the reason for this suspension (required)…"
-                value={suspendModal.reason}
-                onChange={(e) => setSuspendModal((s) => ({ ...s, reason: e.target.value }))}
-                disabled={isSuspending}
-                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-800 resize-none focus:outline-none focus:ring-2 focus:ring-red-400 disabled:opacity-50"
-              />
-              <div className="flex gap-3 mt-5">
-                <button
-                  onClick={() => setSuspendModal({ open: false, agentId: null, reason: "" })}
-                  disabled={isSuspending}
-                  className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
-                >Cancel</button>
-                <button
-                  onClick={handleSuspendConfirmed}
-                  disabled={isSuspending || suspendModal.reason.trim().length < 10}
-                  className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {isSuspending ? <Loader2 size={15} className="animate-spin" /> : <ShieldOff size={15} />}
-                  {isSuspending ? "Suspending…" : "Suspend Account"}
-                </button>
+
+                {/* ── STEP 1 BODY ── */}
+                {suspendModal.step === 1 && (
+                  <div className="px-7 pb-7">
+                    {/* Consequences */}
+                    <div className="mb-5 rounded-2xl bg-amber-500/5 border border-amber-500/15 p-4">
+                      <p className="text-xs font-bold text-amber-400 uppercase tracking-widest mb-3">What happens after suspension</p>
+                      <ul className="space-y-2">
+                        {[
+                          ["Portal access blocked", "Agent will be locked out of the portal immediately."],
+                          ["Email notification sent", "Agent receives an official suspension notice with your reason."],
+                          ["Assignments paused", "No new plan requests can be assigned during this period."],
+                          ["Investigation window", "Admin can restore access at any time after review."],
+                        ].map(([title, desc]) => (
+                          <li key={title} className="flex items-start gap-2.5">
+                            <span className="mt-0.5 h-4 w-4 rounded-full bg-amber-500/15 border border-amber-400/30 flex items-center justify-center flex-shrink-0">
+                              <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                            </span>
+                            <span className="text-xs text-white/70 leading-relaxed">
+                              <span className="font-semibold text-white/90">{title}</span> — {desc}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Reason */}
+                    <div className="mb-6">
+                      <label className="block text-xs font-bold text-white/60 uppercase tracking-widest mb-2">
+                        Reason for suspension <span className="text-red-400 normal-case font-normal">* min 10 characters</span>
+                      </label>
+                      <textarea
+                        rows={4}
+                        autoFocus
+                        placeholder="Clearly describe the reason for this suspension. This will be included in the email sent to the agent…"
+                        value={suspendModal.reason}
+                        onChange={(e) => setSuspendModal((s) => ({ ...s, reason: e.target.value }))}
+                        disabled={isSuspending}
+                        className="w-full rounded-xl bg-white/5 border border-white/10 focus:border-red-500/50 focus:bg-white/8 px-4 py-3 text-sm text-white/90 placeholder-white/25 resize-none focus:outline-none focus:ring-2 focus:ring-red-500/20 transition-all disabled:opacity-50"
+                      />
+                      <div className="mt-1.5 flex items-center justify-between">
+                        <span className={`text-xs transition-colors ${reasonReady ? "text-emerald-400" : "text-white/30"}`}>
+                          {reasonReady ? "✓ Reason looks good" : `${suspendModal.reason.trim().length}/10 characters minimum`}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => setSuspendModal({ open: false, agentId: null, reason: "", step: 1, confirmName: "" })}
+                        disabled={isSuspending}
+                        className="flex-1 py-3 rounded-xl border border-white/10 text-white/60 text-sm font-medium hover:bg-white/5 hover:text-white/80 transition-all disabled:opacity-40"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => setSuspendModal((s) => ({ ...s, step: 2 }))}
+                        disabled={!reasonReady}
+                        className="flex-1 py-3 rounded-xl bg-gradient-to-r from-red-600 to-red-500 text-white text-sm font-semibold hover:from-red-500 hover:to-red-400 transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-red-900/30"
+                      >
+                        Continue
+                        <span className="text-xs opacity-70">→</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── STEP 2 BODY ── */}
+                {suspendModal.step === 2 && (
+                  <div className="px-7 pb-7">
+                    {/* Reason recap */}
+                    <div className="mb-5 rounded-xl bg-white/4 border border-white/8 px-4 py-3">
+                      <p className="text-xs font-bold text-white/40 uppercase tracking-widest mb-1">Reason on file</p>
+                      <p className="text-sm text-white/70 leading-relaxed">{suspendModal.reason.trim()}</p>
+                    </div>
+
+                    {/* Name confirmation */}
+                    <div className="mb-6">
+                      <label className="block text-xs font-bold text-white/60 uppercase tracking-widest mb-1">
+                        Type agent name to confirm
+                      </label>
+                      <p className="text-xs text-white/35 mb-3">
+                        Type <span className="text-white/70 font-semibold">{agentName}</span> exactly to activate the suspension.
+                      </p>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          autoFocus
+                          placeholder={agentName}
+                          value={suspendModal.confirmName}
+                          onChange={(e) => setSuspendModal((s) => ({ ...s, confirmName: e.target.value }))}
+                          disabled={isSuspending}
+                          className={`w-full rounded-xl bg-white/5 border px-4 py-3 text-sm text-white/90 placeholder-white/20 focus:outline-none focus:ring-2 transition-all disabled:opacity-50 pr-10 ${
+                            suspendModal.confirmName === ""
+                              ? "border-white/10 focus:border-red-500/40 focus:ring-red-500/15"
+                              : nameConfirmed
+                              ? "border-emerald-500/40 bg-emerald-500/5 focus:ring-emerald-500/15"
+                              : "border-red-500/30 bg-red-500/5 focus:ring-red-500/15"
+                          }`}
+                        />
+                        {suspendModal.confirmName !== "" && (
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                            {nameConfirmed ? (
+                              <div className="h-6 w-6 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center">
+                                <Check size={12} className="text-emerald-400" />
+                              </div>
+                            ) : (
+                              <div className="h-6 w-6 rounded-full bg-red-500/20 border border-red-500/40 flex items-center justify-center">
+                                <X size={12} className="text-red-400" />
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      {suspendModal.confirmName !== "" && !nameConfirmed && (
+                        <p className="mt-1.5 text-xs text-red-400">Name does not match — check capitalisation</p>
+                      )}
+                    </div>
+
+                    {/* Final warning callout */}
+                    {nameConfirmed && (
+                      <div className="mb-5 rounded-xl border border-red-500/20 bg-red-500/8 px-4 py-3 flex items-start gap-3">
+                        <AlertTriangle size={15} className="text-red-400 flex-shrink-0 mt-0.5" />
+                        <p className="text-xs text-red-300/80 leading-relaxed">
+                          You are about to suspend <span className="font-bold text-red-300">{agentName}</span>.
+                          This action will immediately lock their portal access and send them an official email notification.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Actions */}
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => setSuspendModal((s) => ({ ...s, step: 1, confirmName: "" }))}
+                        disabled={isSuspending}
+                        className="flex-1 py-3 rounded-xl border border-white/10 text-white/60 text-sm font-medium hover:bg-white/5 hover:text-white/80 transition-all disabled:opacity-40 flex items-center justify-center gap-1.5"
+                      >
+                        <span className="text-xs opacity-60">←</span> Back
+                      </button>
+                      <button
+                        onClick={handleSuspendConfirmed}
+                        disabled={isSuspending || !nameConfirmed}
+                        className="flex-1 py-3 rounded-xl bg-gradient-to-r from-red-700 to-red-600 text-white text-sm font-bold hover:from-red-600 hover:to-red-500 transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-xl shadow-red-900/40"
+                      >
+                        {isSuspending ? (
+                          <><Loader2 size={15} className="animate-spin" /> Suspending…</>
+                        ) : (
+                          <><ShieldOff size={15} /> Suspend Account</>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
               </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ── Restore modal ───────────────────────────────────── */}
       {restoreModal.open && (

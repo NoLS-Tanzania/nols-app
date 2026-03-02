@@ -2018,9 +2018,13 @@ model Agent {
   totalRevenueGenerated Decimal @default(0) @db.Decimal(15, 2)
 
   /// Suspension metadata — populated when status = SUSPENDED
-  suspendedAt      DateTime? /// Timestamp when the suspension was applied
-  suspensionReason String?   @db.Text /// Reason recorded by the admin
-  suspendedBy      Int?      /// Admin user ID who applied the suspension
+  suspendedAt      DateTime?            /// Timestamp when the suspension was applied
+  suspensionReason String?   @db.VarChar(1000) /// Reason recorded by the admin (max 1000 chars)
+  suspendedBy      Int?                 /// Admin user ID who applied the suspension
+
+  /// Restoration metadata — populated when agent is reinstated from suspension
+  restoredAt       DateTime?            /// Timestamp when access was reinstated
+  restoredBy       Int?                 /// Admin user ID who reinstated the agent
 
   /// Created and updated timestamps
   createdAt DateTime @default(now())

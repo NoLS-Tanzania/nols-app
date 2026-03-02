@@ -107,6 +107,20 @@ const limitAgentOperations = rateLimit({
   },
 });
 
+// Tighter limiter specifically for destructive suspend/restore actions:
+// max 10 per admin per hour to prevent bulk-misuse via compromised token.
+const limitAgentSuspendRestore = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many suspend/restore actions. Please wait before trying again." },
+  keyGenerator: (req) => {
+    const adminId = (req as AuthedRequest).user?.id;
+    return adminId ? `admin-agents-suspend:${adminId}` : req.ip || req.socket.remoteAddress || "unknown";
+  },
+});
+
 // ============================================================
 // Zod Validation Schemas
 // ============================================================
@@ -1354,6 +1368,7 @@ router.patch("/:id", validate(getAgentParamsSchema, "params"), validate(updateAg
 // ============================================================
 router.post(
   "/:id/suspend",
+  limitAgentSuspendRestore,
   validate(getAgentParamsSchema, "params"),
   async (req: any, res) => {
     try {
@@ -1362,7 +1377,10 @@ router.post(
       const adminId = getAdminId(req as AuthedRequest);
 
       const rawReason = String(req.body?.reason ?? "").trim();
-      if (!rawReason) return sendError(res, 400, "A suspension reason is required.");
+      if (!rawReason || rawReason.length < 10)
+        return sendError(res, 400, "Suspension reason must be at least 10 characters.");
+      if (rawReason.length > 1000)
+        return sendError(res, 400, "Suspension reason must not exceed 1000 characters.");
       const reason = sanitizeText(rawReason);
 
       const existing = await prisma.agent.findUnique({
@@ -1418,6 +1436,7 @@ router.post(
 // ============================================================
 router.post(
   "/:id/restore",
+  limitAgentSuspendRestore,
   validate(getAgentParamsSchema, "params"),
   async (req: any, res) => {
     try {
@@ -1450,6 +1469,8 @@ router.post(
           suspendedAt: null,
           suspensionReason: null,
           suspendedBy: null,
+          restoredAt: now,
+          restoredBy: adminId,
         } as any,
         include: { user: { select: { id: true, name: true, fullName: true, email: true } } },
       });
