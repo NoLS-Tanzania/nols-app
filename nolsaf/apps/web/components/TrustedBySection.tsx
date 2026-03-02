@@ -27,10 +27,18 @@ export default function TrustedBySection({ brands, className = "", hideTitle = f
         </div>
       )}
 
-      {/* Clean, spacious logo wall (no moving marquee) */}
-      <div className="max-w-6xl mx-auto px-4 pb-6">
-        <div className="rounded-2xl border border-slate-200 bg-white/70 backdrop-blur p-5 sm:p-6 shadow-sm ring-1 ring-slate-200/40 transition-shadow duration-300 hover:shadow-md">
-          <TrustedBy brands={brands} hideTitle layout="grid" />
+      {/* Mobile: horizontal snap-scroll | sm+: grid */}
+      <div className="max-w-6xl mx-auto pb-6">
+        {/* Mobile scroll strip */}
+        <div className="sm:hidden px-4">
+          <TrustedBy brands={brands} hideTitle layout="scroll" logoMaxHeight={44} logoMaxWidth={120} />
+        </div>
+
+        {/* Desktop grid card */}
+        <div className="hidden sm:block px-4">
+          <div className="rounded-2xl border border-slate-200 bg-white/70 backdrop-blur p-5 sm:p-6 shadow-sm ring-1 ring-slate-200/40 transition-shadow duration-300 hover:shadow-md">
+            <TrustedBy brands={brands} hideTitle layout="grid" />
+          </div>
         </div>
       </div>
     </section>

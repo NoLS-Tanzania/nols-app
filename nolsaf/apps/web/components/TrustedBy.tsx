@@ -12,7 +12,7 @@ type Props = {
   brands: Brand[];
   className?: string;
   hideTitle?: boolean;
-  layout?: "marquee" | "wrap" | "grid";
+  layout?: "marquee" | "wrap" | "grid" | "scroll";
   /** Max logo height in px (applies to <img>). */
   logoMaxHeight?: number;
   /** Max logo width in px (applies to <img>). */
@@ -156,6 +156,18 @@ export default function TrustedBy({
               logoMaxWidth={logoMaxWidth}
             />
           ))}
+        </div>
+      ) : layout === "scroll" ? (
+        <div
+          className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-1"
+          style={{ scrollbarWidth: "none", WebkitOverflowScrolling: "touch" } as React.CSSProperties}
+        >
+          {brands.map((b) => (
+            <div key={`${b.name}-${b.href ?? "na"}`} className="snap-start flex-shrink-0 w-[140px]">
+              <BrandTile b={b} logoMaxHeight={logoMaxHeight} logoMaxWidth={logoMaxWidth} />
+            </div>
+          ))}
+          <div className="flex-shrink-0 w-2" aria-hidden />
         </div>
       ) : (
         <div

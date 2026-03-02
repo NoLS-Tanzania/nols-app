@@ -1,179 +1,146 @@
 /**
- * Send SMS notification
- * Integrate with your SMS provider (e.g., Twilio, Africa's Talking, etc.)
+ * SMS service — Africa's Talking (primary) → Twilio (fallback) → console (dev)
+ *
+ * Required env vars for Africa's Talking:
+ *   AFRICASTALKING_USERNAME   — your AT username (use "sandbox" for testing)
+ *   AFRICASTALKING_API_KEY    — your AT API key (from africastalking.com dashboard)
+ *   AFRICASTALKING_SENDER_ID  — (optional) shortcode / alphanumeric sender, e.g. "NoLSAF"
+ *
+ * Optional Twilio fallback:
+ *   TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_PHONE_NUMBER
  */
-export async function sendSms(to: string, text: string) {
-  try {
-    // Remove any non-digit characters except +
-    const phone = to.replace(/[^\d+]/g, '');
-    
-    // Ensure phone starts with country code (Tanzania: +255)
-    const normalizedPhone = phone.startsWith('+') ? phone : 
-                           phone.startsWith('255') ? `+${phone}` : 
-                           `+255${phone}`;
 
-    // Track last error so we can return something useful
-    let lastError: string | null = null;
+import { createRequire } from 'module';
+const _require = createRequire(import.meta.url);
 
-    async function readJsonOrText(response: Response): Promise<{ json: any | null; text: string } > {
-      const contentType = response.headers.get('content-type') || '';
-      const raw = await response.text();
-      if (contentType.toLowerCase().includes('application/json')) {
-        try {
-          return { json: raw ? JSON.parse(raw) : null, text: raw };
-        } catch {
-          return { json: null, text: raw };
-        }
-      }
-      // Some providers return text/plain even on errors
-      try {
-        return { json: raw ? JSON.parse(raw) : null, text: raw };
-      } catch {
-        return { json: null, text: raw };
-      }
-    }
+// ─── Types ────────────────────────────────────────────────────────────────────
+interface ATRecipient {
+  statusCode: number;
+  number: string;
+  status: string;
+  messageId?: string;
+  cost?: string;
+}
+interface ATSendResponse {
+  SMSMessageData: { Message: string; Recipients: ATRecipient[] };
+}
+export interface SmsResult {
+  success: boolean;
+  messageId?: string;
+  provider?: string;
+  error?: string;
+}
 
-    // Check if SMS provider is configured
-    // Priority: Africa's Talking (for East Africa) > Twilio > Generic API > Console
-    const smsProvider = process.env.SMS_PROVIDER || 
-                       (process.env.AFRICASTALKING_API_KEY ? 'africastalking' : 'console');
-    const smsApiKey = process.env.SMS_API_KEY;
-    const smsApiUrl = process.env.SMS_API_URL;
+// ─── Phone normalisation ──────────────────────────────────────────────────────
+function normaliseTo255(raw: string): string {
+  const digits = raw.replace(/[^\d+]/g, '');
+  if (digits.startsWith('+'))   return digits;
+  if (digits.startsWith('255')) return `+${digits}`;
+  return `+255${digits}`;
+}
 
-    // Africa's Talking integration (preferred for Tanzania/East Africa)
-    if (smsProvider === 'africastalking' || process.env.AFRICASTALKING_API_KEY) {
-      const username = process.env.AFRICASTALKING_USERNAME;
-      const apiKey = process.env.AFRICASTALKING_API_KEY;
-      const fromNumber = process.env.AFRICASTALKING_SENDER_ID || 'NoLSAF';
+// ─── Africa's Talking ─────────────────────────────────────────────────────────
+async function sendViaAfricasTalking(to: string, message: string): Promise<SmsResult> {
+  const username = process.env.AFRICASTALKING_USERNAME;
+  const apiKey   = process.env.AFRICASTALKING_API_KEY;
+  const senderId = process.env.AFRICASTALKING_SENDER_ID; // optional
 
-      if (username && apiKey) {
-        try {
-          const response = await fetch(
-            'https://api.africastalking.com/version1/messaging',
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'apiKey': apiKey,
-              },
-              body: new URLSearchParams({
-                username: username,
-                to: normalizedPhone,
-                message: text,
-                from: fromNumber,
-              }),
-            }
-          );
-
-          const { json, text: rawText } = await readJsonOrText(response);
-          const data = json;
-          if (!response.ok) {
-            const msg =
-              data?.errorMessage ||
-              data?.message ||
-              (rawText ? String(rawText).slice(0, 300) : '') ||
-              response.statusText ||
-              'Unknown error';
-            throw new Error(`Africa's Talking error: ${msg}`);
-          }
-
-          return { 
-            success: true, 
-            messageId: data.SMSMessageData?.Recipients?.[0]?.messageId || 'unknown',
-            provider: 'africastalking'
-          };
-        } catch (error: any) {
-          lastError = error?.message || 'Africa\'s Talking failed';
-          console.error('[SMS] Africa\'s Talking failed:', lastError);
-          // Fall through to next provider
-        }
-      }
-    }
-
-    // Twilio integration (fallback)
-    if (smsProvider === 'twilio') {
-      const accountSid = process.env.TWILIO_ACCOUNT_SID;
-      const authToken = process.env.TWILIO_AUTH_TOKEN;
-      const fromNumber = process.env.TWILIO_PHONE_NUMBER;
-
-      if (!accountSid || !authToken || !fromNumber) {
-        console.warn('[SMS] Twilio not fully configured, logging instead');
-        console.log(`[SMS] -> ${normalizedPhone}: ${text}`);
-        return { success: true, messageId: `log-${Date.now()}` };
-      }
-
-      const response = await fetch(
-        `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Authorization': `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`,
-          },
-          body: new URLSearchParams({
-            From: fromNumber,
-            To: normalizedPhone,
-            Body: text,
-          }),
-        }
-      );
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(`Twilio error: ${data.message || 'Unknown error'}`);
-      }
-
-      return { success: true, messageId: data.sid, provider: 'twilio' };
-    }
-
-    // Generic HTTP API integration
-    if (smsApiUrl) {
-      // Avoid noisy failures when a placeholder is accidentally configured.
-      const isPlaceholderUrl = /your-sms-api\.com|example\.com/i.test(String(smsApiUrl));
-      if (isPlaceholderUrl && process.env.NODE_ENV !== 'production') {
-        lastError = `SMS_API_URL is set to a placeholder (${smsApiUrl}); using console SMS in non-production.`;
-      } else {
-      const response = await fetch(smsApiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${smsApiKey}`,
-        },
-        body: JSON.stringify({
-          to: normalizedPhone,
-          message: text,
-        }),
-      });
-
-      if (!response.ok) {
-        const { text: rawText } = await readJsonOrText(response);
-        throw new Error(`SMS API error: ${rawText ? String(rawText).slice(0, 300) : response.statusText}`);
-      }
-
-      const { json } = await readJsonOrText(response);
-      const data = json || {};
-      return { success: true, messageId: data.messageId || data.id || 'unknown', provider: 'generic' };
-      }
-    }
-
-    // Fallback: log (non-production)
-    if (process.env.NODE_ENV !== 'production') {
-      if (lastError) console.warn('[SMS] Falling back to console SMS:', lastError);
-      console.log(`[SMS] -> ${normalizedPhone}: ${text}`);
-      return { success: true, messageId: `log-${Date.now()}`, provider: 'console' };
-    }
-
-    // Production mode without provider: return error
-    return { success: false, error: lastError || 'No SMS provider configured' };
-  } catch (error: any) {
-    const msg = error?.message || 'Failed to send SMS';
-    console.error('[SMS] Failed to send SMS:', msg);
-    // In non-production, don't break flows (OTP/payment) because of SMS provider config.
-    if (process.env.NODE_ENV !== 'production') {
-      console.warn('[SMS] Using console SMS in non-production due to provider failure.');
-      console.log(`[SMS] -> ${to}: ${text}`);
-      return { success: true, messageId: `log-${Date.now()}`, provider: 'console' };
-    }
-    return { success: false, error: msg };
+  if (!username || !apiKey) {
+    return { success: false, error: 'Africa\'s Talking credentials missing (AFRICASTALKING_USERNAME / AFRICASTALKING_API_KEY)' };
   }
+
+  // The package is CommonJS — use createRequire for ESM interop
+  const AfricasTalking = _require('africastalking') as
+    (cfg: { username: string; apiKey: string }) => {
+      SMS: { send(opts: { to: string[]; message: string; from?: string }): Promise<ATSendResponse> };
+    };
+
+  const at  = AfricasTalking({ username, apiKey });
+  const sms = at.SMS;
+
+  const opts: { to: string[]; message: string; from?: string } = { to: [to], message };
+  if (senderId) opts.from = senderId;
+
+  const result = await sms.send(opts);
+  const first  = result?.SMSMessageData?.Recipients?.[0];
+
+  // AT returns statusCode 101 for a queued/accepted message
+  if (first && (first.statusCode === 101 || first.status === 'Success')) {
+    return { success: true, messageId: first.messageId ?? 'unknown', provider: 'africastalking' };
+  }
+
+  throw new Error(`Africa's Talking rejected: ${first?.status ?? result?.SMSMessageData?.Message ?? 'unknown error'}`);
+}
+
+// ─── Twilio (optional fallback) ───────────────────────────────────────────────
+async function sendViaTwilio(to: string, message: string): Promise<SmsResult> {
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  const authToken  = process.env.TWILIO_AUTH_TOKEN;
+  const from       = process.env.TWILIO_PHONE_NUMBER;
+
+  if (!accountSid || !authToken || !from) {
+    return { success: false, error: 'Twilio credentials not set' };
+  }
+
+  const response = await fetch(
+    `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type':  'application/x-www-form-urlencoded',
+        'Authorization': `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`,
+      },
+      body: new URLSearchParams({ From: from, To: to, Body: message }),
+    },
+  );
+
+  const data = await response.json() as { sid?: string; message?: string };
+  if (!response.ok) throw new Error(`Twilio error: ${data.message ?? response.statusText}`);
+  return { success: true, messageId: data.sid, provider: 'twilio' };
+}
+
+// ─── Public API ───────────────────────────────────────────────────────────────
+/**
+ * Send an SMS.  Priority chain:
+ *   1. Africa's Talking  (set AFRICASTALKING_API_KEY)
+ *   2. Twilio            (set TWILIO_ACCOUNT_SID)
+ *   3. Console log       (dev / staging only — never blocks OTP flows)
+ */
+export async function sendSms(to: string, text: string): Promise<SmsResult> {
+  const phone = normaliseTo255(to);
+
+  // 1 — Africa's Talking
+  if (process.env.AFRICASTALKING_API_KEY) {
+    try {
+      const r = await sendViaAfricasTalking(phone, text);
+      if (r.success) {
+        console.log(`[SMS] Sent via Africa's Talking → ${phone}`);
+        return r;
+      }
+      console.warn('[SMS] Africa\'s Talking returned failure:', r.error);
+    } catch (err: any) {
+      console.error('[SMS] Africa\'s Talking threw:', err?.message ?? err);
+    }
+  }
+
+  // 2 — Twilio
+  if (process.env.TWILIO_ACCOUNT_SID) {
+    try {
+      const r = await sendViaTwilio(phone, text);
+      if (r.success) {
+        console.log(`[SMS] Sent via Twilio → ${phone}`);
+        return r;
+      }
+    } catch (err: any) {
+      console.error('[SMS] Twilio threw:', err?.message ?? err);
+    }
+  }
+
+  // 3 — Dev console fallback
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`[SMS DEV] → ${phone}: ${text}`);
+    return { success: true, messageId: `dev-${Date.now()}`, provider: 'console' };
+  }
+
+  return { success: false, error: 'No SMS provider delivered the message' };
 }

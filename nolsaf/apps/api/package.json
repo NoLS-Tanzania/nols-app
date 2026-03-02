@@ -28,6 +28,7 @@
     "@stripe/stripe-js": "^8.5.3",
     "@types/multer": "^2.0.0",
     "@types/pdfkit": "^0.17.5",
+    "africastalking": "^0.7.9",
     "argon2": "^0.44.0",
     "axios": "^1.13.5",
     "body-parser": "^1.20.3",

@@ -48,6 +48,12 @@ At minimum:
 Common optional:
 - `COOKIE_DOMAIN=.yourdomain.com` (share cookies across subdomains)
 - `REDIS_URL=...` (required if you enable Redis-backed features)
+- **SMS — Africa\'s Talking (primary, East Africa)**
+  - `AFRICASTALKING_USERNAME` — your AT account username (`sandbox` for testing)
+  - `AFRICASTALKING_API_KEY` — copy from [africastalking.com](https://africastalking.com) → Settings → API Key
+  - `AFRICASTALKING_SENDER_ID` — (optional) registered alphanumeric sender, e.g. `NoLSAF`
+- **SMS — Twilio (optional fallback)**
+  - `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER`
 
 If you run a separate staging frontend/domain, add it too:
 - `CORS_ORIGIN=https://prod.example.com,https://staging.example.com`
