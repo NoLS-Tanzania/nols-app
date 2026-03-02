@@ -120,6 +120,11 @@ type Agent = {
     overallProgress: number;
     eligibleForPromotion: boolean;
   };
+  suspendedAt?: string | null;
+  suspensionReason?: string | null;
+  suspendedBy?: number | null;
+  restoredAt?: string | null;
+  restoredBy?: number | null;
   createdAt: string;
   updatedAt: string;
   user: {
@@ -203,6 +208,7 @@ export default function AdminAgentsPage() {
   const [status, setStatus] = useState<string>("");
   const [educationLevel, setEducationLevel] = useState<string>("");
   const [available, setAvailable] = useState<string>("");
+  const [suspensionReasonFilter, setSuspensionReasonFilter] = useState<string>("");
   const [areasOfOperation, setAreasOfOperation] = useState<string>("");
   const [specializations, setSpecializations] = useState<string>("");
   const [languages, setLanguages] = useState<string>("");
@@ -249,6 +255,7 @@ export default function AdminAgentsPage() {
       if (status && status.trim()) params.status = sanitizeInput(status.trim());
       if (educationLevel && educationLevel.trim()) params.educationLevel = sanitizeInput(educationLevel.trim());
       if (available && available.trim()) params.available = sanitizeInput(available.trim());
+      if (suspensionReasonFilter && suspensionReasonFilter.trim()) params.suspensionReason = sanitizeInput(suspensionReasonFilter.trim());
       if (areasOfOperation && areasOfOperation.trim()) params.areasOfOperation = sanitizeInput(areasOfOperation.trim());
       if (specializations && specializations.trim()) params.specializations = sanitizeInput(specializations.trim());
       if (languages && languages.trim()) params.languages = sanitizeInput(languages.trim());
@@ -266,7 +273,7 @@ export default function AdminAgentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, status, educationLevel, available, areasOfOperation, specializations, languages, debouncedQ]);
+  }, [page, status, educationLevel, available, suspensionReasonFilter, areasOfOperation, specializations, languages, debouncedQ]);
 
   useEffect(() => {
     authify();
@@ -518,6 +525,23 @@ export default function AdminAgentsPage() {
               </select>
             </div>
 
+            {/* Suspension Reason Filter — only meaningful when filtering SUSPENDED */}
+            <div className="flex flex-col min-w-0">
+              <label htmlFor="suspension-reason-filter" className="text-xs font-semibold text-gray-700 mb-2">Suspension Reason</label>
+              <select
+                id="suspension-reason-filter"
+                aria-label="Filter by suspension reason"
+                value={suspensionReasonFilter}
+                onChange={(e) => setSuspensionReasonFilter(e.target.value)}
+                className="w-full min-w-0 px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] outline-none text-sm bg-white hover:border-gray-300 focus:bg-white transition-all duration-200 cursor-pointer box-border appearance-none"
+              >
+                <option value="">All Reasons</option>
+                <option value="Policy Violation">Policy Violation</option>
+                <option value="Code of Conduct Breach">Code of Conduct Breach</option>
+                <option value="Fraudulent Activity">Fraudulent Activity</option>
+              </select>
+            </div>
+
             {/* Availability Filter */}
             <div className="flex flex-col min-w-0">
               <label htmlFor="availability-filter" className="text-xs font-semibold text-gray-700 mb-2">Availability</label>
@@ -617,13 +641,14 @@ export default function AdminAgentsPage() {
           </div>
 
           {/* Clear Filters Button */}
-          {(status || educationLevel || available || areasOfOperation || specializations || languages || q) && (
+          {(status || educationLevel || available || suspensionReasonFilter || areasOfOperation || specializations || languages || q) && (
             <div className="flex justify-end pt-2">
               <button
                 onClick={() => {
                   setStatus("");
                   setEducationLevel("");
                   setAvailable("");
+                  setSuspensionReasonFilter("");
                   setAreasOfOperation("");
                   setSpecializations("");
                   setLanguages("");
@@ -1654,6 +1679,54 @@ export default function AdminAgentsPage() {
                     </div>
                   )}
                 </div>
+
+                {/* Suspension / Restoration Audit */}
+                {(viewingAgent.status === "SUSPENDED" || viewingAgent.suspendedAt || viewingAgent.restoredAt) && (
+                  <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">
+                    <div className="flex items-center gap-2 mb-4">
+                      <ShieldOff className="h-5 w-5 text-red-500" />
+                      <h3 className="text-base font-semibold text-gray-900">Account Audit Trail</h3>
+                    </div>
+                    <div className="space-y-3">
+                      {/* Suspension record */}
+                      {viewingAgent.suspendedAt && (
+                        <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3">
+                          <p className="text-[10px] font-bold text-red-400 uppercase tracking-widest mb-2">Suspension</p>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <div>
+                              <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide mb-0.5">Reason</p>
+                              <p className="text-sm font-semibold text-gray-800">{viewingAgent.suspensionReason || "—"}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide mb-0.5">Date</p>
+                              <p className="text-sm text-gray-700">{new Date(viewingAgent.suspendedAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide mb-0.5">Actioned by</p>
+                              <p className="text-sm text-gray-700">{viewingAgent.suspendedBy ? `Admin #${viewingAgent.suspendedBy}` : "—"}</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      {/* Restoration record */}
+                      {viewingAgent.restoredAt && (
+                        <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3">
+                          <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest mb-2">Reinstatement</p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <div>
+                              <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide mb-0.5">Date</p>
+                              <p className="text-sm text-gray-700">{new Date(viewingAgent.restoredAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide mb-0.5">Actioned by</p>
+                              <p className="text-sm text-gray-700">{viewingAgent.restoredBy ? `Admin #${viewingAgent.restoredBy}` : "—"}</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Track Tasks */}
                 <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">
