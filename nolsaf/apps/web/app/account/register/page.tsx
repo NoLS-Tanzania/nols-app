@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import axios from 'axios';
-import { AlertCircle, Check, UserPlus, Lock, LogIn, User, Truck, Building2, Mail, ArrowLeft, Phone, Eye, EyeOff, Shield } from 'lucide-react';
+import { AlertCircle, Check, UserPlus, Lock, LogIn, User, Truck, Building2, Mail, ArrowLeft, Phone, Eye, EyeOff, Shield, Fingerprint } from 'lucide-react';
 import { useRouter, useSearchParams } from "next/navigation";
 import LogoSpinner from "@/components/LogoSpinner";
 
@@ -49,7 +49,98 @@ export default function RegisterPage() {
   const [lockoutTotalSeconds, setLockoutTotalSeconds] = useState<number>(0);
   const [lockoutRemainingSeconds, setLockoutRemainingSeconds] = useState<number>(0);
   const [lockoutMessage, setLockoutMessage] = useState<string | null>(null);
+  const [passkeyLoading, setPasskeyLoading] = useState<boolean>(false);
   
+  // Passkey sign-in helper
+  const handlePasskeySignIn = async () => {
+    setPasskeyLoading(true);
+    setError(null);
+    try {
+      if (typeof PublicKeyCredential === 'undefined') {
+        throw new Error('Passkeys are not supported in this browser. Try Chrome, Edge, or Safari.');
+      }
+
+      const optRes = await fetch('/api/auth/passkeys/options', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+        credentials: 'include',
+      });
+      if (!optRes.ok) {
+        const d = await optRes.json().catch(() => ({}));
+        throw new Error((d as any)?.error || 'Failed to get passkey options');
+      }
+      const { sessionId, publicKey } = await optRes.json();
+
+      const b64urlToUint8 = (s: string): Uint8Array => {
+        let str = s.replace(/-/g, '+').replace(/_/g, '/');
+        const pad = (4 - (str.length % 4)) % 4;
+        if (pad) str += '='.repeat(pad);
+        const bin = atob(str);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        return bytes;
+      };
+
+      const arrToB64Url = (buf: ArrayBuffer): string => {
+        const bytes = new Uint8Array(buf);
+        let str = '';
+        for (let i = 0; i < bytes.byteLength; i++) str += String.fromCharCode(bytes[i]);
+        return btoa(str).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+      };
+
+      const credential = await navigator.credentials.get({
+        publicKey: {
+          challenge: b64urlToUint8(publicKey.challenge),
+          rpId: publicKey.rpId,
+          timeout: publicKey.timeout ?? 60000,
+          userVerification: publicKey.userVerification ?? 'preferred',
+          allowCredentials: (publicKey.allowCredentials ?? []).map((c: any) => ({
+            ...c,
+            id: b64urlToUint8(c.id),
+          })),
+        },
+      });
+
+      if (!credential) throw new Error('No credential returned');
+      const credAny = credential as any;
+
+      const assertion = {
+        id: credAny.id,
+        rawId: arrToB64Url(credAny.rawId),
+        type: credAny.type,
+        response: {
+          authenticatorData: arrToB64Url(credAny.response.authenticatorData),
+          clientDataJSON: arrToB64Url(credAny.response.clientDataJSON),
+          signature: arrToB64Url(credAny.response.signature),
+          userHandle: credAny.response.userHandle ? arrToB64Url(credAny.response.userHandle) : null,
+        },
+        clientExtensionResults: credAny.getClientExtensionResults ? credAny.getClientExtensionResults() : {},
+      };
+
+      const verifyRes = await fetch('/api/auth/passkeys/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId, response: assertion }),
+        credentials: 'include',
+      });
+      if (!verifyRes.ok) {
+        const d = await verifyRes.json().catch(() => ({}));
+        throw new Error((d as any)?.error || 'Passkey verification failed');
+      }
+
+      await redirectAfterAuth();
+    } catch (e: any) {
+      if (e?.name === 'NotAllowedError') {
+        setError('Passkey sign-in was cancelled. Please try again.');
+      } else {
+        setError(e?.message || 'Passkey sign-in failed');
+      }
+    } finally {
+      setPasskeyLoading(false);
+    }
+  };
+
   // Forgot password state
   const [forgotEmail, setForgotEmail] = useState<string>('');
   const [forgotPhone, setForgotPhone] = useState<string>('');
@@ -776,6 +867,31 @@ export default function RegisterPage() {
                 >
                   <Lock className="w-3.5 h-3.5 flex-shrink-0" />
                   <span>Forgot password?</span>
+                </button>
+
+                <div className="relative flex items-center gap-3 my-1">
+                  <div className="flex-1 h-px bg-slate-800" />
+                  <span className="text-[11px] text-slate-500 font-medium">or</span>
+                  <div className="flex-1 h-px bg-slate-800" />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handlePasskeySignIn}
+                  disabled={passkeyLoading || isLockedOut}
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-[#02665e]/30 bg-[#02665e]/8 py-2.5 text-xs font-semibold text-[#02665e] hover:bg-[#02665e]/15 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {passkeyLoading ? (
+                    <>
+                      <LogoSpinner size="xs" ariaLabel="Authenticating" className="text-[#02665e]" />
+                      <span>Authenticating...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Fingerprint className="w-4 h-4 flex-shrink-0" />
+                      <span>Sign in with Passkey</span>
+                    </>
+                  )}
                 </button>
               </>
             ) : (

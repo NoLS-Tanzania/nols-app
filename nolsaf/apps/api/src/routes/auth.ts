@@ -4,6 +4,7 @@ import { prisma } from '@nolsaf/prisma';
 import { hashPassword, verifyPassword } from '../lib/crypto.js';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
+import { generateAuthenticationOptions, verifyAuthenticationResponse } from '@simplewebauthn/server';
 import { sendMail } from '../lib/mailer.js';
 import { getPasswordResetEmail, getLoginAlertEmail, getPasswordChangedConfirmationEmail } from '../lib/authEmailTemplates.js';
 import { sendSms } from '../lib/sms.js';
@@ -1314,6 +1315,113 @@ router.post('/profile', upload.any(), async (req, res) => {
   } catch (err: any) {
     console.error('Failed to save profile', err);
     return res.status(500).json({ error: 'Failed to save profile', message: err.message });
+  }
+});
+
+// ─── Passkey sign-in (unauthenticated) ───────────────────────────────────────
+
+const passkeyLoginChallenges = new Map<string, { challenge: string; expiresAt: number }>();
+
+function fromBase64UrlToBuffer(s: string): Buffer {
+  const str = s.replace(/-/g, '+').replace(/_/g, '/');
+  return Buffer.from(str, 'base64');
+}
+
+/** POST /api/auth/passkeys/options — returns WebAuthn authentication options (discoverable) */
+router.post('/passkeys/options', async (req, res) => {
+  try {
+    const origin = process.env.WEB_ORIGIN || process.env.APP_ORIGIN || 'http://localhost:3000';
+    const rpID = new URL(origin).hostname;
+
+    const options = await generateAuthenticationOptions({
+      timeout: 60000,
+      rpID,
+      userVerification: 'preferred',
+      allowCredentials: [], // empty = discoverable credentials (no username required)
+    });
+
+    const sessionId = crypto.randomBytes(16).toString('hex');
+    passkeyLoginChallenges.set(sessionId, {
+      challenge: (options as any).challenge as string,
+      expiresAt: Date.now() + 2 * 60 * 1000, // 2-minute window
+    });
+
+    return res.json({ sessionId, publicKey: options });
+  } catch (e) {
+    console.error('[passkeys/options] error', e);
+    return res.status(500).json({ error: 'failed' });
+  }
+});
+
+/** POST /api/auth/passkeys/verify — verifies assertion and issues session cookie */
+router.post('/passkeys/verify', async (req, res) => {
+  try {
+    const { sessionId, response } = (req.body ?? {}) as any;
+    if (!sessionId || !response) return res.status(400).json({ error: 'invalid payload' });
+
+    const entry = passkeyLoginChallenges.get(String(sessionId));
+    if (!entry) return res.status(400).json({ error: 'session expired or not found' });
+    if (entry.expiresAt < Date.now()) {
+      passkeyLoginChallenges.delete(String(sessionId));
+      return res.status(400).json({ error: 'challenge expired' });
+    }
+
+    const credId: string = response.id || response.rawId;
+    if (!credId) return res.status(400).json({ error: 'missing credential id' });
+
+    // Look up passkey by credentialId
+    let stored: any = null;
+    try {
+      if ((prisma as any).passkey) {
+        stored = await (prisma as any).passkey.findFirst({ where: { credentialId: credId } });
+      }
+    } catch { /* ignore */ }
+    if (!stored) return res.status(400).json({ error: 'credential not found' });
+
+    const origin = process.env.WEB_ORIGIN || process.env.APP_ORIGIN || 'http://localhost:3000';
+    const rpID = new URL(origin).hostname;
+
+    let verification: any = null;
+    try {
+      verification = await (verifyAuthenticationResponse as any)({
+        credential: response,
+        expectedChallenge: entry.challenge,
+        expectedOrigin: origin,
+        expectedRPID: rpID,
+        authenticator: {
+          credentialPublicKey: fromBase64UrlToBuffer(stored.publicKey),
+          credentialID: fromBase64UrlToBuffer(stored.credentialId),
+          counter: typeof stored.signCount === 'number' ? stored.signCount : 0,
+        },
+      } as any);
+    } catch (e) {
+      const details = process.env.NODE_ENV !== 'production' ? String((e as any)?.message ?? e) : undefined;
+      return res.status(400).json({ error: 'verification failed', ...(details ? { details } : {}) });
+    }
+
+    if (!verification?.verified) return res.status(400).json({ error: 'verification failed' });
+
+    passkeyLoginChallenges.delete(String(sessionId));
+
+    // Update sign count
+    const newCounter = verification.authenticationInfo?.newCounter ?? verification.authenticationInfo?.counter;
+    if (typeof newCounter === 'number') {
+      try {
+        await (prisma as any).passkey.update({ where: { credentialId: stored.credentialId }, data: { signCount: newCounter } });
+      } catch { /* ignore */ }
+    }
+
+    // Find user and issue session
+    const user = await prisma.user.findUnique({ where: { id: stored.userId } } as any);
+    if (!user) return res.status(400).json({ error: 'user not found' });
+
+    const token = await signUserJwt({ id: (user as any).id, role: (user as any).role, email: (user as any).email });
+    await setAuthCookie(res, token, (user as any).role);
+
+    return res.json({ ok: true, user: { id: (user as any).id, role: (user as any).role } });
+  } catch (e) {
+    console.error('[passkeys/verify] error', e);
+    return res.status(500).json({ error: 'failed' });
   }
 });
 
