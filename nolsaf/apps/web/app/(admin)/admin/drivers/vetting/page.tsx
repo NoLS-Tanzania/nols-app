@@ -230,7 +230,7 @@ export default function DriverVettingPage() {
   const payoutObj = (selected?.payout && typeof selected.payout === "object") ? selected.payout as any : {};
 
   return (
-    <div className="h-full flex flex-col gap-0">
+    <div className="flex flex-col gap-0">
       {/* Header */}
       <div
         className="rounded-2xl overflow-hidden mb-5 p-6"
@@ -255,35 +255,51 @@ export default function DriverVettingPage() {
           </div>
         </div>
 
-        {/* Tab counters */}
-        <div className="flex gap-3 mt-5 flex-wrap">
-          {tabs.map(({ key, label, icon: Icon, color }) => (
-            <button
-              key={key}
-              onClick={() => { setTab(key); setSelected(null); }}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
-                tab === key
-                  ? "bg-white text-slate-900 shadow-md"
-                  : "bg-white/10 text-white hover:bg-white/20 border border-white/20"
-              }`}
-            >
-              <Icon className="w-4 h-4" />
-              {label}
-              <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-bold ${
-                tab === key
-                  ? color === "amber" ? "bg-amber-100 text-amber-700"
-                  : color === "emerald" ? "bg-emerald-100 text-emerald-700"
-                  : "bg-red-100 text-red-700"
-                  : "bg-white/20 text-white"
-              }`}>
-                {counts[key]}
-              </span>
-            </button>
-          ))}
+        {/* Tab counters — premium stat cards */}
+        <div className="flex gap-3 mt-6 flex-wrap">
+          {tabs.map(({ key, label, icon: Icon, color }) => {
+            const active = tab === key;
+            const countColor = color === "amber" ? "text-amber-400" : color === "emerald" ? "text-emerald-400" : "text-red-400";
+            const activeBg = color === "amber" ? "bg-amber-50 border-amber-200" : color === "emerald" ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200";
+            const activeCount = color === "amber" ? "text-amber-700" : color === "emerald" ? "text-emerald-700" : "text-red-700";
+            const activeLabel = color === "amber" ? "text-amber-900" : color === "emerald" ? "text-emerald-900" : "text-red-900";
+            return (
+              <button
+                key={key}
+                onClick={() => { setTab(key); setSelected(null); }}
+                className={`relative flex items-center gap-3.5 px-5 py-3.5 rounded-2xl text-left transition-all duration-200 ${
+                  active
+                    ? `${activeBg} border shadow-lg scale-[1.02]`
+                    : "bg-white/10 border border-white/15 text-white hover:bg-white/20 hover:scale-[1.01]"
+                }`}
+              >
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                  active
+                    ? color === "amber" ? "bg-amber-100" : color === "emerald" ? "bg-emerald-100" : "bg-red-100"
+                    : "bg-white/15"
+                }`}>
+                  <Icon className={`w-4 h-4 ${active ? (color === "amber" ? "text-amber-600" : color === "emerald" ? "text-emerald-600" : "text-red-600") : "text-white"}`} />
+                </div>
+                <div>
+                  <p className={`text-2xl font-black leading-none tracking-tight ${
+                    active ? activeCount : countColor
+                  }`}>{counts[key]}</p>
+                  <p className={`text-xs font-semibold mt-0.5 ${
+                    active ? activeLabel : "text-white/75"
+                  }`}>{label}</p>
+                </div>
+                {active && (
+                  <div className={`absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full ${
+                    color === "amber" ? "bg-amber-400" : color === "emerald" ? "bg-emerald-400" : "bg-red-400"
+                  }`} />
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      <div className="flex gap-4 flex-1 min-h-0">
+      <div className="flex gap-4">
         {/* List panel */}
         <div className={`flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden transition-all ${selected ? "w-96 flex-shrink-0" : "flex-1"}`}>
           {/* Search */}
@@ -294,14 +310,14 @@ export default function DriverVettingPage() {
                 value={q}
                 onChange={e => setQ(e.target.value)}
                 placeholder="Search by name, email, phone…"
-                className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] outline-none"
+                className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] outline-none bg-slate-50 focus:bg-white transition-colors"
               />
             </div>
-            <div className="text-xs text-slate-400 mt-2">{loading ? "Loading…" : `${total} driver${total !== 1 ? "s" : ""}`}</div>
+            <div className="text-xs text-slate-400 mt-2 font-medium">{loading ? "Loading…" : `${total} driver${total !== 1 ? "s" : ""}`}</div>
           </div>
 
           {/* List */}
-          <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
+          <div className="divide-y divide-slate-100" style={{ maxHeight: 640, overflowY: "auto" }}>
             {loading ? (
               <div className="p-8 text-center">
                 <Loader2 className="w-6 h-6 animate-spin text-slate-400 mx-auto mb-2" />
@@ -351,7 +367,7 @@ export default function DriverVettingPage() {
 
         {/* Detail panel */}
         {selected && (
-          <div className="flex-1 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+          <div className="flex-1 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col" style={{ maxHeight: 720 }}>
             {/* Detail header */}
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-4">
               <div className="flex items-center gap-4">
@@ -374,7 +390,7 @@ export default function DriverVettingPage() {
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto">
+            <div className="overflow-y-auto" style={{ maxHeight: 480 }}>
               {detailLoading ? (
                 <div className="p-8 text-center">
                   <Loader2 className="w-6 h-6 animate-spin text-slate-400 mx-auto mb-2" />
