@@ -6,13 +6,11 @@ import {
   ShieldCheck,
   ShieldX,
   Clock,
-  Search,
   ChevronRight,
   X,
   CheckCircle2,
   XCircle,
   MessageSquare,
-  RefreshCw,
   Car,
   FileText,
   User,
@@ -116,9 +114,7 @@ function DocLink({ label, url }: { label: string; url?: string | null }) {
 
 export default function DriverVettingPage() {
   const [tab, setTab] = useState<Tab>("PENDING_KYC");
-  const [q, setQ] = useState("");
   const [items, setItems] = useState<DriverRow[]>([]);
-  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [counts, setCounts] = useState<Record<Tab, number>>({ PENDING_KYC: 0, APPROVED_KYC: 0, REJECTED_KYC: 0 });
 
@@ -132,14 +128,13 @@ export default function DriverVettingPage() {
   const [showNoteInput, setShowNoteInput] = useState<"reject" | "request_info" | null>(null);
   const [actionMsg, setActionMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  const load = useCallback(async (activeTab: Tab, search: string) => {
+  const load = useCallback(async (activeTab: Tab) => {
     setLoading(true);
     try {
       const r = await api.get("/api/admin/drivers", {
-        params: { status: activeTab, q: search || undefined, page: 1, pageSize: 50 },
+        params: { status: activeTab, page: 1, pageSize: 50 },
       });
       setItems(r.data?.items ?? []);
-      setTotal(r.data?.total ?? 0);
     } catch {
       setItems([]);
     } finally {
@@ -168,8 +163,8 @@ export default function DriverVettingPage() {
   }, [loadCounts]);
 
   useEffect(() => {
-    load(tab, q);
-  }, [tab, q, load]);
+    load(tab);
+  }, [tab, load]);
 
   async function openDetail(row: DriverRow) {
     setSelected(row as DriverDetail);
@@ -244,55 +239,45 @@ export default function DriverVettingPage() {
             <h1 className="text-2xl font-bold text-white">Driver Vetting</h1>
             <p className="text-white/70 text-sm mt-0.5">Review and approve new driver applications before they access the platform</p>
           </div>
-          <div className="ml-auto">
-            <button
-              onClick={() => { load(tab, q); loadCounts(); }}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white text-sm hover:bg-white/20 transition-colors"
-            >
-              <RefreshCw className="w-4 h-4" />
-              Refresh
-            </button>
-          </div>
+
         </div>
 
-        {/* Tab counters — premium stat cards */}
+        {/* Tab stat cards */}
         <div className="flex gap-3 mt-6 flex-wrap">
           {tabs.map(({ key, label, icon: Icon, color }) => {
             const active = tab === key;
-            const countColor = color === "amber" ? "text-amber-400" : color === "emerald" ? "text-emerald-400" : "text-red-400";
-            const activeBg = color === "amber" ? "bg-amber-50 border-amber-200" : color === "emerald" ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200";
-            const activeCount = color === "amber" ? "text-amber-700" : color === "emerald" ? "text-emerald-700" : "text-red-700";
-            const activeLabel = color === "amber" ? "text-amber-900" : color === "emerald" ? "text-emerald-900" : "text-red-900";
+            const cfg = {
+              amber:   { ring: "ring-amber-300",   iconBg: "bg-amber-100",   iconColor: "text-amber-500",   num: "text-amber-600",   lbl: "text-amber-800",   bar: "bg-amber-400",   activeBg: "bg-amber-50" },
+              emerald: { ring: "ring-emerald-300", iconBg: "bg-emerald-100", iconColor: "text-emerald-500", num: "text-emerald-600", lbl: "text-emerald-800", bar: "bg-emerald-400", activeBg: "bg-emerald-50" },
+              red:     { ring: "ring-red-300",     iconBg: "bg-red-100",     iconColor: "text-red-500",     num: "text-red-600",     lbl: "text-red-800",     bar: "bg-red-400",     activeBg: "bg-red-50" },
+            }[color]!;
             return (
               <button
                 key={key}
                 onClick={() => { setTab(key); setSelected(null); }}
-                className={`relative flex items-center gap-3.5 px-5 py-3.5 rounded-2xl text-left transition-all duration-200 ${
+                className={`relative flex items-center gap-4 pl-5 pr-6 py-4 rounded-2xl text-left transition-all duration-200 min-w-[170px] ${
                   active
-                    ? `${activeBg} border shadow-lg scale-[1.02]`
-                    : "bg-white/10 border border-white/15 text-white hover:bg-white/20 hover:scale-[1.01]"
+                    ? `${cfg.activeBg} ring-2 ${cfg.ring} shadow-xl scale-[1.03]`
+                    : "bg-white/95 ring-1 ring-white/40 shadow-md hover:shadow-lg hover:scale-[1.01]"
                 }`}
               >
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                  active
-                    ? color === "amber" ? "bg-amber-100" : color === "emerald" ? "bg-emerald-100" : "bg-red-100"
-                    : "bg-white/15"
-                }`}>
-                  <Icon className={`w-4 h-4 ${active ? (color === "amber" ? "text-amber-600" : color === "emerald" ? "text-emerald-600" : "text-red-600") : "text-white"}`} />
-                </div>
-                <div>
-                  <p className={`text-2xl font-black leading-none tracking-tight ${
-                    active ? activeCount : countColor
-                  }`}>{counts[key]}</p>
-                  <p className={`text-xs font-semibold mt-0.5 ${
-                    active ? activeLabel : "text-white/75"
-                  }`}>{label}</p>
-                </div>
+                {/* Colored top bar */}
                 {active && (
-                  <div className={`absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full ${
-                    color === "amber" ? "bg-amber-400" : color === "emerald" ? "bg-emerald-400" : "bg-red-400"
-                  }`} />
+                  <span className={`absolute top-0 left-6 right-6 h-[3px] rounded-b-full ${cfg.bar}`} />
                 )}
+                {/* Icon */}
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${active ? cfg.iconBg : "bg-slate-100"}`}>
+                  <Icon className={`w-5 h-5 ${active ? cfg.iconColor : "text-slate-400"}`} />
+                </div>
+                {/* Text */}
+                <div>
+                  <p className={`text-3xl font-black leading-none tracking-tight ${active ? cfg.num : "text-slate-700"}`}>
+                    {counts[key]}
+                  </p>
+                  <p className={`text-[11px] font-bold uppercase tracking-wider mt-1.5 ${active ? cfg.lbl : "text-slate-400"}`}>
+                    {label}
+                  </p>
+                </div>
               </button>
             );
           })}
@@ -302,20 +287,6 @@ export default function DriverVettingPage() {
       <div className="flex gap-4">
         {/* List panel */}
         <div className={`flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden transition-all ${selected ? "w-96 flex-shrink-0" : "flex-1"}`}>
-          {/* Search */}
-          <div className="p-4 border-b border-slate-100">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input
-                value={q}
-                onChange={e => setQ(e.target.value)}
-                placeholder="Search by name, email, phone…"
-                className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] outline-none bg-slate-50 focus:bg-white transition-colors"
-              />
-            </div>
-            <div className="text-xs text-slate-400 mt-2 font-medium">{loading ? "Loading…" : `${total} driver${total !== 1 ? "s" : ""}`}</div>
-          </div>
-
           {/* List */}
           <div className="divide-y divide-slate-100" style={{ maxHeight: 640, overflowY: "auto" }}>
             {loading ? (
